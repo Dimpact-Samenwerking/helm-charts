@@ -1,6 +1,4 @@
-"""main() — the fixer companion to lib.checks.helm_docs.check_helm_docs.
-No real helm-docs/git invocation happens in these tests — `run` is
-monkeypatched, and CHART_DIR points at a disposable tmp_path chart dir."""
+"""fix-helm-doc main(); `run` is mocked and CHART_DIR is a tmp_path chart."""
 
 from pathlib import Path
 from types import ModuleType
@@ -26,9 +24,7 @@ def make_chart_dir(tmp_path: Path, *, gotmpl=False):
 def test_main_help_flag_works_even_when_helm_docs_is_not_installed(
     upr: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], flag
 ):
-    """--help must never require helm-docs to be on PATH — it's checked
-    for by the caller wanting to actually run this, not someone just
-    asking what the script does."""
+    """--help must not require helm-docs on PATH."""
     monkeypatch.setattr(upr, "CHART_DIR", make_chart_dir(tmp_path))
     monkeypatch.setattr(upr.shutil, "which", lambda name: None)
     monkeypatch.setattr(upr.sys, "argv", ["fix-helm-doc", flag])

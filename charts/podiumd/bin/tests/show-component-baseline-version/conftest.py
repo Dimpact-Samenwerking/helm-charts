@@ -1,5 +1,4 @@
-"""Loads show-component-baseline-version (a hyphenated filename, not
-importable normally) as a module named `scbv`."""
+"""Load show-component-baseline-version (hyphenated, not importable) as `scbv`."""
 
 import importlib.util
 

@@ -1,6 +1,4 @@
-"""Loads show-image-baseline-version (a hyphenated filename, not
-importable normally) as a module named `sibv` so tests can call its
-functions directly."""
+"""Load show-image-baseline-version (hyphenated, not importable) as `sibv`."""
 
 import importlib.util
 

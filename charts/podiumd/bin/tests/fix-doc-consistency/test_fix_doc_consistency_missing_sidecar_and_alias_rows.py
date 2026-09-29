@@ -30,14 +30,8 @@ def set_argv_and_dir(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch, doc_dir, 
 
 @pytest.fixture
 def repo_with_new_sidecar_pinned_to_a_known_mirrored_image(tmp_path: Path):
-    """redis-operator's own "k8s" sidecar is added as a brand-new nested
-    path this release (baseline_values has nothing for it at all), but
-    it's pinned to an image version+digest that's ALREADY recorded, at
-    the same version, in an earlier release's own docs/images/
-    images-4.8.0.yaml manifest (from some earlier, unrelated hop) —
-    real case that surfaced this gap. Mirrors repo_with_new_component_
-    pinned_to_a_known_mirrored_image, but for add_missing_sidecar_rows'
-    own "brand new path" shape rather than add_missing_component_rows'."""
+    """redis-operator's "k8s" sidecar is a new path, but its exact pin is
+    already recorded in an earlier images-4.8.0.yaml manifest."""
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -109,11 +103,8 @@ def repo_with_new_sidecar_pinned_to_a_known_mirrored_image(tmp_path: Path):
 def test_main_new_sidecar_row_annotated_unchanged_when_known_in_historical_manifest(
     cdb: ModuleType, repo_with_new_sidecar_pinned_to_a_known_mirrored_image, monkeypatch: pytest.MonkeyPatch
 ):
-    """The SAME fallback, applied to add_missing_sidecar_rows: redis-
-    operator's own "k8s" sidecar path is brand new (baseline_values has
-    nothing for it), but its image pin is already recorded in an
-    earlier release's own images-4.8.0.yaml manifest, so its App cell
-    reads "(unchanged)" rather than a nonsensical "(new)"."""
+    """A new sidecar path whose pin is in an earlier manifest reads
+    "(unchanged)" in its App cell, not "(new)"."""
     doc_dir = repo_with_new_sidecar_pinned_to_a_known_mirrored_image
     set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
     cdb.main()
@@ -128,11 +119,8 @@ def test_main_adds_missing_changes_section_for_an_existing_dependency_row(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """ZAC's own table row already existed (correct) but had no "### ..."
-    Changes section of its own at all — add_missing_changes_sections
-    fills that in using the SAME make_changes_section template
-    update-component-version/add_missing_component_rows themselves use,
-    driven by the row's OWN cells rather than a fresh baseline lookup."""
+    """A correct row without a "### ..." section gets one from the shared
+    make_changes_section template, driven by the row's own cells."""
     set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_sidecar_bump, "4.8.5")
     cdb.main()
 
@@ -146,10 +134,7 @@ def test_main_adds_missing_changes_section_for_an_existing_dependency_row(
 def test_main_adds_todo_stub_section_when_row_has_no_app_version(
     cdb: ModuleType, repo_with_undocumented_sidecar_bump, monkeypatch: pytest.MonkeyPatch
 ):
-    """redis-operator's own row app cell is "-" (nothing recorded there
-    to build real prose from) — a short TODO-stub section is added
-    instead of guessing, the same fallback add_missing_component_rows
-    itself uses for the same reason."""
+    """An app cell of "-" gives a TODO-stub section rather than guessed prose."""
     set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_sidecar_bump, "4.8.5")
     cdb.main()
 
@@ -161,22 +146,12 @@ def test_main_adds_todo_stub_section_when_row_has_no_app_version(
 def test_main_updates_a_changes_heading_missing_its_app_version(
     cdb: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Regression test: the real openbao case — a "### ..." heading
-    written back when actual_app_version couldn't resolve anything yet
-    (chart-only, add_missing_component_rows' own TODO-stub shape) is
-    regenerated once that version DOES become resolvable (here: via the
-    vendored-chart appVersion fallback for a component registered in
-    component_resolution.image_paths) — built from the row's own
-    already-correct cells, same template add_missing_changes_sections
-    itself uses. The old heading's own body text is discarded; there's
-    no reliable way to tell which part of it was ever accurate.
+    """Regression (openbao): a TODO-stub heading written while the app
+    version was unresolvable is regenerated from the row's cells once it
+    resolves; the old body is discarded as its accuracy is unknowable.
 
-    "widget" is registered via a real tmp_path/etc/settings.yaml
-    (not a monkeypatch of a raw dict — that constant no longer exists)
-    — actual_app_version's own vendored-subchart-appVersion fallback is
-    reached via update_stale_app_version_headings, which already threads
-    its own chart_dir=tmp_path through to actual_app_version, so this
-    override is genuinely seen there."""
+    "widget" is registered via tmp_path/etc/settings.yaml, which
+    update_stale_app_version_headings reaches through its chart_dir."""
     import io
     import tarfile
 
@@ -247,14 +222,8 @@ def test_main_adds_sections_for_both_rows_named_by_a_two_component_heading(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """A "### ..." heading naming two components at once (real case:
-    "### ECK Operator 3.4.0 -> 3.5.0 + ECK Stack (kiss-eck) 0.19.0 ->
-    0.20.0") is assessed as a whole, never split — it credits NEITHER
-    component's row (see find_changes_row_correspondence_gaps), so
-    add_missing_changes_sections adds a proper section for EACH one from
-    its own table row. The combined heading itself is left completely
-    untouched — deciding what its shared prose was actually about, or
-    how to rename/split it, needs a human, not a guess."""
+    """A heading naming two components is not split and credits neither row,
+    so each gets its own section; the combined heading is left for a human."""
     doc_dir = repo_with_undocumented_sidecar_bump
     doc = doc_dir / "4.8.5-to-4.9.0-upgrade.md"
     combined_heading = "### ZAC (Zaakafhandelcomponent) 5.0.1 → 5.0.2 + redis-operator 0.26.0 → 0.26.1\n\n"
@@ -282,25 +251,13 @@ def test_main_adds_sections_for_both_rows_named_by_a_two_component_heading(
 def test_main_adds_version_pin_bullet_for_a_version_paths_component(
     cdb: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """The section add_missing_changes_sections adds for a component
-    registered in component_resolution.version_paths (e.g. eck-stack's
-    bare "...version:" fields, the ECK operator's own CRD convention)
-    must use a "Version pin" bullet, never the generic "Image tag pin
-    `<key>.image.tag`" guess — that path doesn't even exist in
-    values.yaml for a component shaped this way.
+    """A component in component_resolution.version_paths gets a "Version pin"
+    bullet, not an "Image tag pin `<key>.image.tag`" guess for a path that
+    doesn't exist.
 
-    Uses the REAL "redis-operator" registration (component_resolution.
-    version_paths' own "redisOperator.imageTag" entry) rather than a
-    synthetic name needing its own settings.yaml override — a synthetic
-    tmp_path-only override would only be visible on the TARGET side here
-    (add_missing_component_rows threads its own chart_dir=CHART_YAML.
-    parent == tmp_path through explicitly), never the BASELINE side
-    (resolve_component_own_version_change's own old_app lookup calls
-    actual_app_version(baseline_values, key, chart_name) with no
-    chart_dir at all, deliberately — see that function's own docstring),
-    which self-resolves against the REAL production chart_dir instead
-    and would never see a tmp_path-only entry. A REAL default registered
-    entry resolves identically on both sides, avoiding that asymmetry."""
+    Uses the real "redis-operator" registration: the baseline-side lookup
+    calls actual_app_version without chart_dir, so a tmp_path-only
+    settings override would be seen on the target side only."""
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -385,19 +342,16 @@ def test_main_does_not_duplicate_an_existing_sidecar_row(
     upgrade = doc.read_text(encoding="utf-8")
     assert upgrade.count("| redis-operator - redis |") == 1
     assert "already documented by hand" in upgrade
-    # The row already existed (hand-written), so add_missing_sidecar_rows
-    # itself has nothing to add — but it still had no "### ..." section of
-    # its own yet, which add_missing_changes_sections now fills in, using
-    # the row's own hand-typed cells verbatim.
+    # The hand-written row exists, so only the missing "### ..." section is
+    # added, from the row's own cells.
     assert "### redis-operator - redis 8.6.2 → 8.6.6" in upgrade
 
 
 def test_main_leaves_unchanged_sidecar_with_no_row_alone(
     cdb: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """A sidecar whose tag never changed vs baseline must never get a
-    row added just because it happens to have no row yet — only a real
-    gap (tag actually changed) is worth documenting."""
+    """A sidecar whose tag didn't change gets no row; only real changes are
+    documented."""
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -449,12 +403,9 @@ def test_main_leaves_unchanged_sidecar_with_no_row_alone(
 
 @pytest.fixture
 def repo_with_short_alias_collision_risk(tmp_path: Path):
-    """Regression fixture: "mi" is a real Chart.yaml dependency alias
-    short enough to be a literal mid-word substring of an unrelated
-    EXISTING row's own Name — "ensurePodiumdAdminUser" contains "mi"
-    (inside "ad-mi-n"). Before find_component_row's own word-boundary fix,
-    add_missing_component_rows("mi") would silently overwrite that
-    unrelated Python row's cells instead of inserting "mi"'s own new row."""
+    """Regression fixture: alias "mi" is a mid-word substring of
+    "ensurePodiumdAdminUser"; without word boundaries in find_component_row,
+    adding "mi" overwrote that unrelated row."""
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)

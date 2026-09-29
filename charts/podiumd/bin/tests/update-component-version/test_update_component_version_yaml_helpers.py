@@ -1,6 +1,4 @@
-"""parse_repo through update_values_yaml: pure YAML/text helper functions,
-no main() integration tests (split out of the former, monolithic
-test_update_component_version.py for pylint's too-many-lines check)."""
+"""Pure YAML/text helpers, parse_repo through update_values_yaml."""
 
 from pathlib import Path
 from types import ModuleType
@@ -102,8 +100,7 @@ def test_locate_parent_block_missing_segment_returns_none():
 
 
 def test_locate_tag_and_sha_no_existing_sha_override():
-    """operator.image today: podiumd doesn't override "sha" -- the
-    vendored subchart's own default applies as-is."""
+    """operator.image: no "sha" override, the subchart default applies."""
     located = tag_sha_lines.locate_tag_and_sha(KEYCLOAK_OPERATOR_LINES, "keycloak-operator", "operator.image", "sha")
     assert located is not None
     tag_idx, tag_indent, sha_idx = located
@@ -113,8 +110,7 @@ def test_locate_tag_and_sha_no_existing_sha_override():
 
 
 def test_locate_tag_and_sha_existing_sha_override():
-    """operator.config.keycloakImage today: podiumd already overrides
-    "sha" explicitly."""
+    """operator.config.keycloakImage: "sha" is overridden explicitly."""
     located = tag_sha_lines.locate_tag_and_sha(
         KEYCLOAK_OPERATOR_LINES, "keycloak-operator", "operator.config.keycloakImage", "sha"
     )
@@ -277,9 +273,8 @@ def test_update_values_yaml_missing_path_raises(ucv: ModuleType, tmp_path: Path,
 def test_load_split_tag_sha_paths_skips_writable_entry_without_sibling_field(
     ucv: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
-    # A writable entry naming no sibling_field has no split pin to write;
-    # it used to be kept with a None sibling field, which would have
-    # written a literal "None:" key next to its tag.
+    # A writable entry without sibling_field has no split pin; keeping it
+    # would write a literal "None:" key next to its tag.
     monkeypatch.setattr(
         ucv,
         "digest_pinning_exceptions",

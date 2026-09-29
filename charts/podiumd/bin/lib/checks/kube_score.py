@@ -1,8 +1,8 @@
-"""Checks that every container in the rendered chart declares CPU/memory
-requests AND limits — this repo's own documented convention
-(.github/copilot-instructions.md's "Resource Requests and Limits"), not a
-generic kube-score opinion (see quality_gates.kube_score_check_id in
-lib.settings)."""
+"""Check every rendered container declares CPU/memory requests and limits.
+
+This is the repo convention from .github/copilot-instructions.md, enforced via
+quality_gates.kube_score_check_id, not kube-score's full opinion set.
+"""
 
 import json
 import shutil
@@ -55,8 +55,7 @@ class KubeScoreCheck(TypedDict):
 
 
 class KubeScoreObject(TypedDict):
-    """One object in kube-score's JSON output (the fields this module
-    reads; kube-score writes more)."""
+    """One object in kube-score's JSON output (only the fields read here)."""
 
     object_name: NotRequired[str]
     checks: NotRequired[list[KubeScoreCheck]]
@@ -83,16 +82,11 @@ def is_kube_score_objects(value: object) -> TypeGuard[list[KubeScoreObject]]:
 
 
 def run_kube_score(yaml_text: str) -> list[KubeScoreObject] | None:
-    """Score a YAML stream with kube-score, returning the parsed list of
-    scored objects (kube-score's own JSON schema — each a dict with
-    object_name/checks/...) — or None if kube-score's own output couldn't
-    be parsed as JSON (a kube-score bug/crash, not a chart problem).
+    """Parsed kube-score JSON for a YAML stream, or None if unparseable.
 
-    kube-score prints the JSON value "null" (not "[]") when a stream has
-    no scoreable objects at all — e.g. a vendored sub-chart consisting
-    entirely of CRDs, like eck-operator-crds. json.loads("null") returns
-    None, which would otherwise be indistinguishable from "unparseable" —
-    normalize it to [] so a CRD-only chart doesn't look like a crash."""
+    kube-score prints "null" for a stream with no scoreable objects (e.g. CRD-only
+    charts); that is normalized to [] so it doesn't look like a crash.
+    """
     result = run(["kube-score", "score", "-o", "json", "-"], input=yaml_text, capture_output=True, text=True)
     try:
         data: object = json.loads(result.stdout)
@@ -106,11 +100,7 @@ def run_kube_score(yaml_text: str) -> list[KubeScoreObject] | None:
 def extract_resource_findings(
     kube_score_objects: list[KubeScoreObject] | None, check_id: str
 ) -> list[KubeScoreFinding]:
-    """From a kube-score run's scored objects, pull every non-skipped,
-    below-full-grade `check_id` finding as (object_name, container,
-    summary) — object_name is kube-score's own "Kind/apiVersion/
-    namespace/name" identifier, container is the comment's "path" (the
-    container the missing request/limit belongs to)."""
+    """Every non-skipped, below-full-grade `check_id` finding as (object_name, container, summary)."""
     findings: list[KubeScoreFinding] = []
     for obj in kube_score_objects or []:
         object_name = obj.get("object_name", "?")
@@ -125,13 +115,10 @@ def extract_resource_findings(
 
 
 def parse_kube_score_object_name(object_name: str):
-    """kube-score's own "Kind/apiVersion/namespace/name" identifier ->
-    (kind, namespace, name), or (None, None, None) if it doesn't have that
-    shape at all. apiVersion itself can contain a "/" (e.g. "batch/v1"),
-    so kind is taken from the front and name/namespace from the back,
-    with whatever's left in the middle (the actual apiVersion, unused
-    here) joined back — a naive 4-way split would misparse a grouped
-    apiVersion like "batch/v1" as two extra fields."""
+    """ "Kind/apiVersion/namespace/name" -> (kind, namespace, name), or (None, None, None).
+
+    Split from both ends because apiVersion itself can contain "/" (e.g. "batch/v1").
+    """
     parts = object_name.split("/")
     if len(parts) < 4:
         return None, None, None
@@ -148,10 +135,7 @@ def _kube_score_line_suffix(object_name: str, locations: ResourceLocations):
 
 @dataclass
 class KubeScoreResult:
-    """Everything check_kube_score's own print/detail logic needs from a
-    completed render+score pass: the rendered-line lookup (locations) and
-    the three own/partner-vendor/other-vendor finding buckets. See
-    _score_rendered_chart, which builds this."""
+    """A completed render+score pass: rendered-line locations and the three finding buckets."""
 
     locations: ResourceLocations
     own_real: list[KubeScoreFinding]
@@ -160,12 +144,11 @@ class KubeScoreResult:
 
 
 def _score_vendored_charts(docs: list[tuple[str, str]], check_id: str, vendor_map: dict[str, str]):
-    """Runs kube-score separately per vendored sub-chart (kube-score's own
-    JSON carries no per-resource source info, so each sub-chart's docs are
-    scored on their own — see check_kube_score's docstring), splitting
-    findings into (vendored_partner, vendored_other) by vendor_map
-    membership. Returns (None, None, error) if any sub-chart's kube-score
-    output couldn't be parsed."""
+    """Score each vendored sub-chart separately and split findings into (partner, other).
+
+    kube-score's JSON has no source info, hence one run per sub-chart. Returns
+    (None, None, error) on unparseable output.
+    """
     vendored_by_chart_docs: dict[str, list[str]] = {}
     for source, text in docs:
         if not source.startswith(OWN_TEMPLATES_PREFIX):
@@ -184,10 +167,7 @@ def _score_vendored_charts(docs: list[tuple[str, str]], check_id: str, vendor_ma
 
 
 def _score_rendered_chart(chart_dir: Path, extra_args: list[str], check_id: str):
-    """Renders the chart, scores its own templates and every vendored
-    sub-chart's templates (see _score_vendored_charts) with kube-score, and
-    bundles the result into a KubeScoreResult. Returns (None, error) on any
-    render/kube-score failure, else (KubeScoreResult, None)."""
+    """(KubeScoreResult, None) for the rendered chart, or (None, error) on any failure."""
     rendered, error = render_chart_docs(chart_dir, extra_args)
     if rendered is None:
         return None, error
@@ -207,10 +187,7 @@ def _score_rendered_chart(chart_dir: Path, extra_args: list[str], check_id: str)
 
 
 def _print_kube_score_findings(scored: KubeScoreResult):
-    """Prints check_kube_score's three report sections (own/partner-vendor/
-    other-vendor) for a completed KubeScoreResult -- see check_kube_score's
-    own docstring for what each section means and why they're reported
-    differently."""
+    """Print the own/partner-vendor/other-vendor sections for `result`."""
     if scored.own_real:
         print(
             f"Found {len(scored.own_real)} real kube-score issue(s) in this chart's own templates "
@@ -255,37 +232,13 @@ def _print_kube_score_findings(scored: KubeScoreResult):
 
 
 def check_kube_score(chart_dir: Path, extra_args: list[str]):
-    """Checks that every container in the rendered chart declares CPU/
-    memory requests AND limits — this repo's own documented convention
-    (.github/copilot-instructions.md's "Resource Requests and Limits"),
-    not a generic kube-score opinion (see quality_gates.kube_score_check_id
-    in lib.settings).
+    """Check every rendered container declares CPU/memory requests and limits.
 
-    Same own/partner-vendor/other-vendor scope split, and same per-item vs.
-    aggregate-only reporting split, as check_yamllint/check_kubeconform/
-    check_shellcheck: a partner-vendor finding is printed individually
-    (grouped per container, by chart — kube-score's own JSON carries no
-    per-resource source info, so — like check_kubeconform — each vendored
-    sub-chart is scored as its own separate kube-score run), an
-    other-vendor finding only ever gets a one-line aggregate count.
-
-    The *fail* policy still differs from those three checks, though: a
-    missing resource on ANY vendored sub-chart's container (partner or
-    not) is still this repo's job to fix (wired via that sub-chart's
-    values.yaml key, per the same documented convention) — it is not an
-    upstream-code problem the way a YAML-style or shell-script issue is.
-    So an other-vendor finding here is genuinely actionable, just
-    deprioritized in the output (signal-to-noise: partner charts are the
-    ones worth triaging first). Every per-item finding also gets a
-    "— rendered line N" hint (see build_resource_locations/resource_line
-    in lib.render_scope) — pipe the render to a file (render-podiumd)
-    and jump straight there. It still does NOT fail the check yet,
-    regardless of vendor: the current backlog is untriaged, and some gaps
-    are upstream-blocked (the sub-chart's own template exposes no
-    resources field at all for a given container — nothing to wire). Only
-    an OWN finding fails; promoting vendored to failing is a deliberate
-    future step once the backlog is resolved or written into
-    docs/misc/resource-overview.md as an accepted/upstream-blocked gap."""
+    Partner-vendor findings are listed per container, other-vendor ones only as a
+    count. Vendored gaps are still ours to wire via values.yaml, but don't fail yet:
+    the backlog is untriaged and some are upstream-blocked (no resources field
+    exposed). Only own findings fail. Findings carry a "rendered line N" hint.
+    """
     if shutil.which("kube-score") is None:
         return False, "kube-score is not installed (see --skip-kube-score to bypass)"
 

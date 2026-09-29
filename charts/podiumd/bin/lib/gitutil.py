@@ -1,5 +1,4 @@
-"""Git helpers shared by every script that reads a chart's historical state
-at a baseline release without checking it out."""
+"""Git helpers for reading a chart's state at a baseline ref without checking it out."""
 
 import re
 
@@ -11,9 +10,7 @@ from lib.yaml_types import parse_yaml_mapping
 
 
 def find_repo_root(start_path: Path):
-    """The repo root containing start_path, or None if it isn't inside a git
-    repository — callers that treat this as a hard precondition should raise
-    themselves; some (e.g. a baseline lookup) treat a miss as recoverable."""
+    """The repo root containing start_path, or None if not inside a git repository."""
     result = run(["git", "-C", str(start_path), "rev-parse", "--show-toplevel"], capture_output=True, text=True)
     if result.returncode != 0:
         return None
@@ -21,25 +18,20 @@ def find_repo_root(start_path: Path):
 
 
 def current_branch(repo_root: Path):
-    """The current branch name, or "" if HEAD is detached (`git branch
-    --show-current` returns nothing in that case)."""
+    """The current branch name, or "" if HEAD is detached."""
     result = run(["git", "-C", str(repo_root), "branch", "--show-current"], capture_output=True, text=True)
     return result.stdout.strip()
 
 
 def baseline_ref_candidates(baseline: str):
-    """A bare version like "4.8.5" is resolved to the release tag first, then
-    the (possibly not-yet-merged) feature branch. An explicit ref is used as-is."""
+    """Refs to try for baseline: a bare version maps to tag, then feature branch; any other ref as-is."""
     if re.match(r"^\d+\.\d+\.\d+", baseline):
         return [f"podiumd-{baseline}", f"origin/feature/podiumd-{baseline}", f"feature/podiumd-{baseline}"]
     return [baseline]
 
 
 def resolve_git_ref(repo_root: Path, candidates: list[str]):
-    """The first ref in `candidates` (in order) that `git rev-parse
-    --verify` resolves to a real commit in repo_root, or None if none of
-    them do — used by resolve_baseline_ref to try baseline_ref_candidates'
-    own tag-then-branch fallback order."""
+    """The first ref in candidates that resolves to a commit in repo_root, or None."""
     for ref in candidates:
         result = run(
             ["git", "-C", str(repo_root), "rev-parse", "--verify", "-q", f"{ref}^{{commit}}"],
@@ -52,11 +44,7 @@ def resolve_git_ref(repo_root: Path, candidates: list[str]):
 
 
 def resolve_baseline_ref(repo_root: Path, baseline: str):
-    """baseline_ref_candidates + resolve_git_ref, with a ready-to-print
-    error message on a miss — shared by every caller that must refuse an
-    unresolvable baseline (change-podiumd-baseline, create-podiumd-version,
-    verify-podiumd's release-baseline check). Returns (ref, error): error
-    is None on success."""
+    """Resolve baseline to a git ref. Returns (ref, error); error is None on success."""
     candidates = baseline_ref_candidates(baseline)
     ref = resolve_git_ref(repo_root, candidates)
     if ref:
@@ -65,10 +53,7 @@ def resolve_baseline_ref(repo_root: Path, baseline: str):
 
 
 def git_show_text(repo_root: Path, ref: str, relpath: str) -> str | None:
-    """The raw text of relpath as it was at ref, or None if it doesn't
-    exist there — for a caller that needs values.yaml's own literal
-    lines (e.g. lib.image.version's scan_digest_pins/dotted_key_path
-    text scanners), not its parsed structure."""
+    """The raw text of relpath at ref, or None if it doesn't exist there."""
     result = run(["git", "-C", str(repo_root), "show", f"{ref}:{relpath}"], capture_output=True, text=True)
     if result.returncode != 0:
         return None
@@ -76,9 +61,6 @@ def git_show_text(repo_root: Path, ref: str, relpath: str) -> str | None:
 
 
 def git_show_yaml(repo_root: Path, ref: str, relpath: str) -> YamlMapping | None:
-    """git_show_text, parsed as a YAML mapping (see parse_yaml_mapping) —
-    for a caller that needs relpath's structured contents as they were
-    at ref (e.g. a historical values.yaml), not its raw text. None if the
-    file didn't exist at that ref."""
+    """relpath at ref parsed as a YAML mapping, or None if it doesn't exist there."""
     text = git_show_text(repo_root, ref, relpath)
     return parse_yaml_mapping(text, f"{ref}:{relpath}") if text is not None else None

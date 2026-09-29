@@ -1,7 +1,5 @@
-"""add_missing_images_manifest_entries' own ordering/header/backfill scenarios (the
-ordered_images_manifest_chart_dir fixture cluster), including 4 backfill-coverage
-tests that are physically colocated with the dedupe tests in the original file but
-exercise this same fixture cluster, not dedupe logic."""
+"""add_missing_images_manifest_entries ordering, header and backfill scenarios
+(ordered_images_manifest_chart_dir fixture cluster)."""
 
 from pathlib import Path
 from types import ModuleType
@@ -16,9 +14,8 @@ def write(path, text):
 
 @pytest.fixture
 def ordered_images_manifest_chart_dir(tmp_path: Path):
-    """Three dependencies, values.yaml top-level order openzaak ->
-    keycloak-operator -> zac — keycloak-operator's own postgres sidecar
-    resolves via an own override, no vendored subchart tgz needed."""
+    """values.yaml order openzaak -> keycloak-operator -> zac; the postgres
+    sidecar resolves via an own override, no vendored tgz needed."""
     write(
         tmp_path / "Chart.yaml",
         yaml.safe_dump(
@@ -73,11 +70,8 @@ def _ordered_baseline_values():
 def test_add_missing_images_manifest_entries_inserts_at_correct_body_and_header_position(
     cdb: ModuleType, ordered_images_manifest_chart_dir
 ):
-    """A missing entry for the MIDDLE component (values.yaml order
-    openzaak -> keycloak-operator -> zac) is inserted between the
-    existing openzaak and zac blocks — both in the body and in the "#
-    Changes:" header's own numbered list — not appended after zac just
-    because zac happened to be added to the file first."""
+    """A missing middle component is inserted between its neighbours in both
+    body and "# Changes:" list, not appended at the end."""
     text = (
         "# Two changes:\n"
         "#   1. openzaak 1.27.4 -> 1.29.3.\n"
@@ -118,7 +112,6 @@ def test_add_missing_images_manifest_entries_inserts_at_correct_body_and_header_
     assert "#   2. keycloak-operator - postgres 16.0 -> 16.15." in new_text
     assert "#   3. zac 5.0.2 -> 5.1.0." in new_text
     assert "# Three changes:" in new_text
-    # Both existing entries' own content stays exactly as it was.
     assert "#   1. openzaak 1.27.4 -> 1.29.3." in new_text
     assert "- name: openzaak/open-zaak" in new_text
     assert "- name: infonl/zaakafhandelcomponent" in new_text
@@ -127,16 +120,9 @@ def test_add_missing_images_manifest_entries_inserts_at_correct_body_and_header_
 def test_add_missing_images_manifest_entries_ignores_wrapped_line_that_looks_like_an_item(
     cdb: ModuleType, ordered_images_manifest_chart_dir
 ):
-    """A wrapped CONTINUATION line that happens to start with a version
-    number (e.g. "1.19.1-static, ...") must never be mistaken for a
-    genuine "#   N. ..." numbered item — real case this corrupted:
-    item 1's own real-world continuation text "ZAC's bundled sidecar
-    images also bumped: opa 1.17.1-static ->\n1.19.1-static,
-    office_converter ..." got its SECOND line ("1.19.1-static, ...")
-    matched as if it were its own item, splitting item 1's own prose in
-    two around a newly-inserted item. CHANGES_ITEM_RE (which requires
-    whitespace after the period) never makes this mistake; a looser
-    "\\d+\\." regex does."""
+    """A continuation line starting with a version ("1.19.1-static, ...")
+    is not a numbered item; a loose "\\d+\\." regex split item prose this
+    way, CHANGES_ITEM_RE (whitespace after the period) does not."""
     text = (
         "# One change:\n"
         "#   1. openzaak 1.27.4 -> 1.29.3. Also touches related versions:\n"
@@ -174,8 +160,7 @@ def test_add_missing_images_manifest_entries_ignores_wrapped_line_that_looks_lik
     assert added == []
     assert skipped == []
     assert set(backfilled) == {"zac", "keycloak-operator - postgres"}
-    # Item 1's own two-line prose stays intact and adjacent to whatever
-    # item follows it — never torn apart around a newly-inserted item.
+    # Item 1's two-line prose stays intact.
     assert (
         "#   1. openzaak 1.27.4 -> 1.29.3. Also touches related versions:\n"
         "#      1.19.1-static and 2.3.4-slim, both unrelated to this number.\n"
@@ -186,9 +171,7 @@ def test_add_missing_images_manifest_entries_ignores_wrapped_line_that_looks_lik
 def test_add_missing_images_manifest_entries_valid_yaml_after_middle_insertion(
     cdb: ModuleType, ordered_images_manifest_chart_dir
 ):
-    """The inserted block is properly blank-line-separated from its
-    neighbors on both sides — the result parses as a valid, 3-entry
-    manifest, not malformed or merged-together YAML."""
+    """The inserted block is blank-line separated and the result is valid YAML."""
     text = (
         "# openzaak — 1.27.4 -> 1.29.3\n"
         "- name: openzaak/open-zaak\n"
@@ -222,9 +205,7 @@ def test_add_missing_images_manifest_entries_valid_yaml_after_middle_insertion(
 def test_add_missing_images_manifest_entries_no_header_still_orders_body(
     cdb: ModuleType, ordered_images_manifest_chart_dir
 ):
-    """No "# Changes:" header at all in this file — the body still gets
-    ordered correctly; nothing about header-handling is required for
-    body ordering to work."""
+    """Without a "# Changes:" header the body is still ordered."""
     text = (
         "# openzaak — 1.27.4 -> 1.29.3\n"
         "- name: openzaak/open-zaak\n"
@@ -261,15 +242,8 @@ def test_add_missing_images_manifest_entries_no_header_still_orders_body(
 def test_add_missing_images_manifest_entries_creates_missing_header_from_scratch(
     cdb: ModuleType, ordered_images_manifest_chart_dir
 ):
-    """Regression test (real bug, real doc): images-4.9.1.yaml's own
-    real intro block ("# Baseline: ...", "# Images new or changed...",
-    "# See docs/_UPGRADE_PATHS...") with NO "# Changes:" header at all
-    (distinct from test_add_missing_images_manifest_entries_no_header_
-    still_orders_body above, whose text has no recognizable intro block
-    to anchor a fresh header on either) — every new entry must still get
-    both its own body comment AND a matching "# Changes:" list item,
-    with the header itself created right after the intro line, not
-    silently skipped forever."""
+    """Regression: with a recognizable intro block but no "# Changes:" header,
+    the header is created after the intro so new entries get list items."""
     text = (
         "# Baseline: podiumd 4.8.5. Re-verify before release.\n"
         "#\n"
@@ -308,15 +282,8 @@ def test_add_missing_images_manifest_entries_creates_missing_header_from_scratch
 def test_add_missing_images_manifest_entries_empty_bare_header_gets_first_item(
     cdb: ModuleType, ordered_images_manifest_chart_dir
 ):
-    """The real symptom a fresh lib.component_docs.IMAGES_STUB_TEMPLATE
-    file has: a bare "# Changes:" header with NO items under it yet
-    (not "no header at all" — see the no_header_still_orders_body test
-    above, a genuinely different case). Before IMAGES_STUB_TEMPLATE
-    included this header line at all, a freshly-created manifest had
-    no anchor whatsoever for a numbered item to attach to, so new
-    entries were added to the body but silently never got a matching
-    "# Changes:" item — exactly the "top comment list stayed '[]'"
-    symptom reported live."""
+    """A fresh stub's bare "# Changes:" header with no items gets numbered
+    items for new entries."""
     text = (
         "# Baseline: podiumd 4.8.5. Re-verify before release.\n"
         "#\n"
@@ -343,8 +310,6 @@ def test_add_missing_images_manifest_entries_empty_bare_header_gets_first_item(
 
     assert skipped == []
     assert set(added) == {"keycloak-operator - postgres", "openzaak", "zac"}
-    # The bare "# Changes:" header actually got numbered items under it —
-    # not left as the literal "[]" placeholder with nothing above it.
     header_idx = new_text.index("# Changes:\n")
     first_item_idx = new_text.index("#   1. ")
     assert header_idx < first_item_idx < header_idx + len("# Changes:\n") + 40
@@ -354,11 +319,8 @@ def test_add_missing_images_manifest_entries_empty_bare_header_gets_first_item(
 def test_add_missing_images_manifest_entries_stub_placeholder_not_left_alongside_first_entry(
     cdb: ModuleType, ordered_images_manifest_chart_dir
 ):
-    """Real bug: the fresh stub's own literal bare "[]" (yaml.safe_load's
-    empty-list spelling) was left in place while the first real entry got
-    inserted right after it — "[]" followed by a "- name: ..." block is
-    NOT valid YAML for a single document, so the result couldn't be
-    parsed back at all."""
+    """Regression: the stub's literal "[]" must be removed on first insert;
+    "[]" followed by "- name:" is invalid YAML."""
     text = "# Baseline: podiumd 4.8.5. Re-verify before release.\n#\n# Changes:\n#\n\n[]\n"
 
     new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
@@ -380,12 +342,8 @@ def test_add_missing_images_manifest_entries_stub_placeholder_not_left_alongside
 def test_add_missing_images_manifest_entries_second_run_is_a_noop_not_a_duplicate(
     cdb: ModuleType, ordered_images_manifest_chart_dir
 ):
-    """Real bug downstream of the "[]" placeholder surviving the first
-    insert: since the resulting file was invalid YAML, a second run's own
-    `yaml.safe_load(text)` raised and silently fell back to `entries =
-    []` — treating the (now actually non-empty) manifest as if it still
-    had NOTHING in it, and re-adding every single entry a second time
-    right alongside the first copies. A clean run must be idempotent."""
+    """Regression: invalid YAML from a surviving "[]" made a second run see
+    no entries and re-add them all. Runs must be idempotent."""
     text = "# Baseline: podiumd 4.8.5. Re-verify before release.\n#\n# Changes:\n#\n\n[]\n"
 
     first_text, first_added, _skipped, _backfilled = cdb.add_missing_images_manifest_entries(
@@ -419,13 +377,8 @@ def test_add_missing_images_manifest_entries_second_run_is_a_noop_not_a_duplicat
 def test_add_missing_images_manifest_entries_backfills_header_item_for_existing_entry(
     cdb: ModuleType, ordered_images_manifest_chart_dir
 ):
-    """A component that already has its own comment+entry block (e.g.
-    added by an earlier run of this same function, before header-list
-    support existed) but was never given a "# Changes:" header item is
-    backfilled one now — real case: keycloak-operator - postgres was
-    added to the body in a previous run, but its header item was
-    missing, and re-running the (now header-aware) fix script alone
-    didn't add it, since the entry itself was no longer "missing"."""
+    """An existing entry without a "# Changes:" item gets one backfilled,
+    since it's no longer "missing" and would otherwise never be added."""
     text = (
         "# Two changes:\n"
         "#   1. openzaak 1.27.4 -> 1.29.3.\n"
@@ -466,17 +419,13 @@ def test_add_missing_images_manifest_entries_backfills_header_item_for_existing_
     assert "#   2. keycloak-operator - postgres 16 -> 16.15." in new_text
     assert "#   3. zac 5.0.2 -> 5.1.0." in new_text
     assert "# Three changes:" in new_text
-    # The body itself is untouched — only the header list gained an item.
     assert new_text.count("- name: postgres") == 1
 
 
 @pytest.fixture
 def zgw_office_addin_chart_dir(tmp_path: Path):
-    """zgw-office-addin's own frontend + backend images — one of
-    COMPONENT_IMAGE_PATHS' MULTI-image "lockstep" entries (both share
-    ONE path_display_name, "zgw-office-addin") — each with its own
-    explicit "repository:" override, matching lib.chart.paths_by_
-    repository's own "no owning dependency needed" resolution."""
+    """zgw-office-addin frontend + backend: a multi-image lockstep component
+    sharing one display name, each with its own "repository:" override."""
     write(
         tmp_path / "Chart.yaml",
         yaml.safe_dump(
@@ -506,16 +455,8 @@ def zgw_office_addin_chart_dir(tmp_path: Path):
 def test_add_missing_images_manifest_entries_lockstep_component_gets_one_header_item_not_two(
     cdb: ModuleType, zgw_office_addin_chart_dir
 ):
-    """Real bug: a multi-image lockstep component reports TWO missing_
-    paths (frontend + backend), both resolving to the SAME path_display_
-    name ("zgw-office-addin") — the per-path loop used to insert a
-    header item for EACH one unconditionally, producing two identical
-    "#   N. zgw-office-addin v0.9.313 -> 0.11.0." items for what is really
-    ONE logical change (same bug class internetaakafhandeling's web+
-    poller and eck-stack's elasticsearch+kibana can trigger too). Both
-    paths still get their own comment+entry block — only the SECOND
-    header item is now skipped, the same whole-word "already mentioned"
-    check the backfill pass already uses."""
+    """A lockstep component's two missing paths share one display name:
+    both get entry blocks but only one header item."""
     text = "# Changes:\n"
     deps = [{"name": "zgw-office-addin", "version": "0.0.89"}]
     target_values = {
@@ -551,10 +492,8 @@ def test_add_missing_images_manifest_entries_lockstep_component_gets_one_header_
 def test_add_missing_images_manifest_entries_does_not_backfill_already_covered_entry(
     cdb: ModuleType, ordered_images_manifest_chart_dir
 ):
-    """An entry already named in some existing header item is left
-    alone — a dependency-level mention (e.g. "keycloak-operator chart
-    unchanged") is NOT enough; only an item naming this exact entry
-    ("keycloak-operator - postgres") counts as covering it."""
+    """Only an item naming this exact entry covers it; a dependency-level
+    mention ("keycloak-operator chart unchanged") does not."""
     text = (
         "# Three changes:\n"
         "#   1. openzaak 1.27.4 -> 1.29.3.\n"
@@ -592,10 +531,8 @@ def test_add_missing_images_manifest_entries_does_not_backfill_already_covered_e
 
     assert added == []
     assert skipped == []
-    # keycloak-operator's own dependency-level mention doesn't cover the
-    # postgres SIDECAR specifically — it still needs (and gets) its own
-    # item, sorted right after keycloak-operator's own primary-image
-    # item (same key_order index, sidecar tie-break puts it second).
+    # The dependency-level mention doesn't cover the postgres sidecar; its
+    # item sorts right after keycloak-operator's (sidecar tie-break).
     assert backfilled == ["keycloak-operator - postgres"]
     assert "#   3. keycloak-operator - postgres 16 -> 16.15." in new_text
     assert "#   4. zac 5.0.2 -> 5.1.0." in new_text
@@ -604,9 +541,7 @@ def test_add_missing_images_manifest_entries_does_not_backfill_already_covered_e
 def test_add_missing_images_manifest_entries_backfill_is_noop_when_already_covered(
     cdb: ModuleType, ordered_images_manifest_chart_dir
 ):
-    """An entry whose exact display name IS already mentioned in an
-    existing header item is left alone entirely — nothing added,
-    nothing renumbered."""
+    """An entry already named in a header item: nothing added or renumbered."""
     text = (
         "# Three changes:\n"
         "#   1. openzaak 1.27.4 -> 1.29.3.\n"
@@ -651,13 +586,8 @@ def test_add_missing_images_manifest_entries_backfill_is_noop_when_already_cover
 def test_add_missing_images_manifest_entries_backfill_coverage_check_is_case_insensitive(
     cdb: ModuleType, ordered_images_manifest_chart_dir
 ):
-    """A header item written in natural prose case ("ZAC
-    (Zaakafhandelcomponent) 5.0.2 -> ...") still covers the entry whose
-    own display name is the bare, lowercase values key ("zac") — real
-    case this matters for: the actual images-4.9.0.yaml header
-    capitalizes every component name in its own prose. Whole-word, not
-    a raw substring — "ita" is never mistaken for a match buried inside
-    an unrelated word."""
+    """Header matching is case-insensitive (real headers capitalize names)
+    and whole-word, so "ita" never matches inside another word."""
     text = (
         "# Two changes:\n"
         "#   1. openzaak 1.27.4 -> 1.29.3.\n"
@@ -692,11 +622,7 @@ def test_add_missing_images_manifest_entries_backfill_coverage_check_is_case_ins
         ),
     )
 
-    # "zac" is already covered (case-insensitively) by item 2 — only
-    # keycloak-operator - postgres genuinely needs a new item. The
-    # stray "digital" in item 2's own text never gets mistaken for an
-    # "ita"-shaped match either (there's no "ita" entry here at all, but
-    # this fixture wouldn't spuriously match anything from it).
+    # "zac" is covered by item 2; only the postgres sidecar needs an item.
     assert added == []
     assert skipped == []
     assert backfilled == ["keycloak-operator - postgres"]
@@ -704,13 +630,9 @@ def test_add_missing_images_manifest_entries_backfill_coverage_check_is_case_ins
 
 
 def test_add_missing_images_manifest_entries_skips_dotted_fallback_name_entirely(cdb: ModuleType, tmp_path: Path):
-    """An entry whose own display name is path_display_name's raw-
-    dotted-path fallback (no real Chart.yaml dependency AND no
-    canonical sidecar name resolves it — real case: podiumd's own
-    "keycloak" top-level block, distinct from the "keycloak-operator"
-    dependency) is never backfilled a header item, and never reported
-    either — a dotted values.yaml path is not a phrase worth adding to
-    a curated header list verbatim."""
+    """An entry named by the raw dotted-path fallback (no dependency or
+    sidecar name) is never backfilled or reported: not a phrase for a
+    curated header list."""
     write(
         tmp_path / "Chart.yaml",
         yaml.safe_dump(

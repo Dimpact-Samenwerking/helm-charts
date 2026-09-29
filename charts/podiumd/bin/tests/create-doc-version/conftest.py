@@ -1,5 +1,4 @@
-"""Loads create-doc-version (a hyphenated filename, not importable
-normally) as a module named `cdv` so tests can call its functions directly."""
+"""Load create-doc-version (hyphenated, not importable) as module `cdv`."""
 
 import importlib.util
 

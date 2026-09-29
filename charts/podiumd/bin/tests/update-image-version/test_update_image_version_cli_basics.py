@@ -1,11 +1,6 @@
-"""update-image-version's main() — argument parsing, help/usage output,
-and basename/key resolution into lib.image.version.update_image_version.
-No doc-update path exercised here. No network needed:
-lib.registry.registry_tag_exists is monkeypatched via the uiv module's own
-imported binding (update_image_version lives in lib.image.version, which
-resolves `registry_tag_exists` via ITS OWN globals — see
-lib.image.version's import — so tests patch that module directly, same as
-tests/lib/test_image_version.py does)."""
+"""update-image-version main(): argument parsing and basename/key resolution.
+registry_tag_exists is patched on lib.image.version, whose globals it resolves
+through."""
 
 from pathlib import Path
 from types import ModuleType
@@ -146,8 +141,7 @@ def test_main_reports_noop_when_already_at_target(
 def test_main_resolves_given_component_key_and_basename(
     uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """<key> "openklant" scopes the search to that component's own
-    values.yaml subtree, where <basename> "open-klant" is pinned."""
+    """<key> scopes the search to that component's values.yaml subtree."""
     write_chart_yaml(tmp_path, [("openklant", None)])
     values_path = write_values(
         tmp_path,
@@ -164,14 +158,8 @@ def test_main_resolves_given_component_key_and_basename(
 
 
 def test_main_accepts_dependency_name_not_just_alias(uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """Regression test (real bug, confirmed live against the real chart):
-    <key> used to only accept whichever string happens to literally BE
-    the values.yaml top-level key — the alias, when a dependency has one
-    — rejecting the dependency's own real Chart.yaml "name" outright
-    ("no image pin with basename ... found under"), even though update-
-    component-version's own <component> argument already accepts either
-    form via find_dependency. lib.image.version.resolve_key_scope now
-    resolves either form to the real values.yaml key first."""
+    """Regression: <key> accepts the Chart.yaml name as well as the alias
+    (the values.yaml key), like update-component-version's <component>."""
     write_chart_yaml(tmp_path, [("zaakafhandelcomponent", "zac")])
     values_path = write_values(
         tmp_path,
@@ -190,9 +178,8 @@ def test_main_accepts_dependency_name_not_just_alias(uiv: ModuleType, tmp_path: 
 def test_main_raises_when_basename_not_unique_under_key(
     uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """Two DISTINCT repositories sharing a basename under the same <key>
-    can't be identified uniquely (see lib.image.version.
-    resolve_scoped_matches) -- an error, never a guess."""
+    """Distinct repositories sharing a basename under one <key> is an error,
+    never a guess."""
     write_chart_yaml(tmp_path, [("zaakafhandelcomponent", "zac")])
     values_path = write_values(
         tmp_path,

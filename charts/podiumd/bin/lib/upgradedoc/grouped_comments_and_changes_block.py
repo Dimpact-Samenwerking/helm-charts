@@ -1,7 +1,5 @@
-"""Preceding-comment lookup (plain and dependency-grouped), an images
-manifest's own "# Changes:" numbered-list block parsing, the generic
-baseline/current key-diff primitives (diff_keys/flatten_leaf_keys/
-pair_renames) they're built from, and path_display_name."""
+"""Preceding-comment lookup, images-manifest "# Changes:" block parsing,
+key-diff primitives, and path_display_name."""
 
 import re
 
@@ -31,10 +29,7 @@ VERSION_SPEC_RE = re.compile(
 
 
 def find_preceding_comment(lines: list[str], entry_line_index: int) -> str:
-    """The comment line(s) immediately above a "- name: ..." line, e.g.
-    "# ZAC OPA sidecar — 1.17.1-static -> 1.19.0-static" right above the opa
-    entry — stops at the first blank/non-comment line, so it doesn't reach
-    back into the previous entry's comment."""
+    """The contiguous comment line(s) directly above a "- name: ..." line, joined."""
     comment_lines: list[str] = []
     j = entry_line_index - 1
     while j >= 0 and lines[j].strip().startswith("#"):
@@ -44,21 +39,10 @@ def find_preceding_comment(lines: list[str], entry_line_index: int) -> str:
 
 
 def find_preceding_comment_line(lines: list[str], entry_line_index: int) -> int | None:
-    """Index of the closest comment line above entry_line_index that
-    states a version spec — a "<source> -> <target>" pair, OR a bare
-    "<version> (new)"/"(unchanged)"/"(digest changed)" (see VERSION_
-    SPEC_RE) — or None. Stops at the first blank/non-comment line, so it
-    doesn't reach into the previous entry's comment.
+    """Index of the closest comment line above entry_line_index stating a version spec, or None.
 
-    Real bug this closes: only recognizing an ARROW pair used to mean a
-    comment ALREADY correctly written in the bracketed "(new)"/
-    "(unchanged)"/"(digest changed)" form (no arrow at all) was never
-    even recognized as a comment here in the first place — confirmed
-    live: images-4.9.1.yaml's own keycloak-operator - python sidecar,
-    already correctly reading "(digest changed)", was reported
-    "unresolved" by every caller here forever, not because its own
-    version was actually wrong, but because this function itself could
-    never even SEE it to compare against."""
+    A spec is an arrow pair or a bare "(new)"/"(unchanged)"/"(digest changed)"
+    (VERSION_SPEC_RE). Stops at the first blank/non-comment line."""
     j = entry_line_index - 1
     while j >= 0 and lines[j].strip().startswith("#"):
         if VERSION_SPEC_RE.search(lines[j]):
@@ -74,23 +58,13 @@ def find_grouped_preceding_comment(
     index: int,
     same_group: Callable[[ManifestEntry, ManifestEntry], bool],
 ) -> str:
-    """The comment describing entries[index]'s version bump: its own
-    directly-preceding comment if it has one, else — when a component's
-    images are listed as one contiguous block sharing a single comment
-    (e.g. zgw-office-addin's frontend + backend entries, separated by a
-    blank line, both under one "# ZGW Office Add-in — ..." comment) — the
-    immediately preceding entry's comment, but only when that entry is in
-    the same group as this one. A sibling with its own distinct comment
-    (e.g. ZAC's main entry vs. its OPA sidecar entry — both under the same
-    top-level "zac" values key, but independently versioned and each with
-    its own comment) is never overridden by this fallback, since
-    find_preceding_comment already finds an entry's own comment before
-    this fallback is even considered.
+    """The comment describing entries[index]'s version bump.
 
-    same_group(entry, other_entry) -> True when the two entries are part
-    of one shared-comment block — same top-level component AND the same
-    declared "version" (evidence of one lockstep bump across images, not
-    just a coincidentally-shared values-tree prefix like zac vs zac.opa)."""
+    Its own preceding comment if any, else that of the previous entry when
+    same_group says they share one comment block (e.g. zgw-office-addin's
+    frontend + backend). same_group should require the same component and
+    declared version, so independently versioned siblings (zac vs zac.opa)
+    don't inherit each other's comment."""
     comment = find_preceding_comment(lines, entry_line_indices[index])
     if comment or index == 0:
         return comment
@@ -106,10 +80,7 @@ def find_grouped_preceding_comment_line(
     index: int,
     same_group: Callable[[ManifestEntry, ManifestEntry], bool],
 ) -> int | None:
-    """Same grouping rule as find_grouped_preceding_comment, for callers
-    that need the matched comment's line index (to rewrite it in place)
-    rather than its text — built on find_preceding_comment_line's
-    arrow-bearing-line convention instead of find_preceding_comment's."""
+    """Like find_grouped_preceding_comment, but returns the comment's line index."""
     comment_idx = find_preceding_comment_line(lines, entry_line_indices[index])
     if comment_idx is not None or index == 0:
         return comment_idx
@@ -121,15 +92,11 @@ def find_grouped_preceding_comment_line(
 def diff_keys(
     baseline_node: YamlValue, current_node: YamlValue, path: tuple[str, ...] = ()
 ) -> Iterator[tuple[Literal["added", "removed"], tuple[str, ...]]]:
-    """Yield ("added"|"removed", path) for the SHALLOWEST differing keys
-    between two values subtrees — if a whole block is new or gone, report it
-    once at that level rather than recursing into every leaf underneath it.
-    This matches how values-deltas.md docs actually document changes (e.g.
-    "the whole zac.brpApi.protocollering block was redesigned", not a
-    leaf-by-leaf listing). Scalar-vs-scalar value changes (same key, new
-    value) are not add/remove/rename and are not reported. Keys are yielded
-    in sorted order: set order varies per process (string hash
-    randomization), which would make pair_renames' pairing order vary too."""
+    """Yield ("added"|"removed", path) for the shallowest differing keys.
+
+    A wholly new/removed block is reported once, matching how values-deltas.md
+    documents changes. Scalar value changes are not reported. Keys are sorted
+    so pair_renames' pairing is deterministic across processes."""
     if not isinstance(baseline_node, dict) or not isinstance(current_node, dict):
         return
     baseline_keys = set(baseline_node.keys())
@@ -143,12 +110,9 @@ def diff_keys(
 
 
 def flatten_leaf_keys(node: YamlValue) -> set[str]:
-    """All leaf key names anywhere under a subtree, used to measure how
-    similar two blocks are (for rename detection) — not full paths, just the
-    set of innermost key names, so "host"/"user"/"password" overlapping
-    between an old and new block is a strong rename signal. A key whose
-    value is itself a dict or list is not a leaf and is not included: it
-    would inflate the similarity ratio pair_renames uses."""
+    """Leaf key names (not paths) anywhere under a subtree, for rename similarity.
+
+    Keys holding a dict/list are excluded; they'd inflate the similarity ratio."""
     keys: set[str] = set()
     if isinstance(node, dict):
         for key, value in node.items():
@@ -173,9 +137,7 @@ def _get_at_path(node: YamlValue, path: tuple[str, ...]) -> YamlValue:
 def _find_rename_match(
     add_path: tuple[str, ...], removed_left: list[tuple[str, ...]], baseline_node: YamlValue, current_node: YamlValue
 ) -> tuple[str, ...] | None:
-    """First rem_path in removed_left that pairs with add_path as a rename
-    candidate — same parent path, and either similar leaf keys or an
-    unchanged scalar value (see pair_renames) — or None."""
+    """First removed path pairing with add_path as a rename (see pair_renames), or None."""
     add_val = _get_at_path(current_node, add_path)
     for rem_path in removed_left:
         if add_path[:-1] != rem_path[:-1]:
@@ -192,11 +154,11 @@ def _find_rename_match(
 def pair_renames(
     added: list[tuple[str, ...]], removed: list[tuple[str, ...]], baseline_node: YamlValue, current_node: YamlValue
 ) -> tuple[list[tuple[tuple[str, ...], tuple[str, ...]]], list[tuple[str, ...]], list[tuple[str, ...]]]:
-    """Pair an added and a removed key at the same parent path into a rename
-    candidate when their subtrees share enough leaf key names (e.g.
-    mi.sftp -> mi.transfer, both containing host/user/password), or when
-    both hold the same unchanged scalar value — otherwise they're reported
-    as an unrelated add and remove."""
+    """Pair added/removed keys at the same parent into renames.
+
+    A pair matches when leaf key names overlap enough (e.g. mi.sftp ->
+    mi.transfer) or both hold the same scalar. Returns (renamed, added_left,
+    removed_left)."""
     renamed: list[tuple[tuple[str, ...], tuple[str, ...]]] = []
     added_left, removed_left = list(added), list(removed)
     for add_path in list(added_left):
@@ -209,38 +171,17 @@ def pair_renames(
 
 
 def parse_changes_block(text: str) -> list[VersionRow]:
-    """Parse the "# Changes:" numbered-list block in an images manifest's
-    header comment, e.g.:
+    """Parse an images manifest's "# Changes:" numbered list into VersionRows, e.g.:
         #   1. ZAC (Zaakafhandelcomponent) 5.0.2 -> 5.4.3 (chart 1.0.297, unchanged).
-        #   2. ZGW Office Add-in v0.9.313 -> 0.11.0 (chart 0.0.89 -> 0.0.92).
-    into the same shape as parse_upgrade_doc_rows, so it can be checked with
-    the same helpers.
 
-    A wrapped continuation line — indented to roughly the same column the
-    item's own text starts at (2+ spaces after "#", e.g. "#      nginx
-    sidecar...", vs. an ordinary comment's single-space "# See docs/...")
-    — is joined onto its own item's text before parsing name/app/chart
-    out of it. Not just a cosmetic nicety: an item whose own
-    "<source> -> <target>" pair (or "(chart ...)" span) is itself split
-    across the wrap, e.g.
-        #   21. nginx-unprivileged (shared global.images.nginx anchor, used by every
-        #      nginx sidecar in the chart) 1.31.3 -> 1.31.4.
-    used to see only line 1 — no arrow pattern there at all, so
-    extract_source_version/extract_target_version's own "no arrow found"
-    fallback (first word-like token) grabbed the item's own leading word
-    "nginx-unprivileged" as a fake version instead, silently truncating
-    its name to boot. The 2-space threshold is what actually tells a
-    continuation apart from an ordinary single-space "#" comment line
-    (a blank "#", or a trailing "# See docs/..." remark right after the
-    list with no blank line separating them) — both single-space forms
-    end whichever item is currently accumulating, the same way a new
-    numbered line does, rather than being swallowed into it."""
+    Lines with 2+ spaces after "#" are continuations joined onto the current
+    item, so a version pair split across a wrap is still found. A
+    single-space "#" line ends the current item."""
     items: list[VersionRow] = []
     current = None  # raw text accumulated so far for the item being parsed
     for line in _changes_block_lines(text):
-        # "\.\s+" (period, then whitespace) — not "\.\s*" — so a version number
-        # like "1.17.1-static" (period immediately followed by a digit) on an
-        # indented continuation line is never mistaken for a new list item
+        # "\.\s+", not "\.\s*": a version like "1.17.1" on a continuation line
+        # must not look like a new list item.
         m = re.match(r"^#\s*\d+\.\s+(.+)$", line)
         if m:
             if current is not None:
@@ -277,29 +218,15 @@ def _changes_block_lines(text: str):
 
 
 def _finalize_changes_item(rest: str) -> VersionRow:
-    # extract_source_version/extract_target_version's own [\w.\-]* token
-    # regex treats "." as a valid version character (needed for "1.31.4"
-    # itself) — harmless for a table cell, but a Changes item is free-form
-    # PROSE that often ends its own sentence with a period right after the
-    # version with nothing else in between (e.g. "... 1.31.3 -> 1.31.4."),
-    # which the regex greedily swallows as if it were part of the version.
-    # A version never legitimately ends in a literal ".", so stripping one
-    # trailing period here is always safe.
+    # Prose often ends with a period right after the version, which the version
+    # regex swallows; stripped below since versions never end in ".".
     chart_m = re.search(r"\(chart\s+([^)]+)\)", rest)
     chart_source = extract_source_version(chart_m.group(1)) if chart_m else None
     chart_target = extract_target_version(chart_m.group(1)) if chart_m else None
 
-    # A "chart <source> -> <target>" mention written WITHOUT the usual
-    # "(chart ...)" parens is the same signal — must never be mistaken for
-    # the item's own APP version, whether it's the only version pair
-    # present at all (a chart-only bump, e.g. "ECK Stack (kiss-eck) chart
-    # 0.19.0 -> 0.20.0 (no image change of its own).") or the FIRST of
-    # two pairs in one sentence (e.g. "redis-operator chart 0.25.0 ->
-    # 0.26.1, operator image 0.25.0 -> 0.26.0" — the real app pair is the
-    # SECOND one). Removed from the text searched for the app version
-    # below, so a bracketed chart_m match above still wins if both forms
-    # somehow appear (unlikely, but chart_source/chart_target already set
-    # from it isn't overwritten).
+    # A bare "chart X -> Y" clause (no parens) is a chart bump, not the app
+    # version, whether alone or the first of two pairs; remove it from the
+    # text searched for the app version. A parenthesized match above wins.
     app_search_text = rest
     bare_chart_m = BARE_CHART_CLAUSE_RE.search(rest)
     if bare_chart_m:
@@ -308,11 +235,8 @@ def _finalize_changes_item(rest: str) -> VersionRow:
             chart_target = extract_target_version(bare_chart_m.group(0))
         app_search_text = rest[: bare_chart_m.start()] + " " + rest[bare_chart_m.end() :]
 
-    # extract_source_version/extract_target_version's own "no arrow found"
-    # fallback (first word-like token) would otherwise grab whatever text
-    # is left over (e.g. "no image change of its own" for a genuinely
-    # chart-only item like the ECK Stack example above) as a fake app
-    # version — only trust a result when there's a REAL arrow left to find.
+    # Without an arrow, the extractors' fallback would return leftover prose
+    # as a fake app version.
     if re.search(r"(?:→|->)", app_search_text):
         app_source = extract_source_version(app_search_text)
         app_target = extract_target_version(app_search_text)
@@ -345,16 +269,10 @@ def _finalize_changes_item(rest: str) -> VersionRow:
 def path_display_name(
     path: tuple[str, ...], deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]]
 ) -> str:
-    """The doc-facing name for a values-tree image path — "<values_key>"
-    for a dependency's own primary image (same convention as every
-    "component "<key>" changed vs ..." message elsewhere in this check),
-    else whatever name canonical_names (canonical_sidecar_row_names's own
-    {name: path} mapping — "<values_key> - <basename>" for a sidecar,
-    bare "<basename>" for a shared "global" image) maps this exact path
-    to. Falls back to the raw dotted path only when neither covers it
-    (e.g. an image with no Chart.yaml dependency and no vendored/own
-    repository to resolve a basename from at all) — this should be rare
-    in practice, never the normal case."""
+    """Doc-facing name for a values-tree image path.
+
+    "<values_key>" for a dependency's primary image, else the name
+    canonical_names maps the path to, else the dotted path."""
     by_values_key = {values_key_of(dep): dep for dep in deps}
     dep = by_values_key.get(path[0])
     if dep is not None and is_primary_image_path(path, deps):

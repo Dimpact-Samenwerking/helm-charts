@@ -1,10 +1,4 @@
-"""lib.chart — path/version primitives: get_path, replace_scalar_value,
-chart_version, SEMVER_RE, upgrade_docs_baseline, release_table_baseline,
-full_repository_for_path. Split out of the former test_chart.py (see
-test_chart_historical_baselines_and_release.py, test_chart_dependency_and_
-pull.py, test_chart_verify_digest_pin_and_subchart_basics.py, test_chart_
-resolve_values_repos_and_paths.py, and test_chart_sidecar_rows_and_
-wrappers.py for the rest)."""
+"""lib.chart -- path/version primitives, baselines and full_repository_for_path."""
 
 from pathlib import Path
 from types import ModuleType
@@ -27,9 +21,6 @@ def test_get_path_non_dict_intermediate_returns_none(libchartvaluestreeprimitive
 
 
 # --- replace_scalar_value ---
-# moved here from update-component-version (see
-# tests/update-component-version/test_update_component_version.py for the
-# ucv.replace_scalar_value re-export, still exercised via that import).
 
 
 def test_replace_scalar_value_preserves_quotes(libchartvaluestreeprimitives: ModuleType):
@@ -57,15 +48,7 @@ def test_replace_scalar_value_unparseable_line_raises(libchartvaluestreeprimitiv
 
 
 def test_replace_scalar_value_preserves_anchor_tag(libchartvaluestreeprimitives: ModuleType):
-    """Regression test: a line DEFINING a YAML anchor (e.g. keycloak-
-    operator.operator.config.keycloakImage's own "tag:"/"sha:" fields,
-    aliased elsewhere by keycloak.image via "*anchor") must keep its own
-    "&anchor" marker after a value bump — dropping it would silently
-    sever every "*anchor" reference elsewhere in the same file, turning
-    each into a YAML parse error (an alias to an undefined anchor) on
-    the very next load. Confirmed empirically to fail without this fix:
-    the anchor tag was dropped entirely, producing a bare "tag: 26.7.3"
-    line."""
+    """A YAML anchor definition keeps its "&anchor" after a bump; losing it breaks every "*anchor" alias."""
     assert (
         libchartvaluestreeprimitives.replace_scalar_value('        tag: &keycloakImageVersion "26.7.2"\n', "26.7.3")
         == '        tag: &keycloakImageVersion "26.7.3"\n'
@@ -77,10 +60,6 @@ def test_replace_scalar_value_preserves_anchor_tag(libchartvaluestreeprimitives:
 
 
 # --- chart_version / SEMVER_RE ---
-# shared by create-doc-version, fix-doc-consistency, update-component-
-# version, and create-podiumd-version's own current_chart_version()/
-# *_VERSION_RE re-exports — see those scripts' own tests for the
-# re-export coverage.
 
 
 def test_chart_version_reads_top_level_version(libchartreleasebaselinebasics: ModuleType, tmp_path: Path):
@@ -102,9 +81,7 @@ def test_semver_re_rejects_anything_else(libcharthistoricalbaselines: ModuleType
 
 
 # --- upgrade_docs_baseline / release_table_baseline ---
-# release-baseline.yaml — see lib.chart's RELEASE_BASELINES_FILE_NAME/
-# _release_baselines for why podiumd needs two baselines (incremental
-# _UPGRADE_PATHS/images-manifest vs. cumulative release-table.csv).
+# Two baselines: incremental (upgrade docs/images manifest) vs cumulative (release-table.csv).
 
 
 def test_upgrade_docs_baseline_reads_the_key(libchartreleasebaselinebasics: ModuleType, tmp_path: Path):
@@ -144,16 +121,13 @@ def test_release_table_baseline_none_when_key_missing(libchartreleasebaselinebas
 
 
 # --- full_repository_for_path ---
-# the fully host-qualified repository a manifest entry's own "url:"
-# field (or a real registry call) needs — never the STRIPPED form
-# paths_by_repository's own repo-group keys use.
+# Host-qualified repository, not the stripped paths_by_repository key.
 
 
 def test_full_repository_for_path_docker_hub_repository_gets_docker_io_host(
     tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
-    """Docker Hub's own convention: no registry host embedded in
-    "repository:" at all."""
+    """Docker Hub repositories have no host in "repository:"."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     values = {"zac": {"image": {"repository": "curlimages/curl", "tag": "8.22.0@sha256:aaaa"}}}
     assert (
@@ -176,11 +150,7 @@ def test_full_repository_for_path_already_host_qualified_is_unchanged(
 def test_full_repository_for_path_separate_registry_key_is_authoritative(
     tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
-    """Regression test (mi's own real "azure-cli" case): a sibling
-    "registry:" key alongside a bare "repository:" (Azure Container
-    Registry's own convention) is used directly — never parse_repo's
-    own Docker Hub inference, which would wrongly assume "docker.io/
-    azure-cli"."""
+    """A sibling "registry:" host (ACR, e.g. mi's azure-cli) is used as-is, not Docker Hub inference."""
     deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
     values = {
         "mi": {"image": {"registry": "mcr.microsoft.com", "repository": "azure-cli", "tag": "2.90.0@sha256:aaaa"}}
@@ -194,16 +164,7 @@ def test_full_repository_for_path_separate_registry_key_is_authoritative(
 def test_full_repository_for_path_bare_namespace_registry_key_gets_docker_io_host(
     tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
-    """Regression test (zaakbrug's own real case): the vendored zaakbrug
-    chart's own upstream default sets "image.registry: wearefrank"
-    alongside "image.repository: zaakbrug" — but "wearefrank" is a bare
-    Docker Hub NAMESPACE stored in the same field mi's own real ACR host
-    (mcr.microsoft.com) lives in, not a real DNS host itself (no "." or
-    ":", not "localhost" — the same test strip_registry_host/parse_repo
-    already use for the identical question elsewhere). Must still
-    resolve to a real, host-qualified "docker.io/wearefrank/zaakbrug" —
-    not the bare, unqualified "wearefrank/zaakbrug" a naive "registry:
-    sibling is always a real host" assumption would produce."""
+    """A bare Docker Hub namespace in "registry:" (zaakbrug's "wearefrank") gets the docker.io host."""
     deps = [{"name": "zaakbrug", "version": "2.3.32"}]
     values = {"zaakbrug": {"image": {"registry": "wearefrank", "repository": "zaakbrug", "tag": "1.26.18@sha256:aaaa"}}}
     assert (

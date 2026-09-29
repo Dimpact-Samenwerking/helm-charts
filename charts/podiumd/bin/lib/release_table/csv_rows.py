@@ -70,9 +70,7 @@ def _row(values: list[str], where: str) -> ReleaseTableRow:
 
 
 def read_release_table(path: Path) -> list[ReleaseTableRow]:
-    """The rows of the release-table.csv at `path`. Exits with an error
-    naming the file if its header is not CSV_HEADER or a row has the wrong
-    number of columns."""
+    """The rows of the release-table.csv at `path`; exits on a bad header or column count."""
     with path.open(newline="", encoding="utf-8") as f:
         reader = csv.reader(f)
         header = next(reader, None)

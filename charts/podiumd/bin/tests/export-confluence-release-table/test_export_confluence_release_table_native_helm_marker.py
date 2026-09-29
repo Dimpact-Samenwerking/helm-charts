@@ -1,5 +1,4 @@
-"""apply_native_helm_marker — with fetch_page_html mocked out, so no
-network access or real Confluence page is needed."""
+"""apply_native_helm_marker, with fetch_page_html mocked."""
 
 from pathlib import Path
 from types import ModuleType
@@ -23,8 +22,7 @@ def write_chart_yaml_with_dependencies(chart_dir, deps):
 
 
 def write_values_yaml(chart_dir, keys):
-    """A minimal values.yaml with each of `keys` as a top-level key
-    mapping to an empty block."""
+    """values.yaml with each of `keys` as an empty top-level block."""
     (chart_dir / "values.yaml").write_text(
         "".join(f"{key}: {{}}\n" for key in keys),
         encoding="utf-8",
@@ -32,9 +30,7 @@ def write_values_yaml(chart_dir, keys):
 
 
 def write_values_yaml_with_global_images(chart_dir, image_keys):
-    """A minimal values.yaml with a top-level global.images map holding
-    each of `image_keys` — mirrors the real chart's
-    global.images.nginx/curl/busybox shared-base-image anchors."""
+    """values.yaml with a global.images map of `image_keys` (shared-image anchors)."""
     lines = ["global:", "  images:"] + [f"    {key}: {{}}" for key in image_keys]
     (chart_dir / "values.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -75,9 +71,7 @@ PRODUCT_TABLE_HTML = """
 </table>
 """
 
-# "Technische component versies" tables don't have a development-partner
-# column at all — "Used by" instead (naming the product/Common Ground
-# component that pulls this piece of tooling in), which isn't required.
+# Technische tables have "Used by" (optional) instead of a vendor column.
 TECHNISCHE_TABLE_HTML = """
 <h2>Technische component versies</h2>
 <table>
@@ -106,11 +100,8 @@ TECHNISCHE_TABLE_HTML = """
 </table>
 """
 
-# Same shape as TECHNISCHE_TABLE_HTML, but without the App/Helm
-# sub-header split at all -- since 2026-09 the real page's "Technische
-# component versies" table dropped its Helm sub-column entirely (its
-# cells were always empty anyway), leaving one bare column per
-# "Versie ..." group.
+# Like TECHNISCHE_TABLE_HTML but without the Helm sub-column, as on the real
+# page since 2026-09.
 TECHNISCHE_TABLE_NO_HELM_HTML = """
 <h2>Technische component versies</h2>
 <table>
@@ -131,13 +122,10 @@ TECHNISCHE_TABLE_NO_HELM_HTML = """
 </table>
 """
 
-# A table with no heading at all above it — not under any of the target
-# sections, so it's ignored outright, not merely "skipped for missing
-# columns".
+# No heading above it: ignored outright, not reported as skipped.
 UNRELATED_TABLE_HTML = "<table><tr><th>Legend</th></tr><tr><td>n/a</td></tr></table>"
 
-# Under a target heading, but genuinely missing the required App/Helm
-# columns — this one SHOULD be reported as skipped.
+# Under a target heading but missing App/Helm columns: reported as skipped.
 INCOMPLETE_UNDER_TARGET_HEADING_HTML = (
     "<h2>Overige component versies</h2><table><tr><th>Naam</th></tr><tr><td>iets</td></tr></table>"
 )
@@ -175,19 +163,15 @@ def test_apply_native_helm_marker_skips_blank_component(ecrt: ModuleType):
 
 
 def test_apply_native_helm_marker_skips_used_by_tagged_row(ecrt: ModuleType):
-    """A "used_by"-tagged sidecar row is never a component in its own
-    right — "NATIVE" would be meaningless there, so it's left untouched
-    even when its own helm cells are blank and its component resolved
-    to a real single dependency."""
+    """A used_by sidecar row is not a component, so NATIVE never applies."""
     rows = [_row(used_by="zac")]
     ecrt.apply_native_helm_marker(rows)
     assert rows[0][8] == "" and rows[0][10] == ""
 
 
 def test_apply_native_helm_marker_skips_row_with_a_real_helm_value(ecrt: ModuleType):
-    """Only BOTH helm cells blank counts as "genuinely no Helm chart" —
-    a row with a real (or even just source-only/target-only) helm
-    value is a normal versioned Helm dependency, left untouched."""
+    """Only both helm cells blank means "no Helm chart"; any helm value
+    leaves the row untouched."""
     rows = [_row(source_helm="1.2.9", target_helm="1.2.9")]
     ecrt.apply_native_helm_marker(rows)
     assert rows[0][8] == "1.2.9" and rows[0][10] == "1.2.9"
@@ -202,12 +186,8 @@ def test_apply_native_helm_marker_mutates_in_place_and_leaves_other_columns_unto
 def test_extract_release_rows_fills_native_helm_for_orphan_key_component_with_no_helm_column(
     ecrt: ModuleType, tmp_path: Path
 ):
-    """End-to-end: "Frank Gateway" resolves to the orphan values.yaml key
-    "frankgateway" (no real Chart.yaml dependency backs it — same real
-    case NATIVE_COMPONENTS/orphan_values_yaml_keys exist for), and the
-    table it comes from has no Helm sub-column at all — its helm cells
-    are filled "NATIVE" rather than left blank, since frankgateway
-    genuinely has no separate Helm chart to report a version for."""
+    """End-to-end: "Frank Gateway" resolves to orphan key "frankgateway" from
+    a table without Helm column, so its helm cells become "NATIVE"."""
     write_chart_yaml_with_dependencies(tmp_path, [("openzaak", "")])
     write_values_yaml(tmp_path, ["frankgateway", "openzaak"])
     html = TECHNISCHE_TABLE_NO_HELM_HTML.replace(
@@ -220,10 +200,8 @@ def test_extract_release_rows_fills_native_helm_for_orphan_key_component_with_no
 
 
 def test_extract_release_rows_resolves_component_via_used_by_not_name(ecrt: ModuleType, tmp_path: Path):
-    """TECHNISCHE_TABLE_HTML's row is named "Elastic operator" (shares no
-    text with any real dependency) but has used_by "ZAC" — a much better
-    resolution signal, since it's already the dependency's own alias.
-    Resolution must use it instead of the row's own name."""
+    """used_by ("ZAC", the dependency's alias) is used for resolution when
+    the row name ("Elastic operator") matches nothing."""
     write_chart_yaml_with_dependencies(tmp_path, [("zaakafhandelcomponent", "zac")])
     rows = ecrt.extract_release_rows(TECHNISCHE_TABLE_HTML, chart_dir=tmp_path)
     assert rows == [
@@ -246,10 +224,8 @@ def test_extract_release_rows_resolves_component_via_used_by_not_name(ecrt: Modu
 def test_extract_release_rows_resolves_exact_alias_match_despite_unrelated_substring_alias(
     ecrt: ModuleType, tmp_path: Path
 ):
-    """A used_by value ("kiss") that exactly equals one dependency's own
-    alias resolves outright, even with a second dependency ("eck-stack")
-    present whose own alias ("kiss-eck") merely contains "kiss" as a
-    substring — this must NOT register as an ambiguity."""
+    """An exact used_by alias match is not ambiguous because another alias
+    merely contains it."""
     write_chart_yaml_with_dependencies(tmp_path, [("kiss-chart", "kiss"), ("eck-stack", "kiss-eck")])
     html = TECHNISCHE_TABLE_HTML.replace("<td>ZAC</td>", "<td>kiss</td>")
     rows = ecrt.extract_release_rows(html, chart_dir=tmp_path)
@@ -259,9 +235,7 @@ def test_extract_release_rows_resolves_exact_alias_match_despite_unrelated_subst
 
 
 def test_extract_release_rows_resolves_component_as_multiple(ecrt: ModuleType, tmp_path: Path):
-    """A used_by value ("shared") that's the literal same alias on two
-    distinct Chart.yaml dependencies resolves the row to
-    "MULTIPLE"/"MULTIPLE" rather than silently picking one."""
+    """A used_by alias shared by two dependencies resolves to MULTIPLE."""
     write_chart_yaml_with_dependencies(tmp_path, [("foo-chart", "shared"), ("bar-chart", "shared")])
     html = TECHNISCHE_TABLE_HTML.replace("<td>ZAC</td>", "<td>shared</td>")
     rows = ecrt.extract_release_rows(html, chart_dir=tmp_path)
@@ -271,9 +245,7 @@ def test_extract_release_rows_resolves_component_as_multiple(ecrt: ModuleType, t
 
 
 def test_extract_release_rows_resolves_component_via_orphan_values_yaml_key(ecrt: ModuleType, tmp_path: Path):
-    """ "ZAC" (PRODUCT_TABLE_HTML's own row) doesn't match any real
-    dependency here, but exactly equals the orphan values.yaml key
-    "zac" — resolved end-to-end as a last resort."""
+    """End-to-end last resort: exact orphan values.yaml key match."""
     write_chart_yaml_with_dependencies(tmp_path, [("openzaak", "")])
     write_values_yaml(tmp_path, ["zac", "openzaak"])
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
@@ -281,10 +253,8 @@ def test_extract_release_rows_resolves_component_via_orphan_values_yaml_key(ecrt
 
 
 def test_extract_release_rows_resolves_global_image_key_as_multiple(ecrt: ModuleType, tmp_path: Path):
-    """ "Open Zaak" resolves normally via its real dependency; "ZAC"
-    matches nothing real but does relate to global image key "zac" —
-    resolved end-to-end as MULTIPLE, since a global.images key is never
-    treated as a single component's own."""
+    """A global.images key relation resolves as MULTIPLE, never as a single
+    component."""
     write_chart_yaml_with_dependencies(tmp_path, [("openzaak", "")])
     write_values_yaml_with_global_images(tmp_path, ["zac"])
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
@@ -297,12 +267,8 @@ def test_extract_release_rows_resolves_global_image_key_as_multiple(ecrt: Module
 def test_extract_release_rows_warns_when_multiple_row_has_no_resolved_image(
     ecrt: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
-    """Regression test: a MULTIPLE row (see component_and_alias) export
-    couldn't resolve an image_basename for used to go silent all the way
-    through — the CSV just got a blank column, and verify-release-table-
-    with-podiumd can't catch it either (it only ever compares columns
-    this script already resolved, never re-derives). Now warns instead of
-    silently writing an untracked row."""
+    """A MULTIPLE row without a resolvable image_basename warns: nothing
+    downstream (verify-release-table-with-podiumd) re-derives it."""
     write_chart_yaml_with_dependencies(tmp_path, [("openzaak", "")])
     write_values_yaml_with_global_images(tmp_path, ["zac"])  # no "repository" key -> unresolvable
     ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
@@ -313,8 +279,7 @@ def test_extract_release_rows_warns_when_multiple_row_has_no_resolved_image(
 def test_extract_release_rows_no_warning_when_multiple_row_resolves_an_image(
     ecrt: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
-    """The new warning must not fire for a MULTIPLE row that DOES resolve
-    an image_basename — only for one that can't."""
+    """No warning for a MULTIPLE row that does resolve an image_basename."""
     write_chart_yaml_with_dependencies(tmp_path, [("openzaak", "")])
     (tmp_path / "values.yaml").write_text(
         "global:\n  images:\n    zac:\n      repository: org/zac-base\n", encoding="utf-8"
@@ -327,11 +292,8 @@ def test_extract_release_rows_no_warning_when_multiple_row_resolves_an_image(
 def test_extract_release_rows_warns_on_duplicate_component_and_image(
     ecrt: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
-    """Regression test: two distinct rows resolving to the exact same
-    (component, image_basename) pair — e.g. the same global.images key
-    accidentally named on two rows, since resolve_image_basenames'
-    MULTIPLE-row resolution (unlike its real-dependency one) has no
-    claim-and-delete exclusivity — must be flagged as a duplicate."""
+    """Two rows resolving to the same (component, image_basename) are flagged:
+    MULTIPLE-row resolution has no claim-and-delete exclusivity."""
     write_chart_yaml_with_dependencies(tmp_path, [("openzaak", "")])
     (tmp_path / "values.yaml").write_text(
         "global:\n  images:\n    zac:\n      repository: org/zac-base\n", encoding="utf-8"
@@ -394,8 +356,7 @@ def test_extract_release_rows_skips_fully_blank_rows(ecrt: ModuleType):
 def test_extract_release_rows_warns_when_target_does_not_match_chart_yaml(
     ecrt: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
-    """PRODUCT_TABLE_HTML's target heading is "Versie 4.9" — a
-    Chart.yaml at a different minor version must trigger the warning."""
+    """A Chart.yaml at a different minor than the target heading warns."""
     write_chart_yaml(tmp_path, "5.0.0")
     ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
     err = capsys.readouterr().err
@@ -414,10 +375,8 @@ def test_extract_release_rows_silent_when_target_matches_chart_yaml(
 def test_extract_release_rows_warns_when_chart_yaml_version_unparseable(
     ecrt: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
-    """Regression test: Chart.yaml's own "version:" not being a valid
-    MAJOR.MINOR(.PATCH) used to make check_target_matches_chart_version
-    quietly return, indistinguishable from "checked, and it matched" —
-    now warns that it couldn't verify at all."""
+    """An invalid Chart.yaml version warns that it couldn't verify, rather
+    than passing silently."""
     write_chart_yaml(tmp_path, "not-a-version")
     ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
     out = capsys.readouterr().out
@@ -430,11 +389,8 @@ def test_extract_release_rows_warns_when_chart_yaml_version_unparseable(
 def test_extract_release_rows_warns_when_no_target_label_found(
     ecrt: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
-    """Regression test: a table whose header never yielded a resolvable
-    "target" Versie group (find_versie_groups) used to leave
-    target_labels empty, which quietly made check_target_matches_chart_
-    version behave exactly like "verified, and it matched" — now warns
-    that it couldn't verify at all."""
+    """No resolvable target Versie group warns that it couldn't verify,
+    rather than passing silently."""
     write_chart_yaml(tmp_path, "4.9.0")
     html = "<h2>Product component versies</h2><table><tbody><tr><td>x</td></tr></tbody></table>"
     with pytest.raises(SystemExit):

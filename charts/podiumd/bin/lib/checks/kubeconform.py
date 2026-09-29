@@ -1,13 +1,9 @@
-"""Validates the full `helm template` render against real Kubernetes API
-schemas — catches unknown fields, wrong types, and missing required fields
-that neither `helm lint` nor yamllint check (those only validate chart
-structure / YAML syntax, not API conformance).
+"""Validate the `helm template` render against Kubernetes API schemas.
 
-Every kubeconform invocation passes -cache (see kubeconform_cache_dir) so
-schemas fetched over HTTP are reused across runs instead of re-fetched —
-own templates + one run per distinct vendored chart is several
-kubeconform invocations per check_kubeconform call, all hitting largely
-the same set of Kubernetes API kinds/versions."""
+Catches unknown fields, wrong types and missing required fields that helm lint and
+yamllint don't. Every run passes -cache, since one check makes several runs over
+largely the same kinds.
+"""
 
 import json
 import shutil
@@ -35,8 +31,7 @@ from lib.yaml_types import shape_problem
 
 KUBECONFORM_BASE_ARGS = [
     "-strict",  # also catch unknown/duplicate fields, not just type mismatches
-    "-ignore-missing-schemas",  # this chart's many CRDs (Keycloak, ECK, Redis, ...) have no
-    # schema in kubeconform's registry — skip them, don't error
+    "-ignore-missing-schemas",  # CRDs (Keycloak, ECK, Redis, ...) have no registry schema
     "-verbose",
     "-summary",
     "-output",
@@ -47,9 +42,7 @@ KUBECONFORM_BASE_ARGS = [
 # One entry of kubeconform's JSON "resources" list (kind/name/version/
 # status/msg), and a finding as (vendored chart or None for own, resource).
 class KubeconformResource(TypedDict):
-    """One entry of kubeconform's JSON "resources" list: the fields this
-    module reads (kubeconform always writes all of them; the optional ones
-    are read with a fallback)."""
+    """One entry of kubeconform's JSON "resources" list (only the fields read here)."""
 
     status: str
     kind: NotRequired[str]
@@ -80,21 +73,13 @@ VendoredKubeconformEntry = tuple[str, KubeconformResource]
 
 
 def kubeconform_cache_dir():
-    """Where kubeconform's own -cache flag stores every Kubernetes API
-    schema it fetches over HTTP. Shared across every chart/branch/worktree
-    (not scoped under chart_dir) since schemas are keyed by Kubernetes
-    version, not by this chart's content — there's no reason to
-    re-download the same schemas per checkout. kubeconform requires the
-    directory to already exist (it errors out rather than creating it),
-    hence the mkdir in run_kubeconform below."""
+    """kubeconform's -cache directory, shared across checkouts (schemas depend only on the
+    Kubernetes version). Must exist beforehand: kubeconform won't create it."""
     return Path.home() / ".cache" / "podiumd-kubeconform-schemas"
 
 
 def run_kubeconform(yaml_text: str) -> list[KubeconformResource] | None:
-    """Validate a YAML stream with kubeconform, returning the parsed
-    "resources" list (each a dict with at least kind/name/version/status/
-    msg) — or None if kubeconform's own output couldn't be parsed as JSON
-    (a kubeconform bug/crash, not a chart problem)."""
+    """kubeconform's parsed "resources" for a YAML stream, or None if unparseable."""
     cache_dir = kubeconform_cache_dir()
     cache_dir.mkdir(parents=True, exist_ok=True)
     args = [*KUBECONFORM_BASE_ARGS, "-cache", str(cache_dir), "-"]
@@ -115,12 +100,10 @@ def _kubeconform_group_label(key: tuple[str, ...]):
 
 
 def _kubeconform_item(entry: KubeconformEntry, locations: ResourceLocations):
-    """ "<kind>/<name>" plus a "(rendered line N)" hint when
-    build_resource_locations can locate exactly this kind+name
-    unambiguously (kubeconform's own JSON has no namespace field, so a
-    kind+name that renders more than once — in different namespaces —
-    can't be resolved to one line; the hint is just omitted then rather
-    than risk pointing at the wrong resource)."""
+    """ "<kind>/<name>" plus a "(rendered line N)" hint when the location is unambiguous.
+
+    kubeconform reports no namespace, so a kind+name rendered more than once gets no hint.
+    """
     _chart, r = entry
     kind, name = r.get("kind"), r.get("name")
     base = f"{kind}/{name}"
@@ -131,8 +114,7 @@ def _kubeconform_item(entry: KubeconformEntry, locations: ResourceLocations):
 def _own_kubeconform_findings(
     own_docs: list[tuple[str, str]], failing_statuses: set[str]
 ) -> tuple[list[KubeconformResource] | None, str | None]:
-    """(own_real, None) — this chart's own templates validated with
-    kubeconform in one run — or (None, error) on unparseable output."""
+    """(own findings, None), or (None, error) on unparseable output."""
     own_resources = run_kubeconform("".join(text for _source, text in own_docs))
     if own_resources is None:
         return None, "kubeconform produced unparseable output"
@@ -142,13 +124,11 @@ def _own_kubeconform_findings(
 def _scan_vendored_charts(
     docs: list[tuple[str, str]], failing_statuses: set[str], vendor_map: dict[str, str]
 ) -> tuple[list[VendoredKubeconformEntry] | None, list[VendoredKubeconformEntry] | None, str | None]:
-    """Validates each vendored sub-chart's docs (every rendered doc outside
-    OWN_TEMPLATES_PREFIX) with kubeconform separately
-    (kubeconform's own JSON carries no per-resource source info, so —
-    unlike check_yamllint — each vendored sub-chart is its own run here),
-    splitting findings into (vendored_friendly, vendored_other) by
-    vendor_map membership. Returns (None, None, error) if any sub-chart's
-    kubeconform output couldn't be parsed."""
+    """Validate each vendored sub-chart separately and split findings into (friendly, other).
+
+    kubeconform's JSON has no source info, hence one run per sub-chart. Returns
+    (None, None, error) on unparseable output.
+    """
     vendored_by_chart: dict[str, list[str]] = {}
     for source, text in docs:
         vendored_by_chart.setdefault(chart_name_from_source(source), []).append(text)
@@ -167,10 +147,7 @@ def _scan_vendored_charts(
 
 
 def _print_kubeconform_findings(scan: VendorBucketScan[KubeconformResource, VendoredKubeconformEntry]):
-    """Prints check_kubeconform's three report sections (own/vendored-
-    friendly/vendored-other) for a completed VendorBucketScan -- see
-    check_kubeconform's own docstring for what each section means and why
-    they're reported differently."""
+    """Print the own/vendored-friendly/vendored-other sections for `scan`."""
     if scan.own_real:
         print_own_findings_heading("kubeconform", len(scan.own_real))
         print_grouped_findings(
@@ -202,29 +179,12 @@ def _print_kubeconform_findings(scan: VendorBucketScan[KubeconformResource, Vend
 
 
 def check_kubeconform(chart_dir: Path, extra_args: list[str]):
-    """Validates the full `helm template` render against real Kubernetes
-    API schemas — catches unknown fields, wrong types, and missing
-    required fields that neither `helm lint` nor yamllint check (those
-    only validate chart structure / YAML syntax, not API conformance).
+    """Validate the render against Kubernetes API schemas.
 
-    Same scope split as check_yamllint: this chart's OWN templates/ vs. a
-    vendored sub-chart bundled under charts/podiumd/charts/*. A
-    dependency's content isn't ours to fix, so a vendored finding never
-    fails — but a friendly-vendor/local dependency (see
-    friendly_vendor_charts) is printed per-resource; every other vendored
-    sub-chart only ever gets a one-line aggregate count (kubeconform's own
-    JSON output carries no per-resource source info, so — unlike
-    check_yamllint — each vendored sub-chart is validated as its own
-    separate kubeconform run, to know which chart a finding belongs to).
-    Every per-item finding also gets a "(rendered line N)" hint when it
-    can be resolved unambiguously (see build_resource_locations/
-    resource_line) — pipe the render to a file (render-podiumd) and
-    jump straight there.
-
-    Only an own+real finding (a genuine schema violation, or a resource
-    kubeconform's own YAML parser couldn't even load — e.g. the
-    frankgateway duplicate-key bug) fails the check; a CRD with no known
-    schema (Keycloak, ECK, Redis, ...) is skipped, not an error."""
+    Friendly-vendor findings are listed per resource, other vendored ones only as a
+    count; vendored findings never fail. Only own findings (schema violations or
+    unloadable resources) fail. CRDs without a known schema are skipped.
+    """
     if shutil.which("kubeconform") is None:
         return False, "kubeconform is not installed (see --skip-kubeconform to bypass)"
 

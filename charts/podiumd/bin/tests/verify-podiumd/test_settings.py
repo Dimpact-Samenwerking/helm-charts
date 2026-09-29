@@ -1,15 +1,7 @@
-"""lib.settings — every etc/settings.yaml accessor. Every accessor in
-ACCESSOR_CASES gets shapes (a) no settings.yaml at all -> documented
-hard-coded default, and (b) a full settings.yaml -> the YAML-provided
-value, correctly typed. Shape (c), a PARTIAL settings.yaml (only some
-top-level sections present) -> keys/sections present are read from it,
-keys/sections absent fall back to their own default without crashing, is
-only exercised for dry_check/cve_scan/release_secret (8 of 33 accessors)
-— the other, mostly dict/tuple/list/frozenset-valued accessors don't have
-their own partial-file case yet. A last test confirms a chart_dir with no
-etc/ directory at all doesn't crash _load_settings either — mirrors
-lib.chart._release_baselines' own tolerance for a missing
-etc/release-baseline.yaml."""
+"""lib.settings accessors: missing settings.yaml -> defaults, full file -> typed overrides.
+
+Partial-file fallback is only covered for dry_check/cve_scan/release_secret.
+"""
 
 from pathlib import Path
 from types import ModuleType
@@ -82,9 +74,7 @@ def write_settings(chart_dir, data):
     (chart_dir / "etc" / "settings.yaml").write_text(yaml.safe_dump(data), encoding="utf-8")
 
 
-# (accessor name, section, key, default, overridden value in FULL_SETTINGS,
-# expected type constructor applied to both default and override for
-# comparison — set/tuple/plain passthrough)
+# (accessor, section, key, default, FULL_SETTINGS override, cast applied to both)
 ACCESSOR_CASES = [
     ("cve_high_severity_levels", {"CRITICAL", "HIGH"}, {"CRITICAL", "HIGH", "MEDIUM"}, set),
     ("cve_max_cves_per_package_before_summarizing", 5, 9, None),
@@ -141,11 +131,16 @@ ACCESSOR_CASES = [
     ),
     (
         "component_resolution_chart_version_lockstep_components",
-        frozenset({"kiss-chart", "pabc", "eck-operator"}),
+        frozenset({"kiss-chart", "pabc", "eck-operator", "internetaakafhandeling"}),
         frozenset({"kiss-chart", "pabc"}),
         frozenset,
     ),
-    ("component_resolution_native_components", frozenset({"frankgateway"}), frozenset({"other-native"}), frozenset),
+    (
+        "component_resolution_native_components",
+        frozenset({"frankgateway", "keycloak"}),
+        frozenset({"other-native"}),
+        frozenset,
+    ),
     (
         "component_resolution_version_repository_paths",
         {"redis-operator": "redisOperator.imageName"},
@@ -168,10 +163,11 @@ ACCESSOR_CASES = [
         "component_resolution_image_paths",
         {
             "zgw-office-addin": ["frontend.image", "backend.image"],
-            "keycloak-operator": ["operator.config.keycloakImage"],
-            "openbao": ["server.image"],
+            "keycloak-operator": ["operator.image"],
+            "openbao": ["server.image", "configuration.job.image"],
             "internetaakafhandeling": ["web.image", "poller.image"],
             "kiss-chart": ["image", "settings.syncJobs.image"],
+            "pabc": ["image", "migrations.image"],
             "eck-operator": ["image"],
         },
         {"widget": ["image"]},
@@ -191,8 +187,7 @@ ACCESSOR_CASES = [
 
 
 def test_every_accessor_documented_and_present(libsettings: ModuleType):
-    """Guards against a typo'd/missing accessor name silently dropping a
-    case out of the parametrized tests below."""
+    """A typo'd accessor name must not silently drop out of the parametrized tests."""
     for name, *_ in ACCESSOR_CASES:
         assert hasattr(libsettings, name), f"lib.settings.{name} missing"
 
@@ -204,9 +199,7 @@ def test_missing_settings_file_falls_back_to_defaults(libsettings: ModuleType, t
 
 
 def test_no_etc_directory_at_all_does_not_crash(libsettings: ModuleType, tmp_path: Path):
-    """chart_dir has no etc/ directory whatsoever (not just a missing
-    settings.yaml inside an existing etc/) — mirrors lib.chart.
-    _release_baselines' own tolerance for this."""
+    """A chart_dir with no etc/ directory at all must not crash."""
     assert libsettings._load_settings(tmp_path) == {}
     for name, default, _override, _cast in ACCESSOR_CASES:
         assert getattr(libsettings, name)(tmp_path) == default
@@ -223,9 +216,7 @@ def test_full_settings_file_overrides_every_default(libsettings: ModuleType, tmp
 
 
 def test_partial_settings_file_mixes_overrides_and_defaults(libsettings: ModuleType, tmp_path: Path):
-    """Only dry_check is present — every dry_check accessor reads its
-    override; cve_scan (wholly absent) and release_secret (present below,
-    missing one key) fall back to their own defaults without crashing."""
+    """Absent sections and absent keys fall back to defaults; present ones are read."""
     write_settings(
         tmp_path,
         {
@@ -240,12 +231,10 @@ def test_partial_settings_file_mixes_overrides_and_defaults(libsettings: ModuleT
     assert libsettings.dry_check_high_similarity_threshold(tmp_path) == 0.8
     assert libsettings.dry_check_min_significant_lines(tmp_path) == 12
 
-    # cve_scan section is entirely absent from this file
     assert libsettings.cve_high_severity_levels(tmp_path) == {"CRITICAL", "HIGH"}
     assert libsettings.cve_max_cves_per_package_before_summarizing(tmp_path) == 5
     assert libsettings.cve_scan_cache_ttl_days(tmp_path) == 7
 
-    # a section present but missing one of its keys
     write_settings(
         tmp_path,
         {
@@ -260,8 +249,7 @@ def test_partial_settings_file_mixes_overrides_and_defaults(libsettings: ModuleT
 
 
 def test_empty_settings_file_does_not_crash(libsettings: ModuleType, tmp_path: Path):
-    """An etc/settings.yaml that exists but parses to None (e.g. an empty
-    file) must behave exactly like a missing one."""
+    """A settings.yaml that parses to None (empty file) behaves like a missing one."""
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "settings.yaml").write_text("", encoding="utf-8")
     assert libsettings._load_settings(tmp_path) == {}
@@ -270,11 +258,7 @@ def test_empty_settings_file_does_not_crash(libsettings: ModuleType, tmp_path: P
 
 
 # --- digest_pinning_exceptions ---
-#
-# Returns a shape too irregular (tuple-path keys, nested per-entry dicts
-# with their own normalization) to fit ACCESSOR_CASES' single cast-
-# constructor convention above -- tested standalone instead, following
-# the exact same missing-file/full-file/partial-file pattern.
+# Tuple-path keys and per-entry normalization don't fit ACCESSOR_CASES; tested standalone.
 
 DEFAULT_DIGEST_PINNING_EXCEPTIONS = {
     ("keycloak-operator", "operator", "image"): {"sibling_field": "sha", "writable": True},
@@ -288,10 +272,7 @@ DEFAULT_DIGEST_PINNING_EXCEPTIONS = {
 def test_digest_pinning_exceptions_missing_file_matches_todays_five_entry_table(
     libsettings: ModuleType, tmp_path: Path
 ):
-    """No etc/settings.yaml at all -- falls back to exactly today's real
-    5-entry table (the one this iteration unified out of lib.chart.
-    SPLIT_TAG_SHA_PATHS, lib.checks.digest_pinning.EXEMPT_PATHS, and
-    update-component-version's own separate write-side allowlist)."""
+    """No settings.yaml falls back to the built-in 5-entry exceptions table."""
     assert libsettings.digest_pinning_exceptions(tmp_path) == DEFAULT_DIGEST_PINNING_EXCEPTIONS
 
 
@@ -314,9 +295,7 @@ def test_digest_pinning_exceptions_full_file_override(libsettings: ModuleType, t
 
 
 def test_digest_pinning_exceptions_partial_entry_defaults_missing_keys(libsettings: ModuleType, tmp_path: Path):
-    """An entry that only sets one of sibling_field/writable still comes
-    back with BOTH keys present (the other defaulted) -- callers never
-    need their own .get() dance."""
+    """An entry setting only one of sibling_field/writable gets the other defaulted."""
     write_settings(
         tmp_path,
         {
@@ -331,3 +310,18 @@ def test_digest_pinning_exceptions_partial_entry_defaults_missing_keys(libsettin
     result = libsettings.digest_pinning_exceptions(tmp_path)
     assert result[("writable-no-sibling", "image")] == {"sibling_field": None, "writable": True}
     assert result[("sibling-not-writable", "image")] == {"sibling_field": "sha", "writable": False}
+
+
+def test_setting_returns_a_copy_of_the_cached_value(libsettings: ModuleType, tmp_path: Path):
+    write_settings(tmp_path, FULL_SETTINGS)
+    levels = libsettings._setting(tmp_path, "cve_scan", "high_severity_levels")
+    assert isinstance(levels, list)
+    levels.append("CHANGED")
+    assert libsettings._setting(tmp_path, "cve_scan", "high_severity_levels") == ["CRITICAL", "HIGH", "MEDIUM"]
+
+
+def test_settings_are_reread_after_the_file_changes(libsettings: ModuleType, tmp_path: Path):
+    write_settings(tmp_path, FULL_SETTINGS)
+    assert libsettings.repo_access_cache_ttl_minutes(tmp_path) == 60
+    write_settings(tmp_path, {"repo_access": {"cache_ttl_minutes": 120}})
+    assert libsettings.repo_access_cache_ttl_minutes(tmp_path) == 120

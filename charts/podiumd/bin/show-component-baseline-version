@@ -4,8 +4,8 @@ Show a component's Helm chart and app image versions at both baselines.
 
 Reads Chart.yaml and values.yaml, via git show, as they were at each
 baseline in etc/release-baseline.yaml: upgrade_docs and release_table.
-A baseline "X.Y.Z" means git tag podiumd-X.Y.Z, else branch
-feature/podiumd-X.Y.Z or origin/feature/podiumd-X.Y.Z. A missing
+A baseline X.Y.Z resolves to tag podiumd-X.Y.Z, else branch
+feature/podiumd-X.Y.Z (local or origin). A missing
 baseline is skipped; exits non-zero only when neither can be shown.
 For the image versions only, use show-image-baseline-version.
 
@@ -13,8 +13,10 @@ Usage:
     show-component-baseline-version <component>
 
 Arguments:
-    <component>   Chart.yaml dependency name or alias, or a native
-                  component (e.g. frankgateway), which has no chart version
+    <component>       Chart.yaml dependency name or alias, or a native
+                      component (defined in podiumd itself, e.g.
+                      frankgateway)
+    A native component has no chart version.
 
 Examples:
     show-component-baseline-version zac
@@ -30,8 +32,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-# Not installed as a package -- sys.path must be patched before
-# lib.* can be imported, so these imports can't move to the top.
+# sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
 from lib.baseline_report import show_baseline_section
 from lib.chart.paths import CHART_DIR
@@ -42,12 +43,7 @@ from lib.cli import positional_args
 
 
 def show_at_baseline(chart_dir: Path, label: str, baseline: str | None, component: str):
-    """Prints this component's state at `baseline` (labeled `label`,
-    "upgrade_docs" or "release_table") — see lib.baseline_report.
-    show_baseline_section for the shared "skip if None / print the
-    error / blank line" wrapper this only needs to supply its own
-    resolve-and-print body for. Returns True if the component's state
-    was actually shown."""
+    """Print the component's state at `baseline`; True if shown."""
 
     def resolve(baseline_value: str):
         ref, dep, values_key, image_paths, app_versions, error = component_state_at_baseline(
@@ -79,9 +75,7 @@ def show_at_baseline(chart_dir: Path, label: str, baseline: str | None, componen
 
 
 def main():
-    """CLI entry point: prints `component`'s Helm chart version and app
-    image version(s) at both the upgrade_docs and release_table baselines,
-    exiting 1 only if neither baseline could be shown at all."""
+    """CLI entry point; exits 1 only when neither baseline can be shown."""
     (component,) = positional_args(__doc__, 1)
 
     chart_dir = CHART_DIR

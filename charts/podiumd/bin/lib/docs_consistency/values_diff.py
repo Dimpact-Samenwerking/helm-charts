@@ -1,6 +1,4 @@
-"""Checks that a component's values.yaml schema changes are properly
-mentioned in its own values-deltas.md section — used by
-lib.docs_consistency.check_docs_consistency."""
+"""Check a component's values.yaml schema changes are mentioned in its values-deltas.md section."""
 
 import re
 
@@ -18,9 +16,7 @@ from lib.yaml_types import YamlMapping
 
 @dataclass
 class ValuesDeltaInputs:
-    """baseline_values/values/deps/canonical_names bundled since every
-    step of the schema diff below (subtree lookup, rename pairing,
-    section lookup) needs the same four things together."""
+    """Inputs for the schema diff: baseline_values, values, deps, canonical_names."""
 
     baseline_values: YamlMapping | None
     values: YamlMapping | None
@@ -34,8 +30,7 @@ KeyChanges = tuple[list[KeyPath], list[KeyPath], list[tuple[KeyPath, KeyPath]]]
 
 
 def _diff_component_key(values_key: str, inputs: ValuesDeltaInputs) -> KeyChanges:
-    """(added, removed, renamed) path lists for one component's
-    values.yaml subtree vs baseline — all empty when unchanged."""
+    """(added, removed, renamed) paths in one component's subtree vs baseline."""
     baseline_subtree = inputs.baseline_values.get(values_key, {}) if isinstance(inputs.baseline_values, dict) else {}
     current_subtree = inputs.values.get(values_key, {}) if isinstance(inputs.values, dict) else {}
     diffs: list[tuple[str, KeyPath]] = list(diff_keys(baseline_subtree, current_subtree, (values_key,)))
@@ -77,9 +72,7 @@ def _rename_mentions(doc_path: Path, values_key: str, renamed: list[tuple[KeyPat
 def _check_key_section_mentions(
     doc_path: Path, text: str, values_key: str, changes: KeyChanges, inputs: ValuesDeltaInputs
 ):
-    """Verifies values_key has its own "## ..." section and that every
-    change in it (added, removed, renamed) is backtick-quoted within
-    that section — see check_values_deltas_content's own docstring."""
+    """Issues when values_key has no "## ..." section or a change isn't backtick-quoted in it."""
     added, removed, renamed = changes
     section = find_values_delta_section(text, values_key, inputs.deps, inputs.canonical_names)
     if section is None:
@@ -102,10 +95,7 @@ def _check_key_section_mentions(
 
 
 def _check_empty_sections(doc_path: Path, text: str):
-    """Flags any "## ..." section whose own body is entirely blank — a
-    heading with nothing under it, left over from before this rule
-    existed (see lib.component_docs.prune_empty_values_delta_sections,
-    fix-doc-consistency's own cleanup for exactly this)."""
+    """Flag every "## ..." section with an entirely blank body."""
     lines = text.splitlines(keepends=True)
     return [
         f'{doc_path.name}: "## {section["heading"]}" section has nothing under its own heading'
@@ -115,32 +105,13 @@ def _check_empty_sections(doc_path: Path, text: str):
 
 
 def check_values_deltas_content(doc_path: Path, actual_changed_keys: set[str], inputs: ValuesDeltaInputs):
-    """For every top-level component key whose values.yaml SCHEMA
-    changed vs upgrade_docs_baseline (a key was added/removed/renamed
-    under it — see lib.upgradedoc.diff_keys/pair_renames), verify it has
-    its own values-deltas.md section (see lib.upgradedoc.parse_values_
-    delta_sections/changes_heading_identities/lib.component_docs.
-    find_values_delta_section) and that every such change is actually
-    mentioned (backtick-quoted, matching the doc convention)
-    specifically WITHIN that section. A key mentioned only in some
-    OTHER component's section (or nowhere at all) is exactly the drift
-    this per-component-section convention exists to catch.
+    """Check each component with a values.yaml schema change has its own section mentioning it.
 
-    A component that only bumped its app/chart version, with NO schema
-    change, needs no section here at all — that transition is already
-    covered by -upgrade.md's own table + Changes section, and values-
-    deltas.md exists to tell gemeentes what THEIR OWN podiumd.yml needs
-    to react to (see sync_values_delta_sections's own docstring for the
-    same reasoning) — so `actual_changed_keys` (compute_changed_
-    components' broader "changed in ANY way" set) is used only to scope
-    WHICH keys' own subtrees get diffed, never to require a section on
-    its own.
-
-    `inputs` is a ValuesDeltaInputs bundling baseline_values/values/
-    deps/canonical_names — see its own docstring.
-
-    Also flags any "## ..." section whose own body is entirely
-    blank — see _check_empty_sections."""
+    Each added/removed/renamed key must be backtick-quoted within that component's
+    section; a mention elsewhere doesn't count. Pure version bumps need no section
+    (the upgrade doc covers them); `actual_changed_keys` only scopes which subtrees are
+    diffed. Empty sections are flagged too.
+    """
     text = doc_path.read_text(encoding="utf-8")
     no_changes_claimed = bool(
         re.search(r"no\s+gemeente\s+`?podiumd\.yml`?\s+changes\s+are\s+required", text, re.IGNORECASE)

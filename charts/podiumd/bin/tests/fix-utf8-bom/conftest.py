@@ -1,5 +1,4 @@
-"""Loads fix-utf8-bom (a hyphenated filename, not importable normally)
-as a module named `sub` so tests can call its functions directly."""
+"""Load fix-utf8-bom (hyphenated, not importable) as module `sub`."""
 
 import importlib.util
 

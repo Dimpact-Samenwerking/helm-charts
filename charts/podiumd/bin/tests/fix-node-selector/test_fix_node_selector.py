@@ -1,5 +1,4 @@
-"""find_fixes/apply_fixes (pure logic) plus a main() integration test
-against real files in tmp_path. No git/network/helm needed."""
+"""find_fixes/apply_fixes plus a main() integration test on tmp_path files."""
 
 from pathlib import Path
 from types import ModuleType
@@ -148,9 +147,8 @@ def test_find_fixes_cronjob_deep_nesting_anchors_on_containers(sub: ModuleType):
 
 
 def test_find_fixes_init_containers_only_is_unresolved_not_misfixed(sub: ModuleType):
-    """initContainers: must never be mistaken for the containers: anchor
-    — a workload with only initContainers (no containers: key at all in
-    this fixture) has nothing safe to anchor on."""
+    """initContainers: must not be taken as the containers: anchor; with no
+    containers: key there is nothing safe to anchor on."""
     fixes, unresolved = sub.find_fixes(DEPLOYMENT_WITH_INIT_CONTAINERS_ONLY)
     assert fixes == []
     assert unresolved == [("Deployment", "my-app")]

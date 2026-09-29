@@ -1,15 +1,9 @@
-"""check_kubeconform / split_rendered_by_source / run_kubeconform — validates
-the full `helm template` render against real Kubernetes API schemas, which
-neither `helm lint` nor yamllint check. Unlike yamllint's per-line JSON
-output, kubeconform only reports kind/name/version/status per resource, so
-scoping (this chart's own templates/ vs. a vendored sub-chart) happens by
-splitting the render into separate YAML streams BEFORE validation — one for
-this chart's own templates, and one PER DISTINCT vendored chart (so a
-finding can still be attributed to the chart it came from, for the
-partner-vendor per-item reporting). All `helm`/`kubeconform` subprocess
-calls are mocked via vp.run; friendly_vendor_charts is mocked too, since
-these tests use tmp_path (no real Chart.yaml) — no real kubeconform or helm
-invocation happens in these tests."""
+"""check_kubeconform / split_rendered_by_source / run_kubeconform: validate the
+render against Kubernetes API schemas.
+
+kubeconform reports no source file, so the render is split into one stream for
+own templates and one per vendored chart before validation. vp.run and
+friendly_vendor_charts are mocked."""
 
 import json
 
@@ -57,21 +51,14 @@ def fake_render_chart(rendered=RENDERED, returncode=0):
 
 @pytest.fixture(autouse=True)
 def _default_render(monkeypatch: pytest.MonkeyPatch):
-    """check_kubeconform now gets its render via lib.render_scope.render_
-    chart(chart_dir, extra_args), not a run([...]) call of its own —
-    default every test in this file to the standard RENDERED fixture
-    text; a test needing different rendered content (or a render
-    failure) overrides this via its own monkeypatch.setattr(
-    "lib.render_scope.render_chart", ...) call."""
+    """Default every test to the RENDERED fixture via render_chart; override
+    by patching lib.render_scope.render_chart."""
     monkeypatch.setattr("lib.render_scope.render_chart", fake_render_chart(RENDERED))
 
 
 def sequenced_run(own_resources, vendored_resources_by_chart=None, kc_returncode=1):
-    """check_kubeconform's own remaining run([...]) calls are ALL
-    "kubeconform" now (the render moved to render_chart, see
-    _default_render above): one for this chart's own text, then one per
-    distinct vendored chart found in the render (in
-    vendored_resources_by_chart, keyed by chart name, e.g. {"zac": [...]})."""
+    """All run() calls are kubeconform: one for own text, then one per
+    vendored chart (vendored_resources_by_chart, keyed by chart name)."""
     vendored_resources_by_chart = vendored_resources_by_chart or {}
     calls = {"n": 0}
 
@@ -93,10 +80,8 @@ def sequenced_run(own_resources, vendored_resources_by_chart=None, kc_returncode
 def test_run_kubeconform_creates_cache_dir_and_passes_cache_flag(
     libkubeconformcheck: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
-    """kubeconform requires -cache's target directory to already exist (it
-    errors out rather than creating it), so run_kubeconform must mkdir it
-    before invoking the tool — and the flag itself must reach the actual
-    command line."""
+    """kubeconform errors if the -cache directory doesn't exist, so it must be
+    created first and the flag passed."""
     cache_dir = tmp_path / "kubeconform-schema-cache"
     monkeypatch.setattr(libkubeconformcheck, "kubeconform_cache_dir", lambda: cache_dir)
     assert not cache_dir.exists()
@@ -196,10 +181,8 @@ def test_check_kubeconform_own_finding_includes_rendered_line(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """RENDERED's frankgateway Service has "metadata: name: frankgateway"
-    starting at line 3 (right after its own "# Source:" comment on line
-    2) — build_resource_locations/resource_line must resolve that and
-    check_kubeconform must print it alongside the kind/name."""
+    """The resource's metadata.name line (3, after "# Source:" on 2) is
+    printed alongside kind/name."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kubeconform")
     no_friendly_vendors(libkubeconformcheck, monkeypatch)
     monkeypatch.setattr(
@@ -225,9 +208,8 @@ def test_check_kubeconform_own_parse_error_fails(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """A resource kubeconform's own YAML parser can't even load (e.g. the
-    frankgateway duplicate-key bug) is statusError, not statusInvalid — must
-    also fail, same as a schema violation."""
+    """An unloadable resource (statusError, e.g. a duplicate key) fails like
+    a schema violation."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kubeconform")
     no_friendly_vendors(libkubeconformcheck, monkeypatch)
     monkeypatch.setattr(
@@ -257,8 +239,7 @@ def test_check_kubeconform_own_parse_error_fails(
 def test_check_kubeconform_skipped_crd_is_not_a_finding(
     vp: ModuleType, libkubeconformcheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """statusSkipped (no known schema — expected for this chart's many
-    CRDs: Keycloak, ECK, Redis, ...) must never count as a finding."""
+    """statusSkipped (no schema, e.g. CRDs) is never a finding."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kubeconform")
     no_friendly_vendors(libkubeconformcheck, monkeypatch)
     monkeypatch.setattr(
@@ -282,9 +263,7 @@ def test_check_kubeconform_repeated_root_cause_is_grouped(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """Same shape as the real frankgateway bug: several resources hitting
-    the identical parse error must print as one grouped line with an
-    occurrence count, not one line per resource."""
+    """Identical parse errors print as one grouped line with a count."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kubeconform")
     no_friendly_vendors(libkubeconformcheck, monkeypatch)
     msg = (
@@ -361,10 +340,8 @@ def test_check_kubeconform_friendly_vendor_finding_reported_per_item_never_fails
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """A vendored sub-chart from a listed partner org gets its finding
-    printed individually (attributed to the chart it came from, since
-    kubeconform is run once per distinct vendored chart precisely so this
-    attribution is possible) but must still never fail."""
+    """A partner-vendor finding is printed per item, attributed to its chart,
+    but never fails."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kubeconform")
     monkeypatch.setattr("lib.render_scope.friendly_vendor_charts", lambda chart_dir: {"zac": "Info(NL)"})
     monkeypatch.setattr(
@@ -432,9 +409,8 @@ def test_check_kubeconform_unparseable_own_output_fails(
 def test_check_kubeconform_unparseable_vendored_output_fails(
     vp: ModuleType, libkubeconformcheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """The own-scope kubeconform call succeeds, but a vendored-chart call
-    returns garbage — must still fail with a clear message, not silently
-    swallow it as "0 vendored findings"."""
+    """Garbage output from a vendored-chart call fails with a clear message,
+    not "0 vendored findings"."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kubeconform")
     no_friendly_vendors(libkubeconformcheck, monkeypatch)
     calls = {"n": 0}

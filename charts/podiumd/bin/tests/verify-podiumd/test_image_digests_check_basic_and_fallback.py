@@ -1,8 +1,5 @@
-"""check_image_digests — basic mocked-registry matching/mismatch/retry
-scenarios, plus the subchart-default repository fallback (openzaak/
-openformulieren-style pins with no repository of their own in
-values.yaml). No network access needed: registry_tag_exists is
-monkeypatched wherever a live fetch would otherwise happen."""
+"""check_image_digests: mocked-registry matching/mismatch/retry and the
+subchart-default repository fallback. registry_tag_exists is monkeypatched."""
 
 import io
 import tarfile
@@ -19,21 +16,15 @@ from dep_helpers import make_dep
 
 @pytest.fixture(autouse=True)
 def _clear_tag_exists_cache(libimagedigests: ModuleType):
-    """cached_tag_exists' own in-process memoization (see its own
-    docstring) lives in a module-level dict, and libimagedigests is a
-    session-scoped fixture — without this, one test's cached (fake)
-    registry_tag_exists result could silently leak into a LATER test
-    that reuses the same (repository, version), even though that later
-    test mocks registry_tag_exists completely differently."""
+    """Clear cached_tag_exists' module-level memo so one test's fake result
+    can't leak into a later test via the session-scoped fixture."""
     libimagedigests.clear_tag_exists_cache()
     yield
     libimagedigests.clear_tag_exists_cache()
 
 
 def make_tgz(charts_dir, name, version, values):
-    """A minimal vendored <name>-<version>.tgz containing just
-    <name>/values.yaml, for exercising the subchart-default-repository
-    fallback without a real `helm pull`."""
+    """Write a minimal vendored <name>-<version>.tgz with <name>/values.yaml."""
     charts_dir.mkdir(parents=True, exist_ok=True)
     tgz_path = charts_dir / f"{name}-{version}.tgz"
     data = yaml.safe_dump(values).encode("utf-8")
@@ -71,10 +62,8 @@ def test_check_image_digests_no_digest_header_is_unverifiable_not_matched(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """registry_tag_exists returns (True, None) when a 200 manifest response
-    carried no Docker-Content-Digest header (some registries/proxies). The
-    pin cannot be confirmed, so it must NOT count as matched — it goes in
-    the same 'couldn't verify' bucket as an unreachable host."""
+    """(True, None) means a 200 without Docker-Content-Digest: unconfirmed, so
+    it goes in the "couldn't verify" bucket, not matched."""
     write_values(tmp_path, (f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (True, None))
     ok, detail = vp.check_image_digests(tmp_path)
@@ -166,11 +155,8 @@ def test_check_image_digests_gives_up_after_one_retry(
 def test_check_image_digests_dedupes_shared_repo_and_tag(
     vp: ModuleType, libimagedigests: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """The same repository+tag pinned at two places still only costs one
-    registry fetch — but (since 2026-08-26) it's ALSO now a
-    [DUPLICATE-PIN] failure in its own right (see
-    test_check_image_digests_reports_duplicate_pin): the two concerns are
-    independent, so both are exercised here."""
+    """The same repository+tag at two places costs one fetch, and is also a
+    [DUPLICATE-PIN] failure."""
     write_values(
         tmp_path,
         (
@@ -217,8 +203,7 @@ def test_check_image_digests_unresolved_line_names_the_file(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """A bare "line N" doesn't say which file N is in — prefix with
-    values.yaml, same convention as check_duplicate_keys."""
+    """Prefix "line N" with values.yaml, as check_duplicate_keys does."""
     write_values(tmp_path, (f'a:\n  image:\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda *a: (_ for _ in ()).throw(AssertionError))
     vp.check_image_digests(tmp_path)
@@ -232,9 +217,8 @@ def test_check_image_digests_unresolved_line_names_the_file(
 def test_check_image_digests_falls_back_to_subchart_default_repository(
     vp: ModuleType, libimagedigests: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """openzaak/openformulieren-style pins: no repository in values.yaml at
-    all, resolved instead from the vendored subchart's own default (the
-    same one Helm merges in at render time)."""
+    """A pin without a repository in values.yaml resolves from the vendored
+    subchart default, as Helm merges it at render time."""
     write_values(tmp_path, (f'openzaak:\n  image:\n    tag: "1.27.4@sha256:{"a" * 64}"\n'))
     write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
     make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {"repository": "openzaak/open-zaak"}})

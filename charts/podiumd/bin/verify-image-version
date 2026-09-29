@@ -2,26 +2,28 @@
 """
 Check that an image version exists upstream before pinning it.
 
-Resolves <key> <basename> to exactly one image pin in the current
+Resolves <key> <image-basename> to exactly one image pin in the current
 values.yaml and checks that <image-version> exists in its registry.
 Writes nothing. Pre-flight check for update-image-version; when the
 Helm chart version changes too, use verify-component-version.
 
 Usage:
-    verify-image-version <key> <basename> <image-version>
+    verify-image-version <key> <image-basename> <image-version>
 
 Arguments:
-    <key>            Chart.yaml dependency name or alias, or "MULTIPLE"
-                     for a base image shared via values.yaml global.images
-    <basename>       last "/" segment of the image repository
-    <image-version>  tag to check
+    <key>             top-level values.yaml key: a Chart.yaml dependency
+                      name or alias, a native component (defined in
+                      podiumd itself, e.g. frankgateway) or MULTIPLE for
+                      global.images
+    <image-basename>  last path segment of the image repository
+    <image-version>   image tag
 
 Examples:
     verify-image-version zac zaakafhandelcomponent 5.4.4
     verify-image-version keycloak-operator python 3.15.7-slim
     verify-image-version MULTIPLE curl 8.22.0
 
-Exits non-zero when <key> <basename> does not match exactly one pin, or
+Exits non-zero when <key> <image-basename> does not match exactly one pin, or
 when <image-version> does not exist.
 """
 
@@ -32,23 +34,19 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-# Not installed as a package -- sys.path must be patched before
-# lib.* can be imported, so these imports can't move to the top.
+# sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.paths import CHART_YAML
 from lib.chart.paths import VALUES_YAML
+from lib.cli import network_errors
 from lib.cli import positional_args
 from lib.image.version import check_basename_version
 from lib.image.version import resolve_key_scope
 
 
 def main():
-    """CLI entry point: resolves <key> <basename> to the current values.
-    yaml pin(s) and checks whether <image-version> already exists upstream
-    for each, printing FOUND/MISSING per match. Exits non-zero if <key>
-    <basename> doesn't resolve uniquely, or if the version is missing for
-    any resolved pin."""
+    """CLI entry point."""
     key, basename, image_version = positional_args(__doc__, 3)
 
     deps = load_chart_dependencies(CHART_YAML)
@@ -71,4 +69,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    with network_errors("container registry"):
+        main()

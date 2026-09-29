@@ -1,5 +1,4 @@
-"""main() — BOM stripping, dry-run, and exit codes. No git/network needed;
-VALUES_PATH is monkeypatched to a disposable tmp_path file."""
+"""fix-utf8-bom main(): BOM stripping, dry-run and exit codes."""
 
 from pathlib import Path
 from types import ModuleType

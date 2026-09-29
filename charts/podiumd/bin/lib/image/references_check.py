@@ -1,15 +1,8 @@
-"""Verifies every container `image:` field in this chart's OWN
-templates/*.yaml goes through the shared `podiumd.image` helper, per
-.github/copilot-instructions.md's "Image References" convention: "All
-images in podiumd templates use `{{ include "podiumd.image" <image> }}`
-... NEVER embed plain repo:tag strings in templates."
+"""Check that every `image:` in this chart's templates/*.yaml uses the `podiumd.image` helper.
 
-Scans the raw template source, not a `helm template` render — by the time
-an image string is rendered, there is no way to tell whether it went
-through the helper or was hand-interpolated (e.g.
-`"{{ .repository }}:{{ .tag }}"`) or hardcoded outright. This also means
-the check only ever covers this chart's own templates; a vendored
-sub-chart's templates aren't this repo's source to scan."""
+Scans template source, not a render: after rendering a helper call can't be
+told apart from hand-interpolation. Vendored sub-charts are not scanned.
+"""
 
 import re
 
@@ -20,8 +13,7 @@ HELPER_CALL_RE = re.compile(r'include\s+"podiumd\.image"')
 
 
 def scan_image_references(templates_dir: Path) -> list[tuple[Path, int, str]]:
-    """Returns a list of (path, line_no, value) for every `image:` line in
-    templates/*.yaml whose value doesn't call the podiumd.image helper."""
+    """(path, line_no, value) for every templates/*.yaml `image:` line not calling podiumd.image."""
     findings: list[tuple[Path, int, str]] = []
     for path in sorted(templates_dir.rglob("*.yaml")):
         if not path.is_file():
@@ -38,10 +30,7 @@ def scan_image_references(templates_dir: Path) -> list[tuple[Path, int, str]]:
 
 
 def check_image_references(chart_dir: Path):
-    """The verify-podiumd check itself: every `image:` field in chart_dir's
-    own templates/*.yaml must call the shared `podiumd.image` helper (see
-    scan_image_references). Prints each offending path:line:value and
-    fails if any are found; passes with "0 violation(s)" otherwise."""
+    """verify-podiumd check: print each `image:` line not using podiumd.image; fail if any."""
     findings = scan_image_references(chart_dir / "templates")
 
     if not findings:

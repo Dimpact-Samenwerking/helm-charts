@@ -9,7 +9,7 @@ Usage:
     fix-helm-doc [--dry-run]
 
 Options:
-    --dry-run   report drift only, write nothing
+    --dry-run   report what would change, write nothing
 
 Requires: helm-docs on PATH (https://github.com/norwoodj/helm-docs).
 """
@@ -22,8 +22,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-# Not installed as a package -- sys.path must be patched before
-# lib.* can be imported, so these imports can't move to the top.
+# sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
 from lib.chart.paths import CHART_DIR
 from lib.checks.helm_docs import README_FILENAME
@@ -33,9 +32,7 @@ from lib.procutil import run
 
 
 def build_cmd(*, dry_run: bool):
-    """Builds the helm-docs argv for CHART_DIR, adding --dry-run when
-    `dry_run` is True and --template-files when a README.md.gotmpl template
-    exists alongside the chart."""
+    """helm-docs argv for CHART_DIR, with --template-files when README.md.gotmpl exists."""
     cmd = ["helm-docs"]
     if dry_run:
         cmd.append("--dry-run")
@@ -46,11 +43,7 @@ def build_cmd(*, dry_run: bool):
 
 
 def main():
-    """CLI entry point: regenerates README.md via helm-docs, but only
-    actually writes it (and only reports a diff) when the real output
-    differs from the current file — a no-op run never touches its mtime.
-    --dry-run instead just delegates to the same check verify-podiumd
-    runs (lib.checks.helm_docs.check_helm_docs) and exits accordingly."""
+    """CLI entry point; writes only when the output differs, so a no-op run keeps the mtime."""
     if "-h" in sys.argv[1:] or "--help" in sys.argv[1:]:
         print(__doc__)
         sys.exit(0)

@@ -1,11 +1,5 @@
-"""main() integration test against a real, hermetic temp git repo (to
-exercise the actual baseline_ref_candidates/resolve_git_ref resolution,
-same as show-component-baseline-version's own tests). The read/write
-sides (lib.chart.upgrade_docs_baseline/write_release_baselines) are
-pure I/O already covered in tests/lib/test_chart.py -- this file only
-exercises main()'s own wiring: it reads the CURRENT upgrade_docs
-baseline, writes the new one (release_table is never touched), and
-chains into fix-doc-consistency then fix-helm-doc."""
+"""main() wiring against a real temp git repo: updates only the upgrade_docs
+baseline, then chains fix-doc-consistency and fix-helm-doc."""
 
 import subprocess
 
@@ -17,10 +11,6 @@ import pytest
 
 def git(*args, cwd):
     subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
-
-
-# main() only calls sys.exit() on error paths; on success it just returns,
-# so only the failure-path tests wrap the call in pytest.raises(SystemExit).
 
 
 @pytest.fixture
@@ -39,13 +29,8 @@ def set_up(cpb: ModuleType, monkeypatch: pytest.MonkeyPatch, repo, argv):
     monkeypatch.setattr("sys.argv", ["change-podiumd-baseline", *argv])
     monkeypatch.setattr(cpb, "find_repo_root", lambda chart_dir: repo)
     monkeypatch.setattr(cpb, "CHART_DIR", repo)
-    # fix-doc-consistency and fix-helm-doc are invoked for real by
-    # main() on any success path — fake both here (a real run would need
-    # its own hermetic Chart.yaml/docs tree, and would otherwise run
-    # against the REAL charts/podiumd since these are genuine subprocesses,
-    # not something monkeypatch can reach into); test_main_invokes_fix_doc_consistency
-    # and test_main_invokes_fix_helm_doc_after_fix_doc_consistency cover
-    # the calls themselves.
+    # Fake both chained scripts: as real subprocesses they would run against
+    # the real charts/podiumd, out of monkeypatch's reach.
     monkeypatch.setattr(cpb, "run_script", lambda cmd, *a, **k: subprocess.CompletedProcess(cmd, 0))
 
 
@@ -199,10 +184,9 @@ def test_main_unresolvable_baseline_fails_without_writing(
 def test_main_rejects_a_non_semver_baseline_without_writing(
     cpb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], bad
 ):
-    """Only a released MAJOR.MINOR.PATCH is a valid baseline. Without this
-    guard, gitutil.baseline_ref_candidates' unanchored match lets an
-    arbitrary ref resolve and get persisted into release-baseline.yaml,
-    where every downstream consumer assumes semver."""
+    """Only a released MAJOR.MINOR.PATCH is accepted: baseline_ref_candidates'
+    unanchored match would otherwise persist an arbitrary ref, and consumers
+    assume semver."""
     cpb.write_release_baselines(repo, upgrade_docs="4.8.4")
     set_up(cpb, monkeypatch, repo, [bad])
 

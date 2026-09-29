@@ -1,9 +1,7 @@
-"""cached_tag_exists — the shared, in-process + on-disk memoization
-check_image_digests' own loop and find_sliding_pins both call through, so
-a --include=cve-diff run (which needs both) only pays for one real
-per-pin registry lookup, not two. No network access needed:
-registry_tag_exists is monkeypatched wherever a live fetch would
-otherwise happen."""
+"""cached_tag_exists: in-process + on-disk memoization shared by check_image_digests and find_sliding_pins.
+
+registry_tag_exists is monkeypatched; no network needed.
+"""
 
 import urllib.error
 
@@ -20,22 +18,13 @@ import lib.repo_access_cache as repo_access_cache
 
 @pytest.fixture(autouse=True)
 def _clear_tag_exists_cache(libimagedigests: ModuleType):
-    """cached_tag_exists' own in-process memoization (see its own
-    docstring) lives in a module-level dict, and libimagedigests is a
-    session-scoped fixture — without this, one test's cached (fake)
-    registry_tag_exists result could silently leak into a LATER test
-    that reuses the same (repository, version), even though that later
-    test mocks registry_tag_exists completely differently."""
+    """Clear the module-level cache so a fake result can't leak across tests (fixture is session-scoped)."""
     libimagedigests.clear_tag_exists_cache()
     yield
     libimagedigests.clear_tag_exists_cache()
 
 
 # --- cached_tag_exists ---
-#
-# The shared, in-process memoization check_image_digests' own loop and
-# find_sliding_pins both call through, so a --include=cve-diff run (which
-# needs both) only pays for one real per-pin registry lookup, not two.
 
 
 def testcached_tag_exists_only_calls_registry_once_for_same_pin(
@@ -76,9 +65,7 @@ def testcached_tag_exists_different_repository_or_version_is_a_distinct_call(
 def testcached_tag_exists_does_not_cache_a_raised_exception(
     libimagedigests: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """A network error must propagate uncached -- check_image_digests' own
-    retry-on-transient-network-error loop still genuinely retries over
-    the network rather than replaying a cached failure."""
+    """Network errors propagate uncached so the caller's retry loop really retries."""
     calls = {"n": 0}
 
     def flaky(host, repo, tag):
@@ -99,11 +86,7 @@ def testcached_tag_exists_does_not_cache_a_raised_exception(
 
 
 # --- cached_tag_exists: disk tier (lib.repo_access_cache) ---
-#
-# Genuinely the SAME cache check_repo_access itself uses (same file, same
-# cache_key/load_cache/save_cache/cache_entry_is_fresh functions, same
-# TTL) -- an entry either one writes must be directly usable by the
-# other, no format translation.
+# Same cache file/format/TTL as check_repo_access: entries are interchangeable.
 
 
 def testcached_tag_exists_reads_a_fresh_disk_entry_without_a_network_call(
@@ -173,11 +156,7 @@ def testcached_tag_exists_ignores_a_stale_disk_entry(
 def test_check_image_digests_and_find_sliding_pins_share_the_tag_exists_cache(
     libimagedigests: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """The actual redundancy this cache fixes: check_image_digests' own
-    loop and find_sliding_pins (check_cve_diff's own candidate source)
-    must not each independently re-query the registry for the same pin
-    within one process — "CVE diff" lists "Image digests" as a
-    prerequisite specifically so both run in the same invocation."""
+    """check_image_digests and find_sliding_pins share one registry lookup per pin in a run."""
     digest_a = "a" * 64
     (tmp_path / "values.yaml").write_text(
         (f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{digest_a}"\n'), encoding="utf-8"

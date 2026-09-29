@@ -1,11 +1,4 @@
-"""lib.chart — canonical sidecar row naming, subchart template text/
-default-repository resolution, and the self-resolving registry wrappers:
-canonical_sidecar_row_names, subchart_template_text,
-subchart_default_repository, chart_version_lockstep_components,
-version_repository_path_for, nested_subchart_name_for,
-nested_subchart_registered_paths, component_image_paths, image_paths_for,
-component_version_paths, version_paths_for. Split out of the former
-test_chart.py (see the other test_chart_*.py files for the rest)."""
+"""lib.chart: sidecar row naming, subchart template/default-repository lookup, registry wrappers."""
 
 import io
 import tarfile
@@ -18,17 +11,12 @@ import yaml
 
 
 def make_tgz(charts_dir, name, version, values, templates=None, chart_yaml=None, raw_files=None):
-    """A minimal vendored <name>-<version>.tgz containing <name>/values.yaml
-    and, if `templates` is given (a {filename: text} dict), <name>/templates/
-    <filename> for each entry — enough to exercise subchart_values/
-    subchart_default_repository/subchart_template_text without a real
-    `helm pull`. `chart_yaml`, if given (a dict), is ALSO written as
-    <name>/Chart.yaml — for subchart_app_version. `raw_files`, if given
-    (a {internal tar path: text} dict, paths relative to the tgz root —
-    e.g. "<name>/charts/<nested>/values.yaml"), writes each verbatim —
-    for nested_subchart_raw_text/nested_subchart_documented_image_
-    repository, where the content isn't real structured YAML (a
-    commented-out example line) so yaml.safe_dump can't produce it."""
+    """Write a minimal vendored <name>-<version>.tgz.
+
+    `templates` ({filename: text}) go under <name>/templates/, `chart_yaml`
+    becomes <name>/Chart.yaml, and `raw_files` ({tar path: text}) are written
+    verbatim, for content yaml.safe_dump can't produce (commented-out lines).
+    """
     charts_dir.mkdir(parents=True, exist_ok=True)
     tgz_path = charts_dir / f"{name}-{version}.tgz"
     data = yaml.safe_dump(values).encode("utf-8")
@@ -70,10 +58,7 @@ def test_canonical_sidecar_row_names_dependency_sidecar(tmp_path: Path, libchart
 def test_canonical_sidecar_row_names_native_component_sidecar(
     tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
-    """frankgateway (see lib.chart.NATIVE_COMPONENTS) has no Chart.yaml
-    dependency at all — deps is empty on purpose — but it's still the
-    real owner of its own nested sidecar images, the same as a real
-    dependency is of its own."""
+    """A native component (no Chart.yaml dependency, deps empty) still owns its sidecars."""
     values = {"frankgateway": {"etcd": {"image": {"repository": "quay.io/coreos/etcd"}}}}
     paths = [("frankgateway", "etcd", "image")]
 
@@ -85,8 +70,7 @@ def test_canonical_sidecar_row_names_native_component_sidecar(
 def test_canonical_sidecar_row_names_excludes_native_components_own_primary_image(
     tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
-    """Same exclusion as a real dependency's own primary image — frankgateway's
-    OWN top-level image is not a sidecar of itself."""
+    """A native component's own primary image is not a sidecar."""
     values = {"frankgateway": {"image": {"repository": "ghcr.io/wearefrank/frank-gateway"}}}
     paths = [("frankgateway", "image")]
 
@@ -98,9 +82,7 @@ def test_canonical_sidecar_row_names_excludes_native_components_own_primary_imag
 def test_canonical_sidecar_row_names_excludes_dependencys_own_primary_image(
     tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
-    """The dependency's own registered primary image (image_paths_for) is
-    NOT a sidecar — match_dependency already covers it by the
-    dependency's plain name/alias, so it must not show up here too."""
+    """A dependency's primary image is not a sidecar; match_dependency already covers it."""
     dep = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}
     values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"}}}
     paths = [("zac", "image")]
@@ -113,33 +95,50 @@ def test_canonical_sidecar_row_names_excludes_dependencys_own_primary_image(
 def test_canonical_sidecar_row_names_self_referential_basename_falls_back_to_path_segment(
     tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
-    """A nested image whose OWN repository basename happens to equal the
-    parent dependency's own values key (real case: keycloak-operator.
-    operator.image, the operator's own container — NOT registered in
-    COMPONENT_IMAGE_PATHS, unlike operator.config.keycloakImage) must
-    never produce a "<key> - <key>" canonical name — that reads as a
-    confusing repeat, not a real distinct-image name. Falls back to the
-    values-tree path's own second-to-last segment instead ("operator"),
-    giving "keycloak-operator - operator" — distinct from "this IS the
-    dependency's own row" (match_dependency already covers that case by
-    the bare dependency name), and clearly still identifies which
-    nested image this is."""
-    dep = {"name": "keycloak-operator", "alias": "", "version": "1.12.1"}
-    values = {"keycloak-operator": {"operator": {"image": {"repository": "quay.io/keycloak/keycloak-operator"}}}}
-    paths = [("keycloak-operator", "operator", "image")]
+    """A sidecar whose basename equals its values key uses the parent path segment instead.
+
+    Avoids a confusing "<key> - <key>" name.
+    """
+    dep = {"name": "redis-operator", "alias": "", "version": "0.26.1"}
+    values = {"redis-operator": {"redisOperator": {"image": {"repository": "quay.io/opstree/redis-operator"}}}}
+    paths = [("redis-operator", "redisOperator", "image")]
 
     names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
 
-    assert names == {"keycloak-operator - operator": ("keycloak-operator", "operator", "image")}
+    assert names == {"redis-operator - redisOperator": ("redis-operator", "redisOperator", "image")}
+
+
+def test_canonical_sidecar_row_names_excludes_sidecar_aliasing_an_owners_primary(
+    tmp_path: Path, libchartrepoandpathresolution: ModuleType
+):
+    """A sidecar aliasing another owner's primary image (keycloak) gets no row of its own."""
+    dep = {"name": "keycloak-operator", "alias": "", "version": "1.13.0"}
+    values = {
+        "keycloak": {"image": {"repository": "quay.io/keycloak/keycloak"}},
+        "keycloak-operator": {
+            "operator": {
+                "image": {"repository": "quay.io/keycloak/keycloak-operator"},
+                "config": {"keycloakImage": {"repository": "quay.io/keycloak/keycloak"}},
+            }
+        },
+    }
+    paths = [
+        ("keycloak", "image"),
+        ("keycloak-operator", "operator", "image"),
+        ("keycloak-operator", "operator", "config", "keycloakImage"),
+    ]
+
+    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
+    row_names = [libchartrepoandpathresolution.doc_row_name(tmp_path, [dep], values, p, paths) for p in paths]
+
+    assert names == {}
+    assert row_names == ["keycloak", "keycloak-operator", "keycloak"]
 
 
 def test_canonical_sidecar_row_names_self_referential_basename_no_fallback_segment_is_excluded(
     tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
-    """When the self-referential path has nothing but the top-level key
-    and the final image key itself (no distinct segment in between to
-    fall back to), there's no useful alternative name at all — still
-    excluded entirely, same as before this fallback existed."""
+    """A self-referential path with no middle segment to fall back to is excluded."""
     dep = {"name": "keycloak-operator", "alias": "", "version": "1.12.1"}
     values = {"keycloak-operator": {"image": {"repository": "quay.io/keycloak/keycloak-operator"}}}
     paths = [("keycloak-operator", "image")]
@@ -150,9 +149,7 @@ def test_canonical_sidecar_row_names_self_referential_basename_no_fallback_segme
 
 
 def test_canonical_sidecar_row_names_global_shared_image(tmp_path: Path, libchartrepoandpathresolution: ModuleType):
-    """A "global"-rooted image has no single owning dependency at all —
-    the canonical name is bare "<basename>" (update-image-version's
-    MULTIPLE_KEY convention), never "<values_key> - <basename>"."""
+    """A "global" image is named by its bare basename (update-image-version's MULTIPLE_KEY)."""
     values = {"global": {"images": {"nginx": {"image": {"repository": "docker.io/nginxinc/nginx-unprivileged"}}}}}
     paths = [("global", "images", "nginx", "image")]
 
@@ -164,15 +161,10 @@ def test_canonical_sidecar_row_names_global_shared_image(tmp_path: Path, libchar
 def test_canonical_sidecar_row_names_excludes_sidecar_sharing_a_global_repository(
     tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
-    """Real bug: zac's own nginx sidecar and frankgateway's own nginx
-    sidecar both alias the exact same global.images.nginx anchor — each
-    independently registering its own "<dep> - nginx-unprivileged" name
-    gave the SAME version bump two separate, equally-valid-looking
-    canonical names ("zac - nginx-unprivileged" AND "frankgateway -
-    nginx-unprivileged" both showing up as separate -upgrade.md rows).
-    Only the bare "global" name should ever be registered for this
-    shared repository — the per-component ones are excluded entirely,
-    not just deprioritized."""
+    """Sidecars aliasing a global anchor get no per-component names, only the global one.
+
+    Otherwise one version bump shows up as several -upgrade.md rows.
+    """
     deps = [
         {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"},
         {"name": "frankgateway", "alias": "", "version": "1.1.0"},
@@ -243,10 +235,7 @@ def test_subchart_template_text_missing_tgz_returns_none(tmp_path: Path, libchar
 def test_subchart_template_text_no_templates_dir_returns_none(
     tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
-    """A .tgz with only values.yaml (no templates/ at all — the shape
-    make_tgz produces when `templates` is omitted) is "can't tell", not
-    an empty-but-valid haystack — callers must be able to distinguish the
-    two, so this returns None rather than ""."""
+    """No templates/ returns None ("can't tell"), not "", so callers can tell the cases apart."""
     make_tgz(tmp_path / "charts", "pabc", "1.1.1", {"image": {"repository": "pabc/pabc-api"}})
     dep = {"name": "pabc", "version": "1.1.1"}
     assert libchartrepoandpathresolution.subchart_template_text(tmp_path, dep) is None
@@ -256,9 +245,7 @@ def test_subchart_template_text_no_templates_dir_returns_none(
 
 
 def test_subchart_default_repository_resolves_via_alias(tmp_path: Path, libchartrepoandpathresolution: ModuleType):
-    """openformulieren is a values.yaml/Chart.yaml alias for the openforms
-    subchart — the .tgz and its internal values.yaml are keyed by the
-    real chart name, not the alias."""
+    """The .tgz is keyed by the real chart name (openforms), not the alias."""
     make_tgz(tmp_path / "charts", "openforms", "1.12.0", {"image": {"repository": "openformulieren/open-forms"}})
     deps = [{"name": "openforms", "alias": "openformulieren", "version": "1.12.0"}]
     lines = [
@@ -362,12 +349,9 @@ def test_subchart_default_repository_caches_across_calls(
 
 
 def test_chart_version_lockstep_components_self_resolves_against_real_chart_dir(libchartregisteredpaths: ModuleType):
-    """Called with no override, resolves chart_dir from lib/chart.py's own
-    on-disk location (parents[2]) and reads the REAL etc/settings.yaml --
-    proves the self-resolving default actually works end to end, not just
-    against a synthetic chart_dir handed in by a test."""
+    """Without an override, chart_dir self-resolves and the real etc/settings.yaml is read."""
     assert libchartregisteredpaths.chart_version_lockstep_components() == frozenset(
-        {"kiss-chart", "pabc", "eck-operator"}
+        {"kiss-chart", "pabc", "eck-operator", "internetaakafhandeling"}
     )
 
 
@@ -401,9 +385,7 @@ def test_version_repository_path_for_explicit_override(libchartnestedsubchartide
 
 
 def test_version_repository_path_for_none_chart_dir_returns_none(libchartnestedsubchartidentity: ModuleType):
-    """Some of its own call sites (e.g. full_repository_for_path) are
-    themselves reachable with chart_dir=None -- must degrade gracefully,
-    never crash a report-only check."""
+    """chart_dir=None (reachable via full_repository_for_path) returns None, never crashes."""
     assert libchartnestedsubchartidentity.version_repository_path_for("redis-operator", None) is None
 
 
@@ -442,10 +424,7 @@ def test_nested_subchart_name_for_none_chart_dir_returns_none(libchartnestedsubc
 def test_nested_subchart_registered_paths_self_resolves_against_real_chart_dir(
     libchartnestedsubchartidentity: ModuleType,
 ):
-    """Called with no override, resolves chart_dir the same self-resolving
-    way chart_version_lockstep_components does -- proves the default
-    works end to end against the REAL etc/settings.yaml, not just a
-    synthetic chart_dir handed in by a test."""
+    """Without an override, chart_dir self-resolves and the real etc/settings.yaml is read."""
     assert sorted(libchartnestedsubchartidentity.nested_subchart_registered_paths("eck-stack")) == sorted(
         ["eck-elasticsearch.version", "eck-kibana.version", "eck-enterprise-search.version"]
     )
@@ -470,16 +449,14 @@ def test_nested_subchart_registered_paths_explicit_override(libchartnestedsubcha
 
 
 def test_component_image_paths_self_resolves_against_real_chart_dir(libchartregisteredpaths: ModuleType):
-    """Called with no override, resolves chart_dir from lib/chart.py's own
-    on-disk location (parents[2]) and reads the REAL etc/settings.yaml --
-    proves the self-resolving default actually works end to end, not just
-    against a synthetic chart_dir handed in by a test."""
+    """Without an override, chart_dir self-resolves and the real etc/settings.yaml is read."""
     assert libchartregisteredpaths.component_image_paths() == {
         "zgw-office-addin": ["frontend.image", "backend.image"],
-        "keycloak-operator": ["operator.config.keycloakImage"],
-        "openbao": ["server.image"],
+        "keycloak-operator": ["operator.image"],
+        "openbao": ["server.image", "configuration.job.image"],
         "internetaakafhandeling": ["web.image", "poller.image"],
         "kiss-chart": ["image", "settings.syncJobs.image"],
+        "pabc": ["image", "migrations.image"],
         "eck-operator": ["image"],
     }
 
@@ -494,9 +471,7 @@ def test_component_image_paths_explicit_override(libchartregisteredpaths: Module
 
 
 def test_image_paths_for_self_resolves_against_real_chart_dir(libchartregisteredpaths: ModuleType):
-    """Same self-resolving proof as component_image_paths above, but
-    through the per-component accessor -- both a registered component and
-    the unregistered-default fallback."""
+    """Self-resolving default via the per-component accessor, registered and unregistered."""
     assert libchartregisteredpaths.image_paths_for("zgw-office-addin") == ["frontend.image", "backend.image"]
     assert libchartregisteredpaths.image_paths_for("zac") == ["image"]
 
@@ -518,8 +493,7 @@ def test_image_paths_for_explicit_override(libchartregisteredpaths: ModuleType, 
 
 
 def test_component_version_paths_self_resolves_against_real_chart_dir(libchartregisteredpaths: ModuleType):
-    """Same self-resolving proof as component_image_paths, for the bare-
-    version-field registry."""
+    """Self-resolving default for the bare-version-field registry."""
     assert libchartregisteredpaths.component_version_paths() == {
         "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"],
         "redis-operator": ["redisOperator.imageTag"],

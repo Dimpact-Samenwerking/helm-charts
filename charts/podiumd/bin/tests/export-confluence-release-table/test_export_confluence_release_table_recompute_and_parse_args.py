@@ -1,6 +1,4 @@
-"""recompute_image_basenames, the main() --recompute-basenames flag, and
-parse_args — with fetch_page_html mocked out, so no network access or
-real Confluence page is needed."""
+"""recompute_image_basenames, --recompute-image-basenames and parse_args."""
 
 import csv
 
@@ -118,7 +116,7 @@ def test_recompute_image_basenames_wrong_header_raises(ecrt: ModuleType, tmp_pat
         ecrt.recompute_image_basenames(csv_path, tmp_path)
 
 
-def test_main_recompute_basenames_flag_skips_confluence_fetch(
+def test_main_recompute_image_basenames_flag_skips_confluence_fetch(
     ecrt: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
     write_values_yaml_raw(
@@ -152,7 +150,7 @@ omc:
     monkeypatch.setattr(ecrt, "CHART_DIR", tmp_path)
 
     def fail_fetch(*a, **kw):
-        msg = "must not fetch Confluence when --recompute-basenames is set"
+        msg = "must not fetch Confluence when --recompute-image-basenames is set"
         raise AssertionError(msg)
 
     monkeypatch.setattr(ecrt, "fetch_page_html", fail_fetch)
@@ -161,7 +159,7 @@ omc:
         "argv",
         [
             "export-confluence-release-table",
-            "--recompute-basenames",
+            "--recompute-image-basenames",
             "--output",
             str(output_path),
         ],
@@ -192,13 +190,15 @@ def test_warn_unknown_lines_names_every_unknown_column(ecrt: ModuleType, capsys:
     )
 
 
-def test_parse_args_requires_url_and_user_unless_recompute_basenames(ecrt: ModuleType, monkeypatch: pytest.MonkeyPatch):
+def test_parse_args_requires_url_and_user_unless_recompute_image_basenames(
+    ecrt: ModuleType, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(ecrt.sys, "argv", ["export-confluence-release-table", "--output", "out.csv"])
     with pytest.raises(SystemExit):
         ecrt.parse_args()
 
 
-def test_parse_args_recompute_basenames_does_not_require_url_and_user(
+def test_parse_args_recompute_image_basenames_does_not_require_url_and_user(
     ecrt: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.setattr(
@@ -206,10 +206,10 @@ def test_parse_args_recompute_basenames_does_not_require_url_and_user(
         "argv",
         [
             "export-confluence-release-table",
-            "--recompute-basenames",
+            "--recompute-image-basenames",
             "--output",
             "out.csv",
         ],
     )
     args = ecrt.parse_args()
-    assert args.recompute_basenames is True
+    assert args.recompute_image_basenames is True

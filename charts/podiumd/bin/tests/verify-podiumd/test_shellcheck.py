@@ -1,16 +1,8 @@
-"""check_shellcheck / find_shell_scripts / extract_shell_scripts /
-run_shellcheck — lints every shell script embedded in a container's
-command/args (this chart's `command: [".../sh", "-c"], args: [<script>]` /
-`command: [...], args: ["-c", <script>]` convention). Same own/vendored
-scope split as check_yamllint/check_kubeconform: only error/warning-level
-findings in this chart's OWN templates fail; a partner-vendor finding
-(Maykin/Info(NL)/ICATT/Worth/WeAreFrank/Dimpact/local) is printed per-item
-but never fails; any other vendored finding only ever gets a one-line
-aggregate count; info/style are cosmetic and never reported anywhere. All
-`helm`/`shellcheck` subprocess calls are mocked via vp.run;
-friendly_vendor_charts is mocked too, since these tests use tmp_path (no
-real Chart.yaml) — no real shellcheck or helm invocation happens in these
-tests."""
+"""Tests for check_shellcheck: lints shell scripts embedded in container command/args.
+
+Only error/warning findings in own templates fail; partner-vendor findings print
+per-item but never fail; other vendored findings get an aggregate count; info/style
+are never reported. helm/shellcheck calls (vp.run) and friendly_vendor_charts are mocked."""
 
 import json
 
@@ -66,9 +58,7 @@ RENDERED = (
     "        - name: wait-for-db\n"
     '          command: ["sh", "-c", "until nc -z db 5432; do sleep 1; done"]\n'
 )
-# Absolute (1-based) rendered-output start lines for the two resources above
-# (the line right after each's own "# Source:" comment) — see
-# build_resource_locations in lib.render_scope.
+# 1-based rendered-output start lines of the two resources above (line after "# Source:")
 JOB_RENDERED_LINE = 3
 DEPLOYMENT_RENDERED_LINE = 20
 
@@ -107,10 +97,8 @@ def test_find_shell_scripts_ignores_non_shell_commands(libshellcheckcheck: Modul
 
 
 def test_find_shell_scripts_tolerates_scalar_args_alongside_list_command(libshellcheckcheck: ModuleType):
-    """A malformed manifest where command is a list but args is a scalar
-    string (a bare-rendered `args: {{ .Values.x }}`, a CRD instance, a
-    hand-written Pod) must not raise `list + str` — the scan just uses the
-    list half and lets yamllint/kubeconform report the bad field."""
+    """command list + scalar args (malformed manifest) must not raise `list + str`; the list
+    half is used and yamllint/kubeconform report the bad field."""
     manifest = {
         "spec": {
             "containers": [
@@ -121,8 +109,7 @@ def test_find_shell_scripts_tolerates_scalar_args_alongside_list_command(libshel
     found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml", SHELL_NAMES)
     assert [f[3] for f in found] == ["echo hi"]
 
-    # command scalar + args list: also must not raise (shell name is
-    # unknowable from a scalar command, so nothing is extracted).
+    # command scalar + args list: must not raise; shell unknowable, nothing extracted
     manifest = {"command": "/bin/sh", "args": ["-c", "echo hi"]}
     assert libshellcheckcheck.find_shell_scripts(manifest, "x.yaml", SHELL_NAMES) == []
 
@@ -147,11 +134,7 @@ def test_find_shell_scripts_recurses_into_nested_structures(libshellcheckcheck: 
 
 
 # --- extract_shell_scripts ---
-# unlike find_shell_scripts (source, path, shell, script_text),
-# extract_shell_scripts also carries the containing resource's own
-# (kind, namespace, name) — constant across every script found in the
-# same doc — so a finding can later be resolved to a rendered-output
-# line via lib.render_scope.resource_line.
+# also carries the resource's (kind, namespace, name) so findings map to a rendered line
 
 
 def test_extract_shell_scripts_carries_resource_identity(libshellcheckcheck: ModuleType):
@@ -171,9 +154,8 @@ def test_extract_shell_scripts_carries_resource_identity(libshellcheckcheck: Mod
 
 
 def test_extract_shell_scripts_no_identity_when_doc_is_not_a_single_object(libshellcheckcheck: ModuleType):
-    """A top-level list (not a single k8s object) has no resource identity
-    at all — kind/namespace/name must degrade to None rather than crash,
-    and _shellcheck_location must skip the rendered-line lookup for it."""
+    """A top-level list has no resource identity: kind/namespace/name are None, no crash,
+    and _shellcheck_location skips the rendered-line lookup."""
     docs = [("podiumd/templates/x.yaml", '- command: ["sh", "-c", "echo hi"]\n')]
     found = libshellcheckcheck.extract_shell_scripts(docs, SHELL_NAMES)
     assert len(found) == 1
@@ -198,20 +180,12 @@ def fake_render_chart(rendered=RENDERED, returncode=0):
 
 @pytest.fixture(autouse=True)
 def _default_render(monkeypatch: pytest.MonkeyPatch):
-    """check_shellcheck now gets its render via lib.render_scope.render_
-    chart(chart_dir, extra_args), not a run([...]) call of its own —
-    default every test in this file to the standard RENDERED fixture
-    text; a test needing different rendered content (or a render
-    failure) overrides this via its own monkeypatch.setattr(
-    "lib.render_scope.render_chart", ...) call."""
+    """Default every test to the RENDERED fixture; override render_chart to change it."""
     monkeypatch.setattr("lib.render_scope.render_chart", fake_render_chart(RENDERED))
 
 
 def sequenced_run(own_comments, vendored_comments=None, sc_returncode=1):
-    """check_shellcheck's own remaining run([...]) calls are ALL
-    "shellcheck" now (the render moved to render_chart, see
-    _default_render above) — one call per embedded script found, own
-    scripts first (in render order), then vendored."""
+    """Fake run() for shellcheck calls: one per script, own first (render order), then vendored."""
     calls = {"n": 0}
 
     def run(cmd, **kwargs):
@@ -301,9 +275,7 @@ def test_check_shellcheck_location_includes_script_line_and_column(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """Beyond source/path, each location also shows shellcheck's own
-    line (and column, when shellcheck reports one) — position within
-    the embedded script text, not the rendered YAML."""
+    """Locations include shellcheck's line (and column) within the embedded script, not the YAML."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
     no_friendly_vendors(libshellcheckcheck, monkeypatch)
     monkeypatch.setattr(
@@ -335,8 +307,7 @@ def test_check_shellcheck_location_line_without_column(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """A finding with a line but no column still shows the line alone,
-    not a bare trailing colon."""
+    """A finding with a line but no column shows no trailing colon."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
     no_friendly_vendors(libshellcheckcheck, monkeypatch)
     monkeypatch.setattr(
@@ -364,8 +335,7 @@ def test_check_shellcheck_info_and_style_never_reported(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """info/style findings are cosmetic — not just non-failing, not
-    mentioned in output or detail at all, same policy as yamllint."""
+    """info/style findings are not mentioned in output or detail at all (same as yamllint)."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
     no_friendly_vendors(libshellcheckcheck, monkeypatch)
     monkeypatch.setattr(
@@ -470,10 +440,7 @@ def test_check_shellcheck_friendly_vendor_finding_reported_per_item_never_fails(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """A vendored sub-chart from a listed partner org (here: zac -> Info(NL))
-    gets its finding printed individually — unlike a plain vendored
-    finding, which only ever gets an aggregate count — but must still
-    never fail."""
+    """A partner-org vendored finding (zac -> Info(NL)) is printed individually but never fails."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
     monkeypatch.setattr("lib.render_scope.friendly_vendor_charts", lambda chart_dir: {"zac": "Info(NL)"})
     monkeypatch.setattr(

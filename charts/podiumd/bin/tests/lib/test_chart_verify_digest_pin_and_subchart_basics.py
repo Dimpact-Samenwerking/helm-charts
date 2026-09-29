@@ -1,13 +1,7 @@
-"""lib.chart — chart-version verification, image-version/digest checks,
-and subchart basics: verify_chart_version, check_image_versions,
-version_of, resolved_digest_pin, find_images, image_paths_for,
-dotted_key_path, subchart_values, subchart_app_version,
-nested_subchart_raw_text, nested_subchart_documented_image_repository,
-subchart_dependencies, resolve_subchart_default,
-own_template_files_referencing, resolve_values_path_source. `helm pull`
-is mocked via lib.procutil.run, so no `helm` binary or network access
-needed. Split out of the former test_chart.py (see the other
-test_chart_*.py files for the rest)."""
+"""lib.chart: chart-version verification, image-version/digest checks, subchart basics.
+
+`helm pull` is mocked, so no `helm` binary or network access is needed.
+"""
 
 import io
 import tarfile
@@ -20,17 +14,12 @@ import yaml
 
 
 def make_tgz(charts_dir, name, version, values, templates=None, chart_yaml=None, raw_files=None):
-    """A minimal vendored <name>-<version>.tgz containing <name>/values.yaml
-    and, if `templates` is given (a {filename: text} dict), <name>/templates/
-    <filename> for each entry — enough to exercise subchart_values/
-    subchart_default_repository/subchart_template_text without a real
-    `helm pull`. `chart_yaml`, if given (a dict), is ALSO written as
-    <name>/Chart.yaml — for subchart_app_version. `raw_files`, if given
-    (a {internal tar path: text} dict, paths relative to the tgz root —
-    e.g. "<name>/charts/<nested>/values.yaml"), writes each verbatim —
-    for nested_subchart_raw_text/nested_subchart_documented_image_
-    repository, where the content isn't real structured YAML (a
-    commented-out example line) so yaml.safe_dump can't produce it."""
+    """Write a minimal vendored <name>-<version>.tgz.
+
+    `templates` ({filename: text}) go under <name>/templates/, `chart_yaml`
+    becomes <name>/Chart.yaml, and `raw_files` ({tar path: text}) are written
+    verbatim, for content yaml.safe_dump can't produce (commented-out lines).
+    """
     charts_dir.mkdir(parents=True, exist_ok=True)
     tgz_path = charts_dir / f"{name}-{version}.tgz"
     data = yaml.safe_dump(values).encode("utf-8")
@@ -57,9 +46,6 @@ def make_tgz(charts_dir, name, version, values, templates=None, chart_yaml=None,
 
 
 # --- verify_chart_version ---
-# The chart-existence check verify-component-version owns (and
-# verify-image-version no longer reimplements) — pull, report FOUND/
-# MISSING, and either return the pulled values.yaml or exit 1.
 
 
 def test_verify_chart_version_found_returns_values(
@@ -183,8 +169,7 @@ def test_check_image_versions_checks_every_multi_image_path(
 def test_check_image_versions_skips_path_with_no_repository(
     monkeypatch: pytest.MonkeyPatch, libchartpullandsubchartresolution: ModuleType
 ):
-    """One path missing a "repository:" isn't fatal as long as at least one
-    other path has one — only the resolvable path is checked/returned."""
+    """A path without "repository:" is skipped while another path still resolves."""
     monkeypatch.setattr(
         libchartpullandsubchartresolution, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:fake")
     )
@@ -206,6 +191,37 @@ def test_check_image_versions_raises_when_no_path_has_a_repository(
         libchartpullandsubchartresolution.check_image_versions(values, ["image"], "5.4.3")
 
 
+def test_check_image_versions_honours_sibling_registry(
+    monkeypatch: pytest.MonkeyPatch, libchartpullandsubchartresolution: ModuleType
+):
+    """A sibling "registry:" (openbao) must be used, not Docker Hub."""
+    checked = []
+
+    def fake_registry_tag_exists(host, repo, tag):
+        checked.append((host, repo))
+        return True, "sha256:fake"
+
+    monkeypatch.setattr(libchartpullandsubchartresolution, "registry_tag_exists", fake_registry_tag_exists)
+    values = {"server": {"image": {"registry": "quay.io", "repository": "openbao/openbao"}}}
+    libchartpullandsubchartresolution.check_image_versions(values, ["server.image"], "2.5.5")
+    assert checked == [("quay.io", "openbao/openbao")]
+
+
+# --- component_check_values ---
+
+
+def test_component_check_values_overlays_podiumd_values_without_mutating(
+    libchartpullandsubchartresolution: ModuleType,
+):
+    """podiumd overrides win and podiumd-only image blocks are added; input is not mutated."""
+    chart_values = {"server": {"image": {"registry": "quay.io", "repository": "openbao/openbao", "tag": ""}}}
+    podiumd = {"configuration": {"job": {"image": {"repository": "quay.io/openbao/openbao"}}}}
+    merged = libchartpullandsubchartresolution.component_check_values(chart_values, podiumd)
+    assert merged["configuration"]["job"]["image"]["repository"] == "quay.io/openbao/openbao"
+    assert merged["server"]["image"]["repository"] == "openbao/openbao"
+    assert "configuration" not in chart_values
+
+
 # --- version_of ---
 
 
@@ -216,11 +232,7 @@ def test_version_of_strips_digest(libchartvaluestreeprimitives: ModuleType):
 
 # --- resolved_digest_pin ---
 
-# A minimal {tuple_path: {"sibling_field": ...}} table, the same shape
-# lib.settings.digest_pinning_exceptions returns (resolved_digest_pin
-# only ever reads .get(path, {}).get("sibling_field"), so a "writable"
-# key isn't needed here) — covers the keycloak-operator split-path
-# convention plus eck-operator's differently-named sibling field.
+# Shape of lib.settings.digest_pinning_exceptions; only "sibling_field" is read.
 SIBLING_FIELDS = {
     ("keycloak-operator", "operator", "config", "keycloakImage"): {"sibling_field": "sha"},
     ("keycloak-operator", "operator", "image"): {"sibling_field": "sha"},
@@ -241,11 +253,7 @@ def test_resolved_digest_pin_already_embedded_returned_as_is(libchartpullandsubc
 
 
 def test_resolved_digest_pin_split_tag_sha_combines_sibling_sha(libchartpullandsubchartresolution: ModuleType):
-    """keycloak-operator's own primary image (operator.config.keycloakImage)
-    uses the adfinis chart's own split "tag:"/"sha:" convention — the
-    "tag:" value alone never carries "@sha256:...", so a caller needing a
-    real digest-pinned string (e.g. a new images-manifest entry) has to
-    read it from the sibling "sha:" field instead."""
+    """A split "tag:"/"sha:" pin (keycloak-operator) is combined into "<tag>@sha256:<sha>"."""
     path = ("keycloak-operator", "operator", "config", "keycloakImage")
     values = {
         "keycloak-operator": {
@@ -266,9 +274,7 @@ def test_resolved_digest_pin_split_tag_sha_combines_sibling_sha(libchartpullands
 
 
 def test_resolved_digest_pin_split_tag_sha_no_sha_override_returns_none(libchartpullandsubchartresolution: ModuleType):
-    """The vendored subchart's own default "sha:" (inherited, no podiumd
-    override at all) isn't visible from values.yaml alone — nothing to
-    combine, so this can't produce a digest-pinned string yet."""
+    """Without a "sha:" override (only the subchart default) there is nothing to combine."""
     path = ("keycloak-operator", "operator", "config", "keycloakImage")
     values = {"keycloak-operator": {"operator": {"config": {"keycloakImage": {"tag": "26.7.2"}}}}}
 
@@ -276,9 +282,7 @@ def test_resolved_digest_pin_split_tag_sha_no_sha_override_returns_none(libchart
 
 
 def test_resolved_digest_pin_ordinary_path_with_no_digest_returns_none(libchartpullandsubchartresolution: ModuleType):
-    """A path outside the sibling_fields table with a bare,
-    non-digest-pinned tag has no sibling field to fall back to at all —
-    genuinely unresolvable here, unlike the split-tag-sha case."""
+    """A bare tag outside the sibling_fields table is unresolvable."""
     values = {"openzaak": {"image": {"tag": "1.29.3"}}}
 
     assert (
@@ -288,12 +292,7 @@ def test_resolved_digest_pin_ordinary_path_with_no_digest_returns_none(libchartp
 
 
 def test_resolved_digest_pin_eck_operator_combines_sibling_digest_field(libchartpullandsubchartresolution: ModuleType):
-    """Regression test (real bug, real chart): eck-operator's own
-    upstream chart names its sibling field "digest:", not "sha:" — the
-    ONLY sibling_fields path that differs from the keycloak ones.
-    Confirms resolved_digest_pin looks up the correct per-path sibling
-    field NAME (sibling_fields[path]["sibling_field"]) rather than the
-    old hardcoded ".sha"."""
+    """The sibling field name is per path: eck-operator uses "digest:", not "sha:"."""
     path = ("eck-operator", "image")
     values = {
         "eck-operator": {
@@ -312,10 +311,7 @@ def test_resolved_digest_pin_eck_operator_combines_sibling_digest_field(libchart
 def test_resolved_digest_pin_eck_operator_no_digest_override_returns_none(
     libchartpullandsubchartresolution: ModuleType,
 ):
-    """Same "vendored default, no podiumd override visible" shape as the
-    keycloak sha-less case above — eck-operator's own sibling "digest:"
-    field, when absent, still correctly falls through to None rather
-    than crashing on a missing key."""
+    """A missing "digest:" sibling returns None, not a KeyError."""
     path = ("eck-operator", "image")
     values = {"eck-operator": {"image": {"tag": "3.5.0"}}}
 
@@ -351,19 +347,15 @@ def test_image_paths_for_multi_image_component(libchartregisteredpaths: ModuleTy
 
 
 def test_image_paths_for_ita_web_and_poller(libchartregisteredpaths: ModuleType):
-    """ITA has no single "app" image at all — web and poller are two
-    co-equal images, same lockstep shape as zgw-office-addin's own
-    frontend+backend split."""
+    """ITA has two co-equal lockstep images, web and poller."""
     assert libchartregisteredpaths.image_paths_for("internetaakafhandeling") == ["web.image", "poller.image"]
 
 
 def test_image_paths_for_kiss_chart_frontend_and_sync_jobs(libchartregisteredpaths: ModuleType):
-    """kiss-chart's own frontend image ("image") and its
-    settings.syncJobs.image (the elastic-sync CronJob) are released from
-    the same kiss-chart version and always move together — same
-    co-equal lockstep shape as internetaakafhandeling's web+poller split.
-    NOT syncJobs.crawlerImage/indexTemplateImage (the Elastic Open
-    Crawler images) — those have independent upstream version lines."""
+    """kiss-chart's frontend and sync-job images move in lockstep.
+
+    The crawler images are excluded: they have independent upstream versions.
+    """
     assert libchartregisteredpaths.image_paths_for("kiss-chart") == ["image", "settings.syncJobs.image"]
 
 
@@ -428,6 +420,27 @@ def test_subchart_values_missing_member_returns_none(tmp_path: Path, libchartpul
         pass  # empty archive, no values.yaml member
     dep = {"name": "openzaak", "version": "1.14.2"}
     assert libchartpullandsubchartresolution.subchart_values(tmp_path, dep) is None
+
+
+def test_subchart_values_returns_a_fresh_copy_each_call(tmp_path: Path, libchartpullandsubchartresolution: ModuleType):
+    make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {"repository": "openzaak/open-zaak"}})
+    dep = {"name": "openzaak", "version": "1.14.2"}
+    first = libchartpullandsubchartresolution.subchart_values(tmp_path, dep)
+    assert first is not None
+    first["image"] = "changed"
+    assert libchartpullandsubchartresolution.subchart_values(tmp_path, dep) == {
+        "image": {"repository": "openzaak/open-zaak"}
+    }
+
+
+def test_subchart_values_rereads_a_replaced_tgz(tmp_path: Path, libchartpullandsubchartresolution: ModuleType):
+    make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {"repository": "openzaak/open-zaak"}})
+    dep = {"name": "openzaak", "version": "1.14.2"}
+    assert libchartpullandsubchartresolution.subchart_values(tmp_path, dep) is not None
+    make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {"repository": "example/other-repository-name"}})
+    assert libchartpullandsubchartresolution.subchart_values(tmp_path, dep) == {
+        "image": {"repository": "example/other-repository-name"}
+    }
 
 
 # --- subchart_app_version ---
@@ -503,8 +516,7 @@ def test_nested_subchart_raw_text_missing_tgz_returns_none(libchartnestedsubchar
 def test_nested_subchart_raw_text_missing_nested_chart_returns_none(
     libchartnestedsubchartidentity: ModuleType, tmp_path: Path
 ):
-    """The outer .tgz IS vendored, but has no charts/eck-kibana/ inside
-    it at all (e.g. a stale/mismatched registry entry) — no crash."""
+    """A vendored .tgz lacking the nested chart (stale registry entry) returns None."""
     dep = {"name": "eck-stack", "version": "0.20.0"}
     make_tgz(
         tmp_path / "charts",
@@ -521,10 +533,7 @@ def test_nested_subchart_raw_text_missing_nested_chart_returns_none(
 def test_nested_subchart_documented_image_repository_extracts_first_example(
     libchartnestedsubchartidentity: ModuleType, tmp_path: Path
 ):
-    """The FIRST "# image: <repo>[:<tag>]" comment wins — every ECK-
-    family sub-subchart lists the plain "<repo>:<version>" form first,
-    then a digest-suffixed variant, then a bare "@sha256:..." form; only
-    the plain repository (no tag, no digest) is wanted."""
+    """The first "# image:" example wins, stripped of tag and digest (ECK lists plain first)."""
     dep = {"name": "eck-stack", "version": "0.20.0"}
     make_tgz(
         tmp_path / "charts",
@@ -630,11 +639,7 @@ def test_resolve_subchart_default_top_level_uses_deps_own_app_version(
 def test_resolve_subchart_default_nested_dependency_uses_its_own_chart_yaml(
     tmp_path: Path, libchartpullandsubchartresolution: ModuleType
 ):
-    """openinwoner's own bundled eck-operator (3.2.0) is a SEPARATE,
-    same-named nested dependency of openinwoner's own Chart.yaml,
-    distinct from the top-level "eck-operator" dependency (3.5.0) —
-    both the chart-tree path and the version must come from the NESTED
-    dependency's own files, not openinwoner's."""
+    """A same-named nested dependency takes its path and version from its own files."""
     dep = {"name": "openinwoner", "version": "2.4.0"}
     make_tgz(
         tmp_path / "charts",
@@ -662,13 +667,10 @@ def test_resolve_subchart_default_nested_dependency_uses_its_own_chart_yaml(
 def test_resolve_subchart_default_no_nested_match_falls_back_to_top_level(
     tmp_path: Path, libchartpullandsubchartresolution: ModuleType
 ):
-    """path[0] not matching any of dep's own nested dependencies — e.g.
-    zac's own "opa" sidecar — stays at dep's own top-level path (opa
-    isn't a real Chart.yaml dependency, just a values sub-key). The
-    chart-tree path itself is keyed by dep's own alias ("zac"), never
-    its real chart name ("zaakafhandelcomponent") — confirmed live
-    against the real chart: Helm's own "# Source:" annotations name a
-    chart-tree directory by alias when the dependency declares one."""
+    """A values sub-key that isn't a nested dependency stays at dep's top-level path.
+
+    The path uses the alias, as Helm's "# Source:" annotations do.
+    """
     dep = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}
     make_tgz(
         tmp_path / "charts",
@@ -691,9 +693,7 @@ def test_resolve_subchart_default_no_nested_match_falls_back_to_top_level(
 def test_resolve_subchart_default_matches_nested_dependency_by_alias_too(
     tmp_path: Path, libchartpullandsubchartresolution: ModuleType
 ):
-    """The NESTED dependency's own chart-tree segment is likewise keyed
-    by ITS OWN alias ("kiss-eck"), not its real chart name ("eck-stack")
-    — same convention, one level deeper."""
+    """A nested dependency's path segment is its alias too."""
     dep = {"name": "openinwoner", "version": "2.4.0"}
     make_tgz(
         tmp_path / "charts",

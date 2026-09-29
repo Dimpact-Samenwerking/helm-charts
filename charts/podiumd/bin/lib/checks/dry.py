@@ -1,7 +1,7 @@
-"""Report-only structural-duplication scan for templates/*.yaml — flags
-file pairs that look like copy-paste (the shape podiumd.storagePVC was
-factored out of) without ever failing the check; deduping is a judgment
-call a human should make, not something to gate a build on."""
+"""Report-only scan for copy-paste duplication between templates/*.yaml files.
+
+Never fails: deduping is a human judgment call.
+"""
 
 import difflib
 
@@ -13,9 +13,7 @@ from lib.settings import dry_check_similarity_threshold
 
 
 def _significant_template_lines(path: Path) -> list[str]:
-    """A template's lines with blanks and full-line comments dropped, so
-    similarity scoring isn't skewed by incidental whitespace or comment
-    wording differences between two otherwise-identical templates."""
+    """A template's lines without blanks and full-line comments, so they don't skew similarity."""
     lines: list[str] = []
     for line in path.read_text(encoding="utf-8").splitlines():
         stripped = line.strip()
@@ -26,12 +24,7 @@ def _significant_template_lines(path: Path) -> list[str]:
 
 
 def find_similar_template_pairs(templates_dir: Path, similarity_threshold: float, min_significant_lines: int):
-    """Pairwise-compare every templates/*.yaml file and flag pairs that are
-    structurally very similar — the shape of duplication podiumd.storagePVC
-    was factored out of (9 files, identical except for the literal
-    component name). Returns (ratio, path_a, path_b) tuples, highest ratio
-    first, for every pair at or above `similarity_threshold` (see
-    dry_check.similarity_threshold in lib.settings)."""
+    """(ratio, path_a, path_b) for every template pair at or above `similarity_threshold`, highest first."""
     paths = sorted(p for p in templates_dir.rglob("*.yaml") if p.is_file())
     significant = {p: _significant_template_lines(p) for p in paths}
     candidates = [p for p in paths if len(significant[p]) >= min_significant_lines]
@@ -47,12 +40,7 @@ def find_similar_template_pairs(templates_dir: Path, similarity_threshold: float
 
 
 def check_dry(chart_dir: Path):
-    """Report-only: never fails. Flags templates/*.yaml file pairs that look
-    like copy-paste duplication and suggests whether deduping (a shared
-    named template in _helpers.tpl, parameterized like podiumd.storagePVC)
-    is likely worth it, or just a coincidence of both files being short and
-    conventionally shaped. Duplication is a judgment call a human should
-    make — this only surfaces candidates."""
+    """Report-only: flag similar template pairs and suggest whether a shared helper is worth it."""
     similarity_threshold = dry_check_similarity_threshold(chart_dir)
     high_similarity_threshold = dry_check_high_similarity_threshold(chart_dir)
     min_significant_lines = dry_check_min_significant_lines(chart_dir)

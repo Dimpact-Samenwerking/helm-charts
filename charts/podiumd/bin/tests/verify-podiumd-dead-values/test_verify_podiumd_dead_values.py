@@ -1,8 +1,5 @@
-"""verify-podiumd-dead-values's main() — argument parsing, the helm
-pre-flight check, the runtime warning, and end-to-end wiring into
-lib.checks.dead_values.check_dead_values (mocked out here — its own
-correctness is tests/verify-podiumd/test_dead_values_check.py's job,
-not this script wrapper's)."""
+"""verify-podiumd-dead-values main(): args, helm pre-flight, runtime warning
+and wiring into check_dead_values (mocked; tested in tests/verify-podiumd)."""
 
 from types import ModuleType
 
@@ -93,9 +90,8 @@ def test_main_reports_ok_and_exits_zero(
 def test_main_reports_fail_and_exits_one(
     vpdv: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """check_dead_values itself never actually returns ok=False (report-
-    only by design), but main()'s own ok -> exit-code wiring should still
-    do the right thing if that ever changed."""
+    """check_dead_values is report-only today, but ok=False must still map
+    to a failing exit code."""
     monkeypatch.setattr("sys.argv", ["verify-podiumd-dead-values"])
     monkeypatch.setattr(vpdv.shutil, "which", lambda name: "/usr/bin/helm")
     monkeypatch.setattr(vpdv, "lint_args_for", lambda chart_dir: [])

@@ -1,10 +1,6 @@
-"""End-to-end check_docs_consistency against a small, realistic podiumd-like
-chart inside a real (hermetic, temp) git repo — exercises the full baseline
-resolution + all the precheck/content-check stages together.
+"""End-to-end check_docs_consistency on a small podiumd-like chart in a temp git repo.
 
-Split from test_docs_consistency_integration.py (pylint too-many-lines): this
-file covers the second half of the sidecar-image section — redis-operator's
-own multi-sidecar/job cases plus the generic chart-only/no-schema-diff cases."""
+Covers redis-operator multi-sidecar/job cases and generic chart-only/no-schema-diff cases."""
 
 import subprocess
 
@@ -85,11 +81,7 @@ REDIS_TWO_IMAGES_VALUES_TMPL = (
 def test_unchanged_sidecar_with_no_row_is_not_flagged(
     vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
-    """Only the sidecar image that actually CHANGED vs baseline gets
-    flagged as missing a row — a sibling sidecar with no row of its own
-    but an UNCHANGED tag is correctly left alone, same "only report a
-    real gap" rule the top-level "component changed but has no row"
-    check already follows."""
+    """Only a sidecar whose tag CHANGED vs baseline is flagged as missing a row."""
     repo_root = tmp_path
     chart_dir = repo_root / "charts" / "podiumd"
     doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
@@ -141,16 +133,9 @@ def test_unchanged_sidecar_with_no_row_is_not_flagged(
 def test_new_sidecar_row_known_in_historical_images_manifest_is_not_a_warning(
     vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
-    """Regression test: redis-operator's own "k8s" sidecar is added as a
-    brand-new nested path this release (baseline has nothing for it at
-    all), but its repository already appears, byte-for-byte at the same
-    version, in an earlier release's own docs/images/images-4.8.0.yaml
-    manifest — resolve_component_row's own historical-images-manifest
-    fallback (see lib.chart.historical_app_version_for_path) resolves
-    its baseline app version anyway, so this is verified clean, not
-    left as an unverifiable warning the way a genuinely new pin would
-    be (see test_new_dependency_unresolvable_baseline_row_is_a_warning_
-    not_a_failure)."""
+    """Regression: a new nested sidecar path whose repository+version appears in an earlier
+    images manifest resolves its baseline via the historical-manifest fallback, so it's
+    verified clean rather than warned as unresolvable."""
     repo_root = tmp_path
     chart_dir = repo_root / "charts" / "podiumd"
     doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
@@ -218,14 +203,8 @@ JOB_TWO_IMAGES_VALUES_TMPL = (
 
 
 def test_sidecar_app_version_resolved_from_its_own_trailing_image_key(vp: ModuleType, tmp_path: Path):
-    """A sidecar whose trailing values-tree key is NOT literally "image"
-    (e.g. "initImage", sitting right next to a sibling "image" key in the
-    very same job) must be compared against ITS OWN tag — not a hardcoded
-    ".image.tag" guess, which would silently grab the sibling "image"
-    key's tag instead and report a bogus mismatch. No baseline/images-
-    manifest machinery involved here on purpose — this is purely about
-    resolving the CURRENT tag from the right path (that's a separate,
-    unrelated fuzzy matcher — see resolve_entry_path)."""
+    """A sidecar keyed e.g. "initImage" next to a sibling "image" must be compared against
+    its own tag, not a hardcoded ".image.tag" (which would report a bogus mismatch)."""
     chart_dir = tmp_path / "charts" / "podiumd"
     doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
     doc_dir.mkdir(parents=True)
@@ -250,14 +229,9 @@ def test_sidecar_app_version_resolved_from_its_own_trailing_image_key(vp: Module
 def test_unresolvable_canonical_named_row_is_not_fuzzy_matched_to_a_real_dependency(
     vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
-    """A row shaped like the canonical "<values_key> - <basename>" sidecar
-    form, but whose repository can't be resolved at all (no own override,
-    no vendored subchart default — e.g. commented out, PodiumD Adapter's
-    real-world case), has no entry in canonical_names. It must be reported
-    as unresolvable — never fall through to match_dependency's fuzzy
-    word-span matching, which would otherwise match its leading word
-    ("redis-operator") to the real redis-operator dependency and compare
-    the row against THAT dependency's own unrelated actual app version."""
+    """A "<values_key> - <image-basename>" row whose repository can't be resolved must be reported
+    as unresolvable, never fuzzy-matched by match_dependency onto the real dependency
+    (which would compare against that dependency's unrelated app version)."""
     repo_root = tmp_path
     chart_dir = repo_root / "charts" / "podiumd"
     doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
@@ -269,10 +243,7 @@ def test_unresolvable_canonical_named_row_is_not_fuzzy_matched_to_a_real_depende
     git("config", "user.email", "test@example.com", cwd=repo_root)
     git("config", "user.name", "Test", cwd=repo_root)
 
-    # redis-operator's own primary "image" (unrelated to the unresolvable
-    # sidecar row below) plus redis-ha's normally-resolvable one, so a
-    # fuzzy match onto the dependency's own row would have something
-    # concrete (and wrong) to compare against.
+    # resolvable images, so a wrong fuzzy match would have something to compare against
     values_tmpl = (
         "redis-operator:\n"
         "  image:\n"
@@ -325,21 +296,14 @@ def test_unresolvable_canonical_named_row_is_not_fuzzy_matched_to_a_real_depende
         '4.8.5-to-4.9.0-upgrade.md: doc row "redis-operator - ghost" does not match a Chart.yaml '
         "dependency or a canonical sidecar/shared-image name"
     ) in out
-    # The bug this guards against: falling through to match_dependency
-    # would fuzzy-match "redis-operator - ghost" onto the real
-    # redis-operator dependency and wrongly compare its own actual app
-    # version (0.27.0) against the ghost row's app column (0.6.6 → 0.6.7).
+    # a fuzzy match onto redis-operator would compare 0.27.0 against the ghost row
     assert 'redis-operator ("redis-operator - ghost")' not in out
 
 
 def test_chart_only_component_with_no_app_image_is_not_flagged(
     vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
 ):
-    """A component genuinely without an app image of its own (not in
-    lib.chart.COMPONENT_IMAGE_PATHS, and no plain "image" key either)
-    must never trigger a target-app mismatch — actual_app_version can't
-    resolve anything to compare against, so silence is correct, not a
-    gap."""
+    """A component without an app image of its own never triggers a target-app mismatch."""
     (chart_repo / "Chart.yaml").write_text(
         CHART_YAML + '  - name: redis-operator\n    version: "0.26.1"\n    repository: "@opstree"\n'
     )
@@ -347,9 +311,7 @@ def test_chart_only_component_with_no_app_image_is_not_flagged(
     new_text = doc.read_text().replace(
         "See [`", "| redis-operator | - | 0.26.1 (unchanged) | chart-only, no app image |\n\nSee [`"
     )
-    # str.replace() silently no-ops if the anchor text isn't found -- assert
-    # the row was actually inserted, so a fixture change can't quietly turn
-    # this into a vacuous pass (nothing to flag because the row never existed).
+    # str.replace() silently no-ops on a missing anchor; guard against a vacuous pass
     assert "| redis-operator |" in new_text
     doc.write_text(new_text)
 
@@ -359,13 +321,8 @@ def test_chart_only_component_with_no_app_image_is_not_flagged(
 
 
 def test_component_changed_with_no_key_diffs_needs_no_values_deltas_mention(vp: ModuleType, chart_repo):
-    """When a component's app/chart bump doesn't touch any values.yaml
-    schema (no keys added/removed/renamed), it needs no mention in
-    values-deltas.md at all — that transition is already covered by
-    -upgrade.md's own table + Changes section, and values-deltas.md
-    exists to tell gemeentes what THEIR OWN podiumd.yml needs to react
-    to (see lib.component_docs.sync_values_delta_sections' own
-    docstring) — a plain version bump alone needs no gemeente action."""
+    """A version bump with no values.yaml schema change needs no values-deltas.md mention:
+    that file only lists what gemeentes must change in their podiumd.yml."""
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-values-deltas.md"
     doc.write_text(
         "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\nNo gemeente podiumd.yml changes are required for this hop.\n"

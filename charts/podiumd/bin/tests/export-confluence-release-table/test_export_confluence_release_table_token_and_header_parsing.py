@@ -1,6 +1,4 @@
-"""normalize_version, resolve_token, resolve_header_row_count,
-check_target_matches_chart_version — with fetch_page_html mocked out, so
-no network access or real Confluence page is needed."""
+"""Version/token/header parsing and check_target_matches_chart_version."""
 
 from pathlib import Path
 from types import ModuleType
@@ -58,24 +56,19 @@ def test_normalize_version_leaves_valid_semver_untouched(ecrt: ModuleType):
 
 
 def test_normalize_version_leaves_allowed_variations_untouched(ecrt: ModuleType):
-    """Missing patch component and a stray "." after a leading "v" are
-    allowed variations, not something to flag — see
-    lib.confluence_tables.SEMVER_RE."""
+    """A missing patch and a stray "." after "v" are allowed (see SEMVER_RE)."""
     assert ecrt.normalize_version("3.20") == "3.20"
     assert ecrt.normalize_version("3.14-slim") == "3.14-slim"
     assert ecrt.normalize_version("v.1.25.4") == "v.1.25.4"
 
 
 def test_normalize_version_leaves_bare_discrete_version_number_untouched(ecrt: ModuleType):
-    """A bare, dot-less incrementing build number (e.g. frankgateway's
-    own real app version, "104") is a real, discrete version, never
-    semver in the first place — must not be flagged as UNKNOWN."""
+    """A dot-less build number (frankgateway's "104") is a real version, not UNKNOWN."""
     assert ecrt.normalize_version("104") == "104"
 
 
 def test_normalize_version_leaves_empty_value_untouched(ecrt: ModuleType):
-    """No data at all for that cell isn't a malformed version — nothing
-    to flag."""
+    """An empty cell is not a malformed version."""
     assert ecrt.normalize_version("") == ""
 
 
@@ -102,6 +95,37 @@ def test_resolve_token_prefers_token_file(ecrt: ModuleType, tmp_path: Path):
     assert ecrt.resolve_token(args) == "s3cr3t-from-file"
 
 
+def test_resolve_token_missing_token_file_exits_with_message(ecrt: ModuleType, tmp_path: Path):
+    args = make_args(token_file=str(tmp_path / "missing.txt"))
+    with pytest.raises(SystemExit, match=r"missing\.txt does not exist or is not a file"):
+        ecrt.resolve_token(args)
+
+
+def test_resolve_token_directory_token_file_exits_with_message(ecrt: ModuleType, tmp_path: Path):
+    args = make_args(token_file=str(tmp_path))
+    with pytest.raises(SystemExit, match="does not exist or is not a file"):
+        ecrt.resolve_token(args)
+
+
+def test_resolve_token_empty_token_file_exits_with_message(ecrt: ModuleType, tmp_path: Path):
+    token_file = tmp_path / "token.txt"
+    token_file.write_text("  \n", encoding="utf-8")
+    args = make_args(token_file=str(token_file))
+    with pytest.raises(SystemExit, match="is empty"):
+        ecrt.resolve_token(args)
+
+
+def test_resolve_token_aborted_prompt_exits_with_message(ecrt: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("CONFLUENCE_API_TOKEN", raising=False)
+
+    def abort(prompt: str) -> str:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(ecrt.getpass, "getpass", abort)
+    with pytest.raises(SystemExit, match="no Confluence API token given"):
+        ecrt.resolve_token(make_args())
+
+
 def test_resolve_token_falls_back_to_token_arg(ecrt: ModuleType):
     args = make_args(token="s3cr3t-from-arg")
     assert ecrt.resolve_token(args) == "s3cr3t-from-arg"
@@ -120,10 +144,7 @@ def test_resolve_token_prompts_as_last_resort(ecrt: ModuleType, monkeypatch: pyt
     assert ecrt.resolve_token(args) == "s3cr3t-from-prompt"
 
 
-# Same shape as PRODUCT_TABLE_HTML, but the "App"/"Helm" sub-header row
-# is plain <td>, not <th> — seen on the real podiumd page, where
-# Confluence's own <th> tagging is inconsistent between a table's header
-# rows.
+# App/Helm sub-header as <td>: Confluence tags header rows inconsistently.
 PRODUCT_TABLE_INCONSISTENT_TH_HTML = PRODUCT_TABLE_HTML.replace(
     "<tr>\n<th>App</th>\n<th>Helm</th>\n<th>App</th>\n<th>Helm</th>\n</tr>",
     "<tr>\n<td>App</td>\n<td>Helm</td>\n<td>App</td>\n<td>Helm</td>\n</tr>",
@@ -142,17 +163,10 @@ def test_resolve_header_row_count_extends_past_inconsistent_th_tagging(ecrt: Mod
     assert ecrt.resolve_header_row_count(rows, grid) == 2
 
 
-# Same shape as TECHNISCHE_TABLE_NO_HELM_HTML (no App/Helm sub-column at
-# all under either "Versie ..." group), but "Used by" lives in its OWN
-# second header row instead of alongside the table's other top-level
-# headers — the real podiumd page's current shape, confirmed live: with
-# exactly one column per "Versie ..." group, source_app/target_app
-# already resolve by POSITION at header_row_count=1 (see
-# select_release_columns), satisfying missing_required_release_columns
-# before the probe ever reaches row 1, where "Used by" actually is —
-# silently losing every row's used_by (and, downstream, its component
-# resolution) without resolve_header_row_count's own preference for a
-# deeper, still-valid count that resolves MORE optional columns.
+# "Used by" in its own second header row (the real page's shape). With one
+# column per Versie group, required columns already resolve at
+# header_row_count=1, so resolve_header_row_count must prefer the deeper
+# count that also finds optional columns, or every row loses used_by.
 TECHNISCHE_TABLE_TWO_HEADER_ROWS_NO_HELM_HTML = """
 <h2>Technische component versies</h2>
 <table>
@@ -196,9 +210,7 @@ def test_extract_release_rows_technische_table_two_header_rows_still_resolves_us
 
 
 def test_extract_release_rows_handles_inconsistent_th_tagging(ecrt: ModuleType):
-    """End-to-end: the same table with a <td>-tagged sub-header row must
-    still resolve every required column, not just the ones a strict
-    <th>-only header count would catch."""
+    """A <td>-tagged sub-header row still resolves every required column."""
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_INCONSISTENT_TH_HTML)
     assert rows == [
         ["Product", "Info(NL)", "", "ZAC", "UNKNOWN", "", "", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
@@ -231,8 +243,7 @@ def test_check_target_matches_chart_version_warns_on_mismatch(
 def test_check_target_matches_chart_version_ignores_patch(
     ecrt: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
-    """Chart.yaml at 4.9.3 (a patch release) must not warn just because
-    the page still says "Versie 4.9" — only major.minor is compared."""
+    """Only major.minor is compared: 4.9.3 vs "Versie 4.9" doesn't warn."""
     write_chart_yaml(tmp_path, "4.9.3")
     ecrt.check_target_matches_chart_version(["Versie 4.9"], tmp_path)
     assert capsys.readouterr().err == ""

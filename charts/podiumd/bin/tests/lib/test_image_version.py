@@ -1,8 +1,4 @@
-"""lib.image.version — image_basename, find_matches, find_matches_in_scope,
-resolve_scoped_matches, check_basename_version, update_image_version,
-basenames_under_scope. No network needed: lib.registry.
-registry_tag_exists is monkeypatched wherever a live fetch would otherwise
-happen."""
+"""lib.image.version tests; registry_tag_exists is monkeypatched."""
 
 from pathlib import Path
 from types import ModuleType
@@ -77,9 +73,7 @@ def test_find_matches_ignores_different_basename(libimageversion: ModuleType):
 
 
 def test_find_matches_ignores_unresolved_repository(libimageversion: ModuleType):
-    """A pin relying on a vendored sub-chart's own default (no explicit
-    "repository:" of its own in values.yaml) can never be matched by
-    basename — there's nothing to derive one from."""
+    """A pin without its own "repository:" has no basename to match on."""
     lines = [
         "openzaak:",
         "  image:",
@@ -97,12 +91,7 @@ def test_resolve_key_scope_accepts_alias(libimageversion: ModuleType):
 
 
 def test_resolve_key_scope_accepts_real_name_translates_to_alias(libimageversion: ModuleType):
-    """Regression test (real bug, confirmed live): <key> used to only
-    accept whichever string happens to literally BE the values.yaml
-    top-level key — the alias, when a dependency has one — silently
-    rejecting the dependency's own real Chart.yaml "name" even though
-    update-component-version's own find_dependency-based <component>
-    argument already accepts both interchangeably."""
+    """The Chart.yaml name is accepted like the alias, as update-component-version does."""
     dep = {"name": "kiss-chart", "alias": "kiss", "version": "3.1.1"}
     assert libimageversion.resolve_key_scope("kiss-chart", [dep]) == "kiss"
 
@@ -118,10 +107,7 @@ def test_resolve_key_scope_multiple_passes_through_unchanged(libimageversion: Mo
 
 
 def test_resolve_key_scope_no_matching_dependency_passes_through_unchanged(libimageversion: ModuleType):
-    """A lib.chart.NATIVE_COMPONENTS component (no Chart.yaml dependency
-    at all) or a genuine typo both pass through unchanged — resolve_
-    scoped_matches' own "no image pin ... found under" error already
-    covers that case correctly, under whatever raw string was typed."""
+    """Native components and typos pass through; resolve_scoped_matches reports them."""
     dep = {"name": "kiss-chart", "alias": "kiss", "version": "3.1.1"}
     assert libimageversion.resolve_key_scope("frankgateway", [dep]) == "frankgateway"
 
@@ -145,9 +131,7 @@ def test_find_matches_in_scope_finds_pins_under_key(libimageversion: ModuleType)
 
 
 def test_resolve_scoped_matches_multiple_key_translates_to_global_scope(libimageversion: ModuleType):
-    """MULTIPLE_KEY (release-table.csv's own convention for a base image
-    shared across several unrelated components) resolves against
-    values.yaml's global.images scope, not a literal "MULTIPLE" key."""
+    """MULTIPLE_KEY (release-table.csv's shared base image) resolves to global.images."""
     lines = [
         "global:",
         "  images:",
@@ -188,14 +172,12 @@ def test_resolve_scoped_matches_no_match_under_key_raises(libimageversion: Modul
         "    repository: curlimages/curl",
         '    tag: "8.21.0@sha256:' + "a" * 64 + '"',
     ]
-    with pytest.raises(SystemExit, match="no image pin with basename 'curl' found under 'b'"):
+    with pytest.raises(SystemExit, match="no image pin with image basename 'curl' found under 'b'"):
         libimageversion.resolve_scoped_matches(lines, "b", "curl")
 
 
 def test_resolve_scoped_matches_ambiguous_repository_under_key_raises(libimageversion: ModuleType):
-    """Two DISTINCT repositories sharing a basename under the SAME
-    scope key can't be identified uniquely from <key> <basename> alone —
-    an error, never a guess."""
+    """Two repositories with the same basename under one key is an error, never a guess."""
     lines = [
         "a:",
         "  image:",
@@ -251,10 +233,7 @@ def test_check_basename_version_reports_missing(libimageversion: ModuleType, mon
 
 
 def test_check_basename_version_dedupes_shared_repository(libimageversion: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    """The same basename pinned twice under the SAME repository (e.g.
-    curl, shared via values.yaml's global.images anchor block) only
-    needs one registry lookup, same as update_image_version's own
-    dedup."""
+    """The same repository pinned twice needs only one registry lookup."""
     lines = [
         "global:",
         "  a:",
@@ -282,7 +261,7 @@ def test_check_basename_version_dedupes_shared_repository(libimageversion: Modul
 
 
 def test_check_basename_version_no_match_raises(libimageversion: ModuleType):
-    with pytest.raises(SystemExit, match="no image pin with basename 'curl' found under 'a'"):
+    with pytest.raises(SystemExit, match="no image pin with image basename 'curl' found under 'a'"):
         libimageversion.check_basename_version([], "a", "curl", "8.22.0")
 
 
@@ -318,9 +297,7 @@ def test_update_image_version_single_match(
 def test_update_image_version_updates_all_shared_occurrences(
     libimageversion: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """curlimages/curl, shared via values.yaml's global.images anchor
-    block, pinned at two unrelated places under it — both must update,
-    with only one registry lookup between them."""
+    """Both pins of a shared repository update, with one registry lookup."""
     values_path = write_values(
         tmp_path,
         (
@@ -353,7 +330,7 @@ def test_update_image_version_no_match_raises(libimageversion: ModuleType, tmp_p
     values_path = write_values(
         tmp_path, 'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:' + "a" * 64 + '"\n'
     )
-    with pytest.raises(SystemExit, match="no image pin with basename 'curl' found under 'a'"):
+    with pytest.raises(SystemExit, match="no image pin with image basename 'curl' found under 'a'"):
         libimageversion.update_image_version(values_path, "a", "curl", "8.22.0")
 
 
@@ -384,9 +361,7 @@ def test_update_image_version_already_at_target_is_noop(
 def test_update_image_version_only_updates_stale_occurrence(
     libimageversion: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """One of two shared occurrences already at the target version — only
-    the other actually gets rewritten, but the registry is still queried
-    (needed for the one that IS changing)."""
+    """Only the occurrence not yet at the target version is rewritten."""
     values_path = write_values(
         tmp_path,
         (
@@ -428,9 +403,7 @@ def test_update_image_version_raises_when_version_missing_upstream(
 def test_update_image_version_ambiguous_repositories_under_key_raises(
     libimageversion: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Two DISTINCT repositories sharing a basename under the SAME scope
-    key can't be identified uniquely (see resolve_scoped_matches) —
-    rejected before any registry lookup or write happens."""
+    """An ambiguous basename is rejected before any registry lookup or write."""
     values_path = write_values(
         tmp_path,
         (
@@ -497,20 +470,11 @@ openzaak:
 
 
 # --- basenames_under_scope_any_tag / find_matches_any_tag ---
-# EXCLUSIVELY for verify-release-table-with-podiumd — see lib.image.digests.
-# VERSION_PIN_RE/scan_version_pins' own docstring for why a bare (non-
-# digest-pinned) tag must be found here, unlike the plain basenames_under_
-# scope/find_matches every OTHER caller (update-image-version/verify-
-# image-version/show-image-baseline-version/export-confluence-release-
-# table) keeps using unchanged.
+# Only for verify-release-table-with-podiumd: old baselines have bare (undigested) tags.
 
 
 def test_basenames_under_scope_any_tag_finds_bare_tag_pin(libimageversion: ModuleType, tmp_path: Path):
-    """Real case: podiumd-4.8.5 (this chart's own real, historical
-    release_table baseline) pinned zaakbrug with a bare tag, no digest at
-    all — invisible to plain basenames_under_scope (see the digest-
-    required test just above), but a real, comparable version genuinely
-    is there."""
+    """A bare-tag pin (as in the 4.8.5 baseline) is found here but not by basenames_under_scope."""
     values_path = write_values(
         tmp_path,
         """\
@@ -561,11 +525,7 @@ pabc:
 
 
 # --- repository_for_basename_in_scope ---
-# EXCLUSIVELY for verify-release-table-with-podiumd's own check_images_
-# source, to cross-check its baseline-side unscoped fallback against
-# what the CURRENT chart's own real repository for the same <scope,
-# basename> actually is — see that function's own docstring for the
-# real redis/redis-operator collision this guards against.
+# Used by check_images_source to cross-check the baseline's unscoped fallback.
 
 
 def test_repository_for_basename_in_scope_uses_scoped_hit(libimageversion: ModuleType, tmp_path: Path):
@@ -585,10 +545,7 @@ global:
 
 
 def test_repository_for_basename_in_scope_falls_back_to_unscoped(libimageversion: ModuleType, tmp_path: Path):
-    """The legitimate cross-scope case (keycloak-config-cli, a real image
-    under top-level "keycloak", not "keycloak-operator") — the scoped
-    tier finds nothing under "keycloak-operator", so the unscoped
-    fallback's own single, unambiguous hit is trusted instead."""
+    """With no scoped hit (keycloak-config-cli lives under "keycloak"), a unique unscoped hit is used."""
     values_path = write_values(
         tmp_path,
         """\
@@ -612,10 +569,7 @@ def test_repository_for_basename_in_scope_none_when_nothing_resolves(libimagever
 
 
 def test_repository_for_basename_in_scope_none_when_ambiguous(libimageversion: ModuleType, tmp_path: Path):
-    """Two genuinely different repositories sharing the same basename,
-    both outside `scope_key` — no trustworthy single answer, so this
-    returns None rather than guessing (the same "can't verify, don't
-    guess" discipline check_images_source's own cross-check relies on)."""
+    """Ambiguous unscoped hits return None rather than a guess."""
     values_path = write_values(
         tmp_path,
         """\

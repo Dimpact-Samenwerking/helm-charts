@@ -1,7 +1,4 @@
-"""lib.baseline_report.show_baseline_section — the shared "print one
-release-baseline.yaml section's own outcome" three-tier wrapper
-show-component-baseline-version and show-image-baseline-version both
-build their own resolve-and-print body on top of."""
+"""lib.baseline_report.show_baseline_section, shared by the show-*-baseline-version scripts."""
 
 from types import ModuleType
 
@@ -52,10 +49,7 @@ def test_show_baseline_section_success_returns_true_and_prints_no_error_line(
 def test_show_baseline_section_error_is_printed_verbatim_and_returns_false(
     libbaselinereport: ModuleType, capsys: pytest.CaptureFixture[str]
 ):
-    """`resolve`'s own return value is printed AS-IS -- never given a
-    second "error: " prefix here -- since a caller's own resolution step
-    may already have one baked in (e.g. a SystemExit message it just
-    reraises the text of)."""
+    """`resolve`'s error is printed as-is, without a second "error: " prefix (callers may include one)."""
     result = libbaselinereport.show_baseline_section("upgrade_docs", "4.8.5", lambda baseline: "error: boom")
     assert result is False
     out = capsys.readouterr().out

@@ -1,11 +1,7 @@
-"""End-to-end check_docs_consistency against a small, realistic podiumd-like
-chart inside a real (hermetic, temp) git repo — exercises the full baseline
-resolution + all the precheck/content-check stages together.
+"""End-to-end check_docs_consistency on a small podiumd-like chart in a temp git repo.
 
-Split from test_docs_consistency_integration.py (pylint too-many-lines): this
-file covers the Component versions table/Changes section ordering, the
-values-deltas.md section-ordering rules, and the Changes heading app-version
-wording checks."""
+Covers Component versions table/Changes ordering, values-deltas.md section
+ordering and Changes heading app-version wording."""
 
 import subprocess
 
@@ -34,9 +30,7 @@ dependencies:
     repository: "@maykinmedia"
 """
 
-# openzaak's own block comes BEFORE openinwoner's -- this file order is
-# the ordering signal values_key_order reads, so the doc is expected to
-# list Open Zaak before Open Inwoner too.
+# File order is what values_key_order reads: the doc must list Open Zaak first.
 ORDER_VALUES_YAML = (
     'openzaak:\n  image:\n    tag: "1.27.4@sha256:aaaa"\nopeninwoner:\n  image:\n    tag: "2.4.2@sha256:bbbb"\n'
 )
@@ -108,13 +102,9 @@ def test_out_of_order_changes_block_is_caught(vp: ModuleType, order_chart_dir, c
 def test_unmatched_summary_row_never_flagged_against_real_components(
     vp: ModuleType, order_chart_dir, capsys: pytest.CaptureFixture[str]
 ):
-    """A row that doesn't resolve to any Chart.yaml dependency (e.g. a
-    shared-image summary row) sorts after every real component and must
-    never itself trigger an ORDERING mismatch — it's now separately
-    flagged as a wrong-phrasing mismatch (doesn't match a canonical
-    sidecar/shared-image name either — see canonical_sidecar_row_names),
-    but that's a different, unrelated finding from what this test is
-    about."""
+    """A row resolving to no Chart.yaml dependency sorts last and never triggers an ORDERING mismatch.
+
+    Its wrong-phrasing finding is separate and not asserted here."""
     chart_dir, doc_dir = order_chart_dir
     summary_row = "| nginx-unprivileged (shared sidecar) | 1.31.4 | — | - |"
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
@@ -180,17 +170,10 @@ def test_two_changes_sections_naming_one_component_are_caught(
 def test_heading_naming_two_components_is_flagged_and_neither_row_is_credited(
     vp: ModuleType, order_chart_dir, capsys: pytest.CaptureFixture[str]
 ):
-    """A single "### ..." heading naming two components at once (the
-    real-world case: "### ECK Operator 3.4.0 → 3.5.0 + ECK Stack
-    (kiss-eck) 0.19.0 → 0.20.0") is assessed as a whole, never split on
-    "+" or any other separator — a heading either unambiguously names
-    ONE component, or it's wrong. Here it names two, so it's reported as
-    its own "no matching row" finding (exactly like an orphan heading
-    naming zero would be — there's no special "combines" wording), AND
-    neither Open Zaak's nor Open Inwoner's own row is credited by it —
-    both are independently reported as having no matching section of
-    their own, since a heading naming two components never satisfies
-    either one's correspondence."""
+    """A heading naming two components is assessed whole, never split on "+".
+
+    It is reported as "no matching row", and credits neither component's row
+    (e.g. "### ECK Operator 3.4.0 → 3.5.0 + ECK Stack (kiss-eck) 0.19.0 → 0.20.0")."""
     chart_dir, doc_dir = order_chart_dir
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
         order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump + Open Inwoner bump"])
@@ -210,12 +193,8 @@ def test_heading_naming_two_components_is_flagged_and_neither_row_is_credited(
 def test_changes_heading_naming_no_real_component_is_caught_as_no_matching_row(
     vp: ModuleType, order_chart_dir, capsys: pytest.CaptureFixture[str]
 ):
-    """A Changes heading that never actually names a real Chart.yaml
-    dependency at all (the real-world case: "### Keycloak app image
-    26.6.4 → 26.7.2" — never says "keycloak-operator" or even
-    "operator") still has to be reported as having no matching table
-    row, the same as a heading naming the wrong component would be —
-    resolving to nothing is not itself a pass."""
+    """A Changes heading naming no real dependency (e.g. "### Keycloak app image 26.6.4 → 26.7.2")
+    is reported as having no matching row; resolving to nothing is not a pass."""
     chart_dir, doc_dir = order_chart_dir
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
         order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump", "Open Inwoner bump", "Unrelated release note"])
@@ -232,14 +211,9 @@ def test_changes_heading_naming_no_real_component_is_caught_as_no_matching_row(
 def test_changes_heading_missing_app_version_is_caught(
     vp: ModuleType, order_chart_dir, capsys: pytest.CaptureFixture[str]
 ):
-    """A "### ..." heading naming a real, resolvable component but never
-    showing its app version at all (real case: "### openbao 0.28.4" —
-    add_missing_component_rows' own chart-only TODO-stub shape, written
-    back when actual_app_version couldn't resolve anything yet) must be
-    flagged once that version DOES become resolvable — a stale heading
-    like this is never rewritten automatically (fix-doc-consistency
-    never touches an EXISTING section's own text), so nothing else would
-    ever catch it going stale."""
+    """A heading without the app version (e.g. "### openbao 0.28.4") is flagged once it is resolvable.
+
+    fix-doc-consistency never rewrites an existing section, so nothing else catches it."""
     chart_dir, doc_dir = order_chart_dir
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
         order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump", "Open Inwoner bump 2.4.2 → 2.4.2"])
@@ -323,18 +297,9 @@ def new_dep_values():
 
 @pytest.fixture
 def new_dependency_chart_repo(tmp_path: Path):
-    """ "openklant" doesn't exist at all at the baseline ref — added as a
-    brand-new Chart.yaml dependency in this release. Its doc row's
-    source (baseline) version can never be verified against a baseline
-    that has no such dependency at all — this is the exact real-world
-    gap fix-doc-consistency's own fix_component_version_table already
-    tracks as "unresolved" (left uncorrected, and now written as
-    "2.15.0 (new)" rather than left blank), which check_docs_consistency
-    used to silently treat as clean, since it never had anything to
-    compare the row's claimed source version against. Otherwise a fully
-    clean, complete doc set — nothing else here should surface any
-    mismatch, so the row-source warning's own severity (warning, not
-    failure) can be checked in isolation."""
+    """ "openklant" is new since the baseline, so its row's source version has nothing to compare against.
+
+    Otherwise a clean doc set, so the resulting warning can be checked in isolation."""
     repo_root = tmp_path
     chart_dir = repo_root / "charts" / "podiumd"
     doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
@@ -369,14 +334,9 @@ def new_dependency_chart_repo(tmp_path: Path):
 def test_new_dependency_unresolvable_baseline_row_is_a_warning_not_a_failure(
     vp: ModuleType, new_dependency_chart_repo, capsys: pytest.CaptureFixture[str]
 ):
-    """A doc row for a component that didn't exist at the baseline ref at
-    all must be surfaced (never silently treated as clean, since its
-    source cells were never actually compared against anything) — but
-    only as a warning, not a mismatch: there's nothing wrong with the
-    doc here, a brand-new component simply has no baseline to compare
-    against, same reason fix-doc-consistency's own fix_component_
-    version_table doesn't treat it as an error either (writes "(new)"
-    cells for it instead of reporting it for manual review)."""
+    """A row for a component absent at the baseline is surfaced as a warning, not a mismatch.
+
+    Same as fix-doc-consistency, which writes "(new)" cells for it."""
     ok, detail = vp.check_docs_consistency(new_dependency_chart_repo, upgrade_docs_baseline="4.8.5")
     out = capsys.readouterr().out
 
@@ -390,12 +350,7 @@ def test_new_dependency_unresolvable_baseline_row_is_a_warning_not_a_failure(
 def test_plus_in_heading_not_naming_two_real_components_still_resolves_normally(
     vp: ModuleType, order_chart_dir, capsys: pytest.CaptureFixture[str]
 ):
-    """A literal "+" in a heading isn't itself the signal — assessment
-    never splits on it at all. Here only "Open Zaak" names a real
-    component; the rest of the text ("+ misc cleanup") is plain prose
-    that names nothing, so the heading as a whole still resolves to
-    exactly one identity and must pass normally, same as any other
-    single-component heading."""
+    """A "+" alone is no signal: "Open Zaak + misc cleanup" names one component and passes."""
     chart_dir, doc_dir = order_chart_dir
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
         order_doc(
@@ -439,15 +394,10 @@ def two_dep_values(zac_app, openformulieren_app, *, with_schema_changes=False):
 
 @pytest.fixture
 def two_dep_chart_repo(tmp_path: Path):
-    """zac and openformulieren both already exist at the baseline ref
-    (podiumd-4.8.5) and both bump their app version AND add a real
-    values.yaml schema key at HEAD — values.yaml lists zac first,
-    openformulieren second, so that's the order their own values-
-    deltas.md sections must follow. The schema change matters here (not
-    just the version bump): a pure version-only bump gets no values-
-    deltas.md section at all (see lib.component_docs.sync_values_delta_
-    sections' own docstring), so these tests need real "- Key ..."
-    content to exercise section ordering meaningfully."""
+    """zac and openformulieren both exist at the baseline and change version plus a schema key.
+
+    The schema key matters: a version-only bump gets no values-deltas.md section,
+    so there would be nothing to order."""
     repo_root = tmp_path
     chart_dir = repo_root / "charts" / "podiumd"
     doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
@@ -478,8 +428,7 @@ def two_dep_chart_repo(tmp_path: Path):
     (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(
         "# Gemeente-specific notes — PodiumD 4.8.5 → 4.9.0\n\nNone.\n"
     )
-    # sections deliberately in the WRONG order: openformulieren (values.yaml's
-    # SECOND key) comes before zac (values.yaml's FIRST key)
+    # Deliberately wrong order: openformulieren before zac.
     (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
         "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
         "## openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged)\n\n"
@@ -537,24 +486,16 @@ def test_values_deltas_sections_correctly_ordered_passes(vp: ModuleType, two_dep
     assert ok is True, detail
 
 
-# --- Changes heading app-version wording vs. its own row (regression:
-# a heading can show the CORRECT current version yet the WRONG
-# transition wording, e.g. "(unchanged)" for a component that's really
-# "(new)" to this doc — real case: openbao's own Changes heading said
-# "(unchanged)" while its table row correctly said "(new)", because its
-# baseline app version was only resolvable via a vendored-.tgz fallback
-# the OLD code never attempted for the baseline side) ---
+# --- Changes heading transition wording vs. its row (e.g. "(unchanged)" in
+# the heading while the row correctly says "(new)") ---
 
 
 def test_changes_heading_wrong_transition_wording_is_caught(
     vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
 ):
-    """zac really changed 5.0.2 -> 5.4.3 (see chart_repo's own docstring),
-    but its own Changes heading wrongly claims "(unchanged)" — the table
-    row itself is untouched/correct, only the heading's own wording is
-    stale/wrong. changes_heading_has_app_version alone would pass this
-    (SOME version marker is shown) — this needs the wording ITSELF
-    checked against the real baseline -> target transition."""
+    """zac changed 5.0.2 -> 5.4.3 but its heading says "(unchanged)"; the row is correct.
+
+    changes_heading_has_app_version alone would pass, so the wording itself is checked."""
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(
         "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"

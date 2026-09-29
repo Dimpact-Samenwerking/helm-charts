@@ -4,8 +4,10 @@ load_yaml_mapping (or a schema loader built on them, such as
 lib.chart.chart_yaml), so the Any that yaml.safe_load returns stays in
 this module."""
 
+import copy
 import datetime
 
+from collections.abc import Callable
 from collections.abc import Mapping
 from pathlib import Path
 from typing import TypeGuard
@@ -120,9 +122,36 @@ def is_yaml_value(value: object) -> TypeGuard[YamlValue]:
     return yaml_problem(value) is None
 
 
+_parsed_text_cache: dict[tuple[Path, str], YamlMapping] = {}
+
+
 def load_yaml_mapping(path: Path) -> YamlMapping:
-    """parse_yaml_mapping of the file at `path`."""
-    return parse_yaml_mapping(path.read_text(encoding="utf-8"), str(path))
+    """parse_yaml_mapping of the file at `path`. The file is read every
+    call but parsed once per content, so a rewrite is always seen; each
+    call gets its own copy."""
+    text = path.read_text(encoding="utf-8")
+    key = (path.resolve(), text)
+    if key not in _parsed_text_cache:
+        _parsed_text_cache[key] = parse_yaml_mapping(text, str(path))
+    return copy.deepcopy(_parsed_text_cache[key])
+
+
+_file_mapping_cache: dict[tuple[Path, int, int, str], YamlMapping | None] = {}
+
+
+def cached_file_mapping(path: Path, part: str, load: Callable[[], YamlMapping | None]) -> YamlMapping | None:
+    """load()'s result, computed once per version of the file at `path`
+    (its resolved path, mtime and size) and `part` (what load reads from
+    it, e.g. an archive member; "" for the whole file). Only for files a
+    run doesn't rewrite (settings.yaml, vendored .tgz archives): a
+    same-size rewrite within one mtime tick would go unseen — see
+    load_yaml_mapping for files that are rewritten. The result is shared
+    by every caller: copy whatever you change."""
+    stat = path.stat()
+    key = (path.resolve(), stat.st_mtime_ns, stat.st_size, part)
+    if key not in _file_mapping_cache:
+        _file_mapping_cache[key] = load()
+    return _file_mapping_cache[key]
 
 
 def scalar_text(value: YamlValue) -> str | None:

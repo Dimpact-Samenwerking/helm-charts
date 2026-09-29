@@ -19,3 +19,4 @@ ci/
 scripts/
 bin/
 etc/
+rendered-helm.yaml

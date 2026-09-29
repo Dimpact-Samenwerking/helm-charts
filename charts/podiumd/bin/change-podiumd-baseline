@@ -25,8 +25,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-# Not installed as a package -- sys.path must be patched before
-# lib.* can be imported, so these imports can't move to the top.
+# sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
 from lib.chart.historical_baselines import SEMVER_RE as BASELINE_VERSION_RE
 from lib.chart.paths import CHART_DIR
@@ -42,18 +41,11 @@ FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 
 
 def main():
-    """CLI entry point: validates <new-baseline> resolves to a real release
-    (tag or branch), writes it as release-baseline.yaml's upgrade_docs key,
-    then rebases the docs onto it (fix-doc-consistency) and regenerates
-    README.md (fix-helm-doc) — exits with whichever of those two sub-runs
-    fails first, if any."""
+    """CLI entry point; exits with the first failing sub-run's code."""
     (new_baseline,) = positional_args(__doc__, 1)
 
-    # A baseline is always a released MAJOR.MINOR.PATCH — never an arbitrary
-    # ref. Without this, gitutil.baseline_ref_candidates' unanchored match
-    # lets "main" / "HEAD~2" / "4.9.1-rc.2" resolve as an explicit ref and
-    # get persisted into release-baseline.yaml, where every downstream
-    # consumer assumes semver. Same guard create-doc-version already has.
+    # resolve_baseline_ref would also accept refs like "main" or "HEAD~2";
+    # downstream consumers assume semver.
     if not BASELINE_VERSION_RE.match(new_baseline):
         print(f"error: '{new_baseline}' is not a valid MAJOR.MINOR.PATCH version")
         sys.exit(1)

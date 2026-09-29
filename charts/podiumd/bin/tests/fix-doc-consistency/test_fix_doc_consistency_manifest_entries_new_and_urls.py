@@ -1,5 +1,4 @@
-"""fix_images_manifest_entry_urls, plus add_missing_images_manifest_entries' own
-core/split-tag/allow-pull/global-image scenarios."""
+"""fix_images_manifest_entry_urls and add_missing_images_manifest_entries scenarios."""
 
 import io
 import tarfile
@@ -18,13 +17,10 @@ def write(path, text):
 
 
 def make_tgz(charts_dir, name, version, values, raw_files=None):
-    """A minimal vendored <name>-<version>.tgz — enough to exercise
-    documented_repository_for_path (nested_subchart_documented_image_
-    repository under the hood) without a real `helm pull`. raw_files (a
-    {internal tar path: text} dict, e.g. "<name>/charts/<nested>/
-    values.yaml") writes each verbatim, matching tests/lib/test_chart.py's
-    own make_tgz (not importable across test files in this codebase's
-    per-file test-helper convention)."""
+    """A minimal vendored <name>-<version>.tgz; raw_files maps tar paths to verbatim text.
+
+    Duplicates tests/lib/test_chart.py's make_tgz: test helpers are not importable across test files.
+    """
     charts_dir.mkdir(parents=True, exist_ok=True)
     tgz_path = charts_dir / f"{name}-{version}.tgz"
     data = yaml.safe_dump(values).encode("utf-8")
@@ -44,13 +40,7 @@ def make_tgz(charts_dir, name, version, values, raw_files=None):
 
 
 def test_fix_images_manifest_entry_urls_restores_stripped_host(cdb: ModuleType, tmp_path: Path):
-    """Regression test (real bug, real doc): a historical (now-
-    superseded) reordering commit silently stripped the registry host
-    off several "url:" fields while moving their own entry blocks —
-    confirmed live: images-4.9.1.yaml's own zac otel sidecar ("otel/
-    opentelemetry-collector-contrib" instead of "docker.io/otel/
-    opentelemetry-collector-contrib"). Nothing ever re-verified an
-    EXISTING entry's own url against what it should actually be."""
+    """An existing entry whose url lost its registry host gets the host restored."""
     write(
         tmp_path / "Chart.yaml",
         yaml.safe_dump(
@@ -127,10 +117,7 @@ def test_fix_images_manifest_entry_urls_leaves_correct_url_untouched(cdb: Module
 
 
 def test_fix_images_manifest_entry_urls_reports_url_line_with_trailing_text(cdb: ModuleType, images_manifest_chart_dir):
-    """Regression test: a "url:" line with text after the url (here a YAML
-    comment) is found as the entry's url line but has no single url
-    value. It used to crash with AttributeError; it is now reported as
-    unresolved and left as it is."""
+    """A "url:" line with trailing text (a comment) is reported as unresolved and left as is, not a crash."""
     text = (
         "# zac 5.0.2 -> 5.1.0\n"
         "- name: infonl/zaakafhandelcomponent\n"
@@ -168,12 +155,7 @@ def test_fix_images_manifest_entry_urls_reports_unresolvable_entry(cdb: ModuleTy
 
 @pytest.fixture
 def images_manifest_chart_dir(tmp_path: Path):
-    """A real Chart.yaml + values.yaml on disk (needed by
-    lib.image.repository_check.find_images_without_repository, which
-    reads them itself rather than taking already-loaded dicts) — zac's
-    own "repository:" is set explicitly so its primary image resolves,
-    matching lib.chart.paths_by_repository's own "no owning dependency
-    needed for an own override" resolution."""
+    """Chart.yaml + values.yaml on disk: find_images_without_repository reads them itself."""
     write(
         tmp_path / "Chart.yaml",
         yaml.safe_dump(
@@ -227,14 +209,7 @@ def test_add_missing_images_manifest_entries_appends_new_entry(cdb: ModuleType, 
 def test_add_missing_images_manifest_entries_genuinely_new_image_renders_new(
     cdb: ModuleType, images_manifest_chart_dir
 ):
-    """Regression test (real bug, real doc): a genuinely brand-new image
-    (no baseline value at all, and no historical images-<version>.yaml
-    manifest ever records it either) used to fall back to `old_version =
-    new_version` as a fake "old" value, which made the "same version ->
-    (digest changed)" branch fire wrongly — confirmed live: images-
-    4.9.1.yaml's own zac otel sidecar comment read "0.158.0 -> 0.158.0"
-    instead of "0.158.0 (new)". Must render "(new)", never a nonsensical
-    self-transition or a false "(digest changed)"."""
+    """A brand-new image (no baseline, no historical manifest) renders "(new)", not a self-transition."""
     text = "# Baseline: podiumd 4.8.5.\n"
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
     target_values = {
@@ -264,11 +239,7 @@ def test_add_missing_images_manifest_entries_genuinely_new_image_renders_new(
 
 
 def test_add_missing_images_manifest_entries_moved_repository_gets_real_transition(cdb: ModuleType, tmp_path: Path):
-    """Real case (podiumd 4.9.1): the postgres consolidation (see
-    lib.chart.baseline_tag_for_sidecar_path) — global.images.postgres
-    never existed in baseline_values, but the same "postgres" repository
-    already did, at openbao.database.schemaJob.image. Must render the
-    real "16-alpine -> 16.15-alpine" transition, never "(new)"."""
+    """A repository that moved anchors (postgres into global.images) renders its real transition, not "(new)"."""
     write(
         tmp_path / "Chart.yaml",
         yaml.safe_dump(
@@ -319,17 +290,10 @@ def test_add_missing_images_manifest_entries_moved_repository_gets_real_transiti
 def test_add_missing_images_manifest_entries_catches_same_version_changed_digest(
     cdb: ModuleType, images_manifest_chart_dir
 ):
-    """Regression test (real bug, real doc, clamav-shaped): a same-
-    version, changed-digest re-pin is correctly DETECTED by lib.
-    upgradedoc.find_images_manifest_list_diff (see its own docstring),
-    but this function has its own SEPARATE call to it — and had been
-    passing neither `values=` nor `baseline_values=`, silently
-    collapsing that call back to the old version-only behaviour (see
-    find_images_manifest_list_diff's own "every real caller passes
-    both" docstring note). Confirmed live: running fix-doc-consistency
-    against the real chart produced zero mention of clamav's own real
-    digest-only re-pin at all — not even "no existing entry, add
-    manually". This must actually ADD the entry, not just detect it."""
+    """A same-version, changed-digest re-pin is added, not only detected.
+
+    Guards that the list-diff call here passes both `values=` and `baseline_values=`.
+    """
     text = "# Baseline: podiumd 4.8.5.\n"
     deps = [{"name": "clamav", "version": "1.0.0"}]
     target_values = {"clamav": {"image": {"repository": "clamav/clamav", "tag": "1.5.4@sha256:" + "b" * 64}}}
@@ -349,12 +313,7 @@ def test_add_missing_images_manifest_entries_catches_same_version_changed_digest
     assert added == ["clamav"]
     assert "- name: clamav/clamav" in new_text
     assert f'digest: "sha256:{"b" * 64}"' in new_text
-    # Real bug: "clamav 1.5.4 -> 1.5.4" reads as "nothing changed" even
-    # though the version DID stay the same and only the digest changed —
-    # both the "# Changes:" header item and the per-entry "#" comment
-    # above its own "- name:" block share this SAME version_text
-    # construction, so both must say "(digest changed)" instead of the
-    # degenerate "<version> -> <version>" arrow form.
+    # Both the "# Changes:" item and the entry comment share version_text: neither may read "<v> -> <v>".
     assert "clamav 1.5.4 (digest changed)" in new_text
     assert "clamav 1.5.4 -> 1.5.4" not in new_text
 
@@ -362,15 +321,8 @@ def test_add_missing_images_manifest_entries_catches_same_version_changed_digest
 def test_add_missing_images_manifest_entries_name_is_stripped_url_is_fully_qualified(
     cdb: ModuleType, images_manifest_chart_dir
 ):
-    """Regression test: "name:" is the curated ACR mirror slug's own
-    starting point — the same STRIPPED repo_map key docs/images/
-    acr-mirror-naming.md documents, still a human's job to fix
-    afterward — but "url:" must be the REAL, fully host-qualified
-    repository (lib.chart.full_repository_for_path), never the same
-    stripped value: a manifest entry's "url:" with no registry host at
-    all (real bug, confirmed live in images-4.9.1.yaml) is silently
-    wrong for every Docker-Hub-hosted image (host omitted in values.
-    yaml's own "repository:" by Docker Hub's own convention)."""
+    """The "name:" is the stripped repo_map key; the "url:" is the fully host-qualified repository, since a
+    hostless url is wrong for Docker Hub images."""
     text = ""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
     target_values = {
@@ -394,10 +346,7 @@ def test_add_missing_images_manifest_entries_name_is_stripped_url_is_fully_quali
 def test_add_missing_images_manifest_entries_real_version_bump_keeps_arrow_wording(
     cdb: ModuleType, images_manifest_chart_dir
 ):
-    """A genuine version bump (old_version != new_version) still renders
-    the normal "<old> -> <new>" arrow form — the "(digest changed)"
-    wording is ONLY for the same-version case, never a substitute for a
-    real version transition."""
+    """A real version bump keeps "<old> -> <new>"; "(digest changed)" is only for same-version re-pins."""
     text = ""
     deps = [{"name": "curl", "version": "1.0.0"}]
     target_values = {"curl": {"image": {"repository": "curlimages/curl", "tag": "8.22.0@sha256:" + "b" * 64}}}
@@ -422,10 +371,7 @@ def test_add_missing_images_manifest_entries_real_version_bump_keeps_arrow_wordi
 def test_add_missing_images_manifest_entries_docker_hub_repository_gets_docker_io_host(
     cdb: ModuleType, images_manifest_chart_dir
 ):
-    """Regression test: a Docker-Hub-hosted image's own "repository:"
-    conventionally omits the host entirely (e.g. "curlimages/curl") —
-    the entry's "url:" must still come out fully host-qualified
-    ("docker.io/curlimages/curl"), not the bare, hostless string."""
+    """A hostless Docker Hub "repository:" gets a "docker.io/..." url."""
     text = ""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
     target_values = {"zac": {"image": {"repository": "curlimages/curl", "tag": "8.22.0@sha256:aaaa"}}}
@@ -447,13 +393,7 @@ def test_add_missing_images_manifest_entries_docker_hub_repository_gets_docker_i
 def test_add_missing_images_manifest_entries_separate_registry_key_is_used_for_url(
     cdb: ModuleType, images_manifest_chart_dir
 ):
-    """Regression test (mi's own real "azure-cli" case): a component
-    whose registry host lives in a SEPARATE sibling "registry:" key
-    (Azure Container Registry's own convention) rather than embedded in
-    "repository:" itself (bare "azure-cli", no namespace at all) must
-    still get a fully host-qualified "url:" — that sibling key is
-    authoritative, never parse_repo's own Docker Hub inference (which
-    would wrongly assume "docker.io/azure-cli")."""
+    """A sibling "registry:" key is authoritative for the url, not parse_repo's Docker Hub inference."""
     text = ""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
     target_values = {
@@ -507,9 +447,7 @@ def test_add_missing_images_manifest_entries_noop_when_entry_already_covers_it(
 
 
 def test_add_missing_images_manifest_entries_skips_when_no_digest_pinned(cdb: ModuleType, images_manifest_chart_dir):
-    """A path whose current tag has no "@sha256:..." at all can't
-    produce a valid entry (digest is a required field) — reported as
-    skipped, not silently dropped or written incomplete."""
+    """A tag without "@sha256:" is reported as skipped, not written incomplete (digest is required)."""
     write(
         images_manifest_chart_dir / "values.yaml",
         yaml.safe_dump(
@@ -542,16 +480,7 @@ def test_add_missing_images_manifest_entries_skips_when_no_digest_pinned(cdb: Mo
 def test_add_missing_images_manifest_entries_eck_operator_split_digest_field_resolves(
     cdb: ModuleType, images_manifest_chart_dir
 ):
-    """Regression test (real bug, real chart): eck-operator's own image
-    pin uses a split "tag:"/"digest:" convention (not the usual embedded
-    "tag: <ver>@sha256:<digest>"). Before lib.chart.SPLIT_TAG_SHA_PATHS
-    was generalized to support a "digest:"-named sibling field (not just
-    the two keycloak paths' own "sha:"), resolved_digest_pin had no way
-    to find it at all, so this always skipped it with "no resolvable
-    repository, or its values.yaml tag has no digest pinned yet" —
-    confirmed live on the real 4.9.1-to-4.9.2 doc set. eck-operator
-    existed (enabled) at the baseline with no explicit "image:" override
-    at all, same shape as the real 4.9.1 baseline."""
+    """eck-operator's split "tag:"/"digest:" pin resolves its digest from the "digest:" sibling."""
     text = "# Baseline: podiumd 4.9.1.\n"
     deps = [{"name": "eck-operator", "version": "3.5.0"}]
     target_values = {
@@ -585,12 +514,8 @@ def test_add_missing_images_manifest_entries_eck_operator_split_digest_field_res
 
 @pytest.fixture
 def eck_stack_chart_dir(tmp_path: Path):
-    """eck-stack's own bare "version:" CRD fields (see COMPONENT_
-    VERSION_PATH_NESTED_SUBCHARTS) never carry a digest anywhere in
-    values.yaml at all — the real case documented_repository_for_path/
-    the allow_pull registry fallback exist for. The repository comes
-    from the vendored eck-elasticsearch sub-subchart's own commented-
-    out documented example, the only place it's recorded."""
+    """eck-stack's bare "version:" CRD fields never carry a digest; the repository comes only from the
+    vendored eck-elasticsearch sub-subchart's commented-out example."""
     make_tgz(
         tmp_path / "charts",
         "eck-stack",
@@ -625,13 +550,7 @@ def eck_stack_chart_dir(tmp_path: Path):
 def test_add_missing_images_manifest_entries_allow_pull_fetches_digest_from_registry(
     cdb: ModuleType, eck_stack_chart_dir, monkeypatch: pytest.MonkeyPatch
 ):
-    """Real feature: the repository resolves fine (via the vendored
-    subchart's own documented example), but resolved_digest_pin alone
-    can never produce a digest for a bare CRD version field — nothing
-    in values.yaml carries one. With allow_pull=True, a real registry
-    manifest lookup (the same call /fetch-image-digest and update-
-    image-version's own missing_entries handling already make) fills
-    it in instead of skipping."""
+    """With allow_pull=True, a digest missing from values.yaml is fetched from the registry."""
     deps = [{"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}]
     target_values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.19"}}}
     baseline_values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.3"}}}
@@ -665,8 +584,7 @@ def test_add_missing_images_manifest_entries_allow_pull_fetches_digest_from_regi
 def test_add_missing_images_manifest_entries_allow_pull_false_never_touches_network(
     cdb: ModuleType, eck_stack_chart_dir, monkeypatch: pytest.MonkeyPatch
 ):
-    """Default allow_pull=False must never call the registry at all —
-    left exactly as before: skipped, no network access attempted."""
+    """allow_pull=False never calls the registry: skipped."""
     deps = [{"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}]
     target_values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.19"}}}
     baseline_values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.3"}}}
@@ -695,8 +613,7 @@ def test_add_missing_images_manifest_entries_allow_pull_false_never_touches_netw
 def test_add_missing_images_manifest_entries_allow_pull_registry_miss_still_skips(
     cdb: ModuleType, eck_stack_chart_dir, monkeypatch: pytest.MonkeyPatch
 ):
-    """The registry genuinely has no such tag (exists=False) — still
-    reported as skipped, not a crash or a bad/partial entry."""
+    """A registry miss (exists=False) is still reported as skipped."""
     deps = [{"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}]
     target_values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.19"}}}
     baseline_values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.3"}}}
@@ -720,10 +637,7 @@ def test_add_missing_images_manifest_entries_allow_pull_registry_miss_still_skip
 
 @pytest.fixture
 def keycloak_operator_chart_dir(tmp_path: Path):
-    """keycloak-operator's own primary image (operator.config.keycloakImage)
-    uses the adfinis chart's own split "tag:"/"sha:" convention — its
-    "tag:" alone never carries "@sha256:...", the real case
-    resolved_digest_pin exists for."""
+    """keycloak-operator's operator.image uses split "tag:"/"sha:"; its "tag:" never has "@sha256:"."""
     write(
         tmp_path / "Chart.yaml",
         yaml.safe_dump(
@@ -738,12 +652,10 @@ def keycloak_operator_chart_dir(tmp_path: Path):
             {
                 "keycloak-operator": {
                     "operator": {
-                        "config": {
-                            "keycloakImage": {
-                                "repository": "quay.io/keycloak/keycloak",
-                                "tag": "26.7.2",
-                                "sha": "9d1f1b2b",
-                            }
+                        "image": {
+                            "repository": "quay.io/keycloak/keycloak-operator",
+                            "tag": "26.7.2",
+                            "sha": "9d1f1b2b",
                         }
                     }
                 },
@@ -756,27 +668,20 @@ def keycloak_operator_chart_dir(tmp_path: Path):
 def test_add_missing_images_manifest_entries_split_tag_sha_primary_gets_entry(
     cdb: ModuleType, keycloak_operator_chart_dir
 ):
-    """Real bug: keycloak-operator's own primary image was silently
-    SKIPPED entirely (treated the same as "no digest pinned yet") since
-    its "tag:" never embeds "@sha256:..." — the digest lives in the
-    sibling "sha:" field instead. Must be read from there, not skipped."""
+    """A split "tag:"/"sha:" primary image reads its digest from "sha:" instead of being skipped."""
     text = ""
     deps = [{"name": "keycloak-operator", "version": "1.12.1"}]
     target_values = {
         "keycloak-operator": {
             "operator": {
-                "config": {
-                    "keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": "26.7.2", "sha": "9d1f1b2b"}
-                }
+                "image": {"repository": "quay.io/keycloak/keycloak-operator", "tag": "26.7.2", "sha": "9d1f1b2b"}
             }
         }
     }
     baseline_values = {
         "keycloak-operator": {
             "operator": {
-                "config": {
-                    "keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": "26.6.4", "sha": "eeeeeeee"}
-                }
+                "image": {"repository": "quay.io/keycloak/keycloak-operator", "tag": "26.6.4", "sha": "eeeeeeee"}
             }
         }
     }
@@ -794,7 +699,7 @@ def test_add_missing_images_manifest_entries_split_tag_sha_primary_gets_entry(
     assert skipped == []
     assert added == ["keycloak-operator"]
     assert "# keycloak-operator 26.6.4 -> 26.7.2" in new_text
-    assert "- name: keycloak/keycloak" in new_text
+    assert "- name: keycloak/keycloak-operator" in new_text
     assert 'version: "26.7.2"' in new_text
     assert 'digest: "sha256:9d1f1b2b"' in new_text
 
@@ -802,18 +707,13 @@ def test_add_missing_images_manifest_entries_split_tag_sha_primary_gets_entry(
 def test_add_missing_images_manifest_entries_split_tag_sha_no_sha_override_still_skipped(
     cdb: ModuleType, keycloak_operator_chart_dir
 ):
-    """No podiumd override for the sibling "sha:" field at all (inherits
-    the vendored subchart's own default, not visible from values.yaml) —
-    genuinely can't produce a digest-pinned entry, so still reported as
-    skipped rather than writing one with a missing/wrong digest."""
+    """No values.yaml override for "sha:" (subchart default not visible): still skipped."""
     write(
         keycloak_operator_chart_dir / "values.yaml",
         yaml.safe_dump(
             {
                 "keycloak-operator": {
-                    "operator": {
-                        "config": {"keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": "26.7.2"}}
-                    }
+                    "operator": {"image": {"repository": "quay.io/keycloak/keycloak-operator", "tag": "26.7.2"}}
                 },
             }
         ),
@@ -822,12 +722,12 @@ def test_add_missing_images_manifest_entries_split_tag_sha_no_sha_override_still
     deps = [{"name": "keycloak-operator", "version": "1.12.1"}]
     target_values = {
         "keycloak-operator": {
-            "operator": {"config": {"keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": "26.7.2"}}}
+            "operator": {"image": {"repository": "quay.io/keycloak/keycloak-operator", "tag": "26.7.2"}}
         }
     }
     baseline_values = {
         "keycloak-operator": {
-            "operator": {"config": {"keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": "26.6.4"}}}
+            "operator": {"image": {"repository": "quay.io/keycloak/keycloak-operator", "tag": "26.6.4"}}
         }
     }
 
@@ -848,10 +748,7 @@ def test_add_missing_images_manifest_entries_split_tag_sha_no_sha_override_still
 
 @pytest.fixture
 def global_image_chart_dir(tmp_path: Path):
-    """apiproxy's own real shape: an orphan top-level block (no Chart.yaml
-    dependency of its own) whose SOLE image aliases the shared
-    global.images.nginx anchor — the same YAML-anchored value, not a
-    coincidentally-matching repository."""
+    """An orphan block (apiproxy) whose only image aliases the global.images.nginx YAML anchor."""
     write(tmp_path / "Chart.yaml", yaml.safe_dump({"dependencies": []}))
     write(
         tmp_path / "values.yaml",
@@ -870,15 +767,7 @@ def global_image_chart_dir(tmp_path: Path):
 def test_add_missing_images_manifest_entries_global_image_gets_one_entry_not_per_alias(
     cdb: ModuleType, global_image_chart_dir
 ):
-    """Real feature: a shared global.images.* anchor gets exactly ONE
-    entry, named via its own bare basename and positioned under
-    "global" 's own values.yaml order — never a separate entry for
-    apiproxy (or any other component) that merely aliases the same
-    anchor. repo_group_representative's own "global" tier plus find_
-    images_manifest_list_diff's existing repo-group collapse are what
-    make this "just work": apiproxy's own path is never independently
-    considered "missing" at all once it collapses to the same
-    representative as global.images.nginx itself."""
+    """A shared global.images.* anchor gets one entry (bare basename, under "global"), none per alias."""
     text = ""
     deps = []
     target_values = {
@@ -910,11 +799,7 @@ def test_add_missing_images_manifest_entries_global_image_gets_one_entry_not_per
 def test_add_missing_images_manifest_entries_skips_image_with_no_resolvable_repository(
     cdb: ModuleType, images_manifest_chart_dir
 ):
-    """kiss.adapter.image's own real-world case: no own override AND no
-    vendored subchart default — not a real, referenceable image, so
-    never auto-added (matches lib.image.repository_check.
-    find_images_without_repository's own definition of "unresolvable",
-    reused via find_images_manifest_list_diff)."""
+    """An image with no own override and no subchart default is unresolvable, so never auto-added."""
     write(
         images_manifest_chart_dir / "Chart.yaml",
         yaml.safe_dump(
@@ -999,9 +884,7 @@ def test_remove_stale_images_manifest_entries_removes_entry_back_at_baseline(
 
 
 def test_remove_stale_images_manifest_entries_keeps_changed_digest(cdb: ModuleType, images_manifest_chart_dir):
-    """Same version as baseline but a new digest is a real change (see
-    test_add_missing_images_manifest_entries_catches_same_version_changed_digest),
-    so the entry stays."""
+    """Same version as baseline but a new digest is a real change, so the entry stays."""
     text = (
         "# Changes:\n"
         "#   1. zac 5.0.2 (digest changed).\n"
@@ -1031,9 +914,8 @@ def test_remove_stale_images_manifest_entries_keeps_changed_digest(cdb: ModuleTy
 def test_remove_stale_images_manifest_entries_keeps_entry_without_resolvable_repository(
     cdb: ModuleType, tmp_path: Path
 ):
-    """The list-diff reports an entry for a path with no resolvable
-    repository as stale too, but "unchanged" can't be concluded for it:
-    it stays for a human, and the check still reports it."""
+    """An entry with no resolvable repository can't be judged unchanged: it stays for a human and the
+    check still reports it."""
     write(
         tmp_path / "Chart.yaml",
         yaml.safe_dump({"dependencies": [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]}),
@@ -1055,8 +937,7 @@ def test_remove_stale_images_manifest_entries_keeps_entry_without_resolvable_rep
 
 
 def test_fix_images_manifest_entry_names_uses_url_minus_registry_host(cdb: ModuleType):
-    """An entry written as "python" before bare Docker Hub names got
-    their implicit "library/" is renamed to its url minus the host."""
+    """An entry named without Docker Hub's implicit "library/" is renamed to its url minus the host."""
     text = '- name: python\n  url: docker.io/library/python\n  version: "3.14.7-slim"\n'
     repo_map = {"library/python": ("keycloak-operator", "initImage")}
 
@@ -1067,8 +948,7 @@ def test_fix_images_manifest_entry_names_uses_url_minus_registry_host(cdb: Modul
 
 
 def test_fix_images_manifest_entry_names_leaves_known_and_unknown_names(cdb: ModuleType):
-    """A name that already is a known repository stays, and so does one
-    whose url resolves to nothing known (left for the check to report)."""
+    """A known-repository name stays, as does one whose url resolves to nothing known (left for the check)."""
     text = "- name: azure-cli\n  url: mcr.microsoft.com/azure-cli\n- name: mystery\n  url: docker.io/acme/mystery\n"
     repo_map = {"azure-cli": ("mi", "image")}
 
@@ -1079,9 +959,7 @@ def test_fix_images_manifest_entry_names_leaves_known_and_unknown_names(cdb: Mod
 
 
 def test_fix_images_manifest_entry_names_renames_a_known_name_that_is_not_its_url(cdb: ModuleType):
-    """A name that is a known repository but not its own url's key is
-    renamed too: after the url correction, the url is what the chart
-    pulls."""
+    """A known name that isn't its url's key is renamed: after the url correction, the url is what is pulled."""
     text = '- name: "library/postgres"\n  url: docker.io/library/python\n'
     repo_map = {"library/postgres": ("zac", "db", "image"), "library/python": ("keycloak-operator", "initImage")}
 

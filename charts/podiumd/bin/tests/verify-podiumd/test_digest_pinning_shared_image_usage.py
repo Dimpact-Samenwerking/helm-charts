@@ -1,19 +1,9 @@
-"""check_shared_image_usage: a SEPARATE, render-based check —
+"""check_shared_image_usage: render-based check of global.images.* entries.
 
-For each global.images.* registered entry (lib.chart.global_image_paths
-— the deliberate "this is meant to be shared" mechanism), 0 or 1 real,
-LIVE aliasing consumer (any OTHER path resolving to the same
-repository AND whose own chart-tree path actually rendered, excluding
-the global.images.<name> definition path itself) now FAILS check_
-shared_image_usage — the shared-anchor mechanism itself is pointless
-there. 2+ real consumers stays report only. A repository that's shared
-incidentally (not a global.images.* registration at all) never fails,
-regardless of consumer count. Every test here stubs the render (see
-stub_render, below) — "podiumd" itself (CHART_NAME) must always be
-included for any path whose top-level key is NOT a real Chart.yaml
-dependency (an orphan/native top-level block, or the global.images.*
-anchor itself — see _path_chart_tree_path), since that's always
-considered live whenever anything renders at all."""
+0 or 1 live aliasing consumer (another path with the same repository whose
+chart-tree path rendered) fails: the shared anchor is pointless. 2+ is
+report-only. Incidentally shared repositories never fail. "podiumd" must be
+in every stub_render for paths not under a Chart.yaml dependency."""
 
 import io
 import tarfile
@@ -39,20 +29,12 @@ def write_chart_yaml(chart_dir, deps):
 
 
 def make_tgz(charts_dir, name, version, values, templates=None, chart_yaml=None, extra_files=None):
-    """A minimal vendored <name>-<version>.tgz containing <name>/values.yaml
-    and, if `templates` is given (a {filename: text} dict), <name>/templates/
-    <filename> for each entry — enough to exercise subchart_values and
-    subchart_template_text without a real `helm pull`. `templates=None`
-    (the default) omits templates/ entirely, matching a vendored .tgz whose
-    layout subchart_template_text can't make sense of.
+    """Write a minimal vendored <name>-<version>.tgz with <name>/values.yaml.
 
-    `chart_yaml`, if given (a dict), is written as <name>/Chart.yaml — used
-    by subchart_app_version/subchart_dependencies (e.g. a dependency's own
-    "appVersion" for a null-tag default, or its own nested "dependencies"
-    list for the openinwoner/eck-operator-style nested-dependency case).
-    `extra_files`, if given (a {relative path: text} dict), is written
-    verbatim under <name>/ — used for a NESTED sub-subchart's own
-    Chart.yaml (e.g. "charts/eck-operator/Chart.yaml")."""
+    `templates` ({filename: text}) adds <name>/templates/; None omits the
+    directory. `chart_yaml` (dict) becomes <name>/Chart.yaml; `extra_files`
+    ({relative path: text}) is written verbatim under <name>/ (e.g. a nested
+    sub-subchart's Chart.yaml)."""
     charts_dir.mkdir(parents=True, exist_ok=True)
     tgz_path = charts_dir / f"{name}-{version}.tgz"
     data = yaml.safe_dump(values).encode("utf-8")
@@ -78,19 +60,14 @@ def make_tgz(charts_dir, name, version, values, templates=None, chart_yaml=None,
 
 
 def render_stdout(chart_tree_paths):
-    """A fake `helm template` stdout carrying one "# Source:" line per
-    given chart-tree path — enough for lib.render_scope.rendered_
-    chart_paths to recover exactly that set, without a real render."""
+    """Fake `helm template` stdout with one "# Source:" line per chart-tree path."""
     return "".join(f"# Source: {p}/templates/x.yaml\n" for p in chart_tree_paths)
 
 
 def stub_render(monkeypatch: pytest.MonkeyPatch, libdigestpinningcheck: ModuleType, chart_tree_paths, returncode=0):
-    """Replaces check_subchart_image_visibility's own render_chart call
-    (see lib.checks.digest_pinning's "from lib.render_scope import ...
-    render_chart" binding — must be patched on THAT module, not vp/
-    render_scope, per this test suite's own module-that-owns-the-binding
-    convention) with one that reports exactly `chart_tree_paths` as
-    rendered, with no real `helm template` invocation."""
+    """Make render_chart report exactly `chart_tree_paths` as rendered.
+
+    Patched on lib.checks.digest_pinning, the module that owns the binding."""
     monkeypatch.setattr(
         libdigestpinningcheck,
         "render_chart",
@@ -136,9 +113,7 @@ def test_global_image_with_exactly_one_consumer_fails(
     libdigestpinningcheck: ModuleType,
     capsys: pytest.CaptureFixture[str],
 ):
-    """Exactly one real consumer is still under-used — a shared anchor
-    with only one alias site is no different from just setting the
-    value directly there."""
+    """One consumer is under-used: no better than setting the value there."""
     write_chart_yaml(tmp_path, [])
     write_values_yaml(
         tmp_path,
@@ -174,8 +149,7 @@ def test_global_image_with_two_or_more_consumers_passes(
     libdigestpinningcheck: ModuleType,
     capsys: pytest.CaptureFixture[str],
 ):
-    """2+ real consumers is genuinely shared -- working as intended,
-    still worth seeing the full consumer list for, but report only."""
+    """2+ consumers is genuinely shared: report only, with the consumer list."""
     write_chart_yaml(tmp_path, [])
     write_values_yaml(
         tmp_path,
@@ -218,10 +192,7 @@ def test_global_image_consumer_under_a_genuinely_enabled_dependency_counts_norma
     libdigestpinningcheck: ModuleType,
     capsys: pytest.CaptureFixture[str],
 ):
-    """The flip side of the render-gate regression tests below: a path
-    under a genuinely ENABLED dependency (its own chart-tree path DOES
-    render) still counts as a real consumer -- the render-gate fix must
-    not regress the already-correct nginx/curl/busybox-shaped case."""
+    """A path under an enabled (rendered) dependency still counts as a consumer."""
     write_chart_yaml(tmp_path, [make_dep("zaakafhandelcomponent", "1.0.297", alias="zac")])
     write_values_yaml(
         tmp_path,
@@ -261,14 +232,9 @@ def test_global_image_zero_live_consumers_because_nested_dependency_tags_disable
     libdigestpinningcheck: ModuleType,
     capsys: pytest.CaptureFixture[str],
 ):
-    """The exact real bug this render-gate fixes, confirmed live against
-    the real chart: every Maykin chart's own "<name>.redis.image"
-    override (here, openzaak's) configures that chart's OWN NESTED
-    bitnami/redis sub-dependency, globally disabled via "tags: {redis:
-    false}" — openzaak ITSELF renders fine (its own top-level chart-tree
-    path is live), but its own nested redis sub-subchart never does.
-    global.images.redis's TRUE live consumer count is zero — a purely
-    static scan would have wrongly counted it as one."""
+    """openzaak.redis.image configures a nested redis sub-subchart disabled
+    via tags, so it never renders: global.images.redis has zero live
+    consumers, not one."""
     write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
     make_tgz(
         tmp_path / "charts",
@@ -299,8 +265,6 @@ openzaak:
       tag: "8.0@sha256:{DIGEST_A}"
 """,
     )
-    # openzaak's own top-level path DOES render; its own nested redis
-    # sub-subchart's own path never does (never included here).
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd", "podiumd/charts/openzaak"])
 
     ok, detail = vp.check_shared_image_usage(tmp_path, [])
@@ -309,8 +273,7 @@ openzaak:
     assert "1 global.images.* entry under-used (failing)" in detail
     out = capsys.readouterr().out
     assert "global.images.redis (0 real consumer(s)):" in out
-    # the dead consumer must not merely be excluded from the count --
-    # it must not appear in the printed path list either.
+    # a dead consumer must not appear in the printed path list either
     assert "openzaak.redis.image" not in out
 
 
@@ -321,10 +284,7 @@ def test_non_global_repository_shared_at_two_or_more_paths_never_fails(
     libdigestpinningcheck: ModuleType,
     capsys: pytest.CaptureFixture[str],
 ):
-    """A repository shared incidentally (NOT a global.images.*
-    registration at all -- e.g. keycloak/keycloak-shaped) is never a
-    failure, regardless of consumer count -- purely informational,
-    exactly like before this feature's pass/fail split existed."""
+    """An incidentally shared repository (not global.images.*) never fails."""
     write_chart_yaml(tmp_path, [])
     write_values_yaml(
         tmp_path,
@@ -360,8 +320,7 @@ def test_check_shared_image_usage_does_not_report_a_single_use_repository_as_sha
     libdigestpinningcheck: ModuleType,
     capsys: pytest.CaptureFixture[str],
 ):
-    """A repository pinned at exactly one path isn't "shared" in any
-    interesting sense -- no false-positive noise for the common case."""
+    """A repository pinned at one path isn't shared: no noise."""
     write_chart_yaml(tmp_path, [])
     write_values_yaml(
         tmp_path,
@@ -450,9 +409,7 @@ def test_path_chart_tree_path_dependency_resolves_via_resolve_subchart_default(
 
 
 def test_live_repository_groups_drops_dead_consumer_paths(libdigestpinningcheck: ModuleType, tmp_path: Path):
-    """The render-gate primitive check_shared_image_usage's own
-    consumer counting is built on: a path whose own chart-tree path
-    never rendered is dropped entirely, not just from a count."""
+    """A path whose chart-tree path never rendered is dropped entirely."""
     write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
     make_tgz(
         tmp_path / "charts",

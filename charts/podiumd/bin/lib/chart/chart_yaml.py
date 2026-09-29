@@ -1,6 +1,4 @@
-"""Chart.yaml: its types and checked loader. Keys follow
-Helm's Chart.yaml reference; keys this repo never reads are left out of
-the types but kept in the loaded dict (a TypedDict allows extra keys)."""
+"""Chart.yaml types and checked loader; unread keys stay in the loaded dict but not in the types."""
 
 from collections.abc import Callable
 from pathlib import Path
@@ -41,8 +39,7 @@ class ChartYaml(TypedDict):
     version: str
     description: NotRequired[str]
     type: NotRequired[str]
-    # A string, also when a chart leaves it unquoted (see
-    # normalize_app_version).
+    # Always a string (see normalize_app_version).
     appVersion: NotRequired[str]
     dependencies: NotRequired[list[ChartDependency]]
 
@@ -51,9 +48,7 @@ _DEPENDENCY_OPTIONAL_STR_KEYS = ("repository", "condition", "alias")
 
 
 def normalize_int_version(mapping: YamlValue) -> None:
-    """Replace an unquoted integer "version" (YAML reads `version: 26` as
-    26) in `mapping` by its string, in place. Lossless, unlike a float
-    ("1.10" reads as 1.1), which the checks reject instead."""
+    """Stringify an unquoted integer "version" in place; floats are rejected instead ("1.10" reads as 1.1)."""
     if isinstance(mapping, dict):
         version = mapping.get("version")
         if isinstance(version, int) and not isinstance(version, bool):
@@ -61,10 +56,7 @@ def normalize_int_version(mapping: YamlValue) -> None:
 
 
 def normalize_app_version(mapping: YamlMapping) -> None:
-    """Replace an unquoted numeric "appVersion" (third-party charts often
-    write `appVersion: 8.4`) by its string, in place. Helm itself does the
-    same: its Chart.AppVersion is a string field, filled from YAML's
-    number."""
+    """Stringify an unquoted numeric "appVersion" in place, as Helm does."""
     app_version = mapping.get("appVersion")
     if isinstance(app_version, int | float) and not isinstance(app_version, bool):
         mapping["appVersion"] = str(app_version)
@@ -102,8 +94,7 @@ def is_chart_dependency_list(value: YamlValue) -> TypeGuard[list[ChartDependency
 def dependencies_problem(
     mapping: YamlMapping, entry_problem: Callable[[YamlValue, str], str | None], *, required: bool
 ) -> str | None:
-    """What is wrong with mapping["dependencies"] (see entry_problem for
-    one entry), or None."""
+    """What is wrong with mapping["dependencies"], or None."""
     if "dependencies" not in mapping:
         return "(top level): missing 'dependencies'" if required else None
     deps = mapping["dependencies"]
@@ -133,8 +124,7 @@ def is_chart_yaml(mapping: YamlMapping) -> TypeGuard[ChartYaml]:
 
 
 def parse_chart_yaml(text: str, source: str) -> ChartYaml:
-    """`text` parsed as a Chart.yaml. Raises YamlShapeError naming
-    `source` if it does not match ChartYaml."""
+    """`text` parsed as a Chart.yaml; raises YamlShapeError if it does not match ChartYaml."""
     mapping = parse_yaml_mapping(text, source)
     normalize_int_version(mapping)
     normalize_app_version(mapping)
@@ -155,10 +145,10 @@ def chart_dependencies(chart: ChartYaml) -> list[ChartDependency]:
 
 
 def parse_chart_dependencies(text: str, source: str) -> list[ChartDependency]:
-    """The dependencies of the Chart.yaml in `text`, [] if it has none.
-    Checks only the dependencies, so a minimal Chart.yaml (as tests and
-    vendored-chart fixtures write) is accepted. Raises YamlShapeError
-    naming `source` if a dependency does not match ChartDependency."""
+    """The dependencies of the Chart.yaml in `text`, [] if none.
+
+    Checks only the dependencies, so a minimal Chart.yaml is accepted.
+    """
     mapping = parse_yaml_mapping(text, source)
     deps = mapping.get("dependencies")
     if deps is None:
@@ -175,8 +165,7 @@ def load_chart_dependencies(path: Path) -> list[ChartDependency]:
 
 
 def parse_chart_app_version(text: str, source: str) -> str | None:
-    """The appVersion of the Chart.yaml in `text` (see
-    normalize_app_version), or None if it has none. Checks only that key."""
+    """The appVersion of the Chart.yaml in `text`, or None; checks only that key."""
     mapping = parse_yaml_mapping(text, source)
     normalize_app_version(mapping)
     app_version = mapping.get("appVersion")

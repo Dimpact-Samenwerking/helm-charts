@@ -1,5 +1,5 @@
 """lib.yaml_types — yaml_problem, parse_yaml_mapping,
-load_yaml_mapping, key_problem."""
+load_yaml_mapping, cached_file_mapping, key_problem."""
 
 import datetime
 
@@ -7,7 +7,9 @@ from pathlib import Path
 
 import pytest
 
+from lib.yaml_types import YamlMapping
 from lib.yaml_types import YamlShapeError
+from lib.yaml_types import cached_file_mapping
 from lib.yaml_types import key_problem
 from lib.yaml_types import load_yaml_mapping
 from lib.yaml_types import parse_yaml_mapping
@@ -60,3 +62,43 @@ def test_key_problem():
     assert key_problem(mapping, "version", str, "dep", required=True) == "dep.version: expected str, got int"
     assert key_problem(mapping, "alias", str, "dep", required=True) == "dep: missing 'alias'"
     assert key_problem(mapping, "alias", str, "dep", required=False) is None
+
+
+def test_cached_file_mapping_loads_once_per_file_version(tmp_path: Path):
+    path = tmp_path / "values.yaml"
+    path.write_text("a: 1\n", encoding="utf-8")
+    loads: list[int] = []
+
+    def load() -> YamlMapping:
+        loads.append(1)
+        return load_yaml_mapping(path)
+
+    assert cached_file_mapping(path, "", load) == {"a": 1}
+    assert cached_file_mapping(path, "", load) == {"a": 1}
+    assert len(loads) == 1
+    path.write_text("a: 22\n", encoding="utf-8")
+    assert cached_file_mapping(path, "", load) == {"a": 22}
+    assert len(loads) == 2
+
+
+def test_cached_file_mapping_keys_on_part(tmp_path: Path):
+    path = tmp_path / "chart.tgz"
+    path.write_bytes(b"x")
+    assert cached_file_mapping(path, "values.yaml", lambda: {"part": "values"}) == {"part": "values"}
+    assert cached_file_mapping(path, "Chart.yaml", lambda: {"part": "chart"}) == {"part": "chart"}
+
+
+def test_load_yaml_mapping_sees_a_same_size_rewrite(tmp_path: Path):
+    path = tmp_path / "values.yaml"
+    path.write_text("tag: 5.4.4\n", encoding="utf-8")
+    assert load_yaml_mapping(path) == {"tag": "5.4.4"}
+    path.write_text("tag: 5.4.5\n", encoding="utf-8")
+    assert load_yaml_mapping(path) == {"tag": "5.4.5"}
+
+
+def test_load_yaml_mapping_returns_a_fresh_copy_each_call(tmp_path: Path):
+    path = tmp_path / "values.yaml"
+    path.write_text("a:\n  b: 1\n", encoding="utf-8")
+    first = load_yaml_mapping(path)
+    first["a"] = "changed"
+    assert load_yaml_mapping(path) == {"a": {"b": 1}}

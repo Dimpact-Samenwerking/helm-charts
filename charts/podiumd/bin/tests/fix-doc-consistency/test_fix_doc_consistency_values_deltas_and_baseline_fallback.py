@@ -1,6 +1,5 @@
-"""main() integration: values-deltas.md missing top-level component mentions and
-key-change mentions, renumbering a pre-existing "# Changes:" gap, and the
-images-baseline.yaml fallback for a brand-new component."""
+"""main() integration: missing values-deltas.md mentions, "# Changes:"
+renumbering, and the images-baseline.yaml fallback for new components."""
 
 import subprocess
 
@@ -34,14 +33,8 @@ def set_argv_and_dir(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch, doc_dir, 
 
 @pytest.fixture
 def repo_with_unmentioned_component_bump(tmp_path: Path):
-    """zaakbrug's own app image tag changed AND a real values.yaml schema
-    key was added between the baseline tag and HEAD, but values-deltas.md
-    never got a section for it at all — the gap sync_values_delta_
-    sections exists to fill in. The schema change matters here (not just
-    the version bump): a pure version-only bump gets no values-deltas.md
-    section at all (see sync_values_delta_sections' own docstring) — the
-    tests below need a real "- Key ..." line to exercise section
-    creation/reuse meaningfully."""
+    """zaakbrug's tag and schema changed, but values-deltas.md has no section.
+    The schema change is needed: a version-only bump gets no section."""
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -102,9 +95,7 @@ def test_main_adds_missing_values_delta_bullet(
 def test_main_collapses_pre_existing_double_blank_line_in_values_deltas(
     cdb: ModuleType, repo_with_unmentioned_component_bump, monkeypatch: pytest.MonkeyPatch
 ):
-    """Same regression as the upgrade.md write path, for values_deltas_
-    path's own write site — a stray double blank line already in the doc
-    must never survive a write this script makes, regardless of source."""
+    """A stray double blank line never survives a values-deltas write."""
     doc = repo_with_unmentioned_component_bump / "4.8.3-to-4.9.0-values-deltas.md"
     doc.write_text("# Values deltas — PodiumD 4.8.3 → 4.9.0\n\n\nNo unrelated changes.\n", encoding="utf-8")
     set_argv_and_dir(cdb, monkeypatch, repo_with_unmentioned_component_bump, "4.8.5")
@@ -141,12 +132,8 @@ def test_main_does_not_duplicate_already_mentioned_component_bullet(
 
 @pytest.fixture
 def repo_with_pure_version_bump_and_stale_empty_section(tmp_path: Path):
-    """zaakbrug's app image tag changed but its OWN values.yaml subtree
-    has no schema change at all — nothing for a gemeente to act on — yet
-    values-deltas.md already has a heading-only section for it (left
-    over from before the "no empty sections" rule existed). fix-doc-
-    consistency must prune that stale section, never re-add a fresh
-    empty one in its place."""
+    """A heading-only section for a schema-less version bump is pruned, not
+    re-added."""
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -200,15 +187,9 @@ def test_main_prunes_stale_empty_section_without_recreating_it(
 
 @pytest.fixture
 def repo_with_unmentioned_native_component_bump(tmp_path: Path):
-    """frankgateway (see lib.chart.NATIVE_COMPONENTS) has no Chart.yaml
-    dependency at all — its own app image tag AND a real values.yaml
-    schema key changed between the baseline tag and HEAD, with no
-    "Component versions" row and no values-deltas section at all yet,
-    real end-to-end coverage for both add_missing_component_rows and
-    sync_values_delta_sections' own NATIVE_COMPONENTS branches together.
-    The schema change matters (not just the version bump) — see
-    sync_values_delta_sections' own docstring for why a pure version
-    bump alone gets no values-deltas.md section at all."""
+    """frankgateway (native, no Chart.yaml dependency) with tag and schema
+    changes: covers the NATIVE_COMPONENTS branches of add_missing_component_rows
+    and sync_values_delta_sections together."""
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -292,13 +273,8 @@ def test_main_adds_missing_native_component_row_and_bullet(
 def test_main_adds_todo_bullet_when_app_version_unresolvable(
     cdb: ModuleType, repo_with_undocumented_component_bumps, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """redis-operator is chart-only — no matching values.yaml image at
-    all — same fixture as the "Component versions" row tests, exercised
-    here for the values-deltas heading instead. A genuine schema change
-    (a brand-new key under its own subtree) is added here so there's
-    real "- Key ..." content to document — a pure, schema-less chart
-    bump alone gets no values-deltas.md section at all (see sync_
-    values_delta_sections' own docstring)."""
+    """Chart-only redis-operator with a new key, for the values-deltas heading
+    (a schema-less chart bump would get no section)."""
     write(
         tmp_path / "values.yaml",
         yaml.safe_dump(
@@ -335,9 +311,7 @@ def test_main_adds_todo_bullet_when_app_version_unresolvable(
 
 @pytest.fixture
 def repo_with_undocumented_schema_change(tmp_path: Path):
-    """zac's values.yaml drops the "brpApi.extendWithZaaktype" key between the
-    baseline tag and HEAD, but values-deltas.md never mentions it — the real
-    gap this feature exists to catch up on."""
+    """zac drops "brpApi.extendWithZaaktype" but values-deltas.md doesn't mention it."""
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -401,9 +375,7 @@ def test_main_adds_missing_key_change_mention(
     cdb.main()
 
     deltas = (repo_with_undocumented_schema_change / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
-    # No existing "## ..." section names zac yet, so it gets a brand new
-    # one (see sync_values_delta_sections) carrying the missing key-change
-    # line as its own body content.
+    # No section names zac yet, so a new one carries the key-change line.
     assert "## zac 5.0.2 → 5.1.0 (chart 1.0.297, unchanged)\n" in deltas
     assert "- Key `zac.brpApi.protocollering.verwerking.extendWithZaaktype` was removed.\n" in deltas
     assert "No gemeente podiumd.yml changes are required" in deltas  # existing content preserved
@@ -438,12 +410,9 @@ def test_main_ignores_mention_inside_fenced_code_block_and_does_not_duplicate(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """Regression: a fenced code block earlier in the doc (containing an
-    unbalanced backtick, as real-world example snippets often do) used to
-    desync backtick-span pairing for the REST of the document, making an
-    already-mentioned key look unmentioned — main() would then re-add a
-    duplicate mention right next to the real one instead of recognizing
-    it (see lib.upgradedoc.strip_fenced_code_blocks)."""
+    """Regression: an unbalanced backtick inside an earlier fenced block
+    desynced backtick pairing, so an existing mention looked missing and was
+    duplicated (see strip_fenced_code_blocks)."""
     doc = repo_with_undocumented_schema_change / "4.8.3-to-4.9.0-values-deltas.md"
     doc.write_text(
         "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\n"
@@ -467,14 +436,9 @@ def test_main_ignores_mention_inside_fenced_code_block_and_does_not_duplicate(
 
 @pytest.fixture
 def repo_with_fully_documented_images_but_a_numbering_gap(tmp_path: Path):
-    """Both zac and openformulieren are already fully, correctly
-    documented everywhere (no missing row/section/entry, nothing stale,
-    already in the right order) — the ONLY thing wrong is the images
-    manifest's own "# Changes:" list numbering, which has a gap (a
-    human hand-removed a THIRD item's own block, between these two,
-    without renumbering) — real case that surfaced this gap. Neither
-    dedupe (no duplicates) nor sort (already correctly ordered) would
-    ever touch this on their own."""
+    """Everything is correct except a numbering gap in the manifest's
+    "# Changes:" list (a hand-removed item); dedupe and sort alone never
+    renumber this."""
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -583,15 +547,9 @@ def test_main_renumbers_a_preexisting_changes_gap(
 
 @pytest.fixture
 def repo_with_new_component_pinned_to_a_known_mirrored_image(tmp_path: Path):
-    """brppersonenmock is added as a brand-new Chart.yaml dependency in
-    this release, pinned to an image version+digest that's ALREADY
-    recorded, at the same version, in an earlier release's own docs/
-    images/images-4.8.0.yaml manifest (from some earlier, unrelated
-    hop) — real case that surfaced this gap. The git baseline has
-    nothing at all to compare brppersonenmock's own image tag against
-    (the component didn't exist there), but since this EXACT pin is
-    already a known, previously-mirrored image, it must NOT be added to
-    images-4.9.0.yaml as a changed image."""
+    """A new dependency pinned to an image already recorded in an earlier
+    images-4.8.0.yaml: git baseline has nothing to compare, but a known
+    mirrored pin must not be listed as changed in images-4.9.0.yaml."""
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -682,11 +640,8 @@ def test_main_does_not_add_new_component_image_already_known_in_historical_manif
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """brppersonenmock's own SCHEMA is genuinely new, so it still gets a
-    real -upgrade.md row/Changes section and values-deltas.md section
-    (unaffected by this fallback) — only its IMAGE is recognized as
-    already-known (via an earlier release's own images-4.8.0.yaml
-    manifest) and thus skipped from images-4.9.0.yaml specifically."""
+    """Only the image is skipped as known; the new schema still gets its
+    -upgrade.md row/section and values-deltas.md section."""
     doc_dir, images_dir = repo_with_new_component_pinned_to_a_known_mirrored_image
     set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
     cdb.main()
@@ -700,9 +655,7 @@ def test_main_does_not_add_new_component_image_already_known_in_historical_manif
 def test_main_adds_new_component_image_not_in_historical_manifest(
     cdb: ModuleType, repo_with_new_component_pinned_to_a_known_mirrored_image, monkeypatch: pytest.MonkeyPatch
 ):
-    """Same shape, but no historical images-<version>.yaml records this
-    exact pin anywhere — still added as changed, same as before this
-    fallback existed."""
+    """Without a historical manifest recording the pin, it is added as changed."""
     doc_dir, images_dir = repo_with_new_component_pinned_to_a_known_mirrored_image
     (images_dir / "images-4.8.0.yaml").write_text(
         "- name: brp-api/personen-mock\n"
@@ -724,14 +677,8 @@ def test_main_adds_new_component_image_not_in_historical_manifest(
 def test_main_new_component_row_annotated_unchanged_when_known_in_historical_manifest(
     cdb: ModuleType, repo_with_new_component_pinned_to_a_known_mirrored_image, monkeypatch: pytest.MonkeyPatch
 ):
-    """The SAME fallback, applied to -upgrade.md's own "Component
-    versions" row instead of images-4.9.0.yaml: brppersonenmock's
-    Chart.yaml dependency is brand new (baseline has no matching
-    dependency at all), but its own image pin is already recorded in
-    an earlier release's own images-4.8.0.yaml manifest, so its App
-    cell reads "(unchanged)" rather than a nonsensical "(new)" — its
-    Helm-chart cell still correctly reads "(new)", since the Chart.yaml
-    dependency line genuinely is."""
+    """In the Component versions row a known pin reads "(unchanged)" for App,
+    while the new Chart.yaml dependency still reads "(new)" for Helm."""
     doc_dir, _images_dir = repo_with_new_component_pinned_to_a_known_mirrored_image
     set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
     cdb.main()

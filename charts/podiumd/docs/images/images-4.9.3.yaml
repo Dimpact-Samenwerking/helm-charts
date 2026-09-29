@@ -3,10 +3,22 @@
 # Images new or changed in podiumd 4.9.3 vs 4.9.2.
 #
 # Changes:
+#   1. keycloak - keycloak-config-cli 6.5.1-26 -> 6.5.1-26.5.5.
+#   2. openbao 2.5.5 (unchanged).
 #
 # See docs/_UPGRADE_PATHS/4.9.2-to-4.9.3-upgrade.md for the operator upgrade notes.
 #
 # Digests are the OCI image index (multi-arch manifest) digest as returned in
 # the Docker-Content-Digest response header from the source registry.
 
-[]
+# keycloak - keycloak-config-cli 6.5.1-26 -> 6.5.1-26.5.5
+- name: adorsys/keycloak-config-cli
+  url: docker.io/adorsys/keycloak-config-cli
+  version: "6.5.1-26.5.5"
+  digest: "sha256:0955d98c8a341898b7aa177477edf8a1e90569ae50bbe7598141c1270b773274"
+
+# openbao 2.5.5 (unchanged)
+- name: openbao/openbao
+  url: quay.io/openbao/openbao
+  version: "2.5.5"
+  digest: "sha256:6150c4a6b62067db6141c8da7a6a6b5763f4f47c315343d0c848b40fecdfd452"

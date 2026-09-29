@@ -1,7 +1,5 @@
-"""check_helm_docs — verifies README.md against values.yaml via a real
-`helm-docs --dry-run` regen, diffed against the actual file without ever
-writing to it. No real helm-docs binary is invoked in these tests — `run`
-is mocked throughout."""
+"""check_helm_docs: README.md vs a `helm-docs --dry-run` regen, never
+written to. `run` is mocked throughout."""
 
 from pathlib import Path
 from types import ModuleType
@@ -102,8 +100,7 @@ def test_drift_shows_actual_diff_lines_not_just_a_count(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """The finding must be actionable on its own — show WHICH line(s)
-    changed (a real unified diff), not just how many."""
+    """The finding shows which lines changed (a unified diff), not a count."""
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/helm-docs")
     regenerated = README_CONTENT.replace("PodiumD Helm chart", "PodiumD Helm chart (updated)")
@@ -159,8 +156,7 @@ def test_run_fix_helm_doc_hint_shown_on_drift(
 def test_never_writes_to_the_real_readme(
     libhelmdocscheck: ModuleType, vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Regardless of drift or not, the real README.md on disk must be
-    byte-for-byte untouched — this check is report-only."""
+    """Report-only: README.md on disk stays byte-for-byte untouched."""
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/helm-docs")
     monkeypatch.setattr(

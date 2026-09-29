@@ -1,75 +1,18 @@
 """Estimate the size of the Helm release Secret a chart would produce.
 
-Helm persists every release revision as a Kubernetes Secret whose payload is
-base64(gzip(json.Marshal(release))) — see encodeRelease() in
-helm.sh/helm/v4/pkg/storage/driver/util.go (unchanged since Helm 3). Kubernetes
-hard-caps Secret/ConfigMap objects at 1 MiB; go far enough over and
-`helm install`/`upgrade` fails with an apiserver "request entity too large"
-(or etcd "too large") error.
+Helm stores each revision as a Secret holding base64(gzip(json(release)))
+(encodeRelease() in helm.sh/helm/v4/pkg/storage/driver/util.go); Kubernetes
+caps Secrets at 1 MiB. Subcharts are not serialized (unexported Go field),
+but their rendered output is part of the manifest, which is.
 
-Subchart trees do NOT count towards that payload: chart.Chart.dependencies is
-an unexported Go field, so json.Marshal never serializes nested charts. What
-DOES count is the chart's own Metadata/Values/Templates/Files, the values
-override passed at install time (Config), and the fully rendered manifest
-(which *does* include every subchart's rendered output, since `helm template`
-concatenates everything into one string). build_release() reconstructs that
-same JSON shape for the chart under test; encoded_secret_size() gzips/base64-
-encodes it the same way, to flag charts approaching the limit before a real
-cluster does.
+An estimate: hooks aren't split out, NOTES.txt isn't rendered (no offline way,
+helm/helm#12740), and Python's gzip may differ slightly from Go's. The JSON
+shape hand-mirrors Helm's Release/Chart structs; re-check it against
+encodeRelease() after a Helm major-version bump.
 
-This is an estimate, not a byte-exact reproduction: it doesn't split hook
-resources out of the manifest into a separate `hooks` array the way a real
-`helm install` does (small metadata overhead is under-counted), it doesn't
-account for `Release.Info.Notes` (rendered NOTES.txt — podiumd has a root
-templates/NOTES.txt, so this is a live, current under-count for it, not
-just a theoretical gap; monitoring-logging has none, so it's unaffected
-there) — see build_release()'s own NOTES.txt warning for why this can't
-be fixed by rendering it here (confirmed: even `helm install --dry-run=
-client` on Helm 3.13+ still requires a reachable cluster for this command
-specifically — helm/helm#12740 — so there's no offline path to a real,
-Helm-rendered NOTES.txt at all, not just a version gap) — and Python's
-gzip vs Go's may differ by a small amount for the same input. Treat the
-percentage as directionally accurate, not to the byte.
-
-The JSON shape built by build_release() is a hand-reimplementation of
-encodeRelease()'s Go structs (helm.sh/helm/v4/pkg/release + pkg/chart),
-not generated from them — it was cross-checked once against a Go-SDK-based
-reference implementation at authoring time, but nothing here re-verifies
-that match automatically. If a future Helm major version changes Release/
-Chart struct shape or json tags, this can silently drift out of sync with
-no signal other than the reported percentage looking wrong. Re-diff against
-encodeRelease() in helm.sh/helm/v4/pkg/storage/driver/util.go after any
-Helm major-version bump in this repo's tooling.
-
-Chart.yaml/values.yaml/Chart.lock are parsed with yaml.safe_load
-(PyYAML) rather than shelling out to a YAML-to-JSON converter (the
-original standalone version of this tool used mikefarah/yq's `-o=json`,
-with its own guard against this repo's OTHER, incompatible `yq`) — this
-repo already trusts yaml.safe_load for these exact same files in every
-other correctness-sensitive check (digest pinning, lockstep, doc-
-consistency), and this is already a documented estimate with an accepted
-small tolerance, so there's no reason to trust it less here.
-
-Two callers build on this module:
-  - bin/verify-helm-secret-size — the standalone CLI (any chart, arbitrary
-    release name via --name, `--record` writes/updates <chart>/docs/
-    release-secret-size.md). Renders its own `helm template <name>
-    <chart_dir> ...` (an arbitrary name, so it can't go through render_
-    chart, which is hardcoded to lib.render_scope.CHART_NAME) and reads
-    its own -f/--values file, then hands the resulting manifest string
-    and parsed values dict to build_release().
-  - check_release_secret_size (below) — the verify-podiumd integration:
-    renders via lib.render_scope.render_chart (the shared podiumd-render
-    primitive, name always CHART_NAME) and reuses verify-podiumd's own
-    already-computed lint_args_for(chart_dir) result (extra_args) instead
-    of re-deriving a values-file path — a REAL pass/fail check, unlike
-    the CLI (which only fails via its own sys.exit, never called from
-    here): fails at pct >= the configured warn_at_fraction_of_limit
-    (release_secret, see lib.settings), matching the standalone script's
-    own exit-1 semantics. Never writes docs/release-secret-
-    size.md — only the standalone CLI's own --record does that (this
-    codebase's checks are read-only; only dedicated writer scripts touch
-    generated docs)."""
+Used by bin/verify-helm-secret-size (any chart and release name; --record
+writes docs/release-secret-size.md) and by check_release_secret_size
+(verify-podiumd; read-only, fails at warn_at_fraction_of_limit)."""
 
 import base64
 import datetime
@@ -100,24 +43,15 @@ from lib.yaml_types import parse_yaml_mapping
 
 
 def b64(data: bytes) -> str:
-    """`data` (raw bytes) base64-encoded to a str, the same shape Helm's
-    Go structs store file contents in (Chart.Templates[].Data etc.)."""
+    """`data` base64-encoded to str, as Helm stores file contents."""
     return base64.b64encode(data).decode()
 
 
 def packaged_files(chart_dir: Path) -> dict[str, bytes]:
-    """`helm package` (no dependency update) applies .helmignore exactly the
-    way `helm install`/`template` loading does — this repo's podiumd chart
-    relies on that to keep docs/ci/scripts out of the release Secret (see
-    charts/podiumd/.helmignore). Reading the resulting tgz, rather than
-    walking the raw directory, is what makes the file set match reality.
+    """The chart's files as `helm package` bundles them, so .helmignore applies as on install.
 
-    One deliberate exception: render-podiumd's own default output
-    (render_report.default_output_file_name in the chart root, see
-    lib.settings) is dropped. It is a local,
-    gitignored debugging artifact that is present most of the time, and
-    at ~1.4 MB it alone roughly doubles the estimate — a real release
-    is packaged from a clean checkout that never contains it."""
+    render-podiumd's default output file is dropped: a local, gitignored artifact
+    (~1.4 MB) that a clean release checkout never contains."""
     rendered_output_name = render_report_default_output_file_name(chart_dir)
     with tempfile.TemporaryDirectory() as tmp:
         result = run(["helm", "package", str(chart_dir), "-d", tmp], capture_output=True, text=True)
@@ -145,19 +79,10 @@ CHART_YAML_SOURCE = "Chart.yaml"
 
 
 def check_subchart_freshness(chart_dir: Path, metadata: YamlMapping):
-    """`helm package` (as used by packaged_files()) bundles whatever is
-    already vendored under <chart_dir>/charts/ as-is — it does NOT run
-    `helm dependency update` first. If Chart.yaml's declared dependency
-    version was just bumped but `helm dependency update` wasn't re-run,
-    the estimate silently reflects the stale, still-vendored subchart
-    tree instead of the version actually being released.
+    """Warnings for Chart.yaml dependencies whose vendored .tgz has a different version.
 
-    Returns a list of ready-to-print warning strings (no "WARNING: "
-    prefix — each caller adds its own, printed to stderr by the
-    standalone CLI or stdout by check_release_secret_size, whichever
-    fits that caller's own report) — [] if nothing looks stale. Never
-    prints directly itself: this is pure computation, reusable by both
-    callers regardless of where they want a warning to land."""
+    `helm package` bundles charts/ as-is, so a stale vendor skews the estimate.
+    Returns unprefixed strings; callers choose where to print them."""
     charts_subdir = chart_dir / "charts"
     vendored = list(charts_subdir.glob("*.tgz")) if charts_subdir.is_dir() else []
     deps = metadata.get("dependencies")
@@ -183,10 +108,9 @@ def check_subchart_freshness(chart_dir: Path, metadata: YamlMapping):
 
 
 def bucket_files(paths: dict[str, bytes]) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
-    """Mirror helm's loader.LoadFiles bucketing: everything under charts/ is
-    a subchart (excluded — dependencies is an unexported Go field, never
-    serialized), templates/ files go to Templates, the rest to Files —
-    except the specially-parsed Chart.yaml/Chart.lock/values.yaml/
+    """(templates, files) as Helm's loader.LoadFiles buckets them.
+
+    Skips charts/ (never serialized) and Chart.yaml/Chart.lock/values.yaml/
     values.schema.json, which the caller handles separately."""
     special = {"Chart.yaml", "Chart.lock", "values.yaml", "values.schema.json"}
     templates: list[dict[str, str]] = []
@@ -205,25 +129,10 @@ def bucket_files(paths: dict[str, bytes]) -> tuple[list[dict[str, str]], list[di
 def build_release(chart_dir: Path, values_override: YamlMapping | None, manifest: str, name: str, namespace: str):
     """(release, version, warnings) for the chart under test.
 
-    values_override: an already-parsed dict (becomes Release.Config), or
-    None — this function never reads a values file itself; each caller
-    resolves its own override however fits (the standalone CLI's own
-    -f/--values path, or check_release_secret_size's reuse of verify-
-    podiumd's own already-computed lint_args_for result) and passes the
-    parsed dict straight in.
-
-    manifest: the ALREADY-rendered `helm template` output string — this
-    function never shells out to render anything itself either, for the
-    same reason: the standalone CLI needs an arbitrary release --name
-    (lib.render_scope.render_chart is hardcoded to CHART_NAME), so each
-    caller renders its own manifest however fits its own naming needs.
-
-    warnings: every check_subchart_freshness finding, plus one more if
-    this chart has a root templates/NOTES.txt (rendering it into
-    Release.Info.Notes the way `helm install` does requires Go template
-    evaluation this doesn't perform, so the estimate below omits it
-    entirely — an under-count for that chart) — ready-to-print strings,
-    no prefix, same convention as check_subchart_freshness's own return."""
+    values_override (parsed, becomes Release.Config, or None) and the rendered
+    `manifest` come from the caller, since the CLI needs an arbitrary release
+    name that render_chart doesn't support. warnings: check_subchart_freshness
+    findings, plus one when a root templates/NOTES.txt makes this an under-count."""
     paths = packaged_files(chart_dir)
     metadata = load_yaml_bytes(paths["Chart.yaml"], "Chart.yaml")
     values = load_yaml_bytes(paths["values.yaml"], "values.yaml") if "values.yaml" in paths else {}
@@ -267,18 +176,13 @@ def build_release(chart_dir: Path, values_override: YamlMapping | None, manifest
 
 
 def load_yaml_bytes(data: bytes, source: str) -> YamlMapping:
-    """parse_yaml_mapping of a packaged chart member's raw bytes (see
-    packaged_files), read out of the tar archive rather than from a path,
-    so this doesn't need a temp file on disk for each one."""
+    """parse_yaml_mapping of a packaged member's raw bytes."""
     return parse_yaml_mapping(data.decode("utf-8"), source)
 
 
 @dataclass
 class SecretSizeEstimate:
-    """The base64(gzip(json)) byte counts Helm would store for a release,
-    and its fraction of the Kubernetes Secret/ConfigMap limit — bundled
-    together since format_report and over_limit_warning both need the same
-    five values in lockstep (see encoded_secret_size)."""
+    """Byte counts Helm would store for a release and their fraction of the Secret limit."""
 
     raw_len: int
     gzipped_len: int
@@ -288,9 +192,7 @@ class SecretSizeEstimate:
 
 
 def encoded_secret_size(release: dict[str, object], secret_limit: int):
-    """SecretSizeEstimate for `release` (see build_release) — encoded_len's
-    fraction of `secret_limit` (see release_secret.kubernetes_secret_limit_
-    bytes in lib.settings)."""
+    """SecretSizeEstimate for `release` against `secret_limit`."""
     raw = json.dumps(release, separators=(",", ":")).encode()
     buf = io.BytesIO()
     with gzip.GzipFile(fileobj=buf, mode="wb", compresslevel=9, mtime=0) as gz:
@@ -302,10 +204,7 @@ def encoded_secret_size(release: dict[str, object], secret_limit: int):
 
 
 def format_report(chart_name: str, version: str, estimate: SecretSizeEstimate):
-    """The standard multi-line report both the standalone CLI and
-    check_release_secret_size print — identical content, since it's the
-    same estimate either way; only what surrounds it (report framing,
-    PASS/FAIL, --record) differs per caller."""
+    """The multi-line size report both callers print."""
     return (
         f"chart:          {chart_name} {version}\n"
         f"release json:   {estimate.raw_len:,} bytes\n"
@@ -317,11 +216,7 @@ def format_report(chart_name: str, version: str, estimate: SecretSizeEstimate):
 
 
 def over_limit_warning(chart_name: str, version: str, estimate: SecretSizeEstimate):
-    """The shared "approaching the 1 MiB limit" warning text (no prefix —
-    same convention as check_subchart_freshness's own warnings) — printed
-    by the standalone CLI (stderr, before sys.exit(1)) and by
-    check_release_secret_size (stdout, as part of its own FAIL detail)
-    whenever pct >= the configured warn_at_fraction_of_limit."""
+    """The unprefixed "approaching the 1 MiB limit" warning text."""
     return (
         f"estimated release Secret payload is at {estimate.pct * 100:.1f}% of the Kubernetes 1 MiB "
         f"Secret limit ({estimate.size:,}/{estimate.secret_limit:,} bytes) for {chart_name} "
@@ -332,8 +227,7 @@ def over_limit_warning(chart_name: str, version: str, estimate: SecretSizeEstima
 
 
 def _doc_header(chart_name: str):
-    """The header this doc gets the first time record_result creates it —
-    table column order must match the row shape record_result builds."""
+    """Header for a new release-secret-size.md; column order must match record_result's rows."""
     return (
         f"# {chart_name} — release Secret size tracking\n\n"
         "Estimated size of the base64(gzip(json)) payload Helm stores in the\n"
@@ -346,9 +240,7 @@ def _doc_header(chart_name: str):
 
 
 def _merge_row(doc_path: Path, lines: list[str], version: str, row: str):
-    """Replace `version`'s own table row in `lines` with `row`, or append
-    it if none exists yet. Warns (doesn't fix) instead of silently picking
-    one, if more than one row for `version` already existed."""
+    """Replace `version`'s table row with `row`, or append it; warns when duplicates already exist."""
     replaced = False
     for i, line in enumerate(lines):
         stripped = line.strip()
@@ -371,12 +263,7 @@ def _merge_row(doc_path: Path, lines: list[str], version: str, row: str):
 
 
 def record_result(chart_dir: Path, chart_name: str, version: str, encoded_bytes: int, pct: float):
-    """Append/update `version`'s own row in <chart_dir>/docs/release-
-    secret-size.md — the standalone CLI's own --record, never called by
-    check_release_secret_size (verify-podiumd's checks are read-only;
-    only a dedicated writer script ever touches a generated doc, the same
-    rule fix-doc-consistency/export-confluence-release-table already
-    follow)."""
+    """Add or update `version`'s row in <chart_dir>/docs/release-secret-size.md (CLI --record only)."""
     doc_path = chart_dir / "docs" / "release-secret-size.md"
     doc_path.parent.mkdir(parents=True, exist_ok=True)
     date = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
@@ -393,32 +280,19 @@ def record_result(chart_dir: Path, chart_name: str, version: str, encoded_bytes:
 
 
 def values_file_from_extra_args(extra_args: list[str]) -> Path | None:
-    """The values file path lib.render_scope.lint_args_for(chart_dir)
-    encodes into extra_args as ["-f", "<path>"] (or [] if it found none)
-    — reused here by check_release_secret_size instead of re-deriving/
-    re-checking ci/lint-values.yaml a second time (which would also
-    print lint_args_for's own "no ci/lint-values.yaml found" warning a
-    second time, since it was already called once in main() to build
-    extra_args in the first place). None if extra_args has no "-f"."""
+    """The path after "-f" in lint_args_for's extra_args, or None.
+
+    Reusing it avoids calling lint_args_for again and repeating its warning."""
     if "-f" in extra_args:
         return Path(extra_args[extra_args.index("-f") + 1])
     return None
 
 
 def check_release_secret_size(chart_dir: Path, extra_args: list[str]):
-    """Verify-podiumd integration: renders podiumd via lib.render_scope.
-    render_chart (the shared release-name-"podiumd" primitive, not a
-    second inline `helm template` call), reuses `extra_args` (verify-
-    podiumd's own already-computed lint_args_for(chart_dir) result) for
-    both the render AND to locate podiumd's own values override (see
-    values_file_from_extra_args) — never re-derives a values-file path
-    itself. A REAL pass/fail check, unlike the standalone CLI's own
-    report (which only ever fails via its own sys.exit, never through
-    this function): fails at pct >= the configured warn_at_fraction_of_
-    limit, the exact same threshold the standalone script's own exit-1
-    uses. Never writes docs/release-secret-size.md (see record_result's
-    own docstring for why) — --record stays exclusive to the standalone
-    CLI."""
+    """verify-podiumd check: fails when the estimate reaches warn_at_fraction_of_limit.
+
+    Renders via render_chart with `extra_args` (lint_args_for's result), which
+    also locates the values override. Never writes the doc."""
     secret_limit = release_secret_kubernetes_limit_bytes(chart_dir)
     warn_threshold = release_secret_warn_at_fraction_of_limit(chart_dir)
 

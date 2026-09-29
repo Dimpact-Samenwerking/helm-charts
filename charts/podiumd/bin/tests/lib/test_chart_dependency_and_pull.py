@@ -1,10 +1,7 @@
-"""lib.chart — dependency lookup, per-baseline component state, and
-`helm pull` glue: find_dependency, find_app_versions,
-component_state_at_baseline, chart_ref, local_chart_dir, pull_chart,
-pulled_chart_dir, pull_chart_values. `helm pull` is mocked via
-lib.procutil.run, so no `helm` binary or network access needed. Split out
-of the former test_chart.py (see the other test_chart_*.py files for the
-rest)."""
+"""lib.chart: dependency lookup, per-baseline component state, and `helm pull` glue.
+
+`helm pull` is mocked, so no `helm` binary or network access is needed.
+"""
 
 from pathlib import Path
 from types import ModuleType
@@ -78,8 +75,6 @@ def test_require_dependency_exits_naming_the_chart_yaml(
 
 
 # --- find_app_versions ---
-# used by show-component-baseline-version, via component_state_at_baseline
-# below.
 
 
 def test_find_app_versions_single_image(libchartvaluestreeprimitives: ModuleType):
@@ -110,25 +105,14 @@ def test_find_app_versions_empty_tag_is_skipped(libchartvaluestreeprimitives: Mo
 
 
 # --- component_state_at_baseline ---
-# the full "resolve a component's baseline state via the shared release-
-# baseline primitive" pipeline shared by show-component-baseline-version
-# (show-image-baseline-version resolves a single image pin directly
-# instead — see find_app_versions' own docstring). lib.release_baseline.
-# resolve_baseline_chart_state itself (and the real git plumbing it
-# wraps) has its own test coverage (tests/lib/test_release_baseline.py)
-# — these tests mock IT out and only exercise this function's own glue:
-# finding the dependency and looking up its app version(s) on top of
-# whatever resolve_baseline_chart_state returns.
+# resolve_baseline_chart_state is mocked (covered in test_release_baseline.py);
+# only the dependency and app-version lookup on top of it is tested here.
 
 
 def test_component_state_at_baseline_success(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
-    """chart_dir is a real Path (not the opaque "chart_dir" placeholder the
-    two error-path tests below use) since this one actually reaches
-    image_paths_for(component, chart_dir) -- which now reads chart_dir/
-    etc/settings.yaml (missing here, so it falls back to the ["image"]
-    default) -- the other two tests return before ever calling it."""
+    """Needs a real chart_dir: image_paths_for reads etc/settings.yaml (missing, so ["image"])."""
     monkeypatch.setattr(
         libchartrepoandpathresolution,
         "resolve_baseline_chart_state",

@@ -1,9 +1,7 @@
-"""Lints every shell script embedded in a container's command/args (this
-chart's `command: [".../sh", "-c"], args: [<script>]` /
-`command: [...], args: ["-c", <script>]` convention) — catches actual
-shell bugs (bad quoting, undefined variables, portability issues) that
-nothing else here checks; helm lint/kubeconform/yamllint all treat the
-script as an opaque string."""
+"""Shellcheck every shell script embedded in a rendered container's command/args.
+
+helm lint, kubeconform and yamllint treat these scripts as opaque strings.
+"""
 
 import json
 import shutil
@@ -39,9 +37,7 @@ from lib.yaml_types import shape_problem
 # One entry of shellcheck's JSON "comments" list (level/code/line/column/
 # message), and a finding as (source, path, comment, kind, namespace, name).
 class ShellcheckComment(TypedDict):
-    """One entry of shellcheck's json1 "comments" list: the fields this
-    module reads (positions are 1-based, within the script shellcheck was
-    given)."""
+    """One entry of shellcheck's json1 "comments" list; positions are 1-based within the script."""
 
     level: str
     code: int
@@ -80,25 +76,17 @@ def _shell_name(token: YamlValue) -> str | None:
 def find_shell_scripts(
     obj: YamlValue, source: str, shell_names: set[str], path: str = ""
 ) -> list[tuple[str, str, str, str]]:
-    """Recursively walk a parsed manifest (dict/list/scalar) looking for a
-    container-shaped dict with a command/args pair that invokes a shell
-    with "-c" (in either list, in either order — this chart uses both
-    `command: [".../sh", "-c"], args: [<script>]` and
-    `command: [...], args: ["-c", <script>]`). `shell_names` is the set of
-    recognized shell binaries (see quality_gates.shellcheck_shell_names in
-    lib.settings) — a container invoking anything else as its `command`
-    is not treated as an embedded shell script at all. Returns (source,
-    path, shell, script_text) tuples."""
+    """(source, path, shell, script_text) for every container invoking a shell with "-c".
+
+    "-c" may be in command or args, in either order. Only `shell_names` binaries count.
+    """
     found: list[tuple[str, str, str, str]] = []
     if isinstance(obj, dict):
         command = obj.get("command")
         args = obj.get("args")
         if isinstance(command, list) or isinstance(args, list):
-            # Take only the halves that are actually lists — a malformed
-            # manifest where one of command/args is a scalar (a bare-rendered
-            # `args: {{ .Values.x }}`, a CRD instance, a hand-written Pod)
-            # would otherwise raise `list + str`; leave reporting that field
-            # to yamllint/kubeconform rather than crashing the scan here.
+            # Only list halves: a scalar command/args (bare-rendered value, CRD, hand-written Pod)
+            # would raise `list + str`; yamllint/kubeconform report that instead.
             combined = (command if isinstance(command, list) else []) + (args if isinstance(args, list) else [])
             shell = _shell_name(combined[0]) if combined else None
             if shell in shell_names:
@@ -115,14 +103,10 @@ def find_shell_scripts(
 
 
 def extract_shell_scripts(docs: list[tuple[str, str]], shell_names: set[str]) -> list[EmbeddedScript]:
-    """docs: list of (source, doc_text) pairs, e.g. from
-    split_rendered_by_source. Parses each doc_text as YAML and returns
-    every embedded shell script found in it (see find_shell_scripts for
-    `shell_names`), tagged with its source plus the containing resource's
-    own (kind, namespace, name) — constant for every script found within
-    the same doc, one resource per doc — so a finding can later be
-    resolved back to a rendered-output line via lib.render_scope.
-    resource_line."""
+    """Every embedded shell script in (source, doc_text) `docs`, with the doc's (kind, namespace, name).
+
+    The resource identity lets a finding be mapped to a rendered line via resource_line.
+    """
     scripts: list[EmbeddedScript] = []
     for source, doc_text in docs:
         try:
@@ -143,10 +127,7 @@ def extract_shell_scripts(docs: list[tuple[str, str]], shell_names: set[str]) ->
 
 
 def run_shellcheck(shell: str, script_text: str) -> list[ShellcheckComment] | None:
-    """Lint one embedded script, returning shellcheck's "comments" list (each
-    a dict with level/code/line/message) — or None if shellcheck's own
-    output couldn't be parsed as JSON (a shellcheck bug/crash, not a chart
-    problem)."""
+    """shellcheck's "comments" for one script, or None if its output is unparseable."""
     result = run(["shellcheck", "-s", shell, "-f", "json1", "-"], input=script_text, capture_output=True, text=True)
     return parse_shellcheck_output(result.stdout)
 
@@ -162,16 +143,11 @@ def _shellcheck_group_label(key: tuple[str, int, str]):
 
 
 def _shellcheck_location(finding: ShellcheckFinding, locations: ResourceLocations):
-    """ "<source> (<path>) — script line <N>[:<col>] (rendered line M)" for
-    one finding (source, path, comment, kind, namespace, name). The
-    script line/column are shellcheck's own, against the embedded script
-    text it was fed — position within that script, NOT a line number in
-    the rendered YAML or the template file (shellcheck has no notion of
-    either; `path` is what locates the right container's script among
-    possibly several in the same manifest). "rendered line M" is this
-    finding's containing resource's own start line in the full render
-    (see build_resource_locations) — omitted if it can't be resolved
-    (kind/name missing, or ambiguous — see resource_line)."""
+    """ "<source> (<path>) — script line <N>[:<col>] (rendered line M)" for one finding.
+
+    Script line/column are within the embedded script; "rendered line M" is the
+    containing resource's start line, omitted when unresolvable.
+    """
     source, path, c, kind, namespace, name = finding
     line = c.get("line")
     if not line:
@@ -189,9 +165,7 @@ def _shellcheck_location(finding: ShellcheckFinding, locations: ResourceLocation
 def _own_shellcheck_findings(
     own_docs: list[tuple[str, str]], shell_names: set[str], failing_levels: set[str]
 ) -> tuple[list[ShellcheckFinding] | None, str | None]:
-    """Lints every embedded script found in this chart's own docs, keeping
-    only failing_levels-severity comments. Returns (None, error) if any
-    script's shellcheck output couldn't be parsed."""
+    """Own scripts' failing_levels findings, or (None, error) on unparseable output."""
     own_real: list[ShellcheckFinding] = []
     for source, path, shell, script_text, kind, namespace, name in extract_shell_scripts(own_docs, shell_names):
         comments = run_shellcheck(shell, script_text)
@@ -202,10 +176,7 @@ def _own_shellcheck_findings(
 
 
 def _vendored_script_result(entry: EmbeddedScript, failing_levels: set[str]):
-    """One extract_shell_scripts entry -> (chart, findings, error): lints
-    the entry's script, keeping only failing_levels-severity comments as
-    (source, path, comment, kind, namespace, name) findings. findings is
-    None (and error set) if shellcheck's own output couldn't be parsed."""
+    """(chart, findings, error) for one extract_shell_scripts entry; findings is None on error."""
     source, path, shell, script_text, kind, namespace, name = entry
     comments = run_shellcheck(shell, script_text)
     if comments is None:
@@ -219,10 +190,7 @@ def _vendored_script_result(entry: EmbeddedScript, failing_levels: set[str]):
 def _vendored_shellcheck_findings(
     vendored_docs: list[tuple[str, str]], shell_names: set[str], failing_levels: set[str], vendor_map: dict[str, str]
 ) -> tuple[list[ShellcheckFinding] | None, list[ShellcheckFinding] | None, str | None]:
-    """Lints every embedded script found in vendored docs (see
-    _vendored_script_result), splitting findings into (vendored_friendly,
-    vendored_other) by vendor_map membership. Returns (None, None, error)
-    if any script's shellcheck output couldn't be parsed."""
+    """Vendored scripts' findings split into (friendly, other), or (None, None, error)."""
     vendored_friendly: list[ShellcheckFinding] = []
     vendored_other: list[ShellcheckFinding] = []
     for entry in extract_shell_scripts(vendored_docs, shell_names):
@@ -234,10 +202,7 @@ def _vendored_shellcheck_findings(
 
 
 def _print_shellcheck_findings(scan: VendorBucketScan[ShellcheckFinding, ShellcheckFinding]):
-    """Prints check_shellcheck's three report sections (own/vendored-
-    friendly/vendored-other) for a completed VendorBucketScan -- see
-    check_shellcheck's own docstring for what each section means and why
-    they're reported differently."""
+    """Print the own/vendored-friendly/vendored-other sections for `scan`."""
     if scan.own_real:
         print_own_findings_heading("shellcheck", len(scan.own_real))
         print_grouped_findings(
@@ -271,27 +236,12 @@ def _print_shellcheck_findings(scan: VendorBucketScan[ShellcheckFinding, Shellch
 
 
 def check_shellcheck(chart_dir: Path, extra_args: list[str]):
-    """Lints every shell script embedded in a container's command/args
-    (this chart's `command: [".../sh", "-c"], args: [<script>]` /
-    `command: [...], args: ["-c", <script>]` convention) — catches actual
-    shell bugs (bad quoting, undefined variables, portability issues) that
-    nothing else here checks; helm lint/kubeconform/yamllint all treat the
-    script as an opaque string.
+    """Shellcheck every embedded container shell script in the render.
 
-    Same scope split as check_yamllint/check_kubeconform: this chart's OWN
-    templates/ vs. a vendored sub-chart under charts/podiumd/charts/*. A
-    dependency's script isn't ours to fix, so a vendored finding never
-    fails — but a friendly-vendor/local dependency (see
-    friendly_vendor_charts) is printed per-item; every other vendored
-    sub-chart only ever gets a one-line aggregate count. Within OWN scope,
-    error/warning-level findings (shellcheck's own "likely a real bug"
-    tiers) fail the check; info/style (suggestions/preferences) aren't
-    reported at all, same policy as check_yamllint's cosmetic findings.
-    Every per-item location also gets a "(rendered line N)" hint — see
-    _shellcheck_location/build_resource_locations — pointing at the
-    containing resource's own start line in the full render (not the
-    exact script line within it, which is a position kubeconform/
-    kube-score/shellcheck's own line/column already covers separately)."""
+    Own error/warning findings fail; info/style aren't reported. Vendored findings never
+    fail: friendly-vendor ones are listed, other vendored charts get one count line.
+    Locations carry the containing resource's "(rendered line N)".
+    """
     if shutil.which("shellcheck") is None:
         return False, "shellcheck is not installed (see --skip-shellcheck to bypass)"
 

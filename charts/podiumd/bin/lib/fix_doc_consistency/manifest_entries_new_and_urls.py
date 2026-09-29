@@ -1,6 +1,5 @@
-"""fix-doc-consistency's own images-manifest url repair and missing-
-entry backfill (the biggest single function in the whole script), split
-out for pylint's too-many-lines check."""
+"""fix-doc-consistency's images-manifest fixes: url/name repair, adding
+missing entries and removing stale ones."""
 
 import re
 
@@ -58,9 +57,7 @@ from lib.yaml_types import YamlMapping
 
 @dataclass
 class UrlFixContext:
-    """chart_dir/deps/target_values/repo_map — fix_images_manifest_entry_
-    urls' own resolution inputs, bundled since both it and its own per-
-    entry helper need all four together."""
+    """Resolution inputs for fix_images_manifest_entry_urls."""
 
     chart_dir: Path
     deps: list[ChartDependency]
@@ -70,11 +67,7 @@ class UrlFixContext:
 
 @dataclass
 class MissingEntriesContext:
-    """chart_dir/deps/target_values/baseline_values/allow_pull/
-    upgrade_docs_baseline — add_missing_images_manifest_entries' own six
-    raw inputs (everything but the manifest text itself), bundled since
-    virtually every helper below needs some subset of the same six
-    together."""
+    """Inputs for adding missing / removing stale manifest entries."""
 
     chart_dir: Path
     deps: list[ChartDependency]
@@ -86,8 +79,7 @@ class MissingEntriesContext:
 
 @dataclass
 class BaselineResolution:
-    """baseline_paths/baseline_repo_groups — grouped together since
-    _baseline_setup computes both from baseline_values in one pass."""
+    """Baseline image paths and their repository groups."""
 
     baseline_paths: dict[ImagePath, str]
     baseline_repo_groups: dict[str, list[ImagePath]]
@@ -95,8 +87,7 @@ class BaselineResolution:
 
 @dataclass
 class RepoResolution:
-    """repo_groups/repo_map/path_to_repo — grouped together since
-    _repo_setup computes all three from target_values in one pass."""
+    """Target repository groups, representative map and reverse map."""
 
     repo_groups: dict[str, list[ImagePath]]
     repo_map: dict[str, ImagePath]
@@ -105,13 +96,8 @@ class RepoResolution:
 
 @dataclass
 class MissingEntriesResolution:
-    """current_paths/baseline/repo/unresolvable_paths/canonical_names/
-    key_order/sibling_fields — every value add_missing_images_manifest_
-    entries' own setup phase computes ONCE, up front (see _missing_
-    entries_setup), reused unchanged by both passes below (new-entry
-    insertion, header backfill). `baseline`/`repo` nest BaselineResolution/
-    RepoResolution rather than each field living here directly, purely to
-    stay under pylint's max-instance-attributes."""
+    """Values computed once per run and shared by all passes; nested
+    dataclasses keep it under pylint's max-instance-attributes."""
 
     current_paths: dict[ImagePath, str]
     baseline: BaselineResolution
@@ -124,9 +110,7 @@ class MissingEntriesResolution:
 
 @dataclass
 class AddedEntryFields:
-    """name/repo/full_repo_url/pinned_tag — resolved once per missing
-    path (see _entry_fields_for_missing_path), then threaded into both
-    the comment+entry block and the header item text."""
+    """Fields of a new entry, used for both its block and header item."""
 
     name: str
     repo: str
@@ -135,8 +119,8 @@ class AddedEntryFields:
 
 
 def _entry_url_line_index(lines: list[str], line_idx: int) -> int | None:
-    """The line index of this entry's own "url:" field, within its own
-    block (up to the next entry or blank line) — None if it has none."""
+    """Index of the entry's "url:" line within its block (up to the next
+    entry or blank line), or None."""
     block_end = len(lines)
     for j in range(line_idx + 1, len(lines)):
         if re.match(r"^-\s*name:", lines[j]) or not lines[j].strip():
@@ -155,11 +139,9 @@ def _entry_url_status(
     | tuple[Literal["changed"], tuple[str, str, str]]
     | tuple[Literal["unchanged"], None]
 ):
-    """("unresolved", name) / ("changed", (name, old_url, new_url)) /
-    ("unchanged", None) for a single images-manifest entry's own "url:"
-    field, resolved against `context` (chart_dir/deps/target_values/
-    repo_map, see UrlFixContext). Mutates `lines` in place when the url
-    actually changes."""
+    """("unresolved", name), ("changed", (name, old_url, new_url)) or
+    ("unchanged", None) for one entry's "url:". Mutates `lines` when the
+    url changes."""
     name = entry["name"]
     path = resolve_entry_image_path(entry["name"], current_paths.keys(), context.repo_map)
     full_repo = (
@@ -191,35 +173,14 @@ def fix_images_manifest_entry_urls(
     target_values: YamlMapping,
     repo_map: dict[str, ImagePath] | None = None,
 ) -> tuple[str, list[tuple[str, str, str]], list[str]]:
-    """Rewrite each images-manifest entry's own "url:" field to the REAL,
-    fully host-qualified repository for its matched values-tree path
-    (lib.chart.full_repository_for_path — the same convention add_
-    missing_images_manifest_entries's own url-qualification already
-    uses when writing a BRAND NEW entry), when it doesn't already match.
+    """Rewrite each entry's "url:" to the fully host-qualified repository of
+    its values path (full_repository_for_path), as new entries get. Always
+    offline: dependencies are vendored.
 
-    Real bug this closes: a historical (now-superseded) reordering
-    commit silently stripped the registry host off several "url:"
-    fields while moving their own entry blocks — confirmed live:
-    images-4.9.1.yaml's own zac otel sidecar ("otel/opentelemetry-
-    collector-contrib" instead of "docker.io/otel/opentelemetry-
-    collector-contrib") and three of openbao's own sidecars (vault-k8s/
-    openbao-csi-provider/openbao-snapshot-agent) similarly — never
-    caught since, since nothing ever re-verified an EXISTING entry's own
-    url against what it should actually be, only ever a freshly-added
-    entry's own url at write time.
-
-    allow_pull is deliberately not exposed here — always offline
-    (full_repository_for_path's own default), same reasoning as
-    regenerate_images_baseline_manifest's own: a real chart always has
-    every dependency already vendored, so this never needs a fresh
-    `helm pull`.
-
-    Returns (new_text, changed_names, unresolved_names) — changed_names
-    is [(name, old_url, new_url), ...] for every entry actually
-    rewritten; unresolved_names is every entry whose own values-tree
-    path (or full_repository_for_path result) couldn't be resolved at
-    all, or that has no "url:" field to check — never guessed at, same
-    "report it, don't touch it" discipline every other fixer here uses."""
+    Returns (new_text, changed_names, unresolved_names): changed_names is
+    [(name, old_url, new_url), ...]; unresolved_names are entries whose
+    path/repository can't be resolved or that lack a "url:" (reported, not
+    touched)."""
     lines = text.splitlines(keepends=True)
     entries = try_parse_images_manifest(text)
     if entries is None:
@@ -244,18 +205,12 @@ def fix_images_manifest_entry_urls(
 
 
 def fix_images_manifest_entry_names(text: str, repo_map: dict[str, ImagePath]) -> tuple[str, list[tuple[str, str]]]:
-    """Rewrite every entry's "name:" to the group key its own "url:"
-    gives (lib.chart.repository_group_key: the url minus its registry
-    host, so "docker.io/library/python" names "library/python") when
-    the two differ — the name the ACR import mirrors the image under,
-    and the one the check expects (lib.docs_consistency.
-    images_manifest_format.expected_entry_name). Skips an entry without
-    a "url:", one whose new name is no known repository (renaming would
-    make it resolve to nothing; the check reports it for a human), and
-    one whose new name another entry already has (a real collision).
-    Run after fix_images_manifest_entry_urls, so a corrected url gives
-    the name in the same run. Returns (new_text, renamed) — renamed is
-    [(old_name, new_name), ...]."""
+    """Rewrite each entry's "name:" to its url's group key (url minus
+    registry host, e.g. "library/python"): the ACR mirror name the check
+    expects. Skips entries without a url, whose new name is no known
+    repository, or whose new name another entry has. Run after
+    fix_images_manifest_entry_urls. Returns (new_text,
+    [(old_name, new_name), ...])."""
     lines = text.splitlines(keepends=True)
     entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
     names = {_unquoted(m.group(1)) for i in entry_line_indices if (m := _ENTRY_NAME_RE.match(lines[i]))}
@@ -284,12 +239,8 @@ def _unquoted(scalar: str) -> str:
 
 
 def _images_manifest_changes_header_text(lines: list[str]):
-    """The full "# Changes:" header block's own text — header line
-    through its last numbered item (and any wrapped continuation
-    lines) — or "" if the file has no header at all. Used to check
-    whether some entry's own display name is already mentioned
-    somewhere in there, before deciding it needs a header item of its
-    own backfilled."""
+    """Text of the "# Changes:" header block (with wrapped items), or ""
+    if there is none."""
     header_idx, _has_count = find_images_manifest_changes_header(lines)
     if header_idx is None:
         return ""
@@ -298,13 +249,8 @@ def _images_manifest_changes_header_text(lines: list[str]):
 
 
 def _baseline_setup(context: MissingEntriesContext) -> tuple[dict[ImagePath, str], dict[str, list[ImagePath]]]:
-    """(baseline_paths, baseline_repo_groups) — baseline_repo_groups
-    grouped against baseline_values (NOT target_values — "where did
-    this repository already live in the baseline tree"), reused across
-    every missing path below rather than recomputed per path, same
-    up-front convention lib.image.docs.add_missing_sidecar_rows already
-    uses for its own baseline_repo_groups, both now feeding the same
-    lib.chart.baseline_tag_for_sidecar_path."""
+    """(baseline_paths, baseline_repo_groups), grouped against
+    baseline_values (where each repository lived in the baseline)."""
     baseline_paths = (
         dict(find_all_image_and_version_paths(context.baseline_values, context.deps)) if context.baseline_values else {}
     )
@@ -320,8 +266,7 @@ def _baseline_setup(context: MissingEntriesContext) -> tuple[dict[ImagePath, str
 def _repo_setup(
     context: MissingEntriesContext, current_paths: dict[ImagePath, str]
 ) -> tuple[dict[str, list[ImagePath]], dict[str, ImagePath], dict[ImagePath, str]]:
-    """(repo_groups, repo_map, path_to_repo) for `context`'s own
-    target_values."""
+    """(repo_groups, repo_map, path_to_repo) for target_values."""
     repo_groups = paths_by_repository(context.chart_dir, context.deps, context.target_values, current_paths.keys())
     repo_map = {repo: repo_group_representative(group_paths, context.deps) for repo, group_paths in repo_groups.items()}
     path_to_repo = {path: repo for repo, group_paths in repo_groups.items() for path in group_paths}
@@ -331,9 +276,8 @@ def _repo_setup(
 def _manifest_list_diff(
     text: str, context: MissingEntriesContext, resolution: MissingEntriesResolution
 ) -> tuple[list[ImagePath], list[str], list[str]]:
-    """find_images_manifest_list_diff's (missing_paths, stale_entry_names,
-    unmatched_entry_names) for `text` — the same diff verify-podiumd's
-    doc-consistency check reports."""
+    """find_images_manifest_list_diff's result for `text`: the same diff
+    verify-podiumd reports."""
     entries = try_parse_images_manifest(text) or []
     return find_images_manifest_list_diff(
         ManifestDiffInputs(
@@ -355,10 +299,7 @@ def _manifest_list_diff(
 
 
 def _entries_resolution(context: MissingEntriesContext) -> MissingEntriesResolution:
-    """current_paths/baseline_paths/repo groups/canonical names/key
-    order/digest-pinning exceptions, computed once for `context` —
-    shared by add_missing_images_manifest_entries and
-    remove_stale_images_manifest_entries."""
+    """Shared per-run resolution for adding and removing entries."""
     current_paths = dict(find_all_image_and_version_paths(context.target_values, context.deps))
     current_paths.update(global_image_paths(context.target_values))
     baseline_paths, baseline_repo_groups = _baseline_setup(context)
@@ -388,14 +329,9 @@ def _pinned_tag_for_path(
     current_tag: str,
     name: str,
 ) -> str | None:
-    """The resolved digest-pinned tag for `path` (see resolved_digest_
-    pin) — when allow_pull is set and no digest is pinned locally at
-    all, tries a real registry lookup instead of giving up immediately
-    (see add_missing_images_manifest_entries' own docstring: eck-stack's
-    own bare "version:" CRD fields never carry a digest locally, unlike
-    an ordinary "image: {repository, tag}" block). With allow_pull left
-    False, behavior is unchanged: skipped exactly as before, network
-    never touched."""
+    """Digest-pinned tag for `path`. With allow_pull and no local digest
+    (e.g. eck-stack's bare "version:" fields), asks the registry; else
+    None."""
     pinned_tag = resolved_digest_pin(context.target_values, path, current_tag, resolution.sibling_fields)
     if pinned_tag is not None or not context.allow_pull:
         return pinned_tag
@@ -405,10 +341,8 @@ def _pinned_tag_for_path(
     host, repo_path = parse_repo(full_repo)
     print(f"  fetching digest for {full_repo}:{current_tag} from the registry...")
     try:
-        # OSError covers every urllib.error type (URLError/HTTPError are
-        # OSError subclasses), incl. lib.registry's non-JSON-response
-        # case — a registry hiccup must degrade to "skipped, pin it by
-        # hand", never abort a partial rewrite.
+        # OSError covers urllib errors and non-JSON responses; a registry
+        # hiccup must skip the entry, not abort a partial rewrite.
         exists, digest_hex = registry_tag_exists(host, repo_path, current_tag)
     except OSError as e:
         print(f"  registry lookup failed ({e}) — skipping {name}")
@@ -421,16 +355,10 @@ def _pinned_tag_for_path(
 def _entry_fields_for_missing_path(
     path: tuple[str, ...], context: MissingEntriesContext, resolution: MissingEntriesResolution
 ) -> tuple[str, AddedEntryFields | None]:
-    """(name, AddedEntryFields | None) for `path` — fields is None when
-    it can't be resolved to a real repository or a digest-pinned tag at
-    all (the caller reports `name` as skipped in that case; `name` is
-    still resolved even then, purely for that report)."""
+    """(name, fields) for `path`; fields is None when no repository or
+    digest-pinned tag resolves (name is still returned for reporting)."""
     repo = resolution.repo.path_to_repo.get(path)
-    # repo (path_to_repo, built from paths_by_repository) is the
-    # STRIPPED form (strip_registry_host) — correct for the entry's own
-    # "name:" field, but never for "url:", which needs the REAL registry
-    # host — full_repository_for_path resolves the real, unstripped
-    # value directly instead (falls back to `repo` only if it can't).
+    # repo is host-stripped (right for "name:"); "url:" needs the real host.
     full_repo_url = (
         full_repository_for_path(
             context.chart_dir, context.deps, context.target_values, path, allow_pull=context.allow_pull
@@ -452,13 +380,10 @@ def _entry_old_version_and_digest_change(
     context: MissingEntriesContext,
     resolution: MissingEntriesResolution,
 ) -> tuple[str | None, bool]:
-    """(old_version, digest_only_change) for a newly-added entry's own
-    comment — old_version from the exact baseline path when one exists
-    (flagging a same-version/changed-digest re-pin via digest_only_
-    change, so it doesn't misleadingly render as "<v> -> <v>"), else via
-    baseline_tag_for_sidecar_path/historical_app_version_for_path's own
-    two fallback tiers (see add_missing_images_manifest_entries' own
-    docstring)."""
+    """(old_version, digest_only_change) for a new entry's comment: from the
+    baseline path (flagging a same-version re-pin so it doesn't render
+    "<v> -> <v>"), else baseline_tag_for_sidecar_path, else past
+    manifests."""
     baseline_tag = resolution.baseline.baseline_paths.get(path)
     if baseline_tag:
         old_version = version_of(baseline_tag)
@@ -485,18 +410,11 @@ def _entry_old_version_and_digest_change(
 
 
 def _manifest_lines_for_insert(text: str):
-    """splitlines(keepends=True), with a trailing newline ensured and any
-    leftover bare "[]" empty-list stub (see IMAGES_STUB_TEMPLATE) and its
-    own trailing blank lines stripped. A still-untouched stub manifest
-    ends in this literal "[]" — yaml.safe_load's own valid empty-list
-    spelling; leaving it in place while inserting the first real entry
-    below it would produce invalid YAML for a second document, which
-    then makes every SUBSEQUENT run's own parse silently treat the (now
-    actually non-empty) file as having no entries at all, re-adding
-    everything already there. Stripped here, before the very first
-    insert — a manifest that still has this stub can only be entirely
-    empty of real entries, so trimming its own trailing blank lines
-    afterward is always safe."""
+    """Lines with a trailing newline ensured and the stub's bare "[]" (see
+    IMAGES_STUB_TEMPLATE) plus trailing blanks removed. Leaving "[]" before
+    the first entry yields YAML later runs parse as empty, re-adding every
+    entry. A manifest with "[]" has no real entries yet, so trimming is
+    safe."""
     lines = text.splitlines(keepends=True)
     if lines and not lines[-1].endswith("\n"):
         lines[-1] += "\n"
@@ -510,9 +428,8 @@ def _manifest_lines_for_insert(text: str):
 def _entry_insertion_keys(
     lines: list[str], context: MissingEntriesContext, resolution: MissingEntriesResolution
 ) -> tuple[list[int], list[tuple[int, ...]]]:
-    """(entry_line_indices, entry_keys) — every existing entry's own
-    line index and sort key (see images_manifest_order_key), used to
-    find where a new entry belongs (see insertion_index)."""
+    """(entry_line_indices, entry_keys) of existing entries, for finding a
+    new entry's insertion point."""
     entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
     entry_keys: list[tuple[int, ...]] = []
     for idx in entry_line_indices:
@@ -541,10 +458,8 @@ def _splice_added_entry_block(
     new_key: tuple[int, ...],
     block_lines: list[str],
 ):
-    """Insert `block_lines` (a new entry's own comment+entry block) at
-    the position matching values.yaml's own component order relative to
-    what's already in `lines` (see insertion_index/images_manifest_
-    block_start), or append it at the end when nothing sorts after it."""
+    """Insert a new entry block in values.yaml component order, or append
+    it when nothing sorts after it."""
     entry_line_indices, entry_keys = _entry_insertion_keys(lines, context, resolution)
     body_slot = insertion_index(new_key, entry_keys)
     if body_slot < len(entry_line_indices):
@@ -562,11 +477,8 @@ def _insert_added_entry(
     resolution: MissingEntriesResolution,
     fields: AddedEntryFields,
 ):
-    """Insert `fields`'s own comment+entry block (and header item, when
-    not already covered by an earlier lockstep sibling's own item — see
-    add_missing_images_manifest_entries' own docstring) at the position
-    matching values.yaml's own component order. Returns the updated
-    text."""
+    """Insert the new entry block, plus a header item unless the header
+    already names it (e.g. a lockstep sibling). Returns the text."""
     new_version, digest = fields.pinned_tag.split("@", 1)
     old_version, digest_only_change = _entry_old_version_and_digest_change(
         path, new_version, fields.pinned_tag, context, resolution
@@ -598,14 +510,9 @@ def _insert_added_entry(
 def _backfilled_header_target(
     lines: list[str], header_text: str, context: MissingEntriesContext, resolution: MissingEntriesResolution
 ) -> tuple[ImagePath, str, str, str] | None:
-    """The (entry_path, entry_name, entry_old, entry_new) for the FIRST
-    entry (in manifest order) whose own display name isn't already
-    mentioned anywhere in `header_text` — None if every entry is already
-    covered, or has no matching real dependency/canonical-sidecar name
-    to check at all (path_display_name's own raw-dotted-path fallback —
-    never a phrase a human would write in prose, so it's both
-    unsearchable and not worth adding to a curated header list
-    verbatim)."""
+    """(entry_path, entry_name, entry_old, entry_new) of the first entry not
+    named in `header_text`, or None. Entries whose display name is only the
+    raw dotted path are skipped: not prose worth adding."""
     entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
     for idx in entry_line_indices:
         m = re.match(r"^-\s*name:\s*(\S+)\s*$", lines[idx])
@@ -633,11 +540,9 @@ def _backfilled_header_target(
 def _backfill_header_items(
     text: str, context: MissingEntriesContext, resolution: MissingEntriesResolution
 ) -> tuple[str, list[str]]:
-    """Second pass: insert a header item for any entry that already has
-    its own comment+entry block (e.g. added by an earlier run, before
-    header-list support existed) but was never given one. Old/new
-    version for a backfilled item are read from the entry's own existing
-    comment, never recomputed. Returns (text, backfilled_names)."""
+    """Add a header item for each entry that has a block but no item,
+    reading old/new versions from its existing comment. Returns
+    (text, backfilled_names)."""
     backfilled_names: list[str] = []
     while True:
         lines = text.splitlines(keepends=True)
@@ -666,77 +571,21 @@ def _backfill_header_items(
 def add_missing_images_manifest_entries(
     text: str, context: MissingEntriesContext
 ) -> tuple[str, list[str], list[str], list[str]]:
-    """Insert a new entry (+ its own "# <name> — <old> -> <new>" comment,
-    and a matching numbered item in the "# Changes:" header list) for
-    every image lib.upgradedoc.find_images_manifest_list_diff's own
-    missing_paths reports — the "changed vs ... but has no entry" gap
-    verify-podiumd's own doc-consistency check reports. `context` is a
-    MissingEntriesContext.
+    """Add an entry, its "# <name> <old> -> <new>" comment and a "# Changes:"
+    header item for every missing path find_images_manifest_list_diff
+    reports, then backfill header items (_backfill_header_items).
 
-    context.allow_pull (default False, matching every other allow_pull-
-    taking function in this codebase — offline unless explicitly opted
-    into) gates ONE specific fallback: a path whose repository resolves
-    fine but whose current tag has no digest anywhere in values.yaml at
-    all tries a REAL registry manifest lookup (see _pinned_tag_for_path)
-    before falling back to skipped_names.
+    Inserted in values.yaml component order; unresolvable existing items
+    sort last without moving. "name:" is the stripped repository, not the
+    curated ACR mirror slug (no mechanical formula; a human corrects it).
+    version/digest come from the pinned tag in target_values;
+    context.allow_pull lets an undigested tag be looked up in the registry.
+    Paths without a digest or repository are reported as skipped, never
+    written incomplete.
 
-    Both the header item and the comment+entry block are inserted at the
-    position matching values.yaml's own top-level component order
-    relative to what's already there (see lib.upgradedoc.
-    component_order_key/insertion_index — the SAME ordering convention
-    upgrade.md's own table rows/Changes sections use), not always
-    appended at the end. An existing header item (free-form prose,
-    matched via match_dependency_excluding_sidecar_names the same way
-    check_images_manifest_format's own Changes-item check does) or entry
-    (via its own resolved values-tree path) that can't be resolved to a
-    real dependency sorts last for THIS purpose only — never guessed at,
-    never causing an EXISTING item to move.
-
-    "name:" and "url:" are both set to the SAME resolved repository
-    string (lib.chart.paths_by_repository's own stripped form) rather
-    than the curated ACR mirror slug docs/images/acr-mirror-naming.md
-    documents — that lookup has no reliable mechanical formula and stays
-    a human's job to correct by hand; a mechanically-derivable, self-
-    consistent placeholder here beats leaving the whole entry out
-    entirely.
-
-    version/digest come directly from target_values' own already-pinned
-    tag — no registry call needed here, unlike update-image-version's
-    OWN missing_entries handling (lib.component_docs.
-    update_images_manifest), which fetches a real digest as part of ITS
-    job of writing a brand new pin in the first place; this function
-    only ever documents a pin that already exists.
-
-    A path whose current tag has no "@sha256:..." digest at all (rare —
-    almost every image is digest-pinned after the chart-wide digest-
-    pinning sweep, #437) can't produce a valid entry (digest is a
-    required field — see check_images_manifest_format's own entry-key
-    validation) and is reported separately rather than silently skipped
-    or written incomplete; same treatment for a path find_images_
-    manifest_list_diff reports as missing but that has no resolvable
-    repository here either (shouldn't normally happen — kept as a
-    defensive fallback, never a crash or bad data).
-
-    A SECOND pass then backfills a header item for any entry that
-    already has its own comment+entry block but was never given one
-    (see _backfill_header_items).
-
-    Processes one path/entry at a time, re-parsing the (already
-    updated) text before computing the next insertion point — simpler
-    and safer than tracking how earlier insertions shift later line
-    indices by hand.
-
-    global_image_paths(target_values/baseline_values) is folded into
-    current_paths/baseline_paths up front (see _entries_resolution)
-    so "global.images.nginx" (and every other shared base-image anchor)
-    participates in this same missing-entry scan as its own path, not
-    just via whichever component happens to alias it. Combined with
-    repo_group_representative's own "global" tier (always wins), a
-    changed shared image gets EXACTLY ONE entry — never one per aliasing
-    component: every OTHER member of that repository group is already
-    collapsed to this SAME representative path before missing_paths is
-    even computed, so it can never independently show up here as its
-    own separate "missing" entry needing one of its own.
+    One path at a time, re-parsing after each insert, so shifted line
+    indices need no bookkeeping. Global image paths take part directly and
+    represent their repository group, so a shared image gets one entry.
 
     Returns (new_text, added_names, skipped_names, backfilled_names)."""
     resolution = _entries_resolution(context)
@@ -759,9 +608,8 @@ def add_missing_images_manifest_entries(
 def _remove_stale_entry(
     lines: list[str], entry_name: str, context: MissingEntriesContext, resolution: MissingEntriesResolution
 ):
-    """Deletes the entry named `entry_name` with its own comment, and its
-    "# Changes:" item unless another entry still carries the same display
-    name (a lockstep component's other image)."""
+    """Delete the entry and its comment, and its "# Changes:" item unless
+    another entry has the same display name (lockstep component)."""
     entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
     entry_line = next(
         (i for i in entry_line_indices if re.match(rf"^-\s*name:\s*{re.escape(entry_name)}\s*$", lines[i])), None
@@ -788,16 +636,11 @@ def _remove_stale_entry(
 
 
 def remove_stale_images_manifest_entries(text: str, context: MissingEntriesContext) -> tuple[str, list[str]]:
-    """Deletes every entry lib.upgradedoc.find_images_manifest_list_diff
-    reports as stale — its image's version and digest equal
-    upgrade_docs_baseline's, so there is no change to document — with its
-    own comment and "# Changes:" item. The counterpart of
-    add_missing_images_manifest_entries, and the fix for the check's
-    "is listed but its image did not change" issue. The "# Changes:" count
-    word is left to the renumber pass that follows. An entry whose path
-    has no resolvable repository is also reported as stale, but "did not
-    change" can't be concluded for it, so it stays for a human (the check
-    still reports it). Returns (new_text, removed_names)."""
+    """Delete every entry find_images_manifest_list_diff reports as stale
+    (version and digest equal upgrade_docs_baseline), with its comment and
+    "# Changes:" item; a later pass renumbers the count word. Entries with
+    an unresolvable repository are kept for a human. Returns
+    (new_text, removed_names)."""
     resolution = _entries_resolution(context)
     _missing_paths, stale_entry_names, _unmatched_entry_names = _manifest_list_diff(text, context, resolution)
     removable_names = [

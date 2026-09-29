@@ -1,8 +1,5 @@
-"""create-doc-version's main() — argument parsing, and end-to-end wiring
-into lib.component_docs.existing_doc_baselines/create_missing_docs (both
-covered directly in tests/lib/test_component_docs.py). run_script (the
-fix-helm-doc delegation) is mocked out via cdv.run_script
-directly — no real subprocess needed."""
+"""create-doc-version main(): argument parsing and wiring into
+lib.component_docs; the fix-helm-doc delegation is mocked."""
 
 import subprocess
 
@@ -13,8 +10,7 @@ import pytest
 
 
 def setup_dirs(cdv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, baseline: str | None = "4.8.5"):
-    """baseline=None skips writing etc/release-baseline.yaml at all — for
-    the "no release-baseline.yaml at all" error case."""
+    """baseline=None writes no etc/release-baseline.yaml."""
     chart_yaml = tmp_path / "Chart.yaml"
     chart_yaml.write_text("version: 4.9.0\n", encoding="utf-8")
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
@@ -46,9 +42,7 @@ def test_help_flag_prints_docstring_and_exits_zero(
 
 
 def test_any_argument_fails(cdv: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
-    """This script never takes the baseline (or anything else) as an
-    argument — any positional argument (other than -h/--help) is
-    rejected with the usage docstring."""
+    """Any positional argument other than -h/--help is rejected with usage."""
     monkeypatch.setattr("sys.argv", ["create-doc-version", "4.8.5"])
     with pytest.raises(SystemExit) as exc_info:
         cdv.main()
@@ -59,8 +53,7 @@ def test_any_argument_fails(cdv: ModuleType, monkeypatch: pytest.MonkeyPatch, ca
 def test_invalid_baseline_format_fails(
     cdv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """A defensive check against a hand-edited or corrupted release-
-    baseline.yaml, now that this can no longer come from a CLI argument."""
+    """Guards against a hand-edited or corrupted release-baseline.yaml."""
     setup_dirs(cdv, tmp_path, monkeypatch, baseline="not-a-version")
     monkeypatch.setattr("sys.argv", ["create-doc-version"])
     with pytest.raises(SystemExit) as exc_info:
@@ -142,9 +135,8 @@ def test_nothing_to_do_when_everything_already_exists(
 def test_refuses_when_doc_exists_under_a_different_baseline(
     cdv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """The whole point of the split: never silently rebase docs that
-    should have been created fresh (or vice versa) — this is
-    fix-doc-consistency's job, so refuse outright instead."""
+    """Never silently rebase docs that should be created fresh (or vice
+    versa); that is fix-doc-consistency's job."""
     doc_dir, _images_dir = setup_dirs(cdv, tmp_path, monkeypatch)
     existing = doc_dir / "4.8.4-to-4.9.0-upgrade.md"
     existing.write_text("real content\n", encoding="utf-8")

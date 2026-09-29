@@ -58,11 +58,8 @@ def test_lines_that_are_not_full_table_rows_are_skipped(libdocsconsistency: Modu
 
 
 def test_only_scans_the_component_versions_section(libdocsconsistency: ModuleType, tmp_path: Path):
-    """A pipe-table elsewhere in the doc (e.g. a component's own
-    subsection listing an unrelated settings-migration table) must never
-    be picked up as a "Component versions" row — see
-    strip_fenced_code_blocks's own sibling fix for the same class of
-    "one regex scans the whole document" bug."""
+    """An unrelated pipe-table elsewhere in the doc is never picked up as a
+    "Component versions" row."""
     doc = tmp_path / "doc.md"
     doc.write_text(
         "# Upgrade guide\n\n"

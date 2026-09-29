@@ -1,8 +1,5 @@
-"""The per-strategy tag writers and the baseline comparison inside
-update-component-version, called directly with a minimal context: the
-split tag/sha writer skips alias references, the delegated writer
-fails cleanly when its own line didn't change, the old app version
-follows the path that actually changed."""
+"""Per-strategy tag writers and the baseline comparison in
+update-component-version, called directly with a minimal context."""
 
 from pathlib import Path
 from types import ModuleType
@@ -57,9 +54,8 @@ def test_write_split_tag_sha_pin_records_written_tag(ucv: ModuleType, monkeypatc
 def test_write_delegated_tags_exits_cleanly_when_own_line_unchanged(
     ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """update_image_version reporting no change at the path's own line
-    (already at the target, or another path sharing the basename changed)
-    must raise SystemExit with a message, not a bare StopIteration."""
+    """No change at the path's own line must raise SystemExit with a message,
+    not a bare StopIteration."""
     values_yaml = tmp_path / "values.yaml"
     values_yaml.write_text("zac:\n  image:\n    repository: ghcr.io/infonl/zac\n    tag: 5.4.3\n", encoding="utf-8")
     monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)

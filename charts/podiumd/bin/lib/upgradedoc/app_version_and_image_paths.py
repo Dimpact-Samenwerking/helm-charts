@@ -1,7 +1,4 @@
-"""Resolving a component's real app version (values.yaml override,
-Chart.yaml dependency version, or vendored-subchart fallback) and
-walking a values tree for every image-tag/version path a
-dependency or native component actually pins."""
+"""Resolve a component's app version and find every image-tag/version path pinned in a values tree."""
 
 from collections.abc import Collection
 from collections.abc import Iterator
@@ -34,52 +31,20 @@ def actual_app_version(
     chart_dir: Path | None = None,
     dep: ChartDependency | None = None,
 ) -> str | None:
-    """The app version currently pinned for a component — tries each of
-    lib.chart.image_paths_for(component)'s own dotted path(s) in turn:
-    the plain "<key>.image.tag" shape for the common case
-    (component_resolution_default_image_paths), or a component-specific
-    override from component_image_paths() for one with a non-standard
-    primary-image location — e.g. keycloak-operator's own split "operator.config.
-    keycloakImage.tag" path, openbao's "server.image", or zgw-office-
-    addin's frontend+backend pair (the first of those two with a real
-    tag wins; there's no single "the" app version for a two-image
-    component, so this picks one rather than reporting both).
+    """The app version pinned for a component, or None.
 
-    If none of those resolve, falls back to lib.chart.version_paths_for
-    (component)'s own dotted path(s), read DIRECTLY (no ".tag" suffix
-    appended) — for a component whose real app version isn't expressed
-    as an "image: {repository, tag}" block at all, e.g. eck-stack's own
-    bare "eck-elasticsearch.version" CRD field, or redis-operator's own
-    split "redisOperator.imageTag" (sibling to "imageName", not nested
-    under a common "image:" key). Without this fallback, a real app-
-    version change on one of these components was invisible to every
-    caller of this function — the doc-consistency row/Changes-item check
-    silently skipped comparing it at all (its own "actual_app and ..."
-    guard short-circuits on None), so a wrong OR MISSING app-version cell
-    for kiss-eck's own real 8.19.3 -> 8.19.19 Elastic-stack bump went
-    uncaught; confirmed live.
+    Tries, in order:
+    1. image_paths_for(component) paths + ".tag" (first non-empty tag wins for
+       multi-image components);
+    2. version_paths_for(component) paths read as-is, for versions not in an
+       "image: {tag}" block (e.g. eck-stack's "eck-elasticsearch.version");
+    3. with `chart_dir` and `dep` (needs "version"), the vendored subchart's
+       appVersion — only for components registered in component_image_paths(),
+       where a blank tag deliberately defers to appVersion; on an unregistered
+       component it may mean the image isn't used at all.
 
-    If THAT still doesn't resolve, and both `chart_dir` and `dep` (the
-    full Chart.yaml dependency dict — needs its own "version" too, not
-    just its name) are given, falls back to lib.chart.subchart_app_
-    version — but ONLY for a component with its own component_image_
-    paths() entry, never the generic default_image_paths guess. A
-    registered path with an explicit but deliberately BLANK "tag:"
-    override (e.g. openbao's own "server.image.tag" — the repository is
-    pinned, but the tag is left for the chart's own pinned appVersion to
-    supply) is a DELIBERATE design signal that a human already vouched
-    for; the same blank tag on an UNREGISTERED component could just as
-    easily mean "not actually running this image at all," which nothing
-    here can tell apart — so this never applies to eck-operator or any
-    other component that merely happens to also float on its own
-    chart's appVersion without being explicitly registered for it.
-
-    `component` is the Chart.yaml dependency's own NAME (component_
-    image_paths()/component_version_paths() are both keyed by name, not
-    alias) — defaults to `values_key` when omitted, since name and
-    alias/values_key coincide for every currently-registered entry; pass
-    the real name explicitly once a registered component ever has a
-    distinct alias, so the registry lookup still finds it."""
+    `component` is the Chart.yaml dependency name (registries are keyed by name,
+    not alias); defaults to `values_key`."""
     resolved_component = component or values_key
     for path in image_paths_for(resolved_component, chart_dir):
         tag = text_at(values, f"{values_key}.{path}.tag")
@@ -96,9 +61,7 @@ def actual_app_version(
 
 @dataclass
 class BaselineComponentQuery:
-    """resolve_baseline_component_versions' own seven inputs, bundled since
-    both real callers (update-image-version, update-component-version)
-    build all seven the same way, just from differently-named locals."""
+    """Inputs for resolve_baseline_component_versions."""
 
     baseline_values: YamlMapping | None
     baseline_dep: ChartDependency | None
@@ -110,56 +73,21 @@ class BaselineComponentQuery:
 
 
 def resolve_baseline_component_versions(query: BaselineComponentQuery):
-    """(old_app, old_chart) resolved against the TRUE release baseline —
-    the single source of truth update-image-version's own update_docs_
-    single_component and update-component-version's own main() both
-    call, instead of each maintaining its own slightly-different version
-    of this same resolution (the real gap behind #1/#5: update_docs_
-    single_component's old_app used to fall back to whatever the image
-    was pinned at immediately before THIS run when the true baseline
-    genuinely had no override — that None is authoritative, not a
-    resolution failure, once baseline_values itself resolved at all).
+    """(old_app, old_chart) at the release baseline; shared by update-image-version and update-component-version.
 
-    baseline_dep is this component's own Chart.yaml dependency dict AS
-    IT WAS AT THE BASELINE (None if it didn't exist there at all yet —
-    a brand-new dependency this cycle, or a lib.chart.native_components
-    component with no chart at all). `image_path` is the SPECIFIC dotted
-    path (under values_key) this bump actually touched — e.g. a
-    sidecar's own path ("redis-ha.image"), not always chart_name's
-    registered PRIMARY path (lib.chart.image_paths_for(chart_name)[0]),
-    which is why this reads baseline_values at that exact path directly
-    rather than re-deriving it via actual_app_version(baseline_values,
-    values_key, chart_name) (that call is only safe for a component's
-    own primary image, never a sidecar's).
+    baseline_dep is the component's Chart.yaml dependency at the baseline (None
+    if new or native). image_path is the exact path this bump touched (may be a
+    sidecar), so the baseline tag is read there directly rather than via
+    actual_app_version, which only handles the primary image.
 
-    old_app: the raw baseline_values tag at values_key.image_path first;
-    if that's blank AND chart_dir is given AND this component's chart
-    version hasn't moved since baseline (baseline_dep's own version ==
-    new_chart — the same vendored .tgz backs both baseline and current
-    in that case) also tries actual_app_version's own vendored-subchart
-    fallback, against a dep dict synthesized as {"name": chart_name,
-    "version": new_chart} — deliberately NOT the caller's own current
-    Chart.yaml dependency dict, whose "version" field is whatever this
-    run found on disk BEFORE any Chart.yaml rewrite, whether that
-    happens to be new_chart or not (safe example: a basename bump never
-    touches Chart.yaml at all, so it always coincides; unsafe example: a
-    component bumped 1.0 -> 1.2 earlier this cycle then reconsidered
-    1.2 -> 1.0 this run, landing back on a baseline_dep version that
-    equals new_chart even though the on-disk dep dict momentarily read
-    1.2 — passing THAT would read the wrong vendored artifact's
-    appVersion as if it were the baseline's own). Never attempted when
-    the chart DID change, since that would read a mismatched artifact.
+    old_app: the baseline tag; if blank and the chart version is unchanged since
+    the baseline, actual_app_version's vendored-subchart fallback against a
+    synthesized {"name": chart_name, "version": new_chart} dep. Not the on-disk
+    dep: its version may predate this run's Chart.yaml rewrite and point at the
+    wrong .tgz.
 
-    old_chart: baseline_dep's own version, but ONLY when old_app resolved
-    to a real value above — a component with no real baseline app
-    version at all (verifiably never captured in any prior baseline doc,
-    even though Chart.yaml itself always lists a dependency's own chart
-    version regardless of whether it was ever really tracked, e.g. mi-
-    data's own baseline "1.0.0") gets old_chart forced to None too, so
-    BOTH fields render "(new)" together rather than a misleading
-    "old → new" transition implying a real prior baseline value existed
-    and moved. None outright when baseline_dep is None (no Chart.yaml
-    dependency at the baseline at all)."""
+    old_chart: baseline_dep's version, but None when old_app is None so both
+    cells render "(new)" instead of a fake "old → new"."""
     raw_old_chart = str(query.baseline_dep["version"]) if query.baseline_dep is not None else None
     baseline_tag = text_at(query.baseline_values, f"{query.values_key}.{query.image_path}.tag") or ""
     old_app = baseline_tag.split("@", 1)[0] or None
@@ -199,53 +127,17 @@ def find_image_tag_paths(
 def find_image_tag_paths(
     node: YamlValue, path: ImagePath = (), *, include_null_tags: bool = False
 ) -> Iterator[tuple[ImagePath, str | None]]:
-    """Yield (path, tag) for every "<key>: {tag: ...}" block anywhere in a
-    values tree, where <key> is "image" or ends with "Image" (e.g.
-    "initImage", alongside "image" in the very same job, for a component
-    that needs more than one distinctly-named image — a single "image"
-    key can't serve both). Keyed by its full path INCLUDING that key
-    itself — e.g. ("zac", "opa", "image") for zac.opa.image.tag, or
-    ("keycloak-operator", "jobs", "ensurePodiumdAdminUser", "initImage")
-    for that job's own init-container image. Structural, so it finds
-    sidecars too, not just top-level Chart.yaml dependencies.
+    """Yield (path, tag) for every "<key>: {tag: ...}" block where <key> is "image" or ends in "Image".
 
-    Deliberately keyed on the "...Image" suffix specifically, not "any
-    dict shaped like {tag, repository}" — a reusable template like
-    global.images.nginx/curl/busybox/redis (itself never rendered
-    anywhere on its own, just aliased into real "image:"/"...Image:"
-    sites via a YAML anchor) would otherwise be double-counted as its
-    own separate, spurious usage location; "images" (plural, the
-    container dict those templates live under) doesn't itself end in
-    "Image" (capital I), so this excludes it correctly.
+    The path includes that key (e.g. ("zac", "opa", "image")), so callers must use
+    path[-1] rather than assume ".image.tag". Structural, so sidecars are found too.
+    The "...Image" suffix rule excludes global.images.* templates (only used via
+    YAML anchors), which would otherwise count as extra usages.
 
-    NOTE: the yielded path now always ends in the image key itself
-    (unlike this function's earlier "image"-only shape, which omitted
-    it since every caller could safely assume ".image.tag") — a caller
-    reconstructing a dotted values.yaml reference must use path[-1],
-    not a hardcoded ".image.tag" suffix.
-
-    include_null_tags=True (default False, so every existing caller's
-    behavior is exactly unchanged) ALSO yields (path, None) for a block
-    whose own "tag:" is missing or explicit YAML null, but which DOES
-    have a truthy "repository:" — Helm's own template convention for an
-    image relying entirely on its OWN chart's "appVersion" default
-    (".tag | default .Chart.AppVersion") instead of an explicit
-    override (e.g. eck-operator's own vendored default — podiumd has no
-    override for it at all). This function stays purely structural (no
-    I/O) either way — resolving None into a real, effective version is
-    a SEPARATE step a caller does itself (see lib.chart.
-    resolve_subchart_default, the one place both real consumers —
-    lib.checks.digest_pinning.find_unresolved_subchart_images and
-    lib.image.docs.regenerate_images_baseline_manifest — do that
-    resolution, so it's never re-derived twice).
-
-    Deliberately does NOT relax an explicit blank-string "tag: ''" the
-    same way — a different, already-handled case elsewhere (e.g.
-    openbao's own "server.image.tag", resolved via lib.chart.
-    subchart_app_version through lib.upgradedoc.actual_app_version's own
-    values.yaml lookup) that must keep behaving exactly as it does
-    today; only a tag that's None (missing key, or explicit YAML "null")
-    ever counts as a candidate here."""
+    include_null_tags=True also yields (path, None) for a block with a missing or
+    null tag but a repository (Helm's `.tag | default .Chart.AppVersion`); callers
+    resolve it via lib.chart.resolve_subchart_default. A blank-string tag is never
+    yielded: that case is resolved through actual_app_version."""
     if isinstance(node, dict):
         for key, value in node.items():
             if (key == "image" or key.endswith("Image")) and isinstance(value, dict):
@@ -265,22 +157,11 @@ def find_image_tag_paths(
 
 
 def find_component_version_tags(values: YamlMapping, deps: list[ChartDependency]) -> Iterator[tuple[ImagePath, str]]:
-    """(path, value) for every lib.chart.component_version_paths()- or
-    lib.settings.component_resolution_version_path_nested_subcharts-
-    registered bare tag/version field that's actually pinned in `values`
-    — the ONE shape find_image_tag_paths' own generic "<key ending in
-    Image>: {tag: ...}" structural scan can never see, since these are
-    flat scalar sibling fields (e.g. redis-operator's own "redisOperator.
-    imageTag", not nested under an "image:"/"...Image:" dict with a
-    "tag:" key at all — see component_version_paths()' own docstring for
-    why). The two registries' own field lists are unioned — version_
-    path_nested_subcharts registers a few fields component_version_paths()
-    deliberately excludes from ITS narrower "pick ONE representative
-    app version" list (eck-stack's own "eck-enterprise-search.version",
-    disabled by default) that are still real, matchable images here.
-    Use find_all_image_and_version_paths for a chart-wide scan that
-    includes both this and find_image_tag_paths; this on its own only
-    when just the registered paths are wanted."""
+    """(path, value) for every registered bare version field pinned in `values`.
+
+    Covers flat scalar fields find_image_tag_paths can't see (e.g.
+    "redisOperator.imageTag"). Unions version_paths_for with the nested-subchart
+    registry, which also lists fields excluded from the single-app-version list."""
     for dep in deps:
         values_key = values_key_of(dep)
         rels = set(version_paths_for(dep["name"])) | set(nested_subchart_registered_paths(dep["name"]))
@@ -291,34 +172,19 @@ def find_component_version_tags(values: YamlMapping, deps: list[ChartDependency]
 
 
 def find_all_image_and_version_paths(values: YamlMapping, deps: list[ChartDependency]) -> list[tuple[ImagePath, str]]:
-    """find_image_tag_paths(values) plus find_component_version_tags(values,
-    deps) — every image tag AND registered bare-version pin in one
-    combined [(path, value), ...] list. Use this (not find_image_tag_
-    paths alone) anywhere the FULL, exhaustive set of what's actually
-    pinned matters — detecting whether a component's image changed vs
-    baseline, most notably — never just the ordinary "image:"/
-    "...Image:" dict shape."""
+    """find_image_tag_paths plus find_component_version_tags: every pinned image tag and bare version.
+
+    Use this wherever the complete set matters, e.g. detecting image changes vs baseline."""
     return list(find_image_tag_paths(values)) + list(find_component_version_tags(values, deps))
 
 
 def resolve_entry_path(entry_name: str, paths: Collection[tuple[str, ...]]):
-    """Match an images-manifest entry name (e.g. "zgw-office-addin-frontend")
-    to a values-tree path (e.g. ("zgw-office-addin", "frontend")) by comparing
-    word-split, concatenated path segments — no hardcoded name list.
+    """Match an images-manifest entry name to a values-tree path by word-split path segments.
 
-    The innermost path segment must match the entry's last word: without that,
-    sibling paths sharing a coincidental prefix (e.g. zac.solr-operator.solr
-    vs zac.solr-operator.zookeeper-operator.zookeeper — both start with
-    "zac"+"solr"+"operator") are indistinguishable by substring matching alone.
-
-    A path's own trailing "image"/"...Image" segment (see
-    find_image_tag_paths — the generic marker for which key under that
-    parent actually holds the tag, not a meaningful descriptor on its
-    own) is excluded from matching, the same way a path built this
-    function's original way (before more than one image-key name became
-    possible) never had it there to begin with. The full path, trailing
-    segment included, is still what gets returned — callers use it
-    as-is for a dict lookup back into whatever produced it."""
+    The innermost segment must match the entry's last word, otherwise siblings
+    with a shared prefix (zac.solr-operator.solr vs ...zookeeper-operator.zookeeper)
+    are indistinguishable. A trailing "image"/"...Image" segment is ignored for
+    matching but kept in the returned path."""
     entry_words = words_of(entry_name)
     if not entry_words:
         return None
@@ -345,16 +211,11 @@ def resolve_entry_path(entry_name: str, paths: Collection[tuple[str, ...]]):
 def resolve_entry_image_path(
     name: str, paths: Collection[ImagePath], repo_map: Mapping[str, ImagePath] | None = None
 ) -> ImagePath | None:
-    """Match an images-manifest entry's "name:" to a values-tree path —
-    an exact repo_map lookup first
-    (see lib.chart.repository_path_map: under the current strip-
-    registry convention an entry's "name:" IS the repository in that
-    same stripped form, so this is a direct dict hit, not a guess),
-    falling back to resolve_entry_path's fuzzy name-word matching when
-    repo_map has nothing for it (no repo_map given, an older manifest
-    entry still under the legacy hand-translated slug convention, or a
-    nested image with no Chart.yaml dependency of its own — e.g. a
-    component's bundled sidecar — that repo_map doesn't cover at all)."""
+    """Match an images-manifest entry's "name:" to a values-tree path.
+
+    Exact repo_map lookup first; falls back to resolve_entry_path's fuzzy matching
+    for entries repo_map doesn't cover (legacy slugs, sidecars without their own
+    dependency)."""
     if repo_map:
         path = repo_map.get(name)
         if path is not None and path in paths:

@@ -1,12 +1,6 @@
-"""update-image-version's main() doc-update path for a sidecar bump (not
-a dependency's own primary image) -- gets the canonical "<values_key> -
-<basename>" row/section name (lib.chart.repo_and_path_resolution.
-doc_row_name) and chart column "-", the row check_docs_consistency
-expects. No network needed: lib.registry.registry_tag_exists is
-monkeypatched via the uiv module's own imported binding (update_image_
-version lives in lib.image.version, which resolves `registry_tag_exists`
-via ITS OWN globals — see lib.image.version's import — so tests patch
-that module directly, same as tests/lib/test_image_version.py does)."""
+"""Sidecar-bump doc updates: row/section named "<values_key> - <image-basename>"
+with chart "-", as check_docs_consistency expects. registry_tag_exists is
+patched on lib.image.version, whose globals it resolves through."""
 
 import subprocess
 
@@ -64,10 +58,8 @@ REDIS_VALUES_TMPL = (
 def test_main_sidecar_bump_gets_disambiguated_row_name(
     uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """redis-ha's own image lives under "redis-operator" but isn't that
-    dependency's own registered primary image (image_paths_for defaults
-    to just "image", which doesn't exist here) -- the row/section must
-    be named "redis-operator - redis", not bare "redis-operator"."""
+    """redis-ha's image lives under redis-operator but isn't its primary
+    image, so the row is "redis-operator - redis"."""
     write_chart_yaml(tmp_path, [("redis-operator", None)])
     values_path = write_values(tmp_path, REDIS_VALUES_TMPL.format(version="8.6.2", digest="a" * 64))
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
@@ -97,8 +89,7 @@ def test_main_sidecar_bump_gets_disambiguated_row_name(
     assert "| redis-operator - redis | 8.6.2 → 8.6.6 | - | - |" in upgrade
     assert "### redis-operator - redis 8.6.2 → 8.6.6" in upgrade
 
-    # No git repo at all here, so the baseline (and any schema diff) can
-    # never be resolved — no values-deltas.md section gets written.
+    # No git repo, so no baseline: no values-deltas.md section.
     deltas = (uiv.DOC_DIR / "0.9.0-to-1.0.0-values-deltas.md").read_text(encoding="utf-8")
     assert "## redis-operator - redis" not in deltas
 
@@ -109,11 +100,8 @@ def test_main_sidecar_bump_gets_disambiguated_row_name(
 def test_main_sidecar_bump_does_not_corrupt_dependencys_own_row(
     uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """A pre-existing "redis-operator" row (the dependency's own,
-    unrelated bump) must be left completely untouched by a redis-ha
-    sidecar bump -- before the disambiguated name, find_component_row
-    would have matched and overwritten THIS row instead of inserting a
-    new one, since both normalize to "redisoperator"."""
+    """A sidecar bump leaves the dependency's own "redis-operator" row alone;
+    both names normalize to "redisoperator"."""
     write_chart_yaml(tmp_path, [("redis-operator", None)])
     values_path = write_values(tmp_path, REDIS_VALUES_TMPL.format(version="8.6.2", digest="a" * 64))
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
@@ -148,11 +136,8 @@ def test_main_sidecar_bump_does_not_corrupt_dependencys_own_row(
 def test_main_sidecar_reset_to_baseline_uses_raw_values_key(
     uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Resetting the sidecar bump back to its exact baseline version must
-    still correctly detect "nothing left to document" -- reset_to_baseline
-    is computed from compute_changed_components' own top-level-key set,
-    which never contains the disambiguated "values_key (basename)" form,
-    so it must be checked against the raw values_key, not `friendly`."""
+    """Reset to baseline is detected against the raw values_key, since
+    compute_changed_components never holds the disambiguated name."""
     write_chart_yaml(tmp_path, [("redis-operator", None)])
     write_values(tmp_path, REDIS_VALUES_TMPL.format(version="8.6.2", digest="a" * 64))
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)

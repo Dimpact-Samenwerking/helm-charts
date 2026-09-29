@@ -1,5 +1,4 @@
-"""Loads fix-vendored-tgz (a hyphenated filename, not importable normally)
-as a module named `sub` so tests can call its functions directly."""
+"""Load fix-vendored-tgz (hyphenated, not importable) as module `sub`."""
 
 import importlib.util
 

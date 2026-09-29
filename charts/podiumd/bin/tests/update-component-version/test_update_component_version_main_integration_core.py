@@ -1,8 +1,5 @@
-"""main() integration (success paths, per-component regression coverage)
-and main() handling already-current versions: split out of the former,
-monolithic test_update_component_version.py for pylint's too-many-lines
-check. block_real_subprocess_calls (used across nearly the whole original
-file) now lives in conftest.py as a session-wide autouse fixture."""
+"""main() integration: success paths, per-component regressions, and
+already-current versions."""
 
 import subprocess
 
@@ -24,9 +21,8 @@ OLD_DIGEST = "a" * 64
 def setup_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType):
     chart_yaml = tmp_path / "Chart.yaml"
     values_yaml = tmp_path / "values.yaml"
-    # written as raw text (not yaml.safe_dump, which alphabetizes keys) so
-    # "name:" is the block's first key — same convention as the real
-    # Chart.yaml, which update_chart_yaml's line-scan depends on.
+    # Raw text, not yaml.safe_dump (alphabetizes keys): update_chart_yaml's
+    # line-scan needs "name:" first, as in the real Chart.yaml.
     chart_yaml.write_text(
         "version: 4.9.0\n"
         "dependencies:\n"
@@ -53,28 +49,17 @@ def setup_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType)
 
 
 def mock_registry_passes(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, digest_char="b"):
-    """A component whose values.yaml image path has an explicit
-    "repository:" (e.g. zac) delegates its tag update to
-    lib.image.version.update_image_version, which resolves
-    `registry_tag_exists` via ITS OWN globals — not ucv's — so a main()
-    test mocking this avoids a real network call for the delegated-path
-    write itself. The upfront verification gate (fallback-path digests
-    included) is covered separately by mock_verify_passes."""
+    """Mock registry_tag_exists in lib.image.version: the delegated tag update
+    for explicit-repository images resolves it via that module's globals."""
     digest = "sha256:" + digest_char * 64
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, digest))
 
 
 def mock_verify_passes(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, digest_char="b", calls=None):
-    """Fakes update-component-version's own upfront verify_component_version
-    step (a lib.chart.resolve_chart_values call + lib.chart.
-    check_image_versions call) so main()'s tests don't need real
-    helm/network access. resolve_chart_values/check_image_versions' own
-    correctness is covered by tests/lib/test_chart.py — this only fakes
-    "the chart version and its images exist", returning FOUND for every
-    path passed in. If `calls` is given, each check_image_versions
-    invocation's image_paths argument is appended to it — lets a test
-    assert the upfront check ran exactly once (no second/fallback
-    re-check)."""
+    """Fake the upfront verify_component_version step (FOUND for every path)
+    so tests need no helm/network. If `calls` is given, each
+    check_image_versions image_paths argument is appended, to assert the
+    check ran exactly once."""
     digest = "sha256:" + digest_char * 64
 
     def fake_check_image_versions(values, image_paths, app_version):
@@ -113,21 +98,9 @@ def test_main_writes_both_files_when_verify_passes(ucv: ModuleType, tmp_path: Pa
 def test_main_alias_component_argument_bumps_all_registered_lockstep_paths(
     ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Regression test (real bug, confirmed live against the real chart):
-    image_paths_for is keyed by the dependency's own Chart.yaml "name",
-    never its alias (see settings.yaml's component_resolution.image_
-    paths) — this used to pass the raw <component> CLI argument
-    straight through to image_paths_for(component) instead of the
-    already-resolved chart_name, so the ALIAS form ("kiss", the shorter,
-    more natural one every doc/script elsewhere in this chart uses)
-    silently fell back to the generic default_image_paths = ["image"],
-    bumping only kiss.image.tag and leaving kiss.settings.syncJobs.
-    image.tag — registered as a co-equal lockstep path — completely
-    untouched, with no error at all. No settings.yaml override needed
-    here — kiss-chart is already registered this way in the real
-    component_resolution.image_paths, which lib.settings falls back to
-    even with CHART_DIR pointed at this tmp_path (no etc/settings.yaml
-    under it)."""
+    """Regression: image_paths_for is keyed by Chart.yaml name, not alias, so
+    the alias argument ("kiss") must be resolved first; otherwise it falls
+    back to ["image"] and silently skips the lockstep syncJobs image tag."""
     chart_yaml = tmp_path / "Chart.yaml"
     values_yaml = tmp_path / "values.yaml"
     chart_yaml.write_text(
@@ -173,9 +146,7 @@ def test_main_alias_component_argument_bumps_all_registered_lockstep_paths(
 def test_main_invokes_fix_helm_doc(
     ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, block_real_subprocess_calls
 ):
-    """The version/tag bump above changes values.yaml, so README.md's
-    helm-docs-generated table can go stale in the same commit if this
-    doesn't run — see fix-helm-doc."""
+    """values.yaml changed, so fix-helm-doc must run or README.md goes stale."""
     calls = block_real_subprocess_calls
     _chart_yaml, _values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
     mock_verify_passes(monkeypatch, ucv)
@@ -188,8 +159,7 @@ def test_main_invokes_fix_helm_doc(
 
 
 def test_main_fails_when_fix_helm_doc_fails(ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """A failing fix-helm-doc leaves README.md stale, so main() must stop
-    with an error instead of carrying on."""
+    """A failing fix-helm-doc leaves README.md stale, so main() must stop."""
     setup_repo(tmp_path, monkeypatch, ucv)
     mock_verify_passes(monkeypatch, ucv)
     mock_registry_passes(monkeypatch, ucv, "b")
@@ -210,9 +180,8 @@ def test_main_fails_when_fix_helm_doc_fails(ucv: ModuleType, tmp_path: Path, mon
 def test_main_re_vendors_after_writing_chart_yaml(
     ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, block_real_subprocess_calls
 ):
-    """The Chart.yaml bump leaves charts/ + Chart.lock stale; main() must
-    re-vendor as its last step (after fix-helm-doc), against the new
-    Chart.yaml, so the next script starts from an in-sync state."""
+    """The Chart.yaml bump leaves charts/ and Chart.lock stale: main() must
+    re-vendor last (after fix-helm-doc) so the next script starts in sync."""
     calls = block_real_subprocess_calls
     chart_yaml, _values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
     mock_verify_passes(monkeypatch, ucv)
@@ -260,12 +229,8 @@ def test_main_runs_fix_doc_consistency_after_re_vendoring(
 
 
 def setup_native_component_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType):
-    """frankgateway (see lib.chart.NATIVE_COMPONENTS): a real component
-    with its own top-level values.yaml key and image, but no Chart.yaml
-    dependency at all — implemented via podiumd's own templates instead
-    of a vendored sub-chart. Chart.yaml still has a real, unrelated
-    dependency (zac) so a test can assert it's left completely
-    untouched, not just absent an entry for frankgateway."""
+    """frankgateway: a native component (own values.yaml key and image, no
+    Chart.yaml dependency). zac is present to assert Chart.yaml is untouched."""
     chart_yaml = tmp_path / "Chart.yaml"
     values_yaml = tmp_path / "values.yaml"
     chart_yaml.write_text(
@@ -299,12 +264,8 @@ def setup_native_component_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 def test_main_native_component_bumps_values_yaml_never_touches_chart_yaml(
     ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """chart-version "native" (case-insensitive) skips find_dependency/
-    update_chart_yaml entirely and resolves the image repository straight
-    from values.yaml instead of pulling a chart — real end-to-end
-    regression coverage for frankgateway, alongside the unit-level
-    make_changes_section/values_delta_bullet/update_images_manifest tests
-    above."""
+    """chart-version "native" skips the Chart.yaml bump and resolves the image
+    repository from values.yaml (frankgateway end-to-end)."""
     chart_yaml, values_yaml = setup_native_component_repo(tmp_path, monkeypatch, ucv)
     original_chart_yaml = chart_yaml.read_text(encoding="utf-8")
     mock_verify_passes(monkeypatch, ucv)
@@ -333,10 +294,8 @@ def test_main_native_component_name_ignores_case(
 def test_main_native_component_rejects_unregistered_component(
     ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """ "native" is only valid for a settings.yaml component_resolution.
-    native_components component — a real Chart.yaml dependency like zac
-    must be rejected with a clear error rather than silently skipping
-    its own chart-version bump."""
+    """ "native" is rejected for a real Chart.yaml dependency rather than
+    silently skipping its chart bump."""
     setup_native_component_repo(tmp_path, monkeypatch, ucv)
     monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "native"])
 
@@ -344,18 +303,15 @@ def test_main_native_component_rejects_unregistered_component(
         ucv.main()
 
 
+NEW_KEYCLOAK_DIGEST = "d" * 64
+KEYCLOAK_OLD_DIGEST = "c" * 64
+
+
 def setup_keycloak_operator_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType):
-    """The real values.yaml structure: operator.image has NO override at
-    all (relies entirely on the vendored adfinis chart's own
-    "{{ .Values.operator.image.tag | default .Chart.AppVersion }}" +
-    matching "sha:" default — deliberately not managed by
-    update-component-version or settings.yaml's component_resolution.
-    image_paths, since an explicit override here would only reintroduce
-    a way for tag and digest to drift apart). operator.config.
-    keycloakImage IS an explicit, intentional override (a Keycloak
-    server version ahead of this operator chart version's own
-    appVersion) — the one path this component's component_resolution.
-    image_paths entry actually manages."""
+    """Real values.yaml shape: keycloak.image (native server image) holds the
+    &keycloakImage* anchors; keycloak-operator.operator.image is pinned
+    explicitly; operator.config.keycloakImage aliases the anchors. Both use
+    split "tag:" + "sha:", and versions move independently."""
     chart_yaml = tmp_path / "Chart.yaml"
     values_yaml = tmp_path / "values.yaml"
     chart_yaml.write_text(
@@ -368,16 +324,23 @@ def setup_keycloak_operator_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
         encoding="utf-8",
     )
     values_yaml.write_text(
+        "keycloak:\n"
+        "  image:\n"
+        "    repository: &keycloakImageRepo quay.io/keycloak/keycloak\n"
+        '    tag: &keycloakImageVersion "26.7.2"\n'
+        f'    sha: &keycloakImageDigest "{KEYCLOAK_OLD_DIGEST}"\n'
         "keycloak-operator:\n"
         "  enabled: true\n"
         "  operator:\n"
         "    image:\n"
         "      repository: quay.io/keycloak/keycloak-operator\n"
+        '      tag: "26.7.2"\n'
+        f'      sha: "{OLD_DIGEST}"\n'
         "    config:\n"
         "      keycloakImage:\n"
-        "        repository: quay.io/keycloak/keycloak\n"
-        '        tag: "26.7.2"\n'
-        f'        sha: "{OLD_DIGEST}"\n',
+        "        repository: *keycloakImageRepo\n"
+        "        tag: *keycloakImageVersion\n"
+        "        sha: *keycloakImageDigest\n",
         encoding="utf-8",
     )
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
@@ -392,39 +355,72 @@ def setup_keycloak_operator_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     return chart_yaml, values_yaml
 
 
-def test_main_bumps_only_config_keycloak_image_not_operator_image(
+KEYCLOAK_ALIAS_BLOCK = (
+    "    config:\n"
+    "      keycloakImage:\n"
+    "        repository: *keycloakImageRepo\n"
+    "        tag: *keycloakImageVersion\n"
+    "        sha: *keycloakImageDigest\n"
+)
+
+
+def test_main_keycloak_operator_bumps_only_operator_image_not_server_image(
     ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """update-component-version keycloak-operator 26.7.3 1.12.1 must
-    bump ONLY operator.config.keycloakImage, written as tag + separate
-    sha (never a combined @sha256 pin, which would be an invalid double
-    digest for the adfinis chart's own template) — operator.image is
-    deliberately left completely untouched, with no override added."""
+    """Bumping keycloak-operator writes only operator.image as tag + separate
+    sha (a combined @sha256 would double-digest the adfinis template); the
+    server image is left untouched."""
     _chart_yaml, values_yaml = setup_keycloak_operator_repo(tmp_path, monkeypatch, ucv)
     mock_verify_passes(monkeypatch, ucv, "b")
 
-    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "d" * 64))
+    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + NEW_KEYCLOAK_DIGEST))
     monkeypatch.setattr("sys.argv", ["update-component-version", "keycloak-operator", "26.7.3", "1.12.1"])
 
     ucv.main()  # success path does not raise
 
     updated = values_yaml.read_text(encoding="utf-8")
-    assert updated.count('tag: "26.7.3"') == 1
-    assert f'sha: "{"d" * 64}"' in updated  # config.keycloakImage's own new sha, replaced
+    assert (
+        "    image:\n"
+        "      repository: quay.io/keycloak/keycloak-operator\n"
+        '      tag: "26.7.3"\n'
+        f'      sha: "{NEW_KEYCLOAK_DIGEST}"\n'
+    ) in updated
     assert OLD_DIGEST not in updated
-    assert "26.7.2" not in updated
     assert "@sha256" not in updated  # never embedded -- would double-digest this chart's template
-    # operator.image itself: untouched, still no tag/sha override at all
-    assert "  operator:\n    image:\n      repository: quay.io/keycloak/keycloak-operator\n    config:\n" in updated
+    # the server image: anchors and aliases untouched
+    assert '    tag: &keycloakImageVersion "26.7.2"\n' in updated
+    assert f'    sha: &keycloakImageDigest "{KEYCLOAK_OLD_DIGEST}"\n' in updated
+    assert KEYCLOAK_ALIAS_BLOCK in updated
+
+
+def test_main_native_keycloak_bumps_server_image_anchor_site_only(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Bumping native keycloak writes the server image at its anchor site as
+    tag + sha; the aliases follow; operator.image and Chart.yaml untouched."""
+    chart_yaml, values_yaml = setup_keycloak_operator_repo(tmp_path, monkeypatch, ucv)
+    original_chart_yaml = chart_yaml.read_text(encoding="utf-8")
+    mock_verify_passes(monkeypatch, ucv, "b")
+
+    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + NEW_KEYCLOAK_DIGEST))
+    monkeypatch.setattr("sys.argv", ["update-component-version", "keycloak", "26.7.3", "native"])
+
+    ucv.main()  # success path does not raise
+
+    updated = values_yaml.read_text(encoding="utf-8")
+    assert chart_yaml.read_text(encoding="utf-8") == original_chart_yaml
+    assert '    tag: &keycloakImageVersion "26.7.3"\n' in updated
+    assert f'    sha: &keycloakImageDigest "{NEW_KEYCLOAK_DIGEST}"\n' in updated
+    assert KEYCLOAK_OLD_DIGEST not in updated
+    assert "@sha256" not in updated
+    assert KEYCLOAK_ALIAS_BLOCK in updated
+    # operator.image: untouched
+    assert f'      tag: "26.7.2"\n      sha: "{OLD_DIGEST}"\n' in updated
 
 
 def setup_eck_operator_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType):
-    """eck-operator's own upstream chart uses a split "tag:"/"digest:"
-    convention (see lib.settings.digest_pinning_exceptions) — confirmed
-    against the vendored eck-operator chart's own templates/_helpers.tpl,
-    which literally FAILS the render if "image.digest" doesn't start
-    with "sha256:" — a stricter requirement than the adfinis keycloak-
-    operator chart's own bare-hex "sha:" convention."""
+    """eck-operator uses split "tag:"/"digest:", and its _helpers.tpl fails
+    the render unless image.digest starts with "sha256:"."""
     chart_yaml = tmp_path / "Chart.yaml"
     values_yaml = tmp_path / "values.yaml"
     chart_yaml.write_text(
@@ -460,18 +456,9 @@ def setup_eck_operator_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv
 def test_main_eck_operator_writes_digest_field_correctly_regression(
     ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Regression test for real bug #2 (this iteration's plan): eck-
-    operator.image's own sibling field is "digest:", not "sha:" — before
-    this fix, locate_tag_and_sha/write_tag_and_sha hardcoded "sha",
-    which would have searched for a nonexistent "sha:" line and
-    INSERTED a bogus, unused one while leaving the real "digest:" field
-    stale (never even reachable in practice before this fix — eck-
-    operator wasn't in the write-side allowlist at all). Also confirms
-    the WRITTEN value keeps its own "sha256:" prefix — eck-operator's
-    own vendored chart literally fails the render if image.digest
-    doesn't start with "sha256:" (unlike keycloak's bare-hex "sha:"),
-    so writing bare hex here would produce a broken chart, not merely a
-    stylistic mismatch."""
+    """Regression: eck-operator's sibling field is "digest:", not "sha:";
+    it must be updated in place (no bogus "sha:" inserted) and keep the
+    "sha256:" prefix its chart requires."""
     _chart_yaml, values_yaml = setup_eck_operator_repo(tmp_path, monkeypatch, ucv)
     mock_verify_passes(monkeypatch, ucv)
     monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "e" * 64))
@@ -490,15 +477,9 @@ def test_main_eck_operator_writes_digest_field_correctly_regression(
 def setup_keycloak_operator_repo_with_operator_image_tag(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType
 ):
-    """Same repo shape as setup_keycloak_operator_repo, but operator.
-    image ALSO has an explicit "tag:"/"sha:" override of its own — the
-    real, corrected picture confirmed directly against values.yaml for
-    real bug #1 (this iteration's plan): operator.image is NOT "left
-    with no override at all" as update-component-version's own stale
-    comment used to claim; it's pinned ahead of the vendored chart's own
-    default for a CVE fix, with its own independent repository (quay.io/
-    keycloak/keycloak-operator, distinct from config.keycloakImage's own
-    quay.io/keycloak/keycloak)."""
+    """Like setup_keycloak_operator_repo, but operator.image also has its own
+    tag/sha override (pinned ahead of the chart default for a CVE fix) with
+    its own repository, distinct from config.keycloakImage's."""
     chart_yaml = tmp_path / "Chart.yaml"
     values_yaml = tmp_path / "values.yaml"
     chart_yaml.write_text(
@@ -541,23 +522,9 @@ def setup_keycloak_operator_repo_with_operator_image_tag(
 def test_main_keycloak_operator_operator_image_gets_independent_digest_regression(
     ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Regression test for real bug #1 (this iteration's plan): keycloak-
-    operator.operator.image is now included in the write-side allowlist
-    (settings.yaml's digest_pinning.exceptions, writable: true) — this
-    test registers it via a real tmp_path/etc/settings.yaml override of
-    component_resolution.image_paths (the SEPARATE registry controlling
-    which paths update-component-version's own <app-version> argument
-    actually targets for this component; not itself part of this
-    iteration's fix, see the plan's own "no fix needed" note there) so
-    both operator.image and operator.config.keycloakImage are bumped in
-    the SAME run, each resolving its digest against its OWN, independent
-    repository (quay.io/keycloak/keycloak-operator vs. quay.io/keycloak/
-    keycloak) — mocking two DIFFERENT registry responses and asserting
-    each path gets its own correct digest, never one bleeding into the
-    other. A real settings.yaml file is used (not a monkeypatch of a raw
-    dict — that constant no longer exists); CHART_DIR is already
-    monkeypatched to this tmp_path by the setup helper above, so
-    image_paths_for(chart_name, CHART_DIR) picks it up."""
+    """Regression: with both operator.image and operator.config.keycloakImage
+    registered (via a tmp etc/settings.yaml), one run bumps both, each
+    resolving its digest against its own repository, never swapped."""
     _chart_yaml, values_yaml, operator_old_digest = setup_keycloak_operator_repo_with_operator_image_tag(
         tmp_path, monkeypatch, ucv
     )
@@ -588,8 +555,7 @@ def test_main_keycloak_operator_operator_image_gets_independent_digest_regressio
 
     updated = values_yaml.read_text(encoding="utf-8")
     assert updated.count('tag: "26.7.3"') == 2
-    # Each path's own digest under its own repository -- never swapped, even
-    # though both mocked digests would otherwise just be "present somewhere".
+    # Each path gets its own repository's digest, never swapped.
     assert (
         f'      repository: quay.io/keycloak/keycloak-operator\n      tag: "26.7.3"\n      sha: "{operator_digest}"\n'
     ) in updated
@@ -619,22 +585,10 @@ KEYCLOAK_ALIAS_LINES = [
 
 
 def test_write_tag_and_sha_alias_reference_left_untouched_anchor_still_updated_regression():
-    """Regression test for real bug #3 (this iteration's plan): keycloak.
-    image's own "tag:"/"sha:" fields are bare YAML alias references
-    (*keycloakImageVersion/*keycloakImageDigest) to the anchor keycloak-
-    operator.operator.config.keycloakImage defines on its OWN "tag:"/
-    "sha:" lines — not independent literals. Before this fix, write_tag_
-    and_sha had no alias-awareness at all and would have happily
-    clobbered "tag: *keycloakImageVersion" into a literal new value,
-    permanently severing the anchor/alias link.
-
-    Confirms: (1) the alias site is left completely untouched (2) the
-    ANCHOR's own site DOES get written for real in the same run, with
-    its own "&anchor" tag preserved (see lib.chart.replace_scalar_
-    value's own anchor-preservation fix — without THAT fix, this would
-    silently strip the anchor too, turning the still-untouched "*anchor"
-    alias into a dangling reference: a YAML parse error on the very
-    next load)."""
+    """Regression: keycloak.image's tag/sha are aliases of the anchors on
+    operator.config.keycloakImage. The alias site must stay untouched and
+    the anchor site be written with its "&anchor" kept; dropping it would
+    leave a dangling alias (YAML parse error)."""
     lines = list(KEYCLOAK_ALIAS_LINES)
 
     # The anchor's own site: keycloak-operator.operator.config.keycloakImage
@@ -667,7 +621,7 @@ def test_write_tag_and_sha_alias_reference_left_untouched_anchor_still_updated_r
 
     assert tag_written is False
 
-    # left completely untouched — never clobbered into a literal
+    # never clobbered into a literal
     assert lines[alias_tag_idx] == original_alias_tag_line == "    tag: *keycloakImageVersion\n"
     assert lines[alias_sha_idx] == original_alias_sha_line == "    sha: *keycloakImageDigest\n"
 

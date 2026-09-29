@@ -1,8 +1,4 @@
-"""lib.registry.parse_repo / registry_tag_exists / historical_digests_for_tag /
-list_tags / find_more_specific_tag_at_same_digest / is_sliding_tag — no
-network needed, urllib.request.urlopen is monkeypatched wherever a live
-fetch would happen; historical_digests_for_tag uses a real, hermetic temp
-git repo (git log needs a real working tree)."""
+"""lib.registry tests; urlopen is monkeypatched, git history uses a temp repo."""
 
 import json
 import subprocess
@@ -131,10 +127,7 @@ def test_registry_tag_exists_passes_timeout_when_given(libregistry: ModuleType, 
 
 
 def test_registry_tag_exists_omits_timeout_kwarg_by_default(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    """Without an explicit timeout, urlopen must be called exactly like
-    before this param existed (no timeout kwarg at all) — a caller mocking
-    urlopen with a plain single-arg callable (every existing test here)
-    must keep working unmodified."""
+    """No timeout kwarg by default, so single-arg urlopen mocks keep working."""
 
     def fake_urlopen(req):
         return FakeResponse(headers={"Docker-Content-Digest": "sha256:" + "a" * 64})
@@ -147,10 +140,7 @@ def test_registry_tag_exists_omits_timeout_kwarg_by_default(libregistry: ModuleT
 def test_registry_tag_exists_discovers_token_via_bearer_challenge(
     libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
-    """A host with no TOKEN_ENDPOINTS entry (like docker.elastic.co) that
-    still needs a token: the first attempt 401s with a WWW-Authenticate
-    challenge naming its own realm, which is then queried for a token and
-    retried — no hardcoded host-specific endpoint required."""
+    """A host without a TOKEN_ENDPOINTS entry gets its token from the 401 Bearer challenge realm."""
     calls = []
 
     def fake_urlopen(arg):
@@ -183,9 +173,7 @@ def test_registry_tag_exists_discovers_token_via_bearer_challenge(
 
 
 def test_registry_tag_exists_401_without_challenge_reraises(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    """A 401 that isn't a Bearer challenge at all (a real auth wall — see
-    UNVERIFIABLE_HOSTS) is not something a token fetch could ever fix —
-    must propagate unchanged, not loop or crash."""
+    """A 401 without a Bearer challenge is a real auth wall: propagate, don't retry."""
 
     def fake_urlopen(req):
         raise urllib.error.HTTPError(req.full_url, 401, "Unauthorized", Message(), BytesIO(b""))
@@ -197,12 +185,7 @@ def test_registry_tag_exists_401_without_challenge_reraises(libregistry: ModuleT
 
 
 def test_registry_tag_exists_issues_a_head_request(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    """Docker Hub's own documented pull-rate-limit policy counts a manifest
-    GET fully against the anonymous quota but not a HEAD (docs.docker.com/
-    docker-hub/usage/pulls/) — confirmed live 2026-09-14 against docker.io
-    and ghcr.io (identical Docker-Content-Digest header on both). This
-    only ever reads response headers, never the body, so it must issue
-    HEAD, not GET."""
+    """Only headers are needed, and Docker Hub counts manifest GETs, not HEADs, against the rate limit."""
     seen = {}
 
     def fake_urlopen(req):
@@ -215,10 +198,7 @@ def test_registry_tag_exists_issues_a_head_request(libregistry: ModuleType, monk
 
 
 def test_registry_tag_exists_falls_back_to_get_on_405(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    """A registry that doesn't support HEAD on the manifest endpoint
-    answers 405 Method Not Allowed — registry_tag_exists must retry that
-    one call with GET rather than treating it as a hard failure, and still
-    return the correct result."""
+    """A 405 on HEAD (unsupported by that registry) is retried once with GET."""
     calls = []
 
     def fake_urlopen(req):
@@ -237,10 +217,7 @@ def test_registry_tag_exists_falls_back_to_get_on_405(libregistry: ModuleType, m
 def test_registry_tag_exists_404_on_head_returns_false_without_get_fallback(
     libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
-    """A 404 is a genuine "tag doesn't exist" answer regardless of method —
-    must NOT trigger the 405 GET-fallback path, which is specifically for
-    "this registry doesn't support HEAD here", a different condition than
-    "not found"."""
+    """A 404 means "not found", so it must not trigger the 405 GET fallback."""
 
     def fake_urlopen(req):
         assert req.get_method() == "HEAD"
@@ -255,9 +232,7 @@ def test_registry_tag_exists_404_on_head_returns_false_without_get_fallback(
 def test_registry_tag_exists_500_on_head_reraises_without_get_fallback(
     libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
-    """Only a 405 means "try GET instead" — any other error (a real server
-    problem, say) must surface as itself, not be masked by a speculative
-    retry under a different method."""
+    """Only a 405 triggers the GET retry; other errors surface unchanged."""
 
     def fake_urlopen(req):
         assert req.get_method() == "HEAD"
@@ -272,10 +247,7 @@ def test_registry_tag_exists_500_on_head_reraises_without_get_fallback(
 def test_registry_tag_exists_head_method_threaded_through_bearer_challenge_retry(
     libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
-    """_get_with_dynamic_auth's post-401-challenge retry (see that test
-    above for the non-HEAD version of this flow) must reuse the SAME HTTP
-    method as the original request — a HEAD request that 401s and gets a
-    token should retry as HEAD again, not silently upgrade to GET."""
+    """The post-401-challenge retry reuses the original HEAD method, not GET."""
     calls = []
 
     def fake_urlopen(arg):
@@ -308,9 +280,7 @@ def test_registry_tag_exists_head_method_threaded_through_bearer_challenge_retry
 
 
 def test_list_tags_still_issues_a_get_request(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    """list_tags genuinely reads the response body (the "tags" list) — it
-    must stay GET, unaffected by registry_tag_exists's own switch to
-    HEAD."""
+    """list_tags reads the body, so it must stay GET."""
     seen = {}
 
     def fake_urlopen(req):
@@ -331,10 +301,7 @@ def git(*args, cwd):
 
 @pytest.fixture
 def values_repo(tmp_path: Path):
-    """A real, hermetic git repo whose values.yaml history pins solr's tag
-    to THREE different digests across three commits (real drift, like this
-    project's own history), and zac's tag to just one (never observed to
-    change)."""
+    """Temp git repo: solr's tag pinned to three digests over history, zac's to one."""
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -419,10 +386,7 @@ def test_list_tags_empty_when_missing_from_response(libregistry: ModuleType, mon
 def test_list_tags_non_json_200_raises_urlerror_not_jsondecodeerror(
     libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
-    """A 200 response carrying an HTML rate-limit / interstitial page
-    (routine for Docker Hub / Cloudflare-fronted registries under load)
-    must degrade to a URLError — the type every caller already catches —
-    not a JSONDecodeError that aborts the whole verify-podiumd run."""
+    """A 200 HTML rate-limit page raises URLError (which callers catch), not JSONDecodeError."""
     monkeypatch.setattr(
         libregistry.urllib.request, "urlopen", lambda req: FakeResponse(body=b"<html>429 Too Many Requests</html>")
     )
@@ -586,9 +550,7 @@ def test_find_newest_same_variant_tag_returns_version_when_already_newest(
 def test_find_newest_same_variant_tag_ignores_different_variant(
     libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
-    """A newer version under a DIFFERENT suffix/variant (e.g. "-alpine"
-    vs. the pinned "-slim") is a different image entirely, not a
-    same-line release worth surfacing."""
+    """A newer tag with a different suffix ("-alpine" vs "-slim") is a different image."""
     monkeypatch.setattr(libregistry, "list_tags", lambda host, repo: ["3.99-alpine"])
     assert libregistry.find_newest_same_variant_tag("docker.io", "library/python", "3.14-slim") == "3.14-slim"
 
@@ -596,8 +558,7 @@ def test_find_newest_same_variant_tag_ignores_different_variant(
 def test_find_newest_same_variant_tag_compares_numeric_not_lexicographic(
     libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
-    """ "1.9.0" must sort before "1.10.0" as a version — a plain string
-    comparison would get this backwards."""
+    """ "1.9.0" sorts before "1.10.0" (numeric, not string, comparison)."""
     monkeypatch.setattr(libregistry, "list_tags", lambda host, repo: ["1.9.0", "1.10.0"])
     assert libregistry.find_newest_same_variant_tag("docker.io", "org/repo", "1.9.0") == "1.10.0"
 
@@ -612,15 +573,7 @@ def test_find_newest_same_variant_tag_non_numeric_version_returns_itself(
 def test_find_newest_same_variant_tag_ignores_bare_ci_run_id_tags(
     libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
-    """Regression test for a real bug, confirmed live against ghcr.io/
-    wearefrank/frank-gateway: alongside real 3-component releases and an
-    old pre-semver 1-component build-number scheme, this repo ALSO
-    publishes dozens of bare GitHub Actions run-ID tags with no suffix —
-    e.g. "12294937630". Plain tuple comparison ((12294937630,) > (1, 1,
-    0)) let a run-ID tag "win" purely because it parses to a SHORTER
-    numeric tuple whose first component happens to be huge — the
-    component-count guard must reject it outright, regardless of value,
-    leaving the real newest same-arity release as the answer."""
+    """Tags with a different component count (bare CI run IDs) must not win on tuple comparison."""
     monkeypatch.setattr(
         libregistry,
         "list_tags",
@@ -628,7 +581,7 @@ def test_find_newest_same_variant_tag_ignores_bare_ci_run_id_tags(
             "57",
             "104",  # old pre-semver build-number scheme (1 component)
             "1.0.0",
-            "1.1.0",  # real releases (3 components) — same as version's own arity
+            "1.1.0",  # real releases, same arity as version
             "10617868164",
             "12294937630",  # bare CI run-ID tags (1 component, no suffix)
         ],
@@ -639,9 +592,7 @@ def test_find_newest_same_variant_tag_ignores_bare_ci_run_id_tags(
 def test_find_newest_same_variant_tag_still_finds_newer_release_among_ci_run_id_tags(
     libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
-    """Same shape as the regression above, but with a genuinely newer
-    same-arity release ALSO published — it must still be found, not
-    masked by the presence of the bare run-ID tags."""
+    """A newer same-arity release is still found among bare CI run-ID tags."""
     monkeypatch.setattr(
         libregistry,
         "list_tags",

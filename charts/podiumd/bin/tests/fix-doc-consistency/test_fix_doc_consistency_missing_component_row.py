@@ -1,5 +1,4 @@
-"""main() integration: adding a missing "Component versions" row for an
-undocumented component bump, plus its first missing-sidecar-row scenarios."""
+"""main() integration: adding missing "Component versions" and first missing-sidecar rows."""
 
 import subprocess
 
@@ -28,18 +27,10 @@ def set_argv_and_dir(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch, doc_dir, 
     monkeypatch.setattr(cdb, "current_chart_version", lambda: target)
 
 
-# --- main() integration: adding a missing "Component versions" row ---
-
-
 def test_main_collapses_pre_existing_double_blank_line_on_write(
     cdb: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Regression test (MD012, no-multiple-blanks): whatever the source —
-    a stray double blank line already sitting in the doc before this run
-    touched it at all, not something this specific run's own edit
-    introduced — must never survive a write this script makes. Uses its
-    own minimal fixture (not repo_with_undocumented_component_bumps) so
-    the seeded double blank line is the ONLY doc-quality issue in play."""
+    """MD012: a pre-existing double blank line must not survive any write this script makes."""
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -101,8 +92,7 @@ def test_main_collapses_pre_existing_double_blank_line_on_write(
             }
         ),
     )
-    # Deliberately seeded double blank line between the table and "##
-    # Changes" -- unrelated to the row this run is about to add.
+    # Pre-existing double blank line, unrelated to the row being added.
     write(
         doc_dir / "4.8.5-to-4.9.0-upgrade.md",
         "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
@@ -147,11 +137,7 @@ def test_main_adds_missing_row_with_component_specific_image_path(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """keycloak-operator's real app version lives at its own registered
-    lib.chart.COMPONENT_IMAGE_PATHS split-path — actual_app_version
-    resolves it just like a plain "<key>.image.tag" component, so the
-    new row gets a full app-version cell and Changes section, not a
-    TODO stub."""
+    """keycloak-operator's app version at operator.image (split "tag:"/"sha:") still gets a full row, not a TODO stub."""
     set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_component_bumps, "4.8.5")
     cdb.main()
 

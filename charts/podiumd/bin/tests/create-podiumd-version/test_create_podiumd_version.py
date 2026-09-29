@@ -1,17 +1,8 @@
-"""create-podiumd-version: bumps Chart.yaml's version/appVersion to the
-target named by the current branch, then delegates to create-doc-version
-for the outgoing (baseline) version. Also writes both baselines to
-release-baseline.yaml (lib.chart.write_release_baselines) -- upgrade_docs
-always, release_table only on a minor bump -- see bump_kind for the
-single-increment validation this all hinges on.
+"""create-podiumd-version: Chart.yaml bump, release-baseline.yaml writes
+(release_table only on a minor bump) and create-doc-version delegation.
 
-lib.gitutil.current_branch and lib.procutil.run_script (the
-create-doc-version delegation) are mocked out via cpv.* directly.
-find_repo_root, however, is only mocked to point at a real, hermetic
-temp git repo (the `repo` fixture) rather than faked outright -- main()
-now resolves both baselines to actual git refs via resolve_baseline_ref
-before it writes anything, and a bare tmp_path isn't a git repo at all,
-so that resolution needs something real to succeed against."""
+find_repo_root points at a real temp git repo because main() resolves both
+baselines to actual git refs before writing."""
 
 import subprocess
 
@@ -27,8 +18,7 @@ def git(*args, cwd):
 
 @pytest.fixture
 def repo(tmp_path: Path):
-    """A hermetic git repo tagged podiumd-4.8.5 and podiumd-4.9.0 -- the
-    two baselines success-path tests below bump away from/reference."""
+    """Hermetic git repo tagged podiumd-4.8.5 and podiumd-4.9.0."""
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -91,8 +81,7 @@ def test_bump_kind_skipped_minor_version_rejected(cpv: ModuleType):
 
 
 def test_bump_kind_major_version_change_rejected(cpv: ModuleType):
-    """Out of scope for this tool entirely -- not a third case to branch
-    on, just another invalid jump."""
+    """A major bump is out of scope: just another invalid jump."""
     assert cpv.bump_kind("4.9.0", "5.0.0") is None
 
 
@@ -220,8 +209,7 @@ def test_detached_head_fails_with_readable_message(
 def test_baseline_not_older_than_target_fails(
     cpv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """4.10.0 -> 4.9.0 isn't a valid single-increment jump either way --
-    same bump_kind()-based refusal as a skipped or major version."""
+    """A downgrade is refused like any non-single-increment jump."""
     chart_yaml = tmp_path / "Chart.yaml"
     write_chart_yaml(chart_yaml, "4.10.0")
     monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
@@ -238,12 +226,15 @@ def test_baseline_not_older_than_target_fails(
     assert "not a single minor increment" not in out  # exact phrasing is "or a single minor..."
 
 
-def test_baseline_equal_to_target_fails(
+def test_chart_at_target_without_upgrade_docs_baseline_fails(
     cpv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
+    """A rerun (Chart.yaml already at target) needs upgrade_docs for the
+    outgoing version; refuse when none is recorded."""
     chart_yaml = tmp_path / "Chart.yaml"
     write_chart_yaml(chart_yaml, "4.9.0")
     monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
+    monkeypatch.setattr(cpv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version"])
     monkeypatch.setattr(cpv, "find_repo_root", lambda chart_dir: tmp_path)
     monkeypatch.setattr(cpv, "current_branch", lambda repo_root: "feature/podiumd-4.9.0")
@@ -252,6 +243,29 @@ def test_baseline_equal_to_target_fails(
         cpv.main()
 
     assert exc_info.value.code == 1
+    assert "already at 4.9.0" in capsys.readouterr().out
+
+
+def test_chart_at_target_with_wrong_upgrade_docs_baseline_fails(
+    cpv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    chart_yaml = tmp_path / "Chart.yaml"
+    write_chart_yaml(chart_yaml, "4.9.2")
+    (tmp_path / "etc").mkdir()
+    (tmp_path / "etc" / "release-baseline.yaml").write_text(
+        'upgrade_docs: "4.9.0"\nrelease_table: "4.8.5"\n', encoding="utf-8"
+    )
+    monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
+    monkeypatch.setattr(cpv, "CHART_DIR", tmp_path)
+    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version"])
+    monkeypatch.setattr(cpv, "find_repo_root", lambda chart_dir: tmp_path)
+    monkeypatch.setattr(cpv, "current_branch", lambda repo_root: "feature/podiumd-4.9.2")
+
+    with pytest.raises(SystemExit) as exc_info:
+        cpv.main()
+
+    assert exc_info.value.code == 1
+    assert "4.9.0 -> 4.9.2 is not a single patch increment" in capsys.readouterr().out
 
 
 def test_major_version_bump_refused(
@@ -276,9 +290,8 @@ def test_major_version_bump_refused(
 def test_patch_bump_without_a_recorded_release_table_baseline_refused(
     cpv: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """No release-baseline.yaml at all yet -- a patch bump has nothing to
-    leave release_table unchanged AT, so it must refuse rather than
-    silently proceed with no release_table recorded."""
+    """A patch bump keeps release_table as-is, so with no
+    release-baseline.yaml it must refuse rather than record none."""
     chart_yaml = repo / "Chart.yaml"
     write_chart_yaml(chart_yaml, "4.9.0")
     monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
@@ -325,11 +338,8 @@ def test_patch_bump_with_unresolvable_existing_release_table_refused(
 def test_minor_bump_writes_both_baselines_and_delegates(
     cpv: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """Numeric comparison must beat lexical: 4.9.0 -> 4.10.0 would look
-    like a *downgrade* under plain string comparison ("4.9.0" > "4.10.0"
-    lexically), so this case doubles as the regression test for that. A
-    minor bump writes BOTH upgrade_docs and release_table to the same
-    outgoing baseline."""
+    """Regression: versions compare numerically ("4.9.0" > "4.10.0"
+    lexically). A minor bump writes both baselines."""
     chart_yaml = repo / "Chart.yaml"
     write_chart_yaml(chart_yaml, "4.9.0")
     monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
@@ -412,11 +422,8 @@ def test_success_propagates_create_doc_version_failure_exit_code(
 def test_baseline_unresolvable_fails_without_writing_anything(
     cpv: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """A baseline that doesn't resolve to a real podiumd-<baseline> tag or
-    feature/podiumd-<baseline> branch must refuse before touching
-    Chart.yaml or release-baseline.yaml -- same guard change-podiumd-
-    baseline enforces on write, reused here via
-    lib.gitutil.resolve_baseline_ref."""
+    """A baseline with no podiumd-<baseline> tag or branch is refused before
+    any write (same guard as change-podiumd-baseline)."""
     chart_yaml = repo / "Chart.yaml"
     write_chart_yaml(chart_yaml, "9.9.9")  # no podiumd-9.9.9 tag/branch exists
     monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
@@ -434,3 +441,78 @@ def test_baseline_unresolvable_fails_without_writing_anything(
     assert "could not resolve" in out
     assert chart_yaml.read_text().splitlines()[3] == "version: 9.9.9"  # untouched
     assert not (repo / "etc" / "release-baseline.yaml").is_file()
+
+
+# --- main(): rerun ---
+
+
+def _rerun_setup(cpv: ModuleType, repo: Path, monkeypatch: pytest.MonkeyPatch, chart: str, baselines: str, branch: str):
+    chart_yaml = repo / "Chart.yaml"
+    write_chart_yaml(chart_yaml, chart)
+    (repo / "etc").mkdir()
+    (repo / "etc" / "release-baseline.yaml").write_text(baselines, encoding="utf-8")
+    monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
+    monkeypatch.setattr(cpv, "CHART_DIR", repo)
+    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version"])
+    monkeypatch.setattr(cpv, "find_repo_root", lambda chart_dir: repo)
+    monkeypatch.setattr(cpv, "current_branch", lambda repo_root: branch)
+    monkeypatch.setattr(cpv, "run_script", lambda cmd, *a, **k: subprocess.CompletedProcess(cmd, 0))
+    return chart_yaml
+
+
+def test_rerun_with_everything_set_changes_nothing(
+    cpv: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    baselines = 'upgrade_docs: "4.9.0"\nrelease_table: "4.8.5"\n'
+    chart_yaml = _rerun_setup(cpv, repo, monkeypatch, "4.9.1", baselines, "feature/podiumd-4.9.1")
+    chart_before = chart_yaml.read_text(encoding="utf-8")
+    baselines_file = repo / "etc" / "release-baseline.yaml"
+    chart_mtime = chart_yaml.stat().st_mtime_ns
+    baselines_mtime = baselines_file.stat().st_mtime_ns
+
+    with pytest.raises(SystemExit) as exc_info:
+        cpv.main()
+
+    assert exc_info.value.code == 0
+    assert chart_yaml.read_text(encoding="utf-8") == chart_before
+    assert baselines_file.read_text(encoding="utf-8") == baselines
+    assert chart_yaml.stat().st_mtime_ns == chart_mtime
+    assert baselines_file.stat().st_mtime_ns == baselines_mtime
+    out = capsys.readouterr().out
+    assert "Chart.yaml: already at 4.9.1 (patch bump from 4.9.0)" in out
+    assert "upgrade_docs 4.9.0 (resolved to podiumd-4.9.0, already set)" in out
+    assert "release_table unchanged (4.8.5, resolved to podiumd-4.8.5)" in out
+
+
+def test_rerun_minor_bump_fixes_missing_release_table(
+    cpv: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    baselines = 'upgrade_docs: "4.9.0"\nrelease_table: "4.8.5"\n'
+    chart_yaml = _rerun_setup(cpv, repo, monkeypatch, "4.10.0", baselines, "feature/podiumd-4.10.0")
+
+    with pytest.raises(SystemExit) as exc_info:
+        cpv.main()
+
+    assert exc_info.value.code == 0
+    assert chart_yaml.read_text().splitlines()[3] == "version: 4.10.0"
+    baselines_text = (repo / "etc" / "release-baseline.yaml").read_text(encoding="utf-8")
+    assert baselines_text == 'upgrade_docs: "4.9.0"\nrelease_table: "4.9.0"\n'
+    assert "release_table 4.9.0 (resolved to podiumd-4.9.0)" in capsys.readouterr().out
+
+
+def test_rerun_after_interrupted_run_finishes_chart_bump(
+    cpv: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    """Baselines written but Chart.yaml not yet bumped: an ordinary first run."""
+    baselines = 'upgrade_docs: "4.9.0"\nrelease_table: "4.8.5"\n'
+    chart_yaml = _rerun_setup(cpv, repo, monkeypatch, "4.9.0", baselines, "feature/podiumd-4.9.1")
+
+    with pytest.raises(SystemExit) as exc_info:
+        cpv.main()
+
+    assert exc_info.value.code == 0
+    assert chart_yaml.read_text().splitlines()[3] == "version: 4.9.1"
+    assert (repo / "etc" / "release-baseline.yaml").read_text(encoding="utf-8") == baselines
+    out = capsys.readouterr().out
+    assert "4.9.0 -> 4.9.1 (patch bump)" in out
+    assert "upgrade_docs 4.9.0 (resolved to podiumd-4.9.0, already set)" in out

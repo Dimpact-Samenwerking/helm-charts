@@ -1,6 +1,5 @@
-"""main() integration: images-manifest entry-comment correction, reordering the
-table + Changes section + images manifest, and print formatting for multi-item
-lists."""
+"""main() integration: images-manifest entry comments, reordering, and print
+formatting of multi-item lists."""
 
 import subprocess
 
@@ -53,10 +52,9 @@ def test_main_corrects_stale_images_manifest_entry_comment(
 
 
 def _repo_with_zac_bump(tmp_path: Path, entry_name: str, entry_url: str) -> tuple[Path, Path]:
-    """A repo whose values.yaml bumps zac (ghcr.io/infonl/
-    zaakafhandelcomponent) 5.0.2 -> 5.1.0 since the podiumd-4.8.5 tag,
-    with an images-4.9.0.yaml entry under `entry_name`/`entry_url` and a
-    stale "5.0.1 -> 5.1.0" comment. Returns (doc_dir, images_path)."""
+    """Repo bumping zac 5.0.2 -> 5.1.0 since podiumd-4.8.5, with an
+    images-4.9.0.yaml entry carrying a stale "5.0.1 -> 5.1.0" comment.
+    Returns (doc_dir, images_path)."""
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -121,11 +119,8 @@ def _repo_with_zac_bump(tmp_path: Path, entry_name: str, entry_url: str) -> tupl
 def test_main_corrects_strip_registry_named_entry_via_repo_map(
     cdb: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Same as test_main_corrects_stale_images_manifest_entry_comment, but
-    with the images-manifest entry under the CURRENT strip-registry name
-    ("infonl/zaakafhandelcomponent") instead of the old short slug
-    ("zac") — main() must build repo_map from the real Chart.yaml/
-    values.yaml and pass it through for this to resolve at all."""
+    """With the strip-registry entry name, main() must pass a repo_map built
+    from the real Chart.yaml/values.yaml for the entry to resolve."""
     doc_dir, images_path = _repo_with_zac_bump(
         tmp_path, "infonl/zaakafhandelcomponent", "ghcr.io/infonl/zaakafhandelcomponent"
     )
@@ -138,10 +133,8 @@ def test_main_corrects_strip_registry_named_entry_via_repo_map(
 
 
 def test_main_corrects_url_then_name_in_one_run(cdb: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """An entry with a legacy name and a wrong url: the url is corrected
-    first, so the name follows the corrected url in the same run. With
-    the names corrected first, the wrong url's key is no known
-    repository, so the name stayed "zac" until a second run."""
+    """The url is corrected before the name, so a legacy name follows the
+    corrected url in the same run instead of needing a second run."""
     doc_dir, images_path = _repo_with_zac_bump(tmp_path, "zac", "ghcr.io/infonl/zac-old")
 
     set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
@@ -153,10 +146,8 @@ def test_main_corrects_url_then_name_in_one_run(cdb: ModuleType, tmp_path: Path,
 
 
 def test_main_adds_missing_images_manifest_entry(cdb: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """A component that changed vs baseline but has NO images-manifest
-    entry at all yet (the "changed vs ... but has no entry" gap verify-
-    podiumd's own doc-consistency check reports) gets a new entry
-    appended by main() — not just reported for manual review."""
+    """A changed component without a manifest entry gets one appended, not
+    just reported."""
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -224,10 +215,8 @@ def test_main_adds_missing_images_manifest_entry(cdb: ModuleType, tmp_path: Path
 
 @pytest.fixture
 def repo_with_out_of_order_doc(tmp_path: Path):
-    """Two components whose "Component versions" table row order and
-    "## Changes" block order are both the OPPOSITE of values.yaml's own
-    top-level key order (openzaak before openinwoner there, but the doc
-    lists Open Inwoner first)."""
+    """Table rows and "## Changes" blocks both in the opposite of values.yaml
+    key order."""
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -244,11 +233,7 @@ def repo_with_out_of_order_doc(tmp_path: Path):
             sort_keys=False,
         ),
     )
-    # sort_keys=False: values.yaml's own file order IS the ordering signal
-    # this feature reads (values_key_order) -- yaml.safe_dump's default
-    # alphabetical sort would silently reorder these two keys and defeat
-    # the whole point of this fixture (openzaak deliberately BEFORE
-    # openinwoner, opposite of the doc's row order below).
+    # sort_keys=False: file order is the ordering signal (values_key_order).
     write(
         tmp_path / "values.yaml",
         yaml.safe_dump(
@@ -323,13 +308,9 @@ def test_main_already_ordered_doc_reports_no_reordering(
 def test_main_reorders_a_sidecar_row_to_come_after_its_own_parent_row(
     cdb: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """A canonical sidecar row ("redis-operator - redis") resolves to the
-    SAME values_key_index as its owning dependency's own row ("redis-
-    operator") via match_dependency's fuzzy word-containment — before the
-    " - " secondary tie-break, two same-key items just kept whatever
-    relative order they already had (Python's sort is stable), silently
-    tolerating a sidecar appearing BEFORE its own parent. Here the doc
-    starts with the sidecar row first; it must end up after."""
+    """A sidecar row shares its parent's values_key_index; the " - "
+    tie-break must put it after the parent, since a stable sort alone keeps
+    a sidecar that came first."""
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -410,10 +391,8 @@ def test_main_reports_unmatched_components_one_per_line(
 def test_main_reports_unresolved_source_versions_one_per_line(
     cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """Multiple components whose source (baseline) version can't be
-    verified must each get their own line, not be crammed onto one
-    comma-joined line — the header states the count, one name per line
-    follows."""
+    """Unverifiable source versions are printed one per line under a count
+    header, not comma-joined."""
     write(
         repo.parents[1] / "Chart.yaml",
         yaml.safe_dump(

@@ -1,10 +1,6 @@
-"""check_subchart_image_visibility's render-gate (rendered_chart_paths),
-the removal of SUBCHART_VISIBILITY_EXEMPT (zaakbrug.staging is now an
-ordinary finding), and subchart_template_text (structurally
-unreferenced keys) — all further behavior of check_subchart_image_
-visibility / find_unresolved_subchart_images, a separate, report-only
-scan for images defined only in a vendored dependency's own default
-values.yaml."""
+"""check_subchart_image_visibility: render-gate (rendered_chart_paths),
+zaakbrug.staging as an ordinary finding, and the subchart_template_text
+filter for unreferenced keys."""
 
 import io
 import tarfile
@@ -30,20 +26,12 @@ def write_chart_yaml(chart_dir, deps):
 
 
 def make_tgz(charts_dir, name, version, values, templates=None, chart_yaml=None, extra_files=None):
-    """A minimal vendored <name>-<version>.tgz containing <name>/values.yaml
-    and, if `templates` is given (a {filename: text} dict), <name>/templates/
-    <filename> for each entry — enough to exercise subchart_values and
-    subchart_template_text without a real `helm pull`. `templates=None`
-    (the default) omits templates/ entirely, matching a vendored .tgz whose
-    layout subchart_template_text can't make sense of.
+    """Write a minimal vendored <name>-<version>.tgz with <name>/values.yaml.
 
-    `chart_yaml`, if given (a dict), is written as <name>/Chart.yaml — used
-    by subchart_app_version/subchart_dependencies (e.g. a dependency's own
-    "appVersion" for a null-tag default, or its own nested "dependencies"
-    list for the openinwoner/eck-operator-style nested-dependency case).
-    `extra_files`, if given (a {relative path: text} dict), is written
-    verbatim under <name>/ — used for a NESTED sub-subchart's own
-    Chart.yaml (e.g. "charts/eck-operator/Chart.yaml")."""
+    `templates` ({filename: text}) adds <name>/templates/; None omits the
+    directory. `chart_yaml` (dict) becomes <name>/Chart.yaml; `extra_files`
+    ({relative path: text}) is written verbatim under <name>/ (e.g. a nested
+    sub-subchart's Chart.yaml)."""
     charts_dir.mkdir(parents=True, exist_ok=True)
     tgz_path = charts_dir / f"{name}-{version}.tgz"
     data = yaml.safe_dump(values).encode("utf-8")
@@ -69,19 +57,14 @@ def make_tgz(charts_dir, name, version, values, templates=None, chart_yaml=None,
 
 
 def render_stdout(chart_tree_paths):
-    """A fake `helm template` stdout carrying one "# Source:" line per
-    given chart-tree path — enough for lib.render_scope.rendered_
-    chart_paths to recover exactly that set, without a real render."""
+    """Fake `helm template` stdout with one "# Source:" line per chart-tree path."""
     return "".join(f"# Source: {p}/templates/x.yaml\n" for p in chart_tree_paths)
 
 
 def stub_render(monkeypatch: pytest.MonkeyPatch, libdigestpinningcheck: ModuleType, chart_tree_paths, returncode=0):
-    """Replaces check_subchart_image_visibility's own render_chart call
-    (see lib.checks.digest_pinning's "from lib.render_scope import ...
-    render_chart" binding — must be patched on THAT module, not vp/
-    render_scope, per this test suite's own module-that-owns-the-binding
-    convention) with one that reports exactly `chart_tree_paths` as
-    rendered, with no real `helm template` invocation."""
+    """Make render_chart report exactly `chart_tree_paths` as rendered.
+
+    Patched on lib.checks.digest_pinning, the module that owns the binding."""
     monkeypatch.setattr(
         libdigestpinningcheck,
         "render_chart",
@@ -97,12 +80,8 @@ def stub_render(monkeypatch: pytest.MonkeyPatch, libdigestpinningcheck: ModuleTy
 def test_condition_disabled_dependency_not_reported_when_its_own_path_never_renders(
     vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, libdigestpinningcheck: ModuleType
 ):
-    """A dependency whose own chart-tree path never rendered at all (e.g.
-    zaakbrug's own condition-disabled "staging" mode, or any dependency
-    disabled via Helm's condition:/tags: mechanism) must stay silent
-    structurally — the render-gate applies uniformly to every finding,
-    regardless of what the dependency's own vendored default looks
-    like."""
+    """A dependency whose chart-tree path never rendered (condition:/tags:
+    disabled) stays silent, whatever its vendored default looks like."""
     write_chart_yaml(tmp_path, [make_dep("zaakbrug", "2.3.28")])
     make_tgz(
         tmp_path / "charts",
@@ -126,12 +105,9 @@ def test_null_tag_subchart_default_resolved_via_own_app_version_is_reported(
     libdigestpinningcheck: ModuleType,
     capsys: pytest.CaptureFixture[str],
 ):
-    """A top-level dependency's own default "image: {repository: ...,
-    tag: null}" block (no podiumd override at all) — e.g. eck-operator,
-    whose own vendored default relies entirely on Helm's ".tag | default
-    .Chart.AppVersion" convention — must resolve to that dependency's own
-    Chart.yaml "appVersion" (never a real digest-pinned tag, so reported
-    as FLOATING) once its own chart-tree path renders."""
+    """A null-tag default with no override resolves to the dependency's
+    Chart.yaml appVersion (Helm's `.tag | default .Chart.AppVersion`),
+    reported as FLOATING once its path renders."""
     write_chart_yaml(tmp_path, [make_dep("eck-operator", "3.5.0")])
     make_tgz(
         tmp_path / "charts",
@@ -154,9 +130,7 @@ def test_null_tag_subchart_default_resolved_via_own_app_version_is_reported(
 def test_null_tag_with_no_repository_is_skipped(
     vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, libdigestpinningcheck: ModuleType
 ):
-    """A null/missing "tag:" with no "repository:" either isn't a real
-    image block at all (find_image_tag_paths' own include_null_tags mode
-    already requires a repository) — nothing to resolve or report."""
+    """A null tag without a repository isn't an image block: nothing to report."""
     write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
     make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {"tag": None}})
     write_values_yaml(tmp_path, "{}\n")
@@ -173,14 +147,9 @@ def test_nested_subchart_default_not_reported_when_its_own_path_never_renders(
     libdigestpinningcheck: ModuleType,
     capsys: pytest.CaptureFixture[str],
 ):
-    """openinwoner's own vendored default bundles a SEPARATE, same-named
-    nested "eck-operator" dependency (its OWN Chart.yaml declares it,
-    distinct from the top-level "eck-operator" dependency) — globally
-    disabled via Helm's own tags: mechanism, so its own nested chart-tree
-    path (podiumd/charts/openinwoner/charts/eck-operator) never renders,
-    even though openinwoner's OWN top-level path does. Must not be
-    reported, and must not be confused with the top-level eck-operator
-    dependency's own image."""
+    """openinwoner's nested, same-named eck-operator is tags:-disabled, so
+    its path never renders though openinwoner's does. Not reported, and not
+    confused with the top-level eck-operator."""
     write_chart_yaml(tmp_path, [make_dep("openinwoner", "1.0.0")])
     make_tgz(
         tmp_path / "charts",
@@ -200,7 +169,6 @@ def test_nested_subchart_default_not_reported_when_its_own_path_never_renders(
         },
     )
     write_values_yaml(tmp_path, "{}\n")
-    # openinwoner's own top-level path DOES render; its nested eck-operator's own path does not.
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/openinwoner"])
 
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
@@ -218,10 +186,8 @@ def test_nested_subchart_default_reported_when_its_own_path_does_render(
     libdigestpinningcheck: ModuleType,
     capsys: pytest.CaptureFixture[str],
 ):
-    """The flip side of the above: when the nested dependency's own
-    chart-tree path DOES render, its own image is reported, resolved
-    against ITS OWN Chart.yaml appVersion (3.2.0), not the outer
-    dependency's (1.0.0)."""
+    """When the nested dependency's path renders, its image is reported
+    against its own appVersion (3.2.0), not the parent's (1.0.0)."""
     write_chart_yaml(tmp_path, [make_dep("openinwoner", "1.0.0")])
     make_tgz(
         tmp_path / "charts",
@@ -255,7 +221,7 @@ def test_nested_subchart_default_reported_when_its_own_path_does_render(
     assert "eck-operator.image.tag: '3.2.0' (FLOATING in the sub-chart's own default)" in out
 
 
-# --- zaakbrug.staging is now an ORDINARY finding (SUBCHART_VISIBILITY_EXEMPT removed) ---
+# --- zaakbrug.staging is an ordinary finding ---
 
 
 def test_zaakbrug_staging_is_now_an_ordinary_unexempted_finding(
@@ -265,11 +231,8 @@ def test_zaakbrug_staging_is_now_an_ordinary_unexempted_finding(
     libdigestpinningcheck: ModuleType,
     capsys: pytest.CaptureFixture[str],
 ):
-    """SUBCHART_VISIBILITY_EXEMPT has been removed entirely: zaakbrug's
-    own "staging" mode is no longer special-cased — once its own
-    chart-tree path actually renders, it's reported exactly like any
-    other unresolved subchart-default image, with no exempt bucket, no
-    exempt count, no special wording."""
+    """zaakbrug's "staging" mode is not special-cased: once its path renders
+    it is reported like any other unresolved subchart-default image."""
     write_chart_yaml(tmp_path, [make_dep("zaakbrug", "2.3.28")])
     make_tgz(
         tmp_path / "charts",
@@ -296,9 +259,7 @@ def test_zaakbrug_staging_nested_prefix_is_also_an_ordinary_finding(
     libdigestpinningcheck: ModuleType,
     capsys: pytest.CaptureFixture[str],
 ):
-    """staging.apiProxy (a nested sibling under the same "staging" key)
-    is likewise just an ordinary finding now — no prefix-match exemption
-    left to apply to it at all."""
+    """staging.apiProxy (nested sibling) is an ordinary finding too."""
     write_chart_yaml(tmp_path, [make_dep("zaakbrug", "2.3.28")])
     make_tgz(
         tmp_path / "charts",
@@ -355,10 +316,8 @@ def test_unreferenced_subchart_key_is_dropped_when_templates_show_it_is_dead(
     libdigestpinningcheck: ModuleType,
     capsys: pytest.CaptureFixture[str],
 ):
-    """A vendored sub-chart's own top-level values key (e.g. pabc's "web"/
-    "poller") that no template in that same sub-chart ever reads is
-    structurally inert — reporting it as "unresolved" is just noise, since
-    no podiumd override there could ever change what gets rendered."""
+    """A sub-chart values key no template in that sub-chart reads is inert:
+    no override could change the render, so it isn't reported."""
     write_chart_yaml(tmp_path, [make_dep("pabc", "1.1.1")])
     make_tgz(
         tmp_path / "charts",
@@ -393,10 +352,7 @@ def test_referenced_subchart_key_is_still_reported_even_with_templates_present(
     libdigestpinningcheck: ModuleType,
     capsys: pytest.CaptureFixture[str],
 ):
-    """The flip side of the above: a key a template DOES read must still be
-    reported as unresolved — the filter only drops keys with zero textual
-    reference anywhere in templates/, not everything just because
-    templates/ happens to be readable."""
+    """A key a template does read is still reported as unresolved."""
     write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
     make_tgz(
         tmp_path / "charts",
@@ -423,10 +379,8 @@ def test_unreferenced_key_without_a_templates_dir_at_all_is_still_reported(
     libdigestpinningcheck: ModuleType,
     capsys: pytest.CaptureFixture[str],
 ):
-    """A vendored .tgz with no templates/ directory at all (the shape
-    every other test's make_tgz call already uses) is "can't tell", not
-    "definitely unreferenced" — must NOT be filtered out just because the
-    haystack subchart_template_text would see is empty."""
+    """No templates/ directory means "can't tell", not "unreferenced": not
+    filtered."""
     write_chart_yaml(tmp_path, [make_dep("pabc", "1.1.1")])
     make_tgz(tmp_path / "charts", "pabc", "1.1.1", {"web": {"image": {"tag": "1.1.1"}}})
     write_values_yaml(tmp_path, "{}\n")
@@ -447,11 +401,9 @@ def test_nested_dependency_finding_survives_when_parent_templates_never_mention_
     libdigestpinningcheck: ModuleType,
     capsys: pytest.CaptureFixture[str],
 ):
-    """openinwoner's own bundled eck-operator is read by the NESTED chart's
-    own templates, never by openinwoner's own templates/ — so the template-
-    text filter must not drop it; the render-gate alone decides it. A
-    parent-level key in the same .tgz that openinwoner's own templates never
-    mention (here "web") is still filtered as before."""
+    """openinwoner's nested eck-operator is read by the nested chart's
+    templates, not openinwoner's, so the text filter must keep it (the
+    render-gate decides). An unreferenced parent key ("web") is filtered."""
     write_chart_yaml(tmp_path, [make_dep("openinwoner", "1.0.0")])
     make_tgz(
         tmp_path / "charts",

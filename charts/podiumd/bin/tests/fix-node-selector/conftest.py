@@ -1,6 +1,4 @@
-"""Loads fix-node-selector (a hyphenated filename, not importable
-normally) as a module named `sub` so tests can call its functions
-directly."""
+"""Load fix-node-selector (hyphenated, not importable) as module `sub`."""
 
 import importlib.util
 
