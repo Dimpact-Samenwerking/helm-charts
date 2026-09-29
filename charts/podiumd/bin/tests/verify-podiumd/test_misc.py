@@ -176,6 +176,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(
     monkeypatch.setattr(vp, "check_shellcheck", make_check("shellcheck"))
     monkeypatch.setattr(vp, "check_kube_score", make_check("kube-score"))
     monkeypatch.setattr(vp, "check_release_secret_size", make_check("release-secret-size"))
+    monkeypatch.setattr(vp, "check_chart_upgrades", make_check("chart-upgrades"))
     monkeypatch.setattr(vp, "check_image_upgrades", make_check("image-upgrades"))
     monkeypatch.setattr(vp, "check_cves", make_check("cves"))
     monkeypatch.setattr(vp, "check_cve_diff", make_check("cve-diff"))
@@ -214,6 +215,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(
         "shellcheck",
         "kube-score",
         "release-secret-size",
+        "chart-upgrades",
         "image-upgrades",
         "cves",
         "cve-diff",
@@ -259,6 +261,7 @@ def test_main_skipped_step_does_not_count_as_failure(vp: ModuleType, monkeypatch
         "check_shellcheck",
         "check_kube_score",
         "check_release_secret_size",
+        "check_chart_upgrades",
         "check_image_upgrades",
         "check_cves",
         "check_cve_diff",
@@ -315,6 +318,7 @@ def test_main_continues_past_a_failed_step(
     monkeypatch.setattr(vp, "check_shellcheck", make_check("shellcheck"))
     monkeypatch.setattr(vp, "check_kube_score", make_check("kube-score"))
     monkeypatch.setattr(vp, "check_release_secret_size", make_check("release-secret-size"))
+    monkeypatch.setattr(vp, "check_chart_upgrades", make_check("chart-upgrades"))
     monkeypatch.setattr(vp, "check_image_upgrades", make_check("image-upgrades"))
     monkeypatch.setattr(vp, "check_cves", make_check("cves"))
     monkeypatch.setattr(vp, "check_cve_diff", make_check("cve-diff"))
@@ -351,6 +355,7 @@ def test_main_continues_past_a_failed_step(
         "shellcheck",
         "kube-score",
         "release-secret-size",
+        "chart-upgrades",
         "image-upgrades",
         "cves",
         "cve-diff",
@@ -387,6 +392,7 @@ def test_main_skips_dependents_of_a_failed_prerequisite(
         "check_helm_docs",
         "check_markdown",
         "check_repo_access",
+        "check_chart_upgrades",
     ):
         monkeypatch.setattr(vp, name, ok)
 
@@ -500,6 +506,7 @@ def _stub_all_checks(vp: ModuleType, monkeypatch: pytest.MonkeyPatch, ran):
     monkeypatch.setattr(vp, "check_shellcheck", make_check("shellcheck"))
     monkeypatch.setattr(vp, "check_kube_score", make_check("kube-score"))
     monkeypatch.setattr(vp, "check_release_secret_size", make_check("release-secret-size"))
+    monkeypatch.setattr(vp, "check_chart_upgrades", make_check("chart-upgrades"))
     monkeypatch.setattr(vp, "check_image_upgrades", make_check("image-upgrades"))
     monkeypatch.setattr(vp, "check_cves", make_check("cves"))
     monkeypatch.setattr(vp, "check_cve_diff", make_check("cve-diff"))

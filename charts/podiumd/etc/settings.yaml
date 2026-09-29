@@ -10,6 +10,10 @@ image_upgrade_check:
   # New tags can appear any time; this only avoids re-querying within a day.
   tag_check_cache_ttl_days: 1
 
+chart_upgrade_check:
+  # New chart versions can appear any time; this only avoids re-querying within a day.
+  cache_ttl_days: 1
+
 repo_access:
   # Avoids Docker Hub's anonymous rate limit on quick re-runs.
   cache_ttl_minutes: 30

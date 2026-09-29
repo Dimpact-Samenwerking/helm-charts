@@ -124,6 +124,11 @@ def image_upgrade_tag_check_cache_ttl_days(chart_dir: Path):
     return _int(chart_dir, "image_upgrade_check", "tag_check_cache_ttl_days", 1)
 
 
+def chart_upgrade_check_cache_ttl_days(chart_dir: Path):
+    """chart_upgrade_check.cache_ttl_days."""
+    return _int(chart_dir, "chart_upgrade_check", "cache_ttl_days", 1)
+
+
 def repo_access_cache_ttl_minutes(chart_dir: Path):
     """repo_access.cache_ttl_minutes."""
     return _int(chart_dir, "repo_access", "cache_ttl_minutes", 30)

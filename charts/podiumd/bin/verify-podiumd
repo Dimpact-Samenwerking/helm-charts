@@ -38,6 +38,8 @@ Steps, in run order:
   shellcheck           embedded shell scripts in own templates
   kube-score           container resource requests/limits (report only)
   release-secret-size  Helm release Secret stays under 90% of 1 MiB
+  chart-upgrades       newer stable dependency chart versions published
+                       (report only)
   image-upgrades       newer same-variant tags published (report only)
   cve-scan             fixable CVEs via docker + trivy (report only; skipped
                        without docker)
@@ -81,6 +83,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from lib.chart.release_baseline_basics import RELEASE_BASELINES_FILE_NAME
 from lib.chart.release_baseline_basics import release_table_baseline as read_release_table_baseline
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
+from lib.chart.upgrade_check import check_chart_upgrades
 from lib.chart.values_tree_primitives import UTF8_BOM
 from lib.checks.cve import check_cves
 from lib.checks.cve_diff import check_cve_diff
@@ -273,6 +276,7 @@ SKIPPABLE_STEPS = [
     ("shellcheck", "shellcheck"),
     ("kube-score", "kube-score"),
     ("release-secret-size", "Release secret size"),
+    ("chart-upgrades", "Chart upgrades"),
     ("image-upgrades", "Image upgrades"),
     ("cve-scan", "CVE scan"),
     ("cve-diff", "CVE diff"),
@@ -534,6 +538,7 @@ def _run_all_steps(runner: StepRunner, chart_dir: Path, args: argparse.Namespace
         chart_dir,
         extra_args,
     )
+    runner.run("Chart upgrades", "Checking for newer dependency chart versions", check_chart_upgrades, chart_dir)
     runner.run("Image upgrades", "Checking for newer published tags", check_image_upgrades, chart_dir, extra_args)
     runner.run(
         "CVE scan",
