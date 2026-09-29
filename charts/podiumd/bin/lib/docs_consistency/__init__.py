@@ -15,6 +15,8 @@ from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.release_baseline_basics import chart_version
 from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
 from lib.chart.values_tree_primitives import version_of
+from lib.chart.yaml_alias_groups import alias_groups
+from lib.component_docs.aliased_pin_bullets import find_missing_pin_bullets
 from lib.component_docs.changes_section import BaselineState
 from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import resolve_component_own_version_change
@@ -517,6 +519,15 @@ def _select_upgrade_doc(ctx: DocsCheckContext, findings: Findings):
     return doc_path
 
 
+def _missing_pin_bullet_mismatches(ctx: DocsCheckContext, doc_path: Path, doc_text: str) -> list[str]:
+    """A Changes block names a pin but not a path that shares its YAML anchor."""
+    return [
+        f"{doc_path.name}: '### {m.heading}' names `{m.documented_path}` but not `{m.missing_path}`, "
+        "which shares its YAML anchor; run fix-doc-consistency to add it"
+        for m in find_missing_pin_bullets(doc_text, alias_groups(ctx.chart_dir / "values.yaml"))
+    ]
+
+
 def _check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
     """The "Component versions" section: per-row, missing-row, ordering and Changes-heading checks.
 
@@ -560,6 +571,7 @@ def _check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
     findings.mismatches.extend(
         _check_changes_heading_correspondence(ctx, scan, rows_result, changes_headings, doc_text)
     )
+    findings.mismatches.extend(_missing_pin_bullet_mismatches(ctx, doc_path, doc_text))
 
 
 def _check_images_manifest_entry(

@@ -10,7 +10,8 @@ titles, headings and cross-references. Creates missing docs as TODO stubs.
 Also repairs the content against Chart.yaml and values.yaml:
   - upgrade doc: component version table and "## Changes" sections,
     adding missing rows, removing rows unchanged vs the baseline and
-    sorting them in values.yaml order
+    sorting them in values.yaml order; a pin bullet for every values
+    path that shares a YAML anchor with a documented pin
   - values-deltas doc: adds missing component sections and nested key
     added/removed lines
   - docs/images/images-<target>.yaml: fixes entries, adds missing ones
@@ -55,7 +56,9 @@ from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgr
 from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repo_group_representative
+from lib.chart.yaml_alias_groups import alias_groups
 from lib.cli import positional_args
+from lib.component_docs.aliased_pin_bullets import add_missing_pin_bullets
 from lib.component_docs.baseline_doc_stubs import IMAGES_STUB_TEMPLATE
 from lib.component_docs.baseline_doc_stubs import STANDARD_SUFFIXES
 from lib.component_docs.baseline_doc_stubs import STUB_TEMPLATES
@@ -486,6 +489,17 @@ def _fix_upgrade_doc_headings(
     return text, canonical_names, changed
 
 
+def _add_missing_pin_bullets(text: str, upgrade_path: Path) -> tuple[str, bool]:
+    """Add a pin bullet for each path sharing a YAML anchor with a documented one. Returns (text, changed)."""
+    text, added = add_missing_pin_bullets(text, alias_groups(VALUES_YAML))
+    if added:
+        print()
+        print(f"=== Adding pin bullet(s) for paths sharing a YAML anchor in {upgrade_path.name} ===")
+        for m in added:
+            print(f"  '### {m.heading}': {m.missing_path} (shares an anchor with {m.documented_path})")
+    return text, bool(added)
+
+
 def _reorder_upgrade_doc(
     text: str,
     upgrade_path: Path,
@@ -518,30 +532,31 @@ def _fix_upgrade_doc(state: RebaseState, upgrade_path: Path, actual_changed_keys
         upgrade_docs_baseline=state.new_baseline,
     )
 
-    text, rows_removed = _remove_unchanged_component_rows(text, upgrade_path, resolution, state.new_baseline)
-    text, table_changed = _correct_component_table(text, upgrade_path, resolution, state.new_baseline)
+    changed: list[bool] = []
+    text, step_changed = _remove_unchanged_component_rows(text, upgrade_path, resolution, state.new_baseline)
+    changed.append(step_changed)
+    text, step_changed = _correct_component_table(text, upgrade_path, resolution, state.new_baseline)
+    changed.append(step_changed)
     text, added_names, added_sidecar_names = _add_missing_component_and_sidecar_rows(
         text, state, upgrade_path, actual_changed_keys
     )
-    text, canonical_names, headings_changed = _fix_upgrade_doc_headings(text, state, upgrade_path, resolution)
-    text, reordered = _reorder_upgrade_doc(text, upgrade_path, state.target_deps, state.target_values, canonical_names)
+    changed += [bool(added_names), bool(added_sidecar_names)]
+    text, canonical_names, step_changed = _fix_upgrade_doc_headings(text, state, upgrade_path, resolution)
+    changed.append(step_changed)
+    text, step_changed = _add_missing_pin_bullets(text, upgrade_path)
+    changed.append(step_changed)
+    text, step_changed = _reorder_upgrade_doc(
+        text, upgrade_path, state.target_deps, state.target_values, canonical_names
+    )
+    changed.append(step_changed)
 
     # Also collapse double blank lines that predate this run.
     collapsed_text = collapse_multiple_blank_lines(text)
-    blank_lines_fixed = collapsed_text != text
-    if blank_lines_fixed:
+    if collapsed_text != text:
+        changed.append(True)
         print()
         print(f"=== Collapsing multiple consecutive blank line(s) in {upgrade_path.name} ===")
 
-    changed = [
-        rows_removed,
-        table_changed,
-        bool(added_names),
-        bool(added_sidecar_names),
-        headings_changed,
-        reordered,
-        blank_lines_fixed,
-    ]
     if any(changed):
         upgrade_path.write_text(collapsed_text, encoding="utf-8")
 

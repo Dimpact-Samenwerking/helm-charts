@@ -329,3 +329,65 @@ def test_component_changed_with_no_key_diffs_needs_no_values_deltas_mention(vp: 
     )
     ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is True, detail
+
+
+REDIS_ALIASED_VALUES_TMPL = (
+    "redis-operator:\n"
+    "  redis-ha:\n"
+    "    labelMasterCronJob:\n"
+    "      image: &k8s\n"
+    "        repository: docker.io/alpine/k8s\n"
+    '        tag: "{tag}@sha256:cccc"\n'
+    "    preDeleteJob:\n"
+    "      image: *k8s\n"
+)
+ALIASED_PIN_DOC = (
+    "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+    "## Component versions (4.9.0 vs 4.8.5)\n\n"
+    "| Component | App version | Helm chart | Notes |\n"
+    "| --- | --- | --- | --- |\n"
+    "| redis-operator - k8s | 1.37.0 → 1.37.1 | - | - |\n\n"
+    "## Changes\n\n"
+    "### redis-operator - k8s 1.37.0 → 1.37.1\n\n"
+    "PodiumD 4.9.0 upgrades the **redis-operator - k8s** image to 1.37.1,\n"
+    "pinned at:\n\n"
+    "- `redis-operator.redis-ha.labelMasterCronJob.image.tag` `1.37.0` → `1.37.1`\n"
+    "{extra}\n"
+    "- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).\n"
+)
+
+
+@pytest.mark.parametrize("alias_bullet", ["missing", "present"])
+def test_changes_block_must_name_every_path_sharing_the_pins_anchor(
+    vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str], alias_bullet: str
+):
+    """preDeleteJob.image aliases labelMasterCronJob.image, so a bump changes both paths;
+    an environment overriding one path needs the doc to name the other too."""
+    repo_root = tmp_path
+    chart_dir = repo_root / "charts" / "podiumd"
+    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    git("init", "-q", cwd=repo_root)
+    git("config", "user.email", "test@example.com", cwd=repo_root)
+    git("config", "user.name", "Test", cwd=repo_root)
+    (chart_dir / "Chart.yaml").write_text(REDIS_CHART_YAML)
+    (chart_dir / "values.yaml").write_text(REDIS_ALIASED_VALUES_TMPL.format(tag="1.37.0"))
+    git("add", "-A", cwd=repo_root)
+    git("commit", "-q", "-m", "baseline", cwd=repo_root)
+    git("tag", "podiumd-4.8.5", cwd=repo_root)
+
+    (chart_dir / "values.yaml").write_text(REDIS_ALIASED_VALUES_TMPL.format(tag="1.37.1"))
+    extra = (
+        "- `redis-operator.redis-ha.preDeleteJob.image.tag` `1.37.0` → `1.37.1`\n" if alias_bullet == "present" else ""
+    )
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(ALIASED_PIN_DOC.replace("{extra}", extra))
+    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(REDIS_GEMEENTE_DOC.format(baseline="4.8.5"))
+    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
+        REDIS_VALUES_DELTAS_DOC.format(baseline="4.8.5", app_source="1.37.0", app_target="1.37.1")
+    )
+
+    vp.check_docs_consistency(chart_dir, upgrade_docs_baseline="4.8.5")
+
+    out = capsys.readouterr().out
+    finding = "but not `redis-operator.redis-ha.preDeleteJob.image.tag`, which shares its YAML anchor"
+    assert (finding in out) == (alias_bullet == "missing")
