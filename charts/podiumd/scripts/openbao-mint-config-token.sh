@@ -14,10 +14,10 @@
 #   5. with --revoke-root, revokes the root token afterwards (recommended).
 #
 # Run from your own machine after the one-time `bao operator init` + unseal
-# (component doc §5). Re-run any time to rotate the config token — e.g. when no
-# deploy has renewed it within TOKEN_PERIOD and it has expired. If the root
-# token was already revoked, generate a new one first with a quorum of unseal
-# key shares: `bao operator generate-root`.
+# (docs/apps/frankgateway/frankgateway-openbao.md §5). Re-run any time to
+# rotate the config token — e.g. when no deploy has renewed it within
+# TOKEN_PERIOD and it has expired. If the root token was already revoked,
+# generate a new one first with the unseal key: `bao operator generate-root`.
 #
 # Usage:
 #   NAMESPACE=<ns> ./openbao-mint-config-token.sh [--revoke-root]
@@ -143,7 +143,7 @@ EOS
 else
   echo
   echo "Root token left untouched. Recommended once a deploy has succeeded with"
-  echo "the new token: re-run with --revoke-root (component doc §7)."
+  echo "the new token: re-run with --revoke-root (frankgateway-openbao.md §7)."
 fi
 
 echo
