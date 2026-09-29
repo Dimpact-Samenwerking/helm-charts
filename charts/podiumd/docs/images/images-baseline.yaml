@@ -284,8 +284,8 @@
 
 - name: wearefrank/zaakbrug
   url: docker.io/wearefrank/zaakbrug
-  version: "1.26.18"
-  digest: "sha256:255a717ff620b08608db2d8cde24e6993b96896f785ecfb7082054a4cc36bc3b"
+  version: "1.26.19"
+  digest: "sha256:4c90dddac58fdbe813566417c796b5890ab86a4ffd70f143460b6b9b379eec8c"
 
 - name: brp-api/personen-mock
   url: ghcr.io/brp-api/personen-mock
