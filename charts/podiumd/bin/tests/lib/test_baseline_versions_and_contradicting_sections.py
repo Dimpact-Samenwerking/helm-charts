@@ -177,3 +177,18 @@ def test_changes_item_chart_clause_is_checked_only_when_present(chart_dir: Path)
         (4, "openbao 2.5.5 -> 2.6.3 (chart 0.29.6, new).", "openbao 2.5.5 -> 2.6.3 (chart 0.28.4 -> 0.29.6).")
     ]
     assert not stale_changes_items(right_chart.splitlines(keepends=True), expected)
+
+
+def test_sidecar_changes_item_does_not_belong_to_its_primary_row(chart_dir: Path):
+    """fix-image-digests writes a digest-only sidecar item that has no table row of its own.
+
+    It starts with the primary's name, but must not be rewritten into a copy of the primary's item."""
+    expected = _expected_items(chart_dir)
+    lines = MANIFEST.replace(
+        "#   2. openbao 2.5.5 (unchanged).\n",
+        "#   2. openbao 2.5.5 -> 2.6.3 (chart 0.28.4 -> 0.29.6).\n"
+        "#   3. openbao - openbao-csi-provider 2.0.3 (digest changed).\n",
+    ).splitlines(keepends=True)
+
+    assert not stale_changes_items(lines, expected)
+    assert not fix_stale_changes_items(lines, expected)
