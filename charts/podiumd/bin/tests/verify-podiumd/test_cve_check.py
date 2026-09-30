@@ -28,7 +28,6 @@ def vuln(severity, cve="CVE-2024-0001", pkg="openssl", fixed="3.0.2", extra=None
 
 
 CVE_CACHE_TTL_DAYS = 7
-HIGH_SEVERITIES = {"CRITICAL", "HIGH"}
 PACKAGE_CVE_LIST_THRESHOLD = 5
 
 
@@ -429,15 +428,15 @@ def test_severity_label_abbreviates_critical(libcvecheck: ModuleType):
     assert libcvecheck.severity_label("HIGH") == "HIGH"
 
 
-def test_high_findings_by_package_groups_and_excludes_low_severity(libcvecheck: ModuleType):
+def test_findings_by_package_groups_every_severity(libcvecheck: ModuleType):
     vulns = [
         vuln("CRITICAL", cve="CVE-1", pkg="chromium"),
         vuln("HIGH", cve="CVE-2", pkg="chromium"),
         vuln("HIGH", cve="CVE-3", pkg="openssl"),
         vuln("LOW", cve="CVE-4", pkg="chromium"),
     ]
-    groups = libcvecheck.high_findings_by_package(vulns, HIGH_SEVERITIES)
-    assert {v["VulnerabilityID"] for v in groups["chromium"]} == {"CVE-1", "CVE-2"}
+    groups = libcvecheck.findings_by_package(vulns)
+    assert {v["VulnerabilityID"] for v in groups["chromium"]} == {"CVE-1", "CVE-2", "CVE-4"}
     assert {v["VulnerabilityID"] for v in groups["openssl"]} == {"CVE-3"}
 
 
@@ -636,7 +635,7 @@ def test_check_cves_detail_itemizes_every_bucket(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """detail=True itemizes CRIT/HIGH per package for all three buckets, other-vendor included."""
+    """detail=True itemizes every finding per package for all three buckets, other-vendor included."""
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
 
@@ -670,16 +669,17 @@ def test_check_cves_detail_itemizes_every_bucket(
     assert ok is True
 
     out = capsys.readouterr().out
-    assert "CRIT CVE-OWN-1" in out and "CVE-OWN-2" not in out  # own: itemized, LOW only totaled
+    assert "openssl: CRIT CVE-OWN-1, LOW CVE-OWN-2" in out  # own: every severity itemized
     assert "curl: HIGH CVE-PARTNER-1" in out  # partner: itemized too
     assert "busybox: CRIT CVE-OTHER-1" in out  # other-vendor: itemized too
-    assert "1 MEDIUM CVE(s)" in out  # other-vendor's MEDIUM still only totaled, even with --detail
+    assert "openssl: MEDIUM CVE-OTHER-2" in out  # MEDIUM itemized as well with --detail
+    assert "1 CRIT, 1 MEDIUM CVE(s)" in out  # the totals line stays
 
 
 def test_print_bucket_report_image_line_then_totals_then_packages(
     libcvecheck: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """Itemized layout: name+vendor(+upgradable) line, MEDIUM/LOW/UNKNOWN total, then CRIT/HIGH per package."""
+    """Itemized layout: name+vendor(+upgradable) line, severity totals, then every finding per package."""
     images = {
         "docker.io/pravega/zookeeper:0.2.15": {
             "bucket": "own",
@@ -696,14 +696,17 @@ def test_print_bucket_report_image_line_then_totals_then_packages(
         "Own images",
         ["docker.io/pravega/zookeeper:0.2.15"],
         images,
-        libcvecheck.ReportSettings("full", HIGH_SEVERITIES, PACKAGE_CVE_LIST_THRESHOLD),
+        libcvecheck.ReportSettings("full", PACKAGE_CVE_LIST_THRESHOLD),
     )
 
     lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
     header_idx = next(i for i, line in enumerate(lines) if line.startswith("docker.io/pravega/zookeeper:0.2.15"))
-    assert lines[header_idx] == "docker.io/pravega/zookeeper:0.2.15 upgradable to 0.2.16"
-    assert "1 MEDIUM, 1 LOW CVE(s)" in lines[header_idx + 1]
-    assert "bind9-dnsutils: HIGH CVE-1" in lines[header_idx + 2]
+    assert lines[header_idx:] == [
+        "docker.io/pravega/zookeeper:0.2.15 upgradable to 0.2.16",
+        "  1 HIGH, 1 MEDIUM, 1 LOW CVE(s)",
+        "  bind9-dnsutils: HIGH CVE-1",
+        "  openssl: MEDIUM CVE-2, LOW CVE-3",
+    ]
 
 
 def test_print_bucket_report_totals_mode_never_itemizes_even_high_severity(
@@ -726,7 +729,7 @@ def test_print_bucket_report_totals_mode_never_itemizes_even_high_severity(
         "Partner-vendor images",
         ["docker.io/maykinmedia/objects-api:1.0.0"],
         images,
-        libcvecheck.ReportSettings("totals", HIGH_SEVERITIES, PACKAGE_CVE_LIST_THRESHOLD),
+        libcvecheck.ReportSettings("totals", PACKAGE_CVE_LIST_THRESHOLD),
     )
 
     out = capsys.readouterr().out

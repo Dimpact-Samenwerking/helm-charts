@@ -104,11 +104,6 @@ def _text_map_map(
     return result
 
 
-def cve_high_severity_levels(chart_dir: Path):
-    """cve_scan.high_severity_levels."""
-    return set(_text_list(chart_dir, "cve_scan", "high_severity_levels", ["CRITICAL", "HIGH"]))
-
-
 def cve_max_cves_per_package_before_summarizing(chart_dir: Path):
     """cve_scan.max_cves_per_package_before_summarizing."""
     return _int(chart_dir, "cve_scan", "max_cves_per_package_before_summarizing", 5)

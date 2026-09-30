@@ -6,7 +6,7 @@ triage decision, not a chart-correctness fact.
 Images are bucketed own/partner-vendor/other-vendor by the render's "# Source:"
 (falling back to the values.yaml top-level key for components absent from the render),
 but every bucket gets the same output. Default: per-image severity totals. --detail:
-CRITICAL/HIGH grouped per package (one bundled binary can carry hundreds of CVEs),
+every finding grouped per package (one bundled binary can carry hundreds of CVEs),
 summarized past cve_scan.max_cves_per_package_before_summarizing. FixedVersion is
 never shown: only the image tag is pinned here, not packages inside it.
 
@@ -47,7 +47,6 @@ from lib.render_scope import chart_name_from_source
 from lib.render_scope import friendly_vendor_charts
 from lib.render_scope import render_chart
 from lib.render_scope import split_rendered_by_source
-from lib.settings import cve_high_severity_levels
 from lib.settings import cve_max_cves_per_package_before_summarizing
 from lib.settings import cve_scan_cache_ttl_days
 from lib.settings import image_upgrade_tag_check_cache_ttl_days
@@ -342,7 +341,6 @@ class ImageClassification:
 class CveScanSettings:
     """check_cves' lib.settings values, resolved once per run."""
 
-    high_severities: set[str]
     package_cve_list_threshold: int
     cve_cache_ttl_days: int
     upgrade_cache_ttl_days: int
@@ -365,7 +363,6 @@ class ReportSettings:
     """print_bucket_report's per-run settings."""
 
     detail_level: str
-    high_severities: set[str]
     package_cve_list_threshold: int
 
 
@@ -537,7 +534,6 @@ def check_cves(chart_dir: Path, extra_args: list[str], *, detail: bool = False):
         return True, "docker is not installed — skipped (see --help)"
 
     settings = CveScanSettings(
-        cve_high_severity_levels(chart_dir),
         cve_max_cves_per_package_before_summarizing(chart_dir),
         cve_scan_cache_ttl_days(chart_dir),
         image_upgrade_tag_check_cache_ttl_days(chart_dir),
@@ -560,9 +556,7 @@ def check_cves(chart_dir: Path, extra_args: list[str], *, detail: bool = False):
     save_cache(chart_dir, session.new_cache)
 
     buckets = BucketRefs(*_bucket_refs(images))
-    report_settings = ReportSettings(
-        "full" if detail else "totals", settings.high_severities, settings.package_cve_list_threshold
-    )
+    report_settings = ReportSettings("full" if detail else "totals", settings.package_cve_list_threshold)
     _print_bucket_reports(images, buckets, report_settings)
     _print_cve_summary_lines(buckets, stats, settings.cve_cache_ttl_days)
 
@@ -579,13 +573,18 @@ def severity_label(severity: str):
     return "CRIT" if severity == "CRITICAL" else severity
 
 
-def high_findings_by_package(vulns: list[Vulnerability], high_severities: set[str]) -> dict[str, list[Vulnerability]]:
-    """PkgName -> its `high_severities` findings (one package can carry many CVE IDs)."""
+def findings_by_package(vulns: list[Vulnerability]) -> dict[str, list[Vulnerability]]:
+    """PkgName -> its findings, every severity (one package can carry many CVE IDs)."""
     groups: dict[str, list[Vulnerability]] = {}
     for v in vulns:
-        if v["Severity"] in high_severities:
-            groups.setdefault(v["PkgName"], []).append(v)
+        groups.setdefault(v["PkgName"], []).append(v)
     return groups
+
+
+def print_findings_per_package(vulns: list[Vulnerability], threshold: int) -> None:
+    """One print_package_line per affected package, in package order."""
+    for pkg, vulns_for_pkg in sorted(findings_by_package(vulns).items()):
+        print_package_line(pkg, vulns_for_pkg, threshold)
 
 
 def print_package_line(pkg: str, vulns_for_pkg: list[Vulnerability], threshold: int):
@@ -620,7 +619,7 @@ def print_bucket_header(title: str, *, empty: bool):
 def print_bucket_report(title: str, refs: list[str], images: dict[str, ImageCves], settings: ReportSettings):
     """Print one bucket's images per settings.detail_level (same for every bucket).
 
-    "full": high severities itemized per package, the rest totaled per image.
+    "full": per-image severity totals, then every finding itemized per package.
     "totals": per-image severity totals only.
     """
     if not print_bucket_header(title, empty=not refs):
@@ -632,15 +631,8 @@ def print_bucket_report(title: str, refs: list[str], images: dict[str, ImageCves
         upgradable = f" upgradable to {info['upgradable_to']}" if info["upgradable_to"] else ""
         print(f"{ref}{vendor}{upgradable}")
 
-        if settings.detail_level == "totals":
-            print_severity_totals_line(info["vulns"])
-        else:
-            rest_counts = Counter(v["Severity"] for v in info["vulns"] if v["Severity"] not in settings.high_severities)
-            if rest_counts:
-                parts = ", ".join(f"{rest_counts[s]} {s}" for s in ("MEDIUM", "LOW", "UNKNOWN") if rest_counts.get(s))
-                print(f"  {parts} CVE(s)")
-
-            for pkg, vulns_for_pkg in sorted(high_findings_by_package(info["vulns"], settings.high_severities).items()):
-                print_package_line(pkg, vulns_for_pkg, settings.package_cve_list_threshold)
+        print_severity_totals_line(info["vulns"])
+        if settings.detail_level == "full":
+            print_findings_per_package(info["vulns"], settings.package_cve_list_threshold)
 
         print()

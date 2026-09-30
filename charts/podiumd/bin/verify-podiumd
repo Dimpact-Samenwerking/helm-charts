@@ -394,12 +394,12 @@ def _parse_cli_args():
     parser.add_argument(
         "--detail-cve-check",
         action="store_true",
-        help="CVE scan: list CRITICAL/HIGH findings per package for every image, not only totals",
+        help="CVE scan: list every finding per package for every image, not only totals",
     )
     parser.add_argument(
         "--detail-cve-diff",
         action="store_true",
-        help="CVE diff: list the CRITICAL/HIGH findings each upgrade candidate closes or adds, not only counts",
+        help="CVE diff: list the findings each upgrade candidate closes or adds per package, not only counts",
     )
     parser.add_argument(
         "--skip",

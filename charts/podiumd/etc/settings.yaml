@@ -1,7 +1,6 @@
 # Tunable policy constants for charts/podiumd/bin (read via lib/settings.py).
 
 cve_scan:
-  high_severity_levels: ["CRITICAL", "HIGH"]
   max_cves_per_package_before_summarizing: 5
   # An unchanged digest keeps its content, but trivy's DB does not.
   scan_cache_ttl_days: 7

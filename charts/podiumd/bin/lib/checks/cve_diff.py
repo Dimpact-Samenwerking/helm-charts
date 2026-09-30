@@ -37,10 +37,9 @@ from lib.checks.cve import Vulnerability
 from lib.checks.cve import bucket_of
 from lib.checks.cve import classify_by_key
 from lib.checks.cve import dependency_names
-from lib.checks.cve import high_findings_by_package
 from lib.checks.cve import open_cache_session
 from lib.checks.cve import print_bucket_header
-from lib.checks.cve import print_package_line
+from lib.checks.cve import print_findings_per_package
 from lib.checks.cve import render_image_labels
 from lib.checks.cve import save_cache
 from lib.checks.cve import scan_cached
@@ -55,7 +54,6 @@ from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
 from lib.render_scope import friendly_vendor_charts
 from lib.render_scope import render_chart
-from lib.settings import cve_high_severity_levels
 from lib.settings import cve_max_cves_per_package_before_summarizing
 from lib.settings import cve_scan_cache_ttl_days
 from lib.settings import image_upgrade_tag_check_cache_ttl_days
@@ -169,7 +167,6 @@ class DiffContext:
     scan_errors: list[str]
     detail: bool
     ttl_days: int
-    high_severities: set[str]
     package_cve_list_threshold: int
 
 
@@ -215,17 +212,13 @@ def _severity_counts(vulns: list[Vulnerability]):
     return ", ".join(f"{counts[s]} {severity_label(s)}" for s in SEVERITY_ORDER if counts.get(s))
 
 
-def _print_direction(
-    label: str, vulns: list[Vulnerability], *, detail: bool, high_severities: set[str], package_cve_list_threshold: int
-):
+def _print_direction(label: str, vulns: list[Vulnerability], *, detail: bool, package_cve_list_threshold: int):
     if not vulns:
         print(f"  {label}: none")
         return
     print(f"  {label}: {_severity_counts(vulns)}")
     if detail:
-        high_vulns = [v for v in vulns if v["Severity"] in high_severities]
-        for pkg, vulns_for_pkg in sorted(high_findings_by_package(high_vulns, high_severities).items()):
-            print_package_line(pkg, vulns_for_pkg, package_cve_list_threshold)
+        print_findings_per_package(vulns, package_cve_list_threshold)
 
 
 def _print_candidate_header(i: int, total: int, candidate: DiffCandidate):
@@ -240,24 +233,11 @@ def print_candidate_result(
     introduced: list[Vulnerability],
     *,
     detail: bool,
-    high_severities: set[str],
     package_cve_list_threshold: int,
 ):
     """Print one candidate's closed/introduced lines and a blank line."""
-    _print_direction(
-        "closed",
-        closed,
-        detail=detail,
-        high_severities=high_severities,
-        package_cve_list_threshold=package_cve_list_threshold,
-    )
-    _print_direction(
-        "introduced",
-        introduced,
-        detail=detail,
-        high_severities=high_severities,
-        package_cve_list_threshold=package_cve_list_threshold,
-    )
+    _print_direction("closed", closed, detail=detail, package_cve_list_threshold=package_cve_list_threshold)
+    _print_direction("introduced", introduced, detail=detail, package_cve_list_threshold=package_cve_list_threshold)
     print()
 
 
@@ -315,7 +295,6 @@ def _process_bucket(context: DiffContext, title: str, bucket_candidates: list[Cl
             closed,
             introduced,
             detail=context.detail,
-            high_severities=context.high_severities,
             package_cve_list_threshold=context.package_cve_list_threshold,
         )
     return total_closed, total_introduced
@@ -336,7 +315,6 @@ def _build_diff_context(chart_dir: Path, *, detail: bool):
         scan_errors=[],
         detail=detail,
         ttl_days=cve_scan_cache_ttl_days(chart_dir),
-        high_severities=cve_high_severity_levels(chart_dir),
         package_cve_list_threshold=cve_max_cves_per_package_before_summarizing(chart_dir),
     )
 
