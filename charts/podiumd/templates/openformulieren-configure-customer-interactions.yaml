@@ -91,7 +91,9 @@ spec:
         {{- toYaml .Values.openformulieren.securityContext | nindent 8 }}
       {{- /* Mount the subchart's extra volumes too: envFrom brings in EXTRA_VERIFY_CERTS
            (openformulieren.extraVerifyCerts), and Open Forms opens that file at
-           startup, before this script runs. */}}
+           startup, before this script runs. tpl runs with the umbrella context
+           here, not the subchart's: a template expression in these values
+           resolves against the umbrella values. None of the environments uses one. */}}
       volumeMounts:
         - name: tmp
           mountPath: /tmp
