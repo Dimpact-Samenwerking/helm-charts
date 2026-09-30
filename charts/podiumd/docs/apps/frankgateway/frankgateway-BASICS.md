@@ -172,10 +172,14 @@ hostname.
   gateway reads them with a scoped token supplied out-of-band in the Secret
   named by `frankgateway.openbao.tokenSecret` (Key-Vault-fed, never minted by
   this chart — a token the chart could mint is a token the chart would store).
-  That token's policy must cover the whole subtree (`<mount>/frankgateway/*`;
-  on a kv-v2 mount `<mount>/data/frankgateway/*`): a policy scoped to one path
+  That token's policy must cover the path itself and the subtree below it
+  (`<mount>/frankgateway` and `<mount>/frankgateway/*`; on a kv-v2 mount
+  `<mount>/data/frankgateway` and `<mount>/data/frankgateway/*`): the wildcard
+  does not match the API-key path itself, and a policy scoped to one path
   makes the others read as an opaque failure, which is exactly how jim00's
-  first consumer key failed.
+  first consumer key failed. OpenBao itself — database, route, Key Vault
+  items, the unseal after every restart — is documented in
+  [`frankgateway-openbao.md`](frankgateway-openbao.md).
 - **CoreDNS** — `frankgateway.dashboard.auth.dnsResolver` must be set to the
   cluster's CoreDNS ClusterIP (AKS default `10.0.0.10`; jim00 `172.16.0.10`)
   for the shim's request-time DNS re-resolution.
@@ -457,14 +461,20 @@ security assessment without first confirming enforcement on the target cluster.
    to add them to the `fg-admins` group in the Keycloak admin console:
    without membership, nobody gets past oauth2-proxy.
 3. **OpenBao.** Enable it (`openbao.enabled: true` — the render fails
-   otherwise), write the external-API keys to `<mount>/frankgateway`
+   otherwise) and bootstrap it once per environment: initialise, store
+   `openbao-unseal-key` and `openbao-root-token` in the environment Key Vault,
+   unseal, mint the config token
+   ([runbook](frankgateway-openbao.md#5-bootstrap-runbook-first-install)).
+   Then write the external-API keys to `<mount>/frankgateway`
    (`bag_api_key`, `kvk_api_key`), any outbound client certificates to
    `<mount>/frankgateway/client-certs/<name>` (`cert`, `key`) and the inbound
-   consumer list to `<mount>/frankgateway/consumers`, and have the environment
-   deployment create the scoped-reader-token Secret named by
-   `frankgateway.openbao.tokenSecret` with a policy covering
-   `<mount>/frankgateway/*`. Commands in
-   [`frankgateway-routes.md`](frankgateway-routes.md).
+   consumer list to `<mount>/frankgateway/consumers` (commands in
+   [`frankgateway-routes.md`](frankgateway-routes.md)). Then mint the scoped
+   reader token, with a policy covering both `<mount>/frankgateway` and
+   `<mount>/frankgateway/*`, and create the Secret named by
+   `frankgateway.openbao.tokenSecret`. Nothing automates this yet
+   ([IN-3047](https://dimpact.atlassian.net/browse/IN-3047)): do it by hand as in
+   [runbook §5 step 7](frankgateway-openbao.md#5-bootstrap-runbook-first-install).
 4. **Route the dashboards.** One per class that has one. Gateway API
    environments: HTTPRoute → `frankgateway-<class>-oauth2-proxy:4180` in ADO
    `ExternalsPodiumD` (`infra.yml`), and add each hostname to the gateway
@@ -488,6 +498,10 @@ security assessment without first confirming enforcement on the target cluster.
 
 ## Related documents
 
+- [`frankgateway-openbao.md`](frankgateway-openbao.md) — OpenBao, the secrets
+  vault the gateway reads its credentials from: requirements, Key Vault items,
+  bootstrap runbook and the unseal after every restart. **Read it before the
+  first deployment.**
 - [`frankgateway-traffic-classes.md`](frankgateway-traffic-classes.md) — running
   the gateway as three per-traffic-class instances (inway / outway / internal),
   with the architecture diagram, the NetworkPolicy model and the migration order.

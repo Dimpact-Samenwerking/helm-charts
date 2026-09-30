@@ -4565,7 +4565,7 @@ openbao:
     # K8s Secret (key `token`) holding the bao token the config Job runs with:
     # the SCOPED periodic token minted at bootstrap by
     # scripts/openbao-mint-config-token.sh — NOT the root token, which can (and
-    # should) be revoked after minting. See the component doc, sections 5 and 7.
+    # should) be revoked after minting. See docs/apps/frankgateway/frankgateway-openbao.md §5 and §7.
     bootstrapTokenSecret: openbao-bootstrap-token
     job:
       backoffLimit: 6
