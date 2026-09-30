@@ -19,10 +19,13 @@ from datetime import timezone
 from pathlib import Path
 from typing import TypedDict
 
+from lib.checks.cve import BUCKETS
 from lib.checks.cve import ImageKey
 from lib.checks.cve import bucket_of
+from lib.checks.cve import bucket_title
 from lib.checks.cve import classify_by_key
 from lib.checks.cve import dependency_names
+from lib.checks.cve import refs_by_bucket
 from lib.checks.cve import render_image_labels
 from lib.checks.cve import top_level_key_for_line
 from lib.image.digests import unique_digest_pin_targets
@@ -151,15 +154,6 @@ def _resolve_target_upgrade(
     return _fetch_target_upgrade(i, total, info)
 
 
-def _bucket_refs(images: dict[str, ImageUpgrade]) -> tuple[list[str], list[str], list[str]]:
-    """(own_refs, partner_refs, other_refs) from each image's "bucket"."""
-
-    def refs_in(bucket: str) -> list[str]:
-        return [ref for ref, info in images.items() if info["bucket"] == bucket]
-
-    return refs_in("own"), refs_in("partner"), refs_in("other")
-
-
 def _scan_image_upgrades(
     chart_dir: Path, targets: list[tuple[tuple[str, str], tuple[str, int]]], ctx: UpgradeCheckContext
 ) -> ImageUpgradeScan:
@@ -183,7 +177,7 @@ def _scan_image_upgrades(
 
     save_cache(chart_dir, new_cache)  # drop entries for images no longer pinned
 
-    own_refs, partner_refs, other_refs = _bucket_refs(images)
+    own_refs, partner_refs, other_refs = refs_by_bucket(images)
     return ImageUpgradeScan(images, own_refs, partner_refs, other_refs, fetch_errors, cache_hits)
 
 
@@ -193,9 +187,8 @@ def _print_image_upgrade_findings(scan: ImageUpgradeScan, total: int, ttl_days: 
     OK only when every image was checked: with fetch errors "no newer tag"
     would be vacuously true.
     """
-    print_upgradable("Own images", scan.own_refs, scan.images)
-    print_upgradable("Partner-vendor images", scan.partner_refs, scan.images)
-    print_upgradable("Other-vendor images", scan.other_refs, scan.images)
+    for bucket, refs in zip(BUCKETS, (scan.own_refs, scan.partner_refs, scan.other_refs), strict=True):
+        print_upgradable(bucket_title(bucket, "images"), refs, scan.images)
 
     if scan.fetch_errors:
         print(f"INCOMPLETE: {len(scan.fetch_errors)}/{total} image(s) could not be checked for a newer tag")

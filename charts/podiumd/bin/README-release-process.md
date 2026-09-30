@@ -139,6 +139,13 @@ needs.
 - run `verify-podiumd` to check consistency, if not ok, fix the issues
 - commit+push the changes
 
+### What images (and versions) are in a helm-chart
+
+- run `list-helmchart-images <component> <chart-version>`
+- output shows:
+  - `<app-version>` for `update-component-version`
+  - Per image: the parameters for `update-image-version`
+
 ### Update component versions in the release
 
 A component consists of a helm-chart and a container image.

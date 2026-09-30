@@ -29,6 +29,12 @@ from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import version_of
 from lib.checks.digest_pinning import find_unresolved_subchart_images
+from lib.component_docs.changes_section import IMAGE_INTRO_KEPT
+from lib.component_docs.changes_section import IMAGE_INTRO_NEW
+from lib.component_docs.changes_section import IMAGE_INTRO_UPGRADE
+from lib.component_docs.changes_section import IMAGE_PATH_BULLET
+from lib.component_docs.changes_section import PINNED_AT
+from lib.component_docs.changes_section import TODO_STUB
 from lib.component_docs.changes_section import ComponentIdentity
 from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import DocContext
@@ -36,8 +42,9 @@ from lib.component_docs.changes_section import OrderingContext
 from lib.component_docs.changes_section import VersionChange
 from lib.component_docs.changes_section import insert_changes_section
 from lib.component_docs.changes_section import make_changes_section
-from lib.component_docs.changes_section import remove_changes_block
-from lib.component_docs.changes_section import remove_changes_section
+from lib.component_docs.changes_section import render_changes_section
+from lib.component_docs.changes_section import replace_changes_block
+from lib.component_docs.changes_section import replace_changes_section
 from lib.component_docs.changes_section import update_component_table
 from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
 from lib.component_docs.images_manifest_changes_header import find_changes_item
@@ -58,6 +65,8 @@ from lib.upgradedoc.grouped_comments_and_changes_block import find_preceding_com
 from lib.upgradedoc.images_manifest_ordering import delete_images_manifest_entry
 from lib.upgradedoc.images_manifest_ordering import images_manifest_entry_order_key
 from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
+from lib.upgradedoc.sorting_and_ordering import HeadingBlock
+from lib.upgradedoc.sorting_and_ordering import changes_blocks_with_lines
 from lib.upgradedoc.sorting_and_ordering import component_order_key
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.sorting_and_ordering import values_key_order
@@ -68,8 +77,10 @@ from lib.upgradedoc.string_and_parsing_basics import extract_source_version
 from lib.upgradedoc.string_and_parsing_basics import match_located_line
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text
+from lib.upgradedoc.version_cells_and_key_changes import pin_version_text
 from lib.upgradedoc.version_cells_and_key_changes import replace_version_pair
 from lib.upgradedoc.version_cells_and_key_changes import version_change_suffix
+from lib.upgradedoc.version_cells_and_key_changes import version_transition
 from lib.yaml_types import YamlMapping
 
 
@@ -83,28 +94,21 @@ def make_image_changes_section(
     versions may differ. A None old version renders "(new)"; one equal to
     `new_version` renders "(unchanged)".
     """
-    suffix = version_change_suffix(old_version, new_version)
     image = (
         f"shared **{basename}**" if pinned and all(p.startswith("global.") for p, _ in pinned) else f"**{basename}**"
     )
     if old_version is None:
-        heading_suffix = f"{new_version} {suffix}"
-        intro = f"PodiumD {target} introduces the {image} image at {new_version},\n"
-    elif suffix:
-        heading_suffix = f"{new_version} {suffix}"
-        intro = f"PodiumD {target} keeps the {image} image at {new_version},\n"
+        intro_template = IMAGE_INTRO_NEW
+    elif version_change_suffix(old_version, new_version):
+        intro_template = IMAGE_INTRO_KEPT
     else:
-        heading_suffix = f"{old_version} → {new_version}"
-        intro = f"PodiumD {target} upgrades the {image} image to {new_version},\n"
-    lines = [f"### {basename} {heading_suffix}\n\n", intro, "pinned at:\n\n"]
-    for path, path_old_version in pinned:
-        path_suffix = version_change_suffix(path_old_version, new_version)
-        if path_suffix:
-            lines.append(f"- `{path}` `{new_version}` {path_suffix}\n")
-        else:
-            lines.append(f"- `{path}` `{path_old_version}` → `{new_version}`\n")
-    lines.append(f"\n- Image / digest: see [`images-{target}.yaml`](../images/images-{target}.yaml).\n\n")
-    return "".join(lines)
+        intro_template = IMAGE_INTRO_UPGRADE
+    intro = [intro_template.format(target=target, image=image, new=new_version) + "\n", PINNED_AT + "\n"]
+    bullets = [
+        IMAGE_PATH_BULLET.format(path=path, pin=pin_version_text(path_old, new_version)) + "\n"
+        for path, path_old in pinned
+    ]
+    return render_changes_section(f"{basename} {version_transition(old_version, new_version)}", intro, bullets, target)
 
 
 @dataclass
@@ -195,10 +199,9 @@ def _add_sidecar_row(text: str, name: str, path: tuple[str, ...], ctx: _SidecarR
     if table_action is None:
         return text, False  # no "Component versions" table
 
-    text, _ = remove_changes_section(text, name, ordering)
     dotted_path = ".".join(path) + ".tag"
     section = make_image_changes_section(name, ctx.doc_context.target, old_app, new_app, [(dotted_path, old_app)])
-    text = insert_changes_section(text, section, name, ordering)
+    text = replace_changes_section(text, section, name, ordering)
     return text, True
 
 
@@ -237,11 +240,7 @@ def build_changes_section_for_row(
     """
     if row["app"] in (None, "-"):
         chart_bit = row["chart"] or row["chart_source"] or "-"
-        return (
-            f"### {row['name']} {chart_bit}\n\n"
-            f"TODO: describe this component's changes — its app version could not be "
-            f"resolved from the table row.\n\n"
-        )
+        return f"### {row['name']} {chart_bit}\n\n{TODO_STUB}\n\n"
     if ident[0] == "dep":
         values_key = ident[1]
         dep = dep_for_values_key(deps, values_key)
@@ -304,11 +303,9 @@ def add_missing_changes_sections(
     return text, added_names
 
 
-def _remove_changes_block_by_exact_heading(text: str, heading: str):
-    """remove_changes_section by exact heading text, avoiding fuzzy matches. Returns (new_text, removed)."""
-    blocks = parse_upgrade_doc_changes_blocks(text)
-    block = next((b for b in blocks if b["heading"] == heading), None)
-    return remove_changes_block(text, block)
+def _block_by_exact_heading(text: str, heading: str) -> HeadingBlock | None:
+    """The Changes block with exactly this heading, avoiding fuzzy matches."""
+    return next((b for b in parse_upgrade_doc_changes_blocks(text) if b["heading"] == heading), None)
 
 
 @dataclass
@@ -369,11 +366,10 @@ def _rewrite_stale_heading(
     if section is None:
         return text, False
 
-    text, removed = _remove_changes_block_by_exact_heading(text, heading)
-    if not removed:
+    block = _block_by_exact_heading(text, heading)
+    if block is None:
         return text, False
-    text = insert_changes_section(text, section, row["name"], ctx.ordering)
-    return text, True
+    return replace_changes_block(text, block, section), True
 
 
 def update_stale_app_version_headings(
@@ -381,8 +377,8 @@ def update_stale_app_version_headings(
 ) -> tuple[str, list[str]]:
     """Regenerate Changes sections whose heading lacks an app version that now resolves.
 
-    E.g. an old chart-only stub "### openbao 0.28.4". The section is rebuilt
-    from the component's table row; the old body is discarded. Only
+    E.g. an old chart-only stub "### openbao 0.28.4". Its generated parts are
+    rewritten from the component's table row; text a user added stays. Only
     headings naming exactly one "dep" component are touched (sidecar
     headings are written with a known tag). Returns (new_text,
     updated_headings), the latter with the original heading texts.
@@ -395,6 +391,94 @@ def update_stale_app_version_headings(
         if updated:
             updated_headings.append(heading)
     return text, updated_headings
+
+
+_CHART_PART_RE = re.compile(r"\(chart [^)]*\)$")
+_INTRO_VERB_RE = re.compile(r"^PodiumD \S+ (introduces|upgrades) \*\*", re.MULTILINE)
+
+
+def _section_contradicts(heading: str, body: str, expected_heading: str, expected: str) -> bool:
+    """Whether the heading's "(chart ...)" part or the generated intro verb differs from the row's section.
+
+    Hand-written headings without a chart part and hand-written intros are not compared.
+    """
+    chart = _CHART_PART_RE.search(heading)
+    expected_chart = _CHART_PART_RE.search(expected_heading)
+    if chart and expected_chart and chart.group(0) != expected_chart.group(0):
+        return True
+    verb, expected_verb = _INTRO_VERB_RE.search(body), _INTRO_VERB_RE.search(expected)
+    return bool(verb) and (expected_verb is None or verb.group(1) != expected_verb.group(1))
+
+
+@dataclass(frozen=True)
+class ContradictingSection:
+    """A Changes section whose heading or intro disagrees with its table row."""
+
+    heading: str
+    expected_heading: str
+    row_name: str
+    expected_section: str
+    repairable: bool
+
+
+def changes_sections_contradicting_rows(
+    text: str, doc_context: DocContext, ordering: OrderingContext
+) -> list[ContradictingSection]:
+    """Dependency Changes sections whose heading or "introduces"/"upgrades" intro contradicts the table row.
+
+    E.g. row "0.28.4 → 0.29.6" with heading "(chart 0.29.6, new)" and
+    "introduces". Compared with the section build_changes_section_for_row
+    writes for that row; rows without an app version are skipped.
+    """
+    ctx = _StaleHeadingContext(doc_context, ordering)
+    rows_by_identity = _rows_by_identity(text, ctx)
+    lines, blocks = changes_blocks_with_lines(text)
+    found: list[ContradictingSection] = []
+    for block in blocks:
+        idents = changes_heading_identities(block["heading"], ordering.deps, ordering.canonical_names)
+        ident = next(iter(idents)) if len(idents) == 1 else None
+        row = rows_by_identity.get(ident) if ident is not None and ident[0] == "dep" else None
+        if row is None or ident is None or row["app"] in (None, "-"):
+            continue
+        expected = build_changes_section_for_row(row, ident, ordering.deps, doc_context.target)
+        if expected is None:
+            continue
+        expected_heading = expected.splitlines()[0].removeprefix("### ")
+        body = "".join(lines[block["start"] + 1 : block["end"]])
+        if not _section_contradicts(block["heading"], body, expected_heading, expected):
+            continue
+        found.append(
+            ContradictingSection(
+                block["heading"], expected_heading, row["name"], expected, _repair_resolves(text, block, expected)
+            )
+        )
+    return found
+
+
+def _repair_resolves(text: str, block: HeadingBlock, expected: str) -> bool:
+    """Whether rewriting the block's owned parts removes the contradiction (it may sit in user text)."""
+    rewritten = replace_changes_block(text, block, expected)
+    new_block = next(b for b in parse_upgrade_doc_changes_blocks(rewritten) if b["start"] == block["start"])
+    lines = rewritten.splitlines(keepends=True)
+    body = "".join(lines[new_block["start"] + 1 : new_block["end"]])
+    return not _section_contradicts(new_block["heading"], body, expected.splitlines()[0].removeprefix("### "), expected)
+
+
+def rebuild_changes_sections_contradicting_rows(
+    text: str, doc_context: DocContext, ordering: OrderingContext
+) -> tuple[str, list[ContradictingSection]]:
+    """Rewrite the owned parts of each contradicting section from its row; user text stays.
+
+    Returns (text, rebuilt); a contradiction inside user text is left for
+    doc-consistency to report.
+    """
+    rebuilt: list[ContradictingSection] = []
+    for section in changes_sections_contradicting_rows(text, doc_context, ordering):
+        block = _block_by_exact_heading(text, section.heading)
+        if section.repairable and block is not None:
+            text = replace_changes_block(text, block, section.expected_section)
+            rebuilt.append(section)
+    return text, rebuilt
 
 
 def resolve_basename_baseline_version(

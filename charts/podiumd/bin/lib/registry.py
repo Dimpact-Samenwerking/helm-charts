@@ -6,13 +6,16 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from http.client import HTTPMessage
 from pathlib import Path
+from typing import IO
 from typing import BinaryIO
 from typing import TypedDict
 
 from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import text_at
 from lib.procutil import run
+from lib.version_numbers import dotted_numbers
 from lib.yaml_types import YamlValue
 from lib.yaml_types import is_yaml_value
 
@@ -100,16 +103,53 @@ def _parse_bearer_challenge(header_value: str | None):
     return params if "realm" in params else None
 
 
+class _DropAuthOnRedirect(urllib.request.HTTPRedirectHandler):
+    """Follow a redirect to another host without the Authorization header.
+
+    Registries redirect blob downloads to a storage CDN (docker.elastic.co does),
+    which answers HTTP 400 to the registry's bearer token."""
+
+    # Signature fixed by urllib.request.HTTPRedirectHandler.redirect_request, which this overrides.
+    def redirect_request(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        self,
+        req: urllib.request.Request,
+        fp: IO[bytes],
+        code: int,
+        msg: str,
+        headers: HTTPMessage,
+        newurl: str,
+    ) -> urllib.request.Request | None:
+        new = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if new is not None and urllib.parse.urlsplit(newurl).netloc != urllib.parse.urlsplit(req.full_url).netloc:
+            new.remove_header("Authorization")
+        return new
+
+
+_BLOB_OPENER = urllib.request.build_opener(_DropAuthOnRedirect)
+
+
+def _urlopen_blob(url_or_req: str | urllib.request.Request, timeout: float | None = None):
+    """_urlopen for blob downloads: redirects to another host drop the Authorization header."""
+    # Same trusted registry hosts as _urlopen.
+    return _BLOB_OPENER.open(url_or_req, timeout=timeout)  # nosec B310
+
+
 def _get_with_dynamic_auth(
-    url: str, repo: str, headers: dict[str, str], timeout: float | None = None, method: str = "GET"
+    url: str,
+    repo: str,
+    headers: dict[str, str],
+    timeout: float | None = None,
+    method: str = "GET",
 ):
     """Request url, retrying once with a token from the 401's Bearer challenge realm.
 
     Needed for registries not in TOKEN_ENDPOINTS, e.g. docker.elastic.co (realm
     docker-auth.elastic.co). Re-raises a 401 without a Bearer challenge. The retry uses the
-    same method."""
+    same method. A blob download follows a redirect to another host without the
+    Authorization header (see _DropAuthOnRedirect)."""
+    urlopen = _urlopen_blob if "/blobs/" in url else _urlopen
     try:
-        return _urlopen(urllib.request.Request(url, headers=headers, method=method), timeout=timeout)
+        return urlopen(urllib.request.Request(url, headers=headers, method=method), timeout=timeout)
     except urllib.error.HTTPError as e:
         if e.code != 401:
             raise
@@ -121,7 +161,7 @@ def _get_with_dynamic_auth(
             query["service"] = challenge["service"]
         token = _read_token(_urlopen(f"{challenge['realm']}?{urllib.parse.urlencode(query)}", timeout=timeout))
         headers = {**headers, "Authorization": f"Bearer {token}"}
-        return _urlopen(urllib.request.Request(url, headers=headers, method=method), timeout=timeout)
+        return urlopen(urllib.request.Request(url, headers=headers, method=method), timeout=timeout)
 
 
 # Hosts that reject even anonymous manifest reads (network restriction); check_image_digests
@@ -141,6 +181,21 @@ def parse_repo(repository: str) -> tuple[str, str]:
     if not sep:
         return "docker.io", f"library/{repository}"
     return "docker.io", repository
+
+
+def _registry_request(
+    registry_host: str, repo: str, path: str, accept: str | None, timeout: float | None
+) -> tuple[str, dict[str, str]]:
+    """(url, headers) for GET /v2/<repo>/<path> on registry_host's API host.
+
+    Hosts in TOKEN_ENDPOINTS get their anonymous pull token up front; others
+    get none, and _get_with_dynamic_auth answers their 401 challenge.
+    """
+    headers = {"Accept": accept} if accept else {}
+    token_url_tmpl = TOKEN_ENDPOINTS.get(registry_host)
+    if token_url_tmpl:
+        headers["Authorization"] = f"Bearer {_read_token(_urlopen(token_url_tmpl.format(repo=repo), timeout=timeout))}"
+    return f"https://{MANIFEST_HOSTS.get(registry_host, registry_host)}/v2/{repo}/{path}", headers
 
 
 def _fetch_manifest_digest(
@@ -164,19 +219,56 @@ def registry_tag_exists(
     timeout (seconds) bounds every request; None waits indefinitely. Uses HEAD: only the
     Docker-Content-Digest header is read, and Docker Hub counts a manifest GET against the
     anonymous rate limit but not a HEAD. Falls back to GET only on 405."""
-    headers = {"Accept": MANIFEST_ACCEPT}
-    token_url_tmpl = TOKEN_ENDPOINTS.get(registry_host)
-    if token_url_tmpl:
-        token = _read_token(_urlopen(token_url_tmpl.format(repo=repo), timeout=timeout))
-        headers["Authorization"] = f"Bearer {token}"
-    api_host = MANIFEST_HOSTS.get(registry_host, registry_host)
-    url = f"https://{api_host}/v2/{repo}/manifests/{tag}"
+    url, headers = _registry_request(registry_host, repo, f"manifests/{tag}", MANIFEST_ACCEPT, timeout)
     try:
         return _fetch_manifest_digest(url, repo, headers, timeout, "HEAD")
     except urllib.error.HTTPError as e:
         if e.code != 405:
             raise
         return _fetch_manifest_digest(url, repo, headers, timeout, "GET")
+
+
+IMAGE_CONFIG_ACCEPT = "application/vnd.oci.image.config.v1+json,application/vnd.docker.container.image.v1+json"
+# The node platform whose image variant is inspected in a multi-arch index.
+NODE_PLATFORM = ("linux", "amd64")
+
+
+def _registry_json(registry_host: str, repo: str, path: str, accept: str, timeout: float | None) -> YamlValue:
+    """GET /v2/<repo>/<path> as JSON (see _registry_request)."""
+    url, headers = _registry_request(registry_host, repo, path, accept, timeout)
+    with _get_with_dynamic_auth(url, repo, headers, timeout=timeout) as resp:
+        return _read_json(resp)
+
+
+def _platform_manifest_digest(index: YamlValue) -> str:
+    """The NODE_PLATFORM manifest's digest in a multi-arch index; URLError if it has none."""
+    entries = get_path(index, "manifests")
+    for entry in entries if isinstance(entries, list) else []:
+        platform = (text_at(entry, "platform.os"), text_at(entry, "platform.architecture"))
+        digest = text_at(entry, "digest")
+        if platform == NODE_PLATFORM and digest:
+            return digest
+    msg = f"no {'/'.join(NODE_PLATFORM)} image in the index"
+    raise urllib.error.URLError(msg)
+
+
+def image_config_user(registry_host: str, repo: str, reference: str, timeout: float | None = None) -> str:
+    """The image's default user (its config "User"; "" means root), for a tag or digest `reference`.
+
+    Reads the manifest and config blob only, no image pull. A multi-arch index
+    uses its NODE_PLATFORM image. Raises URLError when the registry answers
+    without a usable manifest or config.
+    """
+    manifest = _registry_json(registry_host, repo, f"manifests/{reference}", MANIFEST_ACCEPT, timeout)
+    if get_path(manifest, "manifests") is not None:
+        digest = _platform_manifest_digest(manifest)
+        manifest = _registry_json(registry_host, repo, f"manifests/{digest}", MANIFEST_ACCEPT, timeout)
+    config_digest = text_at(manifest, "config.digest")
+    if not config_digest:
+        msg = f"manifest of {registry_host}/{repo}:{reference} has no config"
+        raise urllib.error.URLError(msg)
+    config = _registry_json(registry_host, repo, f"blobs/{config_digest}", IMAGE_CONFIG_ACCEPT, timeout)
+    return text_at(config, "config.User") or ""
 
 
 HISTORICAL_DIGEST_RE_TMPL = r'tag:\s*"?{version}@sha256:([0-9a-f]{{64}})'
@@ -204,17 +296,11 @@ def historical_digests_for_tag(values_path: Path, version: str) -> set[str]:
 
 def list_tags(registry_host: str, repo: str):
     """All published tag names, via the generic OCI GET /v2/<repo>/tags/list endpoint."""
-    headers: dict[str, str] = {}
-    token_url_tmpl = TOKEN_ENDPOINTS.get(registry_host)
-    if token_url_tmpl:
-        token = _read_token(_urlopen(token_url_tmpl.format(repo=repo)))
-        headers["Authorization"] = f"Bearer {token}"
-    api_host = MANIFEST_HOSTS.get(registry_host, registry_host)
-    url = f"https://{api_host}/v2/{repo}/tags/list"
+    url, headers = _registry_request(registry_host, repo, "tags/list", None, None)
     with _get_with_dynamic_auth(url, repo, headers) as resp:
         tags = get_path(_read_json(resp), "tags") or []
     if not isinstance(tags, list) or not all(isinstance(tag, str) for tag in tags):
-        msg = f"tags/list response from {api_host} is not a list of tag names"
+        msg = f"tags/list response from {urllib.parse.urlsplit(url).netloc} is not a list of tag names"
         raise urllib.error.URLError(msg)
     return [tag for tag in tags if isinstance(tag, str)]
 
@@ -256,16 +342,13 @@ def find_newest_same_variant_tag(registry_host: str, repo: str, version: str) ->
     if ver_num is None:
         return version
 
-    def numeric_tuple(num: str):
-        return tuple(int(p) for p in num.split("."))
-
     ver_parts = ver_num.split(".")
-    best, best_key = version, numeric_tuple(ver_num)
+    best, best_key = version, dotted_numbers(ver_num)
     for tag in list_tags(registry_host, repo):
         num, suffix = _numeric_prefix_and_suffix(tag)
         if num is None or suffix != ver_suffix or len(num.split(".")) != len(ver_parts):
             continue
-        key = numeric_tuple(num)
+        key = dotted_numbers(num)
         if key > best_key:
             best, best_key = tag, key
     return best

@@ -38,6 +38,7 @@ from lib.chart.paths import IMAGES_DIR
 from lib.chart.release_baseline_basics import chart_version
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.cli import positional_args
+from lib.cli import print_section
 from lib.component_docs.baseline_doc_stubs import create_missing_docs
 from lib.component_docs.baseline_doc_stubs import existing_doc_baselines
 from lib.procutil import run_script
@@ -93,8 +94,7 @@ def main():
     else:
         print("  nothing to do — every doc already exists")
 
-    print()
-    print("=== Regenerating README.md (fix-helm-doc) ===")
+    print_section("Regenerating README.md (fix-helm-doc)")
     run_script([sys.executable, str(FIX_HELM_DOC_SCRIPT)])
 
 

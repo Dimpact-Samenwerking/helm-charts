@@ -10,6 +10,7 @@ from typing import TypeVar
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import native_components
 from lib.chart.values_tree_primitives import values_key_of
+from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import match_canonical_sidecar_name
 from lib.upgradedoc.string_and_parsing_basics import match_dependency
 from lib.upgradedoc.string_and_parsing_basics import match_located_line
@@ -169,6 +170,28 @@ def parse_upgrade_doc_changes_blocks(text: str) -> list[HeadingBlock]:
             }
         )
     return blocks
+
+
+def changes_blocks_with_lines(text: str) -> tuple[list[str], list[HeadingBlock]]:
+    """(text's lines with line ends, its "### ..." blocks under "## Changes"), for scans that index both."""
+    return text.splitlines(keepends=True), parse_upgrade_doc_changes_blocks(text)
+
+
+def block_for_component(
+    blocks: list[HeadingBlock],
+    friendly: str,
+    deps: list[ChartDependency],
+    canonical_names: Mapping[str, tuple[str, ...]] | None,
+) -> HeadingBlock | None:
+    """The block whose heading names exactly `friendly`'s component(s), as check_docs_consistency pairs them.
+
+    Exact, so a sidecar's block is never taken for its parent's and a block
+    covering several components never matches one of them.
+    """
+    target = changes_heading_identities(friendly, deps, canonical_names)
+    if not target:
+        return None
+    return next((b for b in blocks if changes_heading_identities(b["heading"], deps, canonical_names) == target), None)
 
 
 def sort_upgrade_doc_rows(

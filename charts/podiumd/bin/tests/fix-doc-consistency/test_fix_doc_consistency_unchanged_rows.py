@@ -1,5 +1,5 @@
 """remove_unchanged_component_rows: a "Component versions" row whose app and
-chart both equal the baseline's is removed with its "### ..." section."""
+chart both equal the baseline's is removed with the generated parts of its "### ..." section."""
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.component_docs.changes_section import BaselineState
@@ -31,9 +31,11 @@ DOC = (
     "| ZAC (Zaakafhandelcomponent) | 5.4.4 (unchanged) | 1.0.297 (unchanged) | - |\n\n"
     "## Changes\n\n"
     "### redis-operator - redis v8.6.6 → v8.10.1 (chart 0.26.1, unchanged)\n\n"
-    "Redis bump.\n\n"
+    "PodiumD 4.9.0 upgrades the **redis-operator - redis** image to v8.10.1,\n"
+    "pinned at:\n\n"
+    "- `redis-operator.redis-ha.image.tag` `v8.6.6` → `v8.10.1`\n\n"
     "### ZAC (Zaakafhandelcomponent) 5.4.4 (unchanged) (chart 1.0.297, unchanged)\n\n"
-    "Nothing changed.\n\n"
+    "**ZAC (Zaakafhandelcomponent)**'s own app version (5.4.4) is unchanged this hop.\n\n"
     "## Corrections\n\n"
     "None.\n"
 )
@@ -50,10 +52,28 @@ def test_remove_unchanged_component_rows_removes_row_and_section() -> None:
 
     assert removed == ["ZAC (Zaakafhandelcomponent)"]
     assert "ZAC" not in new_text
-    assert "Nothing changed." not in new_text
     assert "| redis-operator - redis | v8.6.6 → v8.10.1 | - | - |" in new_text
     assert "### redis-operator - redis v8.6.6 → v8.10.1" in new_text
-    assert "Redis bump.\n\n## Corrections\n" in new_text
+    assert "- `redis-operator.redis-ha.image.tag` `v8.6.6` → `v8.10.1`\n\n## Corrections\n" in new_text
+
+
+def test_remove_unchanged_component_rows_keeps_hand_written_text_of_the_section() -> None:
+    """Only the generated parts go; the user's note and the heading above it stay."""
+    doc = DOC.replace("is unchanged this hop.\n\n", "is unchanged this hop.\n\nRestart ZAC after the upgrade.\n\n")
+    resolution = ResolutionContext(
+        None,
+        ComponentState(DEPS, values("v8.10.1", "5.4.4")),
+        BaselineState(DEPS, values("v8.6.6", "5.4.4")),
+    )
+
+    new_text, removed = remove_unchanged_component_rows(doc, resolution)
+
+    assert removed == ["ZAC (Zaakafhandelcomponent)"]
+    assert "| ZAC (Zaakafhandelcomponent) |" not in new_text
+    assert (
+        "### ZAC (Zaakafhandelcomponent) 5.4.4 (unchanged) (chart 1.0.297, unchanged)\n\n"
+        "Restart ZAC after the upgrade.\n\n## Corrections\n"
+    ) in new_text
 
 
 def test_remove_unchanged_component_rows_reverted_sidecar() -> None:

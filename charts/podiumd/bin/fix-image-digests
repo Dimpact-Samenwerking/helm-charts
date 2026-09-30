@@ -46,6 +46,7 @@ from lib.chart.paths import CHART_DIR
 from lib.chart.repo_and_path_resolution import SubchartValuesCache
 from lib.chart.repo_and_path_resolution import subchart_default_repository
 from lib.chart.repo_and_path_resolution import subchart_needs_vendoring
+from lib.cli import print_section
 from lib.dependencies import check_dependencies as vendor_dependencies
 from lib.dependencies import ensure_repos_configured
 from lib.image.digests import DigestPin
@@ -209,14 +210,12 @@ def _apply_stale_digests(text: str, to_update: list[StaleDigest], *, dry_run: bo
 
 def _regenerate_docs():
     """Run fix-helm-doc and fix-doc-consistency, which embed the digests; exit on failure."""
-    print()
-    print("=== Regenerating README.md (fix-helm-doc) ===")
+    print_section("Regenerating README.md (fix-helm-doc)")
     result = run_script([sys.executable, str(FIX_HELM_DOC_SCRIPT)])
     if result.returncode != 0:
         sys.exit(result.returncode)
 
-    print()
-    print("=== Repairing images-manifest (fix-doc-consistency) ===")
+    print_section("Repairing images-manifest (fix-doc-consistency)")
     result = run_script([sys.executable, str(FIX_DOC_CONSISTENCY_SCRIPT)])
     if result.returncode != 0:
         sys.exit(result.returncode)

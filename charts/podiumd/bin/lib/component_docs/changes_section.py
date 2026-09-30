@@ -12,6 +12,7 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.historical_baselines import historical_app_version_for_path
@@ -22,9 +23,15 @@ from lib.chart.registered_paths import version_paths_for
 from lib.chart.values_tree_primitives import values_key_of
 from lib.component_docs.baseline_doc_stubs import UPGRADE_CHANGES_STUB_TODO_LINE
 from lib.component_docs.baseline_doc_stubs import UPGRADE_INTRO_STUB_TODO_LINE
+from lib.component_docs.owned_parts import BLANK
+from lib.component_docs.owned_parts import generated_heading_name
+from lib.component_docs.owned_parts import remove_section_owned_parts
+from lib.component_docs.owned_parts import replace_section_owned_parts
+from lib.component_docs.owned_parts import template_re
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
-from lib.upgradedoc.consistency_checks import resolve_component_identity
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
+from lib.upgradedoc.sorting_and_ordering import block_for_component
+from lib.upgradedoc.sorting_and_ordering import changes_blocks_with_lines
 from lib.upgradedoc.sorting_and_ordering import changes_section_bounds
 from lib.upgradedoc.sorting_and_ordering import component_order_key
 from lib.upgradedoc.sorting_and_ordering import insertion_index
@@ -32,14 +39,14 @@ from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import COMPONENT_VERSIONS_HEADING_RE
 from lib.upgradedoc.string_and_parsing_basics import TableRow
-from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
 from lib.upgradedoc.string_and_parsing_basics import match_native_component
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.string_and_parsing_basics import text_names
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
-from lib.upgradedoc.version_cells_and_key_changes import version_change_suffix
+from lib.upgradedoc.version_cells_and_key_changes import pin_version_text
+from lib.upgradedoc.version_cells_and_key_changes import version_transition
 from lib.yaml_types import YamlMapping
 
 
@@ -182,6 +189,110 @@ def remove_component_row(text: str, friendly: str):
     return "".join(lines), True
 
 
+# Wording of the generated parts of a "### ..." Changes section. The renderers format these;
+# changes_body_kinds matches them, so a wording change reaches both.
+INTRO_NEW = "PodiumD {target} introduces **{name}** at app version {new}."
+INTRO_UNCHANGED = "**{name}**'s own app version ({new}) is unchanged this hop."
+INTRO_UPGRADE = "PodiumD {target} upgrades **{name}** from app version {old}"
+INTRO_UPGRADE_TO = "to {new}."
+IMAGE_INTRO_NEW = "PodiumD {target} introduces the {image} image at {new},"
+IMAGE_INTRO_KEPT = "PodiumD {target} keeps the {image} image at {new},"
+IMAGE_INTRO_UPGRADE = "PodiumD {target} upgrades the {image} image to {new},"
+PINNED_AT = "pinned at:"
+HELM_CHART_BULLET = "- Helm chart `{chart}` `{old}` → `{new}` in"
+CHART_YAML_LINE = "  `charts/podiumd/Chart.yaml`."
+IMAGE_TAG_PIN_BULLET = "- Image tag pin `{path}` {pin} in"
+VERSION_PIN_BULLET = "- Version pin `{path}` {pin} in"
+VALUES_YAML_LINE = "  `charts/podiumd/values.yaml`."
+IMAGE_PATH_BULLET = "- `{path}` {pin}"
+ALIAS_NOTE = "(shares a YAML anchor with `{path}`)"
+TODO_STUB = "TODO: describe this component's changes — its app version could not be resolved from the table row."
+IMAGE_DIGEST_POINTER_PREFIX = "- Image / digest: see "
+
+
+_FIELD_PATTERNS = {
+    "target": r"\S+",
+    "new": r"\S+",
+    "old": r"\S+",
+    "chart": r"\S+",
+    "name": r".+?",
+    "image": r".+?",
+    "path": r"[^`\s]+",
+    # pin_version_text, optionally followed by the aliased-pin note.
+    "pin": (
+        r"(?:`[^`]+` → `[^`]+`|`[^`]+` \((?:new|unchanged|digest changed)\))"
+        r"(?: \(shares a YAML anchor with `[^`]+`\))?"
+    ),
+}
+
+
+def _template_re(template: str) -> re.Pattern[str]:
+    return template_re(template, _FIELD_PATTERNS)
+
+
+_POINTER_RE = re.compile(
+    re.escape(IMAGE_DIGEST_POINTER_PREFIX) + r"\[`images-\S+\.yaml`\]\(\.\./images/images-\S+\.yaml\)\.$"
+)
+# (opening template, required continuation template or None, kind)
+_OWNED_LINES = [
+    (_template_re(INTRO_NEW), None, "intro"),
+    (_template_re(INTRO_UNCHANGED), None, "intro"),
+    (_template_re(INTRO_UPGRADE), _template_re(INTRO_UPGRADE_TO), "intro"),
+    (_template_re(IMAGE_INTRO_NEW), _template_re(PINNED_AT), "intro"),
+    (_template_re(IMAGE_INTRO_KEPT), _template_re(PINNED_AT), "intro"),
+    (_template_re(IMAGE_INTRO_UPGRADE), _template_re(PINNED_AT), "intro"),
+    (_template_re(HELM_CHART_BULLET), _template_re(CHART_YAML_LINE), "bullet"),
+    (_template_re(IMAGE_TAG_PIN_BULLET), _template_re(VALUES_YAML_LINE), "bullet"),
+    (_template_re(VERSION_PIN_BULLET), _template_re(VALUES_YAML_LINE), "bullet"),
+    (_template_re(IMAGE_PATH_BULLET), None, "bullet"),
+    (_template_re(TODO_STUB), None, "stub"),
+    (_POINTER_RE, None, "pointer"),
+]
+
+
+def changes_body_kinds(body: Sequence[str]) -> list[str | None]:
+    """The owned-part kind of each line after a "### ..." heading, None for a user line.
+
+    A line is owned only when it matches a template the renderers write; a
+    continuation line ("to 1.3.", "  `charts/podiumd/values.yaml`.",
+    "pinned at:") only right after its opening line.
+    """
+    kinds: list[str | None] = []
+    i = 0
+    while i < len(body):
+        line = body[i].rstrip("\n")
+        if not line.strip():
+            kinds.append(BLANK)
+            i += 1
+            continue
+        match = next(((cont, kind) for opener, cont, kind in _OWNED_LINES if opener.match(line)), None)
+        if match is None:
+            kinds.append(None)
+            i += 1
+            continue
+        continuation, kind = match
+        kinds.append(kind)
+        i += 1
+        if continuation is not None and i < len(body) and continuation.match(body[i].rstrip("\n")):
+            kinds.append(kind)
+            i += 1
+    return kinds
+
+
+def _heading_name(heading_line: str, body_kinds: Sequence[str | None]) -> str | None:
+    """The component name of a generated "### ..." heading, None for a hand-written one.
+
+    A stub section's heading is "<name> <chart>", owned only with the stub line in its body.
+    """
+    heading = heading_line.rstrip("\n").removeprefix("### ")
+    name = generated_heading_name(heading)
+    if name is not None:
+        return name
+    if "stub" in body_kinds and " " in heading:
+        return heading.rsplit(" ", 1)[0]
+    return None
+
+
 def make_changes_section(
     identity: ComponentIdentity,
     target: str,
@@ -214,28 +325,93 @@ def make_changes_section(
             if chart_changed
             else f" (chart {change.new_chart}, unchanged)"
         )
-    app_suffix = version_change_suffix(change.old_app, change.new_app)
-    app_heading = f"{change.new_app} {app_suffix}" if app_suffix else f"{change.old_app} → {change.new_app}"
-    lines = [f"### {identity.friendly} {app_heading}{chart_suffix}\n\n"]
+    heading = f"{identity.friendly} {version_transition(change.old_app, change.new_app)}{chart_suffix}"
+    name, new = identity.friendly, change.new_app
     if change.old_app is None:
-        lines.append(f"PodiumD {target} introduces **{identity.friendly}** at app version {change.new_app}.\n\n")
+        intro = [INTRO_NEW.format(target=target, name=name, new=new) + "\n"]
     elif normalize_version(change.old_app) == normalize_version(change.new_app):
-        lines.append(f"**{identity.friendly}**'s own app version ({change.new_app}) is unchanged this hop.\n\n")
+        intro = [INTRO_UNCHANGED.format(name=name, new=new) + "\n"]
     else:
-        lines.append(f"PodiumD {target} upgrades **{identity.friendly}** from app version {change.old_app}\n")
-        lines.append(f"to {change.new_app}.\n\n")
-    pin_suffix = f"`{change.new_app}` {app_suffix}" if app_suffix else f"`{change.old_app}` → `{change.new_app}`"
+        intro = [
+            INTRO_UPGRADE.format(target=target, name=name, old=change.old_app) + "\n",
+            INTRO_UPGRADE_TO.format(new=new) + "\n",
+        ]
+    pin = pin_version_text(change.old_app, change.new_app)
+    bullets: list[str] = []
     if chart_changed:
-        lines.append(f"- Helm chart `{identity.chart_name}` `{change.old_chart}` → `{change.new_chart}` in\n")
-        lines.append("  `charts/podiumd/Chart.yaml`.\n")
+        chart_bullet = HELM_CHART_BULLET.format(chart=identity.chart_name, old=change.old_chart, new=change.new_chart)
+        bullets += [chart_bullet + "\n", CHART_YAML_LINE + "\n"]
     for path in image_paths:
-        lines.append(f"- Image tag pin `{identity.values_key}.{path}.tag` {pin_suffix} in\n")
-        lines.append("  `charts/podiumd/values.yaml`.\n")
+        bullets += [IMAGE_TAG_PIN_BULLET.format(path=f"{identity.values_key}.{path}.tag", pin=pin) + "\n"]
+        bullets += [VALUES_YAML_LINE + "\n"]
     for path in version_paths:
-        lines.append(f"- Version pin `{identity.values_key}.{path}` {pin_suffix} in\n")
-        lines.append("  `charts/podiumd/values.yaml`.\n")
-    lines.append(f"- Image / digest: see [`images-{target}.yaml`](../images/images-{target}.yaml).\n\n")
-    return "".join(lines)
+        bullets += [VERSION_PIN_BULLET.format(path=f"{identity.values_key}.{path}", pin=pin) + "\n"]
+        bullets += [VALUES_YAML_LINE + "\n"]
+    return render_changes_section(heading, intro, bullets, target)
+
+
+def image_digest_pointer(target: str) -> str:
+    """The "- Image / digest" line that ends every Changes section."""
+    return f"{IMAGE_DIGEST_POINTER_PREFIX}[`images-{target}.yaml`](../images/images-{target}.yaml).\n"
+
+
+@dataclass(frozen=True)
+class PointerIssue:
+    """A Changes section's "- Image / digest" pointer problem; `line` is where it applies."""
+
+    heading: str
+    kind: Literal["missing", "duplicate", "no-blank-line-before"]
+    line: int
+    count: int = 1
+
+
+def pointer_issues(text: str) -> list[PointerIssue]:
+    """Each Changes section's missing, duplicate or not blank-separated pointer, from one pass.
+
+    TODO stub sections have no pointer by design and are skipped. A missing
+    pointer's `line` is the section's last non-blank line.
+    """
+    lines, blocks = changes_blocks_with_lines(text)
+    issues: list[PointerIssue] = []
+    for block in blocks:
+        body = range(block["start"] + 1, block["end"])
+        if "stub" in changes_body_kinds([lines[i] for i in body]):
+            continue
+        pointers = [i for i in body if lines[i].startswith(IMAGE_DIGEST_POINTER_PREFIX)]
+        if not pointers:
+            last = max((i for i in body if lines[i].strip()), default=block["start"])
+            issues.append(PointerIssue(block["heading"], "missing", last))
+        elif len(pointers) > 1:
+            issues.append(PointerIssue(block["heading"], "duplicate", pointers[1], len(pointers)))
+        issues.extend(
+            PointerIssue(block["heading"], "no-blank-line-before", i) for i in pointers if lines[i - 1].strip()
+        )
+    return issues
+
+
+def fix_pointer_issues(text: str, target: str) -> tuple[str, list[PointerIssue]]:
+    """Append a missing pointer after a blank line and add missing blank lines; duplicates are left.
+
+    Returns (text, fixed issues).
+    """
+    fixed = [issue for issue in pointer_issues(text) if issue.kind != "duplicate"]
+    lines = text.splitlines(keepends=True)
+    for issue in sorted(fixed, key=lambda i: i.line, reverse=True):
+        if issue.kind == "missing":
+            lines[issue.line + 1 : issue.line + 1] = ["\n", image_digest_pointer(target)]
+        else:
+            lines.insert(issue.line, "\n")
+    return "".join(lines), fixed
+
+
+def render_changes_section(heading: str, intro: Sequence[str], bullets: Sequence[str], target: str) -> str:
+    """A "### <heading>" Changes block: heading, intro, bullets and the image digest pointer.
+
+    `intro` and `bullets` are lines ending in one "\\n"; the parts get one
+    blank line between them.
+    """
+    parts = [f"### {heading}\n", "".join(intro), "".join(bullets), image_digest_pointer(target)]
+    return "\n".join(part for part in parts if part) + "\n"
 
 
 def _is_bare_placeholder_span(lines: list[str], start: int, end: int, placeholder_text: str):
@@ -373,31 +549,36 @@ def strip_stale_upgrade_placeholders(text: str):
     return "".join(lines), True
 
 
-def remove_changes_block(text: str, block: HeadingBlock | None) -> tuple[str, bool]:
-    """Delete `block` and its trailing blank lines. Returns
-    (new_text, removed); (text, False) if block is None."""
-    if block is None:
-        return text, False
-    lines = text.splitlines(keepends=True)
-    start, end = block["start"], block["end"]
-    while end < len(lines) and not lines[end].strip():
-        end += 1
-    del lines[start:end]
-    return "".join(lines), True
+def replace_changes_block(text: str, block: HeadingBlock, section_text: str) -> str:
+    """`block` with its owned parts replaced by `section_text`'s; user lines stay in place."""
+    return replace_section_owned_parts(text, block, section_text, changes_body_kinds, _heading_name)
 
 
-def remove_changes_section(text: str, friendly: str, ordering: OrderingContext) -> tuple[str, bool]:
-    """Delete the component's "### ..." block, matched by identity the same
-    way check_docs_consistency pairs headings with rows, so a sidecar's
-    block is never taken for its parent's. Returns (new_text, removed)."""
-    deps, canonical_names = ordering.deps, ordering.canonical_names
-    ident = resolve_component_identity(friendly, deps, canonical_names)
-    blocks = parse_upgrade_doc_changes_blocks(text)
-    block = next(
-        (b for b in blocks if ident and changes_heading_identities(b["heading"], deps, canonical_names) == {ident}),
-        None,
+def remove_changes_block(text: str, block: HeadingBlock | None) -> tuple[str, bool, bool]:
+    """Remove `block`'s owned parts: (new_text, removed, kept_user_text); see remove_section_owned_parts."""
+    return remove_section_owned_parts(text, block, changes_body_kinds)
+
+
+def component_changes_block(text: str, friendly: str, ordering: OrderingContext) -> HeadingBlock | None:
+    """The component's "### ..." block, matched by identity the same way
+    check_docs_consistency pairs headings with rows, so a sidecar's block is
+    never taken for its parent's."""
+    return block_for_component(
+        parse_upgrade_doc_changes_blocks(text), friendly, ordering.deps, ordering.canonical_names
     )
-    return remove_changes_block(text, block)
+
+
+def remove_changes_section(text: str, friendly: str, ordering: OrderingContext) -> tuple[str, bool, bool]:
+    """remove_changes_block for the component's block: (new_text, removed, kept_user_text)."""
+    return remove_changes_block(text, component_changes_block(text, friendly, ordering))
+
+
+def replace_changes_section(text: str, section_text: str, friendly: str, ordering: OrderingContext) -> str:
+    """Write the component's Changes section: replace the owned parts of its block, or insert it."""
+    block = component_changes_block(text, friendly, ordering)
+    if block is None:
+        return insert_changes_section(text, section_text, friendly, ordering)
+    return replace_changes_block(text, block, section_text)
 
 
 def resolve_component_own_version_change(
@@ -508,9 +689,8 @@ def _add_missing_row_for_key(
     if table_action is None:
         return text, False  # doc has no "Component versions" table at all to insert into
 
-    text, _ = remove_changes_section(text, key, OrderingContext(target_state.deps, target_state.values))
     change = VersionChange(old_app, new_app, old_chart, new_chart)
-    text = insert_changes_section(
+    text = replace_changes_section(
         text,
         _new_component_section(key, chart_name, change, doc_context),
         key,

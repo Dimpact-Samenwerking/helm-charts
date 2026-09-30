@@ -154,7 +154,8 @@ def test_main_sidecar_reset_to_baseline_uses_raw_values_key(
         "| --- | --- | --- | --- |\n"
         "| redis-operator - redis | 8.6.2 → 8.6.6 | 1.0.0 (unchanged) | - |\n\n"
         "## Changes\n\n"
-        "### redis-operator - redis 8.6.2 → 8.6.6\n\nblah\n",
+        "### redis-operator - redis 8.6.2 → 8.6.6\n\n"
+        "- `redis-operator.redis-ha.image.tag` `8.6.2` → `8.6.6`\n",
     )
     write_doc(
         uiv.DOC_DIR,

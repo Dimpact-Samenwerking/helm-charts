@@ -4,6 +4,8 @@ update-image-version."""
 
 import re
 
+from collections.abc import Iterable
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -18,6 +20,7 @@ from lib.component_docs.images_manifest_changes_header import find_changes_item
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_items
 from lib.component_docs.images_manifest_changes_header import images_manifest_changes_count_word
+from lib.component_docs.images_manifest_changes_header import images_manifest_changes_item_spans
 from lib.component_docs.images_manifest_changes_header import images_manifest_order_key
 from lib.component_docs.images_manifest_changes_header import insert_images_manifest_header_item
 from lib.component_docs.images_manifest_changes_header import remove_changes_item
@@ -26,6 +29,9 @@ from lib.images_manifest import try_parse_images_manifest
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_path
 from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment_line
 from lib.upgradedoc.images_manifest_ordering import delete_images_manifest_entry
+from lib.upgradedoc.resolve_component_row import ResolutionContext
+from lib.upgradedoc.resolve_component_row import resolve_component_row
+from lib.upgradedoc.resolve_component_row import resolved_row_unchanged
 from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
 from lib.upgradedoc.string_and_parsing_basics import match_located_line
@@ -143,13 +149,102 @@ def update_images_manifest_entry(manifest: ParsedManifest, index: int, new_tag: 
     return changed
 
 
-def _changes_header_item_text(friendly: str, change: VersionChange):
+def changes_header_item_text(friendly: str, change: VersionChange):
     """Changes-header item text; native components (new_chart "-") get no "(chart ...)" clause."""
     if change.new_chart == "-":
         return f"{friendly} {image_manifest_version_text(change.old_app, change.new_app)}."
     chart_changed = normalize_version(change.old_chart) != normalize_version(change.new_chart)
     chart_bit = f"{change.old_chart} -> {change.new_chart}" if chart_changed else f"{change.new_chart}, unchanged"
     return f"{friendly} {image_manifest_version_text(change.old_app, change.new_app)} (chart {chart_bit})."
+
+
+@dataclass(frozen=True)
+class ExpectedChangesItem:
+    """A row's "# Changes:" item: "<name> <versions>" and, for a dependency, its "(chart ...)" clause."""
+
+    core: str
+    chart_clause: str | None
+    chart_changed: bool
+
+    def text(self, *, with_chart: bool) -> str:
+        """The item text; the chart clause when asked for or when the chart version changed."""
+        if self.chart_clause and (with_chart or self.chart_changed):
+            return f"{self.core} {self.chart_clause}."
+        return f"{self.core}."
+
+
+_CHART_CLAUSE_RE = re.compile(r" (\(chart [^)]*\))\.$")
+
+
+def expected_changes_items(
+    row_names: Iterable[str], canonical_names: Mapping[str, tuple[str, ...]], resolution: ResolutionContext
+) -> dict[str, ExpectedChangesItem]:
+    """{row name: its expected "# Changes:" item} for each changed upgrade-doc table row.
+
+    Resolved as the table row is (resolve_component_row), so the item can't
+    contradict the row. Rows unchanged vs the baseline, or not fully
+    resolvable, are left out.
+    """
+    expected: dict[str, ExpectedChangesItem] = {}
+    for name in row_names:
+        resolved = resolve_component_row(name, canonical_names, resolution)
+        if resolved["kind"] == "unmatched" or resolved["target_app"] is None or resolved["baseline_app"] is None:
+            continue
+        if resolved["kind"] != "native" and resolved["baseline_resolved"] is not True:
+            continue
+        if resolved_row_unchanged(resolved):
+            continue
+        chart_clause = None
+        chart_changed = False
+        if resolved["kind"] == "dependency":
+            if resolved["baseline_chart"] is None or resolved["target_chart"] is None:
+                continue
+            change = VersionChange(
+                resolved["baseline_app"], resolved["target_app"], resolved["baseline_chart"], resolved["target_chart"]
+            )
+            m = _CHART_CLAUSE_RE.search(changes_header_item_text(name, change))
+            chart_clause = m.group(1) if m else None
+            chart_changed = normalize_version(resolved["baseline_chart"]) != normalize_version(resolved["target_chart"])
+        core = f"{name} {image_manifest_version_text(resolved['baseline_app'], resolved['target_app'])}"
+        expected[name] = ExpectedChangesItem(core, chart_clause, chart_changed)
+    return expected
+
+
+def stale_changes_items(lines: list[str], expected: Mapping[str, ExpectedChangesItem]) -> list[tuple[int, str, str]]:
+    """(line index, current text, expected text) of each one-line "# Changes:" item that contradicts its row.
+
+    An item belongs to the longest row name it starts with. Its versions must
+    match. The "(chart ...)" clause is required when the chart version
+    changed; otherwise only checked when present, since update-image-version
+    writes dependency items without it.
+    """
+    header_idx, _header_has_count = find_images_manifest_changes_header(lines)
+    if header_idx is None:
+        return []
+    names = sorted(expected, key=len, reverse=True)
+    spans, _block_end = images_manifest_changes_item_spans(lines, header_idx)
+    stale: list[tuple[int, str, str]] = []
+    for start, end in spans:
+        if end - start != 1:
+            continue
+        rest = match_located_line(CHANGES_ITEM_RE, lines[start]).group("rest").strip()
+        name = next((n for n in names if rest.startswith(f"{n} ")), None)
+        if name is None:
+            continue
+        wanted = expected[name].text(with_chart=_CHART_CLAUSE_RE.search(rest) is not None)
+        if rest != wanted:
+            stale.append((start, rest, wanted))
+    return stale
+
+
+def fix_stale_changes_items(lines: list[str], expected: Mapping[str, ExpectedChangesItem]) -> list[tuple[str, str]]:
+    """Rewrite the items stale_changes_items reports, keeping their numbers; returns [(old, new), ...]."""
+    fixed: list[tuple[str, str]] = []
+    for idx, current, wanted in stale_changes_items(lines, expected):
+        m = match_located_line(CHANGES_ITEM_RE, lines[idx])
+        lines[idx] = f"#   {m.group('num')}. {wanted}\n"
+        fixed.append((current, wanted))
+    return fixed
 
 
 def _update_changes_header_item(
@@ -160,7 +255,7 @@ def _update_changes_header_item(
     Returns "updated" or "added"."""
     _header_idx, _header_has_count, item_indices = find_images_manifest_changes_items(lines)
     match_idx = find_changes_item(lines, item_indices, target.friendly)
-    item_text = _changes_header_item_text(target.friendly, change)
+    item_text = changes_header_item_text(target.friendly, change)
 
     if match_idx is not None:
         m = match_located_line(CHANGES_ITEM_RE, lines[match_idx])

@@ -15,11 +15,18 @@ from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.release_baseline_basics import chart_version
 from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
 from lib.chart.values_tree_primitives import version_of
+from lib.chart.yaml_alias_groups import alias_groups
+from lib.component_docs.aliased_pin_bullets import find_missing_pin_bullets
 from lib.component_docs.changes_section import BaselineState
 from lib.component_docs.changes_section import ComponentState
+from lib.component_docs.changes_section import DocContext
+from lib.component_docs.changes_section import OrderingContext
+from lib.component_docs.changes_section import pointer_issues
 from lib.component_docs.changes_section import resolve_component_own_version_change
 from lib.component_docs.changes_section import strip_stale_upgrade_placeholders
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
+from lib.component_docs.images_manifest_entries import expected_changes_items
+from lib.component_docs.images_manifest_entries import stale_changes_items
 from lib.component_docs.values_delta_sections import has_stale_gemeente_specific_placeholder
 from lib.component_docs.values_delta_sections import strip_stale_values_deltas_todo_stub
 from lib.docs_consistency.check_context import ComponentRowsResult
@@ -39,6 +46,7 @@ from lib.docs_consistency.markdown_format import check_doc_title
 from lib.docs_consistency.pointer_consistency import check_pointer_consistency
 from lib.docs_consistency.values_diff import ValuesDeltaInputs
 from lib.docs_consistency.values_diff import check_values_deltas_content
+from lib.image.docs import changes_sections_contradicting_rows
 from lib.image.manifest_entry_pins import current_image_paths
 from lib.image.manifest_entry_pins import entry_pin
 from lib.image.manifest_entry_pins import image_repo_map
@@ -442,8 +450,9 @@ def _check_changes_heading_correspondence(
     Every row needs a matching "### ..." section and vice versa, and no component may
     appear twice. A heading for one "dep" component with a resolved app version must
     show it, with the transition wording from component_version_cell (shared with the
-    row cell): fix-doc-consistency never rewrites existing sections, so these go stale
-    otherwise (e.g. "openbao v2.5.5 (unchanged)" that should be "(new)").
+    row cell), e.g. "openbao v2.5.5 (unchanged)" that should be "(new)".
+    fix-doc-consistency rewrites only the generated parts of a section; text a
+    user added is never changed.
     """
     has_changes_section = any(line.strip() == "## Changes" for line in doc_text.splitlines())
     if not has_changes_section:
@@ -517,6 +526,61 @@ def _select_upgrade_doc(ctx: DocsCheckContext, findings: Findings):
     return doc_path
 
 
+def _missing_pin_bullet_mismatches(ctx: DocsCheckContext, doc_path: Path, doc_text: str) -> list[str]:
+    """A Changes block names a pin but not a path that shares its YAML anchor."""
+    return [
+        f"{doc_path.name}: '### {m.heading}' names `{m.documented_path}` but not `{m.missing_path}`, "
+        "which shares its YAML anchor; run fix-doc-consistency to add it"
+        for m in find_missing_pin_bullets(doc_text, alias_groups(ctx.chart_dir / "values.yaml"))
+    ]
+
+
+def _stale_changes_item_mismatches(
+    ctx: DocsCheckContext, scan: DocScanState, resolution: ResolutionContext
+) -> list[str]:
+    """An images-manifest "# Changes:" item contradicts its upgrade-doc table row."""
+    images_path = ctx.chart_dir / "docs" / "images" / f"images-{ctx.doc_query.podiumd_version}.yaml"
+    if not images_path.is_file():
+        return []
+    lines = images_path.read_text(encoding="utf-8").splitlines(keepends=True)
+    expected = expected_changes_items([row["name"] for row in scan.rows], scan.canonical_names, resolution)
+    return [
+        f"{images_path.name}: '# Changes:' item \"{current}\" contradicts the {scan.doc_path.name} table row "
+        f'(expected "{wanted}"); run fix-doc-consistency to correct it'
+        for _idx, current, wanted in stale_changes_items(lines, expected)
+    ]
+
+
+def _contradicting_section_mismatches(ctx: DocsCheckContext, scan: DocScanState, doc_text: str) -> list[str]:
+    """A "### ..." Changes section's chart part or intro contradicts its table row."""
+    return [
+        f"{scan.doc_path.name}: '### {s.heading}' contradicts its table row (expected '### {s.expected_heading}'); "
+        + ("run fix-doc-consistency to rebuild it" if s.repairable else "fix it by hand")
+        for s in changes_sections_contradicting_rows(
+            doc_text,
+            DocContext(ctx.chart_dir, ctx.doc_query.podiumd_version),
+            OrderingContext(ctx.current.deps, ctx.current.values, scan.canonical_names),
+        )
+    ]
+
+
+_POINTER_FINDINGS = {
+    "missing": 'has no "- Image / digest" pointer; run fix-doc-consistency to add it',
+    "duplicate": 'has {count} "- Image / digest" pointers; keep one',
+    "no-blank-line-before": (
+        'has no blank line before the "- Image / digest" pointer; run fix-doc-consistency to add it'
+    ),
+}
+
+
+def _pointer_mismatches(doc_path: Path, doc_text: str) -> list[str]:
+    """A Changes section's pointer is missing, duplicated or not separated by a blank line."""
+    return [
+        f"{doc_path.name}: '### {issue.heading}' " + _POINTER_FINDINGS[issue.kind].format(count=issue.count)
+        for issue in pointer_issues(doc_text)
+    ]
+
+
 def _check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
     """The "Component versions" section: per-row, missing-row, ordering and Changes-heading checks.
 
@@ -560,6 +624,10 @@ def _check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
     findings.mismatches.extend(
         _check_changes_heading_correspondence(ctx, scan, rows_result, changes_headings, doc_text)
     )
+    findings.mismatches.extend(_missing_pin_bullet_mismatches(ctx, doc_path, doc_text))
+    findings.mismatches.extend(_stale_changes_item_mismatches(ctx, scan, resolution))
+    findings.mismatches.extend(_contradicting_section_mismatches(ctx, scan, doc_text))
+    findings.mismatches.extend(_pointer_mismatches(doc_path, doc_text))
 
 
 def _check_images_manifest_entry(

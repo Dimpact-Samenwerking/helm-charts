@@ -24,6 +24,7 @@ from lib.procutil import run
 from lib.settings import helm_repos_urls_by_alias
 from lib.settings import vendor_classification_chart_overrides
 from lib.settings import vendor_classification_keywords
+from lib.yaml_types import YamlMapping
 from lib.yaml_types import is_yaml_mapping
 
 CHART_NAME = "podiumd"
@@ -208,6 +209,71 @@ def split_rendered_by_source(rendered_text: str) -> list[tuple[str, str]]:
         if m:
             result.append((m.group(1).strip(), f"---\n{doc}"))
     return result
+
+
+# Workload kinds and the path from the resource to its pod spec.
+POD_SPEC_PATHS = {
+    "Pod": ("spec",),
+    "Deployment": ("spec", "template", "spec"),
+    "StatefulSet": ("spec", "template", "spec"),
+    "DaemonSet": ("spec", "template", "spec"),
+    "ReplicaSet": ("spec", "template", "spec"),
+    "Job": ("spec", "template", "spec"),
+    "CronJob": ("spec", "jobTemplate", "spec", "template", "spec"),
+}
+
+
+@dataclass(frozen=True)
+class RenderedContainer:
+    """One container of a rendered workload, with its pod spec and where it came from."""
+
+    source: str
+    kind: str
+    name: str
+    namespace: str | None
+    pod_spec: YamlMapping
+    container: YamlMapping
+    init: bool
+
+
+def _pod_spec(resource: YamlMapping) -> YamlMapping | None:
+    path = POD_SPEC_PATHS.get(str(resource.get("kind")))
+    node: object = resource
+    for key in path or ():
+        node = node.get(key) if isinstance(node, dict) else None
+    return node if path and is_yaml_mapping(node) else None
+
+
+def rendered_containers(docs: Sequence[tuple[str, str]]) -> list[RenderedContainer]:
+    """Every container and init container of every rendered workload, in render order.
+
+    `docs` is split_rendered_by_source's (source, doc_text) list.
+    """
+    containers: list[RenderedContainer] = []
+    for source, doc in docs:
+        try:
+            resources = list(yaml.safe_load_all(doc))
+        except yaml.YAMLError:  # noqa: S112 -- a doc that isn't YAML has no containers to report
+            continue
+        for resource in resources:
+            if not is_yaml_mapping(resource):
+                continue
+            pod_spec = _pod_spec(resource)
+            if pod_spec is None:
+                continue
+            kind, name, namespace = (
+                str(resource["kind"]),
+                text_at(resource, "metadata.name") or "",
+                text_at(resource, "metadata.namespace"),
+            )
+            for field, init in (("initContainers", True), ("containers", False)):
+                items = pod_spec.get(field)
+                containers.extend(
+                    RenderedContainer(source, kind, name, namespace, pod_spec, container, init)
+                    for container in (items if isinstance(items, list) else [])
+                    if is_yaml_mapping(container)
+                )
+    return containers
 
 
 def build_resource_locations(rendered_text: str) -> ResourceLocations:

@@ -46,6 +46,7 @@ from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgr
 from lib.chart.release_baseline_basics import write_release_baselines
 from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.cli import positional_args
+from lib.cli import print_section
 from lib.gitutil import current_branch
 from lib.gitutil import find_repo_root
 from lib.gitutil import resolve_baseline_ref
@@ -203,8 +204,7 @@ def main():
             f"resolved to {resolved_refs['release_table']})"
         )
 
-    print()
-    print(f"=== Running create-doc-version (upgrade_docs baseline {baseline}) ===")
+    print_section(f"Running create-doc-version (upgrade_docs baseline {baseline})")
     result = run_script([sys.executable, str(CREATE_DOC_VERSION_SCRIPT)])
     sys.exit(result.returncode)
 

@@ -130,6 +130,7 @@ check-typed-exception = true  # Enable additional checks for try-except-pass
 "lib/registry.py" = ["S310"]
 "lib/repo_access.py" = ["S310"]
 "lib/confluence_tables.py" = ["S310"]
+"lib/chart/upgrade_check.py" = ["S310"]
 
 [tool.ruff.format]
 quote-style = "double"

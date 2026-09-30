@@ -1,7 +1,6 @@
 # Tunable policy constants for charts/podiumd/bin (read via lib/settings.py).
 
 cve_scan:
-  high_severity_levels: ["CRITICAL", "HIGH"]
   max_cves_per_package_before_summarizing: 5
   # An unchanged digest keeps its content, but trivy's DB does not.
   scan_cache_ttl_days: 7
@@ -9,6 +8,15 @@ cve_scan:
 image_upgrade_check:
   # New tags can appear any time; this only avoids re-querying within a day.
   tag_check_cache_ttl_days: 1
+
+chart_upgrade_check:
+  # New chart versions can appear any time; this only avoids re-querying within a day.
+  cache_ttl_days: 1
+
+root_containers:
+  # Containers known to run as root and accepted, reported as accepted instead of as findings:
+  # "<rendered source template>:<container name>": "<why>"
+  accepted: {}
 
 repo_access:
   # Avoids Docker Hub's anonymous rate limit on quick re-runs.

@@ -187,9 +187,9 @@ def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unc
 def test_main_renders_new_for_both_app_and_chart_version_when_never_baselined(
     uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Regression: a component with no baseline app version (mi-data, moved
-    only within this cycle) shows "(new)" for both chart and app, since
-    old_chart is gated on the same baseline_app-is-None signal as old_app."""
+    """A component with no baseline app version (mi-data, moved only within
+    this cycle) shows "(new)" for the app and its real chart transition, as
+    the table row resolves it."""
     (tmp_path / "Chart.yaml").write_text(
         "apiVersion: v2\n"
         "name: podiumd\n"
@@ -243,10 +243,9 @@ def test_main_renders_new_for_both_app_and_chart_version_when_never_baselined(
 
     upgrade = (uiv.DOC_DIR / "4.9.0-to-4.9.1-upgrade.md").read_text(encoding="utf-8")
     assert "None" not in upgrade
-    assert "1.0.0" not in upgrade
     assert "2.71.0" not in upgrade
-    assert "| mi | 2.90.0 (new) | 1.1.0 (new) | - |" in upgrade
-    assert "### mi 2.90.0 (new) (chart 1.1.0, new)" in upgrade
+    assert "| mi | 2.90.0 (new) | 1.0.0 → 1.1.0 | - |" in upgrade
+    assert "### mi 2.90.0 (new) (chart 1.0.0 → 1.1.0)" in upgrade
 
 
 def test_main_shows_real_baseline_chart_transition_when_genuinely_tracked(

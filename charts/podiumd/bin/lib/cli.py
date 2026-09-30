@@ -7,6 +7,7 @@ import sys
 import urllib.error
 
 from collections.abc import Generator
+from collections.abc import Sequence
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -71,3 +72,18 @@ def network_errors(what: str) -> Generator[None]:
     except http.client.InvalidURL as e:
         msg = f"error: invalid {what} URL: {e}"
         raise SystemExit(msg) from e
+
+
+def print_section(title: str) -> None:
+    """Print a blank line and "=== <title> ===", the heading of one step of a script's output."""
+    print()
+    print(f"=== {title} ===")
+
+
+def print_section_items(title: str, items: Sequence[str]) -> bool:
+    """print_section plus one indented line per item, only when there are items; returns whether there were."""
+    if items:
+        print_section(title)
+        for item in items:
+            print(f"  {item}")
+    return bool(items)

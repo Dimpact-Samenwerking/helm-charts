@@ -20,6 +20,12 @@ FENCED_CODE_BLOCK_RE = re.compile(r"```.*?```", re.DOTALL)
 HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 
 
+# The key-change lines of a values-deltas.md section; values_delta_body_kinds matches them.
+KEY_ADDED = "- Key `{path}` was added."
+KEY_REMOVED = "- Key `{path}` was removed."
+KEY_RENAMED = "- Key `{path}` was renamed to `{new_path}`."
+
+
 def version_change_suffix(old: str | None, new: str | None, *, digest_only_change: bool = False):
     """The status suffix for a version transition, or None when the version really changed.
 
@@ -37,6 +43,18 @@ def image_manifest_version_text(old: str | None, new: str | None, *, digest_only
     """Images-manifest version text: ascii "->" arrow, unlike -upgrade.md's "→"."""
     suffix = version_change_suffix(old, new, digest_only_change=digest_only_change)
     return f"{new} {suffix}" if suffix else f"{old} -> {new}"
+
+
+def version_transition(old: str | None, new: str | None) -> str:
+    """Upgrade-doc heading version text: "1.2 → 1.3", "1.3 (new)" or "1.3 (unchanged)"."""
+    suffix = version_change_suffix(old, new)
+    return f"{new} {suffix}" if suffix else f"{old} → {new}"
+
+
+def pin_version_text(old: str | None, new: str | None) -> str:
+    """Upgrade-doc pin bullet version text: "`1.2` → `1.3`", "`1.3` (new)" or "`1.3` (unchanged)"."""
+    suffix = version_change_suffix(old, new)
+    return f"`{new}` {suffix}" if suffix else f"`{old}` → `{new}`"
 
 
 def canonical_version_cell(actual_source: str, actual_target: str | None):
@@ -111,9 +129,11 @@ def describe_key_changes(values_key: str, baseline_subtree: YamlValue, current_s
     def dotted(path: tuple[str, ...]):
         return ".".join((values_key, *path))
 
-    lines = [f"- Key `{dotted(path)}` was added.\n" for path in added]
-    lines.extend(f"- Key `{dotted(path)}` was removed.\n" for path in removed)
-    lines.extend(f"- Key `{dotted(old_path)}` was renamed to `{dotted(new_path)}`.\n" for old_path, new_path in renamed)
+    lines = [KEY_ADDED.format(path=dotted(path)) + "\n" for path in added]
+    lines.extend(KEY_REMOVED.format(path=dotted(path)) + "\n" for path in removed)
+    lines.extend(
+        KEY_RENAMED.format(path=dotted(old_path), new_path=dotted(new_path)) + "\n" for old_path, new_path in renamed
+    )
     return lines
 
 

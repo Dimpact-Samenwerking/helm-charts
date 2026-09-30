@@ -880,9 +880,40 @@ def test_remove_values_delta_section_never_removes_multi_identity_heading(libcom
     never be deleted just because one of them reset to baseline."""
     text = "# Values deltas\n\n## ZAC and ZGW Office Add-in — no changes\n\nProse.\n"
     deps = [*DEPS, {"name": "zgw-office-addin", "version": "0.0.89"}]
-    new_text, removed = libcomponentdocsdeltas.remove_values_delta_section(text, "zac", deps)
-    assert removed is False
-    assert new_text == text
+    assert libcomponentdocsdeltas.remove_values_delta_section(text, "zac", deps) == (text, False, False)
+
+
+def test_remove_values_delta_section_keeps_hand_written_text(libcomponentdocsdeltas: ModuleType):
+    """Only the generated key lines go; the heading and the user's note stay."""
+    text = (
+        "# Values deltas\n\n## zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)\n\n"
+        "- Key `zac.foo` was added.\n\nSet foo per gemeente.\n\n## Other\n\nx\n"
+    )
+    new_text, removed, kept = libcomponentdocsdeltas.remove_values_delta_section(text, "zac", DEPS)
+    assert (removed, kept) == (True, True)
+    assert new_text == (
+        "# Values deltas\n\n## zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)\n\nSet foo per gemeente.\n\n## Other\n\nx\n"
+    )
+
+
+def test_write_values_delta_section_replaces_generated_lines_and_keeps_user_text(libcomponentdocsdeltas: ModuleType):
+    """A later bump rewrites the heading and key lines in place; the user's note is not lost."""
+    text = (
+        "# Values deltas\n\n## zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)\n\n"
+        "- Key `zac.foo` was added.\n\nSet foo per gemeente.\n"
+    )
+    ordering = libcomponentdocsdeltas.ValuesDeltaOrdering(DEPS, {"zac": {}})
+    new_text = libcomponentdocsdeltas.write_values_delta_section(
+        text,
+        "zac",
+        "## zac 5.4.4 → 5.4.6 (chart 1.0.297, unchanged)\n",
+        ["- Key `zac.foo` was added.\n", "- Key `zac.bar` was removed.\n"],
+        ordering,
+    )
+    assert new_text == (
+        "# Values deltas\n\n## zac 5.4.4 → 5.4.6 (chart 1.0.297, unchanged)\n\n"
+        "- Key `zac.foo` was added.\n- Key `zac.bar` was removed.\n\nSet foo per gemeente.\n"
+    )
 
 
 # --- sync_values_delta_sections ---

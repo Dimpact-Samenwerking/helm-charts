@@ -10,7 +10,6 @@ import yaml
 
 FULL_SETTINGS = {
     "cve_scan": {
-        "high_severity_levels": ["CRITICAL", "HIGH", "MEDIUM"],
         "max_cves_per_package_before_summarizing": 9,
         "scan_cache_ttl_days": 14,
     },
@@ -76,7 +75,6 @@ def write_settings(chart_dir, data):
 
 # (accessor, section, key, default, FULL_SETTINGS override, cast applied to both)
 ACCESSOR_CASES = [
-    ("cve_high_severity_levels", {"CRITICAL", "HIGH"}, {"CRITICAL", "HIGH", "MEDIUM"}, set),
     ("cve_max_cves_per_package_before_summarizing", 5, 9, None),
     ("cve_scan_cache_ttl_days", 7, 14, None),
     ("image_upgrade_tag_check_cache_ttl_days", 1, 2, None),
@@ -231,7 +229,6 @@ def test_partial_settings_file_mixes_overrides_and_defaults(libsettings: ModuleT
     assert libsettings.dry_check_high_similarity_threshold(tmp_path) == 0.8
     assert libsettings.dry_check_min_significant_lines(tmp_path) == 12
 
-    assert libsettings.cve_high_severity_levels(tmp_path) == {"CRITICAL", "HIGH"}
     assert libsettings.cve_max_cves_per_package_before_summarizing(tmp_path) == 5
     assert libsettings.cve_scan_cache_ttl_days(tmp_path) == 7
 
@@ -314,10 +311,13 @@ def test_digest_pinning_exceptions_partial_entry_defaults_missing_keys(libsettin
 
 def test_setting_returns_a_copy_of_the_cached_value(libsettings: ModuleType, tmp_path: Path):
     write_settings(tmp_path, FULL_SETTINGS)
-    levels = libsettings._setting(tmp_path, "cve_scan", "high_severity_levels")
-    assert isinstance(levels, list)
-    levels.append("CHANGED")
-    assert libsettings._setting(tmp_path, "cve_scan", "high_severity_levels") == ["CRITICAL", "HIGH", "MEDIUM"]
+    suffixes = libsettings._setting(tmp_path, "repo_access", "never_probe_host_suffixes")
+    assert isinstance(suffixes, list)
+    suffixes.append("CHANGED")
+    assert libsettings._setting(tmp_path, "repo_access", "never_probe_host_suffixes") == [
+        "azurecr.io",
+        "example.internal",
+    ]
 
 
 def test_settings_are_reread_after_the_file_changes(libsettings: ModuleType, tmp_path: Path):

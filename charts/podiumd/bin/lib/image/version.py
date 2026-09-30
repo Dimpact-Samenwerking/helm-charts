@@ -212,6 +212,60 @@ def _resolve_pending_digests(pending: list[ScopedPin], new_version: str) -> dict
     return digests
 
 
+def plan_image_version_update(values_path: Path, key: str, basename: str, new_version: str) -> list[PinUpdate]:
+    """The pin updates update_image_version would write, resolved but not written.
+
+    Returns one dict per line to change, in file order ([] if all current).
+    Raises SystemExit if <key> <image-basename> doesn't resolve uniquely or
+    new_version doesn't exist upstream.
+    """
+    matches = resolve_scoped_matches(values_path.read_text(encoding="utf-8").splitlines(), key, basename)
+    pending = [m for m in matches if m["version"] != new_version]
+    if not pending:
+        return []
+    digests = _resolve_pending_digests(pending, new_version)
+    return [
+        {
+            "line": m["line"],
+            "repository": m["repository"],
+            "old_version": m["version"],
+            "old_digest": f"sha256:{m['digest']}",
+            "new_version": new_version,
+            "new_digest": digests[m["repository"]],
+        }
+        for m in pending
+    ]
+
+
+def current_pin_updates(values_path: Path, key: str, basename: str) -> list[PinUpdate]:
+    """The pins <key> <image-basename> resolves to, as no-op PinUpdates (old equals new).
+
+    For completing the docs of a run whose values.yaml write already happened.
+    """
+    matches = resolve_scoped_matches(values_path.read_text(encoding="utf-8").splitlines(), key, basename)
+    return [
+        {
+            "line": m["line"],
+            "repository": m["repository"],
+            "old_version": m["version"],
+            "old_digest": f"sha256:{m['digest']}",
+            "new_version": m["version"],
+            "new_digest": f"sha256:{m['digest']}",
+        }
+        for m in matches
+    ]
+
+
+def write_pin_updates(values_path: Path, updates: list[PinUpdate]) -> None:
+    """Write `updates` (from plan_image_version_update) into values_path."""
+    if not updates:
+        return
+    lines = values_path.read_text(encoding="utf-8").splitlines(keepends=True)
+    for u in updates:
+        lines[u["line"] - 1] = replace_scalar_value(lines[u["line"] - 1], f"{u['new_version']}@{u['new_digest']}")
+    values_path.write_text("".join(lines), encoding="utf-8")
+
+
 def update_image_version(values_path: Path, key: str, basename: str, new_version: str) -> list[PinUpdate]:
     """Update every pin <key> <image-basename> resolves to to new_version, resolving digests before writing.
 
@@ -223,30 +277,6 @@ def update_image_version(values_path: Path, key: str, basename: str, new_version
     Raises SystemExit if <key> <image-basename> doesn't resolve uniquely or
     new_version doesn't exist upstream.
     """
-    text = values_path.read_text(encoding="utf-8")
-    plain_lines = text.splitlines()
-    matches = resolve_scoped_matches(plain_lines, key, basename)
-
-    pending = [m for m in matches if m["version"] != new_version]
-    if not pending:
-        return []
-
-    digests = _resolve_pending_digests(pending, new_version)
-
-    write_lines = text.splitlines(keepends=True)
-    changes: list[PinUpdate] = []
-    for m in pending:
-        digest = digests[m["repository"]]
-        write_lines[m["line"] - 1] = replace_scalar_value(write_lines[m["line"] - 1], f"{new_version}@{digest}")
-        changes.append(
-            {
-                "line": m["line"],
-                "repository": m["repository"],
-                "old_version": m["version"],
-                "old_digest": f"sha256:{m['digest']}",
-                "new_version": new_version,
-                "new_digest": digest,
-            }
-        )
-    values_path.write_text("".join(write_lines), encoding="utf-8")
+    changes = plan_image_version_update(values_path, key, basename, new_version)
+    write_pin_updates(values_path, changes)
     return changes

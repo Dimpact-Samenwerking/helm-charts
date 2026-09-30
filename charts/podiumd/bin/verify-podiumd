@@ -38,6 +38,9 @@ Steps, in run order:
   shellcheck           embedded shell scripts in own templates
   kube-score           container resource requests/limits (report only)
   release-secret-size  Helm release Secret stays under 90% of 1 MiB
+  chart-upgrades       newer stable dependency chart versions published
+                       (report only)
+  root-containers      containers that run as root (report only)
   image-upgrades       newer same-variant tags published (report only)
   cve-scan             fixable CVEs via docker + trivy (report only; skipped
                        without docker)
@@ -81,6 +84,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from lib.chart.release_baseline_basics import RELEASE_BASELINES_FILE_NAME
 from lib.chart.release_baseline_basics import release_table_baseline as read_release_table_baseline
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
+from lib.chart.upgrade_check import check_chart_upgrades
 from lib.chart.values_tree_primitives import UTF8_BOM
 from lib.checks.cve import check_cves
 from lib.checks.cve_diff import check_cve_diff
@@ -96,6 +100,7 @@ from lib.checks.lockstep import check_lockstep_versions
 from lib.checks.markdown import check_markdown
 from lib.checks.node_selector import check_node_selector
 from lib.checks.oidc_url_coverage import check_oidc_url_coverage
+from lib.checks.root_containers import check_root_containers
 from lib.checks.shellcheck import check_shellcheck
 from lib.checks.vendored_tgz import check_vendored_tgz_extraction
 from lib.checks.yamllint import check_yamllint
@@ -273,6 +278,8 @@ SKIPPABLE_STEPS = [
     ("shellcheck", "shellcheck"),
     ("kube-score", "kube-score"),
     ("release-secret-size", "Release secret size"),
+    ("chart-upgrades", "Chart upgrades"),
+    ("root-containers", "Root containers"),
     ("image-upgrades", "Image upgrades"),
     ("cve-scan", "CVE scan"),
     ("cve-diff", "CVE diff"),
@@ -297,6 +304,7 @@ STEP_PREREQUISITES = {
     "shellcheck": ("Dependencies",),
     "kube-score": ("Dependencies",),
     "Release secret size": ("Dependencies",),
+    "Root containers": ("Dependencies",),
     "Image upgrades": ("Dependencies",),
     "CVE scan": ("Dependencies", "Image upgrades"),
     "CVE diff": ("Dependencies", "Image upgrades", "Image digests"),
@@ -386,12 +394,12 @@ def _parse_cli_args():
     parser.add_argument(
         "--detail-cve-check",
         action="store_true",
-        help="CVE scan: list CRITICAL/HIGH findings per package for every image, not only totals",
+        help="CVE scan: list every finding per package for every image, not only totals",
     )
     parser.add_argument(
         "--detail-cve-diff",
         action="store_true",
-        help="CVE diff: list the CRITICAL/HIGH findings each upgrade candidate closes or adds, not only counts",
+        help="CVE diff: list the findings each upgrade candidate closes or adds per package, not only counts",
     )
     parser.add_argument(
         "--skip",
@@ -534,6 +542,8 @@ def _run_all_steps(runner: StepRunner, chart_dir: Path, args: argparse.Namespace
         chart_dir,
         extra_args,
     )
+    runner.run("Chart upgrades", "Checking for newer dependency chart versions", check_chart_upgrades, chart_dir)
+    runner.run("Root containers", "Checking which containers run as root", check_root_containers, chart_dir, extra_args)
     runner.run("Image upgrades", "Checking for newer published tags", check_image_upgrades, chart_dir, extra_args)
     runner.run(
         "CVE scan",

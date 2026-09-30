@@ -550,14 +550,14 @@ zac:
     assert "CVE-1" in out
 
 
-def test_detail_flag_never_itemizes_medium_low_unknown(
+def test_detail_flag_itemizes_every_severity(
     libcvediffcheck: ModuleType,
     libcvecheck: ModuleType,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """Like check_cves' --detail-cve-check, only CRITICAL/HIGH are itemized."""
+    """Like check_cves' --detail-cve-check, MEDIUM/LOW/UNKNOWN are itemized too; without it only counted."""
     write_values_yaml(
         tmp_path,
         f"""\
@@ -585,7 +585,12 @@ zac:
 
     out = capsys.readouterr().out
     assert "introduced: 1 MEDIUM" in out
-    assert "zlib" not in out
+    assert "zlib: MEDIUM CVE-9" in out
+
+    libcvediffcheck.check_cve_diff(tmp_path, [], detail=False)
+
+    out = capsys.readouterr().out
+    assert "introduced: 1 MEDIUM" in out
     assert "CVE-9" not in out
 
 

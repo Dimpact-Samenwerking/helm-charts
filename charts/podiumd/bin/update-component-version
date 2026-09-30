@@ -63,19 +63,23 @@ from lib.chart.values_tag_sha_lines import find_child_key_line
 from lib.chart.values_tag_sha_lines import locate_dotted_key_line
 from lib.chart.values_tag_sha_lines import locate_tag_and_sha
 from lib.chart.values_tag_sha_lines import write_tag_and_sha
-from lib.chart.values_tree_primitives import dep_for_values_key
+from lib.chart.values_tree_primitives import dotted_key_path
 from lib.chart.values_tree_primitives import mapping_at
 from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.chart.values_tree_primitives import require_dependency
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
+from lib.chart.yaml_alias_groups import alias_groups
 from lib.cli import network_errors
 from lib.cli import positional_args
+from lib.cli import print_section
 from lib.component_docs.baseline_doc_stubs import baseline_doc_paths as _baseline_doc_paths
 from lib.component_docs.baseline_doc_stubs import images_manifest_path as _images_manifest_path
 from lib.component_docs.baseline_doc_stubs import load_baseline_state as _load_baseline_state
 from lib.component_docs.baseline_doc_stubs import load_baseline_values as _load_baseline_values
+from lib.component_docs.changes_section import BaselineState
 from lib.component_docs.changes_section import ComponentIdentity
+from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import OrderingContext
 from lib.component_docs.changes_section import VersionChange
 from lib.component_docs.changes_section import make_changes_section
@@ -94,16 +98,18 @@ from lib.component_docs.values_delta_sections import ValuesDeltaOrdering
 from lib.component_docs.values_delta_sections import remove_values_delta_section
 from lib.component_docs.values_delta_sections import values_delta_section_heading
 from lib.dependencies import ensure_vendored_dependencies
+from lib.image.version import PinUpdate
 from lib.image.version import image_basename
-from lib.image.version import update_image_version
+from lib.image.version import plan_image_version_update
+from lib.image.version import write_pin_updates
 from lib.procutil import run_script
 from lib.registry import ImagePathTagCheck
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
 from lib.settings import digest_pinning_exceptions
-from lib.upgradedoc.app_version_and_image_paths import BaselineComponentQuery
-from lib.upgradedoc.app_version_and_image_paths import resolve_baseline_component_versions
-from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
+from lib.upgradedoc.resolve_component_row import ResolutionContext
+from lib.upgradedoc.resolve_component_row import compare_component_to_baseline
+from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.version_cells_and_key_changes import describe_key_changes
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import load_yaml_mapping
@@ -445,8 +451,7 @@ def _write_split_tag_sha_pins(
     if not split_paths:
         return
     values_lines = VALUES_YAML.read_text(encoding="utf-8").splitlines(keepends=True)
-    print()
-    print(f"=== Writing split tag/sha pin(s) for {', '.join(f'{ctx.values_key}.{p}' for p in split_paths)} ===")
+    print_section(f"Writing split tag/sha pin(s) for {', '.join(f'{ctx.values_key}.{p}' for p in split_paths)}")
     for path in split_paths:
         _write_split_tag_sha_pin(ctx, values_lines, path, split_tag_sha_paths[(ctx.values_key, path)], acc)
     VALUES_YAML.write_text("".join(values_lines), encoding="utf-8")
@@ -483,43 +488,77 @@ def _write_split_tag_sha_pin(
     )
 
 
-def _write_delegated_tags(ctx: BumpContext, delegated_paths: list[str], acc: TagUpdateAccumulator) -> None:
-    """Bump paths with their own repository via update_image_version.
+@dataclass
+class DelegatedUpdate:
+    """The resolved, not yet written, pin updates of one basename's delegated paths."""
 
-    Keyed by the repository basename so a shared image is updated everywhere.
-    SystemExit when the path's own line did not change.
-    """
-    if not delegated_paths:
-        return
-    values_lines = VALUES_YAML.read_text(encoding="utf-8").splitlines()
+    basename: str
+    paths: list[str]
+    changes: list[PinUpdate]
+
+
+def _delegated_paths_by_basename(
+    ctx: BumpContext, delegated_paths: list[str], acc: TagUpdateAccumulator
+) -> dict[str, list[str]]:
+    """Delegated paths grouped by their repository's basename; records each repository in `acc`."""
+    by_basename: dict[str, list[str]] = {}
     for path in delegated_paths:
-        located = locate_dotted_key_line(values_lines, f"{ctx.values_key}.{path}.tag")
-        if located is None:
-            msg = f"error: could not find '{ctx.values_key}.{path}.tag' in {VALUES_YAML}"
-            raise SystemExit(msg)
-        own_line = located[0] + 1  # 1-indexed like update_image_version
         repo = text_at(ctx.values, f"{ctx.values_key}.{path}.repository")
         if repo is None:
             msg = f"error: no repository found at {ctx.values_key}.{path}.repository in {VALUES_YAML}"
             raise SystemExit(msg)
         acc.repos[path] = repo
-        basename = image_basename(repo)
-        print()
-        print(f"=== Updating '{basename}' image pin(s) for {ctx.values_key}.{path} ===")
-        changes = update_image_version(VALUES_YAML, ctx.values_key, basename, ctx.app_version)
-        for c in changes:
+        by_basename.setdefault(image_basename(repo), []).append(path)
+    return by_basename
+
+
+def _change_for_tag_path(
+    tag_path: str, change_by_path: dict[str, PinUpdate], groups: dict[str, tuple[str, ...]]
+) -> PinUpdate:
+    """The change written at `tag_path` or at a path sharing its value; SystemExit if none."""
+    for candidate in (tag_path, *groups.get(tag_path, ())):
+        if candidate in change_by_path:
+            return change_by_path[candidate]
+    msg = (
+        f"error: no pin to update for {tag_path}; is it already at the target "
+        "version, or does another path share this basename?"
+    )
+    raise SystemExit(msg)
+
+
+def _plan_delegated_tags(
+    ctx: BumpContext, delegated_paths: list[str], acc: TagUpdateAccumulator
+) -> list[DelegatedUpdate]:
+    """Resolve every delegated path's pins and digests, one call per basename, writing nothing.
+
+    update_image_version bumps every pin of a basename under the key at once,
+    so a second path with that basename, or a path whose tag is a YAML alias,
+    has no change of its own: it is written through the path sharing its value.
+    """
+    values_lines = VALUES_YAML.read_text(encoding="utf-8").splitlines()
+    groups = alias_groups(VALUES_YAML)
+    updates: list[DelegatedUpdate] = []
+    for basename, paths in _delegated_paths_by_basename(ctx, delegated_paths, acc).items():
+        changes = plan_image_version_update(VALUES_YAML, ctx.values_key, basename, ctx.app_version)
+        change_by_path = {dotted_key_path(values_lines, c["line"] - 1): c for c in changes}
+        for path in paths:
+            change = _change_for_tag_path(f"{ctx.values_key}.{path}.tag", change_by_path, groups)
+            acc.new_tags_by_path[path] = f"{change['new_version']}@{change['new_digest']}"
+        updates.append(DelegatedUpdate(basename, paths, changes))
+    return updates
+
+
+def _write_delegated_tags(ctx: BumpContext, updates: list[DelegatedUpdate]) -> None:
+    """Write the pin updates _plan_delegated_tags resolved."""
+    for update in updates:
+        print_section(
+            f"Updating '{update.basename}' image pin(s) for {', '.join(f'{ctx.values_key}.{p}' for p in update.paths)}"
+        )
+        for c in update.changes:
             print(f"  values.yaml:{c['line']}  ({c['repository']})")
             print(f"    {c['old_version']}@{c['old_digest']}")
             print(f"    {c['new_version']}@{c['new_digest']}")
-        own_change = next((c for c in changes if c["line"] == own_line), None)
-        if own_change is None:
-            msg = (
-                f"error: update_image_version reported no change at values.yaml:{own_line} "
-                f"({ctx.values_key}.{path}); is it already at the target version, or does "
-                "another path share this basename?"
-            )
-            raise SystemExit(msg)
-        acc.new_tags_by_path[path] = f"{own_change['new_version']}@{own_change['new_digest']}"
+        write_pin_updates(VALUES_YAML, update.changes)
 
 
 def _write_fallback_tags(
@@ -531,8 +570,7 @@ def _write_fallback_tags(
     """Write the already-resolved sub-chart-default digests for fallback_paths."""
     if not fallback_paths:
         return
-    print()
-    print(f"=== Using sub-chart default digests for: {', '.join(fallback_paths)} ===")
+    print_section(f"Using sub-chart default digests for: {', '.join(fallback_paths)}")
     for path in fallback_paths:
         r = upstream_images.get(path)
         if r is None or not r["exists"] or not r["digest"]:
@@ -541,8 +579,7 @@ def _write_fallback_tags(
         acc.repos[path] = r["repository"]
         acc.new_tags_by_path[path] = f"{ctx.app_version}@{r['digest']}"
         print(f"  {ctx.values_key}.{path}: {r['host']}/{r['repo_path']}:{ctx.app_version} -> {r['digest']}")
-    print()
-    print(f"=== Writing {VALUES_YAML} ===")
+    print_section(f"Writing {VALUES_YAML}")
     for dotted, old_v, new_v in update_values_yaml(ctx.values_key, fallback_paths, acc.new_tags_by_path):
         print(f"  {dotted}:")
         print(f"    {old_v}")
@@ -560,8 +597,10 @@ def _update_image_tags(
     if not paths_to_update:
         return acc.new_tags_by_path, acc.repos
     plan = _classify_paths_to_update(ctx, paths_to_update, split_tag_sha_paths)
+    # Resolve the delegated pins before writing anything, so an error leaves values.yaml untouched.
+    delegated = _plan_delegated_tags(ctx, plan.delegated_paths, acc)
     _write_split_tag_sha_pins(ctx, plan.split_paths, split_tag_sha_paths, acc)
-    _write_delegated_tags(ctx, plan.delegated_paths, acc)
+    _write_delegated_tags(ctx, delegated)
     _write_fallback_tags(ctx, plan.fallback_paths, upstream_images, acc)
     return acc.new_tags_by_path, acc.repos
 
@@ -571,26 +610,14 @@ def _resolve_against_baseline(
     baseline_deps: list[ChartDependency],
     baseline_values: YamlMapping | None,
     friendly: str,
-    image_path: str,
+    upgrade_docs_baseline: str | None,
 ):
-    """(old_app, old_chart, reset_to_baseline) against the resolved baseline."""
-    current_deps = load_chart_dependencies(CHART_YAML)
-    current_values = load_yaml_mapping(VALUES_YAML)
-    changed_keys = compute_changed_components(current_deps, baseline_deps, current_values, baseline_values)
-    reset_to_baseline = friendly not in changed_keys
-
-    baseline_dep = None if ctx.no_chart else dep_for_values_key(baseline_deps, ctx.values_key)
-    old_app, old_chart = resolve_baseline_component_versions(
-        BaselineComponentQuery(
-            baseline_values,
-            baseline_dep,
-            ctx.values_key,
-            image_path,
-            ctx.chart_name,
-            ctx.new_chart,
-            chart_dir=CHART_DIR,
-        )
+    """(old_app, old_chart, reset_to_baseline) against the resolved baseline, as the table row resolves them."""
+    current = ComponentState(load_chart_dependencies(CHART_YAML), load_yaml_mapping(VALUES_YAML))
+    resolution = ResolutionContext(
+        CHART_DIR, current, BaselineState(baseline_deps, baseline_values), upgrade_docs_baseline
     )
+    old_app, old_chart, reset_to_baseline = compare_component_to_baseline(resolution, friendly)
     if ctx.no_chart:
         old_chart = None
     # Never fall back to images-baseline.yaml: it only tracks ACR-mirror digests.
@@ -620,7 +647,7 @@ def _resolve_baseline_comparison(
     reset_to_baseline = False
     if baseline_deps is not None:
         old_app, old_chart, reset_to_baseline = _resolve_against_baseline(
-            ctx, baseline_deps, baseline_values, friendly, image_path
+            ctx, baseline_deps, baseline_values, friendly, upgrade_docs_baseline
         )
 
     return BaselineComparison(
@@ -630,6 +657,25 @@ def _resolve_baseline_comparison(
         DocPaths(upgrade_path, values_deltas_path),
         BaselineSnapshot(upgrade_docs_baseline, baseline_deps, baseline_values),
     )
+
+
+def _documented_paths(ctx: BumpContext, comparison: BaselineComparison, paths_to_update: list[str]) -> list[str]:
+    """The image paths the Changes section lists: those whose baseline version differs from the target.
+
+    Not only the paths this run wrote, so a rerun after a half-finished run
+    documents the same paths. A blank baseline tag counts as the component's
+    resolved baseline app version. Without a resolvable baseline, the paths
+    this run changes.
+    """
+    if comparison.baseline_values is None:
+        return paths_to_update
+    documented: list[str] = []
+    for path in ctx.image_paths:
+        tag = text_at(comparison.baseline_values, f"{ctx.values_key}.{path}.tag")
+        baseline_version = tag.split("@", 1)[0] if isinstance(tag, str) and tag else comparison.old_app
+        if normalize_version(baseline_version) != normalize_version(ctx.app_version):
+            documented.append(path)
+    return documented
 
 
 def _update_upgrade_doc_section(
@@ -648,13 +694,11 @@ def _update_upgrade_doc_section(
 
     change = VersionChange(comparison.old_app, ctx.app_version, comparison.old_chart, ctx.new_chart)
     identity = ComponentIdentity(friendly, ctx.chart_name, ctx.values_key)
-    section = make_changes_section(identity, target, change, paths_to_update)
+    section = make_changes_section(identity, target, change, _documented_paths(ctx, comparison, paths_to_update))
     rewrite_upgrade_doc(comparison.upgrade_path, friendly, change, section, ordering)
 
 
-def _update_values_deltas_change(
-    ctx: BumpContext, comparison: BaselineComparison, friendly: str, text: str, *, section_removed: bool
-):
+def _update_values_deltas_change(ctx: BumpContext, comparison: BaselineComparison, friendly: str, text: str):
     """Write the values-deltas section for key changes since the baseline, if any."""
     current_values_after = load_yaml_mapping(VALUES_YAML)
     current_subtree = current_values_after.get(ctx.values_key, {})
@@ -680,8 +724,12 @@ def _update_values_deltas_change(
             ValuesDeltaEntry(friendly, heading_line, key_lines),
             ValuesDeltaOrdering(ctx.deps, ctx.values),
         )
-    elif section_removed:
-        write_removed_values_delta_section(comparison.values_deltas_path, text, friendly)
+    else:
+        text, section_removed, kept_user_text = remove_values_delta_section(text, friendly, ctx.deps)
+        if section_removed:
+            write_removed_values_delta_section(
+                comparison.values_deltas_path, text, friendly, kept_user_text=kept_user_text
+            )
     if no_baseline_ref:
         print()
         print(
@@ -703,17 +751,18 @@ def _update_values_deltas_section(ctx: BumpContext, comparison: BaselineComparis
         return
 
     text = comparison.values_deltas_path.read_text(encoding="utf-8")
-    text, section_removed = remove_values_delta_section(text, friendly, ctx.deps)
     if not comparison.reset_to_baseline:
-        _update_values_deltas_change(ctx, comparison, friendly, text, section_removed=section_removed)
+        _update_values_deltas_change(ctx, comparison, friendly, text)
         return
+    text, section_removed, kept_user_text = remove_values_delta_section(text, friendly, ctx.deps)
     comparison.values_deltas_path.write_text(text, encoding="utf-8")
-    print()
-    print(f"=== Updating {comparison.values_deltas_path.name} ===")
-    print(
-        f"  {friendly} is back at its upgrade_docs_baseline {comparison.upgrade_docs_baseline} version — "
-        f"{'removed its section' if section_removed else 'nothing to remove'}"
+    outcome = (
+        "kept its hand-written text, removed the generated parts; review it"
+        if kept_user_text
+        else ("removed its section" if section_removed else "nothing to remove")
     )
+    print_section(f"Updating {comparison.values_deltas_path.name}")
+    print(f"  {friendly} is back at its upgrade_docs_baseline {comparison.upgrade_docs_baseline} version — {outcome}")
 
 
 def _remove_images_manifest_entries(
@@ -721,8 +770,7 @@ def _remove_images_manifest_entries(
 ):
     """Remove the component's manifest entries when it is back at its baseline."""
     changes_action, entry_removals = remove_component_from_images_manifest(manifest_target, path_update)
-    print()
-    print(f"=== Updating {manifest_target.images_path.name} ===")
+    print_section(f"Updating {manifest_target.images_path.name}")
     if changes_action:
         print(
             f"  {manifest_target.friendly} is back at its upgrade_docs_baseline "
@@ -744,8 +792,7 @@ def _write_images_manifest_updates(
     changes_action, entry_updates, _missing_entries = update_images_manifest(
         manifest_target, change, path_update, ctx.deps, ctx.values
     )
-    print()
-    print(f"=== Updating {manifest_target.images_path.name} ===")
+    print_section(f"Updating {manifest_target.images_path.name}")
     if changes_action:
         print(f"  {changes_action} 'changes:' list entry")
     for name in entry_updates:
@@ -779,8 +826,7 @@ def _update_images_manifest_section(
 
 def _run_fix_helm_doc() -> None:
     """Run fix-helm-doc; SystemExit on failure."""
-    print()
-    print("=== Regenerating README.md (fix-helm-doc) ===")
+    print_section("Regenerating README.md (fix-helm-doc)")
     result = run_script([sys.executable, str(FIX_HELM_DOC_SCRIPT)])
     if result.returncode != 0:
         msg = f"error: fix-helm-doc failed (exit {result.returncode}); README.md was not regenerated"
@@ -799,15 +845,14 @@ def main():
     paths_to_update, old_app_by_path = _compute_paths_to_update(ctx)
 
     if chart_unchanged and not paths_to_update:
+        # An earlier run may have written values.yaml/Chart.yaml and stopped before its docs.
         print()
-        print("Nothing to update — component is already at the requested versions.")
-        sys.exit(0)
+        print("Component is already at the requested versions; completing docs.")
 
     new_tags_by_path, repos = _update_image_tags(ctx, paths_to_update, split_tag_sha_paths, upstream_images)
 
     if not chart_unchanged:
-        print()
-        print(f"=== Writing {CHART_YAML} ===")
+        print_section(f"Writing {CHART_YAML}")
         old_v, new_v = update_chart_yaml(ctx.chart_name, chart_version)
         print(f"  {old_v}  ->  {new_v}")
 
@@ -821,8 +866,7 @@ def main():
     _run_fix_helm_doc()
 
     # The doc steps above only read a vendored .tgz whose version didn't change.
-    print()
-    print("=== Re-vendoring changed sub-charts ===")
+    print_section("Re-vendoring changed sub-charts")
     ensure_vendored_dependencies(CHART_DIR)
 
     # Last: its render needs the re-vendored sub-charts.

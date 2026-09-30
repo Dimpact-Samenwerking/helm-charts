@@ -6,7 +6,7 @@ triage decision, not a chart-correctness fact.
 Images are bucketed own/partner-vendor/other-vendor by the render's "# Source:"
 (falling back to the values.yaml top-level key for components absent from the render),
 but every bucket gets the same output. Default: per-image severity totals. --detail:
-CRITICAL/HIGH grouped per package (one bundled binary can carry hundreds of CVEs),
+every finding grouped per package (one bundled binary can carry hundreds of CVEs),
 summarized past cve_scan.max_cves_per_package_before_summarizing. FixedVersion is
 never shown: only the image tag is pinned here, not packages inside it.
 
@@ -22,6 +22,7 @@ import re
 import shutil
 
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from datetime import timedelta
@@ -38,6 +39,7 @@ from lib.image.upgrade_cache import cache_entry_is_fresh as upgrade_entry_is_fre
 from lib.image.upgrade_cache import cache_key as upgrade_cache_key
 from lib.image.upgrade_cache import load_cache as load_upgrade_cache
 from lib.json_cache import cache_file
+from lib.json_cache import checked_within
 from lib.json_cache import load_json_cache
 from lib.json_cache import save_json_cache
 from lib.procutil import run
@@ -47,7 +49,6 @@ from lib.render_scope import chart_name_from_source
 from lib.render_scope import friendly_vendor_charts
 from lib.render_scope import render_chart
 from lib.render_scope import split_rendered_by_source
-from lib.settings import cve_high_severity_levels
 from lib.settings import cve_max_cves_per_package_before_summarizing
 from lib.settings import cve_scan_cache_ttl_days
 from lib.settings import image_upgrade_tag_check_cache_ttl_days
@@ -183,11 +184,7 @@ def cache_key(repository: str, digest: str):
 
 def cache_entry_is_fresh(entry: CveEntry, ttl_days: int):
     """True when `entry` was scanned within the last `ttl_days` days."""
-    try:
-        scanned_at = datetime.fromisoformat(entry["scanned_at"])
-    except (KeyError, ValueError, TypeError):
-        return False
-    return datetime.now(timezone.utc) - scanned_at < timedelta(days=ttl_days)
+    return checked_within(entry.get("scanned_at"), timedelta(days=ttl_days))
 
 
 def run_trivy(image_ref: str) -> list[Vulnerability] | None:
@@ -264,15 +261,24 @@ ImageKey = tuple[str, str | None, str]
 ScanTargetPin = tuple[tuple[str, str], tuple[str, int]]
 
 
-def parse_image_ref(ref: str) -> ImageKey:
-    """ "<repository>[:<version>]@sha256:<digest>" -> (repository, version, digest).
+def split_image_ref(ref: str) -> tuple[str, str | None, str | None]:
+    """ "<repository>[:<tag>][@sha256:<digest>]" -> (repository, tag, digest), None for a missing part.
 
-    version is None for a tagless ref; a "host:port" colon is not a tag (a tag has no "/").
+    A "host:port" colon is not a tag (a tag has no "/").
     """
-    repo_and_tag, digest = ref.rsplit("@sha256:", 1)
-    repository, sep, version = repo_and_tag.rpartition(":")
-    if not sep or "/" in version:
-        return repo_and_tag, None, digest
+    repo_and_tag, _, digest = ref.partition("@sha256:")
+    repository, sep, tag = repo_and_tag.rpartition(":")
+    if not sep or "/" in tag:
+        return repo_and_tag, None, digest or None
+    return repository, tag, digest or None
+
+
+def parse_image_ref(ref: str) -> ImageKey:
+    """ "<repository>[:<version>]@sha256:<digest>" -> (repository, version, digest); ValueError without a digest."""
+    repository, version, digest = split_image_ref(ref)
+    if digest is None:
+        msg = f"image reference without a digest: {ref}"
+        raise ValueError(msg)
     return repository, version, digest
 
 
@@ -305,6 +311,21 @@ def classify_by_key(top_level_key: str | None, dep_names: set[str], vendor_map: 
     if top_level_key is None or top_level_key not in dep_names:
         return "own"
     return vendor_map.get(top_level_key, "other")
+
+
+BUCKETS = ("own", "partner", "other")
+_BUCKET_ADJECTIVES = {"own": "Own", "partner": "Partner-vendor", "other": "Other-vendor"}
+
+
+def bucket_title(bucket: str, noun: str) -> str:
+    """A report section title, e.g. "Partner-vendor images" for ("partner", "images")."""
+    return f"{_BUCKET_ADJECTIVES[bucket]} {noun}"
+
+
+def refs_by_bucket(items: Mapping[str, Mapping[str, object]]) -> tuple[list[str], list[str], list[str]]:
+    """(own, partner, other) keys of `items` by their "bucket", in insertion order."""
+    own, partner, other = ([ref for ref, info in items.items() if info["bucket"] == b] for b in BUCKETS)
+    return own, partner, other
 
 
 def bucket_of(label: str) -> str:
@@ -342,7 +363,6 @@ class ImageClassification:
 class CveScanSettings:
     """check_cves' lib.settings values, resolved once per run."""
 
-    high_severities: set[str]
     package_cve_list_threshold: int
     cve_cache_ttl_days: int
     upgrade_cache_ttl_days: int
@@ -365,7 +385,6 @@ class ReportSettings:
     """print_bucket_report's per-run settings."""
 
     detail_level: str
-    high_severities: set[str]
     package_cve_list_threshold: int
 
 
@@ -491,17 +510,12 @@ def _scan_all_targets(targets: list[ScanTargetPin], context: ScanContext):
 
 def _bucket_refs(images: dict[str, ImageCves]):
     """(own_refs, partner_refs, other_refs) with at least one finding, in insertion order."""
-
-    def refs_in(bucket: str):
-        return [ref for ref, info in images.items() if info["bucket"] == bucket and info["vulns"]]
-
-    return refs_in("own"), refs_in("partner"), refs_in("other")
+    return refs_by_bucket({ref: info for ref, info in images.items() if info["vulns"]})
 
 
 def _print_bucket_reports(images: dict[str, ImageCves], buckets: BucketRefs, report_settings: ReportSettings):
-    print_bucket_report("Own images", buckets.own, images, report_settings)
-    print_bucket_report("Partner-vendor images", buckets.partner, images, report_settings)
-    print_bucket_report("Other-vendor images", buckets.other, images, report_settings)
+    for bucket, refs in zip(BUCKETS, (buckets.own, buckets.partner, buckets.other), strict=True):
+        print_bucket_report(bucket_title(bucket, "images"), refs, images, report_settings)
 
 
 def _print_cve_summary_lines(buckets: BucketRefs, stats: ScanStats, cve_cache_ttl_days: int):
@@ -537,7 +551,6 @@ def check_cves(chart_dir: Path, extra_args: list[str], *, detail: bool = False):
         return True, "docker is not installed — skipped (see --help)"
 
     settings = CveScanSettings(
-        cve_high_severity_levels(chart_dir),
         cve_max_cves_per_package_before_summarizing(chart_dir),
         cve_scan_cache_ttl_days(chart_dir),
         image_upgrade_tag_check_cache_ttl_days(chart_dir),
@@ -560,9 +573,7 @@ def check_cves(chart_dir: Path, extra_args: list[str], *, detail: bool = False):
     save_cache(chart_dir, session.new_cache)
 
     buckets = BucketRefs(*_bucket_refs(images))
-    report_settings = ReportSettings(
-        "full" if detail else "totals", settings.high_severities, settings.package_cve_list_threshold
-    )
+    report_settings = ReportSettings("full" if detail else "totals", settings.package_cve_list_threshold)
     _print_bucket_reports(images, buckets, report_settings)
     _print_cve_summary_lines(buckets, stats, settings.cve_cache_ttl_days)
 
@@ -579,13 +590,18 @@ def severity_label(severity: str):
     return "CRIT" if severity == "CRITICAL" else severity
 
 
-def high_findings_by_package(vulns: list[Vulnerability], high_severities: set[str]) -> dict[str, list[Vulnerability]]:
-    """PkgName -> its `high_severities` findings (one package can carry many CVE IDs)."""
+def findings_by_package(vulns: list[Vulnerability]) -> dict[str, list[Vulnerability]]:
+    """PkgName -> its findings, every severity (one package can carry many CVE IDs)."""
     groups: dict[str, list[Vulnerability]] = {}
     for v in vulns:
-        if v["Severity"] in high_severities:
-            groups.setdefault(v["PkgName"], []).append(v)
+        groups.setdefault(v["PkgName"], []).append(v)
     return groups
+
+
+def print_findings_per_package(vulns: list[Vulnerability], threshold: int) -> None:
+    """One print_package_line per affected package, in package order."""
+    for pkg, vulns_for_pkg in sorted(findings_by_package(vulns).items()):
+        print_package_line(pkg, vulns_for_pkg, threshold)
 
 
 def print_package_line(pkg: str, vulns_for_pkg: list[Vulnerability], threshold: int):
@@ -620,7 +636,7 @@ def print_bucket_header(title: str, *, empty: bool):
 def print_bucket_report(title: str, refs: list[str], images: dict[str, ImageCves], settings: ReportSettings):
     """Print one bucket's images per settings.detail_level (same for every bucket).
 
-    "full": high severities itemized per package, the rest totaled per image.
+    "full": per-image severity totals, then every finding itemized per package.
     "totals": per-image severity totals only.
     """
     if not print_bucket_header(title, empty=not refs):
@@ -632,15 +648,8 @@ def print_bucket_report(title: str, refs: list[str], images: dict[str, ImageCves
         upgradable = f" upgradable to {info['upgradable_to']}" if info["upgradable_to"] else ""
         print(f"{ref}{vendor}{upgradable}")
 
-        if settings.detail_level == "totals":
-            print_severity_totals_line(info["vulns"])
-        else:
-            rest_counts = Counter(v["Severity"] for v in info["vulns"] if v["Severity"] not in settings.high_severities)
-            if rest_counts:
-                parts = ", ".join(f"{rest_counts[s]} {s}" for s in ("MEDIUM", "LOW", "UNKNOWN") if rest_counts.get(s))
-                print(f"  {parts} CVE(s)")
-
-            for pkg, vulns_for_pkg in sorted(high_findings_by_package(info["vulns"], settings.high_severities).items()):
-                print_package_line(pkg, vulns_for_pkg, settings.package_cve_list_threshold)
+        print_severity_totals_line(info["vulns"])
+        if settings.detail_level == "full":
+            print_findings_per_package(info["vulns"], settings.package_cve_list_threshold)
 
         print()

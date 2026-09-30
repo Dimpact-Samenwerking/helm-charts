@@ -104,11 +104,6 @@ def _text_map_map(
     return result
 
 
-def cve_high_severity_levels(chart_dir: Path):
-    """cve_scan.high_severity_levels."""
-    return set(_text_list(chart_dir, "cve_scan", "high_severity_levels", ["CRITICAL", "HIGH"]))
-
-
 def cve_max_cves_per_package_before_summarizing(chart_dir: Path):
     """cve_scan.max_cves_per_package_before_summarizing."""
     return _int(chart_dir, "cve_scan", "max_cves_per_package_before_summarizing", 5)
@@ -122,6 +117,16 @@ def cve_scan_cache_ttl_days(chart_dir: Path):
 def image_upgrade_tag_check_cache_ttl_days(chart_dir: Path):
     """image_upgrade_check.tag_check_cache_ttl_days."""
     return _int(chart_dir, "image_upgrade_check", "tag_check_cache_ttl_days", 1)
+
+
+def root_containers_accepted(chart_dir: Path) -> dict[str, str]:
+    """root_containers.accepted: "<source template>:<container>" -> why it may run as root."""
+    return _text_map(chart_dir, "root_containers", "accepted", {})
+
+
+def chart_upgrade_check_cache_ttl_days(chart_dir: Path):
+    """chart_upgrade_check.cache_ttl_days."""
+    return _int(chart_dir, "chart_upgrade_check", "cache_ttl_days", 1)
 
 
 def repo_access_cache_ttl_minutes(chart_dir: Path):

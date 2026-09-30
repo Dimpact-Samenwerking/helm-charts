@@ -360,5 +360,5 @@ def remove_unchanged_component_rows(text: str, resolution: ResolutionContext) ->
         removed_names.append(row["name"])
     for name in removed_names:
         text, _row_removed = remove_component_row(text, name)
-        text, _section_removed = remove_changes_section(text, name, ordering)
+        text, _section_removed, _kept_user_text = remove_changes_section(text, name, ordering)
     return text, removed_names
