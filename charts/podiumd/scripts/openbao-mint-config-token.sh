@@ -33,14 +33,15 @@
 #   KV_PATH           kv-v2 mount path; must match openbao.configuration.kvPath
 #                                                        (default: secret)
 #   TOKEN_PERIOD      renewal period of the minted token (default: 768h = 32 days)
-#   BAO_ROOT_TOKEN    root token (prompted silently if unset)
+#   BAO_ROOT_TOKEN_FILE  file holding the root token, e.g. <(az keyvault secret show ...)
+#   BAO_ROOT_TOKEN    root token (prompted silently if neither is set)
 #
 # Requires: bash 3+, kubectl.
 
 set -euo pipefail
 
 usage() {
-  sed -n '2,39p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && usage 0
@@ -68,11 +69,16 @@ POLICY_NAME="podiumd-config-job"
 # exec target; address the active Service explicitly anyway.
 BAO_ADDR="http://${RELEASE}-openbao-active:8200"
 
-if [[ -z "${BAO_ROOT_TOKEN:-}" ]]; then
+if [[ -n "${BAO_ROOT_TOKEN_FILE:-}" ]]; then
+  BAO_ROOT_TOKEN=$(<"${BAO_ROOT_TOKEN_FILE}")
+elif [[ -z "${BAO_ROOT_TOKEN:-}" ]]; then
   read -r -s -p "OpenBao root token: " BAO_ROOT_TOKEN
   echo >&2
 fi
 [[ -n "${BAO_ROOT_TOKEN}" ]] || { echo "ERROR: empty root token" >&2; exit 1; }
+# Keep the root token out of every child process's environment (kubectl),
+# also when it came in through BAO_ROOT_TOKEN.
+export -n BAO_ROOT_TOKEN
 
 # Every kubectl call names the cluster and namespace: the current context is
 # whatever another shell last set, and this script writes Secrets.

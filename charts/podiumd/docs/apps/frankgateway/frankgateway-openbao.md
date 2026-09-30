@@ -51,8 +51,8 @@ Infra to provision per environment (one line each):
 | **Storage** | **None** — no PVC (PostgreSQL storage backend, `dataStorage.enabled=false`). |
 | **Secrets (cluster)** | `openbao-db` (chart-rendered) · `openbao-bootstrap-token` key `token` (**seeded by `scripts/openbao-mint-config-token.sh`** — a scoped periodic token, NOT the root token) · `openbao-oidc-secret` (auto-generated, kept stable). |
 | **Identity** | User-assigned MI + federated credential for SA `openbao`; set client-id in `server.serviceAccount.annotations`. (The Azure KV *crypto key* for auto-unseal is provisioned but unused — Shamir, §3.6.) |
-| **Images / egress** | Allow `quay.io/openbao/openbao:2.5.5` + `docker.io/library/postgres:16.15-alpine` (or mirror to ACR + override). |
-| **One-time bootstrap** | `bao operator init -key-shares=1 -key-threshold=1`; store the key and root token in Key Vault; unseal every pod; mint + seed the scoped config token (`scripts/openbao-mint-config-token.sh`); re-run deploy; check `kubectl logs job/openbao-config`; only then revoke the root token (§5 step 8). |
+| **Images / egress** | Allow `quay.io/openbao/openbao` + `docker.io/library/postgres` at the tags pinned in `values.yaml` (§3.1), or mirror to ACR + override. |
+| **One-time bootstrap** | `bao operator init -key-shares=1 -key-threshold=1`; store the key and root token in Key Vault; unseal every pod; mint + seed the scoped config token (`scripts/openbao-mint-config-token.sh`); re-run deploy; check `kubectl --context <ctx> -n <ns> logs job/openbao-config`; only then revoke the root token (§5 step 8). |
 | **Every restart / upgrade** | Unseal every pod with `openbao-unseal-key` from Key Vault (§5.1). ADO `ExternalsPodiumD` environments script the bootstrap and unseal after every deploy automatically (§5.2). |
 
 Values to set: `openbao.enabled=true`, `openbao.database.host`,
@@ -98,7 +98,7 @@ Two moving parts ship in this chart:
 |---|---|---|---|
 | `openbao-db` | Secret | `openbao-db-secret.yaml` | `openbao.enabled` |
 | `openbao-db-schema` | Job (`pre-install,pre-upgrade`, weight `-5`) | `openbao-db-schema-job.yaml` | `openbao.enabled` |
-| `<release>-openbao` (StatefulSet + Services + SA + ConfigMap + PDB) | sub-chart | `charts/podiumd/charts/openbao-0.28.4.tgz` | `openbao.enabled` |
+| `<release>-openbao` (StatefulSet + Services + SA + ConfigMap + PDB) | sub-chart | `charts/podiumd/charts/openbao-<version>.tgz` | `openbao.enabled` |
 | `openbao-config` | Job (`post-install,post-upgrade`, weight `10`) | `openbao-config-job.yaml` | `openbao.enabled && openbao.configuration.enabled` |
 | Keycloak `openbao` client, group, roles | realm import | `keycloak-podiumd-realm-config.yaml` | rendered into the podiumd realm |
 | `openbao-oidc-secret` | Secret key | `keycloak-podiumd-realm-secrets.yaml` | auto-generated, kept stable |
@@ -137,7 +137,7 @@ OpenBao is the only source of Frank!Gateway's external-API credentials.
 ```yaml
 dependencies:
   - name: openbao
-    version: 0.28.4                     # OpenBao server v2.5.5
+    version: <chart version>            # see Chart.yaml
     repository: "https://openbao.github.io/openbao-helm"
     condition: openbao.enabled
 ```
@@ -145,9 +145,9 @@ dependencies:
 - Repository URL is spelled out in `Chart.yaml` (no `@openbao` alias) so CI and
   fresh clones can resolve the dependency without a prior `helm repo add`;
   `scripts/add-helm-repos.sh` still registers the repo for interactive use.
-- Pinned to exact chart version `0.28.4` in `Chart.yaml` (`Chart.lock` is
+- Pinned to an exact chart version in `Chart.yaml` (`Chart.lock` is
   git-ignored, so the `Chart.yaml` pin is the authoritative one).
-- The vendored `charts/podiumd/charts/openbao-0.28.4.tgz` is **git-ignored**, so
+- The vendored `charts/podiumd/charts/openbao-<version>.tgz` is **git-ignored**, so
   any build/CI environment MUST run `helm dep build charts/podiumd` (after
   `scripts/add-helm-repos.sh`) to materialise it before `helm template`/`upgrade`.
 
@@ -177,14 +177,37 @@ appears.
 
 | Image | Where used | Tag | Notes |
 |---|---|---|---|
-| `quay.io/openbao/openbao` | server StatefulSet (sub-chart) | `""` → sub-chart appVersion **2.5.5** | HA server |
-| `quay.io/openbao/openbao` | `openbao-config` Job (`bao` CLI) | **`2.5.5`** (pinned) | standalone Job can't resolve the sub-chart appVersion; keep in step with it |
-| `docker.io/library/postgres` | `openbao-db-schema` Job (`psql`) | `16.15-alpine` (digest-pinned, shared `postgresImage`) | schema DDL only |
+| `quay.io/openbao/openbao` | `openbao-config` Job (`bao` CLI) | `openbao.configuration.job.image.tag` (digest-pinned; defines the `&openbaoImageTag` anchor) | standalone Job can't resolve the sub-chart appVersion, so the tag is explicit |
+| `quay.io/openbao/openbao` | server StatefulSet (sub-chart) | `openbao.server.image.tag` = `*openbaoImageTag` | HA server; the alias keeps it on the Job's tag, so a chart bump never moves the server silently |
+| `docker.io/library/postgres` | `openbao-db-schema` Job (`psql`) | `global.images.postgres` (digest-pinned, shared `&postgresImage`) | schema DDL only |
 
 > The OpenBao and postgres images above are recorded (digest-pinned) in
 > `docs/images/images-baseline.yaml`, the single authoritative strip-registry
-> mirror manifest. For an ACR-mirrored production environment, override
-> `server.image` / the Job images to the mirror (see §9).
+> mirror manifest.
+
+**Pulling from your own registry (ACR).** `global.imageRegistry` does not
+reach any of these three images: the sub-chart builds the server image from
+`server.image.registry`, and the two Jobs take the repository as written. An
+environment that pulls from its own registry overrides all three
+repositories; the tags and digests stay the chart's:
+
+```yaml
+openbao:
+  server:
+    image:
+      registry: <acr>.azurecr.io
+      repository: openbao/openbao
+  configuration:
+    job:
+      image:
+        repository: <acr>.azurecr.io/openbao/openbao
+  database:
+    schemaJob:
+      image:
+        repository: <acr>.azurecr.io/library/postgres
+```
+
+Mirror the images at the chart's tags first. ontw-dim1 runs this way.
 
 ### 3.2 PostgreSQL database (shared Azure PostgreSQL)
 
@@ -300,8 +323,8 @@ referenced by values:
 ### 3.6 Seal / init / unseal model (Shamir)
 
 The server config uses **Shamir** seal (no `seal` stanza). Azure Key Vault
-auto-unseal is intentionally **not** used: OpenBao 2.5.5's `azurekeyvault` seal
-authenticates via IMDS Managed Identity and ignores the AKS workload-identity
+auto-unseal is intentionally **not** used: OpenBao's `azurekeyvault` seal (as of
+2.5.5) authenticates via IMDS Managed Identity and ignores the AKS workload-identity
 federated token, so it cannot reach the vault under workload identity
 ([openbao-helm#56](https://github.com/openbao/openbao-helm/issues/56),
 [hashicorp/vault#29717](https://github.com/hashicorp/vault/issues/29717)).
@@ -490,22 +513,33 @@ namespace. Name them on every command.
      --file <(jq -j '.unseal_keys_b64[0]' <<<"$INIT") --encoding utf-8 -o none
    az keyvault secret set --vault-name <kv> --name openbao-root-token \
      --file <(jq -j '.root_token' <<<"$INIT") --encoding utf-8 -o none
+
+   for item in 'openbao-unseal-key:.unseal_keys_b64[0]' 'openbao-root-token:.root_token'; do
+     [ "$(az keyvault secret show --vault-name <kv> --name "${item%%:*}" --query value -o tsv)" \
+       = "$(jq -j "${item#*:}" <<<"$INIT")" ] && echo "${item%%:*}: stored" \
+       || echo "${item%%:*}: MISMATCH, do not continue"
+   done
    unset INIT
    ```
 
    `--file` with process substitution keeps both values off the `az` command
    line, where any local process could read them for the duration of the call.
-
-   Read both back (`az keyvault secret show … --query value`) and confirm
-   neither is still the Terraform placeholder **before** unsealing. Then
-   unseal every pod as in §5.1.
+   The loop compares what Key Vault now holds with the `init` output without
+   printing either, so it also catches an item still holding the Terraform
+   placeholder. Keep `INIT` until both say `stored`. Then unseal every pod as
+   in §5.1.
 5. **Mint + seed the config token:**
 
    ```bash
-   BAO_ROOT_TOKEN=$(az keyvault secret show --vault-name <kv> \
+   BAO_ROOT_TOKEN_FILE=<(az keyvault secret show --vault-name <kv> \
      --name openbao-root-token --query value -o tsv) \
    KUBE_CONTEXT=<ctx> NAMESPACE=<ns> ./charts/podiumd/scripts/openbao-mint-config-token.sh
    ```
+
+   The root token reaches the script through a file descriptor, not the
+   environment, so neither the script's environment nor its `kubectl` child
+   processes carry it. The script also un-exports `BAO_ROOT_TOKEN` if you set
+   it directly, and prompts silently when neither is set.
 
    `KUBE_CONTEXT` is required: the script passes it to every `kubectl` call and
    never uses the current context, because it writes a Secret. It writes the scoped `podiumd-config-job` policy, mints an orphan periodic
@@ -514,11 +548,60 @@ namespace. Name them on every command.
    seed the root token.
 6. **Re-run the deploy** (or just the `openbao-config` Job): it now enables
    kv-v2, writes the policy, configures OIDC, and binds the group.
-7. **Frank!Gateway secrets.** Write the external-API keys, client certificates
-   and consumer list under `<mount>/frankgateway/`, and create the scoped
-   reader-token Secret (`frankgateway.openbao.tokenSecret`) — see
-   [`frankgateway-routes.md`](frankgateway-routes.md). Until then every
+7. **Frank!Gateway secrets and reader token.** Write the external-API keys,
+   client certificates and consumer list under `<mount>/frankgateway/` — see
+   [`frankgateway-routes.md`](frankgateway-routes.md). Then mint the
+   gateway's reader token and create its Secret. Until both are done every
    key-bearing route answers 503.
+
+   Nothing creates or renews the reader token yet: not this chart, not the
+   deploy pipeline ([IN-3047](https://dimpact.atlassian.net/browse/IN-3047)).
+   Mint it by hand with the root token, before step 8 revokes that:
+
+   ```bash
+   ROOT=$(az keyvault secret show --vault-name <kv> --name openbao-root-token \
+     --query value -o tsv)
+   READER=$(kubectl --context <ctx> -n <ns> exec -i <release>-openbao-0 -- sh -e <<EOS
+   export BAO_ADDR=http://<release>-openbao-active:8200 BAO_TOKEN=$ROOT
+   bao auth tune -max-lease-ttl=8760h token/ >&2
+   bao policy write frankgateway-reader - >&2 <<'HCL'
+   path "<mount>/data/frankgateway"   { capabilities = ["read"] }
+   path "<mount>/data/frankgateway/*" { capabilities = ["read"] }
+   HCL
+   bao token create -orphan -policy=frankgateway-reader -ttl=8760h \
+     -display-name=frankgateway-reader -field=token
+   EOS
+   )
+   unset ROOT
+
+   az keyvault secret set --vault-name <kv> --name frankgateway-openbao-token \
+     --file <(printf '%s' "$READER") --encoding utf-8 -o none
+   printf '%s' "$READER" | kubectl --context <ctx> -n <ns> create secret generic \
+       frankgateway-openbao-token --from-file=token=/dev/stdin --dry-run=client -o yaml \
+     | kubectl --context <ctx> -n <ns> apply -f -
+   unset READER
+
+   kubectl --context <ctx> -n <ns> rollout restart deployment \
+     -l app.kubernetes.io/component=frankgateway
+   ```
+
+   - `<mount>` is `frankgateway.openbao.mount`, or `openbao.configuration.kvPath`
+     (default `secret`) when that is empty. The policy needs both paths: the
+     wildcard alone does not match `frankgateway` itself, where the API keys
+     live.
+   - **The token expires after one year** (8760h). OpenBao caps a token's TTL
+     at the token auth method's maximum, 768h (32 days) by default, and does
+     so silently; `bao auth tune` raises that maximum so `-ttl=8760h` holds.
+     Other tokens keep their default TTL. Re-mint before it expires: check
+     with `bao token lookup` (as the reader token) and repeat this step, which
+     needs a root token again (`bao operator generate-root`, as in step 8).
+   - The gateway reads the token as an environment variable at start, hence
+     the restart. The client-cert-sync CronJob picks it up on its next run.
+   - The root and reader tokens are streamed over the exec channel and kept in
+     unexported shell variables, so they stay off every command line.
+   - Keep the Secret name and key in step with
+     `frankgateway.openbao.tokenSecret` (default `frankgateway-openbao-token`,
+     key `token`).
 8. **Verify** (§6), then **revoke the root token**: re-run the script with
    `--revoke-root` (asks for confirmation). The `openbao-root-token` item then
    holds a dead token; that is expected — leave it, so the item keeps its
@@ -553,6 +636,27 @@ unset KEY REPLICAS
 The key goes in over stdin rather than as an exec argument, so it is not
 recorded in the Kubernetes audit log (which records exec arguments, not
 streamed input). Every line must end `sealed=false`.
+
+**Then check the config Job.** When a deploy restarts the OpenBao pods, the
+`openbao-config` hook runs while they are still sealed: it waits about 120 s,
+logs `skipping config; reconcile after unseal` and exits 0. It then has
+neither applied configuration changes nor renewed the config token, and a
+token nobody renews expires after its period (32 days by default, §5 step 5).
+If its log says it skipped, run it again now the vault is unsealed:
+
+```bash
+kubectl --context <ctx> -n <ns> logs job/openbao-config
+kubectl --context <ctx> -n <ns> delete job openbao-config --ignore-not-found
+helm template <release> <chart> --version <version> -n <ns> -f <values> \
+    --show-only templates/openbao-config-job.yaml \
+  | kubectl --context <ctx> -n <ns> create -f -
+kubectl --context <ctx> -n <ns> wait --for=condition=complete job/openbao-config --timeout=5m
+kubectl --context <ctx> -n <ns> logs job/openbao-config
+```
+
+Render with the same chart version and values as the deploy. The Job is kept
+for `ttlSecondsAfterFinished` (600 s) after it finishes; once it is gone,
+skip the first `logs` and just run it.
 
 > This is the single biggest operational cost of Shamir, and the reason §9
 > item 4 stays open: KV auto-unseal would remove it.
@@ -607,16 +711,20 @@ deploy that enables OpenBao, not after.
    Frank!Gateway reader-token Secret (§5 step 7), then revoke the root token
    (§5 step 8).
 
-What the scripts do not cover: a pod that restarts **between** deploys (node
-drain, eviction, OOMKill) stays sealed until the next deploy or a manual
-unseal (§5.1).
+What the scripts do not cover:
+
+- A pod that restarts **between** deploys (node drain, eviction, OOMKill)
+  stays sealed until the next deploy or a manual unseal (§5.1).
+- The pipeline unseals **after** the deploy but does not re-run the
+  `openbao-config` Job. After a deploy that restarted the OpenBao pods, check
+  its log and re-run it as in §5.1.
 
 ---
 
 ## 6. Verification
 
 - **Sub-chart materialised:** `helm dep build charts/podiumd` succeeds and
-  `charts/podiumd/charts/openbao-0.28.4.tgz` exists.
+  `charts/podiumd/charts/openbao-<version>.tgz` exists, `<version>` matching `Chart.yaml`.
 - **Render:** `helm template ... --set openbao.enabled=true` produces
   `openbao-db` Secret, `openbao-db-schema` Job, `openbao-config` Job, and the
   sub-chart StatefulSet/Services.
@@ -625,8 +733,8 @@ unseal (§5.1).
   Terraform placeholder.
 - **Sealed/unsealed:** `bao status` inside **each** server pod reports
   `Initialized true`, `Sealed false` — after step 4 and after every upgrade.
-- **Config Job:** `kubectl logs job/openbao-config` says it configured, not
-  skipped (§9 item 2).
+- **Config Job:** `kubectl --context <ctx> -n <ns> logs job/openbao-config` says it
+  configured, not skipped (§9 item 2).
 - **Route + cert:** `curl -sSf https://<env>-openbao-admin.<gemeente>.nl/v1/sys/health`
   returns JSON over a valid TLS chain (SAN matches host).
 - **OIDC login (UI):** browse to the host, choose OIDC, authenticate as a
@@ -692,18 +800,19 @@ No observed-usage numbers yet — first production-like deployment pending.
 
 ## 9. Known limitations & open items
 
-1. **Images manifest.** `openbao/openbao:2.5.5` and `postgres:16.15-alpine` are
+1. **Images manifest.** The `openbao/openbao` and `postgres` images are
    recorded (digest-pinned) in `docs/images/images-baseline.yaml`. If the agent
    injector is ever re-enabled, add `hashicorp/vault-k8s:1.7.2` there too.
-   Override `server.image` / the Job images to the ACR mirror before shipping
-   to a digest-pinned production environment. Egress must reach `quay.io` and
-   `docker.io` until then.
+   An environment that pulls from its own registry overrides all three
+   repositories (§3.1); otherwise egress must reach `quay.io` and `docker.io`.
 2. **Config-Job silent skip.** `openbao-bootstrap-token` is created out-of-band
    (§5); if it is **missing** the `openbao-config` Job exits 0 and the `helm
    upgrade` **succeeds while the vault stays unconfigured**. Check the Job log
-   after deploy (`kubectl logs job/openbao-config`) — a green release is not
-   proof the OIDC/policy config was applied. (A present-but-invalid token, by
-   contrast, fails the Job loudly.) The Job is kept after success precisely so
+   after deploy (`kubectl --context <ctx> -n <ns> logs job/openbao-config`) — a
+   green release is not proof the OIDC/policy config was applied. (A
+   present-but-invalid token, by contrast, fails the Job loudly.) It skips the
+   same way when a deploy restarted the OpenBao pods and they are still sealed;
+   re-run it after the unseal (§5.1). The Job is kept after success precisely so
    this log stays readable: `ttlSecondsAfterFinished: 600` garbage-collects it
    after ~10 minutes, and the next deploy replaces it (`before-hook-creation`).
 3. **Release/upgrade docs.** OpenBao is not mentioned in `README.md` or the
@@ -725,6 +834,11 @@ No observed-usage numbers yet — first production-like deployment pending.
    2026-07-17. Documented as a separate component until 2026-09; merged into
    the Frank!Gateway docs because Frank!Gateway is its reason to exist in
    PodiumD.
+7. **Token lifecycle.** Nothing creates, renews or monitors the Frank!Gateway
+   reader token: it is minted by hand with a one-year TTL (§5 step 7) and
+   routes answer 503 when it expires. The config token is renewed only when
+   the `openbao-config` Job actually runs (item 2). Tracked in
+   [IN-3047](https://dimpact.atlassian.net/browse/IN-3047).
 
 ---
 

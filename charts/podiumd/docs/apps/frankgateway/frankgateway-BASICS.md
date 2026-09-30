@@ -468,11 +468,13 @@ security assessment without first confirming enforcement on the target cluster.
    Then write the external-API keys to `<mount>/frankgateway`
    (`bag_api_key`, `kvk_api_key`), any outbound client certificates to
    `<mount>/frankgateway/client-certs/<name>` (`cert`, `key`) and the inbound
-   consumer list to `<mount>/frankgateway/consumers`, and have the environment
-   deployment create the scoped-reader-token Secret named by
-   `frankgateway.openbao.tokenSecret` with a policy covering both
-   `<mount>/frankgateway` and `<mount>/frankgateway/*`. Commands in
-   [`frankgateway-routes.md`](frankgateway-routes.md).
+   consumer list to `<mount>/frankgateway/consumers` (commands in
+   [`frankgateway-routes.md`](frankgateway-routes.md)). Then mint the scoped
+   reader token, with a policy covering both `<mount>/frankgateway` and
+   `<mount>/frankgateway/*`, and create the Secret named by
+   `frankgateway.openbao.tokenSecret`. Nothing automates this yet
+   ([IN-3047](https://dimpact.atlassian.net/browse/IN-3047)): do it by hand as in
+   [runbook §5 step 7](frankgateway-openbao.md#5-bootstrap-runbook-first-install).
 4. **Route the dashboards.** One per class that has one. Gateway API
    environments: HTTPRoute → `frankgateway-<class>-oauth2-proxy:4180` in ADO
    `ExternalsPodiumD` (`infra.yml`), and add each hostname to the gateway
