@@ -569,7 +569,18 @@ deploy that enables OpenBao, not after.
 
    ```bash
    python3 pipelines/scripts/openbao_bootstrap.py --env <env>-<gemeente>
+   python3 pipelines/scripts/openbao_bootstrap.py --env <env>-<gemeente> --chart-branch <branch>
    ```
+
+   The temporary pod runs the same OpenBao and Postgres images as the deploy
+   that follows. The script reads them from the chart that deploy uses, picked
+   the way the Applications pipeline picks it: the published chart version in
+   the environment's `config.yml` (`deploymentType: helm-chart`, the default),
+   or a helm-charts branch (`--chart-branch`, `deploymentType: branch`). The
+   environment's `podiumd.yml` is layered on top, as Helm does. It shows the
+   chart and both images and asks for confirmation before it changes anything:
+   a vault must not be initialised by a newer OpenBao than the one that then
+   runs it.
 
    It starts a temporary pod (`openbao-bootstrap`) against the environment's
    `openbao` database, creates the tables (the same DDL as the
