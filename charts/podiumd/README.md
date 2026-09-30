@@ -797,7 +797,7 @@ PodiumD Helm chart
 | openbao.enabled | bool | `false` |  |
 | openbao.injector.enabled | bool | `false` |  |
 | openbao.injector.image.repository | string | `"hashicorp/vault-k8s"` |  |
-| openbao.injector.image.tag | string | `"1.7.2@sha256:ae3d307658b72a1cf35dab9bdf92c995d45cdc7183af0516857714b5bd0ba84d"` |  |
+| openbao.injector.image.tag | string | `"1.7.6@sha256:55e27b080c9b0469fd420dfb3631243488c6319504b779423caa46c529a95490"` |  |
 | openbao.server.dataStorage.enabled | bool | `false` |  |
 | openbao.server.extraLabels."azure.workload.identity/use" | string | `"true"` |  |
 | openbao.server.extraSecretEnvironmentVars[0].envName | string | `"BAO_PG_CONNECTION_URL"` |  |

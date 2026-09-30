@@ -304,8 +304,8 @@
 
 - name: hashicorp/vault-k8s
   url: docker.io/hashicorp/vault-k8s
-  version: "1.7.2"
-  digest: "sha256:ae3d307658b72a1cf35dab9bdf92c995d45cdc7183af0516857714b5bd0ba84d"
+  version: "1.7.6"
+  digest: "sha256:55e27b080c9b0469fd420dfb3631243488c6319504b779423caa46c529a95490"
 
 - name: openbao/openbao-csi-provider
   url: quay.io/openbao/openbao-csi-provider
