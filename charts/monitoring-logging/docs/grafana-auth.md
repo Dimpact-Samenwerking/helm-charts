@@ -78,7 +78,7 @@ curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" \
 
 **Role mapping** (from chart defaults — adjust if your Keycloak roles differ):
 
-```
+```text
 contains(monitoring_roles[*], 'admin')  → Grafana Admin
 contains(monitoring_roles[*], 'editor') → Editor
 (no match)                              → Viewer

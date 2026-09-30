@@ -69,8 +69,8 @@ instructions and worked examples:
 
 ## What to change in the values file before a redeploy of an EXISTING PodiumD version — no chart update needed
 
-**You do not have to wait for 4.9.2, and you must not upgrade PodiumD to fix
-this.** The `scopes` line is set in the environment's own values file, which
+**You do not have to wait for a chart release, and you must not upgrade PodiumD
+to fix this.** The `scopes` line is set in the environment's own values file, which
 overrides whatever the chart ships. Changing it there repairs login on the
 version you are running today.
 
@@ -174,7 +174,7 @@ curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" \
   "$AUTH?client_id=monitoring&redirect_uri=$RU&response_type=code&scope=openid%20email%20profile%20offline_access%20roles&state=p"
 ```
 
-Then log in at https://test-podiumd-logs.rotterdam.nl and run the browser checks
+Then log in at <https://test-podiumd-logs.rotterdam.nl> and run the browser checks
 under [After the upgrade](#after-the-upgrade).
 
 ### Generic example — any environment
@@ -214,13 +214,16 @@ environment only.
 > **Do not use `yq -i` on these files.** It reformats the whole document and
 > loses the comments. Edit the single line.
 
-### Order of work
+### Status
 
-Environments already on PodiumD 4.9.1 are broken now and come first:
-**test-rott**, then **acc-asse** and **acc-gron**. Everything else is still on
-4.9.0 or earlier and keeps working until it upgrades — change those files
-whenever convenient, but before their next PodiumD upgrade, or login breaks the
-moment that upgrade lands.
+As of 2026-09-30 no `monitoring.yml` in ExternalsPodiumD `main` and no values
+file in podiumd-infra `main` still requests `offline_access`. A new environment,
+or one that does not pin `scopes`, gets the corrected default from this chart
+version. Check for stragglers with:
+
+```bash
+grep -rn "offline_access" applications/gemeenten/*/*/monitoring.yml
+```
 
 ## Verification
 
