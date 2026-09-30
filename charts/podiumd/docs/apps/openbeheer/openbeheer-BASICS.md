@@ -64,13 +64,13 @@ Public. In Dimpact environments an HTTPRoute `hr-openbeheer-nginx` on Gateway
 `public-gateway` (namespace `ingress-basic`, gatewayClass `nginx`) routes
 `<env>-openbeheer.<gemeente>.nl` (e.g. `ontw-openbeheer.assen.nl`) to the nginx ClusterIP
 service `openbeheer-nginx` (port 80), so its `backendRefs` names `openbeheer-nginx`.
-`openbeheer-nginx` serves the frontend and proxies `/admin`, `/oidc`, `/static` and `/api/` to
-the Django backend. The HTTPRoute and DNS record are created by the per-gemeente environment
-deployment (ADO `ExternalsPodiumD`), not by this chart. The public hostname must equal the
-host in `openbeheer.configuration.oidcUrl` — the realm-config job derives the Keycloak
-redirect URIs (`{oidcUrl}/*`) from it. For non-NGF environments the sub-chart also ships an
-optional classic Ingress template (`openbeheer.ingress.*`, disabled by default) — see
-[openbeheer.md](openbeheer.md).
+`openbeheer-nginx` serves the frontend and proxies `/admin`, `/oidc`, `/static`, `/assets`
+and `/api/` to the Django backend. The HTTPRoute and DNS record are created by the
+per-gemeente environment deployment (ADO `ExternalsPodiumD`), not by this chart. The public
+hostname must equal the host in `openbeheer.configuration.oidcUrl` — the realm-config job
+derives the Keycloak redirect URIs (`{oidcUrl}/*`) from it. For non-NGF environments the
+sub-chart also ships an optional classic Ingress template (`openbeheer.ingress.*`, disabled by
+default) — see [openbeheer.md](openbeheer.md).
 
 ### Other dependencies
 
