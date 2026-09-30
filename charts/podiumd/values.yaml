@@ -3617,7 +3617,7 @@ ita:
   # -- Nieuw in ITA 3.3.0: dagelijkse herinnering voor verlopen
   # contactverzoeken, op werkdagen om 07:00.
   verlopenContactverzoekHerinneringNotificatie:
-    enabled: true
+    enabled: false
     schedule: "0 7 * * 1-5"
 
   ingress:
