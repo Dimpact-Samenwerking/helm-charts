@@ -767,6 +767,26 @@ with the ontw-dim1 Frank!Gateway rollout on PodiumD 4.9.3, 2026-09). The order
 differs from the manual runbook: the vault is initialised **before** the first
 deploy that enables OpenBao, not after.
 
+**With the static seal (§3.6.1) the order is the other way round**, and steps
+1 and 2 below do not apply:
+
+1. **Deploy.** Before it, `openbao_unseal.py --check` requires only
+   `openbao-seal-key` (present, and a 32-byte key); `openbao-unseal-key` may
+   still hold the Terraform placeholder. After it, `openbao_unseal.py` only
+   verifies, never unseals, and on a fresh vault it **fails the run**: the
+   pods are uninitialised. That red run is expected.
+2. **Bootstrap, by an operator:** `openbao_bootstrap.py --env <env>-<gemeente>`.
+   It refuses to run until the StatefulSet and `Secret/openbao-seal` exist,
+   then initialises the running OpenBao through its API with one recovery key
+   (no temporary pod), waits until every pod has unsealed itself, shows the
+   recovery key and root token once, and checks that `openbao-unseal-key` in
+   Key Vault holds the recovery key after the operator stored both.
+3. **Deploy again.** The check now passes: every pod initialised and unsealed.
+   Then continue with step 3 below (config token, reader token, revoke the
+   root token).
+
+The Shamir order:
+
 1. **Bootstrap, once per environment, by an operator:**
 
    ```bash
@@ -811,8 +831,9 @@ deploy that enables OpenBao, not after.
 
 What the scripts do not cover:
 
-- A pod that restarts **between** deploys (node drain, eviction, OOMKill)
-  stays sealed until the next deploy or a manual unseal (§5.1).
+- Shamir only: a pod that restarts **between** deploys (node drain,
+  eviction, OOMKill) stays sealed until the next deploy or a manual unseal
+  (§5.1). With the static seal it unseals itself.
 - The pipeline unseals **after** the deploy but does not re-run the
   `openbao-config` Job. After a deploy that restarted the OpenBao pods, check
   its log and re-run it as in §5.1.
