@@ -35,6 +35,33 @@
 {{- fail "frankgateway requires openbao: external-API keys are fetched from OpenBao at request time and there is no other key path. Set openbao.enabled=true, or frankgateway.enabled=false." -}}
 {{- end -}}
 
+{{- /* OpenBao static seal: the server only accepts a 32-byte AES key, given as 32
+     raw characters, 64 hex, 44 standard base64 or 43 unpadded URL-safe base64.
+     Anything else (e.g. an unsubstituted REP_…_REP placeholder) would render
+     fine and then leave every OpenBao pod crash-looping on start, so fail the
+     render instead. The seal config is only loaded through server.extraArgs;
+     an override that drops it would silently fall back to Shamir. */ -}}
+{{- if .Values.openbao.enabled -}}
+{{- $seal := .Values.openbao.seal.static -}}
+{{- range $field := list "key" "previousKey" -}}
+{{- $k := index $seal $field | default "" | toString -}}
+{{- if $k -}}
+{{- if not (or (eq (len $k) 32) (regexMatch "^[0-9a-fA-F]{64}$" $k) (regexMatch "^[A-Za-z0-9+/]{43}=$" $k) (regexMatch "^[A-Za-z0-9_-]{43}$" $k)) -}}
+{{- fail (printf "openbao.seal.static.%s must be a 32-byte AES key: 32 raw characters, 64 hex, 44 standard base64 or 43 unpadded URL-safe base64 (got %d characters)" $field (len $k)) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if and $seal.previousKey (not $seal.previousKeyId) -}}
+{{- fail "openbao.seal.static.previousKeyId must be set when openbao.seal.static.previousKey is set" -}}
+{{- end -}}
+{{- if and $seal.previousKey (eq (toString $seal.previousKeyId) (toString $seal.keyId)) -}}
+{{- fail "openbao.seal.static.previousKeyId must differ from keyId: each key needs its own permanent identifier" -}}
+{{- end -}}
+{{- if and $seal.key (not (contains "-config=/openbao/seal" (toString .Values.openbao.server.extraArgs))) -}}
+{{- fail "openbao.seal.static.key is set but openbao.server.extraArgs no longer loads -config=/openbao/seal, so the static seal would be ignored. Keep that argument (and the openbao-seal volumes) in any override." -}}
+{{- end -}}
+{{- end -}}
+
 {{- if .Values.frankgateway.enabled -}}
 {{- if hasKey .Values.frankgateway.instances "gateway" -}}
 {{- fail "frankgateway.instances.gateway no longer exists: the traffic-class split (inway/outway/internal) is the only supported shape. Move the overrides under the class they belong to and remove the `gateway` key. See charts/podiumd/docs/apps/frankgateway/frankgateway-traffic-classes.md" -}}
