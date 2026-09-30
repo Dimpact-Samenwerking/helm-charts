@@ -35,11 +35,11 @@ footprint is tiny: one small web pod plus a 15-minute cron job.
     yet, so >1 replica breaks login). `ita.replicaCount` has no effect.
   - `ita-web-svc` — ClusterIP Service, port 80 → container port 8080.
     Health probes on `/healthz`.
-  - `ita-poller` — Creates two Cronjobs. One for `nieuweInternetaakNotificatie`,
+  - `ita-poller` — Can create two Cronjobs. One for `nieuweInternetaakNotificatie`,
     default schedule `*/15 * * * *` (`ita.nieuweInternetaakNotificatie.schedule`).
     And one for `verlopenContactverzoekHerinneringNotificatie`, which reminds
-    employees about Contactverzoeken older than 48 hours. This value of 48 hours is not configurable yet. `ita.verlopenContactverzoekHerinneringNotificatie.schedule` is set
-    to `"0 7 * * 1-5"`
+    employees about Contactverzoeken older than 48 hours. This value of 48 hours is not configurable yet. `ita.verlopenContactverzoekHerinneringNotificatie.schedule` is set to `"0 7 * * 1-5"`
+    In PodiumD  `ita.verlopenContactverzoekHerinneringNotificatie` has been set to `false`.
   - ConfigMap `ita-config`, Secret `ita-secrets`, appsettings ConfigMap —
     rendered by the subchart.
   - The subchart bundles a Bitnami PostgreSQL dependency; it is **disabled**
