@@ -29,6 +29,7 @@ from lib.images_manifest import try_parse_images_manifest
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_path
 from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment_line
 from lib.upgradedoc.images_manifest_ordering import delete_images_manifest_entry
+from lib.upgradedoc.images_manifest_ordering import match_changes_item_display_name
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.resolve_component_row import resolve_component_row
 from lib.upgradedoc.resolve_component_row import resolved_row_unchanged
@@ -213,7 +214,8 @@ def expected_changes_items(
 def stale_changes_items(lines: list[str], expected: Mapping[str, ExpectedChangesItem]) -> list[tuple[int, str, str]]:
     """(line index, current text, expected text) of each one-line "# Changes:" item that contradicts its row.
 
-    An item belongs to the longest row name it starts with. Its versions must
+    An item belongs to the longest row name it names (match_changes_item_display_name),
+    so a sidecar item "zac - solr ..." never belongs to row "zac". Its versions must
     match. The "(chart ...)" clause is required when the chart version
     changed; otherwise only checked when present, since update-image-version
     writes dependency items without it.
@@ -221,14 +223,13 @@ def stale_changes_items(lines: list[str], expected: Mapping[str, ExpectedChanges
     header_idx, _header_has_count = find_images_manifest_changes_header(lines)
     if header_idx is None:
         return []
-    names = sorted(expected, key=len, reverse=True)
     spans, _block_end = images_manifest_changes_item_spans(lines, header_idx)
     stale: list[tuple[int, str, str]] = []
     for start, end in spans:
         if end - start != 1:
             continue
         rest = match_located_line(CHANGES_ITEM_RE, lines[start]).group("rest").strip()
-        name = next((n for n in names if rest.startswith(f"{n} ")), None)
+        name = match_changes_item_display_name(rest, expected)
         if name is None:
             continue
         wanted = expected[name].text(with_chart=_CHART_CLAUSE_RE.search(rest) is not None)
