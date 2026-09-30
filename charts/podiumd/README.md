@@ -296,7 +296,7 @@ PodiumD Helm chart
 | ita.smtp.port | string | `"587"` |  |
 | ita.smtp.username | string | `""` |  |
 | ita.tolerations | list | `[]` |  |
-| ita.verlopenContactverzoekHerinneringNotificatie | object | `{"enabled":false,"schedule":"0 7 * * 1-5"}` | Nieuw in ITA 3.3.0: dagelijkse herinnering voor verlopen contactverzoeken, op werkdagen om 07:00. |
+| ita.verlopenContactverzoekHerinneringNotificatie | object | `{"enabled":false,"schedule":"0 7 * * 1-5"}` | Nieuw in ITA 3.3.0: dagelijkse herinnering voor verlopen contactverzoeken, op werkdagen om 07:00. Standaard uitgeschakeld, er zit nog een fout in de e-mail Zie ook DRT-726 |
 | ita.web.image.pullPolicy | string | `"IfNotPresent"` |  |
 | ita.web.image.tag | string | `"3.3.2@sha256:1a720a54f7de4aaec08abf28562cf2488128916274717e1edc6965b6ef31144a"` |  |
 | ita.web.oidc.authority | string | `"REP_ITA_OIDC_AUTHORITY_REP"` |  |
