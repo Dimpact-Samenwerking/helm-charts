@@ -8,8 +8,9 @@
 #   3. zac 5.4.4 -> 5.4.5 (chart 1.0.297, unchanged).
 #   4. zaakbrug 1.26.18 -> 1.26.19 (chart 2.3.32, unchanged).
 #   5. openbao 2.5.5 -> 2.6.3 (chart 0.28.4 -> 0.29.6).
-#   6. openbao - openbao-csi-provider 2.0.2 -> 2.0.3.
-#   7. openbao - openbao-snapshot-agent 0.3.0 -> 0.4.5.
+#   6. openbao - vault-k8s 1.7.2 -> 1.7.6.
+#   7. openbao - openbao-csi-provider 2.0.2 -> 2.0.3.
+#   8. openbao - openbao-snapshot-agent 0.3.0 -> 0.4.5.
 #
 # See docs/_UPGRADE_PATHS/4.9.2-to-4.9.3-upgrade.md for the operator upgrade notes.
 #
@@ -45,6 +46,11 @@
   url: quay.io/openbao/openbao
   version: "2.6.3"
   digest: "sha256:a60afafda36337abe833c4a63894bf1095098f29abea4091e7e555a33dd52889"
+#   sidecar: openbao - vault-k8s 1.7.2 -> 1.7.6
+- name: hashicorp/vault-k8s
+  url: docker.io/hashicorp/vault-k8s
+  version: "1.7.6"
+  digest: "sha256:55e27b080c9b0469fd420dfb3631243488c6319504b779423caa46c529a95490"
 #   sidecar: openbao - openbao-csi-provider 2.0.2 -> 2.0.3
 - name: openbao/openbao-csi-provider
   url: quay.io/openbao/openbao-csi-provider
