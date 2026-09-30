@@ -1,13 +1,4 @@
-"""main() integration against a real, hermetic temp git repo.
-find_dependency/get_path/find_app_versions and
-component_state_at_baseline (which wires them together with lib.
-release_baseline.resolve_baseline_chart_state) are lib.chart's own (see
-tests/lib/test_chart.py) — baseline_ref_candidates/resolve_git_ref are
-lib.gitutil's own (see tests/lib/test_gitutil.py) — this script only
-calls through component_state_at_baseline (via lib.baseline_report.
-show_baseline_section), exercised here via main().
-
-No <baseline> CLI argument anymore — main() always shows state at BOTH
+"""main() against a real temp git repo; always shows state at both
 release-baseline.yaml baselines (upgrade_docs, release_table)."""
 
 import subprocess
@@ -61,8 +52,6 @@ def write_baselines(repo, upgrade_docs=None, release_table=None):
 
 
 # --- main() integration ---
-# main() only calls sys.exit() on error paths; on success it just returns,
-# so only the failure-path tests wrap the call in pytest.raises(SystemExit).
 
 
 def set_argv_and_repo(scbv: ModuleType, monkeypatch: pytest.MonkeyPatch, repo, component):
@@ -158,8 +147,7 @@ def test_main_help_flag_prints_usage_and_exits_zero(
 def test_main_shows_a_native_component_without_chart_version(
     scbv: ModuleType, repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """frankgateway (a native component, settings.yaml default) has no
-    Chart.yaml dependency: its image tag is shown, no chart version."""
+    """A native component (no Chart.yaml dependency) shows its image tag only."""
     chart_dir = repo / "charts" / "podiumd"
     (chart_dir / "values.yaml").write_text(yaml.safe_dump({"frankgateway": {"image": {"tag": "104@sha256:fff"}}}))
     git("add", "-A", cwd=repo)

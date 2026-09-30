@@ -25,14 +25,14 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-# Not installed as a package -- sys.path must be patched before
-# lib.* can be imported, so these imports can't move to the top.
+# sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
 from lib.chart.historical_baselines import SEMVER_RE as BASELINE_VERSION_RE
 from lib.chart.paths import CHART_DIR
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.chart.release_baseline_basics import write_release_baselines
 from lib.cli import positional_args
+from lib.cli import print_section
 from lib.gitutil import find_repo_root
 from lib.gitutil import resolve_baseline_ref
 from lib.procutil import run_script
@@ -42,18 +42,11 @@ FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 
 
 def main():
-    """CLI entry point: validates <new-baseline> resolves to a real release
-    (tag or branch), writes it as release-baseline.yaml's upgrade_docs key,
-    then rebases the docs onto it (fix-doc-consistency) and regenerates
-    README.md (fix-helm-doc) — exits with whichever of those two sub-runs
-    fails first, if any."""
+    """CLI entry point; exits with the first failing sub-run's code."""
     (new_baseline,) = positional_args(__doc__, 1)
 
-    # A baseline is always a released MAJOR.MINOR.PATCH — never an arbitrary
-    # ref. Without this, gitutil.baseline_ref_candidates' unanchored match
-    # lets "main" / "HEAD~2" / "4.9.1-rc.2" resolve as an explicit ref and
-    # get persisted into release-baseline.yaml, where every downstream
-    # consumer assumes semver. Same guard create-doc-version already has.
+    # resolve_baseline_ref would also accept refs like "main" or "HEAD~2";
+    # downstream consumers assume semver.
     if not BASELINE_VERSION_RE.match(new_baseline):
         print(f"error: '{new_baseline}' is not a valid MAJOR.MINOR.PATCH version")
         sys.exit(1)
@@ -76,14 +69,12 @@ def main():
     else:
         print(f"release-baseline.yaml: upgrade_docs {old_baseline or '(none)'} -> {new_baseline} (resolved to {ref})")
 
-    print()
-    print(f"=== Running fix-doc-consistency (upgrade_docs baseline {new_baseline}) ===")
+    print_section(f"Running fix-doc-consistency (upgrade_docs baseline {new_baseline})")
     result = run_script([sys.executable, str(FIX_DOC_CONSISTENCY_SCRIPT)])
     if result.returncode != 0:
         sys.exit(result.returncode)
 
-    print()
-    print("=== Regenerating README.md (fix-helm-doc) ===")
+    print_section("Regenerating README.md (fix-helm-doc)")
     result = run_script([sys.executable, str(FIX_HELM_DOC_SCRIPT)])
     sys.exit(result.returncode)
 

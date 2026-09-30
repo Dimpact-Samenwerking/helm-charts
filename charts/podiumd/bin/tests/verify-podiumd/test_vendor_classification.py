@@ -1,9 +1,5 @@
-"""friendly_vendor_charts — classifies each Chart.yaml dependency as a
-"friendly" vendor (Maykin, Info(NL), ICATT, Worth, WeAreFrank, Dimpact, or a
-local file:// dependency) or leaves it unclassified (elastic,
-redis-operator, keycloak-operator, openbao, ...). Used by
-check_yamllint/check_kubeconform/check_shellcheck to decide which vendored
-findings get per-item detail vs. an aggregate-count-only line."""
+"""friendly_vendor_charts: classify each Chart.yaml dependency as a friendly
+vendor or unclassified, which decides per-item vs aggregate reporting."""
 
 from pathlib import Path
 from types import ModuleType
@@ -40,11 +36,8 @@ def test_alias_used_as_chart_name_not_dependency_name(vp: ModuleType, librenders
 
 
 def test_at_alias_repository_resolved_via_required_repos(librenderscope: ModuleType, tmp_path: Path):
-    """ "@zac" itself doesn't contain "infonl" — only helm_repos_urls_by_
-    alias' resolved URL (https://infonl.github.io/
-    dimpact-zaakafhandelcomponent/) does, so resolution must happen before
-    keyword matching. tmp_path has no settings.yaml, so this exercises the
-    hard-coded default."""
+    """ "@zac" has no vendor keyword; only its resolved URL does, so alias
+    resolution must precede keyword matching (hard-coded default here)."""
     required_repos = librenderscope.helm_repos_urls_by_alias(tmp_path)
     assert "infonl" not in "@zac"
     assert "zac" in required_repos
@@ -91,9 +84,8 @@ def test_dimpact_alias_classified_as_dimpact(vp: ModuleType, librenderscope: Mod
 def test_kiss_chart_overridden_to_icatt_despite_unmatching_repository(
     vp: ModuleType, librenderscope: ModuleType, tmp_path: Path
 ):
-    """kiss-chart's own repository (oci://ghcr.io/klantinteractie-servicesysteem)
-    contains none of vendor_classification.keywords — ICATT authorship can
-    only be known from docs, so it's a hardcoded override."""
+    """kiss-chart's repository has no vendor keyword: ICATT is a hardcoded
+    override."""
     write_chart_yaml(
         tmp_path,
         [
@@ -130,9 +122,8 @@ def test_unrelated_vendor_not_classified(vp: ModuleType, librenderscope: ModuleT
 
 
 def test_full_real_dependency_set_matches_expected_mapping(vp: ModuleType, librenderscope: ModuleType, tmp_path: Path):
-    """Regression pin against the actual set of Chart.yaml dependencies
-    known at the time this was written — catches an accidental keyword/
-    override change breaking a previously-classified chart."""
+    """Regression pin on known dependencies: catches keyword/override changes
+    that break an existing classification."""
     write_chart_yaml(
         tmp_path,
         [

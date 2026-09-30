@@ -1,0 +1,91 @@
+# Baseline: podiumd 4.9.2. Re-verify before release.
+#
+# Images new or changed in podiumd 4.9.3 vs 4.9.2.
+#
+# Changes:
+#   1. nginx-unprivileged 1.31.6 (digest changed).
+#   2. keycloak - keycloak-config-cli 6.5.1-26 -> 6.5.1-26.5.5.
+#   3. keycloak-operator - python 3.14.7-slim (digest changed).
+#   4. redis-operator - k8s 1.37.0 -> 1.37.1.
+#   5. zac 5.4.4 -> 5.4.5 (chart 1.0.297, unchanged).
+#   6. zac - solr 9.10.1-slim (digest changed).
+#   7. clamav 1.5.4 (digest changed).
+#   8. zaakbrug 1.26.18 -> 1.26.19 (chart 2.3.32, unchanged).
+#   9. openbao 2.5.5 -> 2.6.3 (chart 0.28.4 -> 0.29.6).
+#   10. openbao - vault-k8s 1.7.2 -> 1.7.6.
+#   11. openbao - openbao-csi-provider 2.0.2 -> 2.0.3.
+#   12. openbao - openbao-snapshot-agent 0.3.0 -> 0.4.5.
+#
+# See docs/_UPGRADE_PATHS/4.9.2-to-4.9.3-upgrade.md for the operator upgrade notes.
+#
+# Digests are the OCI image index (multi-arch manifest) digest as returned in
+# the Docker-Content-Digest response header from the source registry.
+
+# nginx-unprivileged 1.31.6 (digest changed)
+- name: nginxinc/nginx-unprivileged
+  url: docker.io/nginxinc/nginx-unprivileged
+  version: "1.31.6"
+  digest: "sha256:929e1d5e610e8aa89a1715ba44dce5edb4d42c172a208c171233292f472560c5"
+
+# keycloak - keycloak-config-cli 6.5.1-26 -> 6.5.1-26.5.5
+- name: adorsys/keycloak-config-cli
+  url: docker.io/adorsys/keycloak-config-cli
+  version: "6.5.1-26.5.5"
+  digest: "sha256:0955d98c8a341898b7aa177477edf8a1e90569ae50bbe7598141c1270b773274"
+
+#   sidecar: keycloak-operator - python 3.14.7-slim (digest changed)
+- name: library/python
+  url: docker.io/library/python
+  version: "3.14.7-slim"
+  digest: "sha256:51dafde81dbdb6ebde285137a295cf18a47ca95234fe388a343719cb97305b3d"
+
+#   sidecar: redis-operator - k8s 1.37.0 -> 1.37.1
+- name: alpine/k8s
+  url: docker.io/alpine/k8s
+  version: "1.37.1"
+  digest: "sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"
+
+# zac 5.4.4 -> 5.4.5
+- name: infonl/zaakafhandelcomponent
+  url: ghcr.io/infonl/zaakafhandelcomponent
+  version: "5.4.5"
+  digest: "sha256:9d14affb67d7bb7fce01af220e4b28c190188c5f1355d787735bd7e669fa57e3"
+#   sidecar: zac - solr 9.10.1-slim (digest changed)
+- name: library/solr
+  url: docker.io/library/solr
+  version: "9.10.1-slim"
+  digest: "sha256:9987e11a90a0b115cc3f52b74d3d87788e3c1fa479deeaece80d33515480204a"
+
+# clamav 1.5.4 (digest changed)
+- name: clamav/clamav
+  url: docker.io/clamav/clamav
+  version: "1.5.4"
+  digest: "sha256:ebec5bc138401b36ae987caa1a3fa3c3b2a21ed3d51f0bfa5852825e663e67b0"
+
+# zaakbrug 1.26.18 -> 1.26.19
+- name: wearefrank/zaakbrug
+  url: docker.io/wearefrank/zaakbrug
+  version: "1.26.19"
+  digest: "sha256:4c90dddac58fdbe813566417c796b5890ab86a4ffd70f143460b6b9b379eec8c"
+
+# openbao 2.5.5 -> 2.6.3
+- name: openbao/openbao
+  url: quay.io/openbao/openbao
+  version: "2.6.3"
+  digest: "sha256:a60afafda36337abe833c4a63894bf1095098f29abea4091e7e555a33dd52889"
+#   sidecar: openbao - vault-k8s 1.7.2 -> 1.7.6
+- name: hashicorp/vault-k8s
+  url: docker.io/hashicorp/vault-k8s
+  version: "1.7.6"
+  digest: "sha256:55e27b080c9b0469fd420dfb3631243488c6319504b779423caa46c529a95490"
+#   sidecar: openbao - openbao-csi-provider 2.0.2 -> 2.0.3
+- name: openbao/openbao-csi-provider
+  url: quay.io/openbao/openbao-csi-provider
+  version: "2.0.3"
+  digest: "sha256:ad30d5f6223f30f62e8df6e444b84af5b05402a70c09712415dd1d7f139c027e"
+#   sidecar: openbao - openbao-snapshot-agent 0.3.0 -> 0.4.5
+- name: openbao/openbao-snapshot-agent
+  url: ghcr.io/openbao/openbao-snapshot-agent
+  version: "0.4.5"
+  digest: "sha256:ef2c80770e30bba3fcf4d7911cb829607efcea7e7c1a917210c9fa1ba55a8249"
+

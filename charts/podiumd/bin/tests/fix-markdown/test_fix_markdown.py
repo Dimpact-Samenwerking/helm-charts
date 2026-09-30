@@ -1,6 +1,4 @@
-"""run_fix/dry_run_fix (pure logic, `run` mocked to avoid needing the real
-pymarkdown binary) plus a main() integration test against real files in
-tmp_path."""
+"""run_fix/dry_run_fix with `run` mocked, plus main() on real tmp_path files."""
 
 from pathlib import Path
 from types import ModuleType
@@ -15,17 +13,12 @@ DISABLED_RULES = "md013,md014,md031"
 
 
 def strip_trailing_whitespace_run(cmd, **kwargs):
-    """Stand-in for a real `pymarkdown fix` invocation: strips trailing
-    whitespace from every line of each path in cmd (mimicking MD009) and
-    reports "Fixed: <path>" for any that actually changed — close enough
-    to the real tool's own behavior/output shape to exercise this
-    script's own parsing/reporting logic without needing pymarkdown
-    installed."""
+    """Fake `pymarkdown fix`: strips trailing whitespace (like MD009) and
+    prints "Fixed: <path>" per changed file, mimicking the real output."""
     fixed_lines = []
     paths = cmd[cmd.index("fix") + 1 :]
     for path_str in paths:
-        # Everything after "fix" must be a real file path, never a stray
-        # flag/value that happened to land after the subcommand.
+        # Everything after "fix" must be a file path, never a stray flag.
         assert not path_str.startswith("-"), f"flag-like token after 'fix': {path_str}"
         assert Path(path_str).is_file(), f"not an existing file: {path_str}"
         original = Path(path_str).read_text(encoding="utf-8")
@@ -78,7 +71,7 @@ def test_run_fix_disables_md013_md014_and_md031(sub: ModuleType, tmp_path: Path,
     assert "fix" in cmd
     # md024 siblings_only setting is carried into fix mode too, before "fix"
     assert "plugins.md024.siblings_only=$!True" in cmd
-    # The setting value is -s's own argument: directly after it, before "fix".
+    # The value must directly follow -s, before "fix".
     assert cmd[cmd.index("-s") + 1] == "plugins.md024.siblings_only=$!True"
     assert cmd.index("plugins.md024.siblings_only=$!True") < cmd.index("fix")
     assert cmd.index("-d") < cmd.index("fix")

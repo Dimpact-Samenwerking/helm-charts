@@ -14,15 +14,17 @@
 #   5. with --revoke-root, revokes the root token afterwards (recommended).
 #
 # Run from your own machine after the one-time `bao operator init` + unseal
-# (component doc §5). Re-run any time to rotate the config token — e.g. when no
-# deploy has renewed it within TOKEN_PERIOD and it has expired. If the root
-# token was already revoked, generate a new one first with a quorum of unseal
-# key shares: `bao operator generate-root`.
+# (docs/apps/frankgateway/frankgateway-openbao.md §5). Re-run any time to
+# rotate the config token — e.g. when no deploy has renewed it within
+# TOKEN_PERIOD and it has expired. If the root token was already revoked,
+# generate a new one first with the unseal key: `bao operator generate-root`.
 #
 # Usage:
-#   NAMESPACE=<ns> ./openbao-mint-config-token.sh [--revoke-root]
+#   KUBE_CONTEXT=<ctx> NAMESPACE=<ns> ./openbao-mint-config-token.sh [--revoke-root]
 #
 # Environment:
+#   KUBE_CONTEXT      required — kube-context of the target cluster; passed to
+#                     every kubectl call, the current context is never used
 #   NAMESPACE         required — namespace of the OpenBao pods
 #   RELEASE           helm release name                  (default: podiumd)
 #   OPENBAO_POD       pod to exec the bao CLI in         (default: <RELEASE>-openbao-0)
@@ -31,14 +33,15 @@
 #   KV_PATH           kv-v2 mount path; must match openbao.configuration.kvPath
 #                                                        (default: secret)
 #   TOKEN_PERIOD      renewal period of the minted token (default: 768h = 32 days)
-#   BAO_ROOT_TOKEN    root token (prompted silently if unset)
+#   BAO_ROOT_TOKEN_FILE  file holding the root token, e.g. <(az keyvault secret show ...)
+#   BAO_ROOT_TOKEN    root token (prompted silently if neither is set)
 #
-# Requires: bash 3+, kubectl (context pointing at the right cluster).
+# Requires: bash 3+, kubectl.
 
 set -euo pipefail
 
 usage() {
-  sed -n '2,37p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && usage 0
@@ -52,6 +55,8 @@ fi
 
 command -v kubectl >/dev/null 2>&1 || { echo "ERROR: kubectl not found" >&2; exit 1; }
 
+KUBE_CONTEXT="${KUBE_CONTEXT:-}"
+[[ -n "${KUBE_CONTEXT}" ]] || { echo "ERROR: KUBE_CONTEXT is not set" >&2; usage 1; }
 NAMESPACE="${NAMESPACE:-}"
 [[ -n "${NAMESPACE}" ]] || { echo "ERROR: NAMESPACE is not set" >&2; usage 1; }
 RELEASE="${RELEASE:-podiumd}"
@@ -64,19 +69,28 @@ POLICY_NAME="podiumd-config-job"
 # exec target; address the active Service explicitly anyway.
 BAO_ADDR="http://${RELEASE}-openbao-active:8200"
 
-if [[ -z "${BAO_ROOT_TOKEN:-}" ]]; then
+if [[ -n "${BAO_ROOT_TOKEN_FILE:-}" ]]; then
+  BAO_ROOT_TOKEN=$(<"${BAO_ROOT_TOKEN_FILE}")
+elif [[ -z "${BAO_ROOT_TOKEN:-}" ]]; then
   read -r -s -p "OpenBao root token: " BAO_ROOT_TOKEN
   echo >&2
 fi
 [[ -n "${BAO_ROOT_TOKEN}" ]] || { echo "ERROR: empty root token" >&2; exit 1; }
+# Keep the root token out of every child process's environment (kubectl),
+# also when it came in through BAO_ROOT_TOKEN.
+export -n BAO_ROOT_TOKEN
 
-echo "Minting scoped config token via pod ${OPENBAO_POD} (namespace ${NAMESPACE})"
+# Every kubectl call names the cluster and namespace: the current context is
+# whatever another shell last set, and this script writes Secrets.
+kc() { kubectl --context "${KUBE_CONTEXT}" -n "${NAMESPACE}" "$@"; }
+
+echo "Minting scoped config token via pod ${OPENBAO_POD} (context ${KUBE_CONTEXT}, namespace ${NAMESPACE})"
 
 # The token is embedded in the script streamed over the exec channel (stdin),
 # never in command arguments — it stays out of `ps`, shell history on the pod,
 # and the K8s audit log (which records exec args, not the streamed input).
 # The unquoted heredoc expands every ${...} locally before transmission.
-NEW_TOKEN=$(kubectl exec -i -n "${NAMESPACE}" "${OPENBAO_POD}" -- sh -e <<EOS
+NEW_TOKEN=$(kc exec -i "${OPENBAO_POD}" -- sh -e <<EOS
 export BAO_ADDR="${BAO_ADDR}"
 export BAO_TOKEN="${BAO_ROOT_TOKEN}"
 
@@ -112,12 +126,12 @@ EOS
 echo "Policy '${POLICY_NAME}' written; orphan periodic token minted (period ${TOKEN_PERIOD})."
 
 echo "Seeding Secret/${BOOTSTRAP_SECRET} (key: token)"
-printf '%s' "${NEW_TOKEN}" | kubectl create secret generic "${BOOTSTRAP_SECRET}" \
-  -n "${NAMESPACE}" --from-file=token=/dev/stdin \
-  --dry-run=client -o yaml | kubectl apply -n "${NAMESPACE}" -f -
+printf '%s' "${NEW_TOKEN}" | kc create secret generic "${BOOTSTRAP_SECRET}" \
+  --from-file=token=/dev/stdin \
+  --dry-run=client -o yaml | kc apply -f -
 
 echo "Verifying the seeded token"
-kubectl exec -i -n "${NAMESPACE}" "${OPENBAO_POD}" -- sh -e >&2 <<EOS
+kc exec -i "${OPENBAO_POD}" -- sh -e >&2 <<EOS
 export BAO_ADDR="${BAO_ADDR}"
 export BAO_TOKEN="${NEW_TOKEN}"
 bao token lookup >/dev/null
@@ -131,7 +145,7 @@ if [[ "${REVOKE_ROOT}" -eq 1 ]]; then
   echo "('bao operator generate-root') — unseal keys are NOT affected."
   read -r -p "Revoke the root token now? [y/N] " answer
   if [[ "${answer}" == "y" || "${answer}" == "Y" ]]; then
-    kubectl exec -i -n "${NAMESPACE}" "${OPENBAO_POD}" -- sh -e >&2 <<EOS
+    kc exec -i "${OPENBAO_POD}" -- sh -e >&2 <<EOS
 export BAO_ADDR="${BAO_ADDR}"
 export BAO_TOKEN="${BAO_ROOT_TOKEN}"
 bao token revoke -self >/dev/null
@@ -143,7 +157,7 @@ EOS
 else
   echo
   echo "Root token left untouched. Recommended once a deploy has succeeded with"
-  echo "the new token: re-run with --revoke-root (component doc §7)."
+  echo "the new token: re-run with --revoke-root (frankgateway-openbao.md §7)."
 fi
 
 echo

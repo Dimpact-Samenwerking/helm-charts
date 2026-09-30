@@ -1,8 +1,4 @@
-"""find_dependency, report_chart, and main() — chart_ref/local_chart_dir/
-pull_chart/pulled_chart_dir/find_images/version_of themselves are lib.chart's
-own (see tests/lib/test_chart.py); these tests just cover this script's own
-glue, with `helm pull` mocked out via a fake pull_chart so no `helm` binary
-or network access is needed."""
+"""find_dependency, report_chart and main() glue, with `helm pull` faked."""
 
 from pathlib import Path
 
@@ -11,8 +7,7 @@ import yaml
 
 
 def write_chart_yaml(lhi, dependencies):
-    """Chart.yaml with `dependencies`, each given a version (as every real
-    Chart.yaml dependency has) unless the test sets one."""
+    """Chart.yaml with `dependencies`, each versioned unless the test sets one."""
     versioned = [{"version": "1.0.0", **dep} for dep in dependencies]
     lhi.CHART_YAML.write_text(yaml.safe_dump({"dependencies": versioned}))
 
@@ -65,8 +60,11 @@ def test_report_chart_prints_chart_deps_and_images(lhi, tmp_path: Path, capsys: 
     out = capsys.readouterr().out
     assert "Chart: zaakafhandelcomponent 1.0.297 (appVersion: 5.5)" in out
     assert "opentelemetry-collector: 0.169.0" in out
-    assert "zac  zaakafhandelcomponent  5.4.3" in out
-    assert "ghcr.io/infonl/zaakafhandelcomponent:5.4.3@sha256:abc" in out
+    assert (
+        "  zac  zaakafhandelcomponent  5.4.3\n"
+        "      ghcr.io/infonl/zaakafhandelcomponent:5.4.3@sha256:abc\n"
+        "      (path: image)\n"
+    ) in out
 
 
 def test_report_chart_no_image_references(lhi, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
@@ -76,10 +74,8 @@ def test_report_chart_no_image_references(lhi, tmp_path: Path, capsys: pytest.Ca
 
 
 def test_report_chart_warns_on_version_mismatch(lhi, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
-    """A "file://" local dependency only ever has ONE real version —
-    whatever's actually checked out — so a requested version that doesn't
-    match is a warning, not a hard failure (there's nothing else to
-    report instead)."""
+    """A "file://" dependency has only its checked-out version, so a
+    mismatching requested version warns rather than fails."""
     write_chart(tmp_path, "mi-data", "1.0.0")
     lhi.report_chart(tmp_path, "2.0.0", "mi")
     err = capsys.readouterr().err

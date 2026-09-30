@@ -1,12 +1,6 @@
-"""update-image-version's main() doc-update path for a shared image
-(key=MULTIPLE) resolved against the TRUE git baseline -- reset-to-
-baseline removal, and collapsing more than one in-cycle bump into a
-single baseline-to-final entry. No network needed: lib.registry.
-registry_tag_exists is monkeypatched via the uiv module's own imported
-binding (update_image_version lives in lib.image.version, which resolves
-`registry_tag_exists` via ITS OWN globals — see lib.image.version's
-import — so tests patch that module directly, same as
-tests/lib/test_image_version.py does)."""
+"""Shared-image (key=MULTIPLE) doc updates against the git baseline: reset
+removal and collapsing repeated bumps. registry_tag_exists is patched on
+lib.image.version, whose globals it resolves through."""
 
 import subprocess
 
@@ -71,12 +65,9 @@ CURL_VALUES_TMPL = (
 def test_main_removes_shared_image_docs_when_reset_back_to_baseline(
     uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """curl bumped to 8.21.0 (already fully documented as a shared-image
-    pseudo-component) and then reset back to its baseline version has
-    nothing left to report: the table row, Changes section,
-    values-delta bullet, and images-manifest 'changes:' item, entry and
-    comment must all be removed: images-<target>.yaml only lists images
-    that changed."""
+    """Resetting curl to its baseline removes its row, the generated parts of its Changes section,
+    values-delta bullet and images-manifest item/entry/comment: the manifest
+    only lists changed images."""
     write_chart_yaml(tmp_path, [("keycloak-operator", None), ("zac", None)])
     write_values(tmp_path, CURL_VALUES_TMPL.format(version="8.20.0", digest="a" * 64))
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
@@ -114,9 +105,7 @@ def test_main_removes_shared_image_docs_when_reset_back_to_baseline(
 
     import lib.image.version as image_version
 
-    # Same digest baseline already recorded -- re-resolving 8.20.0 (a real,
-    # immutable released version) from the registry always returns this
-    # same digest, exactly like it would outside this mocked test.
+    # 8.20.0 is immutable, so re-resolving it returns the recorded digest.
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "a" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "MULTIPLE", "curl", "8.20.0"])
 
@@ -124,16 +113,14 @@ def test_main_removes_shared_image_docs_when_reset_back_to_baseline(
 
     upgrade = (uiv.DOC_DIR / "0.9.0-to-1.0.0-upgrade.md").read_text(encoding="utf-8")
     assert "| curl |" not in upgrade
-    assert "### curl" not in upgrade
+    # "blah" is hand-written: kept, with the heading above it.
+    assert "### curl 8.20.0 → 8.21.0\n\nblah\n" in upgrade
 
     deltas = (uiv.DOC_DIR / "0.9.0-to-1.0.0-values-deltas.md").read_text(encoding="utf-8")
     assert "## curl" not in deltas
 
     manifest = (uiv.IMAGES_DIR / "images-1.0.0.yaml").read_text(encoding="utf-8")
-    # The header's own wording is never rewritten into a counted form —
-    # same convention lib.component_docs.update_images_manifest already
-    # uses; the fixture's own "# One change:" header stays exactly as it
-    # already was, never rewritten to a false "Zero changes:".
+    # The manifest header is never rewritten into a counted form.
     assert "# One change:" in manifest
     assert "Zero changes:" not in manifest
     assert "curl 8.20.0" not in manifest  # the numbered "changes:" list item is gone
@@ -144,10 +131,8 @@ def test_main_removes_shared_image_docs_when_reset_back_to_baseline(
 def test_main_collapses_repeated_shared_image_bump_into_single_baseline_entry(
     uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Bumping curl to 8.21.0 and then, within the same release cycle,
-    reconsidering to 8.22.0 instead must leave exactly ONE entry in each
-    doc showing baseline -> final (8.20.0 -> 8.22.0) -- never two entries,
-    and never an intermediate-hop transition like "8.21.0 -> 8.22.0"."""
+    """Two bumps in one cycle leave one baseline -> final entry per doc, never
+    an intermediate hop."""
     write_chart_yaml(tmp_path, [("keycloak-operator", None), ("zac", None)])
     write_values(tmp_path, CURL_VALUES_TMPL.format(version="8.20.0", digest="a" * 64))
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
@@ -190,9 +175,7 @@ def test_main_collapses_repeated_shared_image_bump_into_single_baseline_entry(
     assert upgrade.count("### curl") == 1
     assert "### curl 8.20.0 → 8.22.0" in upgrade
 
-    # A shared image's own basename bump never touches any values.yaml
-    # SCHEMA — no values-deltas.md section at all, whether bumped once
-    # or (as here) reconsidered mid-cycle.
+    # A shared-image bump changes no values.yaml schema: no values-deltas.md section.
     deltas = (uiv.DOC_DIR / "0.9.0-to-1.0.0-values-deltas.md").read_text(encoding="utf-8")
     assert "## curl" not in deltas
     assert "8.21.0" not in deltas
@@ -208,22 +191,8 @@ def test_main_collapses_repeated_shared_image_bump_into_single_baseline_entry(
 def test_main_renders_new_when_shared_image_never_existed_at_baseline(
     uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Regression test (same root-cause family as #1/#5, in the MULTIPLE-
-    scope basename path): resolve_basename_baseline_version's own None
-    ("didn't all agree, or any of them isn't found there" -- see its own
-    docstring) used to get silently overridden by update_docs_shared_
-    image with changes[0]["old_version"] -- whatever this basename
-    happened to be pinned at immediately BEFORE this specific run, not
-    the true upgrade_docs_baseline -- exactly the same conflation #1's
-    fix already closed for a real Chart.yaml dependency's own app
-    version. Here the shared "global.images.curl" anchor genuinely
-    didn't exist at all at the true baseline (introduced mid-cycle at
-    8.21.0, then bumped again this run to 8.22.0) -- with the bug,
-    old_version fell back to the pre-run "8.21.0", showing a misleading
-    "8.21.0 -> 8.22.0" transition implying curl was already tracked at
-    the baseline and simply moved, instead of "(new)" (the same
-    convention old_app=None already uses elsewhere for a component with
-    no real baseline value at all)."""
+    """Regression: when the anchor didn't exist at the true baseline, show
+    "(new)", not a transition from the pre-run version."""
     write_chart_yaml(tmp_path, [("keycloak-operator", None)])
     write_values(
         tmp_path,
@@ -233,8 +202,7 @@ def test_main_renders_new_when_shared_image_never_existed_at_baseline(
     monkeypatch.setattr(uiv, "VALUES_YAML", tmp_path / "values.yaml")
     commit_baseline_tag(tmp_path, "0.9.0")  # baseline: no shared curl anchor at all yet
 
-    # Mid-cycle, before this run: curl introduced as a brand-new shared
-    # anchor at 8.21.0 -- never went through THIS run.
+    # Introduced mid-cycle at 8.21.0, before this run.
     write_values(
         tmp_path,
         (

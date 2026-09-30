@@ -1,7 +1,4 @@
-"""scan_digest_pins, scan_version_pins, find_inconsistent_version_pins —
-turn resolved repository/tag YAML lines into pin records, and flag
-inconsistent (drift/duplicate) pins for the same repository. No network
-access needed."""
+"""scan_digest_pins, scan_version_pins, find_inconsistent_version_pins: pin records and drift/duplicate detection."""
 
 from types import ModuleType
 
@@ -32,10 +29,7 @@ def test_scan_digest_pins_ignores_non_digest_tags(libimagedigests: ModuleType):
 
 
 def test_scan_digest_pins_resolves_split_registry_style(libimagedigests: ModuleType):
-    """scan_digest_pins itself only cares about the resolved repository,
-    used for the live lookup (see resolve_pin_repo/find_sibling_registry) —
-    a split "registry:"/"repository:" pin must resolve to the same
-    combined host/path a single-key pin would."""
+    """A split "registry:"/"repository:" pin resolves to the same host/path as a single-key pin."""
     lines = [
         "    image:",
         "      registry: quay.io",
@@ -53,38 +47,21 @@ def test_scan_digest_pins_combined_style(libimagedigests: ModuleType):
 
 
 def test_scan_digest_pins_tolerates_anchor_tag_on_digest_pinned_line(libimagedigests: ModuleType):
-    """A "&anchor"-decorated repository/tag pair (e.g. keycloak-operator's
-    own operator.config.keycloakImage, aliased elsewhere by a sibling
-    "keycloak.image" block) must resolve exactly like an un-anchored one —
-    the anchor token is invisible YAML plumbing, never part of the actual
-    value. No real digest-pinned anchor exists in this chart today (the
-    one real anchor case — keycloak-operator's own — pins tag/sha as
-    SEPARATE fields, never an embedded "@sha256:", so DIGEST_PIN_RE still
-    correctly never matches it), but DIGEST_PIN_RE/VERSION_PIN_RE are
-    explicitly kept in sync (see VERSION_PIN_RE's own docstring) — this
-    proves that invariant holds for the anchor case too."""
+    """A "&anchor"-decorated repository/tag pair resolves like an un-anchored one.
+
+    Keeps DIGEST_PIN_RE in sync with VERSION_PIN_RE's anchor tolerance.
+    """
     lines = ["  image:", "    repository: &repoAnchor org/repo", '    tag: &tagAnchor "1.0.0@sha256:' + "a" * 64 + '"']
     pins = libimagedigests.scan_digest_pins(lines)
     assert [(p["version"], p["digest"], p["repository"]) for p in pins] == [("1.0.0", "a" * 64, "org/repo")]
 
 
 # --- scan_version_pins ---
-# Deliberately a SEPARATE scanner from scan_digest_pins (see VERSION_PIN_RE's
-# own docstring) — verify-release-table-with-podiumd's own comparisons need
-# it (release-table.csv never records digests at all), every other caller
-# (update-image-version/verify-image-version/show-image-baseline-version)
-# stays on scan_digest_pins, digest-required, completely untouched — see the
-# "still digest-required" tests just above this section, all still passing
-# unchanged.
+# Separate from scan_digest_pins: release-table.csv has no digests, so tag-only pins count.
 
 
 def test_scan_version_pins_finds_bare_tag_with_no_digest(libimagedigests: ModuleType):
-    """The exact real-world case that motivated this: podiumd-4.8.5 (this
-    chart's own real, historical release_table baseline as of this
-    writing) pinned zaakbrug/pabc/ita with plain, non-digest-pinned tags
-    — scan_digest_pins is structurally blind to these (see
-    test_scan_digest_pins_ignores_non_digest_tags just above), but a
-    real, comparable version string is genuinely there."""
+    """Plain tag pins (e.g. podiumd-4.8.5 zaakbrug/pabc/ita), invisible to scan_digest_pins, are found."""
     lines = ["  image:", "    repository: wearefrank/zaakbrug", '    tag: "1.26.15"']
     pins = libimagedigests.scan_version_pins(lines)
     assert [(p["version"], p["digest"], p["repository"]) for p in pins] == [
@@ -93,9 +70,7 @@ def test_scan_version_pins_finds_bare_tag_with_no_digest(libimagedigests: Module
 
 
 def test_scan_version_pins_still_finds_digest_pinned_tags(libimagedigests: ModuleType):
-    """A real digest pin still works exactly as before — VERSION_PIN_RE is
-    a strict superset of DIGEST_PIN_RE, never a replacement that could
-    accidentally stop matching the digest-pinned case."""
+    """Digest pins still match: VERSION_PIN_RE is a superset of DIGEST_PIN_RE."""
     lines = [
         "  a:",
         "    repository: org/repo-a",
@@ -118,17 +93,11 @@ def test_scan_version_pins_unquoted_bare_tag(libimagedigests: ModuleType):
 
 
 def test_scan_version_pins_tolerates_anchor_tag(libimagedigests: ModuleType):
-    """Regression test (real bug, real chart): keycloak-operator's own
-    operator.config.keycloakImage pins repository/tag/sha as three
-    SEPARATE per-scalar YAML anchors ("repository: &keycloakImageRepo
-    quay.io/keycloak/keycloak", "tag: &keycloakImageVersion \"26.7.3\"")
-    -- aliased by a sibling "keycloak.image" block elsewhere in the same
-    file. Before this fix, neither VERSION_PIN_RE nor ACTIVE_REPO_RE
-    tolerated the leading "&anchorName " token, so this pin was
-    completely invisible to basenames_under_scope_any_tag/
-    resolve_image_basenames regardless of scope -- the real root cause
-    behind verify-release-table-with-podiumd's own former
-    special_case_tag_path workaround for basename "keycloak"."""
+    """Per-scalar anchors ("repository: &keycloakImageRepo ...") must not hide a pin.
+
+    Regression: keycloak-operator's operator.config.keycloakImage was invisible to
+    VERSION_PIN_RE/ACTIVE_REPO_RE because of the "&anchorName " token.
+    """
     lines = [
         "keycloak-operator:",
         "  operator:",
@@ -173,12 +142,7 @@ def test_find_inconsistent_version_pins_flags_same_repo_different_versions(libim
 
 
 def test_find_inconsistent_version_pins_flags_same_version_different_digest(libimagedigests: ModuleType):
-    """The subtler case: both pins agree on the version string, but the
-    digest has diverged — e.g. a sliding tag re-published upstream and
-    refreshed at one spot but not the other. Invisible to a version-only
-    comparison, since neither pin's version string changed at all. Still
-    classified "drift" (not "duplicate") — the pins disagree, even though
-    only the digest half of the pair differs."""
+    """Same version, diverged digest (sliding tag refreshed in one spot) is "drift", not "duplicate"."""
     lines = [
         "a:",
         "  image:",
@@ -200,10 +164,7 @@ def test_find_inconsistent_version_pins_flags_same_version_different_digest(libi
 
 
 def test_find_inconsistent_version_pins_flags_matching_pins_as_duplicate(libimagedigests: ModuleType):
-    """The same repository pinned at the same version AND digest in two
-    places — every pin agrees, so this is a "duplicate" (not "drift")
-    finding: there's no legitimate reason not to use a shared YAML anchor
-    here instead of hand-typing the same pin twice."""
+    """Identical version and digest in two places is a "duplicate": should be a shared YAML anchor."""
     lines = [
         "a:",
         "  image:",
@@ -220,9 +181,7 @@ def test_find_inconsistent_version_pins_flags_matching_pins_as_duplicate(libimag
 
 
 def test_find_inconsistent_version_pins_ignores_different_repositories(libimagedigests: ModuleType):
-    """A shared basename across different orgs/paths is not the same
-    image — must never be conflated, only an exact repository match
-    counts."""
+    """Same basename under different orgs is a different image; only exact repository matches count."""
     lines = [
         "a:",
         "  image:",

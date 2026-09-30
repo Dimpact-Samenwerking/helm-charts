@@ -1,8 +1,4 @@
-"""Line-level editing of a split "tag:" + sibling "sha:"/"digest:" image
-pin in values.yaml text, keeping comments, anchors and formatting
-intact. update-component-version writes these for the digest_pinning.
-exceptions entries marked writable (see lib.settings.
-digest_pinning_exceptions)."""
+"""Line-level editing of a split "tag:" + sibling "sha:"/"digest:" pin, preserving comments and anchors."""
 
 import re
 
@@ -25,10 +21,7 @@ def find_block_end(lines: list[str], block_start: int, indent: int) -> int:
 
 
 def find_child_key_line(lines: list[str], key: str, parent_indent: int, block_start: int, block_end: int) -> int | None:
-    """The immediate child "<key>:" line inside [block_start, block_end),
-    matched only at the block's own immediate-child indent level, so a
-    same-named key nested deeper under a sibling sub-block is never
-    mistaken for a direct child that doesn't exist."""
+    """The "<key>:" line directly under the block in [block_start, block_end), ignoring deeper same-named keys."""
     key_re = re.compile(rf"^(\s*){re.escape(key)}:\s*(.*)$")
     candidates: list[tuple[int, int]] = []
     child_indents: list[int] = []
@@ -61,9 +54,7 @@ def locate_dotted_key_line(lines: list[str], dotted_path: str) -> tuple[int, int
 
 
 def locate_parent_block(lines: list[str], dotted_path: str) -> tuple[int, int, int] | None:
-    """Like locate_dotted_key_line, but stops one level higher: returns
-    (indent, start, end) for the FINAL segment's own body, so a caller
-    can look for more than one sibling key within it."""
+    """(indent, start, end) of the final segment's body, for looking up several sibling keys."""
     segments = dotted_path.split(".")
     indent, start, end = -1, 0, len(lines)
     for seg in segments:
@@ -76,26 +67,22 @@ def locate_parent_block(lines: list[str], dotted_path: str) -> tuple[int, int, i
     return indent, start, end
 
 
-# A bare YAML alias reference — "<key>: *someAnchor" — that write_tag_
-# and_sha must skip (real case: keycloak.image's "tag:"/"sha:" are bare
-# aliases of keycloak-operator...keycloakImage's own anchor; the anchor's
-# own site is written for real elsewhere, so the alias still inherits it).
+# A bare alias ("<key>: *anchor"); write_tag_and_sha skips it since the anchor's own site is written.
 ALIAS_REFERENCE_RE = re.compile(r"^\s*\S+:\s*\*\w+\s*(#.*)?\s*$")
 
 
 def is_alias_reference_line(line: str) -> bool:
-    """True if `line` is a bare YAML alias reference (see
-    ALIAS_REFERENCE_RE) rather than a literal scalar value."""
+    """Whether `line` is a bare YAML alias reference rather than a literal value."""
     return bool(ALIAS_REFERENCE_RE.match(line))
 
 
 def locate_tag_and_sha(
     lines: list[str], values_key: str, path: str, sibling_field: str
 ) -> tuple[int, int, int | None] | None:
-    """(tag_line_index, tag_indent, sibling_line_index_or_None) for the
-    "tag:"/"<sibling_field>:" pair at values_key.path. sibling_line_index
-    is None when podiumd doesn't override it yet. None if "tag:" itself
-    can't be found."""
+    """(tag_line_index, tag_indent, sibling_line_index_or_None) at values_key.path, or None without "tag:".
+
+    sibling_line_index is None when podiumd doesn't override it yet.
+    """
     located = locate_parent_block(lines, f"{values_key}.{path}")
     if located is None:
         return None
@@ -110,8 +97,7 @@ def locate_tag_and_sha(
 
 @dataclass
 class SiblingWrite:
-    """New tag/sibling values + field name + print label, bundled for
-    write_tag_and_sha (too-many-arguments)."""
+    """write_tag_and_sha's values, bundled to avoid too-many-arguments."""
 
     new_version: str
     new_digest_hex: str
@@ -120,12 +106,11 @@ class SiblingWrite:
 
 
 def write_tag_and_sha(lines: list[str], location: tuple[int, int, int | None], write: SiblingWrite) -> bool:
-    """Write write.new_version/new_digest_hex into the "tag:"/sibling-field
-    lines at `location` (locate_tag_and_sha's own return value), inserting
-    a sibling line if none exists. Either line is skipped instead, with a
-    printed note, if it's a bare YAML alias reference. Mutates `lines`.
-    Returns whether the tag line itself was written (False for an alias
-    reference, which keeps resolving to its anchor's value)."""
+    """Write the new tag and digest into `lines` at `location`, inserting the sibling line if missing.
+
+    A bare alias line is skipped with a note. Returns whether the tag line
+    was written.
+    """
     tag_line_index, tag_indent, sibling_line_index = location
     sibling_value = f"sha256:{write.new_digest_hex}" if write.sibling_field == "digest" else write.new_digest_hex
     tag_written = not is_alias_reference_line(lines[tag_line_index])

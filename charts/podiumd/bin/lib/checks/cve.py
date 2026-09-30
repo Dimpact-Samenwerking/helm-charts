@@ -1,94 +1,28 @@
-"""Report-only sweep for known CVEs (with a fix available) against every
-digest-pinned image in values.yaml, via a per-image `docker run
-aquasec/trivy:latest image` scan — the same tool and invocation shape this
-repo already uses to scan images in
-.github/workflows/trivy-vuln-scanner.yaml. Companion to check_image_digests
-(which only catches the SAME tag's digest moving) and to Renovate (which
-lags on niche images per .claude/commands/check-image-cves.md) — this
-catches "a newer tag exists with a known fix" regardless of whether the
-currently-pinned tag has drifted.
+"""Report-only trivy CVE scan (fixable vulnerabilities) of every digest-pinned image in values.yaml.
 
-Slowest step in the pipeline by far — scanning every unique pinned image
-pulls each one via Docker — but runs by default like every other step
-(see --skip=cve-scan/--include=cve-scan in verify-podiumd). Never
-fails the check regardless of severity found — a HIGH/CRITICAL CVE with a
-fix available is a triage decision for a human (is the fix actually
-reachable here, is the severity exploitable in this deployment, ...), not
-a chart-correctness fact this script can gate on.
+Never fails: whether a HIGH/CRITICAL fix is reachable or exploitable here is a human
+triage decision, not a chart-correctness fact.
 
-Same own/partner-vendor/other-vendor scope split as check_yamllint/
-check_kubeconform/check_shellcheck/check_kube_score, but — unlike those —
-every bucket gets IDENTICAL output here, own/partner/other alike (see
-print_bucket_report's detail_level): no special-cased aggregate-only
-rollup for other-vendor, so an other-vendor image with a finding is just
-as visible as an own or partner one. By default every bucket gets
-per-image severity totals only (every severity, including CRITICAL/HIGH)
-— no package breakdown, no individual CVE IDs. Pass --detail to switch
-every bucket to full itemization instead: CRITICAL/HIGH findings per
-image, grouped by the affected package/file rather than listed flat — a
-bundled binary like gotenberg's Chromium can carry hundreds of
-individually-tracked CVEs against the *same* package, so each package
-gets one line listing its CVE IDs, or — past cve_scan.max_cves_per_package_
-before_summarizing (lib.settings) — a single summarized count instead of
-hundreds of IDs nobody will triage
-individually. MEDIUM/LOW/UNKNOWN are still only totaled per image, even
-with --detail — nothing in this repo can act on those package-by-package
-either, so itemizing them would just be noise.
+Images are bucketed own/partner-vendor/other-vendor by the render's "# Source:"
+(falling back to the values.yaml top-level key for components absent from the render),
+but every bucket gets the same output. Default: per-image severity totals. --detail:
+every finding grouped per package (one bundled binary can carry hundreds of CVEs),
+summarized past cve_scan.max_cves_per_package_before_summarizing. FixedVersion is
+never shown: only the image tag is pinned here, not packages inside it.
 
-Each image's line also carries an inline "upgradable to X" marker when
-lib.image.upgrade_check's own cache (charts/podiumd/image-upgrade-
-cache.json, via lib.image.upgrade_cache) has a fresh entry showing a
-newer same-variant tag is published — read-only here, purely best-effort:
-if there's no fresh cache entry (that check hasn't run recently, or this
-image wasn't in its scope), the marker is just omitted rather than
-triggering a registry call of this module's own. Whether the newer tag
-actually fixes anything is a separate question this module can't answer.
-"CVE scan" lists "Image upgrades" as a STEP_PREREQUISITES entry in
-verify-podiumd specifically so this cache is always freshly populated
-first — a bare --include=cve-scan still gets it, not just a full run.
-Ownership is
-determined primarily from the `helm template` render (same authoritative
-"# Source:" attribution the other checks use — this also correctly
-classifies a podiumd-owned template that happens to reuse a vendored
-dependency's values namespace, e.g. kiss.adapter or redis-ha's own
-label-master CronJob, as "own"), falling back to a values.yaml top-level-
-key heuristic only for a component not present in the render at all (e.g.
-disabled in the CI values) — matches a Chart.yaml dependency name/alias
-means vendored, anything else means a podiumd-owned template configures
-it.
+An "upgradable to X" marker comes from the image-upgrade cache, read-only; verify-podiumd
+runs "Image upgrades" first as a prerequisite so it is fresh.
 
-Whether a newer tag is published at all (regardless of whether it fixes
-anything) is a separate, standalone check — see lib.image.upgrade_check —
-split out from here since the two questions are independent: a newer tag
-existing doesn't mean it fixes a given CVE, and that check's answer is
-useful even for an image with zero findings here.
-
-Scan results are cached by (repository, digest) in
-<repo-root>/.cache/cve-scan-cache.json — a personal, gitignored,
-per-checkout cache (see cache_path), not shared between contributors or
-CI: each of those re-scans an image the first time they see its digest,
-same as a cold cache after cloning fresh. Keyed on digest, not version,
-so a sliding tag republished under the same version string still
-invalidates correctly. Capped by cve_scan.scan_cache_ttl_days (lib.
-settings) even for an unchanged digest — the image content never
-changes, but trivy's own vulnerability
-DB does, so a digest that scanned clean a month ago may have a
-newly-disclosed CVE against it today. Each cached vulnerability is
-trimmed to just the three fields the report actually uses
-(VulnerabilityID/PkgName/Severity) — trivy's raw Title/Description/
-References/CVSS/dates/FixedVersion would otherwise bloat the cache file
-for no reporting benefit. FixedVersion in particular is never shown: this
-repo only ever pins a base image tag/digest, never an individual
-OS/language package version inside that image, so "upgrade to version X"
-for one bundled package isn't an actionable step here — whether a newer
-image tag exists at all is lib.image.upgrade_check's job, not this
-module's."""
+Results are cached per (repository, digest) in <repo-root>/.cache/cve-scan-cache.json,
+capped by cve_scan.scan_cache_ttl_days because trivy's DB changes even when the image doesn't.
+"""
 
 import json
 import re
 import shutil
 
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from datetime import timedelta
@@ -105,6 +39,7 @@ from lib.image.upgrade_cache import cache_entry_is_fresh as upgrade_entry_is_fre
 from lib.image.upgrade_cache import cache_key as upgrade_cache_key
 from lib.image.upgrade_cache import load_cache as load_upgrade_cache
 from lib.json_cache import cache_file
+from lib.json_cache import checked_within
 from lib.json_cache import load_json_cache
 from lib.json_cache import save_json_cache
 from lib.procutil import run
@@ -114,7 +49,6 @@ from lib.render_scope import chart_name_from_source
 from lib.render_scope import friendly_vendor_charts
 from lib.render_scope import render_chart
 from lib.render_scope import split_rendered_by_source
-from lib.settings import cve_high_severity_levels
 from lib.settings import cve_max_cves_per_package_before_summarizing
 from lib.settings import cve_scan_cache_ttl_days
 from lib.settings import image_upgrade_tag_check_cache_ttl_days
@@ -122,17 +56,11 @@ from lib.yaml_types import YamlValue
 from lib.yaml_types import is_yaml_mapping
 
 TRIVY_IMAGE = "aquasec/trivy:latest"
-# Trivy's own severities, worst first — anything else (a future severity
-# trivy adds) sorts last rather than crashing.
+# Worst first.
 SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"]
 
-# Only these three fields are ever used for reporting — everything else
-# trivy returns per vulnerability (Title, Description, References, CVSS
-# scores, published/last-modified dates, FixedVersion, ...) is dead weight
-# in the cache. FixedVersion is deliberately excluded even though trivy
-# reports it: this repo only pins a base image tag/digest, never an
-# individual package version inside that image, so it's not information
-# this report can act on (see describe_newest_tag for the check that is).
+# The only fields reported; the rest of trivy's output would just bloat the cache.
+# FixedVersion is excluded: only image tags are pinned here, not packages inside them.
 VULN_FIELDS = ("VulnerabilityID", "PkgName", "Severity")
 
 CACHE_FILENAME = "cve-scan-cache.json"
@@ -147,8 +75,7 @@ class Vulnerability(TypedDict):
 
 
 class CveEntry(TypedDict):
-    """One cve-scan-cache.json entry: when the image was scanned and what
-    was found then."""
+    """One cve-scan-cache.json entry: scan time and findings."""
 
     scanned_at: str
     vulnerabilities: list[Vulnerability]
@@ -209,9 +136,7 @@ class ImageCves(TypedDict):
 
 @dataclass
 class ScanTarget:
-    """repository/digest/ref — the image scan_cached is being asked to
-    scan, bundled since every call site already has all three together.
-    cache_key only ever needs repository+digest, never the full ref."""
+    """An image for scan_cached; only repository+digest form the cache key."""
 
     repository: str
     digest: str | None
@@ -220,83 +145,54 @@ class ScanTarget:
 
 @dataclass
 class CacheSession:
-    """old_cache/new_cache — open_cache_session's own return pair,
-    bundled since scan_cached needs both together on every call (read
-    from old_cache, write into new_cache)."""
+    """scan_cached reads from old_cache and writes into new_cache."""
 
     old_cache: dict[str, CveEntry]
     new_cache: dict[str, CveEntry]
 
 
 def cache_path(chart_dir: Path):
-    """<repo-root>/.cache/cve-scan-cache.json — a personal, gitignored,
-    per-checkout cache (see module docstring), never committed. Rooted at
-    the repo root (not chart_dir) so root .gitignore's plain /.cache/
-    entry covers it without a chart-specific rule. Falls back to chart_dir
-    itself if it isn't inside a git checkout."""
+    """<repo-root>/.cache/cve-scan-cache.json (gitignored); chart_dir outside a git checkout."""
     return cache_file(chart_dir, CACHE_FILENAME)
 
 
 def load_cache(chart_dir: Path) -> dict[str, CveEntry]:
-    """The parsed contents of cache_path(chart_dir), or {} if the file
-    doesn't exist yet or can't be parsed (corrupt/truncated) — never
-    raises, so a broken cache just behaves like a cold one."""
+    """The parsed cache, or {} if missing or corrupt (never raises)."""
     return load_json_cache(cache_path(chart_dir), is_cve_entry)
 
 
 def save_cache(chart_dir: Path, cache: dict[str, CveEntry]):
-    """Persist `cache` to cache_path(chart_dir) as pretty-printed,
-    key-sorted JSON, creating the .cache directory first if needed."""
+    """Write `cache` to cache_path(chart_dir)."""
     save_json_cache(cache_path(chart_dir), cache)
 
 
 def open_cache_session(chart_dir: Path):
-    """(old_cache, new_cache) — old_cache is this run's read-only snapshot
-    (what a cache-hit check compares against); new_cache is a SEPARATE,
-    mutable copy scan_cached actually writes into and saves as the run
-    progresses. Both check_cves and lib.checks.cve_diff.check_cve_diff
-    need exactly this same two-line "load, then start a correct working
-    copy" step — factored out here, the one place both now call, so
-    there's no second independently-written copy of it left to silently
-    diverge again (real bug, already happened once: check_cves used to
-    write new_cache = {} instead of dict(old_cache), which wiped out
-    every entry it didn't itself touch — including every cve_diff_check
-    "proposed"-side entry — the moment its own save_cache ran)."""
+    """(old_cache, new_cache): a read-only snapshot and the mutable copy scan_cached writes.
+
+    new_cache must start as a copy, not {}, or saving it drops every entry this run
+    didn't touch (including cve_diff's "proposed"-side entries). Shared by check_cves
+    and check_cve_diff so the two can't diverge.
+    """
     old_cache = load_cache(chart_dir)
     return old_cache, dict(old_cache)
 
 
 def cache_key(repository: str, digest: str):
-    """The cve-scan-cache.json key for one (repository, digest) pin — the
-    same "repo@sha256:digest" shape used as an image ref minus the tag,
-    so a cache hit is keyed purely on content, never on which tag
-    currently happens to point at that digest."""
+    """ "repo@sha256:digest": keyed on content, not on which tag points at it."""
     return f"{repository}@sha256:{digest}"
 
 
 def cache_entry_is_fresh(entry: CveEntry, ttl_days: int):
-    """True when `entry` was scanned within the last `ttl_days` days (see
-    cve_scan.scan_cache_ttl_days in lib.settings — long enough that a
-    routine run doesn't re-pull/re-scan every image every time; short
-    enough that a stale "no findings" cache entry doesn't silently hide
-    a CVE disclosed against that digest after it was last scanned)."""
-    try:
-        scanned_at = datetime.fromisoformat(entry["scanned_at"])
-    except (KeyError, ValueError, TypeError):
-        return False
-    return datetime.now(timezone.utc) - scanned_at < timedelta(days=ttl_days)
+    """True when `entry` was scanned within the last `ttl_days` days."""
+    return checked_within(entry.get("scanned_at"), timedelta(days=ttl_days))
 
 
 def run_trivy(image_ref: str) -> list[Vulnerability] | None:
-    """Scan image_ref with trivy (via `docker run`, same shape as this
-    repo's own trivy-vuln-scanner.yaml workflow — --ignore-unfixed so only
-    vulnerabilities with an actual fix available are returned, matching
-    what's relevant to "should we bump this image"). Returns the flat list
-    of trimmed vulnerability dicts (see VULN_FIELDS), or None if trivy's
-    own output couldn't be parsed as JSON (a pull failure or trivy crash,
-    not a chart problem), or None if trivy/docker exited non-zero — run()
-    never raises on a failed exit, and a failure can still print
-    parseable-but-empty JSON that would otherwise read as a clean scan."""
+    """Fixable vulnerabilities in image_ref via `docker run` trivy, or None on failure.
+
+    A non-zero exit is a failure even if stdout parses: it can be empty JSON that
+    would otherwise read as a clean scan.
+    """
     result = run(
         [
             "docker",
@@ -324,38 +220,14 @@ def run_trivy(image_ref: str) -> list[Vulnerability] | None:
 
 
 def scan_cached(chart_dir: Path, target: ScanTarget, session: CacheSession, ttl_days: int, label: str = "this image"):
-    """Scan `target.ref` via trivy, reusing THIS module's own digest-keyed
-    cve-scan-cache.json whenever `target.digest` (bare hex, no "sha256:"
-    prefix) is known — the one shared "look up this (repository, digest)
-    in the cache; if fresh, report a cache hit and return the cached
-    vulnerabilities; otherwise announce a fresh scan, run_trivy, cache
-    the result, and return it" primitive both check_cves' own per-image
-    loop (below) and lib.checks.cve_diff's own current/proposed scans
-    route through — the two used to each hand-roll this same logic
-    separately. `target.digest=None` skips the cache tier entirely,
-    straight to run_trivy — used by cve_diff_check for a proposed tag
-    whose digest couldn't be resolved; never persisted either, since
-    there's no digest to key it by. `ttl_days` (see cve_scan.scan_cache_
-    ttl_days in lib.settings) is resolved once by the caller and passed
-    straight through to cache_entry_is_fresh, rather than re-read here on
-    every call. `session` is a CacheSession (old_cache/new_cache, see
-    open_cache_session).
+    """Scan `target.ref` with trivy, using the digest-keyed cache when `target.digest` is known.
 
-    `label` prefixes the printed cache-hit/fresh-scan line, so each
-    caller can tell its own calls apart in the output: cve_diff_check
-    passes "current"/"proposed" (two scans per candidate, needing a side
-    label); check_cves passes its own "[i/N] this image" (one scan per
-    image, no side to distinguish, but still wants its own progress
-    index) — the default "this image" is just a sane fallback for a
-    caller that doesn't need either.
+    `target.digest` is bare hex; None skips the cache (nothing to key on).
+    `label` prefixes the printed cache-hit/fresh-scan line.
 
-    Returns (vulnerabilities, was_cached) on success — was_cached tells a
-    caller like check_cves whether to count this toward its own aggregate
-    cache-hit total, without re-deriving that from scratch. Returns
-    (None, False) if trivy's own scan failed or produced unparseable
-    output; a failure is never cached (either tier), so a caller can
-    freely retry it on the next run rather than a failure being wrongly
-    remembered as a real (empty) result."""
+    Returns (vulnerabilities, was_cached), or (None, False) when the scan failed.
+    Failures are never cached, so they are retried next run.
+    """
     key = cache_key(target.repository, target.digest) if target.digest is not None else None
     if key is not None:
         cached = session.old_cache.get(key)
@@ -377,16 +249,10 @@ def scan_cached(chart_dir: Path, target: ScanTarget, session: CacheSession, ttl_
 
 # --- own/partner/other classification ---
 
-# Every "image:" line in a `helm template` render whose value is digest-
-# pinned — the rendered form of podiumd.image (and any vendored chart's
-# own equivalent) always ends up as a plain scalar, regardless of which
-# helper produced it.
+# Digest-pinned "image:" lines in a render; every image helper renders a plain scalar.
 PINNED_IMAGE_RE = re.compile(r'^\s*image:\s*"?([^"\s]+@sha256:[0-9a-f]{64})"?\s*$', re.MULTILINE)
 
-# Nearest indent-0 "<key>:" line — the top-level values.yaml section a pin
-# lives under, used only as a fallback classification signal for a
-# component not present in the render at all (e.g. disabled in the CI
-# values).
+# Top-level values.yaml key; fallback classification for components absent from the render.
 TOP_LEVEL_KEY_RE = re.compile(r"^([a-zA-Z0-9_-]+):")
 
 # A digest-pinned image as (repository, version or None, digest).
@@ -395,31 +261,34 @@ ImageKey = tuple[str, str | None, str]
 ScanTargetPin = tuple[tuple[str, str], tuple[str, int]]
 
 
+def split_image_ref(ref: str) -> tuple[str, str | None, str | None]:
+    """ "<repository>[:<tag>][@sha256:<digest>]" -> (repository, tag, digest), None for a missing part.
+
+    A "host:port" colon is not a tag (a tag has no "/").
+    """
+    repo_and_tag, _, digest = ref.partition("@sha256:")
+    repository, sep, tag = repo_and_tag.rpartition(":")
+    if not sep or "/" in tag:
+        return repo_and_tag, None, digest or None
+    return repository, tag, digest or None
+
+
 def parse_image_ref(ref: str) -> ImageKey:
-    """ "<repository>[:<version>]@sha256:<digest>" -> (repository, version,
-    digest). version is None for a tagless digest reference (a valid k8s
-    image ref a vendored sub-chart's helper may emit) — the trailing ":"
-    of a "host:port" registry is not a tag either (a real tag has no "/")."""
-    repo_and_tag, digest = ref.rsplit("@sha256:", 1)
-    repository, sep, version = repo_and_tag.rpartition(":")
-    if not sep or "/" in version:
-        return repo_and_tag, None, digest
+    """ "<repository>[:<version>]@sha256:<digest>" -> (repository, version, digest); ValueError without a digest."""
+    repository, version, digest = split_image_ref(ref)
+    if digest is None:
+        msg = f"image reference without a digest: {ref}"
+        raise ValueError(msg)
     return repository, version, digest
 
 
 def dependency_names(chart_dir: Path):
-    """Every direct dependency name/alias declared in Chart.yaml (alias
-    wins over name when present) — the set classify_by_key checks
-    membership against to tell a vendored sub-chart's own top-level key
-    apart from a podiumd-owned one."""
+    """Every direct Chart.yaml dependency alias (or name when unaliased)."""
     return {values_key_of(dep) for dep in load_chart_dependencies(chart_dir / "Chart.yaml")}
 
 
 def top_level_key_for_line(lines: list[str], line_no: int):
-    """The nearest indent-0 "<key>:" line at or above `line_no` (0-based)
-    in `lines`, per TOP_LEVEL_KEY_RE — the top-level values.yaml section a
-    given pin lives under, used as classify_by_key's fallback
-    classification signal. None if no such line precedes it."""
+    """The nearest top-level key above `line_no` (0-based), or None."""
     for i in range(line_no - 1, -1, -1):
         m = TOP_LEVEL_KEY_RE.match(lines[i])
         if m:
@@ -428,40 +297,49 @@ def top_level_key_for_line(lines: list[str], line_no: int):
 
 
 def classify_source(source: str, vendor_map: dict[str, str]) -> str:
-    """ "own" | a vendor label | "other", from a rendered "# Source:"
-    path — same rule check_yamllint/check_kubeconform/etc. use."""
+    """ "own" | a vendor label | "other", from a rendered "# Source:" path."""
     if source.startswith(OWN_TEMPLATES_PREFIX):
         return "own"
     return vendor_map.get(chart_name_from_source(source), "other")
 
 
 def classify_by_key(top_level_key: str | None, dep_names: set[str], vendor_map: dict[str, str]) -> str:
-    """Fallback for an image whose component isn't in the render at all:
-    "own" if no Chart.yaml dependency has this name/alias (nothing but a
-    podiumd-owned template could be configuring it), else the same
-    partner/other split as classify_source, keyed by dependency name
-    instead of "# Source:" path."""
+    """classify_source's fallback for an image absent from the render.
+
+    "own" when no dependency has this key (only a podiumd template can use it).
+    """
     if top_level_key is None or top_level_key not in dep_names:
         return "own"
     return vendor_map.get(top_level_key, "other")
 
 
+BUCKETS = ("own", "partner", "other")
+_BUCKET_ADJECTIVES = {"own": "Own", "partner": "Partner-vendor", "other": "Other-vendor"}
+
+
+def bucket_title(bucket: str, noun: str) -> str:
+    """A report section title, e.g. "Partner-vendor images" for ("partner", "images")."""
+    return f"{_BUCKET_ADJECTIVES[bucket]} {noun}"
+
+
+def refs_by_bucket(items: Mapping[str, Mapping[str, object]]) -> tuple[list[str], list[str], list[str]]:
+    """(own, partner, other) keys of `items` by their "bucket", in insertion order."""
+    own, partner, other = ([ref for ref, info in items.items() if info["bucket"] == b] for b in BUCKETS)
+    return own, partner, other
+
+
 def bucket_of(label: str) -> str:
-    """Collapse a classify_source/classify_by_key label into one of the
-    three report buckets: "own"/"other" pass through unchanged, and any
-    specific vendor label collapses to "partner" — see print_bucket_report's
-    own/partner/other split."""
+    """ "own"/"other" unchanged; any vendor label -> "partner"."""
     if label in ("own", "other"):
         return label
     return "partner"
 
 
 def render_image_labels(rendered_text: str, vendor_map: dict[str, str]) -> dict[ImageKey, str]:
-    """(repository, version, digest) -> classification label, for every
-    digest-pinned image found in the render. "own" always wins if ANY
-    source classifies an image that way, even if another source also
-    renders it — this repo's decision to use that image directly in its
-    own template outweighs it also being some vendored chart's default."""
+    """(repository, version, digest) -> label for every pinned image in the render.
+
+    "own" wins if any source is own, even when a vendored chart also renders it.
+    """
     labels: dict[ImageKey, str] = {}
     for source, text in split_rendered_by_source(rendered_text):
         label = classify_source(source, vendor_map)
@@ -474,9 +352,7 @@ def render_image_labels(rendered_text: str, vendor_map: dict[str, str]) -> dict[
 
 @dataclass
 class ImageClassification:
-    """rendered_labels/dep_names/vendor_map — render_image_labels/
-    classify_by_key's own combined output, from _classify_pinned_
-    images, threaded through the per-target scan loop as one unit."""
+    """Inputs for classifying a scan target (see _target_label)."""
 
     rendered_labels: dict[ImageKey, str]
     dep_names: set[str]
@@ -485,12 +361,8 @@ class ImageClassification:
 
 @dataclass
 class CveScanSettings:
-    """high_severities/package_cve_list_threshold/cve_cache_ttl_days/
-    upgrade_cache_ttl_days — check_cves' own 4 lib.settings-derived
-    values, resolved once up front and threaded through every helper
-    below that needs any subset of them."""
+    """check_cves' lib.settings values, resolved once per run."""
 
-    high_severities: set[str]
     package_cve_list_threshold: int
     cve_cache_ttl_days: int
     upgrade_cache_ttl_days: int
@@ -498,10 +370,7 @@ class CveScanSettings:
 
 @dataclass
 class ScanContext:
-    """chart_dir/values_lines/classification/upgrade_cache/session/
-    settings — check_cves' own per-run scan inputs, bundled once so the
-    per-target loop body (_scan_one_target) doesn't need a dozen
-    separate parameters."""
+    """check_cves' per-run scan inputs."""
 
     chart_dir: Path
     values_lines: list[str]
@@ -513,21 +382,15 @@ class ScanContext:
 
 @dataclass
 class ReportSettings:
-    """detail_level/high_severities/package_cve_list_threshold —
-    print_bucket_report's own per-run settings, identical across all
-    three bucket calls in check_cves, bundled since threading 3 more
-    positional-only params through every call site is pure repetition."""
+    """print_bucket_report's per-run settings."""
 
     detail_level: str
-    high_severities: set[str]
     package_cve_list_threshold: int
 
 
 @dataclass
 class BucketRefs:
-    """own/partner/other — check_cves' own three report-bucket ref
-    lists (see _bucket_refs), bundled since every consumer below (the
-    print calls, the summary/detail lines) needs all three together."""
+    """Refs with findings per report bucket (see _bucket_refs)."""
 
     own: list[str]
     partner: list[str]
@@ -536,9 +399,7 @@ class BucketRefs:
 
 @dataclass
 class ScanStats:
-    """scan_errors/cache_hits/target_count — _scan_all_targets' own
-    run-level counters, bundled since the summary-printing/detail-string
-    helpers below both need all three together."""
+    """_scan_all_targets' run-level counters."""
 
     scan_errors: list[str]
     cache_hits: int
@@ -558,9 +419,7 @@ def _classify_pinned_images(chart_dir: Path, extra_args: list[str]):
 
 
 def _image_ref(repository: str, version: str):
-    """ "<host>/<repo_path>:<version>" for `repository` — the actual
-    pullable ref (never repository's own possibly-stripped/ACR-mirror-
-    slug form) trivy/docker needs."""
+    """The pullable "<host>/<repo_path>:<version>" ref (not the stripped/mirror form)."""
     host, repo_path = parse_repo(repository)
     return f"{host}/{repo_path}:{version}"
 
@@ -575,10 +434,7 @@ def _digest_ref(repository: str, digest: str | None) -> str | None:
 
 
 def _target_label(repository: str, version: str, digest: str, line: int, context: ScanContext):
-    """ "own" | a vendor label | "other" for one scan target — the
-    render-based classification (see render_image_labels) when the
-    image was actually seen in the render, else classify_by_key's own
-    values.yaml top-level-key fallback."""
+    """The render-based label, else classify_by_key's top-level-key fallback."""
     label = context.classification.rendered_labels.get((repository, version, digest))
     if label is not None:
         return label
@@ -587,9 +443,7 @@ def _target_label(repository: str, version: str, digest: str, line: int, context
 
 
 def _upgradable_to(repository: str, version: str, context: ScanContext) -> str | None:
-    """The newer tag lib.image.upgrade_check's own cache reports for
-    this (repository, version), or None if there's no fresh entry, or
-    the freshest known tag IS the one already pinned."""
+    """The newer tag from a fresh upgrade-cache entry, or None."""
     upgrade_entry = context.upgrade_cache.get(upgrade_cache_key(repository, version))
     if (
         upgrade_entry
@@ -603,23 +457,17 @@ def _upgradable_to(repository: str, version: str, context: ScanContext) -> str |
 def _scan_one_target(
     repo_version: tuple[str, str], digest_line: tuple[str, int], index: int, total: int, context: ScanContext
 ):
-    """(image_ref, entry, was_cached) for one (repository, version)
-    target — entry is None when trivy's own scan failed (the caller
-    reports image_ref as a scan error and skips it), otherwise the dict
-    check_cves' own `images` map stores under image_ref. image_ref is the
-    tag-based ref, for display and as the map key; trivy scans the pinned
-    digest instead, since a floating tag may have been republished since
-    pinning and its results are cached under this pin's digest."""
+    """(image_ref, entry, was_cached); entry is None when the scan failed.
+
+    image_ref (tag-based) is for display; trivy scans the pinned digest, since the tag
+    may have been republished since pinning.
+    """
     repository, version = repo_version
     digest, line = digest_line
     image_ref = _image_ref(repository, version)
     scan_ref = _digest_ref(repository, digest) or image_ref
     label = _target_label(repository, version, digest, line, context)
 
-    # Per-image cache-hit/fresh-scan reporting and the actual cache
-    # read/write/scan is the exact same logic lib.checks.cve_diff's
-    # own current/proposed scans need — see scan_cached's own
-    # docstring for why this is shared rather than reimplemented here.
     vulns, was_cached = scan_cached(
         context.chart_dir,
         ScanTarget(repository, digest, scan_ref),
@@ -640,8 +488,7 @@ def _scan_one_target(
 
 
 def _scan_all_targets(targets: list[ScanTargetPin], context: ScanContext):
-    """(images, ScanStats) — scan every target in `targets` (see
-    _scan_one_target), printing progress/scan-error lines as it goes."""
+    """(images, ScanStats) for every target, printing progress as it goes."""
     print(
         f"Scanning {len(targets)} unique pinned image(s) for known CVEs with trivy "
         f"(pulls every image not already cached — this can take a while)..."
@@ -662,20 +509,13 @@ def _scan_all_targets(targets: list[ScanTargetPin], context: ScanContext):
 
 
 def _bucket_refs(images: dict[str, ImageCves]):
-    """(own_refs, partner_refs, other_refs) — refs (in images' own
-    insertion order) whose bucket matches and that have at least one
-    vulnerability finding, one list per report bucket."""
-
-    def refs_in(bucket: str):
-        return [ref for ref, info in images.items() if info["bucket"] == bucket and info["vulns"]]
-
-    return refs_in("own"), refs_in("partner"), refs_in("other")
+    """(own_refs, partner_refs, other_refs) with at least one finding, in insertion order."""
+    return refs_by_bucket({ref: info for ref, info in images.items() if info["vulns"]})
 
 
 def _print_bucket_reports(images: dict[str, ImageCves], buckets: BucketRefs, report_settings: ReportSettings):
-    print_bucket_report("Own images", buckets.own, images, report_settings)
-    print_bucket_report("Partner-vendor images", buckets.partner, images, report_settings)
-    print_bucket_report("Other-vendor images", buckets.other, images, report_settings)
+    for bucket, refs in zip(BUCKETS, (buckets.own, buckets.partner, buckets.other), strict=True):
+        print_bucket_report(bucket_title(bucket, "images"), refs, images, report_settings)
 
 
 def _print_cve_summary_lines(buckets: BucketRefs, stats: ScanStats, cve_cache_ttl_days: int):
@@ -692,9 +532,7 @@ def _print_cve_summary_lines(buckets: BucketRefs, stats: ScanStats, cve_cache_tt
 
 
 def _cve_summary_detail(buckets: BucketRefs, images: dict[str, ImageCves], stats: ScanStats):
-    """The final "CVEs: ... own (... img), ... partner-vendor (... img),
-    ... other-vendor (... img); ... scan error(s)" detail string
-    check_cves returns for verify-podiumd's own summary line."""
+    """check_cves' summary detail string."""
     own_n, own_cve = bucket_totals(buckets.own, images)
     partner_n, partner_cve = bucket_totals(buckets.partner, images)
     other_n, other_cve = bucket_totals(buckets.other, images)
@@ -705,21 +543,14 @@ def _cve_summary_detail(buckets: BucketRefs, images: dict[str, ImageCves], stats
 
 
 def check_cves(chart_dir: Path, extra_args: list[str], *, detail: bool = False):
-    """Entry point for the "CVE scan" step (see module docstring for the
-    full design). Renders the chart to classify every unique digest-pinned
-    image as own/partner-vendor/other-vendor, scans each one with trivy
-    (via scan_cached, reusing cve-scan-cache.json across runs), and prints
-    a per-bucket report — full itemization when `detail` is set, otherwise
-    per-image severity totals only (see print_bucket_report). Always
-    returns True (a CVE finding is never a failing condition here, only a
-    triage signal for a human — see module docstring); the detail string
-    carries the own/partner/other CVE and image counts plus any scan
-    error count for verify-podiumd's own summary line."""
+    """The "CVE scan" step: scan and report every pinned image per bucket.
+
+    Returns (ok, detail); ok is False only when the chart fails to render.
+    """
     if shutil.which("docker") is None:
         return True, "docker is not installed — skipped (see --help)"
 
     settings = CveScanSettings(
-        cve_high_severity_levels(chart_dir),
         cve_max_cves_per_package_before_summarizing(chart_dir),
         cve_scan_cache_ttl_days(chart_dir),
         image_upgrade_tag_check_cache_ttl_days(chart_dir),
@@ -738,23 +569,11 @@ def check_cves(chart_dir: Path, extra_args: list[str], *, detail: bool = False):
 
     images, stats = _scan_all_targets(targets, scan_context)
 
-    # Not a prune pass: new_cache started as a COPY of old_cache (see
-    # open_cache_session), so any entry this run didn't touch — a pin no
-    # longer present, or (critically) a lib.checks.cve_diff "proposed"-
-    # side entry for an image that's never actually pinned in values.yaml
-    # at all — is carried forward untouched here, not deleted. It ages
-    # out on its own via cache_entry_is_fresh's own TTL, same as
-    # everything else. Real bug this fixes: new_cache used to start
-    # EMPTY, so this save wiped out every such entry on nearly every run
-    # (check_cves runs right before check_cve_diff in the default
-    # pipeline) — cve_diff_check's own already-correct new_cache =
-    # dict(old_cache) pattern never had this problem, only this loop did.
+    # Untouched entries (e.g. cve_diff "proposed" images) are kept; they age out via the TTL.
     save_cache(chart_dir, session.new_cache)
 
     buckets = BucketRefs(*_bucket_refs(images))
-    report_settings = ReportSettings(
-        "full" if detail else "totals", settings.high_severities, settings.package_cve_list_threshold
-    )
+    report_settings = ReportSettings("full" if detail else "totals", settings.package_cve_list_threshold)
     _print_bucket_reports(images, buckets, report_settings)
     _print_cve_summary_lines(buckets, stats, settings.cve_cache_ttl_days)
 
@@ -762,45 +581,31 @@ def check_cves(chart_dir: Path, extra_args: list[str], *, detail: bool = False):
 
 
 def bucket_totals(refs: list[str], images: dict[str, ImageCves]):
-    """(image count, total vulnerability count) for one bucket's `refs` —
-    the pair check_cves' own final detail string reports per bucket."""
+    """(image count, total vulnerability count) for `refs`."""
     return len(refs), sum(len(images[ref]["vulns"]) for ref in refs)
 
 
 def severity_label(severity: str):
-    """Trivy's own "CRITICAL" is the one severity name worth shortening —
-    it's both the most common word in a wall of CVE output and the least
-    ambiguous to abbreviate."""
+    """ "CRITICAL" -> "CRIT"; other severities unchanged."""
     return "CRIT" if severity == "CRITICAL" else severity
 
 
-def high_findings_by_package(vulns: list[Vulnerability], high_severities: set[str]) -> dict[str, list[Vulnerability]]:
-    """PkgName -> list of its CRITICAL/HIGH vulnerability dicts (see
-    cve_scan.high_severity_levels in lib.settings) — the grouping unit for
-    print_package_line. A single package/file can carry many CVE IDs (a
-    bundled binary like Chromium tracks each fixed CVE separately against
-    the same package), so grouping here is what turns a wall of
-    near-duplicate lines into one line per actionable upgrade."""
+def findings_by_package(vulns: list[Vulnerability]) -> dict[str, list[Vulnerability]]:
+    """PkgName -> its findings, every severity (one package can carry many CVE IDs)."""
     groups: dict[str, list[Vulnerability]] = {}
     for v in vulns:
-        if v["Severity"] in high_severities:
-            groups.setdefault(v["PkgName"], []).append(v)
+        groups.setdefault(v["PkgName"], []).append(v)
     return groups
 
 
+def print_findings_per_package(vulns: list[Vulnerability], threshold: int) -> None:
+    """One print_package_line per affected package, in package order."""
+    for pkg, vulns_for_pkg in sorted(findings_by_package(vulns).items()):
+        print_package_line(pkg, vulns_for_pkg, threshold)
+
+
 def print_package_line(pkg: str, vulns_for_pkg: list[Vulnerability], threshold: int):
-    """Print one "full" detail-level line for `pkg`'s own CRIT/HIGH
-    findings (see high_findings_by_package) — every CVE ID listed
-    individually (worst severity first) when there are `threshold` (see
-    cve_scan.max_cves_per_package_before_summarizing in lib.settings) or
-    fewer, otherwise collapsed to a single per-severity count so a
-    bundled binary carrying hundreds of tracked CVEs against the same
-    package doesn't flood the report with IDs nobody will triage
-    individually."""
-    # No fix-version shown here, deliberately: a package's FixedVersion is
-    # an internal detail of the base image, not something this repo pins
-    # or can bump directly — only a newer image tag is actionable, and
-    # that's already reported once per image via describe_newest_tag.
+    """Print `pkg`'s CVE IDs worst-first, or per-severity counts when more than `threshold`."""
     ordered = sorted(vulns_for_pkg, key=lambda v: SEVERITY_ORDER.index(v["Severity"]))
 
     if len(ordered) <= threshold:
@@ -814,26 +619,14 @@ def print_package_line(pkg: str, vulns_for_pkg: list[Vulnerability], threshold: 
 
 
 def print_severity_totals_line(vulns: list[Vulnerability]):
-    """Print one "totals" detail-level line: every severity present in
-    `vulns` (including CRIT/HIGH), worst-first per SEVERITY_ORDER, as a
-    plain per-severity count — no package breakdown, no individual CVE
-    IDs."""
+    """Print per-severity counts for `vulns`, worst first."""
     counts = Counter(v["Severity"] for v in vulns)
     parts = ", ".join(f"{counts[s]} {severity_label(s)}" for s in SEVERITY_ORDER if counts.get(s))
     print(f"  {parts} CVE(s)")
 
 
 def print_bucket_header(title: str, *, empty: bool):
-    """Print "--- {title} ---" unless `empty` — the shared "skip a bucket
-    with nothing flagged in it entirely, otherwise print its own header"
-    idiom every bucketed report in this codebase uses (this module's own
-    print_bucket_report below, and lib.checks.cve_diff's own per-bucket
-    scan+diff+print loop) — factored out here so there's one place this
-    trivial-looking convention lives, not two independently-written
-    copies that could silently drift (e.g. one gaining a blank line the
-    other doesn't). Returns whether the header was printed, so a caller
-    that needs to know (rather than always printing its own body
-    unconditionally right after) can branch on it."""
+    """Print "--- {title} ---" unless `empty`; return whether it was printed."""
     if empty:
         return False
     print(f"--- {title} ---")
@@ -841,16 +634,11 @@ def print_bucket_header(title: str, *, empty: bool):
 
 
 def print_bucket_report(title: str, refs: list[str], images: dict[str, ImageCves], settings: ReportSettings):
-    """`settings` is a ReportSettings; settings.detail_level, applied
-    identically regardless of which bucket this is (own/partner-vendor/
-    other-vendor all get the same treatment — no aggregate-only rollup
-    for other-vendor, unlike every other check that uses this own/
-    partner/other scope split):
-      "full"   — CRIT/HIGH itemized per affected package (see
-                 print_package_line), MEDIUM/LOW/UNKNOWN just totaled per
-                 image.
-      "totals" — per-image severity totals only (every severity, including
-                 CRIT/HIGH) — no package breakdown, no individual CVE IDs."""
+    """Print one bucket's images per settings.detail_level (same for every bucket).
+
+    "full": per-image severity totals, then every finding itemized per package.
+    "totals": per-image severity totals only.
+    """
     if not print_bucket_header(title, empty=not refs):
         return
 
@@ -860,15 +648,8 @@ def print_bucket_report(title: str, refs: list[str], images: dict[str, ImageCves
         upgradable = f" upgradable to {info['upgradable_to']}" if info["upgradable_to"] else ""
         print(f"{ref}{vendor}{upgradable}")
 
-        if settings.detail_level == "totals":
-            print_severity_totals_line(info["vulns"])
-        else:
-            rest_counts = Counter(v["Severity"] for v in info["vulns"] if v["Severity"] not in settings.high_severities)
-            if rest_counts:
-                parts = ", ".join(f"{rest_counts[s]} {s}" for s in ("MEDIUM", "LOW", "UNKNOWN") if rest_counts.get(s))
-                print(f"  {parts} CVE(s)")
-
-            for pkg, vulns_for_pkg in sorted(high_findings_by_package(info["vulns"], settings.high_severities).items()):
-                print_package_line(pkg, vulns_for_pkg, settings.package_cve_list_threshold)
+        print_severity_totals_line(info["vulns"])
+        if settings.detail_level == "full":
+            print_findings_per_package(info["vulns"], settings.package_cve_list_threshold)
 
         print()

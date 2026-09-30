@@ -1,20 +1,9 @@
-"""Fast reachability/authorization check for every repo Chart.yaml's
-dependencies AND values.yaml's digest-pinned images actually need — the
-"Dependencies" step's real `helm dependency update` can take minutes and
-re-downloads everything every run (see lib.dependencies), and even "Image
-digests" (which does its own live registry check) only runs AFTER
-Dependencies — so an unreachable or unauthorized repo/registry is much
-cheaper, and much earlier, to catch here: one lightweight request per
-unique repo/image, bounded by repo_access.request_timeout_seconds (see
-lib.settings), before either of those steps does any real (and much more
-expensive) work.
+"""Fast reachability/authorization preflight for every repo Chart.yaml's
+dependencies and values.yaml's digest-pinned images need.
 
-A successful check is cached for a short window (see
-lib.repo_access_cache) — the same set of repos/images gets re-verified
-on every verify-podiumd re-run, and enough of those in a short dev-loop
-window is exactly what exhausts Docker Hub's anonymous pull-rate limit
-("Too Many Requests"). A failure is never cached — see that module's own
-docstring for why."""
+Runs before "Dependencies"/"Image digests", which are far slower. Successes
+are cached briefly (lib.repo_access_cache) to avoid Docker Hub's anonymous
+pull-rate limit on repeated runs; failures are never cached."""
 
 import re
 import urllib.error
@@ -45,25 +34,14 @@ from lib.settings import repo_access_request_timeout_seconds
 
 
 def is_denylisted_host(host: str, denylisted_host_suffixes: tuple[str, ...]):
-    """True when `host` ends with one of `denylisted_host_suffixes` (see
-    repo_access.never_probe_host_suffixes in lib.settings) — a host a
-    Chart.yaml dependency or values.yaml image is never allowed to
-    reference directly, regardless of whether that host would actually be
-    reachable. An internal/private registry (an env-specific ACR mirror,
-    say) is an environment concern that belongs in each gemeente's own
-    podiumd.yml override, not this chart's own tracked default (confirmed
-    by hand 2026-08-26: PABC's chart default used to hardcode
-    acrprodmgmt.azurecr.io directly and was reverted to the public ghcr.io
-    upstream for exactly this reason)."""
+    """True when `host` ends with a denylisted suffix.
+
+    Private registries (e.g. an env-specific ACR mirror) belong in each
+    environment's podiumd.yml override, never in this chart's defaults."""
     return any(host.endswith(suffix) for suffix in denylisted_host_suffixes)
 
 
-# "- name: <name>" at the start of a Chart.yaml dependency block — used to
-# re-derive a dependency's own source line, since PyYAML's safe_load (what
-# lib.yaml_types uses) doesn't track source lines at all. Same
-# raw-text-regex approach every other line-anchored scan in this codebase
-# uses (see lib.image.digests.DIGEST_PIN_RE and friends), rather than a
-# real YAML AST with position info.
+# Recovers a dependency's source line; PyYAML safe_load doesn't track lines.
 DEP_NAME_RE = re.compile(r'^\s*-\s*name:\s*"?([\w.\-]+)"?\s*(?:#.*)?$')
 
 # (host, repo_path, version) of a registry artifact.
@@ -96,19 +74,12 @@ def _dependency_line_numbers(chart_yaml_text: str) -> dict[str, int]:
 
 
 def dependency_repos(chart_dir: Path) -> list[DependencyRepo]:
-    """(name, line, kind, target) for every Chart.yaml dependency that
-    needs network access to resolve — kind "http" (target is the repo's
-    base URL, an "@alias" already resolved via
-    lib.settings.helm_repos_urls_by_alias) or "oci" (target is (host,
-    repo_path, version), repo_path already combining the oci:// URL's own
-    path with the dependency's chart name — matching the
-    "<host>/<oci-path>/<chart-name>:<version>" reference `helm dependency
-    update` actually pulls, confirmed by hand 2026-08-26). "line" is the
-    dependency's own line in Chart.yaml, or None if it couldn't be found
-    (an unusual enough Chart.yaml layout that DEP_NAME_RE didn't match —
-    degrades to no line number rather than a wrong one). A "file://"
-    dependency (e.g. mi-data, a local sub-chart in this same monorepo)
-    needs neither and is omitted."""
+    """(name, line, kind, target) for every network-resolved Chart.yaml dependency.
+
+    kind "http": target is the base URL ("@alias" resolved). kind "oci":
+    target is (host, repo_path, version), repo_path including the chart name
+    as `helm dependency update` pulls it. line is None if not found.
+    "file://" dependencies are omitted."""
     required_repos = helm_repos_urls_by_alias(chart_dir)
     chart_yaml_path = chart_dir / "Chart.yaml"
     deps = load_chart_dependencies(chart_yaml_path)
@@ -130,15 +101,10 @@ def dependency_repos(chart_dir: Path) -> list[DependencyRepo]:
 
 
 def image_repos(values_path: Path) -> list[tuple[RegistryTarget, list[int]]]:
-    """(lines, target) grouped by unique (host, repo_path, version) — for
-    every digest-pinned image in values.yaml whose repository resolves
-    WITHOUT the vendored subchart-default fallback
-    (lib.chart.subchart_default_repository reads charts/*.tgz, which
-    "Dependencies" is what actually populates — a pin needing that
-    fallback can't be tested this early; "Image digests", which runs after
-    Dependencies, covers those). "lines" is every values.yaml line pinning
-    that exact (repository, version) — the same image is often pinned
-    several times over."""
+    """(target, lines) per unique (host, repo_path, version) digest pin in values.yaml.
+
+    Pins without an explicit repository are skipped: resolving them needs
+    charts/*.tgz, which "Dependencies" populates later."""
     pins = scan_digest_pins(values_path.read_text(encoding="utf-8").splitlines())
     grouped: dict[RegistryTarget, list[int]] = {}
     for p in pins:
@@ -150,15 +116,10 @@ def image_repos(values_path: Path) -> list[tuple[RegistryTarget, list[int]]]:
 
 
 def _check_http_repo(url: str, timeout_seconds: float):
-    """A classic Helm repo (added via `helm repo add`) publishes its whole
-    catalog as index.yaml at its root — fetching just that (typically a few
-    hundred KB at most) proves reachability/auth without pulling a single
-    chart package."""
+    """Fetch a classic Helm repo's index.yaml to prove reachability/auth."""
     index_url = urllib.parse.urljoin(url if url.endswith("/") else url + "/", "index.yaml")
     try:
-        # index_url is built from a known, config-derived trusted Helm repo host, never
-        # an attacker-controllable scheme; same trust boundary ruff's own per-file S310
-        # exemption for this file documents.
+        # index_url comes from trusted config, never an attacker-controlled scheme.
         with urllib.request.urlopen(index_url, timeout=timeout_seconds):  # nosec B310
             pass
     except urllib.error.HTTPError as e:
@@ -169,17 +130,10 @@ def _check_http_repo(url: str, timeout_seconds: float):
 
 
 def _check_registry_repo(chart_dir: Path, host: str, repo_path: str, version: str, timeout_seconds: float):
-    """Same manifest-existence check check_image_digests uses for a live
-    image — an OCI-based Helm chart is just another tagged artifact on the
-    same registry API a container image is, so a missing/unauthorized/
-    unreachable chart or image fails exactly the same way. Routed through
-    lib.image.digests.cached_tag_exists, the SAME shared primitive check_
-    image_digests/find_sliding_pins use — a pin already resolved (fresh, on
-    disk — see lib.repo_access_cache) by one of those in this same run (or
-    a recent prior one) is served from there instead of a second real
-    registry hit, and vice versa. `timeout_seconds` is still threaded
-    through to the real call on a miss, preserving this check's own reason
-    for existing: a fast, bounded preflight, not a call that could hang."""
+    """Manifest-existence check for an OCI chart or image.
+
+    Shares cached_tag_exists's disk cache with the image digest checks, so a
+    pin resolved by either is not fetched twice."""
     try:
         exists, _ = cached_tag_exists(chart_dir, f"{host}/{repo_path}", version, timeout=timeout_seconds)
     except (urllib.error.URLError, OSError) as e:
@@ -190,9 +144,7 @@ def _check_registry_repo(chart_dir: Path, host: str, repo_path: str, version: st
 
 
 def _host_of(test_kind: str, target: str | tuple[str, ...]):
-    """The hostname a given entry would actually be checked against —
-    target is a bare URL string for "http", or a (host, repo_path,
-    version) tuple for "registry" (see check_repo_access's entries)."""
+    """Hostname of an entry's target (URL for "http", tuple for "registry")."""
     if test_kind == "http" and isinstance(target, str):
         return urllib.parse.urlparse(target).hostname or ""
     return target[0]
@@ -200,9 +152,7 @@ def _host_of(test_kind: str, target: str | tuple[str, ...]):
 
 @dataclass
 class ProbeConfig:
-    """chart_dir/denylisted_host_suffixes/cache_ttl_minutes/timeout_seconds
-    bundled since every entry _probe_entry checks needs the same four
-    settings."""
+    """Settings shared by every _probe_entry call."""
 
     chart_dir: Path
     denylisted_host_suffixes: tuple[str, ...]
@@ -213,12 +163,9 @@ class ProbeConfig:
 def _build_entries(
     chart_deps: list[DependencyRepo], img_targets: list[tuple[RegistryTarget, list[int]]]
 ) -> list[AccessEntry]:
-    """(kind, description, test_kind, target) for every unique repo/image
-    check_repo_access needs to probe — Chart.yaml dependencies grouped by
-    (kind, target) so everything sharing one repo (e.g. every
-    @maykinmedia chart) is tested once, values.yaml image pins grouped
-    separately since image_repos already groups by exact (host,
-    repo_path, version)."""
+    """(kind, description, test_kind, target) per unique repo/image to probe.
+
+    Chart dependencies sharing one repo are grouped so each is tested once."""
     entries: list[AccessEntry] = []
     grouped_chart: dict[tuple[str, str | RegistryTarget], _ChartGroup] = {}
     for name, line, kind, target in chart_deps:
@@ -246,11 +193,10 @@ def _build_entries(
 
 
 def _probe_entry(config: ProbeConfig, entry: AccessEntry) -> ProbeResult:
-    """Probes one repo/image entry — denylist check, cache hit, or a real
-    reachability check — printing its own result line same as
-    check_repo_access always has. Returns ("denied", kind, description,
-    host), ("failure", kind, description, error), or ("ok",) for
-    check_repo_access's own failures/denied lists."""
+    """Probe one entry (denylist, cache, then live check) and print its result.
+
+    Returns ("denied", kind, description, host), ("failure", kind,
+    description, error), or ("ok",)."""
     kind, description, test_kind, target = entry
     host = _host_of(test_kind, target)
     if is_denylisted_host(host, config.denylisted_host_suffixes):
@@ -262,12 +208,8 @@ def _probe_entry(config: ProbeConfig, entry: AccessEntry) -> ProbeResult:
         )
         return "denied", kind, description, host
 
-    # Re-loaded fresh on every entry (a small JSON file — cheap) rather
-    # than once at the top: a "registry" kind entry's own real check
-    # (below) writes straight to this SAME disk file via cached_tag_
-    # exists, mid-loop — a single cache snapshot taken once up front
-    # and saved once at the end would silently clobber whatever that
-    # wrote in between.
+    # Reload per entry: cached_tag_exists writes this same file mid-loop, so a
+    # single up-front snapshot saved at the end would clobber those writes.
     cache = load_cache(config.chart_dir)
     key = cache_key(test_kind, target)
     cache_entry = cache.get(key)
@@ -292,9 +234,7 @@ def _probe_entry(config: ProbeConfig, entry: AccessEntry) -> ProbeResult:
 def _format_result(
     checked: int, total_refs: int, failures: list[AccessFailure], denied: list[DeniedEntry]
 ) -> tuple[bool, str]:
-    """Final (ok, message) check_repo_access returns — a combined message
-    covering both unreachable/unauthorized entries and denylisted-host
-    entries, or a plain success count when neither happened."""
+    """(ok, message) summarizing failures and denied entries, or a success count."""
     if not (failures or denied):
         return True, f"{checked} repo(s)/image(s) reachable ({total_refs} references)"
     parts: list[str] = []
@@ -312,35 +252,12 @@ def _format_result(
 
 
 def check_repo_access(chart_dir: Path):
-    """Fails if any repo a Chart.yaml dependency needs, or any registry a
-    values.yaml digest pin needs, is unreachable or unauthorized — before
-    "Dependencies"/"Image digests" spend real time (and, for Dependencies,
-    a full re-download of every dependency) only to hit the exact same
-    problem. Anything sharing the same repo/image (e.g. every @maykinmedia
-    chart, or the same image pinned several times) is tested once. Each
-    finding is printed with its kind ("chart"/"image"), endpoint, and
-    source location (Chart.yaml:<line> or values.yaml:<line>[,<line>...]).
+    """Return (ok, message): fail if any Chart.yaml repo or values.yaml pin registry is unreachable/unauthorized.
 
-    An entry whose host matches repo_access.never_probe_host_suffixes
-    (lib.settings) FAILS outright — the actual reachability check isn't
-    even attempted, since the finding
-    isn't "can this environment reach it right now" but "this chart must
-    not reference this registry directly at all", a stronger and
-    unconditional claim unrelated to lib.registry.UNVERIFIABLE_HOSTS
-    (which excuses a real reachability problem in "Image digests" rather
-    than rejecting the reference itself).
-
-    A successful entry is cached for a short window and printed as
-    "(cached)" on a hit — see lib.repo_access_cache for the TTL and why a
-    failure is deliberately never cached. A "chart"/registry or "image"
-    entry's cache write happens inside lib.image.digests.cached_tag_exists
-    itself (same disk-persisted store, same key format) rather than here —
-    only a "chart"/http entry (a classic Helm repo's index.yaml) still
-    writes its own cache entry directly in this function, since cached_
-    tag_exists has no notion of that check at all.
-
-    See _build_entries for how entries are collected, _probe_entry for
-    how each one is checked, and _format_result for the final message."""
+    Each unique repo/image is tested once. A host on
+    repo_access.never_probe_host_suffixes fails without probing. Only http
+    entries write the cache here; registry entries are cached by
+    cached_tag_exists."""
     config = ProbeConfig(
         chart_dir,
         repo_access_never_probe_host_suffixes(chart_dir),

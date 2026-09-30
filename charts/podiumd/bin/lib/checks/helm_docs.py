@@ -1,33 +1,9 @@
-"""Verifies charts/podiumd/README.md is not out of sync with values.yaml
-(and README.md.gotmpl, if present) via a real `helm-docs --dry-run`
-regen — companion to the /helm-docs-check skill (which covers every chart
-in this repo and falls back to an approximate values.yaml-key-vs-README-
-row heuristic when helm-docs isn't installed); this is the deterministic,
-CI-safe version scoped to charts/podiumd only, matching every other check
-in this pipeline. No fallback heuristic here: if `helm-docs` isn't
-installed, this check fails with a clear message like every other
-external-tool check in this pipeline (yamllint/kubeconform/shellcheck/
-kube-score) — pass --skip=helm-doc to bypass.
+"""Verify charts/podiumd/README.md matches a `helm-docs --dry-run` regeneration.
 
-Relation to check_docs_consistency (a separate step, see lib.
-docs_consistency): none. That check verifies docs/_UPGRADE_PATHS/*.md and
-docs/images/images-<version>.yaml against component version BUMPS. This
-one verifies README.md's values-reference content against values.yaml's
-actual keys/comments, independent of any version bump at all — a renamed
-key, a changed default, or an edited comment triggers this check, not
-that one, and neither substitutes for the other.
-
---dry-run makes helm-docs print the regenerated markdown to stdout
-instead of writing README.md — this check never touches the real file,
-matching check_image_digests/check_utf8_format's report-only contract: a
-separate, explicit, human-run step does the actual fix, never this
-script — fix-helm-doc wraps the real (non-dry-run) `helm-docs`
-command for that.
-
-On drift, prints an actual unified diff (capped at helm_doc.
-max_diff_lines_shown, see lib.settings) rather than just a changed-line
-count — seeing WHICH lines moved is what makes the finding actionable; a
-bare count isn't."""
+Never writes README.md; run fix-helm-doc to regenerate it. Fails if helm-docs isn't
+installed (pass --skip=helm-doc to bypass). On drift, prints a unified diff capped at
+helm_doc.max_diff_lines_shown.
+"""
 
 import difflib
 import shutil
@@ -43,14 +19,7 @@ FIX_COMMAND = "fix-helm-doc"
 
 
 def check_helm_docs(chart_dir: Path):
-    """Regenerate README.md via `helm-docs --dry-run` (see module
-    docstring) and diff it against the real file. Fails outright if
-    helm-docs isn't installed or README.md doesn't exist yet — no
-    fallback heuristic, unlike the more permissive /helm-docs-check
-    skill. On drift, prints a unified diff capped at helm_doc.
-    max_diff_lines_shown (lib.settings) and points at fix-helm-doc to
-    actually regenerate the file; this check itself never writes to
-    README.md."""
+    """Diff `helm-docs --dry-run` output against README.md; fail on drift or missing helm-docs/README."""
     if shutil.which("helm-docs") is None:
         return False, "helm-docs is not installed — see --help"
 

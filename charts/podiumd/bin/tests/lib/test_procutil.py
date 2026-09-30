@@ -24,9 +24,7 @@ def test_run_script_runs_the_command(libprocutil: ModuleType):
 
 
 def test_run_script_flushes_stdout_before_running(libprocutil: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    """The whole point of run_script over a bare subprocess.run: flush the
-    caller's own buffered prints first, so they can't appear after the
-    child's inherited-stdout output once stdout isn't a tty."""
+    """Buffered prints are flushed first so they can't appear after the child's output when not a tty."""
     calls = []
     monkeypatch.setattr(libprocutil.sys.stdout, "flush", lambda: calls.append("flush"))
     monkeypatch.setattr(libprocutil.subprocess, "run", lambda cmd, **kw: calls.append("run"))

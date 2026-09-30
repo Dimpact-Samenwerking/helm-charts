@@ -1,8 +1,6 @@
-"""check_vendored_tgz_extraction / find_extracted_vendored_dirs — a vendored
-sub-chart under charts/podiumd/charts/ must never have BOTH a pinned .tgz
-AND an extracted directory of the same name, per
-.claude/commands/helm-tgz-inspect.md: Helm silently prefers the extracted
-copy over the pinned package."""
+"""check_vendored_tgz_extraction / find_extracted_vendored_dirs: a vendored
+sub-chart must not have both a .tgz and an extracted dir, since Helm silently
+prefers the extracted copy."""
 
 from pathlib import Path
 from types import ModuleType
@@ -67,9 +65,7 @@ def test_hyphenated_chart_name_parsed_correctly(vp: ModuleType, tmp_path: Path, 
 
 
 def test_extracted_dir_with_no_matching_tgz_not_flagged(vp: ModuleType, tmp_path: Path):
-    """An extracted dir with no pinned .tgz of the same name isn't this
-    check's concern (e.g. mi-data, a local file:// dependency with no
-    .tgz at all) — only a .tgz shadowed by its own extracted copy is."""
+    """An extracted dir without a .tgz (e.g. a file:// dependency) is ignored."""
     write_extracted_dir(tmp_path, "mi-data")
     ok, detail = vp.check_vendored_tgz_extraction(tmp_path)
     assert ok is True

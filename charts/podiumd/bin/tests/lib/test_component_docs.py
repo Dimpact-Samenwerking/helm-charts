@@ -1,9 +1,8 @@
-"""lib.component_docs — existing_doc_baselines, create_missing_docs,
-baseline_doc_paths, images_manifest_path: the standard-doc-set scan/
-create/path helpers shared by create-doc-version and fix-doc-consistency.
-The per-component doc-rewrite helpers (fix_component_version_table and
-friends) are exercised through update-component-version/update-image-
-version's own test suites instead, against realistic doc fixtures."""
+"""lib.component_docs: standard-doc-set scan, create and path helpers.
+
+Per-component doc rewrites are tested via the update-component-version and
+update-image-version suites.
+"""
 
 from pathlib import Path
 from types import ModuleType
@@ -12,15 +11,7 @@ from types import ModuleType
 
 
 def test_ensure_images_manifest_changes_header_creates_missing_header(libcomponentdocsheader: ModuleType):
-    """Regression test (real bug, real doc): a file that has lost its
-    "# Changes:" header (or never had one) previously stayed that way
-    forever — insert_images_manifest_header_item is a documented no-op
-    when no header exists at all, so no amount of re-running fix-doc-
-    consistency could ever add one back. Real case: images-4.9.1.yaml
-    gained 5 real entries this session (redis, 3 openbao sidecars, zac's
-    otel sidecar), each with a correct own "#"/"#   sidecar:" comment,
-    but none of them ever got a "# Changes:" list item, because the
-    header itself was simply missing and nothing ever created it."""
+    """A manifest missing its "# Changes:" header gets one; insert_images_manifest_header_item alone no-ops."""
     lines = (
         "# Baseline: podiumd 4.9.0. Re-verify before release.\n"
         "#\n"
@@ -63,9 +54,7 @@ def test_ensure_images_manifest_changes_header_noop_when_counted_header_exists(l
 
 
 def test_ensure_images_manifest_changes_header_noop_when_no_intro_anchor_either(libcomponentdocsheader: ModuleType):
-    """Defensive fallback: a manifest with no recognizable intro line at
-    all (never produced by anything in this codebase) must never crash
-    — silently does nothing, same as before this fix existed."""
+    """A manifest with no recognizable intro line is left unchanged, without crashing."""
     lines = ("# redis 8.0 -> 8.0\n- name: redis\n  url: redis\n").splitlines(keepends=True)
     original = list(lines)
 
@@ -78,8 +67,7 @@ def test_ensure_images_manifest_changes_header_noop_when_no_intro_anchor_either(
 
 
 def test_renumber_images_manifest_changes_items_fixes_a_gap(libcomponentdocsheader: ModuleType):
-    """A gap left by a human hand-removing an item's own block without
-    renumbering everything after it — real case that surfaced this."""
+    """A gap left by a hand-removed item is renumbered."""
     lines = ("# Changes:\n#   1. zac 5.0.2 -> 5.4.3.\n#   3. openformulieren 3.4.10 -> 3.5.6.\n").splitlines(
         keepends=True
     )
@@ -100,8 +88,7 @@ def test_renumber_images_manifest_changes_items_already_correct_is_a_noop(libcom
 
 
 def test_renumber_images_manifest_changes_items_updates_count_word(libcomponentdocsheader: ModuleType):
-    """A gap fix that changes the item COUNT (not just individual
-    numbers) must also update the header's own leading count word."""
+    """A fix that changes the item count also updates the header's count word."""
     lines = ("# Three changes:\n#   1. zac 5.0.2 -> 5.4.3.\n#   4. openformulieren 3.4.10 -> 3.5.6.\n").splitlines(
         keepends=True
     )
@@ -120,10 +107,7 @@ def test_renumber_images_manifest_changes_items_no_header_is_a_noop(libcomponent
 
 
 def test_images_manifest_order_key_bare_string_unaffected_by_values(libcomponentdocsheader: ModuleType):
-    """A bare STRING values_key (the historical shape — top-level key
-    only) keeps the exact prior (index, is_sidecar) behavior, even when
-    `values` is given — it's only ever deepened when the caller passes
-    a full path TUPLE instead."""
+    """A bare string values_key keeps the (index, is_sidecar) key even when `values` is given."""
     key_order = ["global", "zac"]
     values = {"global": {"images": {"nginx": {}, "curl": {}}}, "zac": {}}
     order_key = libcomponentdocsheader.images_manifest_order_key
@@ -132,11 +116,7 @@ def test_images_manifest_order_key_bare_string_unaffected_by_values(libcomponent
 
 
 def test_images_manifest_order_key_path_tuple_resolves_full_nested_position(libcomponentdocsheader: ModuleType):
-    """Regression test: given a full values-tree path TUPLE (not just
-    its own top-level key string) and `values`, this resolves the SAME
-    real redis/nginx/curl/busybox sub-order the other two sort-key
-    functions already do — the shared lib.upgradedoc.values_tree_
-    position primitive, not a fourth, independent implementation."""
+    """A path tuple resolves the full nested position via lib.upgradedoc.values_tree_position."""
     key_order = ["global"]
     values = {
         "global": {
@@ -176,12 +156,7 @@ def test_insert_images_manifest_header_item_at_correct_position(libcomponentdocs
 
 
 def test_insert_images_manifest_header_item_fixes_a_preexisting_gap(libcomponentdocsheader: ModuleType):
-    """Inserting a new item must not just shift each EXISTING item's own
-    (possibly already-wrong) number by +1 — it must leave the WHOLE list
-    gapless 1..N, fixing any pre-existing drift as a side effect (see
-    renumber_images_manifest_changes_items). Real bug: the old relative-
-    shift logic would have turned "1, 3" (gap at 2) into "1, 2, 4" here
-    (still missing "3") instead of the correct "1, 2, 3"."""
+    """Inserting renumbers the whole list 1..N, fixing pre-existing gaps ("1, 3" -> "1, 2, 3")."""
     lines = ("# Changes:\n#   1. openzaak 1.27.4 -> 1.29.3.\n#   3. zgw-office-addin v0.9.313 -> 0.11.0.\n").splitlines(
         keepends=True
     )
@@ -269,9 +244,7 @@ def test_existing_doc_baselines_empty_when_no_match(
 def test_existing_doc_baselines_multiple_sources_for_one_suffix(
     libcomponentdocs: ModuleType, libcomponentdocsbaselinedocstubs: ModuleType, tmp_path: Path
 ):
-    """Two different baselines both claiming the same suffix for this
-    target — the exact shape create-doc-version's mismatch refusal and
-    fix-doc-consistency's collision refusal both key off."""
+    """Two baselines claiming the same suffix: the shape both mismatch/collision refusals key off."""
     (tmp_path / "4.8.2-to-4.9.0-upgrade.md").write_text("x", encoding="utf-8")
     (tmp_path / "4.8.3-to-4.9.0-upgrade.md").write_text("x", encoding="utf-8")
     by_suffix = libcomponentdocsbaselinedocstubs.existing_doc_baselines(tmp_path, "4.9.0")
@@ -370,9 +343,7 @@ DEPS = [
 
 
 def test_resolve_component_own_version_change_true_when_both_unchanged(libcomponentdocschanges: ModuleType):
-    """Regression test: zac gaining a brand-new sidecar of its own (not
-    modeled here — this only checks the OWN-version resolution) with
-    its own chart+app both unchanged must resolve unchanged=True."""
+    """A component whose own chart and app are unchanged resolves unchanged=True."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
     state = libcomponentdocschanges.ComponentState(deps, values)
@@ -413,9 +384,7 @@ def test_resolve_component_own_version_change_false_when_chart_changed(libcompon
 
 
 def test_resolve_component_own_version_change_native_component_ignores_chart(libcomponentdocschanges: ModuleType):
-    """frankgateway (see lib.chart.NATIVE_COMPONENTS) has no chart at
-    all — new_chart == "-" always counts as "chart unchanged", so the
-    decision hinges entirely on the app version."""
+    """A native component (chart "-") is decided by its app version alone."""
     values = {"frankgateway": {"image": {"tag": "104@sha256:aaaa"}}}
     state = libcomponentdocschanges.ComponentState([], values)
     resolved = libcomponentdocschanges.resolve_component_own_version_change("frankgateway", state, state, None, [])
@@ -432,20 +401,11 @@ def test_resolve_component_own_version_change_none_for_unmatched_key(libcomponen
 def test_resolve_component_own_version_change_vendored_subchart_fallback_applies_to_baseline_too(
     libcomponentdocschanges: ModuleType, tmp_path: Path
 ):
-    """Regression test (real bug, real doc): openbao's own "server.image.
-    tag" is deliberately left blank in both baseline and target values.yaml
-    (see settings.yaml's own component_resolution.image_paths["openbao"]
-    comment) — its real app version only ever resolves via the
-    vendored-.tgz subchart_app_version fallback (see lib.upgradedoc.
-    actual_app_version), which the OLD code never even attempted for the
-    baseline side. Its chart version (0.28.4) is unchanged this hop, so
-    the exact same vendored .tgz backs both sides — old_app must resolve
-    to the SAME "v2.5.5" as new_app, not None, and unchanged must be True,
-    exactly like any other component whose own version genuinely didn't
-    change (e.g. zac). Before this fix, old_app stayed None (wrongly
-    rendering "(new)") purely because of this resolution gap, not because
-    openbao's version actually changed. No monkeypatch needed — openbao is
-    already registered in the real component_resolution.image_paths."""
+    """With an unchanged chart, the vendored-.tgz appVersion fallback resolves the baseline side too.
+
+    openbao's image tag is blank on both sides; old_app must equal new_app, not
+    None (which rendered "(new)").
+    """
     import io
     import tarfile
 
@@ -476,14 +436,7 @@ def test_resolve_component_own_version_change_vendored_subchart_fallback_applies
 def test_resolve_component_own_version_change_vendored_fallback_never_used_when_chart_changed(
     libcomponentdocschanges: ModuleType, tmp_path: Path
 ):
-    """The vendored-subchart fallback above must never fire when the
-    chart version itself changed — the current chart_dir's vendored .tgz
-    (at the TARGET's chart version) is only a valid stand-in for the
-    baseline's own app version when it's the SAME .tgz backing both
-    sides. A real baseline-side chart bump must stay unresolved (old_app
-    None) rather than silently reusing the wrong file's appVersion. No
-    monkeypatch needed — openbao is already registered in the real
-    component_resolution.image_paths."""
+    """The vendored fallback never applies to the baseline when the chart version changed (wrong .tgz)."""
     import io
     import tarfile
 
@@ -520,17 +473,7 @@ def test_resolve_component_own_version_change_vendored_fallback_never_used_when_
 def test_resolve_component_own_version_change_eck_operator_now_reads_unchanged(
     libcomponentdocschanges: ModuleType, tmp_path: Path
 ):
-    """Regression test (real bug, real doc, real chart): eck-operator
-    existed, enabled, at the podiumd-4.9.1 baseline with NO explicit
-    values.yaml "image:" override at all (same shape modeled here —
-    only "enabled: true", nothing else); its chart version (3.5.0) is
-    UNCHANGED this hop, and the target added an explicit split "tag:"/
-    "digest:" override still reading the same 3.5.0. Since eck-operator
-    is now registered in component_resolution.image_paths (no monkeypatch needed —
-    that registration IS the fix under test), the vendored-subchart
-    fallback correctly resolves old_app to the SAME "3.5.0" as new_app,
-    so this now reads (unchanged), not "(new)" — confirmed live on the
-    real chart's own 4.9.1-to-4.9.2-upgrade.md before/after this fix."""
+    """eck-operator with no baseline image override resolves old_app via the vendored fallback: unchanged."""
     import io
     import tarfile
 
@@ -550,7 +493,7 @@ def test_resolve_component_own_version_change_eck_operator_now_reads_unchanged(
             tar.addfile(info, io.BytesIO(data))
 
     dep = {"name": "eck-operator", "version": "3.5.0", "condition": "eck-operator.enabled"}
-    baseline_values = {"eck-operator": {"enabled": True}}  # no "image:" override at all, real 4.9.1 shape
+    baseline_values = {"eck-operator": {"enabled": True}}  # no "image:" override, as in 4.9.1
     target_values = {"eck-operator": {"enabled": True, "image": {"tag": "3.5.0", "digest": "sha256:" + "b" * 64}}}
 
     resolved = libcomponentdocschanges.resolve_component_own_version_change(
@@ -565,16 +508,7 @@ def test_resolve_component_own_version_change_eck_operator_now_reads_unchanged(
 
 
 def test_add_missing_component_rows_skips_own_unchanged_component(libcomponentdocschanges: ModuleType, tmp_path: Path):
-    """Regression test: zac's subtree gains a brand-new sidecar of its
-    own (not modeled here directly — actual_changed_keys already
-    contains "zac" for whatever reason, matching what compute_changed_
-    components would report), but zac's OWN chart+app are both
-    unchanged — no row/section should be added for zac itself; that
-    sidecar already gets its own separate row via add_missing_sidecar_
-    rows. Real case: zac gaining opentelemetry-collector-contrib,
-    openbao gaining three brand-new sidecars — neither's own version
-    moved, so a redundant "(unchanged)" row for the owner was pure
-    noise."""
+    """A changed key whose owner's chart and app are unchanged gets no owner row; sidecars get their own."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
     text = (
@@ -616,10 +550,7 @@ def test_add_missing_component_rows_still_adds_a_real_bump(libcomponentdocschang
 
 
 def test_insert_changes_section_strips_bare_todo_stub_on_first_insertion(libcomponentdocschanges: ModuleType):
-    """Regression test (real bug, real doc): 4.9.1-to-4.9.2-upgrade.md's
-    own "## Changes\n\nTODO\n" — the exact STUB_TEMPLATES["upgrade"] shape
-    create-doc-version scaffolds before any real content exists — never
-    got cleared the moment the FIRST real "### ..." block landed."""
+    """The first real "### ..." block clears the scaffolded "## Changes\n\nTODO\n" stub."""
     text = "## Changes\n\nTODO\n"
     section_text = (
         "### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
@@ -633,9 +564,7 @@ def test_insert_changes_section_strips_bare_todo_stub_on_first_insertion(libcomp
 
 
 def test_insert_changes_section_second_insertion_after_real_block_unaffected(libcomponentdocschanges: ModuleType):
-    """Once a real "### ..." block already exists, `blocks` is non-empty
-    and the stub-stripping path (only reachable when `blocks` is empty)
-    never fires — a second insertion behaves exactly as before this fix."""
+    """With an existing block the stub-stripping path is not reached."""
     text = (
         "## Changes\n\n### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
         "PodiumD 4.9.2 introduces **eck-operator** at app version 3.5.0.\n\n"
@@ -650,9 +579,7 @@ def test_insert_changes_section_second_insertion_after_real_block_unaffected(lib
 
 
 def test_insert_changes_section_never_strips_real_prose_mentioning_todo(libcomponentdocschanges: ModuleType):
-    """A "## Changes" section with real, human-written prose that happens
-    to start with the word "TODO" (but isn't the exact bare-stub shape)
-    must never be silently deleted."""
+    """Real prose starting with "TODO" (not the bare stub) is never deleted."""
     text = "## Changes\n\nTODO: figure out redis sidecar wording later.\n"
     section_text = (
         "### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
@@ -667,10 +594,7 @@ def test_insert_changes_section_never_strips_real_prose_mentioning_todo(libcompo
 def test_insert_changes_section_also_strips_the_top_level_intro_todo_on_first_insertion(
     libcomponentdocschanges: ModuleType,
 ):
-    """Both of upgrade.md's own stub placeholders -- the top-level intro
-    "TODO: describe this hop's changes." AND "## Changes"' own bare
-    "TODO" -- must clear together the moment the FIRST real "### ..."
-    block is inserted, not just the "## Changes" one on its own."""
+    """The first real block clears both the intro TODO and the "## Changes" TODO."""
     text = (
         UPGRADE_DOC_INTRO + "TODO: describe this hop's changes.\n\n"
         "## Component versions (4.9.2 vs 4.9.1)\n\n"
@@ -700,12 +624,7 @@ UPGRADE_DOC_INTRO = (
 def test_strip_stale_upgrade_placeholders_removes_both_leftovers_before_a_real_block(
     libcomponentdocschanges: ModuleType,
 ):
-    """Regression test (real bug, real doc): 4.9.1-to-4.9.2-upgrade.md's
-    own "### eck-operator ..." block was inserted BEFORE insert_changes_
-    section's own insertion-time fix existed, leaving BOTH the top-level
-    intro "TODO: describe this hop's changes." AND "## Changes"' own
-    bare "TODO" stranded beside it forever -- both clear together as ONE
-    event, since both equally mean "this hop has real recorded changes"."""
+    """Both leftover TODOs beside a real block are removed together (docs predating the insertion fix)."""
     text = (
         UPGRADE_DOC_INTRO + "TODO: describe this hop's changes.\n\n"
         "## Component versions (4.9.2 vs 4.9.1)\n\n"
@@ -730,10 +649,7 @@ def test_strip_stale_upgrade_placeholders_removes_both_leftovers_before_a_real_b
 
 
 def test_strip_stale_upgrade_placeholders_leaves_a_still_empty_section_untouched(libcomponentdocschanges: ModuleType):
-    """A "## Changes" section that STILL only has the bare TODO (no real
-    "### ..." block yet) is the correct, expected state for a genuinely
-    new doc -- must never be touched, and neither must the intro TODO
-    sitting right above it."""
+    """A "## Changes" with only the bare TODO (new doc) is left untouched, intro TODO included."""
     text = (
         UPGRADE_DOC_INTRO + "TODO: describe this hop's changes.\n\n"
         "## Component versions (4.9.2 vs 4.9.1)\n\n"
@@ -770,11 +686,7 @@ def test_strip_stale_upgrade_placeholders_noop_without_a_changes_heading(libcomp
 def test_strip_stale_upgrade_placeholders_strips_only_the_changes_todo_when_intro_already_clean(
     libcomponentdocschanges: ModuleType,
 ):
-    """A doc that's already had its own intro TODO cleared by hand (or a
-    previous partial fix) but still has "## Changes"' own bare TODO must
-    still get that one cleared -- the two placeholders are one event
-    only in the sense that they clear TOGETHER when both are present,
-    not that neither can ever be fixed without the other."""
+    """The "## Changes" TODO is still cleared when the intro TODO is already gone."""
     text = (
         UPGRADE_DOC_INTRO + "## Component versions (4.9.2 vs 4.9.1)\n\n"
         "## Changes\n\n"
@@ -813,11 +725,7 @@ def test_insert_values_delta_section_positions_by_values_yaml_order(libcomponent
 
 
 def test_insert_values_delta_section_strips_bare_todo_stub_on_first_insertion(libcomponentdocsdeltas: ModuleType):
-    """Same class of bug as insert_changes_section's own (see that
-    function's tests): a values-deltas.md doc still carrying STUB_
-    TEMPLATES["values-deltas"]'s own bare TODO sentence (create-doc-
-    version's scaffold, before any real "## ..." section exists) must
-    have it cleared the moment the FIRST real section gets inserted."""
+    """The first real section clears the scaffolded values-deltas TODO stub."""
     text = (
         "# Values deltas — PodiumD 4.9.1 → 4.9.2\n\n"
         "TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n"
@@ -836,9 +744,7 @@ def test_insert_values_delta_section_strips_bare_todo_stub_on_first_insertion(li
 
 
 def test_insert_values_delta_section_second_insertion_unaffected(libcomponentdocsdeltas: ModuleType):
-    """Once a real section already exists, `sections` is non-empty and
-    the stub-stripping path never fires — matches insert_changes_
-    section's own equivalent guarantee."""
+    """With an existing section the stub-stripping path is not reached."""
     text = "# Values deltas — PodiumD 4.9.1 → 4.9.2\n\n## openformulieren 3.4.10 → 3.5.6\n\n- Key `a` was added.\n"
     new_text = libcomponentdocsdeltas.insert_values_delta_section(
         text,
@@ -868,10 +774,7 @@ def test_insert_values_delta_section_never_strips_real_prose_mentioning_todo(lib
 
 
 def test_strip_stale_values_deltas_todo_stub_removes_leftover_before_a_real_section(libcomponentdocsdeltas: ModuleType):
-    """Regression test (real bug, real doc): 4.9.1-to-4.9.2-values-deltas.md's
-    own "## eck-operator ..." section was inserted BEFORE insert_values_
-    delta_section's own insertion-time fix existed, leaving the stub
-    TODO sentence stranded beside it forever."""
+    """A leftover stub TODO beside a real section is removed (docs predating the insertion fix)."""
     text = (
         "# Values deltas — PodiumD 4.9.1 → 4.9.2\n\n"
         "TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n\n"
@@ -889,9 +792,7 @@ def test_strip_stale_values_deltas_todo_stub_removes_leftover_before_a_real_sect
 
 
 def test_strip_stale_values_deltas_todo_stub_leaves_a_still_empty_doc_untouched(libcomponentdocsdeltas: ModuleType):
-    """A doc that STILL only has the bare stub (no real section yet) is
-    the correct, expected state for a genuinely new doc -- must never be
-    touched."""
+    """A doc with only the bare stub (new doc) is left untouched."""
     text = (
         "# Values deltas — PodiumD 4.9.1 → 4.9.2\n\n"
         "TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n"
@@ -939,9 +840,7 @@ GEMEENTE_STUB = (
 
 
 def test_has_real_gemeente_specific_content_false_for_the_bare_stub(libcomponentdocsdeltas: ModuleType):
-    """The stub's own EXAMPLE "## <gemeente> (<env>)" heading lives
-    inside its commented-out template block -- must never count as real
-    content on its own."""
+    """The stub's example heading inside its commented-out template is not real content."""
     assert libcomponentdocsdeltas.has_real_gemeente_specific_content(GEMEENTE_STUB) is False
 
 
@@ -951,25 +850,20 @@ def test_has_real_gemeente_specific_content_true_for_a_real_section(libcomponent
 
 
 def test_has_stale_gemeente_specific_placeholder_true_when_both_present(libcomponentdocsdeltas: ModuleType):
-    """Regression case this checker exists for: a human added a real
-    "## <gemeente> (<env>)" finding but left the "_None recorded yet._"
-    placeholder in place above it."""
+    """A real finding with the "_None recorded yet._" placeholder still above it is flagged."""
     text = GEMEENTE_STUB + "\n## Utrecht (prod)\n\n- Some real finding.\n"
     assert libcomponentdocsdeltas.has_stale_gemeente_specific_placeholder(text) is True
 
 
 def test_has_stale_gemeente_specific_placeholder_false_for_the_bare_stub(libcomponentdocsdeltas: ModuleType):
-    """A doc that STILL only has the bare stub (nothing recorded yet) is
-    the correct, expected state -- must never be flagged."""
+    """A doc with only the bare stub is not flagged."""
     assert libcomponentdocsdeltas.has_stale_gemeente_specific_placeholder(GEMEENTE_STUB) is False
 
 
 def test_has_stale_gemeente_specific_placeholder_false_once_placeholder_removed_by_hand(
     libcomponentdocsdeltas: ModuleType,
 ):
-    """Once a human clears the placeholder themselves (the only way it
-    can ever go -- there's no automated fixer for this one), the finding
-    must stop firing."""
+    """Once the placeholder is removed by hand (no automated fixer), the finding stops."""
     text = GEMEENTE_STUB.replace("_None recorded yet._\n\n", "") + "\n## Utrecht (prod)\n\n- Some real finding.\n"
     assert libcomponentdocsdeltas.has_stale_gemeente_specific_placeholder(text) is False
 
@@ -986,19 +880,47 @@ def test_remove_values_delta_section_never_removes_multi_identity_heading(libcom
     never be deleted just because one of them reset to baseline."""
     text = "# Values deltas\n\n## ZAC and ZGW Office Add-in — no changes\n\nProse.\n"
     deps = [*DEPS, {"name": "zgw-office-addin", "version": "0.0.89"}]
-    new_text, removed = libcomponentdocsdeltas.remove_values_delta_section(text, "zac", deps)
-    assert removed is False
-    assert new_text == text
+    assert libcomponentdocsdeltas.remove_values_delta_section(text, "zac", deps) == (text, False, False)
+
+
+def test_remove_values_delta_section_keeps_hand_written_text(libcomponentdocsdeltas: ModuleType):
+    """Only the generated key lines go; the heading and the user's note stay."""
+    text = (
+        "# Values deltas\n\n## zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)\n\n"
+        "- Key `zac.foo` was added.\n\nSet foo per gemeente.\n\n## Other\n\nx\n"
+    )
+    new_text, removed, kept = libcomponentdocsdeltas.remove_values_delta_section(text, "zac", DEPS)
+    assert (removed, kept) == (True, True)
+    assert new_text == (
+        "# Values deltas\n\n## zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)\n\nSet foo per gemeente.\n\n## Other\n\nx\n"
+    )
+
+
+def test_write_values_delta_section_replaces_generated_lines_and_keeps_user_text(libcomponentdocsdeltas: ModuleType):
+    """A later bump rewrites the heading and key lines in place; the user's note is not lost."""
+    text = (
+        "# Values deltas\n\n## zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)\n\n"
+        "- Key `zac.foo` was added.\n\nSet foo per gemeente.\n"
+    )
+    ordering = libcomponentdocsdeltas.ValuesDeltaOrdering(DEPS, {"zac": {}})
+    new_text = libcomponentdocsdeltas.write_values_delta_section(
+        text,
+        "zac",
+        "## zac 5.4.4 → 5.4.6 (chart 1.0.297, unchanged)\n",
+        ["- Key `zac.foo` was added.\n", "- Key `zac.bar` was removed.\n"],
+        ordering,
+    )
+    assert new_text == (
+        "# Values deltas\n\n## zac 5.4.4 → 5.4.6 (chart 1.0.297, unchanged)\n\n"
+        "- Key `zac.foo` was added.\n- Key `zac.bar` was removed.\n\nSet foo per gemeente.\n"
+    )
 
 
 # --- sync_values_delta_sections ---
 
 
 def test_sync_values_delta_sections_skips_key_with_no_schema_change(libcomponentdocsdeltas: ModuleType, tmp_path: Path):
-    """A pure app/chart version bump — no describe_key_changes lines at
-    all — gets no brand-new section: a heading with nothing under it is
-    worse than no heading (values-deltas.md exists for gemeente-
-    actionable schema changes, not a general changelog)."""
+    """A pure version bump (no schema change lines) gets no empty section."""
     text = "# Values deltas\n\nNo gemeente podiumd.yml changes are required for this hop.\n"
     values = {"zac": {"image": {}}}
     new_text, created, updated = libcomponentdocsdeltas.sync_values_delta_sections(
@@ -1065,13 +987,7 @@ def test_prune_empty_values_delta_sections_no_sections_is_unchanged(libcomponent
 def test_images_stub_template_has_a_changes_header(
     libcomponentdocsheader: ModuleType, libcomponentdocsbaselinedocstubs: ModuleType
 ):
-    """A fresh images-manifest stub must include a "# Changes:" anchor
-    line, not just the bare "[]" YAML placeholder — without it, find_
-    images_manifest_changes_header finds nothing, so add_missing_images_
-    manifest_entries (and update_images_manifest) can add new entries to
-    the body but never a matching numbered item above them, silently
-    leaving the "# Changes:" section looking like the literal "[]" it
-    started as (real symptom reported live)."""
+    """The images stub includes a "# Changes:" anchor, so new entries also get numbered items."""
     text = libcomponentdocsbaselinedocstubs.IMAGES_STUB_TEMPLATE.format(upgrade_docs_baseline="4.8.5", target="4.9.0")
     lines = text.splitlines(keepends=True)
     header_idx, header_has_count = libcomponentdocsheader.find_images_manifest_changes_header(lines)

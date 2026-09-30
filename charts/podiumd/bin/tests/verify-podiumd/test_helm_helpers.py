@@ -1,8 +1,5 @@
-"""check_lint, check_render, report_largest_templates,
-report_errors_by_subchart — with `helm`/`git` subprocess calls mocked out
-via vp.run, so these tests need neither tool installed nor network access.
-check_dependencies now lives in lib.dependencies (also used by
-fix-image-digests) — see tests/lib/test_dependencies.py."""
+"""check_lint, check_render, report_largest_templates, report_errors_by_subchart,
+with helm/git subprocess calls mocked via vp.run (no tools or network needed)."""
 
 import json
 
@@ -21,13 +18,7 @@ def fake_run(returncode=0, stdout="", stderr=""):
 
 
 def fake_render_chart(returncode=0, stdout="", stderr=""):
-    """check_render now gets its render via lib.render_scope.render_chart
-    (chart_dir, extra_args) -> result, not a direct run([...]) call of its
-    own — mock that shared function itself (vp's own binding, since
-    check_render lives in verify-podiumd and resolves the bare name
-    "render_chart" via vp's own globals at call time) rather than
-    re-testing render_chart's own caching/subprocess behavior here, which
-    already has its own dedicated tests."""
+    """Mock vp's own render_chart binding; render_chart's caching is tested separately."""
 
     def _render_chart(chart_dir, extra_args):
         return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
@@ -111,8 +102,7 @@ def test_check_render_zero_manifests_fails(vp: ModuleType, tmp_path: Path, monke
     assert "0 manifests" in detail
 
 
-# --- report_largest_templates / report_errors_by_subchart (just check
-# they don't crash and print something sensible) ---
+# --- report_largest_templates / report_errors_by_subchart (smoke tests) ---
 
 
 def test_report_largest_templates_output(vp: ModuleType, capsys: pytest.CaptureFixture[str]):
@@ -136,9 +126,7 @@ def test_report_errors_by_subchart_groups_by_chart(vp: ModuleType, capsys: pytes
 
 
 # --- build_resource_locations / resource_line ---
-# shared by check_kubeconform/check_kube_score/check_shellcheck to attach a
-# "(rendered line N)" debugging hint to a finding — none of those three
-# tools reports a line number of its own.
+# Adds a "(rendered line N)" hint for tools that report no line number.
 
 
 def test_build_resource_locations_maps_kind_name_to_start_line(librenderscope: ModuleType):
@@ -196,9 +184,8 @@ def test_resource_line_falls_back_to_kind_name_when_unique(librenderscope: Modul
 
 
 def test_resource_line_none_when_ambiguous_across_namespaces(librenderscope: ModuleType):
-    """Without a namespace to disambiguate (kubeconform's JSON has none),
-    the same kind+name rendering into two different namespaces must not
-    guess — a wrong line is worse than no hint at all."""
+    """Without a namespace, kind+name in two namespaces must not guess: a wrong line is
+    worse than no hint."""
     locations = {("Service", "ns-a", "foo"): 3, ("Service", "ns-b", "foo"): 9}
     assert librenderscope.resource_line(locations, "Service", "foo") is None
 
@@ -209,19 +196,13 @@ def test_resource_line_none_when_not_found(librenderscope: ModuleType):
 
 
 # --- render_chart ---
-# render_chart lives in lib.render_scope and calls its OWN `run` binding —
-# same reason every other librenderscope test above uses librenderscope,
-# not vp, as the monkeypatch target.
+# render_chart calls lib.render_scope's own `run`, so patch librenderscope, not vp.
 
 
 @pytest.fixture(autouse=True)
 def _clear_render_cache(librenderscope: ModuleType):
-    """render_chart's own in-process memoization (see its own docstring)
-    lives in a module-level dict, and librenderscope is a session-scoped
-    fixture — without this, one test's cached render could silently leak
-    into another's assertions. Harmless for every OTHER test in this
-    file (none of them touch render_chart), so applied file-wide rather
-    than only to the tests below."""
+    """Clear render_chart's module-level cache so cached renders don't leak between tests
+    (librenderscope is session-scoped)."""
     librenderscope._render_cache.clear()
     yield
     librenderscope._render_cache.clear()
@@ -268,9 +249,7 @@ def test_render_chart_propagates_failure(librenderscope: ModuleType, tmp_path: P
 def test_render_chart_caches_repeat_calls_with_identical_args(
     librenderscope: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Same (chart_dir, extra_args) twice must invoke the underlying
-    subprocess exactly once — the second call is served from the cache,
-    not a second real `helm template` invocation."""
+    """Identical (chart_dir, extra_args) must run the subprocess only once."""
     calls = []
 
     def _run(cmd, **kwargs):
@@ -289,9 +268,7 @@ def test_render_chart_caches_repeat_calls_with_identical_args(
 def test_render_chart_caches_a_failure_too_not_just_success(
     librenderscope: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """A genuine failure must also be memoized -- calling again with the
-    identical args would deterministically fail the same way within one
-    process run, so there's no reason to re-attempt."""
+    """Failures are memoized too: a retry within one run would fail identically."""
     calls = []
 
     def _run(cmd, **kwargs):
@@ -311,9 +288,7 @@ def test_render_chart_caches_a_failure_too_not_just_success(
 def test_render_chart_different_extra_args_is_a_distinct_cache_entry(
     librenderscope: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """A different extra_args value (still a list, per every real caller's
-    own shape -- never required to be a tuple) must NOT reuse another
-    call's cached result, even for the same chart_dir."""
+    """Different extra_args must not reuse another call's cached result."""
     calls = []
 
     def _run(cmd, **kwargs):
@@ -328,21 +303,14 @@ def test_render_chart_different_extra_args_is_a_distinct_cache_entry(
     assert len(calls) == 2
     assert first.stdout != second.stdout
 
-    # and each one's OWN repeat is still served from its own cache entry
+    # each one's repeat is still served from its own cache entry
     librenderscope.render_chart(tmp_path, [])
     librenderscope.render_chart(tmp_path, ["-f", "values.yaml"])
     assert len(calls) == 2
 
 
 # --- render consolidation cross-check ---
-#
-# All 7 checks that used to make their own independent `helm template`
-# call (check_render itself plus check_yamllint/check_kubeconform/
-# check_shellcheck/check_kube_score/check_image_upgrades/check_cves) now
-# go through the shared, cached render_chart. This is the end-to-end
-# proof: calling several of them back to back (as e.g. --include=
-# full-render,yamllint,kubeconform would) makes exactly ONE real `helm
-# template` subprocess call, not one per check.
+# Checks sharing render_chart back to back must make exactly one `helm template` call.
 
 
 def test_render_consolidation_one_real_render_across_three_checks(
@@ -378,12 +346,10 @@ def test_render_consolidation_one_real_render_across_three_checks(
 
     assert (ok1, ok2, ok3) == (True, True, True)
     render_calls = [c for c in calls if c[:2] == ["helm", "template"]]
-    assert len(render_calls) == 1  # one real render shared by all three, not three
+    assert len(render_calls) == 1
 
 
-# --- lint_args_for (moved from verify-podiumd — see also
-# tests/verify-podiumd/test_misc.py, which covers the vp.lint_args_for
-# re-export used by main()) ---
+# --- lint_args_for (vp.lint_args_for re-export: see test_misc.py) ---
 
 
 def test_lint_args_for_lives_in_render_scope(librenderscope: ModuleType, tmp_path: Path):

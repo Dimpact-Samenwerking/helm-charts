@@ -1,9 +1,6 @@
-"""check_image_upgrades — report-only check for whether a newer same-variant
-tag is published for every unique digest-pinned image, split into own/
-partner-vendor/other-vendor buckets (same classification as check_cves,
-reused directly from lib.checks.cve). No real helm/registry invocation
-happens in these tests — `run` and `find_newest_same_variant_tag` are
-mocked throughout."""
+"""check_image_upgrades: report-only check for a newer same-variant tag per
+digest-pinned image, split into own/partner-vendor/other-vendor buckets.
+`run` and `find_newest_same_variant_tag` are mocked."""
 
 from datetime import datetime
 from datetime import timedelta
@@ -93,10 +90,8 @@ def make_chart_dir(tmp_path: Path, values=VALUES_YAML, chart_yaml=CHART_YAML):
 
 
 def template_run(rendered=RENDERED, returncode=0):
-    """The actual helm template render — check_image_upgrades gets this via
-    lib.render_scope.render_chart(chart_dir, extra_args), not a `run` call
-    of its own; every per-image lookup goes through
-    find_newest_same_variant_tag, not a render at all."""
+    """Fake render_chart output; per-image lookups go through
+    find_newest_same_variant_tag."""
 
     def render_chart(chart_dir, extra_args):
         return SimpleNamespace(returncode=returncode, stdout=rendered, stderr="")
@@ -383,9 +378,8 @@ def test_check_image_upgrades_heuristic_fallback_for_disabled_component(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """A pin whose component isn't in the render at all (e.g. disabled in
-    the CI values) falls back to the values-key heuristic: not a
-    Chart.yaml dependency -> own."""
+    """A component absent from the render (e.g. disabled in CI values) falls
+    back to the values-key heuristic: not a Chart.yaml dependency -> own."""
     values = VALUES_YAML + (f'apiproxy:\n  image:\n    repository: org/apiproxy\n    tag: "1.0.0@sha256:{"d" * 64}"\n')
     chart_dir = make_chart_dir(tmp_path, values=values)
     monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())

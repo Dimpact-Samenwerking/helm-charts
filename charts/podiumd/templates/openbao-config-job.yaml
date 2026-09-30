@@ -132,7 +132,7 @@ spec:
               # PRESENT but revoked/expired token must fail loudly, not half-run.
               if ! bao token lookup >/dev/null 2>&1; then
                 echo "ERROR: BAO_TOKEN from Secret/{{ $cfg.bootstrapTokenSecret }} is invalid (revoked or expired)."
-                echo "Re-mint the scoped config token: scripts/openbao-mint-config-token.sh (component doc, section 5)."
+                echo "Re-mint the scoped config token: scripts/openbao-mint-config-token.sh (docs/apps/frankgateway/frankgateway-openbao.md, section 5)."
                 exit 1
               fi
               # Keep the periodic config token alive between deploys; harmless

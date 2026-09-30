@@ -4,17 +4,18 @@ List the images and sub-chart dependencies of one podiumd dependency
 chart at a given version.
 
 Pulls the chart (a file:// dependency is read from its source directory).
-Each image prints as "<key> <basename> <version>  (path: ...)", the
+Each image prints as "<key> <image-basename> <image-version>", the
 argument order update-image-version and verify-image-version take,
-followed by an indented "<repo>:<tag>" line.
+followed by indented "<repo>:<tag>" and "(path: <values path>)" lines.
 
 Usage:
-    list-helmchart-images <chart-name-or-alias> <chart-version>
+    list-helmchart-images <component> <chart-version>
 
 Arguments:
-    <chart-name-or-alias>   Chart.yaml dependency name or alias
-    <chart-version>         chart version to inspect (for a file://
-                            dependency only checked against the source)
+    <component>       Chart.yaml dependency name or alias; not a native
+                      component, which has no chart
+    <chart-version>   Helm chart version; for a file:// dependency only
+                      checked against its source
 
 Examples:
     list-helmchart-images zac 1.0.297
@@ -33,8 +34,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-# Not installed as a package -- sys.path must be patched before
-# lib.* can be imported, so these imports can't move to the top.
+# sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
 from lib.chart.chart_yaml import chart_dependencies
 from lib.chart.chart_yaml import load_chart_dependencies
@@ -57,10 +57,7 @@ from lib.yaml_types import load_yaml_mapping
 
 
 def find_dependency(name_or_alias: str):
-    """Looks up `name_or_alias` among podiumd's own Chart.yaml dependencies
-    (matching either the dependency's name or its alias) and raises
-    SystemExit with a clear error if there's no match — this script only
-    ever operates on a dependency podiumd itself declares."""
+    """Chart.yaml dependency by name or alias; SystemExit if none."""
     deps = load_chart_dependencies(CHART_YAML)
     dep = _find_dependency(deps, name_or_alias)
     if dep is None:
@@ -70,10 +67,7 @@ def find_dependency(name_or_alias: str):
 
 
 def _print_image_references(values_yaml: YamlMapping, key: str):
-    """Prints every image reference in `values_yaml` — each as the "<key>
-    <basename> <version>  (path: ...)" line plus an indented "<repo>:<tag>"
-    line (see module docstring for why that shape matters), column-aligned
-    across all entries by basename/version width."""
+    """Print each image as the module docstring describes, column-aligned."""
     images = find_images(values_yaml)
     if not images:
         print("\nNo image references found in values.yaml")
@@ -83,19 +77,14 @@ def _print_image_references(values_yaml: YamlMapping, key: str):
     entries = [(key, image_basename(repo), version_of(tag), repo, tag, path) for path, repo, tag in images]
     entries.sort(key=lambda e: e[5])
     bwidth = max(len(e[1]) for e in entries)
-    vwidth = max(len(e[2]) for e in entries)
     for key_, basename, version, repo, tag, path in entries:
-        print(f"  {key_}  {basename.ljust(bwidth)}  {version.ljust(vwidth)}  (path: {path})")
+        print(f"  {key_}  {basename.ljust(bwidth)}  {version}")
         print(f"      {repo}:{tag}")
+        print(f"      (path: {path})")
 
 
 def report_chart(chart_dir: Path, requested_version: str, key: str):
-    """Prints `chart_dir`'s Chart.yaml/values.yaml contents: chart name,
-    version and appVersion, its own sub-chart dependencies, and every image
-    reference found in values.yaml (see _print_image_references). Warns to
-    stderr, but doesn't fail, if `chart_dir`'s actual version differs from
-    `requested_version` (e.g. a local "file://" dependency, which only
-    ever has one real version)."""
+    """Print chart name/versions, sub-chart dependencies and images; notes a version mismatch on stderr."""
     chart_yaml = load_chart_yaml(chart_dir / "Chart.yaml")
     values_yaml = load_yaml_mapping(chart_dir / "values.yaml")
 
@@ -118,11 +107,7 @@ def report_chart(chart_dir: Path, requested_version: str, key: str):
 
 
 def main():
-    """CLI entry point: resolves <chart-name-or-alias> to a podiumd
-    dependency, then either reads its source straight from a local
-    "file://" path or `helm pull`s <chart-version> into a scratch tempdir
-    (always cleaned up), and reports its images and sub-chart dependencies
-    via report_chart."""
+    """CLI entry point."""
     name_or_alias, version = positional_args(__doc__, 2)
     dep = find_dependency(name_or_alias)
     key = values_key_of(dep)

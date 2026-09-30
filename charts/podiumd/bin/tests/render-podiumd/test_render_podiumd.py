@@ -1,10 +1,4 @@
-"""render-podiumd: renders the podiumd chart to a file of the caller's
-choice via lib.render_scope.render_chart/lint_args_for — the same helpers
-verify-podiumd's own checks use, so this stays DRY with them rather than
-re-implementing the `helm template` invocation. helm/render_chart are
-mocked out via rp.render_chart directly (same level test_misc.py's
---skip=/--include= tests mock vp.check_X at) — no real helm invocation
-happens in these tests."""
+"""render-podiumd main(), with rp.render_chart mocked (no real helm)."""
 
 from pathlib import Path
 from types import ModuleType
@@ -41,9 +35,7 @@ def test_help_flag_prints_docstring_and_exits_0(
 def test_no_args_writes_to_default_output(
     rp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """No output-file at all must fall back to DEFAULT_OUTPUT
-    (charts/podiumd/rendered-helm.yaml) rather than erroring — this is
-    now the common "just render it" case."""
+    """No output-file falls back to DEFAULT_OUTPUT rather than erroring."""
     default_output = tmp_path / "rendered-helm.yaml"
     monkeypatch.setattr(rp, "DEFAULT_OUTPUT", default_output)
     monkeypatch.setattr(rp.sys, "argv", ["render-podiumd"])
@@ -81,10 +73,8 @@ def test_no_extra_args_uses_lint_args_for_default(rp: ModuleType, tmp_path: Path
 def test_no_extra_args_announces_default_ci_values(
     rp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """A schema/render failure from a custom-args run (see the override test
-    below) must never be mistaken for the standard verify-podiumd check
-    failing — this printed line is what tells the two apart, so it must
-    always say which basis was actually used before rendering."""
+    """The printed basis line tells a custom-args failure apart from the
+    standard verify-podiumd check failing."""
     output_path = tmp_path / "out.yaml"
     monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", str(output_path)])
     monkeypatch.setattr(rp, "lint_args_for", lambda chart_dir: ["-f", "ci/lint-values.yaml"])
@@ -289,11 +279,8 @@ def test_stdout_flag_failure_puts_everything_on_stderr_and_writes_nothing(
 def test_stale_vendored_dependencies_re_vendored_before_rendering(
     rp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Chart.yaml wants kiss-chart 3.1.1 but charts/ still has 3.0.0: the
-    guard must re-vendor it BEFORE render_chart runs (which would
-    otherwise fail on an unrelated-looking kiss-chart schema error), so
-    the render sees an in-sync state. helm stubbed: `helm pull` writes the
-    .tgz into --destination, every other call just succeeds."""
+    """A stale vendored kiss-chart is re-vendored before render_chart, which
+    would otherwise fail on a confusing schema error. helm is stubbed."""
     (tmp_path / "Chart.yaml").write_text(
         "dependencies:\n  - name: kiss-chart\n    version: 3.1.1\n    repository: oci://ghcr.io/kiss\n",
         encoding="utf-8",
@@ -328,3 +315,34 @@ def test_stale_vendored_dependencies_re_vendored_before_rendering(
 
     assert rendered == [[]]
     assert sorted(path.name for path in (tmp_path / "charts").iterdir()) == ["kiss-chart-3.1.1.tgz"]
+
+
+def test_missing_output_directory_exits_before_rendering(
+    rp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", str(tmp_path / "missing" / "out.yaml")])
+
+    def fail_if_called(chart_dir, extra_args):
+        msg = "must not render"
+        raise AssertionError(msg)
+
+    monkeypatch.setattr(rp, "render_chart", fail_if_called)
+    with pytest.raises(SystemExit, match="does not exist"):
+        rp.main()
+
+
+def test_leading_helm_flag_is_not_taken_as_output_file(rp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    default_output = tmp_path / "rendered-helm.yaml"
+    monkeypatch.setattr(rp, "DEFAULT_OUTPUT", default_output)
+    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", "-f", "my.yaml"])
+    captured = {}
+
+    def fake_render(chart_dir, extra_args):
+        captured["extra_args"] = extra_args
+        return SimpleNamespace(returncode=0, stdout="---\n# Source: a.yaml\nkind: Foo\n", stderr="")
+
+    monkeypatch.setattr(rp, "render_chart", fake_render)
+    rp.main()
+    assert captured["extra_args"] == ["-f", "my.yaml"]
+    assert default_output.is_file()
+    assert not Path("-f").exists()

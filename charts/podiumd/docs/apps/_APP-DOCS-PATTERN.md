@@ -18,6 +18,9 @@ existing one. (Folder-level layout of `docs/` itself: see
   `docs/apps/<app>/`.
 - Superseded components keep their folder; add a short banner at the top of
   each file pointing to the successor (see `apisix/` → `frankgateway/`).
+- A component that only exists to serve another may be documented in that
+  other component's folder. Its own folder then keeps a placeholder
+  `<app>-BASICS.md` that points there (see `openbao/` → `frankgateway/`).
 
 ## BASICS file skeleton (mandatory headings, this order)
 

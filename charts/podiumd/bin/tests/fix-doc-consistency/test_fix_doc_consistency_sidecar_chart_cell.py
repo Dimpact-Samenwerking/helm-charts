@@ -15,8 +15,7 @@ def redis_values(tag: str) -> YamlMapping:
 
 
 def test_fix_component_version_table_sets_a_sidecar_rows_chart_cell_to_dash() -> None:
-    """A chart version in a sidecar row (written by an older
-    update-image-version) becomes "-"."""
+    """A chart version in a sidecar row becomes "-"."""
     text = (
         "## Component versions (4.9.0 vs 4.8.5)\n\n"
         "| Component | App version | Helm chart | Notes |\n"

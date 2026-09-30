@@ -1,5 +1,4 @@
-"""die, require_helm, resolve_chart_dir, lint_args_for, print_summary — the
-small orchestration helpers not covered elsewhere."""
+"""Orchestration helpers (die, require_helm, lint_args_for, print_summary, ...) and main() step selection."""
 
 from pathlib import Path
 from types import ModuleType
@@ -67,8 +66,7 @@ def test_print_summary_reports_failure(vp: ModuleType, capsys: pytest.CaptureFix
 
 
 def test_print_summary_reports_skip(vp: ModuleType, capsys: pytest.CaptureFixture[str]):
-    """A step recorded with ok=None (skipped via --skip=) renders as
-    SKIP, not PASS or FAIL, and does not read as a failure."""
+    """ok=None (skipped via --skip=) renders as SKIP and is not a failure."""
     results = [("Lint", None, "skipped"), ("Full render", True, "257 manifests")]
     vp.print_summary(results, overall_ok=True)
     out = capsys.readouterr().out
@@ -80,9 +78,7 @@ def test_print_summary_reports_skip(vp: ModuleType, capsys: pytest.CaptureFixtur
 
 
 def test_skippable_steps_names_match_main_run_steps(vp: ModuleType):
-    """Every (flag, step name) pair in SKIPPABLE_STEPS must name a step that
-    _run_all_steps (main()'s own step pipeline, see its docstring) actually
-    runs — a typo here would silently make a --skip= entry do nothing."""
+    """Every SKIPPABLE_STEPS name must be a step _run_all_steps runs; a typo makes --skip= a no-op."""
     import inspect
     import re
 
@@ -94,12 +90,7 @@ def test_skippable_steps_names_match_main_run_steps(vp: ModuleType):
 
 
 def test_skippable_steps_order_matches_main_run_order(vp: ModuleType):
-    """SKIPPABLE_STEPS documents itself as being "in the order they run"
-    (drives --help's listing) — a step listed out of its actual position
-    silently misdocuments --help without failing the membership check
-    above (this caught "Dependencies" having drifted to position 2 in the
-    list while actually running much later, right before "Image
-    digests")."""
+    """SKIPPABLE_STEPS must be in run order, since it drives the --help listing."""
     import inspect
     import re
 
@@ -121,9 +112,7 @@ def test_skippable_steps_flags_are_unique_and_kebab_case(vp: ModuleType):
 
 
 def test_steps_help_lists_every_step_flag_and_title(vp: ModuleType):
-    """--help must actually tell you which step names --skip=/--include=
-    accept — a prior version buried that list only inside the (wrapped,
-    easy-to-miss) --skip/--include option help text."""
+    """--help lists the step names --skip=/--include= accept."""
     for flag, step_name in vp.SKIPPABLE_STEPS:
         assert flag in vp.STEPS_HELP
         assert step_name in vp.STEPS_HELP
@@ -147,9 +136,7 @@ def test_steps_help_is_in_argparse_epilog(
 def test_main_skips_requested_steps_and_runs_the_rest(
     vp: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """--skip=helm-lint,full-render must skip exactly those two steps
-    (never calling their check functions) while every other step still runs
-    normally, and the run still exits 0."""
+    """--skip=helm-lint,full-render skips exactly those steps; the rest run and exit is 0."""
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--skip=helm-lint,full-render"])
     monkeypatch.setattr(vp, "require_helm", lambda: None)
     monkeypatch.setattr(vp, "resolve_chart_dir", lambda: Path("/fake/chart/dir"))
@@ -189,6 +176,8 @@ def test_main_skips_requested_steps_and_runs_the_rest(
     monkeypatch.setattr(vp, "check_shellcheck", make_check("shellcheck"))
     monkeypatch.setattr(vp, "check_kube_score", make_check("kube-score"))
     monkeypatch.setattr(vp, "check_release_secret_size", make_check("release-secret-size"))
+    monkeypatch.setattr(vp, "check_chart_upgrades", make_check("chart-upgrades"))
+    monkeypatch.setattr(vp, "check_root_containers", make_check("root-containers"))
     monkeypatch.setattr(vp, "check_image_upgrades", make_check("image-upgrades"))
     monkeypatch.setattr(vp, "check_cves", make_check("cves"))
     monkeypatch.setattr(vp, "check_cve_diff", make_check("cve-diff"))
@@ -227,6 +216,8 @@ def test_main_skips_requested_steps_and_runs_the_rest(
         "shellcheck",
         "kube-score",
         "release-secret-size",
+        "chart-upgrades",
+        "root-containers",
         "image-upgrades",
         "cves",
         "cve-diff",
@@ -238,11 +229,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(
 
 
 def test_main_skipped_step_does_not_count_as_failure(vp: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    """A step failing must not stop the run — every other non-blocked step
-    still runs (see test_main_continues_past_a_failed_step for that part
-    in detail) — but the whole run must still exit non-zero: a later step
-    running fine must never mask an earlier real failure, same as a
-    --skip=d step must never mask one either."""
+    """A failed step makes the run exit non-zero even if later steps pass."""
     monkeypatch.setattr(
         vp.sys, "argv", ["verify-podiumd", "--skip=dependencies,image-digests,doc-consistency,helm-lint,full-render"]
     )
@@ -276,6 +263,8 @@ def test_main_skipped_step_does_not_count_as_failure(vp: ModuleType, monkeypatch
         "check_shellcheck",
         "check_kube_score",
         "check_release_secret_size",
+        "check_chart_upgrades",
+        "check_root_containers",
         "check_image_upgrades",
         "check_cves",
         "check_cve_diff",
@@ -290,10 +279,7 @@ def test_main_skipped_step_does_not_count_as_failure(vp: ModuleType, monkeypatch
 def test_main_continues_past_a_failed_step(
     vp: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """The actual behavior this session's change is about: a failing step
-    must not stop the run. Every OTHER step (that isn't itself blocked by
-    the failure via STEP_PREREQUISITES) still runs and gets its own real
-    result in the summary — not silently skipped, not aborted."""
+    """A failing step doesn't abort the run; every step not blocked via STEP_PREREQUISITES still runs."""
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd"])
     monkeypatch.setattr(vp, "require_helm", lambda: None)
     monkeypatch.setattr(vp, "resolve_chart_dir", lambda: Path("/fake/chart/dir"))
@@ -335,6 +321,8 @@ def test_main_continues_past_a_failed_step(
     monkeypatch.setattr(vp, "check_shellcheck", make_check("shellcheck"))
     monkeypatch.setattr(vp, "check_kube_score", make_check("kube-score"))
     monkeypatch.setattr(vp, "check_release_secret_size", make_check("release-secret-size"))
+    monkeypatch.setattr(vp, "check_chart_upgrades", make_check("chart-upgrades"))
+    monkeypatch.setattr(vp, "check_root_containers", make_check("root-containers"))
     monkeypatch.setattr(vp, "check_image_upgrades", make_check("image-upgrades"))
     monkeypatch.setattr(vp, "check_cves", make_check("cves"))
     monkeypatch.setattr(vp, "check_cve_diff", make_check("cve-diff"))
@@ -343,8 +331,7 @@ def test_main_continues_past_a_failed_step(
         vp.main()
     assert exc_info.value.code == 1
 
-    # "UTF-8 format" fails first, but every other step still actually ran —
-    # none of them are in "UTF-8 format"'s own STEP_PREREQUISITES chain.
+    # None of these depend on "UTF-8 format" via STEP_PREREQUISITES.
     assert ran == [
         "utf8",
         "dupe",
@@ -372,6 +359,8 @@ def test_main_continues_past_a_failed_step(
         "shellcheck",
         "kube-score",
         "release-secret-size",
+        "chart-upgrades",
+        "root-containers",
         "image-upgrades",
         "cves",
         "cve-diff",
@@ -384,13 +373,7 @@ def test_main_continues_past_a_failed_step(
 def test_main_skips_dependents_of_a_failed_prerequisite(
     vp: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """ "Dependencies" failing must skip every step whose STEP_PREREQUISITES
-    chain includes it (render-based checks, image digests, subchart image
-    visibility, image repository, doc consistency, ...) rather than
-    attempting them against charts/*.tgz that never got populated — a
-    second, less informative failure about the exact same root cause.
-    Steps with no such dependency (the cheap local/content checks) still
-    run normally."""
+    """A failed "Dependencies" skips its dependents (avoids noisy follow-on failures); others still run."""
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd"])
     monkeypatch.setattr(vp, "require_helm", lambda: None)
     monkeypatch.setattr(vp, "resolve_chart_dir", lambda: Path("/fake/chart/dir"))
@@ -414,6 +397,7 @@ def test_main_skips_dependents_of_a_failed_prerequisite(
         "check_helm_docs",
         "check_markdown",
         "check_repo_access",
+        "check_chart_upgrades",
     ):
         monkeypatch.setattr(vp, name, ok)
 
@@ -435,6 +419,7 @@ def test_main_skips_dependents_of_a_failed_prerequisite(
         "check_shellcheck",
         "check_kube_score",
         "check_release_secret_size",
+        "check_root_containers",
         "check_image_upgrades",
         "check_cves",
         "check_cve_diff",
@@ -460,34 +445,22 @@ def test_prerequisites_for_render_based_check_needs_dependencies(vp: ModuleType)
 
 
 def test_prerequisites_for_image_digests_needs_dependencies(vp: ModuleType):
-    """charts/*.tgz is gitignored — on a fresh checkout it doesn't exist at
-    all until "Dependencies" has populated it, which the subchart-default
-    repository fallback (lib.chart.subchart_default_repository) reads
-    from directly."""
+    """charts/*.tgz is gitignored; the subchart-default repository fallback needs it populated."""
     assert vp.prerequisites_for("Image digests") == {"Dependencies", "Repo access"}
 
 
 def test_prerequisites_for_doc_consistency_needs_dependencies(vp: ModuleType):
-    """The images manifest's entry-by-entry checks resolve a sidecar/
-    primary image that's only ever set inside a vendored dependency's own
-    values.yaml (e.g. zac's gotenberg/opa, kiss-eck's elasticsearch/
-    kibana) via the same vendored-.tgz-only lookup Image digests uses —
-    without this, such an entry silently reads as "not found in Chart.yaml
-    or values.yaml" instead of surfacing the real Dependencies failure."""
+    """Images set only in vendored subchart values (e.g. zac's gotenberg) need the .tgz populated."""
     assert vp.prerequisites_for("Doc consistency") == {"Dependencies", "Repo access"}
 
 
 def test_prerequisites_for_cve_scan_needs_image_upgrades_too(vp: ModuleType):
-    """CVE scan reads Image upgrades' own cache to mark a finding
-    "upgradable to X" — a bare --include=cve-scan must still populate
-    that cache fresh, not just a full run."""
+    """CVE scan reads the Image upgrades cache for "upgradable to X"."""
     assert vp.prerequisites_for("CVE scan") == {"Dependencies", "Image upgrades", "Repo access"}
 
 
 def test_prerequisites_for_dependencies_needs_repo_access(vp: ModuleType):
-    """Not a functional data dependency like the others — just so a bare
-    --include=dependencies still gets the fast fail lib.repo_access exists
-    for, instead of only ever seeing it as part of a full run."""
+    """Not a data dependency: gives a bare --include=dependencies the repo-access fast fail."""
     assert vp.prerequisites_for("Dependencies") == {"Repo access"}
 
 
@@ -501,8 +474,7 @@ def test_prerequisites_for_standalone_check_has_none(vp: ModuleType):
 
 
 def _stub_all_checks(vp: ModuleType, monkeypatch: pytest.MonkeyPatch, ran):
-    """Same stub set test_main_skips_requested_steps_and_runs_the_rest uses
-    — shared here so --include= tests don't have to repeat it."""
+    """Stub every step check for the --include= tests."""
 
     def make_check(name):
         def check(*args, **kwargs):
@@ -540,6 +512,8 @@ def _stub_all_checks(vp: ModuleType, monkeypatch: pytest.MonkeyPatch, ran):
     monkeypatch.setattr(vp, "check_shellcheck", make_check("shellcheck"))
     monkeypatch.setattr(vp, "check_kube_score", make_check("kube-score"))
     monkeypatch.setattr(vp, "check_release_secret_size", make_check("release-secret-size"))
+    monkeypatch.setattr(vp, "check_chart_upgrades", make_check("chart-upgrades"))
+    monkeypatch.setattr(vp, "check_root_containers", make_check("root-containers"))
     monkeypatch.setattr(vp, "check_image_upgrades", make_check("image-upgrades"))
     monkeypatch.setattr(vp, "check_cves", make_check("cves"))
     monkeypatch.setattr(vp, "check_cve_diff", make_check("cve-diff"))
@@ -548,9 +522,7 @@ def _stub_all_checks(vp: ModuleType, monkeypatch: pytest.MonkeyPatch, ran):
 def test_include_flag_runs_target_plus_its_prerequisite(
     vp: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """--include=kube-score must also run "Dependencies" (kube-score's own
-    `helm template` call would otherwise fail on unresolved sub-charts) —
-    but nothing else."""
+    """--include=kube-score also runs "Dependencies" (its helm template needs sub-charts), nothing else."""
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--include=kube-score"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
@@ -568,9 +540,7 @@ def test_include_flag_runs_target_plus_its_prerequisite(
 def test_include_flag_image_digests_runs_target_plus_dependencies(
     vp: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """--include=image-digests must also run "Dependencies" first, so the
-    subchart-default repository fallback sees a freshly-vendored charts/
-    rather than whatever (if anything) happened to be on disk already."""
+    """--include=image-digests runs "Dependencies" first so the subchart fallback sees fresh charts/."""
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--include=image-digests"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
@@ -583,8 +553,7 @@ def test_include_flag_image_digests_runs_target_plus_dependencies(
 def test_include_flag_standalone_step_runs_without_dependencies(
     vp: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """A step with no prerequisite (see prerequisites_for) must run alone —
-    --include=image-references must NOT also run "Dependencies"."""
+    """A step without prerequisites runs alone: no "Dependencies" for --include=image-references."""
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--include=image-references"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
@@ -609,10 +578,7 @@ def test_include_and_skip_together_errors(
 def test_multiple_include_flags_run_the_union_plus_each_ones_prerequisites(
     vp: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """Unlike the old one-flag-per-step --only-<step>, multiple steps in one --include= combine
-    — each named step runs, plus whatever prerequisite(s) any of them need
-    (deduplicated, so "Dependencies" only runs once for two render-based
-    steps), and everything else still shows as SKIP."""
+    """Multiple --include= steps combine with deduplicated prerequisites; everything else is SKIP."""
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--include=kube-score,shellcheck"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
@@ -629,8 +595,7 @@ def test_multiple_include_flags_run_the_union_plus_each_ones_prerequisites(
 def test_multiple_include_flags_each_standalone_step_included_independently(
     vp: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
-    """Two steps in one --include= with no prerequisite between them (neither
-    needs "Dependencies") must both run, with no unrelated step pulled in."""
+    """Two prerequisite-free --include= steps both run, pulling in nothing else."""
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--include=image-references,node-selector"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
@@ -640,16 +605,13 @@ def test_multiple_include_flags_each_standalone_step_included_independently(
     assert ran == ["image-refs", "node-selector"]
 
 
-# --- CVE scan joined the same --skip=/--include= family as every other step ---
+# --- CVE scan selection via --skip=/--include= ---
 
 
 def test_check_cves_no_longer_has_its_own_flag(
     vp: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """CVE scan used to be gated by a bespoke --check-cves opt-in flag,
-    disconnected from --skip=/--include=. It's now just another entry in
-    SKIPPABLE_STEPS (selectable via --skip=cve-scan/--include=cve-scan), so that
-    separate flag must be gone — argparse rejects it as unrecognized."""
+    """--check-cves is not an option; CVE scan is selected via --skip=/--include=."""
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--check-cves"])
     with pytest.raises(SystemExit) as exc_info:
         vp.main()
@@ -658,8 +620,7 @@ def test_check_cves_no_longer_has_its_own_flag(
 
 
 def test_cve_scan_runs_by_default(vp: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    """Unlike its old opt-in self, "CVE scan" now runs by default like every
-    other step — no flag needed to make it run."""
+    """CVE scan runs by default."""
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
@@ -682,9 +643,7 @@ def test_skip_cve_scan_skips_it(vp: ModuleType, monkeypatch: pytest.MonkeyPatch,
 
 
 def test_include_cve_scan_runs_it_plus_dependencies_and_image_upgrades(vp: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    """CVE scan reads Image upgrades' own cache (see lib.checks.cve), so a
-    bare --include=cve-scan must also run "Image upgrades" first —
-    not just "Dependencies" — or that cache would never get populated."""
+    """--include=cve-scan also runs "Image upgrades", whose cache it reads."""
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--include=cve-scan"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
@@ -707,12 +666,7 @@ def test_skip_cve_diff_skips_it(vp: ModuleType, monkeypatch: pytest.MonkeyPatch,
 
 
 def test_include_cve_diff_runs_it_plus_its_prerequisites(vp: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    """ "CVE diff" needs "Image upgrades" (reads that cache to find its own
-    "has_newer" candidates) AND "Image digests" (calls lib.image.digests.
-    find_sliding_pins, which needs Dependencies-populated charts/*.tgz for
-    the same subchart-default-repository fallback "Image digests" itself
-    needs it for) — a bare --include=cve-diff must pull in all three, run
-    in the pipeline's own fixed order."""
+    """--include=cve-diff pulls in Dependencies, Image upgrades and Image digests, in pipeline order."""
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--include=cve-diff"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
@@ -761,9 +715,7 @@ def test_skip_release_secret_size_skips_it(
 
 
 def test_include_release_secret_size_runs_it_plus_dependencies(vp: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    """Like kube-score/image-upgrades, its own render (and, additionally,
-    its own `helm package` call) needs "Dependencies" to have populated
-    charts/*.tgz first."""
+    """Its render and `helm package` need "Dependencies" to populate charts/*.tgz."""
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--include=release-secret-size"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
@@ -786,8 +738,7 @@ def test_skip_helm_doc_skips_it(vp: ModuleType, monkeypatch: pytest.MonkeyPatch,
 
 
 def test_include_helm_doc_runs_standalone(vp: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    """No prerequisite (doesn't need a render/Dependencies) — must run
-    alone, unlike image-upgrades/CVE scan."""
+    """No prerequisite: runs alone."""
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--include=helm-doc"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)

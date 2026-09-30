@@ -1,10 +1,7 @@
-"""lib.chart — resolving chart values (vendored-or-pulled) and grouping
-image repositories by path: resolve_chart_values, primary_image_
-repositories, strip_registry_host, repository_path_map,
-global_image_paths, repo_group_representative, paths_by_repository.
-`helm pull` is mocked via lib.procutil.run, so no `helm` binary or
-network access needed. Split out of the former test_chart.py (see the
-other test_chart_*.py files for the rest)."""
+"""lib.chart: resolving chart values and grouping image repositories by path.
+
+`helm pull` is mocked, so no `helm` binary or network access is needed.
+"""
 
 import io
 import tarfile
@@ -17,17 +14,12 @@ import yaml
 
 
 def make_tgz(charts_dir, name, version, values, templates=None, chart_yaml=None, raw_files=None):
-    """A minimal vendored <name>-<version>.tgz containing <name>/values.yaml
-    and, if `templates` is given (a {filename: text} dict), <name>/templates/
-    <filename> for each entry — enough to exercise subchart_values/
-    subchart_default_repository/subchart_template_text without a real
-    `helm pull`. `chart_yaml`, if given (a dict), is ALSO written as
-    <name>/Chart.yaml — for subchart_app_version. `raw_files`, if given
-    (a {internal tar path: text} dict, paths relative to the tgz root —
-    e.g. "<name>/charts/<nested>/values.yaml"), writes each verbatim —
-    for nested_subchart_raw_text/nested_subchart_documented_image_
-    repository, where the content isn't real structured YAML (a
-    commented-out example line) so yaml.safe_dump can't produce it."""
+    """Write a minimal vendored <name>-<version>.tgz.
+
+    `templates` ({filename: text}) go under <name>/templates/, `chart_yaml`
+    becomes <name>/Chart.yaml, and `raw_files` ({tar path: text}) are written
+    verbatim, for content yaml.safe_dump can't produce (commented-out lines).
+    """
     charts_dir.mkdir(parents=True, exist_ok=True)
     tgz_path = charts_dir / f"{name}-{version}.tgz"
     data = yaml.safe_dump(values).encode("utf-8")
@@ -154,9 +146,7 @@ def test_primary_image_repositories_own_override_wins(
 def test_primary_image_repositories_falls_back_to_subchart_default(
     tmp_path: Path, libchartpullandsubchartresolution: ModuleType
 ):
-    """openzaak-style: no "repository:" override of its own at all — only
-    a "tag:" — resolved from the vendored subchart's own default instead,
-    with no network access (allow_pull=False)."""
+    """Only a "tag:" override: the repository comes from the vendored subchart default."""
     make_tgz(tmp_path / "charts", "openzaak", "4.9.1", {"image": {"repository": "openzaak/open-zaak"}})
     dep = {"name": "openzaak", "alias": "", "version": "4.9.1"}
     own_values = {"openzaak": {"image": {"tag": "3.28.0@sha256:aaaa"}}}
@@ -172,9 +162,7 @@ def test_primary_image_repositories_falls_back_to_subchart_default(
 def test_primary_image_repositories_multi_path_component_reads_subchart_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, libchartpullandsubchartresolution: ModuleType
 ):
-    """zgw-office-addin-style: two distinct primary paths, neither with
-    its own override — both resolved from the SAME vendored subchart
-    values.yaml, read only once and reused across both paths."""
+    """Two primary paths without overrides read the vendored subchart values only once."""
     make_tgz(
         tmp_path / "charts",
         "zgw-office-addin",
@@ -219,10 +207,7 @@ def test_primary_image_repositories_unresolvable_without_vendored_chart(
 
 
 def test_primary_image_repositories_chart_dir_none_is_safe_when_unneeded(libchartpullandsubchartresolution: ModuleType):
-    """A caller with no vendored-charts location at all (e.g. a pure
-    in-memory test) never crashes, as long as no path actually needs the
-    subchart fallback — see verify-release-table-with-podiumd's own
-    compare(), whose chart_dir defaults to None."""
+    """chart_dir=None is fine when no path needs the subchart fallback."""
     dep = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}
     own_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"}}}
 
@@ -293,11 +278,7 @@ def test_repository_path_map_subchart_default(tmp_path: Path, libchartrepoandpat
 def test_repository_path_map_nested_sidecar_via_subchart_default(
     tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
-    """ZAC's own opa/office_converter sidecars: podiumd's own values.yaml
-    only overrides their "tag:" (the "repository:" is commented out for
-    documentation, not real YAML) — the real repository has to come
-    from ZAC's OWN vendored subchart values.yaml, at the path with the
-    dependency's own values-tree key ("zac") stripped off."""
+    """Tag-only sidecar overrides resolve from the subchart at the path minus the dependency key."""
     make_tgz(
         tmp_path / "charts",
         "zaakafhandelcomponent",
@@ -333,9 +314,7 @@ def test_repository_path_map_subchart_values_reused_across_paths(
     libchartpullandsubchartresolution: ModuleType,
     libchartrepoandpathresolution: ModuleType,
 ):
-    """The vendored subchart's own values.yaml is read at most once for
-    a given dependency, however many of its own paths need it —
-    same caching guarantee as primary_image_repositories."""
+    """The vendored subchart values are read at most once per dependency."""
     make_tgz(
         tmp_path / "charts",
         "zaakafhandelcomponent",
@@ -370,10 +349,7 @@ def test_repository_path_map_subchart_values_reused_across_paths(
 def test_repository_path_map_skips_path_with_no_known_dependency_and_no_own_repository(
     tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
-    """A path whose first segment isn't any dependency's own values-tree
-    key at all, AND has no own "repository:" override either — nothing
-    to resolve it against either way — is silently skipped, not an
-    error."""
+    """A path with no owning dependency and no own repository is skipped, not an error."""
     dep = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}
     own_values = {
         "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"}},
@@ -389,16 +365,11 @@ def test_repository_path_map_skips_path_with_no_known_dependency_and_no_own_repo
 def test_repository_path_map_includes_own_repository_with_no_known_dependency(
     tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
-    """A path whose first segment isn't any Chart.yaml dependency at all
-    — one of podiumd's own directly-templated top-level blocks, like the
-    real "apiproxy"/"frankgateway"/"keycloak" — is still resolved when
-    podiumd's own values.yaml sets its "repository:" directly (same
-    resolution order lib.image.repository_check.find_images_without_
-    repository already uses: own override first, dependency status
-    irrelevant to that lookup). Real case this exists for: "apiproxy"
-    aliases the very same shared global.images.nginx anchor a real
-    dependency's own "<component>.nginx.image" sidecar does — excluding
-    it here would wrongly split one shared-image group in two."""
+    """A non-dependency block (e.g. apiproxy) with its own repository is still mapped.
+
+    Excluding it would split a shared-image group (apiproxy aliases the same
+    global.images.nginx anchor as dependency nginx sidecars).
+    """
     own_values = {
         "apiproxy": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}},
     }
@@ -412,10 +383,7 @@ def test_repository_path_map_includes_own_repository_with_no_known_dependency(
 def test_repository_path_map_skips_unresolvable_and_multiple_deps(
     tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
-    """A dependency whose repository can't be resolved at all (no
-    override, subchart not vendored) is silently skipped, not an error
-    for the whole map — the other, resolvable dependencies still end up
-    in it."""
+    """An unresolvable dependency is skipped; the resolvable ones are still mapped."""
     zac = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}
     openzaak = {"name": "openzaak", "alias": "", "version": "4.9.1"}  # not vendored here
     own_values = {
@@ -473,12 +441,7 @@ def test_global_image_paths_no_global_images_block_returns_empty(libchartpulland
 
 
 def test_repo_group_representative_global_beats_everything(libchartrepoandpathresolution: ModuleType):
-    """The shared nginx-unprivileged anchor: aliased by apiproxy's own
-    top-level image (orphan) AND by a real dependency's own nginx
-    sidecar alike. Neither alias site is "the" component this image
-    belongs to — "global" (the one true source both merely point at) is,
-    regardless of how many other candidates are in the group or what
-    tier they'd otherwise rank at."""
+    """The global anchor is the representative over every alias site pointing at it."""
     deps = [{"name": "openzaak", "alias": "", "version": "1.14.2"}]
     repo_paths = [
         ("apiproxy", "image"),
@@ -490,11 +453,7 @@ def test_repo_group_representative_global_beats_everything(libchartrepoandpathre
 
 
 def test_repo_group_representative_global_beats_real_dependency_primary(libchartrepoandpathresolution: ModuleType):
-    """Even a real dependency's own PRIMARY image (the highest of the
-    other tiers) never outranks "global" — structurally impossible in
-    practice (a primary app image is never itself a global-anchor
-    alias), but the ranking itself must still be unconditional, not just
-    "usually wins"."""
+    """The "global" anchor ranks above even a dependency's primary image, unconditionally."""
     deps = [{"name": "openzaak", "alias": "", "version": "1.14.2"}]
     repo_paths = [
         ("openzaak", "image"),
@@ -505,63 +464,50 @@ def test_repo_group_representative_global_beats_real_dependency_primary(libchart
 
 
 def test_repo_group_representative_real_dependency_primary_beats_orphan(libchartrepoandpathresolution: ModuleType):
-    """The keycloak/keycloak-operator case: "keycloak.image" is podiumd's
-    own directly-templated top-level override (tier 2 — no owning
-    Chart.yaml dependency at all) and "keycloak-operator.operator.
-    config.keycloakImage" is keycloak-operator's own COMPONENT_IMAGE_
-    PATHS-registered primary image (tier 1 — real ownership). Both count
-    as "primary" under is_primary_image_path alone, and "keycloak" sorts
-    after "keycloak-operator" in values.yaml top-level traversal, so a
-    naive "last path wins" pick lands on the orphan — real ownership
-    must win instead."""
-    deps = [{"name": "keycloak-operator", "alias": "", "version": "26.7.3"}]
+    """A dependency's primary image beats an orphan top-level block sharing its repository.
+
+    Both are "primary" per is_primary_image_path and the orphan comes last,
+    so "last path wins" would wrongly pick the orphan.
+    """
+    deps = [{"name": "openzaak", "alias": "", "version": "1.14.2"}]
     repo_paths = [
-        ("keycloak-operator", "operator", "config", "keycloakImage"),
-        ("keycloak", "image"),
+        ("openzaak", "image"),
+        ("openzaak-standalone", "image"),
     ]
 
-    assert libchartrepoandpathresolution.repo_group_representative(repo_paths, deps) == (
-        "keycloak-operator",
-        "operator",
-        "config",
-        "keycloakImage",
-    )
+    assert libchartrepoandpathresolution.repo_group_representative(repo_paths, deps) == ("openzaak", "image")
 
 
 def test_repo_group_representative_order_independent(libchartrepoandpathresolution: ModuleType):
-    """Same case, paths given in the opposite order — the real
-    dependency's own path must still win, not just "whichever came
-    first"."""
-    deps = [{"name": "keycloak-operator", "alias": "", "version": "26.7.3"}]
+    """Same as above with reversed order: ownership wins, not position."""
+    deps = [{"name": "openzaak", "alias": "", "version": "1.14.2"}]
     repo_paths = [
-        ("keycloak", "image"),
-        ("keycloak-operator", "operator", "config", "keycloakImage"),
+        ("openzaak-standalone", "image"),
+        ("openzaak", "image"),
     ]
 
-    assert libchartrepoandpathresolution.repo_group_representative(repo_paths, deps) == (
-        "keycloak-operator",
-        "operator",
-        "config",
-        "keycloakImage",
-    )
+    assert libchartrepoandpathresolution.repo_group_representative(repo_paths, deps) == ("openzaak", "image")
+
+
+def test_repo_group_representative_native_primary_beats_dependency_sidecar(libchartrepoandpathresolution: ModuleType):
+    """Native keycloak.image beats its alias, a keycloak-operator sidecar, in either order."""
+    deps = [{"name": "keycloak-operator", "alias": "", "version": "1.13.0"}]
+    sidecar = ("keycloak-operator", "operator", "config", "keycloakImage")
+    native = ("keycloak", "image")
+
+    assert libchartrepoandpathresolution.repo_group_representative([native, sidecar], deps) == native
+    assert libchartrepoandpathresolution.repo_group_representative([sidecar, native], deps) == native
 
 
 def test_repo_group_representative_orphan_only_falls_back_to_last(libchartrepoandpathresolution: ModuleType):
-    """No real dependency in the group at all (e.g. "apiproxy" and
-    "frankgateway" both aliasing the same shared global.images.nginx
-    anchor, neither a Chart.yaml dependency of its own) — falls back to
-    the last path, the historical convention every caller used to
-    inline."""
+    """Orphan-only groups fall back to the last path."""
     repo_paths = [("apiproxy", "image"), ("frankgateway", "image")]
 
     assert libchartrepoandpathresolution.repo_group_representative(repo_paths, []) == ("frankgateway", "image")
 
 
 def test_repo_group_representative_sidecars_only_falls_back_to_last(libchartrepoandpathresolution: ModuleType):
-    """No path in the group is a dependency's own PRIMARY path (e.g. two
-    unrelated dependencies' sidecars sharing one base image, like nginx)
-    — falls back to the last path, same as before this function
-    existed."""
+    """Sidecar-only groups fall back to the last path."""
     deps = [
         {"name": "openzaak", "alias": "", "version": "4.9.1"},
         {"name": "openformulieren", "alias": "", "version": "3.5.6"},
@@ -578,37 +524,48 @@ def test_repo_group_representative_sidecars_only_falls_back_to_last(libchartrepo
 def test_repository_path_map_prefers_dependency_own_primary_over_orphan(
     tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
-    """Integration-level version of the keycloak/keycloak-operator case
-    through repository_path_map itself — the map entry for the shared
-    repository resolves to the real dependency's own path, not podiumd's
-    orphan top-level override, matching -upgrade.md's own dependency-
-    first name resolution (never routed through this map at all)."""
-    dep = {"name": "keycloak-operator", "alias": "", "version": "26.7.3"}
+    """repository_path_map picks the dependency's primary over a later orphan, like -upgrade.md."""
+    dep = {"name": "openzaak", "alias": "", "version": "1.14.2"}
     own_values = {
-        "keycloak-operator": {
-            "operator": {"config": {"keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": "26.7.3"}}}
-        },
-        "keycloak": {"image": {"repository": "quay.io/keycloak/keycloak", "tag": "26.7.3"}},
+        "openzaak": {"image": {"repository": "docker.io/openzaak/open-zaak", "tag": "1.20.0"}},
+        "openzaak-standalone": {"image": {"repository": "docker.io/openzaak/open-zaak", "tag": "1.20.0"}},
     }
     paths = [
-        ("keycloak-operator", "operator", "config", "keycloakImage"),
-        ("keycloak", "image"),
+        ("openzaak", "image"),
+        ("openzaak-standalone", "image"),
     ]
 
     mapping = libchartrepoandpathresolution.repository_path_map(tmp_path, [dep], own_values, paths, allow_pull=False)
 
-    assert mapping == {"keycloak/keycloak": ("keycloak-operator", "operator", "config", "keycloakImage")}
+    assert mapping == {"openzaak/open-zaak": ("openzaak", "image")}
+
+
+def test_repository_path_map_keycloak_server_resolves_to_native_anchor_site(
+    tmp_path: Path, libchartrepoandpathresolution: ModuleType
+):
+    """The keycloak repository maps to the native anchor site, not the operator's alias."""
+    dep = {"name": "keycloak-operator", "alias": "", "version": "1.13.0"}
+    own_values = {
+        "keycloak": {"image": {"repository": "quay.io/keycloak/keycloak", "tag": "26.7.3"}},
+        "keycloak-operator": {
+            "operator": {"config": {"keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": "26.7.3"}}}
+        },
+    }
+    paths = [
+        ("keycloak", "image"),
+        ("keycloak-operator", "operator", "config", "keycloakImage"),
+    ]
+
+    mapping = libchartrepoandpathresolution.repository_path_map(tmp_path, [dep], own_values, paths, allow_pull=False)
+
+    assert mapping == {"keycloak/keycloak": ("keycloak", "image")}
 
 
 # --- paths_by_repository ---
 
 
 def test_paths_by_repository_groups_shared_repository(tmp_path: Path, libchartrepoandpathresolution: ModuleType):
-    """Several paths resolving to the same repository (e.g. every
-    "<component>.nginx.image" sidecar aliasing the same shared
-    global.images.nginx YAML anchor) land together under that one
-    repository, in the order they were processed — not collapsed down
-    to a single survivor the way repository_path_map's own result is."""
+    """Paths sharing a repository are all kept, in processing order."""
     openzaak = {"name": "openzaak", "alias": "", "version": "4.9.1"}
     openformulieren = {"name": "openformulieren", "alias": "", "version": "3.5.6"}
     own_values = {
@@ -629,9 +586,7 @@ def test_paths_by_repository_groups_shared_repository(tmp_path: Path, libchartre
 def test_paths_by_repository_matches_repository_path_map_last_survivor(
     tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
-    """repository_path_map's own single-path result is exactly this
-    function's own group, collapsed to its last entry — the two must
-    never disagree about which path "wins" for a shared repository."""
+    """repository_path_map must equal each group's last entry, so the two never disagree."""
     openzaak = {"name": "openzaak", "alias": "", "version": "4.9.1"}
     openformulieren = {"name": "openformulieren", "alias": "", "version": "3.5.6"}
     own_values = {
@@ -653,11 +608,7 @@ def test_paths_by_repository_matches_repository_path_map_last_survivor(
 def test_paths_by_repository_resolves_via_component_version_repository_sibling(
     tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
-    """redis-operator's own image has no "<path>.repository" field at
-    all — its repository lives at the sibling "imageName:" field next
-    to "imageTag:" (see COMPONENT_VERSION_REPOSITORY_PATHS), a shape
-    the ordinary "own override, else subchart default" resolution never
-    finds on its own."""
+    """redis-operator's repository is the sibling "imageName:" (COMPONENT_VERSION_REPOSITORY_PATHS)."""
     dep = {"name": "redis-operator", "version": "0.26.1"}
     values = {
         "redis-operator": {
@@ -674,12 +625,7 @@ def test_paths_by_repository_resolves_via_component_version_repository_sibling(
 def test_paths_by_repository_nested_subchart_not_vendored_falls_through(
     tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
-    """eck-stack's own COMPONENT_VERSION_PATHS entries ("version:" bare
-    fields) have a registered nested-subchart lookup (see
-    COMPONENT_VERSION_PATH_NESTED_SUBCHARTS), but the .tgz itself isn't
-    vendored at tmp_path — must not error, just fall through exactly
-    as an unregistered component would (no own override, no vendored
-    subchart either -> path silently excluded, not a crash)."""
+    """A registered nested-subchart lookup whose .tgz isn't vendored excludes the path, no crash."""
     dep = {"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}
     values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.19"}}}
     paths = [("kiss-eck", "eck-elasticsearch", "version")]
@@ -692,11 +638,7 @@ def test_paths_by_repository_nested_subchart_not_vendored_falls_through(
 def test_paths_by_repository_resolves_via_nested_subchart_documented_default(
     tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
-    """eck-stack's own three "version:" fields have no repository
-    anywhere in podiumd's own values.yaml, nor a live default in the
-    vendored eck-stack chart's own top-level values.yaml — only a
-    commented-out example inside its NESTED eck-elasticsearch sub-
-    subchart's own values.yaml, which is what this resolves through."""
+    """eck-stack's repository comes only from a commented-out example in a nested subchart."""
     dep = {"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}
     make_tgz(
         tmp_path / "charts",

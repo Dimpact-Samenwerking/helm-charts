@@ -1,12 +1,5 @@
-"""main() integration against a real, hermetic temp git repo — <key>
-<basename> resolved via lib.image.version.resolve_scoped_matches against
-values.yaml TEXT as it was at each release-baseline.yaml baseline (via
-`git show`), same resolution update-image-version/verify-image-version's
-own <key> <basename> use, just applied to a past ref instead of the
-current file.
-
-No <baseline> CLI argument anymore — main() always shows state at BOTH
-release-baseline.yaml baselines (upgrade_docs, release_table)."""
+"""main() against a real temp git repo: <key> <image-basename> resolved against
+values.yaml as of each release-baseline.yaml baseline (via `git show`)."""
 
 import subprocess
 
@@ -64,8 +57,6 @@ def write_baselines(repo, upgrade_docs=None, release_table=None):
 
 
 # --- main() integration ---
-# main() only calls sys.exit() on error paths; on success it just returns,
-# so only the failure-path tests wrap the call in pytest.raises(SystemExit).
 
 
 def set_argv_and_repo(sibv: ModuleType, monkeypatch: pytest.MonkeyPatch, repo, key, basename):
@@ -89,9 +80,8 @@ def test_main_shows_both_baselines(
 def test_main_accepts_the_dependency_name_as_key(
     sibv: ModuleType, repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """<key> resolves like update-/verify-image-version's (resolve_key_
-    scope): the Chart.yaml name "zaakafhandelcomponent" finds alias
-    "zac"'s values.yaml block."""
+    """<key> resolves like update-/verify-image-version: the Chart.yaml name
+    "zaakafhandelcomponent" finds alias "zac"'s values.yaml block."""
     write_baselines(repo, upgrade_docs="4.8.5")
     set_argv_and_repo(sibv, monkeypatch, repo, "zaakafhandelcomponent", "zaakafhandelcomponent")
     sibv.main()
@@ -101,10 +91,8 @@ def test_main_accepts_the_dependency_name_as_key(
 def test_main_no_pin_at_baseline_is_noted_not_fatal(
     sibv: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """<key> <basename> not pinned at all at ONE baseline (the component
-    relies entirely on its chart's own image default there, e.g.
-    podiumd-4.9.0 in the `repo` fixture) is just a note there, not a
-    crash overall — the other baseline still resolves fine."""
+    """An image unpinned at one baseline (chart default used) is a note there,
+    not a failure; the other baseline still resolves."""
     write_baselines(repo, upgrade_docs="4.8.5", release_table="4.9.0")
     set_argv_and_repo(sibv, monkeypatch, repo, "zac", "zaakafhandelcomponent")
 
@@ -112,7 +100,7 @@ def test_main_no_pin_at_baseline_is_noted_not_fatal(
 
     out = capsys.readouterr().out
     assert f"ghcr.io/infonl/zaakafhandelcomponent: 5.0.2  (sha256:{'a' * 64})" in out
-    assert "no image pin with basename 'zaakafhandelcomponent' found under 'zac'" in out
+    assert "no image pin with image basename 'zaakafhandelcomponent' found under 'zac'" in out
 
 
 def test_main_missing_release_table_key_is_noted_not_an_error(
@@ -157,7 +145,10 @@ def test_main_unknown_key_fails(
     with pytest.raises(SystemExit) as exc_info:
         sibv.main()
     assert exc_info.value.code == 1
-    assert "no image pin with basename 'zaakafhandelcomponent' found under 'totally-unknown'" in capsys.readouterr().out
+    assert (
+        "no image pin with image basename 'zaakafhandelcomponent' found under 'totally-unknown'"
+        in capsys.readouterr().out
+    )
 
 
 def test_main_requires_exactly_two_arguments(sibv: ModuleType, monkeypatch: pytest.MonkeyPatch):

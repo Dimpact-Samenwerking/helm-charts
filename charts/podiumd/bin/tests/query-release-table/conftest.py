@@ -1,5 +1,4 @@
-"""Loads query-release-table (a hyphenated filename, not importable
-normally) as a module named `qrt`."""
+"""Load query-release-table (hyphenated, not importable) as module `qrt`."""
 
 import importlib.util
 

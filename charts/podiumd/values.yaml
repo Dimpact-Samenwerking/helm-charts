@@ -14,7 +14,7 @@ global:
   images:
     nginx: &nginxImage
       repository: nginxinc/nginx-unprivileged
-      tag: "1.31.6@sha256:31e97ebaac04c19c8e7da6012c5776e86a4414695565200719d6113cb68d0b78"
+      tag: "1.31.6@sha256:929e1d5e610e8aa89a1715ba44dce5edb4d42c172a208c171233292f472560c5"
       pullPolicy: IfNotPresent
     curl: &curlImage
       repository: curlimages/curl
@@ -38,111 +38,6 @@ persistentVolume:
   volumeAttributeResourceGroup: ""
   nodeStageSecretRefName: ""
   nodeStageSecretRefNamespace: ""
-
-keycloak-operator:
-  enabled: true
-  # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
-  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (chart 1.13.0, appVersion 26.7.2)
-  # Note: it appears that the podname automatically appends -operator.
-  # Official operator image: quay.io/keycloak/keycloak-operator:26.7.3
-  # Note: images are deliberately AHEAD of the chart line here — adfinis
-  # hasn't published a chart targeting 26.7.3 yet (still 1.13.0 / appVersion
-  # 26.7.2 as of 2026-08-31). Operator + server image pinned to 26.7.3 below
-  # for the 20-CVE 26.7.3 security release; bump the keycloak-operator chart
-  # dependency separately once adfinis catches up.
-  # override: values-enable-observability.yaml sets enableServiceMonitor: true
-  enableServiceMonitor: false
-  fullnameOverride: keycloak
-  operator:
-    image:
-      repository: quay.io/keycloak/keycloak-operator
-      # IMPORTANT: do NOT embed @sha256 in this tag. Unlike podiumd's own
-      # `keycloak.image` (which uses the podiumd.image helper, repository:tag),
-      # the adfinis subchart appends its own digest from a SEPARATE `operator.image.sha`
-      # field: `repository:tag@sha256:{{ .sha }}`. Putting @sha256 in the tag
-      # produces an invalid DOUBLE digest (…:26.7.3@sha256:xxx@sha256:xxx).
-      # The chart's bundled default operator.image.sha for 1.13.0 is stale
-      # (doesn't match any manifest under the 26.7.3 tag — it doesn't even
-      # know this tag exists yet), so it's overridden explicitly below with
-      # the real registry digest. To DISABLE digest pinning (e.g. on aks-blue
-      # / ACR-mirror envs where the mirrored digest differs), set
-      # `operator.image.sha: ""`. See
-      # docs/_UPGRADE_PATHS/4.7.3-to-4.7.4-upgrade.md.
-      tag: "26.7.3"
-      sha: "e3856fd1aeb404f0e6ae2180b01875c8eeebd3748b0e5d955da77b5d41095ae4"
-    resources:
-      requests:
-        cpu: 100m
-        memory: 128Mi
-      limits:
-        cpu: 500m
-        # IN-2233: operator OOMKilled at 256Mi limit (excessive restarts across clusters); raised to 768Mi.
-        memory: 768Mi
-    # Default Keycloak SERVER image the operator stamps onto Keycloak CRs it
-    # provisions (RELATED_IMAGE_KEYCLOAK env on the operator Deployment) —
-    # always identical to podiumd's own `keycloak.image` below, which
-    # anchors to this same repository/tag/sha (see templates/_helpers.tpl's
-    # "podiumd.image" helper for why a separate `sha` field, not embedded
-    # in `tag`, is safe to share between the two: it renders `sha` as an
-    # optional trailing "@sha256:..." when present, so both this block's
-    # own adfinis-template consumption (its own separate `sha` field) and
-    # keycloak.image's own consumption render identically from the same
-    # anchored values). The adfinis subchart's built-in default still
-    # carries a stale digest (doesn't know about 26.7.3 at all yet), so we
-    # override it here to the 26.7.3 digest (sha256:ff4257d…).
-    # NOTE: sha is a SEPARATE field; the template appends it as @sha256:{{ .sha }},
-    # so do NOT embed @sha256 in tag (would produce a double digest).
-    config:
-      keycloakImage:
-        repository: &keycloakImageRepo quay.io/keycloak/keycloak
-        tag: &keycloakImageVersion "26.7.3"
-        sha: &keycloakImageDigest "ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54"
-  serviceAccount:
-    create: false
-  jobs:
-    # -- Keycloak URL used by the realm-import jobs (keycloak-config-cli).
-    # Empty = in-cluster service (http://keycloak-service:8080). Set only when
-    # the jobs must reach Keycloak via another URL; note the public admin host
-    # can sit behind a gateway IP-allowlist that blocks cluster egress (403).
-    keycloakUrl: ""
-    ensurePodiumdAdminUser:
-      enabled: true
-      # Init container: Python (stdlib only, no pip install) — computes the PBKDF2 hash
-      # and writes the SQL to a shared volume.
-      initImage:
-        registry: ""
-        repository: python
-        # Digest-pinned to a specific patch rather than the floating 3.14-slim minor tag.
-        tag: "3.14.7-slim@sha256:caaf356f40667c496d405780745b9ac25771c189a51dfcc42430d531ea09f8a2"
-      # Main container: runs psql to execute the generated SQL against the Keycloak DB.
-      image: *postgresImage
-    ensureOperatorSa:
-      enabled: true
-      # Container: curl-based job to provision the keycloak-operator service account client.
-      image: *curlImage
-      # Client secret for the keycloak-operator client. Set this to a known value so Helm
-      # can create the K8s secret directly. The job will enforce this secret in Keycloak.
-      clientSecret: ""
-    importPodiumdRealm:
-      enabled: true
-    importMasterRealm:
-      enabled: true
-    # -- Resources applied to lightweight keycloak job containers (curl, python, psql): ensure-operator-sa, ensure-podiumd-admin-user.
-    resources:
-      requests:
-        cpu: 50m
-        memory: 64Mi
-      limits:
-        cpu: 200m
-        memory: 128Mi
-    # -- Resources for the kc-config-cli containers (Spring Boot JVM app) in import-podiumd-realm and import-master-realm jobs.
-    configCliResources:
-      requests:
-        cpu: 50m
-        memory: 256Mi
-      limits:
-        cpu: 200m
-        memory: 512Mi
 
 keycloak:
   additionalOptions:
@@ -241,15 +136,20 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.7.3 — aliases
-  # keycloak-operator.operator.config.keycloakImage's own anchors above
-  # (always the identical repository/version/digest; see that block's
-  # own comment for why sha is a separate field here too).
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.7.3 — the primary
+  # image of the native keycloak component (etc/settings.yaml
+  # native_components). Defines the anchors keycloak-operator.operator.
+  # config.keycloakImage aliases below, so the operator's default server
+  # image is always this same repository/version/digest; this block
+  # therefore stays above keycloak-operator (an alias must follow its
+  # anchor). sha is a separate field, not embedded in tag: the adfinis
+  # template appends it as @sha256:{{ .sha }}, and templates/_helpers.tpl's
+  # "podiumd.image" helper renders it the same way.
   image:
     registry: ""
-    repository: *keycloakImageRepo
-    tag: *keycloakImageVersion
-    sha: *keycloakImageDigest
+    repository: &keycloakImageRepo quay.io/keycloak/keycloak
+    tag: &keycloakImageVersion "26.7.3"
+    sha: &keycloakImageDigest "ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54"
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
@@ -275,15 +175,20 @@ keycloak:
       key: ""
   keycloakConfigCli:
     # image parameters for keycloak-config-cli
-    # Official keycloak-config-cli image: adorsys/keycloak-config-cli:6.5.1-26
+    # Official keycloak-config-cli image: adorsys/keycloak-config-cli:6.5.1-26.5.5
+    # Explicit "-<keycloak-version>" build tag, never the floating "-26": that
+    # alias points at the 26.1.0 build, not the newest. verify-podiumd checks
+    # the embedded Keycloak version against *keycloakImageVersion.
     image:
       registry: ""
       repository: adorsys/keycloak-config-cli
-      tag: "6.5.1-26@sha256:1b22dfaa9ae0c71f74b0342f9221a6510f272da5def683dbba26a98e6b1b1411"
+      tag: "6.5.1-26.5.5@sha256:0955d98c8a341898b7aa177477edf8a1e90569ae50bbe7598141c1270b773274"
   podTemplate:
     metadata:
       labels:
         app: keycloak
+        # Set by hand, deliberately not aliased to *keycloakImageVersion:
+        # this label may move independently of the server image.
         version: 26.7.3
       # override: values-enable-observability.yaml adds prometheus.io scrape annotations
     spec:
@@ -412,6 +317,105 @@ keycloak:
       memory: 2Gi
   secretsName: "keycloak-secrets"
 
+keycloak-operator:
+  enabled: true
+  # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
+  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (chart 1.13.0, appVersion 26.7.2)
+  # Note: it appears that the podname automatically appends -operator.
+  # Official operator image: quay.io/keycloak/keycloak-operator:26.7.3
+  # Note: images are deliberately AHEAD of the chart line here — adfinis
+  # hasn't published a chart targeting 26.7.3 yet (still 1.13.0 / appVersion
+  # 26.7.2 as of 2026-08-31). Operator + server image pinned to 26.7.3 below
+  # for the 20-CVE 26.7.3 security release; bump the keycloak-operator chart
+  # dependency separately once adfinis catches up.
+  # override: values-enable-observability.yaml sets enableServiceMonitor: true
+  enableServiceMonitor: false
+  fullnameOverride: keycloak
+  operator:
+    image:
+      repository: quay.io/keycloak/keycloak-operator
+      # IMPORTANT: do NOT embed @sha256 in this tag. Unlike podiumd's own
+      # `keycloak.image` (which uses the podiumd.image helper, repository:tag),
+      # the adfinis subchart appends its own digest from a SEPARATE `operator.image.sha`
+      # field: `repository:tag@sha256:{{ .sha }}`. Putting @sha256 in the tag
+      # produces an invalid DOUBLE digest (…:26.7.3@sha256:xxx@sha256:xxx).
+      # The chart's bundled default operator.image.sha for 1.13.0 is stale
+      # (doesn't match any manifest under the 26.7.3 tag — it doesn't even
+      # know this tag exists yet), so it's overridden explicitly below with
+      # the real registry digest. To DISABLE digest pinning (e.g. on aks-blue
+      # / ACR-mirror envs where the mirrored digest differs), set
+      # `operator.image.sha: ""`. See
+      # docs/_UPGRADE_PATHS/4.7.3-to-4.7.4-upgrade.md.
+      tag: "26.7.3"
+      sha: "e3856fd1aeb404f0e6ae2180b01875c8eeebd3748b0e5d955da77b5d41095ae4"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        # IN-2233: operator OOMKilled at 256Mi limit (excessive restarts across clusters); raised to 768Mi.
+        memory: 768Mi
+    # Default Keycloak SERVER image the operator stamps onto Keycloak CRs it
+    # provisions (RELATED_IMAGE_KEYCLOAK env on the operator Deployment) —
+    # aliases the anchors on podiumd's own `keycloak.image` above, so it is
+    # always the identical repository/tag/sha. Bump keycloak.image, never
+    # this block. The alias also replaces the adfinis subchart's stale
+    # bundled default digest.
+    # NOTE: sha is a SEPARATE field; the template appends it as @sha256:{{ .sha }},
+    # so do NOT embed @sha256 in tag (would produce a double digest).
+    config:
+      keycloakImage:
+        repository: *keycloakImageRepo
+        tag: *keycloakImageVersion
+        sha: *keycloakImageDigest
+  serviceAccount:
+    create: false
+  jobs:
+    # -- Keycloak URL used by the realm-import jobs (keycloak-config-cli).
+    # Empty = in-cluster service (http://keycloak-service:8080). Set only when
+    # the jobs must reach Keycloak via another URL; note the public admin host
+    # can sit behind a gateway IP-allowlist that blocks cluster egress (403).
+    keycloakUrl: ""
+    ensurePodiumdAdminUser:
+      enabled: true
+      # Init container: Python (stdlib only, no pip install) — computes the PBKDF2 hash
+      # and writes the SQL to a shared volume.
+      initImage:
+        registry: ""
+        repository: python
+        # Digest-pinned to a specific patch rather than the floating 3.14-slim minor tag.
+        tag: "3.14.7-slim@sha256:51dafde81dbdb6ebde285137a295cf18a47ca95234fe388a343719cb97305b3d"
+      # Main container: runs psql to execute the generated SQL against the Keycloak DB.
+      image: *postgresImage
+    ensureOperatorSa:
+      enabled: true
+      # Container: curl-based job to provision the keycloak-operator service account client.
+      image: *curlImage
+      # Client secret for the keycloak-operator client. Set this to a known value so Helm
+      # can create the K8s secret directly. The job will enforce this secret in Keycloak.
+      clientSecret: ""
+    importPodiumdRealm:
+      enabled: true
+    importMasterRealm:
+      enabled: true
+    # -- Resources applied to lightweight keycloak job containers (curl, python, psql): ensure-operator-sa, ensure-podiumd-admin-user.
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+    # -- Resources for the kc-config-cli containers (Spring Boot JVM app) in import-podiumd-realm and import-master-realm jobs.
+    configCliResources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        cpu: 200m
+        memory: 512Mi
+
 redis-operator:
   enabled: true
   featureGates:
@@ -535,7 +539,7 @@ redis-operator:
       schedule: "*/2 * * * *"
       image: &redisHaK8sImage
         repository: docker.io/alpine/k8s
-        tag: "1.37.0@sha256:b421c2e9419edb98db39b6ab641669f4db7bb2acf354f22450c6b7e7176d1ff4"
+        tag: "1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"
       nodeSelector: {}
       resources:
         requests:
@@ -3062,11 +3066,11 @@ zac:
     mail: "noreply@example.nl"
   global:
     curlImage: *curlImage
-  # ghcr.io/infonl/zaakafhandelcomponent:5.4.4
+  # ghcr.io/infonl/zaakafhandelcomponent:5.4.5
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 5.4.4@sha256:2809ee2d2dc1ca166b88878a50d2850c7e972651f3ee5c35f44e92127c67773a
+    tag: 5.4.5@sha256:9d14affb67d7bb7fce01af220e4b28c190188c5f1355d787735bd7e669fa57e3
   # Liveness probe uses /health/ready (not /health/live) with a high failureThreshold so
   # Kubernetes automatically restarts ZAC after extended OpenZaak/catalogus unavailability.
   # The ZGW-API-Client has no connectTimeout/readTimeout, causing stale TCP connections
@@ -3174,10 +3178,10 @@ zac:
       busyBoxImage: *busyboxImage
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.10.1-slim@sha256:92a1ceccbde539cb067c05b134069250a8aa4446a62a9ada4111e4dde2b3ea26
+      # library/solr:9.10.1-slim@sha256:9987e11a90a0b115cc3f52b74d3d87788e3c1fa479deeaece80d33515480204a
       image:
         #repository:
-        tag: 9.10.1-slim@sha256:92a1ceccbde539cb067c05b134069250a8aa4446a62a9ada4111e4dde2b3ea26
+        tag: 9.10.1-slim@sha256:9987e11a90a0b115cc3f52b74d3d87788e3c1fa479deeaece80d33515480204a
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
@@ -3288,7 +3292,7 @@ clamav:
   # serviceMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 ServiceMonitor).
   image:
     repository: clamav/clamav
-    tag: "1.5.4@sha256:0e31ce089574268aefa0b543767d66b70240ab51ed49eec53e07f18d5629d817"
+    tag: "1.5.4@sha256:ebec5bc138401b36ae987caa1a3fa3c3b2a21ed3d51f0bfa5852825e663e67b0"
   metrics:
     enabled: false
     image:
@@ -3612,8 +3616,10 @@ ita:
 
   # -- Nieuw in ITA 3.3.0: dagelijkse herinnering voor verlopen
   # contactverzoeken, op werkdagen om 07:00.
+  # Standaard uitgeschakeld, er zit nog een fout in de e-mail
+  # Zie ook DRT-726
   verlopenContactverzoekHerinneringNotificatie:
-    enabled: true
+    enabled: false
     schedule: "0 7 * * 1-5"
 
   ingress:
@@ -4402,14 +4408,14 @@ zaakbrug:
     # staging.apiProxy.image here as a result — they're just the
     # sub-chart's own stale upstream defaults (staging.image.tag alone
     # drifts to "1.9.0" against the actively-maintained main image's
-    # "1.26.18"), never rendered, and pinning them only made
+    # "1.26.19"), never rendered, and pinning them only made
     # verify-release-table-with-podiumd.py flag a same-basename
     # version "ambiguity" between the two that doesn't actually matter.
     enabled: false
   image:
     registry: wearefrank
     repository: zaakbrug
-    tag: "1.26.18@sha256:255a717ff620b08608db2d8cde24e6993b96896f785ecfb7082054a4cc36bc3b"
+    tag: "1.26.19@sha256:4c90dddac58fdbe813566417c796b5890ab86a4ffd70f143460b6b9b379eec8c"
   # K8s cgroup limits sized for the Frank!Framework JVM heap (subchart
   # default Xms=Xmx=4G via .Values.frank.memory.{minimum,maximum}).
   # Overhead ≈1Gi headroom for non-heap (metaspace, code cache, direct
@@ -4490,9 +4496,10 @@ mi:
 openbao:
   # OpenBao (openbao.org) — secrets vault. Postgres-backed like the other apps,
   # HA (3 replicas) against the shared Azure PostgreSQL server. Seal is Shamir
-  # (manual `bao operator init` + unseal — see server.ha.config); Azure Key Vault
-  # auto-unseal is intentionally NOT used yet. Login through the Keycloak
-  # `podiumd` realm over OIDC.
+  # (manual `bao operator init` + unseal after every restart) unless
+  # seal.static.key is set, which makes OpenBao unseal itself (see seal below);
+  # Azure Key Vault auto-unseal is intentionally NOT used. Login through the
+  # Keycloak `podiumd` realm over OIDC.
   # Disabled by default; enable + supply env-specific values per environment
   # (see the jim00 override). `server.*` are the upstream openbao subchart keys;
   # `configuration.*` / `database.*` feed the chart's own openbao-* templates.
@@ -4507,7 +4514,7 @@ openbao:
     enabled: false
     image:
       repository: hashicorp/vault-k8s
-      tag: "1.7.2@sha256:ae3d307658b72a1cf35dab9bdf92c995d45cdc7183af0516857714b5bd0ba84d"
+      tag: "1.7.6@sha256:55e27b080c9b0469fd420dfb3631243488c6319504b779423caa46c529a95490"
 
   # CSI Provider (upstream subchart default: OFF, same as here). Not currently
   # used — PodiumD's secrets consumption doesn't go through the Secrets Store
@@ -4515,14 +4522,14 @@ openbao:
   csi:
     image:
       repository: quay.io/openbao/openbao-csi-provider
-      tag: "2.0.2@sha256:3cb312e88c62c926caec03bf69497a16805a29daabb5ad2c7a236ab43bb241db"
+      tag: "2.0.3@sha256:ad30d5f6223f30f62e8df6e444b84af5b05402a70c09712415dd1d7f139c027e"
 
   # Scheduled snapshot-to-S3 CronJob (upstream subchart default: OFF, same as
   # here). Not currently used — pinned anyway so it's ready if that ever changes.
   snapshotAgent:
     image:
       repository: ghcr.io/openbao/openbao-snapshot-agent
-      tag: "0.3.0@sha256:d7a8ca9d26b12cf226ce093b9051f243c53aefbb8a419b3dc0b554e7575c931c"
+      tag: "0.4.5@sha256:ef2c80770e30bba3fcf4d7911cb829607efcea7e7c1a917210c9fa1ba55a8249"
 
   # --- podiumd-side wiring (consumed by the openbao-* templates) ----------------
   configuration:
@@ -4561,7 +4568,7 @@ openbao:
     # K8s Secret (key `token`) holding the bao token the config Job runs with:
     # the SCOPED periodic token minted at bootstrap by
     # scripts/openbao-mint-config-token.sh — NOT the root token, which can (and
-    # should) be revoked after minting. See the component doc, sections 5 and 7.
+    # should) be revoked after minting. See docs/apps/frankgateway/frankgateway-openbao.md §5 and §7.
     bootstrapTokenSecret: openbao-bootstrap-token
     job:
       backoffLimit: 6
@@ -4569,12 +4576,13 @@ openbao:
       # log ("configured" vs "skipped") stays readable until this TTL expires.
       ttlSecondsAfterFinished: 600
       restartPolicy: Never
-      # bao CLI image. Tag pinned explicitly (not "") — unlike the server, this
-      # standalone Job cannot resolve the subchart appVersion. Keep in step with
-      # the openbao subchart appVersion (OpenBao v2.5.5 @ chart 0.28.4).
+      # bao CLI image. Tag pinned explicitly (not ""): this standalone Job
+      # cannot resolve the subchart appVersion. Defines the &openbaoImageTag
+      # anchor openbao.server.image.tag aliases below (an alias must follow
+      # its anchor), so the server and this Job always run the same OpenBao.
       image:
         repository: quay.io/openbao/openbao
-        tag: "2.5.5@sha256:6150c4a6b62067db6141c8da7a6a6b5763f4f47c315343d0c848b40fecdfd452"
+        tag: &openbaoImageTag "2.6.3@sha256:a60afafda36337abe833c4a63894bf1095098f29abea4091e7e555a33dd52889"
       nodeSelector: {}
       resources:
         requests:
@@ -4613,6 +4621,30 @@ openbao:
           cpu: 250m
           memory: 128Mi
 
+  # --- seal (static auto-unseal) --------------------------------------------------
+  # OpenBao's built-in `static` seal: the pods unseal themselves on every start
+  # with a key from Secret/<secretName>, so a pod restart outside a deploy (node
+  # drain, node-pool upgrade, scale-down) no longer leaves the vault sealed.
+  # openbao-seal-secret.yaml renders that Secret — a `seal "static"` HCL file plus
+  # the key — only when `key` is set; server.volumes mounts it (optional) and
+  # server.extraArgs adds its directory as a second `-config`, so with `key`
+  # empty the directory is empty and the seal stays Shamir.
+  # Trust: anyone who can read Secrets in the namespace AND reach the openbao
+  # database can decrypt the vault — the same trust as every other PodiumD
+  # secret. See docs/apps/frankgateway/frankgateway-openbao.md §3.6.
+  seal:
+    static:
+      # -- AES-256 key for the static seal: 32 raw characters, 64 hex, or base64 (44 standard / 43 unpadded URL-safe). Empty keeps the Shamir seal. Pipeline-substituted from the environment Key Vault, never committed. Setting it on an initialised Shamir vault requires a one-time `bao operator unseal -migrate` (docs §3.6).
+      key: ""
+      # -- Permanent identifier of `key`; change it together with the key, never on its own.
+      keyId: "1"
+      # -- Previous key during a rotation: set `key`/`keyId` to the new key and these to the old one until OpenBao has re-wrapped its root key, then clear them.
+      previousKey: ""
+      # -- Identifier of `previousKey`; required when `previousKey` is set.
+      previousKeyId: ""
+      # -- Secret the chart renders; must match `secretName` in both openbao-seal entries of openbao.server.volumes.
+      secretName: openbao-seal
+
   # --- openbao subchart values (upstream server.* keys) -------------------------
   server:
     # RollingUpdate (not the chart default OnDelete) so a helm upgrade recreates
@@ -4623,7 +4655,10 @@ openbao:
     image:
       registry: quay.io
       repository: openbao/openbao
-      tag: ""                # "" => chart appVersion (OpenBao v2.5.5)
+      # Pinned explicitly (not "" => chart appVersion): a chart bump must not
+      # move the server silently. Aliases configuration.job.image's tag above;
+      # bump with update-component-version openbao <app> <chart>.
+      tag: *openbaoImageTag
     # Workload-identity SA. The user-assigned MI + federated credential and the
     # "Key Vault Crypto User" role on the unseal key are provisioned out-of-band
     # (base-infra). The client-id annotation is set in the per-env override.
@@ -4649,13 +4684,49 @@ openbao:
     ingress:
       enabled: false
     # Full libpq URL (with credentials) from the db Secret — keeps creds out of
-    # the config ConfigMap. No seal-related env vars belong here: the seal is
-    # Shamir (manual init + unseal — see the ha.config comment below), so
-    # VAULT_AZUREKEYVAULT_* variables would be inert without a seal stanza.
+    # the config ConfigMap. The static seal key is NOT passed as an env var: it
+    # is read from a file (see volumes below), so it never shows in the pod spec
+    # or in a process environment.
     extraSecretEnvironmentVars:
       - envName: BAO_PG_CONNECTION_URL
         secretName: openbao-db
         secretKey: connection-url
+    # Static seal wiring (see openbao.seal). Both volumes come from the same
+    # optional Secret: `seal.hcl` into a config directory that bao loads as a
+    # second -config (only *.hcl/*.json files there are read), the key into a
+    # separate directory so it is never parsed as configuration. Without the
+    # Secret both directories are empty and bao starts with the Shamir seal.
+    # An environment that overrides volumes/volumeMounts/extraArgs must keep
+    # these entries.
+    # -- Loads the static-seal config directory (see openbao.seal) as a second `-config`; keep it in any override.
+    extraArgs: "-config=/openbao/seal"
+    # -- Mounts the optional openbao-seal Secret (see openbao.seal); keep both entries in any override.
+    volumes:
+      - name: openbao-seal-config
+        secret:
+          secretName: openbao-seal
+          optional: true
+          items:
+            - key: seal.hcl
+              path: seal.hcl
+      - name: openbao-seal-key
+        secret:
+          secretName: openbao-seal
+          optional: true
+          defaultMode: 0440
+          items:
+            - key: key
+              path: key
+            - key: previous-key
+              path: previous-key
+    # -- Mount points of the openbao-seal volumes; `seal.hcl` in /openbao/seal, the key in /openbao/seal-key.
+    volumeMounts:
+      - name: openbao-seal-config
+        mountPath: /openbao/seal
+        readOnly: true
+      - name: openbao-seal-key
+        mountPath: /openbao/seal-key
+        readOnly: true
     ha:
       enabled: true
       replicas: 3
@@ -4664,14 +4735,12 @@ openbao:
       # HCL. connection_url is intentionally omitted (provided via
       # BAO_PG_CONNECTION_URL).
       #
-      # Seal: Shamir (no seal stanza). Azure Key Vault auto-unseal is intentionally
-      # NOT used: OpenBao 2.5.5's azurekeyvault seal authenticates via IMDS Managed
-      # Identity and ignores the AKS workload-identity federated token, so it cannot
-      # reach the vault under workload identity (openbao-helm#56 / hashicorp-vault
-      # #29717). With Shamir the cluster is initialised + unsealed manually (keys
-      # stored in the per-env Key Vault). Revisit KV auto-unseal once OpenBao honors
-      # the federated token. The base-infra unseal key + MI remain provisioned but
-      # unused for now.
+      # Seal: no seal stanza here. Shamir by default; the static seal comes from a
+      # second config file when openbao.seal.static.key is set (see extraArgs).
+      # Azure Key Vault auto-unseal is intentionally NOT used: OpenBao 2.5.5's
+      # azurekeyvault seal authenticates via IMDS Managed Identity and ignores the
+      # AKS workload-identity federated token (openbao-helm#56 / hashicorp-vault
+      # #29717), and workload identity is not wanted for this anyway.
       config: |
         ui = true
 

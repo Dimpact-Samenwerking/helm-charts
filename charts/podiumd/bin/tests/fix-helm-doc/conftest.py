@@ -1,5 +1,4 @@
-"""Loads fix-helm-doc (a hyphenated filename, not importable
-normally) as a module named `upr` so tests can call its functions directly."""
+"""Load fix-helm-doc (hyphenated, not importable) as module `upr`."""
 
 import importlib.util
 import sys

@@ -1,5 +1,4 @@
-"""Loads fix-image-digests (a hyphenated filename, not importable
-normally) as a module named `sid` so tests can call its functions directly."""
+"""Load fix-image-digests (hyphenated, not importable) as module `sid`."""
 
 import importlib.util
 import subprocess
@@ -25,10 +24,6 @@ def sid() -> ModuleType:
 
 @pytest.fixture(autouse=True)
 def stub_fix_helm_doc(sid: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    """main() shells out to fix-helm-doc after any real (non-dry-run)
-    write — stub it here (a real regen would need a real helm-docs binary
-    and would touch the actual charts/podiumd/README.md, not this test's
-    tmp_path fixture values.yaml) so every existing test that doesn't
-    care about this call keeps working unchanged; tests exercising the
-    call itself override this via monkeypatch."""
+    """Stub the fix-helm-doc call after writes: a real run needs helm-docs
+    and would touch the real README.md. Tests of the call override this."""
     monkeypatch.setattr(sid, "run_script", lambda cmd, *a, **k: subprocess.CompletedProcess(cmd, 0))

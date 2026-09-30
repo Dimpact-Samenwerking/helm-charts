@@ -1,12 +1,6 @@
-"""update-image-version's main() doc-update path for a basename that
-resolves to exactly one component — the full lib.component_docs
-treatment (upgrade.md table row + Changes section, images-manifest
-entry). No network needed: lib.registry.registry_tag_exists is
-monkeypatched via the uiv module's own imported binding
-(update_image_version lives in lib.image.version, which resolves
-`registry_tag_exists` via ITS OWN globals — see lib.image.version's
-import — so tests patch that module directly, same as
-tests/lib/test_image_version.py does)."""
+"""Single-component basename doc updates (table row, Changes section,
+images-manifest entry). registry_tag_exists is patched on lib.image.version,
+whose globals it resolves through."""
 
 import io
 import subprocess
@@ -58,10 +52,8 @@ def commit_baseline_tag(tmp_path: Path, baseline):
 def test_main_single_component_updates_upgrade_doc_table_and_changes(
     uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """A basename that resolves to exactly one component (here via the
-    "openklant" alias) gets the SAME full-fidelity treatment
-    update-component-version itself uses -- a real (unchanged) Helm
-    chart version shown, not "-"."""
+    """A single-component basename gets the full update-component-version
+    treatment, including the real (unchanged) Helm chart version."""
     write_chart_yaml(tmp_path, [("openklant", None)])
     values_path = write_values(
         tmp_path,
@@ -94,9 +86,7 @@ def test_main_single_component_updates_upgrade_doc_table_and_changes(
     assert "| openklant | 2.15.0 → 2.15.1 | 1.0.0 (unchanged) | - |" in upgrade
     assert "### openklant 2.15.0 → 2.15.1 (chart 1.0.0, unchanged)" in upgrade
 
-    # No git repo at all here, so the baseline (and any schema diff) can
-    # never be resolved — no values-deltas.md section gets written (see
-    # sync_values_delta_sections' own docstring).
+    # No git repo, so no baseline: no values-deltas.md section.
     deltas = (uiv.DOC_DIR / "0.9.0-to-1.0.0-values-deltas.md").read_text(encoding="utf-8")
     assert "## openklant" not in deltas
 
@@ -119,28 +109,9 @@ def _make_vendored_tgz(charts_dir, name, version, chart_yaml):
 def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unchanged(
     uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Regression test (real bug, real doc): openbao's own "server.image.
-    tag" is deliberately left blank at the baseline (see lib.chart.
-    COMPONENT_IMAGE_PATHS["openbao"]'s own comment) — its real baseline
-    app version only resolves via the vendored-.tgz subchart_app_version
-    fallback, which the raw baseline_values.yaml tag read used to never
-    attempt. lib.image.version.update_image_version can only ever bump
-    an ALREADY digest-pinned tag (scan_digest_pins never matches a blank
-    one), so the real sequence is: baseline ships blank (subchart-only
-    v2.5.0), values.yaml gets hand-pinned to v2.5.5 by some OTHER means
-    (exactly the real openbao doc's own actual history this session),
-    then THIS run bumps v2.5.5 -> v2.6.0 via update-image-version. A
-    basename bump never touches Chart.yaml (old_chart == new_chart
-    always here — see update_docs_single_component's own docstring), so
-    the SAME vendored .tgz backs both baseline and target — old_app
-    must resolve to the real "v2.5.0" baked into that file, not None,
-    collapsing to a real "v2.5.0 -> v2.6.0" transition (never showing
-    the intermediate v2.5.5 hop, same as any other repeated-bump case)
-    instead of a false "(new)" one purely because of this resolution
-    gap (the same fix already made in lib.component_docs.resolve_
-    component_own_version_change for fix-doc-consistency's own doc-sync
-    path — this is the same gap in update-image-version's own doc-
-    writing path)."""
+    """Regression: openbao's baseline tag is blank, so its baseline app
+    version must come from the vendored .tgz (subchart_app_version), giving
+    "v2.5.0 -> v2.6.0" rather than a false "(new)"."""
     (tmp_path / "Chart.yaml").write_text(
         "apiVersion: v2\n"
         "name: podiumd\n"
@@ -161,8 +132,7 @@ def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unc
     )
     commit_baseline_tag(tmp_path, "0.9.0")  # baseline: chart 0.28.4, app version blank (subchart-only v2.5.0)
 
-    # Simulate "hand-pinned to v2.5.5 by some other means, chart untouched" --
-    # real openbao's own actual history this session.
+    # Simulate a hand-pin to v2.5.5 with the chart untouched.
     write_values(
         tmp_path,
         (
@@ -217,21 +187,9 @@ def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unc
 def test_main_renders_new_for_both_app_and_chart_version_when_never_baselined(
     uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Regression test (real bug, real doc, mi-data): mi-data's own chart
-    version (1.0.0 -> 1.1.0) AND app version (blank -> 2.71.0) both moved
-    WITHIN this same release cycle, via an earlier separate run, before
-    ever being genuinely captured in any prior baseline doc -- values.yaml
-    had no "mi.image" override at all at the true baseline, just an
-    "enabled: false" stub. A later run bumping mi's own image tag further
-    (2.71.0 -> 2.90.0) must show BOTH its Helm-chart cell AND its Changes-
-    heading app version as "(new)" -- not a "1.0.0 -> 1.1.0" /
-    "2.71.0 -> 2.90.0" transition (implying a real prior baseline value
-    existed and moved, which no doc thread across this whole cycle ever
-    recorded), and not "(unchanged)" either. See update_docs_single_
-    component's own old_chart_str comment for why old_chart is gated by
-    the SAME baseline_app-is-None signal as old_app, not by a raw
-    baseline_dep["version"] git-history read (which would give the
-    real-per-git-history-but-wrong-to-show "1.0.0")."""
+    """A component with no baseline app version (mi-data, moved only within
+    this cycle) shows "(new)" for the app and its real chart transition, as
+    the table row resolves it."""
     (tmp_path / "Chart.yaml").write_text(
         "apiVersion: v2\n"
         "name: podiumd\n"
@@ -246,9 +204,7 @@ def test_main_renders_new_for_both_app_and_chart_version_when_never_baselined(
     write_values(tmp_path, "mi:\n  enabled: false\n")
     commit_baseline_tag(tmp_path, "4.9.0")  # baseline: chart 1.0.0, no image override at all
 
-    # Simulate the earlier, separate in-cycle bump that first introduced
-    # mi's own image override -- chart AND app version both moved, never
-    # captured in any prior doc.
+    # Earlier in-cycle bump introducing mi's image override (chart and app moved).
     (tmp_path / "Chart.yaml").write_text(
         "apiVersion: v2\n"
         "name: podiumd\n"
@@ -287,23 +243,16 @@ def test_main_renders_new_for_both_app_and_chart_version_when_never_baselined(
 
     upgrade = (uiv.DOC_DIR / "4.9.0-to-4.9.1-upgrade.md").read_text(encoding="utf-8")
     assert "None" not in upgrade
-    assert "1.0.0" not in upgrade
     assert "2.71.0" not in upgrade
-    assert "| mi | 2.90.0 (new) | 1.1.0 (new) | - |" in upgrade
-    assert "### mi 2.90.0 (new) (chart 1.1.0, new)" in upgrade
+    assert "| mi | 2.90.0 (new) | 1.0.0 → 1.1.0 | - |" in upgrade
+    assert "### mi 2.90.0 (new) (chart 1.0.0 → 1.1.0)" in upgrade
 
 
 def test_main_shows_real_baseline_chart_transition_when_genuinely_tracked(
     uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Counterpart to the mi-data test above: a component that WAS
-    genuinely tracked at the true baseline (a real app version resolves
-    there) gets its real baseline Chart.yaml dependency version as
-    old_chart, same as ever -- only a component with NO real baseline
-    app version at all (see the mi-data test) gets old_chart forced to
-    None too. Here zac's own chart version genuinely moved (1.0.296 ->
-    1.0.297) since the baseline -- must still render that real
-    transition, not "(new)"."""
+    """Counterpart: a component with a baseline app version keeps its real
+    baseline chart version, so a chart move shows as a transition."""
     (tmp_path / "Chart.yaml").write_text(
         "apiVersion: v2\n"
         "name: podiumd\n"

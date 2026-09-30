@@ -1,37 +1,14 @@
-"""Verifies every workload template (Deployment/StatefulSet/DaemonSet/
-Job/CronJob) in this chart's OWN templates/*.yaml exposes a `nodeSelector`
-field somewhere in its pod spec, per .github/copilot-instructions.md's
-AKS-Blue convention: "All workloads on aks-blue require
-`nodeSelector: kubernetes.azure.com/mode: user` — ... all app workloads."
-A template with no nodeSelector field at all can never be made compliant
-by an env-values override, no matter what that environment sets.
+"""Verify every own workload template exposes a `nodeSelector` field.
 
-Scans the raw template source (not a `helm template` render) by splitting
-each file on its bare `---` document separators and checking each
-resulting document independently — Go template syntax breaks a real YAML
-parser, so this is a best-effort textual scan, not a structural one: it
-only confirms a `nodeSelector:` key exists somewhere in the resource's
-document, not that it's wired to the pod spec exactly where Kubernetes
-expects it. Only ever covers this chart's own templates, never a vendored
-sub-chart's.
+aks-blue requires `nodeSelector: kubernetes.azure.com/mode: user` on all app
+workloads; a template without the field can't be fixed by env values.
 
-A doc-split chunk that builds its own pod spec by INCLUDING a same-file
-`{{- define "X" -}} ... {{- end }}` block (real case: pabc-seed-job.yaml's
-own "podiumd.pabcSeedJob.podTemplate", defined once so its rendered text
-can also feed the Job name's checksum — see that file's own comment) is
-credited with whatever that referenced block's own text contains too: a
-`define` block emits nothing at its own physical location, so its
-`nodeSelector:` conditional can sit in a doc-split chunk entirely
-different from (often physically BEFORE) the one with the resource's own
-"kind: Job" line — the exact split a bare per-chunk scan can't see across.
-Only ever resolved for a `define` block in the SAME file, and only when
-the chunk's own text calls it via a plain `include "X"` (a literal quoted
-name — `include (print ...)`, as keycloak-import-podiumd-realm-job.yaml's
-own unrelated same-file include call does, never matches, so it can't be
-mistaken for one of these); a shared helper template like "podiumd.image"
-or "podiumd.labels" defined in this chart's own _helpers.tpl is a
-different file and never appears in a file's own local defines either
-way, so crediting it here was never a risk to begin with."""
+Scans raw template source (Go templating breaks a YAML parser), split on `---`, so it
+only confirms a `nodeSelector:` key exists in the document. A chunk that `include`s
+a same-file `define` block (e.g. pabc-seed-job.yaml's pod template) is credited with
+that block's text, since a define emits nothing where it is written. Only plain
+`include "X"` of a same-file define counts; `include (print ...)` never matches.
+"""
 
 import re
 
@@ -48,25 +25,18 @@ INCLUDE_CALL_RE = re.compile(r'include\s+"(?P<name>[^"]+)"')
 
 
 def _referenced_define_bodies(doc: str, define_bodies: dict[str, str]):
-    """[body, ...] for every same-file `{{ define "X" }}...{{ end }}` block
-    (define_bodies, keyed by name — see DEFINE_BLOCK_RE) this doc chunk's
-    own text calls via a plain `include "X"` — see module docstring for
-    why a doc that only includes its pod spec from such a block needs
-    that block's own text considered part of its document too."""
+    """Bodies of same-file define blocks this chunk calls via a plain `include "X"`."""
     return [define_bodies[m.group("name")] for m in INCLUDE_CALL_RE.finditer(doc) if m.group("name") in define_bodies]
 
 
 def file_define_bodies(text: str) -> dict[str, str]:
-    """{name: body} for every `{{ define "X" }}...{{ end }}` block in a
-    template file's text (see DEFINE_BLOCK_RE)."""
+    """{name: body} for every `{{ define "X" }}...{{ end }}` block in the text."""
     return {m.group("name"): m.group("body") for m in DEFINE_BLOCK_RE.finditer(text)}
 
 
 def missing_node_selector(doc: str, define_bodies: dict[str, str]) -> tuple[str, str] | None:
-    """(kind, name) when doc is a workload resource with no nodeSelector
-    field in its own text or in any same-file define block it includes
-    (see _referenced_define_bodies), else None. The one rule both
-    check_node_selector and fix-node-selector apply."""
+    """(kind, name) when doc is a workload with no nodeSelector (own text or included
+    same-file defines), else None. Shared by check_node_selector and fix-node-selector."""
     kind_m = WORKLOAD_KIND_RE.search(doc)
     if not kind_m or NODE_SELECTOR_RE.search(doc):
         return None
@@ -77,10 +47,7 @@ def missing_node_selector(doc: str, define_bodies: dict[str, str]) -> tuple[str,
 
 
 def scan_missing_node_selector(templates_dir: Path) -> list[tuple[Path, str, str]]:
-    """Returns a list of (path, kind, name) for every workload resource in
-    templates/*.yaml with no nodeSelector field anywhere in its document
-    (including, per _referenced_define_bodies, any same-file `define`
-    block it includes its pod spec from)."""
+    """(path, kind, name) for every workload in templates/*.yaml missing nodeSelector."""
     findings: list[tuple[Path, str, str]] = []
     for path in sorted(templates_dir.rglob("*.yaml")):
         if not path.is_file():
@@ -95,11 +62,7 @@ def scan_missing_node_selector(templates_dir: Path) -> list[tuple[Path, str, str
 
 
 def check_node_selector(chart_dir: Path):
-    """Fails if scan_missing_node_selector finds any own-templates
-    workload with no nodeSelector field anywhere in its document (per the
-    AKS-Blue "all app workloads need nodeSelector" convention — see module
-    docstring), printing each offending template's path, kind, and
-    resource name."""
+    """Fail if any own workload template lacks a nodeSelector field, listing each."""
     findings = scan_missing_node_selector(chart_dir / "templates")
 
     if not findings:

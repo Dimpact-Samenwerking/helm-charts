@@ -1,5 +1,4 @@
-"""Loads verify-component-version (a hyphenated filename, not importable
-normally) as a module named `vcv` so tests can call its functions directly."""
+"""Load verify-component-version (hyphenated, not importable) as module `vcv`."""
 
 import importlib.util
 

@@ -1,6 +1,5 @@
-"""parse_repo, resolve_pin_repo, find_sibling_registry — pure line-parsing
-logic for resolving an image's repository string from the YAML lines
-surrounding its pinned tag. No network access needed."""
+"""parse_repo, resolve_pin_repo, find_sibling_registry: resolving an image's
+repository from the YAML lines around its tag."""
 
 from types import ModuleType
 
@@ -43,10 +42,8 @@ def test_resolve_pin_repo_active_sibling_key(libimagedigests: ModuleType):
 
 
 def test_resolve_pin_repo_tolerates_anchor_tag_on_repository_line(libimagedigests: ModuleType):
-    """The real keycloak-operator shape: a sibling "repository:" key
-    decorated with its own "&anchor" (aliased elsewhere) -- ACTIVE_REPO_RE
-    must skip the anchor token, not treat it as part of the repository
-    string itself."""
+    """A sibling "repository:" with an "&anchor" must not include the anchor
+    in the repository string."""
     lines = [
         "    keycloakImage:",
         "      repository: &keycloakImageRepo quay.io/keycloak/keycloak",
@@ -126,10 +123,8 @@ def test_resolve_pin_repo_stops_at_dedent_does_not_leak_across_blocks(libimagedi
 
 
 def test_resolve_pin_repo_combines_split_registry_and_repository(libimagedigests: ModuleType):
-    """redis-ha's actual style: registry: quay.io / repository: opstree/redis
-    as two sibling keys, rather than one combined "repository:
-    quay.io/opstree/redis" — must resolve to the same host/path a combined
-    pin would, or the live lookup asks the wrong registry entirely."""
+    """Split registry:/repository: keys must resolve to the same host/path as
+    a combined pin, or the lookup asks the wrong registry."""
     lines = [
         "    image:",
         "      registry: quay.io",

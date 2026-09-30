@@ -1,7 +1,7 @@
-"""fix-doc-consistency's own images-manifest "# Changes:" header-list
-maintenance (dedupe + reorder), split out of that script for pylint's
-too-many-lines check."""
+"""fix-doc-consistency's images-manifest "# Changes:" list maintenance (dedupe, reorder, stale items)."""
 
+from collections.abc import Mapping
+from pathlib import Path
 from typing import TypedDict
 
 from lib.component_docs.images_manifest_changes_header import CHANGES_HEADER_RE
@@ -9,16 +9,18 @@ from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
 from lib.component_docs.images_manifest_changes_header import NUMBER_WORDS
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
 from lib.component_docs.images_manifest_changes_header import images_manifest_changes_item_spans
+from lib.component_docs.images_manifest_entries import expected_changes_items
+from lib.component_docs.images_manifest_entries import fix_stale_changes_items
 from lib.docs_consistency.images_manifest_format import match_changes_item_to_entry
 from lib.images_manifest import ManifestEntry
 from lib.upgradedoc.images_manifest_ordering import match_changes_item_display_name
+from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.string_and_parsing_basics import match_located_line
+from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 
 
 class ChangesItem(TypedDict):
-    """One "# Changes:" item of an images manifest: its line span
-    (`start`, exclusive `end`), its text after the number (`rest`) and its
-    sort key (`key`, the position of the entry it describes)."""
+    """One "# Changes:" item: line span (start, exclusive end), text after the number, sort key."""
 
     start: int
     end: int
@@ -27,12 +29,7 @@ class ChangesItem(TypedDict):
 
 
 def _renumbered_changes_block(chunks: list[list[str]]) -> list[str]:
-    """Renumbers a list of "# Changes:" item chunks (each chunk the item's
-    own raw lines, already in their final relative order) to match their
-    position in `chunks` (1-based), returning the concatenated new block
-    lines -- shared by dedupe/sort, which each build `chunks` differently
-    (kept items in dedupe's case, reordered items in sort's) but then
-    renumber and splice them back the same way."""
+    """Renumber item chunks 1..N in list order and return the concatenated lines."""
     new_block: list[str] = []
     for slot, chunk in enumerate(chunks):
         chunk = list(chunk)
@@ -42,11 +39,9 @@ def _renumbered_changes_block(chunks: list[list[str]]) -> list[str]:
 
 
 def _deduped_item_chunks(lines: list[str], spans: list[tuple[int, int]]) -> tuple[list[list[str]], list[str]]:
-    """Each item's FULL text (its own first line's "rest" plus any wrapped
-    continuation lines) compared verbatim -- the first occurrence of a
-    given text wins, every later exact repeat is dropped. Returns
-    (keep_chunks, removed) -- keep_chunks the surviving items' own raw
-    lines, removed the dropped items' "rest" text."""
+    """Drop later verbatim repeats of an item's full text (incl. continuations).
+
+    Returns (keep_chunks, removed_rest_texts)."""
     seen: set[str] = set()
     keep_chunks: list[list[str]] = []
     removed: list[str] = []
@@ -62,8 +57,7 @@ def _deduped_item_chunks(lines: list[str], spans: list[tuple[int, int]]) -> tupl
 
 
 def _update_changes_header_count(lines: list[str], header_idx: int, total: int):
-    """Updates the "# Changes:" header's own leading count word (e.g.
-    "three changes:") to match `total`, mutating lines[header_idx]."""
+    """Set the header's count word (e.g. "three changes:") to `total`, in place."""
     count_word = NUMBER_WORDS[total] if total < len(NUMBER_WORDS) else str(total)
     noun = "change" if total == 1 else "changes"
     header_m = match_located_line(CHANGES_HEADER_RE, lines[header_idx])
@@ -71,26 +65,11 @@ def _update_changes_header_count(lines: list[str], header_idx: int, total: int):
 
 
 def dedupe_images_manifest_changes_items(lines: list[str]) -> list[str]:
-    """Remove an exact-duplicate item from the images-manifest's own "#
-    Changes:" numbered list — the real bug a multi-image "lockstep"
-    component (zgw-office-addin's frontend + backend, eck-stack's
-    elasticsearch + kibana, internetaakafhandeling's web + poller — see
-    settings.yaml's component_resolution.image_paths/version_paths)
-    could trigger before
-    add_missing_images_manifest_entries' own per-path loop learned to
-    check for an already-mentioned name: several missing_paths sharing
-    ONE path_display_name each got their own header item inserted,
-    identical text and all, even though they're one logical change.
+    """Remove exact-duplicate "# Changes:" items, renumber, and update the count word.
 
-    Compares each item's FULL text (its own first line's "rest" plus any
-    wrapped continuation line(s), the same shape sort_images_manifest_
-    changes_items' own item blocks use) verbatim — the first occurrence
-    of a given text wins, every later exact repeat is dropped outright
-    (nothing distinguishes them worth keeping, so there's nothing to
-    merge). Remaining items are renumbered 1..N, and the header's own
-    leading count word (if it has one) is updated to match. Mutates
-    `lines` in place. Returns the list of removed item texts — empty if
-    nothing was a duplicate, or the header doesn't exist."""
+    Multi-image lockstep components (e.g. zgw-office-addin frontend + backend)
+    can otherwise get one identical item per image. Mutates `lines`; returns
+    removed item texts."""
     header_idx, header_has_count = find_images_manifest_changes_header(lines)
     if header_idx is None:
         return []
@@ -116,14 +95,9 @@ def _resolved_changes_items(
     entry_positions: dict[str, int],
     display_name_positions: dict[str, int] | None,
 ) -> list[ChangesItem]:
-    """Resolves each item's own sort key: exact display-name match first
-    (see match_changes_item_display_name/display_name_positions), falling
-    back to match_changes_item_to_entry's fuzzy basename-in-text search
-    when no display name matches -- see sort_images_manifest_changes_
-    items' own docstring for why both are needed and in that order.
-    item_bounds is a list of (start, end) line-index pairs, one per item.
-    Returns a list of {"start", "end", "rest", "key"} dicts, one per item,
-    in their ORIGINAL (pre-sort) order."""
+    """Each item's sort key: exact display-name match first, else fuzzy match_changes_item_to_entry.
+
+    Returns ChangesItems in original order."""
     items: list[ChangesItem] = []
     for start, end in item_bounds:
         rest = match_located_line(CHANGES_ITEM_RE, lines[start]).group("rest")
@@ -143,46 +117,17 @@ def sort_images_manifest_changes_items(
     entry_positions: dict[str, int],
     display_name_positions: dict[str, int] | None = None,
 ) -> list[tuple[str, int, int]]:
-    """Reorder the images-manifest's own "# Changes:" numbered item list
-    (see _find_images_manifest_changes_header) to MIRROR the entry
-    list's own final order (entry_positions — see lib.upgradedoc.
-    images_manifest_entry_positions, computed from the SAME group-level
-    sort sort_images_manifest_entries itself applies) — never a second,
-    independently-computed order. An earlier version sorted items via
-    component_order_key's own fuzzy match_dependency, the same function
-    -upgrade.md's own "### ..." Changes headings use — but a Changes
-    item's free-form prose can mention an unrelated dependency's name
-    only incidentally (real case: "Keycloak app image 26.6.4 -> 26.7.2
-    (keycloak-operator chart unchanged, ...)" fuzzy-matched dependency
-    "keycloak-operator" via that parenthetical aside alone, landing it
-    BEFORE that dependency's own real sidecars instead of after
-    "keycloak"'s own actual entry) — a mismatch the entry list itself
-    can never have, since it resolves entries via repo_map/values-tree
-    paths, not prose. Each item is matched EXACTLY first, by display
-    name (see lib.upgradedoc.match_changes_item_display_name and its own
-    display_name_positions — images_manifest_display_name_positions, computed the
-    SAME group-level way entry_positions is) — the only reliable option
-    for a display name sharing no word at all with its own entry's
-    repository basename (real case: "kiss" and "kiss-eck" share nothing
-    with their own images' basenames "kiss-frontend" and "elasticsearch"
-    /"kibana", so match_changes_item_to_entry's own fuzzy basename-in-
-    text search could never resolve them — landing "kiss"/"kiss-eck"'s
-    own primary items far from their real sidecars despite the ENTRY
-    list itself already grouping them correctly). display_name_
-    positions defaults to None (falls straight through to the fuzzy
-    path below) for a caller with no deps/values/repo_map/canonical_
-    names handy. Falls back to lib.docs_consistency.match_changes_item_
-    to_entry (the SAME resolution check_images_manifest_format's own
-    Changes-item check already uses) only when the exact match finds
-    nothing — free-form hand-written prose that never repeats any
-    entry's own display name verbatim. An item resolving via NEITHER
-    sorts last, never dragged around by a real item's move. A wrapped
-    continuation line (parse_changes_block's own 2-space-indented shape)
-    travels WITH its own item, never split from it. Items are renumbered
-    1..N to match their new position. Mutates `lines` in place. Returns
-    [(item_text, old_position, new_position)] (1-based) for every item
-    that actually moved — empty (lines untouched) if the header doesn't
-    exist or has fewer than 2 items."""
+    """Reorder "# Changes:" items to mirror the entry list order (entry_positions).
+
+    Items match exactly by display name first, since some names share no
+    word with their image basename (e.g. "kiss" / "kiss-frontend"), then
+    fall back to match_changes_item_to_entry. Not ordered via
+    match_dependency: incidental mentions in prose (e.g. "keycloak-operator
+    chart unchanged") would misplace items. Unresolved items sort last;
+    continuation lines move with their item; items are renumbered.
+
+    Mutates `lines`. Returns [(item_text, old_pos, new_pos)] (1-based) for
+    moved items; empty if no header or fewer than 2 items."""
     header_idx, _header_has_count = find_images_manifest_changes_header(lines)
     if header_idx is None:
         return []
@@ -201,3 +146,20 @@ def sort_images_manifest_changes_items(
     ordered_chunks = [lines[items[i]["start"] : items[i]["end"]] for i in order]
     lines[spans[0][0] : block_end] = _renumbered_changes_block(ordered_chunks)
     return moved
+
+
+def correct_stale_changes_items(
+    images_path: Path, upgrade_path: Path, canonical_names: Mapping[str, tuple[str, ...]], resolution: ResolutionContext
+) -> list[tuple[str, str]]:
+    """Rewrite images_path's "# Changes:" items that contradict their upgrade-doc table row.
+
+    Returns [(old, new), ...]; writes only when something changed.
+    """
+    if not upgrade_path.is_file() or not images_path.is_file():
+        return []
+    row_names = [row["name"] for row in parse_upgrade_doc_rows(upgrade_path.read_text(encoding="utf-8"))]
+    lines = images_path.read_text(encoding="utf-8").splitlines(keepends=True)
+    fixed = fix_stale_changes_items(lines, expected_changes_items(row_names, canonical_names, resolution))
+    if fixed:
+        images_path.write_text("".join(lines), encoding="utf-8")
+    return fixed

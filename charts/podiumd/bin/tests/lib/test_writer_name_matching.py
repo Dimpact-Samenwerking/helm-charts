@@ -1,8 +1,7 @@
-"""How update-*-version and fix-doc-consistency find the table row,
-"### ..." Changes block and "# Changes:" item they rewrite: text_names,
-changes_item_names,
-find_changes_item and remove_changes_section, which resolve names the
-same way check_docs_consistency does (match_canonical_sidecar_name)."""
+"""Name resolution for the rows, Changes blocks and "# Changes:" items that update-*/fix-doc rewrite.
+
+Must match check_docs_consistency (match_canonical_sidecar_name).
+"""
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.component_docs.changes_section import OrderingContext
@@ -56,19 +55,21 @@ def test_remove_changes_section_leaves_the_sidecar_block_alone() -> None:
     doc = (
         "## Changes\n\n"
         "### openbao - openbao-csi-provider 1.5.0 → 1.6.0\n\nsidecar text\n\n"
-        "### OpenBao 2.5.5 → 2.5.6\n\nparent text\n"
+        "### OpenBao 2.5.5 → 2.5.6\n\n- Image tag pin `openbao.server.image.tag` `2.5.5` → `2.5.6` in\n"
+        "  `charts/podiumd/values.yaml`.\n"
     )
 
-    new_text, removed = remove_changes_section(doc, "openbao", ORDERING)
+    new_text, removed, kept_user_text = remove_changes_section(doc, "openbao", ORDERING)
 
     assert removed
+    assert not kept_user_text
     assert new_text == "## Changes\n\n### openbao - openbao-csi-provider 1.5.0 → 1.6.0\n\nsidecar text\n\n"
 
 
 def test_remove_changes_section_without_the_parent_block_removes_nothing() -> None:
     doc = "## Changes\n\n### openbao - openbao-csi-provider 1.5.0 → 1.6.0\n\nsidecar text\n"
 
-    assert remove_changes_section(doc, "openbao", ORDERING) == (doc, False)
+    assert remove_changes_section(doc, "openbao", ORDERING) == (doc, False, False)
 
 
 def test_match_canonical_sidecar_name_heading_with_version() -> None:

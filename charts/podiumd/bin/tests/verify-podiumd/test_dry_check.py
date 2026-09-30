@@ -1,7 +1,5 @@
-"""check_dry / find_similar_template_pairs — a report-only, never-failing
-scan for templates/*.yaml file pairs that look like copy-paste duplication
-(the shape podiumd.storagePVC was factored out of: 9 files, identical
-except for the literal component name)."""
+"""check_dry / find_similar_template_pairs: report-only scan for near-duplicate
+templates/*.yaml file pairs."""
 
 import difflib
 
@@ -91,9 +89,7 @@ def test_dissimilar_pair_not_reported(vp: ModuleType, tmp_path: Path):
 
 
 def test_tiny_identical_files_not_reported(vp: ModuleType, tmp_path: Path):
-    """Below the configured min_significant_lines, two files being
-    identical is more likely coincidental boilerplate than real
-    duplication worth flagging."""
+    """Below min_significant_lines, identical files are likely boilerplate."""
     tiny = BASE_LINES[:5]
     write_template(tmp_path, "a.yaml", tiny)
     write_template(tmp_path, "b.yaml", tiny)
@@ -122,12 +118,8 @@ def test_blank_lines_and_comments_ignored_in_comparison(
 def test_threshold_classifies_the_real_storage_pvc_case_as_worth_deduping(
     vp: ModuleType, libdrycheck: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
-    """Regression pin: the confirmed real-world dedup win (9 pre-refactor
-    storage.yaml files, factored into podiumd.storagePVC) scored ~0.89
-    similar — differing only by the literal component name substituted in
-    7 of 65 lines. If high_similarity_threshold ever creeps above that,
-    this exact case silently falls back to "borderline" advice, which is
-    wrong — it's not a judgment call, it was a real duplicate."""
+    """The real storage.yaml dedup case scored ~0.89; high_similarity_threshold
+    must stay below that so it isn't downgraded to "borderline"."""
     a = list(BASE_LINES) * 6 + BASE_LINES[:5]  # 65 lines, same shape as the real file pair
     b = [line.replace("foo", "bar") if "name: foo" in line else line for line in a]
     write_template(tmp_path, "objecten-storage.yaml", a)
@@ -146,9 +138,7 @@ def test_threshold_classifies_the_real_storage_pvc_case_as_worth_deduping(
 
 
 def test_never_fails_even_with_many_near_duplicates(vp: ModuleType, tmp_path: Path):
-    """Mirrors the real pre-refactor case (9 near-identical storage.yaml
-    files) — however many candidates are found, this check must always
-    pass; it is advisory only."""
+    """Advisory only: always passes, however many candidates are found."""
     for i in range(5):
         lines = list(BASE_LINES)
         lines[3] = f"  name: component-{i}"

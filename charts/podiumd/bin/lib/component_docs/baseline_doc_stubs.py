@@ -1,16 +1,8 @@
 """The standard per-target doc set (upgrade/gemeente-specific/values-deltas
-+ images manifest) and the baseline state a component's own version-bump
-docs are written against: scaffolding missing stub docs
-(create_missing_docs, STANDARD_SUFFIXES, STUB_TEMPLATES,
-IMAGES_STUB_TEMPLATE), scanning what already exists (existing_doc_
-baselines, DOC_FILENAME_RE_TMPL), and reading values.yaml/Chart.yaml as
-they were at a resolved upgrade_docs_baseline (load_baseline_values,
-load_baseline_state). Shared by create-doc-version, fix-doc-consistency,
-update-component-version, and update-image-version. Split out of the
-former flat lib/component_docs.py, now the lib.component_docs package
-(see lib.component_docs itself, plus its still-to-come sibling modules
-for images-manifest changes headers, the changes section, values-delta
-sections, and images-manifest entries)."""
++ images manifest): stub scaffolding, scanning existing docs, and loading
+values.yaml/Chart.yaml at the upgrade_docs_baseline. Shared by
+create-doc-version, fix-doc-consistency, update-component-version, and
+update-image-version."""
 
 import re
 
@@ -26,18 +18,15 @@ from lib.yaml_types import YamlMapping
 
 
 def images_manifest_path(images_dir: Path, target: str):
-    """The docs/images/images-<target>.yaml path for `target` — the one
-    place this filename shape is assembled, shared by create_missing_docs
-    and every caller that needs the same path without re-deriving it."""
+    """The docs/images/images-<target>.yaml path for `target`."""
     return images_dir / f"images-{target}.yaml"
 
 
 def baseline_doc_paths(doc_dir: Path, upgrade_docs_baseline: str | None, target: str):
-    """(upgrade_path, values_deltas_path) for the <upgrade_docs_baseline>-to-<target>-
-    *.md doc set, or (None, None) if upgrade_docs_baseline is None
-    (release-baseline.yaml's own upgrade_docs key doesn't exist yet) or
-    the upgrade doc itself doesn't exist yet — run create-doc-version
-    first to scaffold it either way."""
+    """(upgrade_path, values_deltas_path) for the <baseline>-to-<target>-*.md docs.
+
+    (None, None) if upgrade_docs_baseline is None or the upgrade doc doesn't
+    exist yet (run create-doc-version first)."""
     if upgrade_docs_baseline is None:
         return None, None
     upgrade_path = doc_dir / f"{upgrade_docs_baseline}-to-{target}-upgrade.md"
@@ -47,34 +36,18 @@ def baseline_doc_paths(doc_dir: Path, upgrade_docs_baseline: str | None, target:
     return upgrade_path, (values_deltas_path if values_deltas_path.is_file() else None)
 
 
-# The three docs verify-podiumd's check_baseline_doc_set expects for every
-# target — missing ones are created as stubs, not just renamed. Shared by
-# create-doc-version (creates whichever are missing for a fresh target)
-# and fix-doc-consistency (renames existing ones, and falls back to the
-# same fresh-create for whichever were never scaffolded at all).
+# The docs check_baseline_doc_set expects for every target.
 STANDARD_SUFFIXES = ("upgrade", "gemeente-specific", "values-deltas")
 
-# The exact bare placeholder line each stub below writes for a section
-# that has no real content yet — shared with insert_changes_section/
-# insert_values_delta_section's own "is this JUST the stub, nothing else"
-# check (_is_bare_placeholder_span/_is_bare_values_deltas_todo_stub) so
-# these can never independently drift out of sync with what's actually
-# written. UPGRADE_INTRO_STUB_TODO_LINE and UPGRADE_CHANGES_STUB_TODO_
-# LINE are two SEPARATE placeholders in two different spots of the same
-# "upgrade" doc, but treated as ONE event by strip_stale_upgrade_
-# placeholders below: both clear together the moment "## Changes" gets
-# its first real "### ..." block, since both equally mean "this hop now
-# has real recorded changes" — see that function's own docstring.
+# Bare placeholder lines the stubs write; shared with the "is this just the
+# stub" checks so they can't drift. Both upgrade-doc placeholders are cleared
+# together by strip_stale_upgrade_placeholders once "## Changes" gets a
+# real "### ..." block.
 UPGRADE_INTRO_STUB_TODO_LINE = "TODO: describe this hop's changes.\n"
 UPGRADE_CHANGES_STUB_TODO_LINE = "TODO\n"
 VALUES_DELTAS_STUB_TODO_LINE = "TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n"
-# gemeente-specific.md's own placeholder is worded differently (an
-# ongoing "nothing to report" fact, not a TODO instruction) and,
-# structurally, NOTHING ever writes a new "## <gemeente> (<env>)"
-# section into this file automatically — its content is entirely
-# human-authored findings, so there's no insertion-time or retroactive
-# STRIP for this one, only a checker (see has_stale_gemeente_specific_
-# placeholder) that flags it as a finding for a human to clear by hand.
+# Nothing writes gemeente-specific sections automatically, so this placeholder
+# is never stripped; has_stale_gemeente_specific_placeholder flags it instead.
 GEMEENTE_SPECIFIC_STUB_LINE = "_None recorded yet._\n"
 
 STUB_TEMPLATES = {
@@ -119,18 +92,12 @@ IMAGES_STUB_TEMPLATE = (
     "[]\n"
 )
 
-# The shape a doc filename's upgrade_docs_baseline segment must have — bare
-# MAJOR.MINOR.PATCH, matching create-podiumd-version/change-podiumd-
-# baseline's own release-baseline.yaml upgrade_docs convention.
+# Baseline segment is bare MAJOR.MINOR.PATCH, as in release-baseline.yaml's upgrade_docs.
 DOC_FILENAME_RE_TMPL = r"^(?P<upgrade_docs_baseline>\d+\.\d+\.\d+)-to-{target}-(?P<suffix>[\w\-]+)\.md$"
 
 
 def existing_doc_baselines(doc_dir: Path, target: str) -> dict[str, list[tuple[str, Path]]]:
-    """{suffix: [(upgrade_docs_baseline, path), ...]} for every *-to-<target>-<suffix>.md
-    doc currently in doc_dir, whatever upgrade_docs_baseline each one currently names —
-    the raw "what's actually there" scan. Shared by create-doc-version (to
-    detect an upgrade_docs_baseline mismatch worth refusing fresh-creation over) and
-    fix-doc-consistency (to know what to rename)."""
+    """{suffix: [(upgrade_docs_baseline, path), ...]} for every *-to-<target>-<suffix>.md in doc_dir."""
     pattern = re.compile(DOC_FILENAME_RE_TMPL.format(target=re.escape(target)))
     by_suffix: dict[str, list[tuple[str, Path]]] = {}
     for path in doc_dir.glob(f"*-to-{target}-*.md"):
@@ -142,11 +109,9 @@ def existing_doc_baselines(doc_dir: Path, target: str) -> dict[str, list[tuple[s
 
 
 def create_missing_docs(doc_dir: Path, images_dir: Path, upgrade_docs_baseline: str, target: str) -> list[str]:
-    """Create whichever of the three standard <upgrade_docs_baseline>-to-<target>-*.md
-    docs, and docs/images/images-<target>.yaml, don't already exist yet,
-    as TODO stubs — never overwrites an existing file. Returns the
-    filenames actually created (upgrade/gemeente-specific/values-deltas
-    order, images manifest last)."""
+    """Create missing standard docs and images-<target>.yaml as TODO stubs; never overwrites.
+
+    Returns the created filenames (doc suffix order, images manifest last)."""
     created: list[str] = []
     for suffix in STANDARD_SUFFIXES:
         path = doc_dir / f"{upgrade_docs_baseline}-to-{target}-{suffix}.md"
@@ -166,30 +131,12 @@ def create_missing_docs(doc_dir: Path, images_dir: Path, upgrade_docs_baseline: 
 
 
 def load_baseline_values(values_path: Path, upgrade_docs_baseline: str) -> YamlMapping | None:
-    """values.yaml as it actually was at the release these docs are written
-    against (resolved via git) — NOT "before this script's own edit". A
-    tag-only bump never touches values.yaml's schema, so a before/after-
-    this-run comparison would always be empty regardless of what actually
-    changed for this component since the real upgrade_docs_baseline; comparing against
-    the true upgrade_docs_baseline is the only way to catch a values.yaml schema change
-    (new/removed/renamed key) made by hand as part of this hop, whenever
-    during the hop that edit happened. Returns None if the upgrade_docs_baseline can't
-    be resolved (e.g. that release hasn't been tagged yet) — callers then
-    skip key-change detection rather than comparing against nothing
-    meaningful.
+    """values.yaml as of the upgrade_docs_baseline's git ref, or None if unresolvable.
 
-    Deliberately NOT built on lib.release_baseline.resolve_baseline_chart_
-    state (unlike load_baseline_state just below, which shares its own
-    exact "also needs Chart.yaml" shape with it) — that function treats an
-    unreadable Chart.yaml at the resolved ref as a hard failure (matching
-    lib.docs_consistency's own convention), but THIS function has always
-    been values.yaml-only and never required Chart.yaml to exist at all
-    (real test fixture, tests/update-component-version's own load_
-    baseline_values tests: a repo with values.yaml committed but no
-    Chart.yaml at all still resolves here). Wrapping it around the shared
-    function anyway would silently start requiring Chart.yaml too — a real
-    behavior regression this docstring exists to head off, not an
-    oversight."""
+    Compares against the real baseline, not this run's pre-edit state, so
+    hand-made schema changes anywhere in the hop are caught. Deliberately
+    not built on resolve_baseline_chart_state: that requires Chart.yaml at
+    the ref, which this function must not (tests cover a values-only repo)."""
     repo_root = find_repo_root(values_path.parent)
     if repo_root is None:
         return None
@@ -201,36 +148,18 @@ def load_baseline_values(values_path: Path, upgrade_docs_baseline: str) -> YamlM
 
 
 def load_baseline_state(
-    # kept for signature compat, see docstring below
+    # kept for signature compat
     chart_yaml_path: Path,  # pylint: disable=unused-argument  # noqa: ARG001
     values_path: Path,
     upgrade_docs_baseline: str,
 ) -> tuple[list[ChartDependency], YamlMapping] | tuple[None, None]:
-    """(baseline_deps, baseline_values) as they actually were at upgrade_docs_baseline's
-    resolved git ref — same ref resolution as load_baseline_values, but
-    also pulls Chart.yaml so a caller can tell whether a component's own
-    CHART version (not just an image tag under it) has moved from
-    upgrade_docs_baseline. Feeds lib.upgradedoc.compute_changed_components, which is
-    the ground truth for "has this component actually changed since
-    upgrade_docs_baseline at all" — used to decide whether a bump's own "old" version
-    for docs should be the true upgrade_docs_baseline (so a component bumped more than
-    once in one release cycle still shows upgrade_docs_baseline → final, not
-    each-intermediate-hop → final) or whether there's no longer any change
-    left to document. Returns (None, None) if the upgrade_docs_baseline can't be
-    resolved (e.g. that release hasn't been tagged yet), OR if Chart.yaml
-    can't be read at the ref that WAS resolved — callers then fall back to
-    their own before-this-run comparison instead.
+    """(baseline_deps, baseline_values) at the upgrade_docs_baseline's git ref.
 
-    A thin wrapper around lib.release_baseline.resolve_baseline_chart_state
-    (see its own docstring) — chart_yaml_path is accepted only to keep this
-    function's own existing signature (and its callers) unchanged; the
-    shared function derives Chart.yaml's own path from chart_dir (=
-    values_path.parent) directly, since the two always sit side by side in
-    the same directory. Translates that function's own "always []/{}/[]
-    on failure" convention into this function's own pre-existing
-    "(None, None) on failure" one, so update-component-version/update-
-    image-version (this function's own callers, which check `is None`)
-    need no changes of their own."""
+    Includes Chart.yaml so callers can detect chart version moves, letting a
+    component bumped twice in one cycle still document baseline -> final.
+    Returns (None, None) if the ref or Chart.yaml can't be resolved; callers
+    then fall back to their own before/after comparison. chart_yaml_path is
+    unused (derived from values_path.parent)."""
     _ref, baseline_deps, baseline_values, _lines, error = resolve_baseline_chart_state(
         values_path.parent, upgrade_docs_baseline
     )

@@ -1,20 +1,8 @@
-"""run_trivy / check_cves — report-only CVE sweep against every unique
-digest-pinned image, via `docker run aquasec/trivy:latest`, split into
-own/partner-vendor/other-vendor buckets that ALL get identical treatment
-(no aggregate-only rollup for other-vendor). By default every bucket gets
-terse per-image severity totals — see check_cves(..., detail=True) for
-the opt-in itemized view: CRITICAL/HIGH ("CRIT/HIGH") per image, grouped by
-affected package — one line per package listing its CVE IDs, or (past
-PACKAGE_CVE_LIST_THRESHOLD) a summarized count instead of every ID — with
-MEDIUM/LOW/UNKNOWN still only totaled per image. Cached by (repository,
-digest) in <repo-root>/.cache/cve-scan-cache.json — a personal,
-gitignored, per-checkout cache, not shared across contributors/CI. No
-real docker/trivy/registry invocation happens in
-these tests — `run` is mocked throughout. Whether a newer tag is
-published at all is lib.image.upgrade_check's job, not this module's —
-see tests/verify-podiumd/test_image_upgrade_check.py — but this module
-DOES read that check's cache (lib.image.upgrade_cache), read-only, to
-annotate a finding as "upgradable"."""
+"""Tests for run_trivy / check_cves: report-only CVE sweep of digest-pinned images.
+
+Images are split into own/partner-vendor/other-vendor buckets with identical
+treatment; `run` is mocked throughout, so no docker/trivy/registry call happens.
+The image-upgrade cache is read (read-only) to annotate "upgradable" findings."""
 
 import json
 
@@ -40,7 +28,6 @@ def vuln(severity, cve="CVE-2024-0001", pkg="openssl", fixed="3.0.2", extra=None
 
 
 CVE_CACHE_TTL_DAYS = 7
-HIGH_SEVERITIES = {"CRITICAL", "HIGH"}
 PACKAGE_CVE_LIST_THRESHOLD = 5
 
 
@@ -135,20 +122,12 @@ def fake_render_chart(rendered=RENDERED, returncode=0):
 
 @pytest.fixture(autouse=True)
 def _default_render(libcvecheck: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    """check_cves now gets its render via lib.render_scope.render_chart
-    (chart_dir, extra_args), not a run([...]) call of its own — default
-    every test in this file to the standard RENDERED fixture text; a
-    test needing different rendered content (or a render failure)
-    overrides this via its own monkeypatch.setattr(libcvecheck,
-    "render_chart", ...) call."""
+    """Default every test to the RENDERED fixture; override render_chart to change it."""
     monkeypatch.setattr(libcvecheck, "render_chart", fake_render_chart(RENDERED))
 
 
 def sequenced_run(trivy_by_image=None, ks_returncode=0):
-    """check_cves's own remaining run([...]) calls are ALL "docker"
-    (trivy) now (the render moved to render_chart, see _default_render
-    above) — one call per check_cves(...) invocation, in target order
-    (sorted by (repository, version))."""
+    """Fake run() for trivy calls, keyed by image ref."""
     trivy_by_image = trivy_by_image or {}
 
     def run(cmd, **kwargs):
@@ -197,8 +176,7 @@ def test_digest_ref_without_a_digest_is_none(libcvecheck: ModuleType):
     assert libcvecheck._digest_ref("org/repo", "") is None
 
 
-# --- scan_cached (the shared primitive check_cves and lib.checks.cve_diff
-# both route through) ---
+# --- scan_cached (shared by check_cves and lib.checks.cve_diff) ---
 
 
 def test_scan_cached_reports_a_hit_and_never_calls_run_trivy(
@@ -279,10 +257,7 @@ def test_scan_cached_stale_entry_is_not_used(libcvecheck: ModuleType, tmp_path: 
 def test_scan_cached_none_digest_skips_the_cache_entirely(
     libcvecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """A digest=None candidate (an unresolved proposed tag, see lib.
-    checks.cve_diff._scan_proposed) must go straight to run_trivy — no
-    cache read, and no cache write either, since there's no digest to
-    key it by."""
+    """digest=None (unresolved proposed tag) goes straight to run_trivy: no cache read or write."""
     calls = []
     monkeypatch.setattr(libcvecheck, "run_trivy", lambda ref: (calls.append(ref), [])[1])
     new_cache = {}
@@ -332,11 +307,7 @@ def test_scan_cached_default_label_is_this_image(
     assert "this image: scanning fresh" in out
 
 
-# --- open_cache_session (the shared "load, then start a correct mutable
-# working copy" initializer check_cves and lib.checks.cve_diff both call,
-# so there's no second independently-written copy of it left to drift —
-# see the real bug that happened once, when check_cves' own copy of this
-# step quietly wrote new_cache = {} instead) ---
+# --- open_cache_session (shared by check_cves and cve_diff so the init can't drift) ---
 
 
 def test_open_cache_session_new_cache_is_a_separate_copy(libcvecheck: ModuleType, tmp_path: Path):
@@ -419,9 +390,7 @@ def test_parse_image_ref(libcvecheck: ModuleType):
 
 
 def test_parse_image_ref_tagless_digest_reference(libcvecheck: ModuleType):
-    """A valid k8s ref with a digest and no :tag (a vendored sub-chart's
-    helper may emit one) must return version=None, not raise ValueError on
-    the tuple unpack."""
+    """A digest ref without :tag must return version=None, not raise on tuple unpack."""
     assert libcvecheck.parse_image_ref(f"ghcr.io/foo/bar@sha256:{DIGEST_A}") == ("ghcr.io/foo/bar", None, DIGEST_A)
 
 
@@ -440,9 +409,7 @@ def test_top_level_key_for_line(libcvecheck: ModuleType):
 
 
 def test_render_image_labels_own_wins_over_other_sources(libcvecheck: ModuleType):
-    """The same image rendered by both an own template and a vendored
-    chart must classify as "own" — this repo's own decision to use that
-    image directly outweighs it also being some dependency's default."""
+    """An image used by both an own template and a vendored chart classifies as "own"."""
     rendered = (
         f"---\n# Source: podiumd/templates/foo.yaml\napiVersion: v1\nkind: Pod\nmetadata:\n  name: a\n"
         f"spec:\n  containers:\n    - name: a\n      image: shared/img:1.0@sha256:{DIGEST_A}\n"
@@ -461,15 +428,15 @@ def test_severity_label_abbreviates_critical(libcvecheck: ModuleType):
     assert libcvecheck.severity_label("HIGH") == "HIGH"
 
 
-def test_high_findings_by_package_groups_and_excludes_low_severity(libcvecheck: ModuleType):
+def test_findings_by_package_groups_every_severity(libcvecheck: ModuleType):
     vulns = [
         vuln("CRITICAL", cve="CVE-1", pkg="chromium"),
         vuln("HIGH", cve="CVE-2", pkg="chromium"),
         vuln("HIGH", cve="CVE-3", pkg="openssl"),
         vuln("LOW", cve="CVE-4", pkg="chromium"),
     ]
-    groups = libcvecheck.high_findings_by_package(vulns, HIGH_SEVERITIES)
-    assert {v["VulnerabilityID"] for v in groups["chromium"]} == {"CVE-1", "CVE-2"}
+    groups = libcvecheck.findings_by_package(vulns)
+    assert {v["VulnerabilityID"] for v in groups["chromium"]} == {"CVE-1", "CVE-2", "CVE-4"}
     assert {v["VulnerabilityID"] for v in groups["openssl"]} == {"CVE-3"}
 
 
@@ -489,13 +456,8 @@ def test_print_package_line_summarizes_above_threshold(libcvecheck: ModuleType, 
 
 
 def test_print_package_line_never_shows_fix_version(libcvecheck: ModuleType, capsys: pytest.CaptureFixture[str]):
-    """FixedVersion is an internal detail of the base image (an OS/language
-    package version), not something this repo pins or can bump directly —
-    whether a newer image tag exists at all is lib.image.upgrade_check's
-    job, not this one's. A distro package patched across many piecemeal
-    security advisories (e.g. Debian's bind9-dnsutils) can carry a wildly
-    different FixedVersion per CVE, which is exactly why showing any of
-    them here would be both noisy and misleading."""
+    """FixedVersion is never shown: it's a base-image package detail this repo can't bump,
+    and per-CVE values can differ wildly for one package (e.g. Debian bind9-dnsutils)."""
     vulns_for_pkg = [
         vuln("HIGH", cve="CVE-1", fixed="1:9.16.42-1~deb11u1"),
         vuln("HIGH", cve="CVE-2", fixed="1:9.16.50-1~deb11u6"),
@@ -579,14 +541,10 @@ def test_check_cves_splits_own_partner_other_and_never_fails(
     assert "CVE-PARTNER-1" not in out  # partner never itemizes individual CVE IDs
 
     assert "--- Other-vendor images ---" in out
-    assert "1 CRIT, 1 MEDIUM CVE(s)" in out  # other-vendor: identical treatment to own/partner now
+    assert "1 CRIT, 1 MEDIUM CVE(s)" in out  # other-vendor: same treatment as own/partner
     assert "CVE-OTHER-1" not in out  # totals only by default, no individual CVE IDs
 
-    # a per-image progress line for each of the 3 (uncached) scans, so a
-    # slow trivy pull doesn't look like the step hung -- same "this
-    # image: scanning fresh (docker pull + trivy) -- <ref>..." wording
-    # lib.checks.cve_diff's own current/proposed lines use, via the same
-    # shared lib.checks.cve.scan_cached.
+    # a per-image progress line per uncached scan, so a slow trivy pull doesn't look hung
     scan_lines = [line for line in out.splitlines() if "scanning fresh" in line and "docker pull + trivy" in line]
     assert len(scan_lines) == 3
     assert any(line.startswith("  [1/3] this image: scanning fresh ") for line in scan_lines)
@@ -601,11 +559,8 @@ def test_check_cves_marks_upgradable_from_image_upgrade_cache(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """check_cves reads lib.image.upgrade_check's own cache (read-only, no
-    registry call of its own) to append " upgradable to X" after an
-    image's name when that cache has a fresh entry showing a newer tag —
-    here only frankgateway (own) does; openzaak (partner) has no cache
-    entry at all (never checked, or checked-and-stale), so no marker."""
+    """An image with a fresh upgrade-cache entry showing a newer tag gets " upgradable to X";
+    one without a cache entry gets no marker."""
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
 
@@ -645,10 +600,7 @@ def test_check_cves_stale_upgrade_cache_entry_not_marked_upgradable(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """A stale (past image_upgrade_check.tag_check_cache_ttl_days) entry
-    must not be treated as evidence of an upgrade — cve_check never
-    refreshes this cache itself, so a stale entry is as good as no
-    entry."""
+    """A stale upgrade-cache entry is not evidence of an upgrade: cve_check never refreshes it."""
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
 
@@ -683,9 +635,7 @@ def test_check_cves_detail_itemizes_every_bucket(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """--detail (detail=True) elevates ALL THREE buckets — including
-    other-vendor, which otherwise never gets per-image detail at all — to
-    the full itemized CRIT/HIGH-per-package view."""
+    """detail=True itemizes every finding per package for all three buckets, other-vendor included."""
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
 
@@ -719,18 +669,17 @@ def test_check_cves_detail_itemizes_every_bucket(
     assert ok is True
 
     out = capsys.readouterr().out
-    assert "CRIT CVE-OWN-1" in out and "CVE-OWN-2" not in out  # own: itemized, LOW only totaled
-    assert "curl: HIGH CVE-PARTNER-1" in out  # partner: now itemized too
-    assert "busybox: CRIT CVE-OTHER-1" in out  # other-vendor: now itemized too
-    assert "1 MEDIUM CVE(s)" in out  # other-vendor's MEDIUM still only totaled, even with --detail
+    assert "openssl: CRIT CVE-OWN-1, LOW CVE-OWN-2" in out  # own: every severity itemized
+    assert "curl: HIGH CVE-PARTNER-1" in out  # partner: itemized too
+    assert "busybox: CRIT CVE-OTHER-1" in out  # other-vendor: itemized too
+    assert "openssl: MEDIUM CVE-OTHER-2" in out  # MEDIUM itemized as well with --detail
+    assert "1 CRIT, 1 MEDIUM CVE(s)" in out  # the totals line stays
 
 
 def test_print_bucket_report_image_line_then_totals_then_packages(
     libcvecheck: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """Layout, top to bottom, for an itemized image: the image name+vendor
-    (+ "upgradable to X" marker, if set) line, then the MEDIUM/LOW/UNKNOWN
-    total (if any), then the per-package CRIT/HIGH lines."""
+    """Itemized layout: name+vendor(+upgradable) line, severity totals, then every finding per package."""
     images = {
         "docker.io/pravega/zookeeper:0.2.15": {
             "bucket": "own",
@@ -747,23 +696,23 @@ def test_print_bucket_report_image_line_then_totals_then_packages(
         "Own images",
         ["docker.io/pravega/zookeeper:0.2.15"],
         images,
-        libcvecheck.ReportSettings("full", HIGH_SEVERITIES, PACKAGE_CVE_LIST_THRESHOLD),
+        libcvecheck.ReportSettings("full", PACKAGE_CVE_LIST_THRESHOLD),
     )
 
     lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
     header_idx = next(i for i, line in enumerate(lines) if line.startswith("docker.io/pravega/zookeeper:0.2.15"))
-    assert lines[header_idx] == "docker.io/pravega/zookeeper:0.2.15 upgradable to 0.2.16"
-    assert "1 MEDIUM, 1 LOW CVE(s)" in lines[header_idx + 1]
-    assert "bind9-dnsutils: HIGH CVE-1" in lines[header_idx + 2]
+    assert lines[header_idx:] == [
+        "docker.io/pravega/zookeeper:0.2.15 upgradable to 0.2.16",
+        "  1 HIGH, 1 MEDIUM, 1 LOW CVE(s)",
+        "  bind9-dnsutils: HIGH CVE-1",
+        "  openssl: MEDIUM CVE-2, LOW CVE-3",
+    ]
 
 
 def test_print_bucket_report_totals_mode_never_itemizes_even_high_severity(
     libcvecheck: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """Partner-vendor images (detail_level="totals") get a single per-image
-    severity-totals line, covering every severity including CRIT/HIGH — no
-    package breakdown, no individual CVE IDs, unlike detail_level="full".
-    Not upgradable here, so no marker."""
+    """detail_level="totals" gives one severity-totals line, no package breakdown or CVE IDs."""
     images = {
         "docker.io/maykinmedia/objects-api:1.0.0": {
             "bucket": "partner",
@@ -780,7 +729,7 @@ def test_print_bucket_report_totals_mode_never_itemizes_even_high_severity(
         "Partner-vendor images",
         ["docker.io/maykinmedia/objects-api:1.0.0"],
         images,
-        libcvecheck.ReportSettings("totals", HIGH_SEVERITIES, PACKAGE_CVE_LIST_THRESHOLD),
+        libcvecheck.ReportSettings("totals", PACKAGE_CVE_LIST_THRESHOLD),
     )
 
     out = capsys.readouterr().out
@@ -838,9 +787,8 @@ def test_check_cves_heuristic_fallback_for_disabled_component(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """A pin whose component isn't in the render at all (e.g. disabled in
-    the CI values) falls back to the values-key heuristic: not a
-    Chart.yaml dependency -> own."""
+    """A pin not in the render (e.g. disabled in CI values) falls back to the values-key
+    heuristic: not a Chart.yaml dependency -> own."""
     apiproxy_digest = "d" * 64
     values = VALUES_YAML + (
         f'apiproxy:\n  image:\n    repository: org/apiproxy\n    tag: "1.0.0@sha256:{apiproxy_digest}"\n'
@@ -857,9 +805,7 @@ def test_check_cves_heuristic_fallback_for_disabled_component(
 
     ok, detail = vp.check_cves(chart_dir, [])
     assert ok is True
-    # Only apiproxy has findings here (frankgateway/openzaak/redis-operator score
-    # clean in this test) — the point is it lands in "own" via the heuristic
-    # fallback (not a Chart.yaml dependency), not that it's rendered at all.
+    # only apiproxy has findings; the point is it lands in "own" via the heuristic fallback
     assert "1 own (1 img)" in detail
     out = capsys.readouterr().out
     assert "docker.io/org/apiproxy:1.0.0" in out
@@ -948,17 +894,11 @@ def test_check_cves_expired_cache_entry_rescans(
 def test_check_cves_preserves_entries_for_unpinned_images(
     vp: ModuleType, libcvecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Regression test (real bug): check_cves used to start new_cache as
-    an EMPTY dict, so its own end-of-run save_cache wiped out every
-    cache entry this run didn't itself touch -- including a lib.checks.
-    cve_diff "proposed"-side entry for an image that's never
-    actually pinned in values.yaml at all (a candidate/upgrade tag or a
-    slid digest). Since check_cves runs right before check_cve_diff in
-    the default pipeline, this destroyed cve-diff's own proposed-side
-    cache on nearly every run. new_cache now starts as a COPY of old_
-    cache (matching lib.checks.cve_diff's own already-correct pattern),
-    so an untouched entry is carried forward as-is and ages out on its
-    own TTL, never actively deleted just for not being a current target."""
+    """Regression: new_cache must start as a copy of old_cache, not {}.
+
+    check_cves runs right before check_cve_diff; an empty start made its save wipe
+    cve-diff's proposed-side entries (images never pinned in values.yaml). Untouched
+    entries now age out on their own TTL."""
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
     unrelated_key = "org/proposed-candidate@sha256:" + "e" * 64
@@ -981,10 +921,7 @@ def test_check_cves_still_updates_its_own_currently_pinned_targets(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """new_cache starting as a copy of old_cache must not stop check_cves
-    from adding/refreshing entries for its own actual targets exactly as
-    before -- only entries it doesn't touch are now preserved rather than
-    dropped, nothing about its own targets' own read/write path changed."""
+    """Copying old_cache must not stop check_cves adding/refreshing its own targets."""
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
     monkeypatch.setattr(libcvecheck, "run", sequenced_run())

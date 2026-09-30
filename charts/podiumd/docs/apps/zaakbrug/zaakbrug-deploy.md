@@ -16,7 +16,7 @@ the ZGW APIs. It ships as the umbrella sub-chart `wearefrank/zaakbrug` and is
 | Chart key | `zaakbrug` |
 | Enabled by default | `false` |
 | Sub-chart | `wearefrank/zaakbrug` `2.3.32` (Frank!Framework `ff-common`) |
-| Application image | `wearefrank/zaakbrug:1.26.18` (mirror to `acrprodmgmt.azurecr.io` for prod) |
+| Application image | `wearefrank/zaakbrug:1.26.19` (mirror to `acrprodmgmt.azurecr.io` for prod) |
 | Namespace / workload | `podiumd` / Deployment `podiumd-zaakbrug` |
 | Service | `podiumd-zaakbrug:80` → container port `8080` |
 | JVM heap | `Xms=Xmx=4G` (`zaakbrug.frank.memory.{minimum,maximum}`) |
@@ -103,7 +103,7 @@ zaakbrug:
   image:
     registry: acrprodmgmt.azurecr.io   # or docker.io/wearefrank for the public image
     repository: zaakbrug
-    tag: "1.26.18"
+    tag: "1.26.19"
   resources:
     requests: { cpu: 250m, memory: 5Gi }
     limits:   { cpu: "2",  memory: 6Gi }

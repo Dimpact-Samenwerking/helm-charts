@@ -1,5 +1,4 @@
-"""OCI registry helpers shared by every script that fetches or verifies a
-live image digest — same flow as documented in /fetch-image-digest."""
+"""OCI registry helpers for fetching and verifying live image digests (same flow as /fetch-image-digest)."""
 
 import json
 import re
@@ -7,13 +6,16 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from http.client import HTTPMessage
 from pathlib import Path
+from typing import IO
 from typing import BinaryIO
 from typing import TypedDict
 
 from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import text_at
 from lib.procutil import run
+from lib.version_numbers import dotted_numbers
 from lib.yaml_types import YamlValue
 from lib.yaml_types import is_yaml_value
 
@@ -24,10 +26,8 @@ MANIFEST_ACCEPT = (
     "application/vnd.docker.distribution.manifest.v2+json"
 )
 
-# Registries with a KNOWN token realm, queried preemptively so a normal
-# pull needs only one round trip instead of two (request, get challenged,
-# request again). Not the only registries that need a token — see
-# _get_with_dynamic_auth below for anything not listed here.
+# Known token realms, fetched up front to save the 401 round trip; other registries use
+# _get_with_dynamic_auth.
 TOKEN_ENDPOINTS = {
     "docker.io": "https://auth.docker.io/token?service=registry.docker.io&scope=repository:{repo}:pull",
     "ghcr.io": "https://ghcr.io/token?scope=repository:{repo}:pull",
@@ -57,14 +57,10 @@ class ImagePathTagCheck(TagCheck):
 
 
 def _read_json(resp: BinaryIO) -> YamlValue:
-    """Parse a registry response body as JSON, turning a non-JSON 200 (a
-    rate-limit / interstitial HTML page, a caching proxy's own error page —
-    routine for Docker Hub / Cloudflare-fronted registries under load) into
-    a URLError. That is the exception type every caller in this module
-    already handles, so one bad response degrades to a FETCH-ERR / "can't
-    tell" line instead of aborting the whole verify-podiumd run with a
-    traceback. (URLError is an OSError subclass, so `except OSError` callers
-    catch it too.)"""
+    """Parse a registry response body as JSON, raising URLError on a non-JSON 200.
+
+    Rate-limit/proxy HTML pages are routine under load; URLError (an OSError) is what every
+    caller already handles, so one bad response degrades to "can't tell" instead of a traceback."""
     raw = resp.read()
     where = getattr(resp, "url", None) or "registry"
     try:
@@ -79,9 +75,7 @@ def _read_json(resp: BinaryIO) -> YamlValue:
 
 
 def _read_token(resp: BinaryIO) -> str:
-    """_read_json plus the ["token"] lookup an auth endpoint's response is
-    expected to carry — a response that parsed but has no token is the same
-    kind of "registry misbehaved" failure, raised the same way."""
+    """_read_json plus the ["token"] lookup; a missing token raises URLError too."""
     token = text_at(_read_json(resp), "token")
     if token is None:
         msg = "auth response carried no token"
@@ -90,49 +84,72 @@ def _read_token(resp: BinaryIO) -> str:
 
 
 def _urlopen(url_or_req: str | urllib.request.Request, timeout: float | None = None):
-    """urllib.request.urlopen, only passing timeout= when the caller asked
-    for one — every existing call site (and its tests, mocking urlopen with
-    a plain single-arg callable) keeps behaving exactly as before; a caller
-    that wants a bounded wait (e.g. lib.repo_access's fast preflight, where
-    a hung connection would defeat the whole point of "fast") passes one
-    explicitly instead of blocking forever on an unreachable host."""
-    # Every caller targets a known, config-derived trusted registry host, never an
-    # attacker-controllable scheme; same trust boundary ruff's own per-file S310
-    # exemption for this file documents.
+    """urllib.request.urlopen, passing timeout= only when given.
+
+    Tests mock urlopen with a single-arg callable."""
+    # Hosts are config-derived trusted registries, never attacker-controlled (same as ruff S310 exemption).
     if timeout is None:
         return urllib.request.urlopen(url_or_req)  # nosec B310
     return urllib.request.urlopen(url_or_req, timeout=timeout)  # nosec B310
 
 
 def _parse_bearer_challenge(header_value: str | None):
-    """Parses a `WWW-Authenticate: Bearer realm="...",service="...",
-    scope="..."` challenge into {"realm": ..., "service": ..., "scope": ...}
-    — the standard OCI Distribution auth flow every spec-compliant registry
-    returns on a 401, including ones with no TOKEN_ENDPOINTS entry (see
-    _get_with_dynamic_auth). None if it's not a Bearer challenge at all."""
+    """Parse a `WWW-Authenticate: Bearer realm=...,service=...,scope=...` header into a dict.
+
+    None unless it is a Bearer challenge with a realm."""
     if not header_value or not header_value.lower().startswith("bearer "):
         return None
     params = dict(BEARER_CHALLENGE_PARAM_RE.findall(header_value))
     return params if "realm" in params else None
 
 
+class _DropAuthOnRedirect(urllib.request.HTTPRedirectHandler):
+    """Follow a redirect to another host without the Authorization header.
+
+    Registries redirect blob downloads to a storage CDN (docker.elastic.co does),
+    which answers HTTP 400 to the registry's bearer token."""
+
+    # Signature fixed by urllib.request.HTTPRedirectHandler.redirect_request, which this overrides.
+    def redirect_request(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        self,
+        req: urllib.request.Request,
+        fp: IO[bytes],
+        code: int,
+        msg: str,
+        headers: HTTPMessage,
+        newurl: str,
+    ) -> urllib.request.Request | None:
+        new = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if new is not None and urllib.parse.urlsplit(newurl).netloc != urllib.parse.urlsplit(req.full_url).netloc:
+            new.remove_header("Authorization")
+        return new
+
+
+_BLOB_OPENER = urllib.request.build_opener(_DropAuthOnRedirect)
+
+
+def _urlopen_blob(url_or_req: str | urllib.request.Request, timeout: float | None = None):
+    """_urlopen for blob downloads: redirects to another host drop the Authorization header."""
+    # Same trusted registry hosts as _urlopen.
+    return _BLOB_OPENER.open(url_or_req, timeout=timeout)  # nosec B310
+
+
 def _get_with_dynamic_auth(
-    url: str, repo: str, headers: dict[str, str], timeout: float | None = None, method: str = "GET"
+    url: str,
+    repo: str,
+    headers: dict[str, str],
+    timeout: float | None = None,
+    method: str = "GET",
 ):
-    """Requests url (GET by default; registry_tag_exists passes "HEAD" — see
-    there), retrying once with a bearer token if the registry demands one
-    via a WWW-Authenticate challenge that TOKEN_ENDPOINTS didn't already
-    anticipate — confirmed 2026-08-26 this is exactly what docker.elastic.co
-    needs: a direct anonymous manifest GET 401s, but the challenge names its
-    own token realm (docker-auth.elastic.co), and a token from THAT realm is
-    accepted same as any other OCI registry. Re-raises unchanged if the 401
-    carries no Bearer challenge at all (a real auth wall — see
-    UNVERIFIABLE_HOSTS) or retrying still fails. method is threaded through
-    BOTH the initial request and the post-challenge retry — the retry is
-    the exact same request, just with a token attached, so it must use the
-    same HTTP method as the first attempt."""
+    """Request url, retrying once with a token from the 401's Bearer challenge realm.
+
+    Needed for registries not in TOKEN_ENDPOINTS, e.g. docker.elastic.co (realm
+    docker-auth.elastic.co). Re-raises a 401 without a Bearer challenge. The retry uses the
+    same method. A blob download follows a redirect to another host without the
+    Authorization header (see _DropAuthOnRedirect)."""
+    urlopen = _urlopen_blob if "/blobs/" in url else _urlopen
     try:
-        return _urlopen(urllib.request.Request(url, headers=headers, method=method), timeout=timeout)
+        return urlopen(urllib.request.Request(url, headers=headers, method=method), timeout=timeout)
     except urllib.error.HTTPError as e:
         if e.code != 401:
             raise
@@ -144,30 +161,20 @@ def _get_with_dynamic_auth(
             query["service"] = challenge["service"]
         token = _read_token(_urlopen(f"{challenge['realm']}?{urllib.parse.urlencode(query)}", timeout=timeout))
         headers = {**headers, "Authorization": f"Bearer {token}"}
-        return _urlopen(urllib.request.Request(url, headers=headers, method=method), timeout=timeout)
+        return urlopen(urllib.request.Request(url, headers=headers, method=method), timeout=timeout)
 
 
-# Hosts that reject even an anonymous manifest read outright — not
-# something a better auth flow could fix from here (a real IP/network
-# restriction on the registry side, confirmed by hand). check_image_digests
-# reports a fetch error against a host in this set separately from a
-# genuine FETCH-ERR, since it can never succeed from an unprivileged
-# environment regardless of whether the pin itself is correct. Empty for
-# now — acrprodmgmt.azurecr.io was here (IP-firewalled to Dimpact's own
-# allowlisted networks) but is being removed from values.yaml; add a host
-# back here only after confirming by hand that no auth flow can reach it
-# (see _get_with_dynamic_auth first — docker.elastic.co looked the same at
-# first glance and turned out not to belong here).
+# Hosts that reject even anonymous manifest reads (network restriction); check_image_digests
+# reports their fetch errors separately. Add one only after confirming no auth flow reaches it
+# (docker.elastic.co looked like this but just needed _get_with_dynamic_auth).
 UNVERIFIABLE_HOSTS: set[str] = set()
 
 
 def parse_repo(repository: str) -> tuple[str, str]:
-    """Split a Docker-style repository string into (registry_host, repo_path)
-    using the standard Docker convention: the first path segment is a
-    registry host only if it contains a "." or ":" (or is "localhost");
-    otherwise the whole string is a Docker Hub repository — official images
-    with no namespace (e.g. "python") live under "library/" on the registry
-    API even though that prefix is omitted in the human-readable form."""
+    """Split a repository string into (registry_host, repo_path), Docker-style.
+
+    The first segment is a host only if it contains "." or ":" or is "localhost"; otherwise
+    it is Docker Hub, with un-namespaced official images under "library/"."""
     first, sep, _ = repository.partition("/")
     if sep and ("." in first or ":" in first or first == "localhost"):
         return first, repository[len(first) + 1 :]
@@ -176,13 +183,25 @@ def parse_repo(repository: str) -> tuple[str, str]:
     return "docker.io", repository
 
 
+def _registry_request(
+    registry_host: str, repo: str, path: str, accept: str | None, timeout: float | None
+) -> tuple[str, dict[str, str]]:
+    """(url, headers) for GET /v2/<repo>/<path> on registry_host's API host.
+
+    Hosts in TOKEN_ENDPOINTS get their anonymous pull token up front; others
+    get none, and _get_with_dynamic_auth answers their 401 challenge.
+    """
+    headers = {"Accept": accept} if accept else {}
+    token_url_tmpl = TOKEN_ENDPOINTS.get(registry_host)
+    if token_url_tmpl:
+        headers["Authorization"] = f"Bearer {_read_token(_urlopen(token_url_tmpl.format(repo=repo), timeout=timeout))}"
+    return f"https://{MANIFEST_HOSTS.get(registry_host, registry_host)}/v2/{repo}/{path}", headers
+
+
 def _fetch_manifest_digest(
     url: str, repo: str, headers: dict[str, str], timeout: float | None, method: str
 ) -> tuple[bool, str | None]:
-    """One manifest request via the given HTTP method, returning (exists,
-    digest) — a 404 is a genuine "tag doesn't exist" answer regardless of
-    method, not an error. Any other HTTPError (or URLError/OSError)
-    propagates unchanged, for registry_tag_exists's own caller to handle."""
+    """(exists, digest) from one manifest request; a 404 means (False, None), other errors propagate."""
     try:
         with _get_with_dynamic_auth(url, repo, headers, timeout=timeout, method=method) as resp:
             return True, resp.headers.get("Docker-Content-Digest")
@@ -195,35 +214,12 @@ def _fetch_manifest_digest(
 def registry_tag_exists(
     registry_host: str, repo: str, tag: str, timeout: float | None = None
 ) -> tuple[bool, str | None]:
-    """Return (exists, digest) for <repo>:<tag> on the given registry host,
-    using an anonymous pull token where the registry requires one — same
-    flow as /fetch-image-digest. timeout (seconds) bounds every request
-    made here; omit it to wait indefinitely, same as before this param
-    existed.
+    """Return (exists, digest) for <repo>:<tag>, with an anonymous pull token where needed.
 
-    Issues a HEAD request, not GET — this only ever reads the response's
-    Docker-Content-Digest header, never the body, and Docker Hub's own
-    documented pull-rate-limit policy counts a manifest GET fully against
-    the anonymous quota while a HEAD does not (confirmed live 2026-09-14
-    against docker.io and ghcr.io: identical Docker-Content-Digest header
-    on both). Every call this whole toolset makes to check whether a tag
-    exists, or to fetch its current digest, goes through here, so this one
-    change is what actually relieves the rate-limit pressure that lib.
-    repo_access_cache and cached_tag_exists's own disk cache (see lib.
-    image.digests) can only ever paper over between runs.
-
-    Falls back to GET for this one call if the registry answers HEAD with
-    405 Method Not Allowed — a genuine "this registry doesn't support HEAD
-    on this endpoint" signal, not something to guess at for other status
-    codes (a 404 is a real answer either way; anything else is a real
-    problem that should surface as one, not be silently retried)."""
-    headers = {"Accept": MANIFEST_ACCEPT}
-    token_url_tmpl = TOKEN_ENDPOINTS.get(registry_host)
-    if token_url_tmpl:
-        token = _read_token(_urlopen(token_url_tmpl.format(repo=repo), timeout=timeout))
-        headers["Authorization"] = f"Bearer {token}"
-    api_host = MANIFEST_HOSTS.get(registry_host, registry_host)
-    url = f"https://{api_host}/v2/{repo}/manifests/{tag}"
+    timeout (seconds) bounds every request; None waits indefinitely. Uses HEAD: only the
+    Docker-Content-Digest header is read, and Docker Hub counts a manifest GET against the
+    anonymous rate limit but not a HEAD. Falls back to GET only on 405."""
+    url, headers = _registry_request(registry_host, repo, f"manifests/{tag}", MANIFEST_ACCEPT, timeout)
     try:
         return _fetch_manifest_digest(url, repo, headers, timeout, "HEAD")
     except urllib.error.HTTPError as e:
@@ -232,21 +228,56 @@ def registry_tag_exists(
         return _fetch_manifest_digest(url, repo, headers, timeout, "GET")
 
 
+IMAGE_CONFIG_ACCEPT = "application/vnd.oci.image.config.v1+json,application/vnd.docker.container.image.v1+json"
+# The node platform whose image variant is inspected in a multi-arch index.
+NODE_PLATFORM = ("linux", "amd64")
+
+
+def _registry_json(registry_host: str, repo: str, path: str, accept: str, timeout: float | None) -> YamlValue:
+    """GET /v2/<repo>/<path> as JSON (see _registry_request)."""
+    url, headers = _registry_request(registry_host, repo, path, accept, timeout)
+    with _get_with_dynamic_auth(url, repo, headers, timeout=timeout) as resp:
+        return _read_json(resp)
+
+
+def _platform_manifest_digest(index: YamlValue) -> str:
+    """The NODE_PLATFORM manifest's digest in a multi-arch index; URLError if it has none."""
+    entries = get_path(index, "manifests")
+    for entry in entries if isinstance(entries, list) else []:
+        platform = (text_at(entry, "platform.os"), text_at(entry, "platform.architecture"))
+        digest = text_at(entry, "digest")
+        if platform == NODE_PLATFORM and digest:
+            return digest
+    msg = f"no {'/'.join(NODE_PLATFORM)} image in the index"
+    raise urllib.error.URLError(msg)
+
+
+def image_config_user(registry_host: str, repo: str, reference: str, timeout: float | None = None) -> str:
+    """The image's default user (its config "User"; "" means root), for a tag or digest `reference`.
+
+    Reads the manifest and config blob only, no image pull. A multi-arch index
+    uses its NODE_PLATFORM image. Raises URLError when the registry answers
+    without a usable manifest or config.
+    """
+    manifest = _registry_json(registry_host, repo, f"manifests/{reference}", MANIFEST_ACCEPT, timeout)
+    if get_path(manifest, "manifests") is not None:
+        digest = _platform_manifest_digest(manifest)
+        manifest = _registry_json(registry_host, repo, f"manifests/{digest}", MANIFEST_ACCEPT, timeout)
+    config_digest = text_at(manifest, "config.digest")
+    if not config_digest:
+        msg = f"manifest of {registry_host}/{repo}:{reference} has no config"
+        raise urllib.error.URLError(msg)
+    config = _registry_json(registry_host, repo, f"blobs/{config_digest}", IMAGE_CONFIG_ACCEPT, timeout)
+    return text_at(config, "config.User") or ""
+
+
 HISTORICAL_DIGEST_RE_TMPL = r'tag:\s*"?{version}@sha256:([0-9a-f]{{64}})'
 
 
 def historical_digests_for_tag(values_path: Path, version: str) -> set[str]:
-    """Every distinct digest this repo's own git history has ever recorded
-    for a "tag: <version>@sha256:<digest>" pin with this exact version
-    string — every value this tag has ever been pinned to here, across
-    every commit that touched values_path (both sides of every diff hunk).
+    """Every distinct digest git history of values_path has pinned for "tag: <version>@sha256:...".
 
-    Two or more distinct digests is direct, empirical proof this tag has
-    drifted before: upstream re-published new content under the same tag,
-    and this repo had to re-pin it. Zero or one digest is NOT proof of
-    stability — it only means this repo has never observed a change,
-    which is inconclusive (the tag may simply not have been refreshed
-    yet, or may have just been introduced)."""
+    Two or more proves the tag drifted before; zero or one is inconclusive."""
     pattern = re.compile(HISTORICAL_DIGEST_RE_TMPL.format(version=re.escape(version)))
     result = run(
         ["git", "-C", str(values_path.parent), "log", "-p", "--", values_path.name], capture_output=True, text=True
@@ -264,21 +295,12 @@ def historical_digests_for_tag(values_path: Path, version: str) -> set[str]:
 
 
 def list_tags(registry_host: str, repo: str):
-    """All published tag names for a repository, via the generic OCI
-    Distribution "tags/list" endpoint (GET /v2/<repo>/tags/list) — supported
-    by Docker Hub, ghcr.io, quay.io, and any spec-compliant registry, unlike
-    Docker Hub's richer but Hub-specific REST API."""
-    headers: dict[str, str] = {}
-    token_url_tmpl = TOKEN_ENDPOINTS.get(registry_host)
-    if token_url_tmpl:
-        token = _read_token(_urlopen(token_url_tmpl.format(repo=repo)))
-        headers["Authorization"] = f"Bearer {token}"
-    api_host = MANIFEST_HOSTS.get(registry_host, registry_host)
-    url = f"https://{api_host}/v2/{repo}/tags/list"
+    """All published tag names, via the generic OCI GET /v2/<repo>/tags/list endpoint."""
+    url, headers = _registry_request(registry_host, repo, "tags/list", None, None)
     with _get_with_dynamic_auth(url, repo, headers) as resp:
         tags = get_path(_read_json(resp), "tags") or []
     if not isinstance(tags, list) or not all(isinstance(tag, str) for tag in tags):
-        msg = f"tags/list response from {api_host} is not a list of tag names"
+        msg = f"tags/list response from {urllib.parse.urlsplit(url).netloc} is not a list of tag names"
         raise urllib.error.URLError(msg)
     return [tag for tag in tags if isinstance(tag, str)]
 
@@ -296,15 +318,10 @@ def _numeric_prefix_and_suffix(tag: str):
 
 
 def _is_more_specific_tag(candidate: str, version: str):
-    """True if candidate refines version — e.g. "3.14.7-slim" or
-    "3.14-slim-trixie" for "3.14-slim" — NOT a plain string-prefix check:
-    "3.14.7-slim" doesn't literally start with "3.14-slim" (the dot lands
-    in a different place), but it IS a more specific patch build of the
-    same minor version and variant. Requires candidate's dotted-numeric
-    part to start with version's (as whole dot-separated components, so
-    "3.13" is never mistaken for a refinement of "3.14"), and candidate's
-    suffix to equal or extend version's (so "9.10.1" — a different image
-    variant, not a refinement — never matches "9.10.1-slim")."""
+    """True if candidate refines version, e.g. "3.14.7-slim" or "3.14-slim-trixie" for "3.14-slim".
+
+    Not a string-prefix check: the numeric parts must match as whole dot components
+    ("3.13" never refines "3.14"), and candidate's suffix must equal or extend version's."""
     cand_num, cand_suffix = _numeric_prefix_and_suffix(candidate)
     ver_num, ver_suffix = _numeric_prefix_and_suffix(version)
     if cand_num is None or ver_num is None:
@@ -316,58 +333,31 @@ def _is_more_specific_tag(candidate: str, version: str):
 
 
 def find_newest_same_variant_tag(registry_host: str, repo: str, version: str) -> str:
-    """The numerically-highest published tag sharing version's suffix/
-    variant (e.g. both "-slim", or both no suffix) — version itself if
-    nothing newer is published, or if version isn't a numeric-style tag at
-    all (nothing to meaningfully compare). Used by check_cves to tell "a
-    newer tag exists, worth checking whether it fixes a given CVE" apart
-    from "already on the newest published tag in this line — no fix
-    available yet." Deliberately a different relation than
-    _is_more_specific_tag (which requires candidate to REFINE version,
-    e.g. "3.14.7-slim" for "3.14-slim") — this instead wants any newer
-    same-variant release, refinement or not.
+    """The numerically highest published tag with version's suffix, else version itself.
 
-    A candidate's numeric prefix must also have the SAME NUMBER of
-    dot-separated components as version's own, or it's skipped outright —
-    plain tuple comparison (`key > best_key`) only looks at the first
-    differing element, so a shorter tuple can "win" purely because ITS
-    first component happens to be huge, regardless of how many components
-    either tag actually has. Confirmed live against ghcr.io/wearefrank/
-    frank-gateway: alongside real releases ("1.0.0", "1.1.0") and an old
-    pre-semver build-number scheme ("57"-"104"), this repo also publishes
-    dozens of bare GitHub Actions run-ID tags (e.g. "12294937630") with no
-    suffix — same empty suffix as a real version, so the existing suffix
-    filter alone doesn't catch it. (12294937630,) > (1, 1, 0) is True in
-    plain Python tuple comparison, so without this guard a run-ID tag
-    would incorrectly "win" as the newest same-variant release."""
+    Unlike _is_more_specific_tag, any newer same-variant release counts. Candidates must
+    have as many dot components as version: frank-gateway publishes bare CI run-ID tags
+    ("12294937630"), and (12294937630,) > (1, 1, 0) in tuple comparison."""
     ver_num, ver_suffix = _numeric_prefix_and_suffix(version)
     if ver_num is None:
         return version
 
-    def numeric_tuple(num: str):
-        return tuple(int(p) for p in num.split("."))
-
     ver_parts = ver_num.split(".")
-    best, best_key = version, numeric_tuple(ver_num)
+    best, best_key = version, dotted_numbers(ver_num)
     for tag in list_tags(registry_host, repo):
         num, suffix = _numeric_prefix_and_suffix(tag)
         if num is None or suffix != ver_suffix or len(num.split(".")) != len(ver_parts):
             continue
-        key = numeric_tuple(num)
+        key = dotted_numbers(num)
         if key > best_key:
             best, best_key = tag, key
     return best
 
 
 def find_more_specific_tag_at_same_digest(registry_host: str, repo: str, version: str, live_digest: str):
-    """A currently-published tag that's strictly more specific than version
-    (e.g. "3.14.7-slim" for "3.14-slim" — see _is_more_specific_tag) and
-    resolves to the same digest RIGHT NOW as version's own live digest —
-    evidence version is a coarser rolling alias for whatever the latest
-    matching build is, not a stable reference in its own right. Returns the
-    found tag name, or None. Only meaningful as a fallback when
-    historical_digests_for_tag is inconclusive — this checks the registry's
-    CURRENT state, not whether version has actually drifted before."""
+    """A published tag more specific than version that currently has the same digest, or None.
+
+    Evidence version is a rolling alias; reflects current registry state, not past drift."""
     candidates = sorted(t for t in list_tags(registry_host, repo) if t != version and _is_more_specific_tag(t, version))
     for t in candidates:
         exists, digest = registry_tag_exists(registry_host, repo, t)
@@ -377,16 +367,11 @@ def find_more_specific_tag_at_same_digest(registry_host: str, repo: str, version
 
 
 def is_sliding_tag(values_path: Path, registry_host: str, repo: str, version: str, live_digest: str):
-    """True if this tag is expected to drift, so a digest mismatch against
-    it is routine rather than a failure. Primary evidence: this repo's own
-    git history shows the tag has changed digest before (>= 2 distinct
-    digests ever recorded for it) — direct proof of past drift. Only when
-    that's inconclusive (this repo has never observed it change) does this
-    fall back to checking whether the registry currently has a more
-    specific sibling tag at the same digest, i.e. whether version currently
-    looks like a coarser alias. A network problem in that fallback means
-    "can't tell" — treated as NOT sliding, so a real pin mismatch is never
-    silently downgraded to "expected drift" just because a check failed."""
+    """True if this tag is expected to drift, so a digest mismatch is routine.
+
+    Proof: >= 2 historical digests in git. Otherwise falls back to a more specific tag at the
+    same live digest. A network error there counts as not sliding, so real mismatches are
+    never downgraded."""
     if len(historical_digests_for_tag(values_path, version)) >= 2:
         return True
     try:

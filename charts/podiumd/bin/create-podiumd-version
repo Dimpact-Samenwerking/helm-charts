@@ -4,15 +4,20 @@ Start a new podiumd release cycle on a feature/podiumd-<X.Y.Z> branch.
 
 Takes the target version from the branch name and the outgoing version
 from Chart.yaml's version. Then:
-  - sets Chart.yaml version and appVersion to the target
   - writes the outgoing version to charts/podiumd/etc/release-
     baseline.yaml as upgrade_docs; on a minor bump also as release_table
-  - runs create-doc-version to create the upgrade docs
+  - sets Chart.yaml version and appVersion to the target
+  - runs create-doc-version to create the missing upgrade docs
+
+Rerunnable: when Chart.yaml is already at the target, the outgoing
+version is release-baseline.yaml's upgrade_docs. Only values that differ
+are written; when everything is set, nothing changes.
 
 The jump must be one patch step (4.9.0 -> 4.9.1) or one minor step
 (4.9.1 -> 4.10.0). Fails when the branch name has another shape, the
 jump is anything else, or a baseline to record has no podiumd-<version>
-tag or feature/podiumd-<version> branch.
+tag or feature/podiumd-<version> branch. On a rerun, fails when
+upgrade_docs is missing (set it with change-podiumd-baseline).
 
 Usage:
     create-podiumd-version
@@ -30,17 +35,18 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-# Not installed as a package -- sys.path must be patched before
-# lib.* can be imported, so these imports can't move to the top.
+# sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
 from lib.chart.historical_baselines import SEMVER_RE as CHART_VERSION_RE
 from lib.chart.paths import CHART_DIR
 from lib.chart.paths import CHART_YAML
 from lib.chart.release_baseline_basics import chart_version
 from lib.chart.release_baseline_basics import release_table_baseline as read_release_table_baseline
+from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.chart.release_baseline_basics import write_release_baselines
 from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.cli import positional_args
+from lib.cli import print_section
 from lib.gitutil import current_branch
 from lib.gitutil import find_repo_root
 from lib.gitutil import resolve_baseline_ref
@@ -52,26 +58,17 @@ BRANCH_RE = re.compile(r"^feature/podiumd-(\d+\.\d+\.\d+)$")
 
 
 def current_chart_version():
-    """The podiumd chart's own currently-pinned version, read from
-    Chart.yaml via lib.chart.release_baseline_basics.chart_version — the
-    "baseline" being left behind by this run."""
+    """Chart.yaml's current version."""
     return chart_version(CHART_YAML)
 
 
 def version_tuple(v: str):
-    """`v` (a plain "MAJOR.MINOR.PATCH" string) as an (int, int, int)
-    tuple, for the arithmetic comparison bump_kind needs — callers are
-    responsible for validating the shape first (see CHART_VERSION_RE in
-    main()), this raises ValueError on anything that isn't dot-separated
-    integers."""
+    """Parse "MAJOR.MINOR.PATCH" into an int tuple; ValueError if not dot-separated ints."""
     return tuple(int(part) for part in v.split("."))
 
 
 def bump_kind(baseline: str, target: str):
-    """ "patch", "minor", or None (not a valid single-increment jump —
-    covers a same-or-lower target, a skipped version, and any
-    major-version change, which is out of scope for this tool
-    entirely)."""
+    """ "patch", "minor", or None when not a single patch/minor increment."""
     b_major, b_minor, b_patch = version_tuple(baseline)
     t_major, t_minor, t_patch = version_tuple(target)
     if b_major == t_major and b_minor == t_minor and t_patch == b_patch + 1:
@@ -82,23 +79,27 @@ def bump_kind(baseline: str, target: str):
 
 
 def update_chart_version(new_version: str) -> list[str]:
-    """Bump Chart.yaml's top-level "version:" and "appVersion:" (this
-    repo's own chart always keeps the two in lockstep — see git history of
-    every prior release bump) to new_version. Returns the field names
-    actually changed, in file order."""
+    """Set Chart.yaml "version:" and "appVersion:" to new_version.
+
+    Returns the changed field names in file order; writes nothing when none change.
+    """
     lines = CHART_YAML.read_text(encoding="utf-8").splitlines(keepends=True)
     changed: list[str] = []
+    found_version = False
     for i, line in enumerate(lines):
-        if re.match(r"^version:\s", line):
-            lines[i] = replace_scalar_value(line, new_version)
-            changed.append("version")
-        elif re.match(r"^appVersion:\s", line):
-            lines[i] = replace_scalar_value(line, new_version)
-            changed.append("appVersion")
-    if "version" not in changed:
+        m = re.match(r"^(version|appVersion):\s", line)
+        if not m:
+            continue
+        found_version = found_version or m.group(1) == "version"
+        new_line = replace_scalar_value(line, new_version)
+        if new_line != line:
+            lines[i] = new_line
+            changed.append(m.group(1))
+    if not found_version:
         msg = f"error: could not find a top-level 'version:' line in {CHART_YAML}"
         raise SystemExit(msg)
-    CHART_YAML.write_text("".join(lines), encoding="utf-8")
+    if changed:
+        CHART_YAML.write_text("".join(lines), encoding="utf-8")
     return changed
 
 
@@ -122,15 +123,25 @@ def _resolve_baseline_refs(repo_root: Path, upgrade_docs: str, release_table: st
     return resolved_refs
 
 
+def outgoing_version(chart_version_now: str, target: str) -> str:
+    """The version this release cycle moves away from: Chart.yaml's
+    version, or on a rerun (Chart.yaml already at target) the recorded
+    upgrade_docs baseline. Exits 1 when a rerun's upgrade_docs is
+    missing or is not a plain MAJOR.MINOR.PATCH."""
+    if chart_version_now != target:
+        return chart_version_now
+    recorded = read_upgrade_docs_baseline(CHART_DIR)
+    if recorded is None or not CHART_VERSION_RE.match(recorded):
+        print(
+            f"error: {CHART_YAML.name} is already at {target}, but release-baseline.yaml "
+            f"upgrade_docs is {recorded!r} — set it with change-podiumd-baseline"
+        )
+        sys.exit(1)
+    return recorded
+
+
 def main():
-    """CLI entry point: opens a new podiumd release cycle — bumps
-    Chart.yaml's version/appVersion from the current branch's target
-    (parsed via BRANCH_RE) after checking the jump is a single valid
-    patch or minor increment (see bump_kind), records the outgoing
-    version as release-baseline.yaml's new upgrade_docs baseline (and, on
-    a minor bump, its new release_table baseline too), then scaffolds the
-    upgrade-path docs for that outgoing version by running
-    create-doc-version. See --help for the refusal conditions."""
+    """CLI entry point."""
     positional_args(__doc__, 0)
 
     repo_root = find_repo_root(CHART_DIR)
@@ -148,10 +159,11 @@ def main():
         sys.exit(1)
     target = m.group(1)
 
-    baseline = current_chart_version()
-    if not CHART_VERSION_RE.match(baseline):
-        print(f"error: {CHART_YAML}'s version '{baseline}' is not a plain MAJOR.MINOR.PATCH")
+    chart_version_now = current_chart_version()
+    if not CHART_VERSION_RE.match(chart_version_now):
+        print(f"error: {CHART_YAML}'s version '{chart_version_now}' is not a plain MAJOR.MINOR.PATCH")
         sys.exit(1)
+    baseline = outgoing_version(chart_version_now, target)
 
     kind = bump_kind(baseline, target)
     if kind is None:
@@ -165,25 +177,34 @@ def main():
 
     # A minor bump marks a Confluence-documented release, so release_table
     # moves with it; a patch bump keeps the recorded one.
-    new_release_table = baseline if kind == "minor" else read_release_table_baseline(CHART_DIR)
+    recorded_release_table = read_release_table_baseline(CHART_DIR)
+    new_release_table = baseline if kind == "minor" else recorded_release_table
 
     resolved_refs = _resolve_baseline_refs(repo_root, baseline, new_release_table)
 
-    changed = update_chart_version(target)
-    print(f"{CHART_YAML.name}: {', '.join(changed)} {baseline} -> {target} ({kind} bump)")
+    # Baselines before Chart.yaml: a run interrupted in between still
+    # sees the outgoing version in Chart.yaml and redoes both.
+    baselines_changed = read_upgrade_docs_baseline(CHART_DIR) != baseline or recorded_release_table != new_release_table
+    if baselines_changed:
+        write_release_baselines(CHART_DIR, upgrade_docs=baseline, release_table=(baseline if kind == "minor" else None))
 
-    write_release_baselines(CHART_DIR, upgrade_docs=baseline, release_table=(baseline if kind == "minor" else None))
-    print(f"release-baseline.yaml: upgrade_docs {baseline} (resolved to {resolved_refs['upgrade_docs']})")
+    changed = update_chart_version(target)
+    if changed:
+        print(f"{CHART_YAML.name}: {', '.join(changed)} {baseline} -> {target} ({kind} bump)")
+    else:
+        print(f"{CHART_YAML.name}: already at {target} ({kind} bump from {baseline})")
+
+    state = "" if baselines_changed else ", already set"
+    print(f"release-baseline.yaml: upgrade_docs {baseline} (resolved to {resolved_refs['upgrade_docs']}{state})")
     if kind == "minor":
-        print(f"release-baseline.yaml: release_table {baseline} (resolved to {resolved_refs['release_table']})")
+        print(f"release-baseline.yaml: release_table {baseline} (resolved to {resolved_refs['release_table']}{state})")
     else:
         print(
             f"release-baseline.yaml: release_table unchanged ({new_release_table}, "
             f"resolved to {resolved_refs['release_table']})"
         )
 
-    print()
-    print(f"=== Running create-doc-version (upgrade_docs baseline {baseline}) ===")
+    print_section(f"Running create-doc-version (upgrade_docs baseline {baseline})")
     result = run_script([sys.executable, str(CREATE_DOC_VERSION_SCRIPT)])
     sys.exit(result.returncode)
 

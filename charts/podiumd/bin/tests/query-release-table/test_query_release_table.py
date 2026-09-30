@@ -1,7 +1,4 @@
-"""matching_rows, component_matches, used_by_rows_for,
-display_value, print_table, main — with DEFAULT_INPUT monkeypatched to a
-fixture CSV, so no dependency on a real charts/podiumd/etc/release-table.csv
-on disk."""
+"""query-release-table, with DEFAULT_INPUT pointed at a fixture CSV."""
 
 from pathlib import Path
 from types import ModuleType
@@ -15,13 +12,17 @@ section,vendor,used_by,name,component,alias,image_basename,source_version_app,so
 Product,Info(NL),,ZAC,zaakafhandelcomponent,zac,zaakafhandelcomponent,5.0.0,1.0.290,5.1.0,1.0.297
 Product,Maykin,,Open Zaak,openzaak,,,1.27.0,1.14.0,1.27.4,1.14.2
 Technische,,,Elastic operator,,,,3.4.0,3.4.0,,
-Technische,,zac,Solr,,,solr,8.11.0,8.11.0,8.11.0,8.11.0
+Technische,,zac,Solr,zaakafhandelcomponent,zac,solr,8.11.0,8.11.0,8.11.0,8.11.0
 Product,ZAC Team,,Some Component,,,,1.0.0,1.0.0,1.0.0,1.0.0
 Product,ICATT,,Interne Taak Afhandeling,internetaakafhandeling,ita,,3.2.0,3.2.0,3.3.0,3.3.0
-Technische,,ita,ITA Poller,,,,1.0.0,1.0.0,1.0.0,1.0.0
+Technische,,ita,ITA Poller,internetaakafhandeling,ita,,1.0.0,1.0.0,1.0.0,1.0.0
 Product,ICATT,,Contact (KISS),kiss-chart,kiss,kiss-frontend,2.2.3,2.2.3,3.0.0,3.0.0
-Technische,,kiss,Kiss Elastic Sync,,,kiss-elastic-sync,0.3.3,0.3.3,3.0.0,3.0.0
-Technische,,kiss,PodiumD Adapter,,,podiumd-adapter,0.6.6,0.6.6,0.6.7,0.6.7
+Technische,,kiss,Kiss Elastic Sync,kiss-chart,kiss,kiss-elastic-sync,0.3.3,0.3.3,3.0.0,3.0.0
+Technische,,kiss,PodiumD Adapter,kiss-chart,kiss,podiumd-adapter,0.6.6,0.6.6,0.6.7,0.6.7
+Overige,,,Keycloak,keycloak,,keycloak,26.6.4,NATIVE,26.7.3,NATIVE
+Overige,,,Keycloak operator,keycloak-operator,,keycloak-operator,26.6.4,1.12.1,26.7.3,1.13.0
+Technische,,keycloak-operator,Python,keycloak-operator,,python,3.14-slim,,3.14.7-slim,
+Technische,,keycloak,Keycloak Config CLI,keycloak,,keycloak-config-cli,6.5.1-26,,6.5.1-26.5.5,
 """
 
 
@@ -41,7 +42,7 @@ def rows(qrt: ModuleType, csv_path):
 
 
 def test_read_release_table_reads_all_data_rows(rows):
-    assert len(rows) == 10
+    assert len(rows) == 14
     assert rows[0]["name"] == "ZAC"
 
 
@@ -81,25 +82,20 @@ def test_matching_rows_matches_used_by_column(qrt: ModuleType, rows):
 # --- used_by_rows_for ---
 
 
-def test_used_by_rows_for_finds_rows_by_name_substring(qrt: ModuleType, rows):
-    """ "zac" (Solr's used_by) is contained in "ZAC" (the matched row's own
-    name) — this is what lets a query on ANY column still pull in the
-    tooling that row uses."""
+def test_used_by_rows_for_finds_tooling_of_the_matched_component(qrt: ModuleType, rows):
+    """Tooling rows are found via their used_by matching the matched row's
+    component, so a query on any column pulls them in."""
     zac = [rows[0]]
     assert [r["name"] for r in qrt.used_by_rows_for(rows, zac)] == ["Solr"]
 
 
-def test_used_by_rows_for_matches_whole_words_only(qrt: ModuleType) -> None:
-    """used_by relates to a name at whole words (word_contains): "mi"
-    never pulls in a row for "Admin User", "keycloak-operator" does
-    match "Keycloak Operator"."""
-    admin = {"name": "Admin User", "used_by": "", "alias": ""}
-    operator = {"name": "Keycloak Operator", "used_by": "", "alias": ""}
-    mi = {"name": "MI image", "used_by": "mi", "alias": ""}
-    postgres = {"name": "Postgres", "used_by": "keycloak-operator", "alias": ""}
-    rows = [admin, operator, mi, postgres]
-    assert qrt.used_by_rows_for(rows, [admin]) == []
-    assert qrt.used_by_rows_for(rows, [operator]) == [postgres]
+def test_used_by_rows_for_uses_the_exported_component_not_name_words(qrt: ModuleType, rows) -> None:
+    """Keycloak Config CLI belongs to native keycloak, not "Keycloak operator",
+    despite the whole-word match."""
+    operator = [r for r in rows if r["name"] == "Keycloak operator"]
+    keycloak = [r for r in rows if r["name"] == "Keycloak"]
+    assert [r["name"] for r in qrt.used_by_rows_for(rows, operator)] == ["Python"]
+    assert [r["name"] for r in qrt.used_by_rows_for(rows, keycloak)] == ["Keycloak Config CLI"]
 
 
 def test_used_by_rows_for_no_match_returns_empty(qrt: ModuleType, rows):
@@ -108,22 +104,18 @@ def test_used_by_rows_for_no_match_returns_empty(qrt: ModuleType, rows):
 
 
 def test_used_by_rows_for_excludes_the_matches_themselves(qrt: ModuleType):
-    """A matched row whose own used_by happens to substring-match its own
-    name (e.g. a "Kiss ..." row with used_by "kiss") must not be echoed
-    back as its own "used by" result."""
-    self_referential = {
+    """A tooling row that is itself a match is not repeated as "used by"."""
+    tooling = {
         "name": "Kiss Thing",
         "used_by": "kiss",
-        "alias": "",
+        "component": "kiss-chart",
+        "alias": "kiss",
         "source_version_app": "1.0",
         "source_version_helm": "1.0",
         "target_version_app": "1.0",
         "target_version_helm": "1.0",
     }
-    assert qrt.used_by_rows_for([self_referential], [self_referential]) == []
-
-
-# --- component_matches ---
+    assert qrt.used_by_rows_for([tooling], [tooling]) == []
 
 
 def test_component_matches_via_component_column(qrt: ModuleType, rows):
@@ -132,27 +124,20 @@ def test_component_matches_via_component_column(qrt: ModuleType, rows):
 
 
 def test_component_matches_via_alias_when_component_does_not_relate(qrt: ModuleType, rows):
-    """ "zac" isn't a substring of component "zaakafhandelcomponent"
-    itself, but it exactly equals that row's own "alias" — the alias
-    column is tried before ever falling back to "name"."""
+    """The alias column is tried before falling back to "name"."""
     matches = qrt.component_matches(rows, "zac")
     assert [r["name"] for r in matches] == ["ZAC"]
 
 
 def test_component_matches_falls_back_to_name_when_neither_relates(qrt: ModuleType, rows):
-    """ "Solr" has no resolved component or alias of its own at all —
-    falls back to a plain "name" substring match so it can still be
-    found, rather than returning nothing."""
+    """Without component or alias, fall back to a "name" substring match."""
     matches = qrt.component_matches(rows, "solr")
     assert [r["name"] for r in matches] == ["Solr"]
 
 
 def test_component_matches_component_or_alias_hit_takes_priority_over_unrelated_name_hit(qrt: ModuleType, rows):
-    """ "Contact (KISS)" resolves via its own component/alias ("kiss-chart"
-    / "kiss") — once that's found, "name" is never consulted at all, so
-    "Kiss Elastic Sync" (which only coincidentally contains "kiss" in its
-    own name, but has no component/alias of its own) is correctly left
-    out of the primary matches."""
+    """Once component/alias matches, "name" is not consulted, so rows merely
+    containing "kiss" in their name are not primary matches."""
     matches = qrt.component_matches(rows, "kiss")
     assert [r["name"] for r in matches] == ["Contact (KISS)"]
 
@@ -161,22 +146,18 @@ def test_component_matches_no_match_anywhere_is_empty(qrt: ModuleType, rows):
     assert qrt.component_matches(rows, "nonexistent") == []
 
 
-# --- used_by_rows_for: alias path ---
+# --- used_by_rows_for: exported component column ---
 
 
-def test_used_by_rows_for_resolves_used_by_via_alias_column(qrt: ModuleType, rows):
-    """ "ita" isn't a substring of "Interne Taak Afhandeling" at all —
-    only matching against that row's own "alias" column (set by
-    export-confluence-release-table, resolved from Chart.yaml at
-    export time) connects it back to ITA Poller."""
+def test_used_by_rows_for_resolves_used_by_via_component_column(qrt: ModuleType, rows):
+    """The shared exported "component" column links ITA Poller to its parent."""
     interne_taak = [r for r in rows if r["name"] == "Interne Taak Afhandeling"]
     matches = qrt.used_by_rows_for(rows, interne_taak)
     assert [r["name"] for r in matches] == ["ITA Poller"]
 
 
-def test_used_by_rows_for_blank_alias_misses_the_alias_path(qrt: ModuleType, rows):
-    """A row with no "alias" set can't be connected to tooling that way —
-    only the plain-substring rule (or an explicit alias) works."""
+def test_used_by_rows_for_blank_component_pulls_in_nothing(qrt: ModuleType, rows):
+    """A match with blank "component" has no tooling rows to connect."""
     some_component = [r for r in rows if r["name"] == "Some Component"]
     assert qrt.used_by_rows_for(rows, some_component) == []
 
@@ -196,21 +177,15 @@ def test_display_value_target_present_is_unaffected(qrt: ModuleType, rows):
 
 
 def test_display_value_target_equal_to_source_is_unchanged(qrt: ModuleType, rows):
-    """A non-empty target that's identical to its own source column (not
-    exercised by the fixture rows, but a legitimate "no real change"
-    case elsewhere in the pipeline — e.g. only the Helm chart version
-    bumped, not the app version) shows UNCHANGED too, not the raw
-    (unchanged) value."""
+    """A target identical to its source shows UNCHANGED too (e.g. only the
+    Helm chart version bumped)."""
     zac = dict(rows[0])
     zac["target_version_app"] = zac["source_version_app"]
     assert qrt.display_value(zac, "target_version_app") == "UNCHANGED"
 
 
 def test_display_value_source_empty_stays_empty_not_unchanged(qrt: ModuleType, rows):
-    """UNCHANGED is only ever a target-column concept — see the module
-    docstring — an empty source value (not exercised by the fixture rows,
-    but a legitimate "no data" case elsewhere in the pipeline) must not be
-    relabeled."""
+    """UNCHANGED is only a target-column concept: an empty source isn't relabeled."""
     elastic = dict(rows[2])
     elastic["source_version_app"] = ""
     assert qrt.display_value(elastic, "source_version_app") == ""
@@ -228,11 +203,8 @@ def test_print_table_aligns_columns_with_header(qrt: ModuleType, capsys: pytest.
 
 
 def test_print_table_includes_image_basename(qrt: ModuleType, capsys: pytest.CaptureFixture[str], rows):
-    """image_basename -- set by export-confluence-release-table's own
-    resolve_image_basenames -- is shown alongside component/alias, not
-    just usable for filtering. Uses a row whose image_basename ("kiss-
-    frontend") is a distinct string from its own component ("kiss-chart"),
-    so the assertion can't accidentally pass via the component column."""
+    """image_basename is shown; the fixture row's basename differs from its
+    component so the assertion can't pass via the component column."""
     kiss = next(r for r in rows if r["name"] == "Contact (KISS)")
     qrt.print_table([kiss])
     out = capsys.readouterr().out.splitlines()
@@ -240,9 +212,7 @@ def test_print_table_includes_image_basename(qrt: ModuleType, capsys: pytest.Cap
 
 
 def test_print_table_includes_component_and_alias(qrt: ModuleType, capsys: pytest.CaptureFixture[str], rows):
-    """component/alias — set by export-confluence-release-table — are
-    shown alongside name and the version columns, not just usable for
-    filtering."""
+    """component/alias are shown, not just usable for filtering."""
     ita = next(r for r in rows if r["name"] == "Interne Taak Afhandeling")
     qrt.print_table([ita])
     out = capsys.readouterr().out.splitlines()
@@ -287,10 +257,8 @@ def test_main_prints_matches(
 def test_main_prints_heading_above_primary_matches(
     qrt: ModuleType, monkeypatch: pytest.MonkeyPatch, csv_path, capsys: pytest.CaptureFixture[str]
 ):
-    """The primary matches need their own heading, distinct from "Used by
-    ...:" below them — otherwise a single-row primary match (e.g. "Zaak -
-    ZAC" itself, querying component "zac") reads as part of the used_by
-    section instead of the actual match."""
+    """Primary matches get their own heading so a single row isn't read as
+    part of the used_by section below."""
     run_main(qrt, monkeypatch, csv_path, ["component", "zac"])
     qrt.main()
     out = capsys.readouterr().out
@@ -323,10 +291,8 @@ def test_main_component_query_omits_used_by_section_when_no_matches(
 def test_main_vendor_query_also_shows_used_by_matches(
     qrt: ModuleType, monkeypatch: pytest.MonkeyPatch, csv_path, capsys: pytest.CaptureFixture[str]
 ):
-    """Querying vendor "info" matches name "ZAC" — since "zac" (a
-    Technische row's used_by) is contained in that name, Solr
-    must show up too, even though the query itself never touched
-    "name" or the text "zac"."""
+    """A tooling row of a matched row's component shows up even when the
+    query never touched "component"."""
     run_main(qrt, monkeypatch, csv_path, ["vendor", "info"])
     qrt.main()
     out = capsys.readouterr().out
@@ -337,8 +303,7 @@ def test_main_vendor_query_also_shows_used_by_matches(
 def test_main_vendor_query_omits_used_by_section_when_unrelated(
     qrt: ModuleType, monkeypatch: pytest.MonkeyPatch, csv_path, capsys: pytest.CaptureFixture[str]
 ):
-    """Vendor "Maykin" only matches "Open Zaak" — unrelated to any
-    used_by value in the fixture, so no used_by section at all."""
+    """A match unrelated to any used_by value prints no used_by section."""
     run_main(qrt, monkeypatch, csv_path, ["vendor", "maykin"])
     qrt.main()
     out = capsys.readouterr().out
@@ -346,15 +311,11 @@ def test_main_vendor_query_omits_used_by_section_when_unrelated(
     assert "Used by" not in out
 
 
-def test_main_resolves_used_by_via_alias_column(
+def test_main_resolves_used_by_via_component_column(
     qrt: ModuleType, monkeypatch: pytest.MonkeyPatch, csv_path, capsys: pytest.CaptureFixture[str]
 ):
-    """End-to-end: querying "Interne Taak Afhandeling" pulls in "ITA
-    Poller" via its own "alias" column, already baked into the CSV by
-    export-confluence-release-table — no Chart.yaml needed at query
-    time. Neither its component nor alias contains "interne taak", so
-    this falls all the way through component_matches to the "name"
-    last resort."""
+    """The CSV's "component" column links ITA Poller at query time without
+    Chart.yaml, after falling through to the "name" last resort."""
     run_main(qrt, monkeypatch, csv_path, ["component", "interne taak"])
     qrt.main()
     out = capsys.readouterr().out
@@ -365,11 +326,8 @@ def test_main_resolves_used_by_via_alias_column(
 def test_main_component_query_by_alias_shows_owner_as_sole_primary_match(
     qrt: ModuleType, monkeypatch: pytest.MonkeyPatch, csv_path, capsys: pytest.CaptureFixture[str]
 ):
-    """Querying component "ita" resolves to "Interne Taak Afhandeling"
-    itself via its own "alias" column — that's the sole primary match,
-    found before "name" is ever consulted. "ITA Poller" (which also
-    contains "ita" literally in its own name) is tooling belonging to
-    it, not a primary match in its own right — see component_matches."""
+    """An alias match is the sole primary match; ITA Poller, which also
+    contains "ita", is its tooling, not a primary match."""
     run_main(qrt, monkeypatch, csv_path, ["component", "ita"])
     qrt.main()
     out = capsys.readouterr().out
@@ -391,11 +349,8 @@ def test_main_component_query_by_alias_shows_tooling_in_used_by_exactly_once(
 def test_main_component_query_kiss_one_owner_match_rest_in_used_by(
     qrt: ModuleType, monkeypatch: pytest.MonkeyPatch, csv_path, capsys: pytest.CaptureFixture[str]
 ):
-    """ "Contact (KISS)" resolves via its own component/alias
-    ("kiss-chart" / "kiss") and is the sole primary match; "Kiss Elastic
-    Sync" and "PodiumD Adapter" (which only coincidentally contain
-    "kiss", or have it as used_by) are its tooling and belong in the
-    used_by table instead."""
+    """Rows sharing component/alias but with used_by "kiss" are tooling, listed
+    under used_by, not primary matches."""
     run_main(qrt, monkeypatch, csv_path, ["component", "kiss"])
     qrt.main()
     out = capsys.readouterr().out
@@ -441,9 +396,7 @@ def test_main_invalid_column_prints_usage(
 def test_main_name_is_no_longer_a_valid_column(
     qrt: ModuleType, monkeypatch: pytest.MonkeyPatch, csv_path, capsys: pytest.CaptureFixture[str]
 ):
-    """ "name" was removed as a directly queryable column — component
-    now covers that ground itself, falling back to name internally (see
-    component_matches) rather than exposing it as its own query mode."""
+    """ "name" is not a queryable column; component falls back to it internally."""
     run_main(qrt, monkeypatch, csv_path, ["name", "zac"])
     with pytest.raises(SystemExit) as exc_info:
         qrt.main()
@@ -473,3 +426,18 @@ def test_main_missing_input_file_errors(
     out = capsys.readouterr().out
     assert "not found" in out
     assert "export-confluence-release-table" in out
+
+
+def test_main_component_query_keycloak_operator_lists_only_its_own_tooling(
+    qrt: ModuleType, monkeypatch: pytest.MonkeyPatch, csv_path, capsys: pytest.CaptureFixture[str]
+):
+    """ "keycloak-operator" matches only its own row; native keycloak's
+    Config CLI appears nowhere."""
+    run_main(qrt, monkeypatch, csv_path, ["component", "keycloak-operator"])
+    qrt.main()
+    out = capsys.readouterr().out
+    matches_section, _, used_by_section = out.partition("Used by matched component(s):")
+    assert "Keycloak operator" in matches_section
+    assert "Python" not in matches_section
+    assert "Python" in used_by_section
+    assert "Keycloak Config CLI" not in out

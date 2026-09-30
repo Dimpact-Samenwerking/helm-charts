@@ -1,8 +1,4 @@
-"""values_delta_section_heading / describe_key_changes,
-values_tree_path_for / find_matching_images_entry /
-update_images_manifest_entry, and update_images_manifest: split out of the
-former, monolithic test_update_component_version.py for pylint's
-too-many-lines check."""
+"""Values-delta headings, images-manifest entry lookup and update_images_manifest."""
 
 from pathlib import Path
 from types import ModuleType
@@ -21,8 +17,7 @@ def test_values_delta_section_heading_chart_unchanged(ucv: ModuleType):
 
 
 def test_values_delta_section_heading_native_component_omits_chart_clause(ucv: ModuleType):
-    """new_chart="-" (see lib.chart.NATIVE_COMPONENTS) drops the "(chart
-    ...)" clause entirely rather than rendering "(chart None → -)"."""
+    """new_chart="-" (native component) drops the "(chart ...)" clause."""
     heading = ucv.values_delta_section_heading("frankgateway", "100", "104", None, "-")
     assert heading == "## frankgateway 100 → 104\n"
 
@@ -89,9 +84,8 @@ def test_update_images_manifest_entry_updates_version_digest_and_comment(libcomp
 
 
 def test_update_images_manifest_entry_updates_shared_group_comment(libcomponentdocsentries: ModuleType):
-    """A second entry (backend) sharing the first entry's (frontend)
-    comment, separated by a blank line, must still have that shared
-    comment's version pair updated — not skipped as "no comment"."""
+    """An entry sharing the previous entry's comment (after a blank line)
+    still gets that comment's version pair updated."""
     lines = [
         "# ZGW Office Add-in — v0.9.313 -> v0.9.352\n",
         "- name: zgw-office-addin-frontend\n",
@@ -116,16 +110,8 @@ def test_update_images_manifest_entry_updates_shared_group_comment(libcomponentd
 
 
 def test_update_images_manifest_creates_missing_header(ucv: ModuleType, tmp_path: Path):
-    """Regression test (real bug, real doc): update_images_manifest's own
-    "# Changes:" header-item logic was entirely guarded by "if header_idx
-    is not None:" — a manifest with no header at all (see lib.component_
-    docs.ensure_images_manifest_changes_header's own docstring for the
-    real case: images-4.9.1.yaml gained 5 real entries via fix-doc-
-    consistency this session with no header to add a list item to) got
-    changes_action=None forever, silently, from update-component-version/
-    update-image-version's own writes too, not just fix-doc-consistency's.
-    A missing header must now be created first, so the item still gets
-    added."""
+    """Regression: a manifest without a "# Changes:" header got no item at
+    all; the header must be created first."""
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(
         "# Baseline: podiumd 4.8.5. Re-verify before release.\n"
@@ -160,11 +146,8 @@ def test_update_images_manifest_creates_missing_header(ucv: ModuleType, tmp_path
 
 
 def test_update_images_manifest_no_baseline_app_renders_new(ucv: ModuleType, tmp_path: Path):
-    """Regression test: update_images_manifest's own item_text used to
-    ALWAYS hardcode "<old_app> -> <new_app>" with no (new)/(unchanged)/
-    (digest changed) branch at all — a genuinely brand-new component
-    (no baseline app version at all, old_app=None) rendered as a
-    nonsensical "<new_app> -> <new_app>" instead of "<new_app> (new)"."""
+    """Regression: a brand-new component (old_app None) renders
+    "<new_app> (new)", not "<new_app> -> <new_app>"."""
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(
         "# Baseline: podiumd 4.8.5. Re-verify before release.\n"
@@ -224,9 +207,7 @@ def test_update_images_manifest_updates_existing_entry(ucv: ModuleType, tmp_path
 
 
 def test_update_images_manifest_native_component_omits_chart_clause(ucv: ModuleType, tmp_path: Path):
-    """new_chart="-" (see lib.chart.NATIVE_COMPONENTS) writes a "# Changes:"
-    header item with no "(chart ...)" clause at all, rather than the
-    misleading "(chart None, unchanged)"."""
+    """new_chart="-" (native component) writes the item without a chart clause."""
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(
         "# One change:\n"
@@ -253,15 +234,8 @@ def test_update_images_manifest_native_component_omits_chart_clause(ucv: ModuleT
 
 
 def test_update_images_manifest_recognizes_bare_changes_header(ucv: ModuleType, tmp_path: Path):
-    """A bare "# Changes:" header (no leading count word) — the real,
-    hand-curated images-4.9.0.yaml's own actual shape, and lib.
-    component_docs.IMAGES_STUB_TEMPLATE's own fresh one — must still be
-    found and updated. Before find_images_manifest_changes_header was
-    shared, this function's own header search only matched
-    CHANGES_HEADER_RE's counted form, so a bare header was silently
-    invisible to it: changes_action stayed None and the numbered item
-    list was never touched, even though the entry itself still updated
-    fine below."""
+    """Regression: a bare "# Changes:" header (no count word, as in the stub
+    template) must be found and its item list updated."""
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(
         "# Changes:\n"
@@ -286,8 +260,7 @@ def test_update_images_manifest_recognizes_bare_changes_header(ucv: ModuleType, 
     assert entry_updates == ["zac"]
     text = images_path.read_text(encoding="utf-8")
     assert "1. zac 5.1.0 -> 5.4.3 (chart 1.0.297, unchanged)." in text
-    # The bare header itself is left exactly as-is — never invents a
-    # count word it didn't already have.
+    # The bare header is kept as-is, no count word invented.
     assert text.startswith("# Changes:\n")
 
 
@@ -345,9 +318,7 @@ def test_update_images_manifest_reports_missing_entry(ucv: ModuleType, tmp_path:
 
 
 def test_update_images_manifest_new_item_lands_after_continuation_line(ucv: ModuleType, tmp_path: Path):
-    """A new item must be appended after the LAST item's continuation
-    comment line, not immediately after its numbered line — otherwise it
-    gets spliced in the middle of the previous item's own comment block."""
+    """A new item goes after the last item's continuation comment, not into it."""
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(
         "# Two changes:\n"
@@ -376,12 +347,8 @@ def test_update_images_manifest_new_item_lands_after_continuation_line(ucv: Modu
 
 
 def test_update_images_manifest_new_item_inserted_at_values_yaml_position_not_appended(ucv: ModuleType, tmp_path: Path):
-    """Real bug: a brand-new "# Changes:" header item used to always land
-    at the very end of the list regardless of values.yaml's own
-    component order, only ever fixed by a LATER fix-doc-consistency run.
-    Given real deps/values, redis-operator's own new item must land
-    BEFORE zac's existing one — redis-operator is values.yaml's first
-    top-level key here — not after it."""
+    """Regression: a new item follows values.yaml component order instead of
+    always landing at the end of the list."""
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(
         "# One change:\n"

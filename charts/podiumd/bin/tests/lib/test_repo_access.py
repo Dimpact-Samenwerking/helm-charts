@@ -1,9 +1,4 @@
-"""lib.repo_access — dependency_repos, image_repos, _check_http_repo,
-_check_registry_repo, check_repo_access. No network needed:
-urllib.request.urlopen and lib.image.digests.cached_tag_exists (the
-shared, disk-cache-backed primitive _check_registry_repo now routes
-through — see lib.image.digests' own docstring) are monkeypatched
-wherever a live fetch would otherwise happen."""
+"""lib.repo_access tests; urlopen and cached_tag_exists are monkeypatched."""
 
 import json
 import urllib.error
@@ -242,11 +237,7 @@ def test_check_registry_repo_passes_timeout(librepoaccess: ModuleType, tmp_path:
 def test_check_registry_repo_passes_chart_dir_and_canonical_repository_key(
     librepoaccess: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """_check_registry_repo must forward chart_dir (so cached_tag_exists
-    reads/writes the SAME disk cache check_image_digests/find_sliding_pins
-    use for that chart_dir) and a canonical "host/repo_path" repository
-    key — deterministic regardless of however the original values.yaml/
-    Chart.yaml string happened to spell the same repository."""
+    """chart_dir is forwarded (shared disk cache) with a canonical "host/repo_path" key."""
     seen = {}
 
     def fake_cached_tag_exists(chart_dir, repository, version, timeout=None):
@@ -290,8 +281,7 @@ def test_check_repo_access_all_reachable(librepoaccess: ModuleType, tmp_path: Pa
 def test_check_repo_access_dedupes_shared_repo(
     librepoaccess: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """8 @maykinmedia dependencies must trigger exactly one reachability
-    check against that repo, not eight identical ones."""
+    """Eight dependencies on one repo trigger a single reachability check."""
     write_chart_yaml(
         tmp_path, [{"name": f"comp-{i}", "version": "1.0.0", "repository": "@maykinmedia"} for i in range(8)]
     )
@@ -462,9 +452,7 @@ def test_check_repo_access_fails_on_denylisted_image(
 def test_check_repo_access_denylist_failure_combines_with_unrelated_failure(
     librepoaccess: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """A denylisted entry fails on its own terms — it must not mask (or be
-    masked by) a real reachability failure elsewhere in the same run; both
-    show up in the detail."""
+    """Denylist and reachability failures are both reported; neither masks the other."""
     write_chart_yaml(
         tmp_path,
         [
@@ -499,7 +487,7 @@ def test_check_repo_access_second_run_uses_cache_not_network(
     ok2, detail2 = librepoaccess.check_repo_access(tmp_path)
 
     assert ok1 is True and ok2 is True
-    assert len(calls) == 1  # second run hit the cache, not _check_http_repo again
+    assert len(calls) == 1  # second run hit the cache
     assert "1 repo(s)/image(s) reachable" in detail2
     assert "(cached)" in capsys.readouterr().out
 
@@ -517,7 +505,7 @@ def test_check_repo_access_failure_is_never_cached(
     ok2, _ = librepoaccess.check_repo_access(tmp_path)
 
     assert ok1 is False and ok2 is False
-    assert len(calls) == 2  # never cached — retried fresh both times
+    assert len(calls) == 2
 
 
 def test_check_repo_access_stale_cache_entry_is_not_used(
@@ -536,14 +524,13 @@ def test_check_repo_access_stale_cache_entry_is_not_used(
 
     ok, _ = librepoaccess.check_repo_access(tmp_path)
     assert ok is True
-    assert len(calls) == 2  # stale entry ignored, checked fresh again
+    assert len(calls) == 2  # stale entry ignored
 
 
 def test_check_repo_access_cache_is_per_entry_not_all_or_nothing(
     librepoaccess: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """A fresh cache hit for one entry must not suppress a real check for a
-    DIFFERENT, not-yet-cached entry in the same run."""
+    """A cache hit for one entry does not skip checking an uncached one."""
     write_chart_yaml(
         tmp_path,
         [
@@ -567,8 +554,8 @@ def test_check_repo_access_cache_is_per_entry_not_all_or_nothing(
         ],
     )
     librepoaccess.check_repo_access(tmp_path)
-    assert len(http_calls) == 1  # cached, no second network call
-    assert len(registry_calls) == 2  # different version -> different cache key -> fresh check
+    assert len(http_calls) == 1
+    assert len(registry_calls) == 2  # new version, new cache key
 
 
 # --- check_repo_access / check_image_digests: genuinely shared cache ---
@@ -577,15 +564,7 @@ def test_check_repo_access_cache_is_per_entry_not_all_or_nothing(
 def test_check_repo_access_and_check_image_digests_share_one_cache_entry(
     librepoaccess: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """check_repo_access and lib.image.digests.check_image_digests both now
-    route their own tag-existence lookup through the SAME lib.image.
-    digests.cached_tag_exists primitive, backed by the SAME disk-persisted
-    repo-access-cache.json (lib.repo_access_cache) — not just format-
-    compatible, actually deduped end to end. A pin check_repo_access
-    resolves first (a real registry call it makes) must be served, with
-    ZERO further real registry calls, by check_image_digests running
-    afterward for the exact same pin — simulating a combined
-    verify-podiumd run (e.g. --include=repo-access,image-digests)."""
+    """A pin looked up by check_repo_access is served from disk cache to check_image_digests."""
     digest = "a" * 64
     write_chart_yaml(tmp_path, [])
     write_values(
@@ -611,16 +590,14 @@ def test_check_repo_access_and_check_image_digests_share_one_cache_entry(
     assert ok is True
     assert len(calls) == 1
 
-    # Simulate a SEPARATE step of the same verify-podiumd run (or a wholly
-    # separate later process) -- only the in-process tier is reset; the
-    # disk cache check_repo_access just wrote stays warm.
+    # reset only the in-process tier; the disk cache stays warm
     image_digests.clear_tag_exists_cache()
     calls.clear()
 
     ok2, detail2 = image_digests.check_image_digests(tmp_path)
     assert ok2 is True
     assert "1/1 matched" in detail2
-    assert len(calls) == 0  # served entirely from the disk cache check_repo_access wrote
+    assert len(calls) == 0  # served from disk cache
 
 
 # --- lib.repo_access_cache (pure helpers) ---

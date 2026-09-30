@@ -1,29 +1,15 @@
-"""Fetches a Confluence page's storage-format body and extracts its
-<table>s into plain-text grids (colspan/rowspan expanded), paired with
-the nearest preceding heading, plus the specific "release changes"
-column-matching used by export-confluence-release-table. stdlib only
-(html.parser/urllib) — no bs4/requests dependency, matching every other
-script in this toolset.
+"""Fetch a Confluence page's storage-format body and extract its tables as plain-text grids.
 
-Fetches body.storage, not the fully-rendered body.view: a table living
-inside a Confluence "Synced Block" (content reused across pages via
-<ac:adf-extension><ac:adf-node type="bodied-sync-block">...) renders as a
-"Sync Block" placeholder widget in body.view — the real content only
-comes through server-side in the raw storage markup. The extractor below
-only ever looks for table/tr/td/th/br/h1-h6 by tag name, so it doesn't
-care that the real <table> sits nested inside that ac:-namespaced
-wrapper, or about any other macro syntax elsewhere on the page.
+Also holds the release-changes column matching used by
+export-confluence-release-table.
 
-Auth is HTTP Basic with an Atlassian email + API token, same as Confluence
-Cloud's REST API expects. Works against Confluence Cloud
-("https://<site>.atlassian.net/wiki/...") and Server/DC ("https://<host>/
-display/...") URLs alike — the API root differs (".../wiki/rest/api" vs
-".../rest/api"), detected from the URL's own path."""
+body.storage, not body.view: tables inside a Synced Block only render as a
+placeholder in body.view. Auth is HTTP Basic (email + API token); the API root
+is ".../wiki/rest/api" for Cloud and ".../rest/api" for Server/DC."""
 
 import base64
 import json
 import re
-import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -36,15 +22,14 @@ from typing import IO
 from typing import TypedDict
 
 from lib.chart.values_tree_primitives import get_path
+from lib.cli import network_errors
 from lib.yaml_types import is_yaml_value
 
 PAGE_ID_RE = re.compile(r"/pages/(\d+)")
 
 
 def page_id_from_url(url: str) -> str:
-    """The numeric content ID from a Confluence page URL — either the
-    modern "/pages/<id>/<title-slug>" form or the older
-    "?pageId=<id>" query-param form."""
+    """The numeric content ID from a "/pages/<id>/..." or "?pageId=<id>" Confluence URL."""
     m = PAGE_ID_RE.search(url)
     if m:
         return m.group(1)
@@ -56,9 +41,7 @@ def page_id_from_url(url: str) -> str:
 
 
 def api_base_url(url: str) -> str:
-    """The REST API root for this Confluence site. Cloud sites serve the
-    wiki under "/wiki" (API root ".../wiki/rest/api"); Server/DC sites
-    serve it at the domain root (API root ".../rest/api")."""
+    """The REST API root: ".../wiki/rest/api" for Cloud, ".../rest/api" for Server/DC."""
     parsed = urllib.parse.urlparse(url)
     wiki_idx = parsed.path.find("/wiki/")
     api_path = f"{parsed.path[:wiki_idx]}/wiki/rest/api" if wiki_idx != -1 else "/rest/api"
@@ -71,9 +54,13 @@ def fetch_page_html(
     token: str,
     urlopen: Callable[[urllib.request.Request], AbstractContextManager[IO[bytes]]] = urllib.request.urlopen,
 ) -> str:
-    """The page's raw storage-format body (body.storage.value) via the
-    Confluence REST API — see the module docstring for why storage, not
-    the rendered view. `urlopen` is overridable for tests."""
+    """The page's body.storage.value via the REST API.
+
+    `urlopen` is overridable for tests. Raises SystemExit on a non-http(s) URL, a
+    failed request or unexpected JSON."""
+    if urllib.parse.urlparse(url).scheme not in ("http", "https"):
+        msg = f"error: --url {url} must start with https://"
+        raise SystemExit(msg)
     page_id = page_id_from_url(url)
     api_url = f"{api_base_url(url)}/content/{page_id}?expand=body.storage"
     auth = base64.b64encode(f"{user}:{token}".encode()).decode()
@@ -85,13 +72,10 @@ def fetch_page_html(
         },
     )
     try:
-        with urlopen(request) as response:
+        with network_errors("Confluence"), urlopen(request) as response:
             data: object = json.load(response)
-    except urllib.error.HTTPError as e:
-        msg = f"error: Confluence API request failed: HTTP {e.code} {e.reason}"
-        raise SystemExit(msg) from e
-    except urllib.error.URLError as e:
-        msg = f"error: could not reach Confluence: {e.reason}"
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        msg = f"error: Confluence didn't answer with JSON ({e}) — check --url (a login page?)"
         raise SystemExit(msg) from e
     value = get_path(data, "body.storage.value") if is_yaml_value(data) else None
     if not isinstance(value, str):
@@ -102,17 +86,12 @@ def fetch_page_html(
 
 HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
 
-# Block-ish tags that must count as a word/value separator inside a cell —
-# otherwise two adjacent blocks (e.g. Confluence's own "<p>5.4.3</p><hr/>
-# <p>5.4.4</p>" for "went from 5.4.3 to 5.4.4 mid-release") concatenate
-# into one run-together string ("5.4.35.4.4") instead of two space-
-# separated values.
+# Separate adjacent blocks in a cell, else "<p>5.4.3</p><hr/><p>5.4.4</p>" reads "5.4.35.4.4".
 BLOCK_SEPARATOR_TAGS = {"br", "hr", "p"}
 
 
 class TableCell(TypedDict):
-    """One <td>/<th> of a Confluence table: its tag, spans and whitespace-
-    normalized text."""
+    """One <td>/<th>: tag, spans and whitespace-normalized text."""
 
     tag: str
     colspan: int
@@ -121,8 +100,7 @@ class TableCell(TypedDict):
 
 
 class ReleaseColumns(TypedDict):
-    """The grid column index of each release-table field (see
-    select_release_columns); None when the table has no such column."""
+    """Grid column index per release-table field; None when absent."""
 
     first: int | None
     vendor: int | None
@@ -139,8 +117,7 @@ ConfluenceTable = tuple[str | None, list[list[TableCell]]]
 
 @dataclass
 class _HeadingState:
-    """_TableExtractor's heading tracking: the text of the last heading
-    closed (current), and the heading tag (h1-h6) and text being read."""
+    """Last closed heading text, plus the heading tag and text being read."""
 
     current: str | None = None
     tag: str | None = None
@@ -149,8 +126,7 @@ class _HeadingState:
 
 @dataclass
 class _OpenCell:
-    """A <td>/<th> still being read: its tag and spans, and its text so
-    far in pieces."""
+    """A <td>/<th> still being read."""
 
     tag: str
     colspan: int
@@ -158,25 +134,16 @@ class _OpenCell:
     parts: list[str] = field(default_factory=list)
 
     def finished(self) -> TableCell:
-        """The TableCell, with the text pieces joined and whitespace
-        normalized."""
+        """The TableCell with text joined and whitespace-normalized."""
         text = " ".join("".join(self.parts).split())
         return {"tag": self.tag, "colspan": self.colspan, "rowspan": self.rowspan, "text": text}
 
 
 class _TableExtractor(HTMLParser):
-    """Builds one list of rows per top-level <table> in the document; each
-    row is a list of {"tag", "colspan", "rowspan", "text"} cell dicts.
-    Also tracks the most recent heading (h1-h6) text seen before each
-    table, so tables can be selected by section — see extract_tables.
+    """Collect rows per top-level <table>, with the nearest preceding h1-h6 text.
 
-    A <table> nested inside a cell (seen in practice: a CVE-details table
-    embedded in a release-changes "what changed" cell) is deliberately
-    not treated as structure — its own tr/td/th just fall into the outer
-    cell's flat text, tracked via _nested_depth so its *closing* tags
-    don't get mistaken for the outer cell's own (which would otherwise
-    close that cell early and leak the nested table's remaining cells out
-    as bogus extra columns of the outer table)."""
+    A table nested in a cell is flattened into that cell's text; _nested_depth
+    keeps its closing tags from closing the outer cell early."""
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
@@ -250,11 +217,7 @@ def _positive_int(value: str | None, default: int) -> int:
 
 
 def extract_tables(html_text: str) -> list[ConfluenceTable]:
-    """One (heading, rows) pair per <table> found in `html_text`, in
-    document order — rows are unexpanded cell dicts (see _TableExtractor);
-    heading is the text of the nearest preceding h1-h6, or None if the
-    table comes before any heading on the page. A heading applies to
-    every table before the next heading, not just the first."""
+    """(heading, rows) per <table> in document order; heading is the nearest preceding h1-h6, or None."""
     parser = _TableExtractor()
     parser.feed(html_text)
     return list(zip(parser.table_headings, parser.tables, strict=True))
@@ -263,19 +226,13 @@ def extract_tables(html_text: str) -> list[ConfluenceTable]:
 def tables_under_headings(
     tables: list[ConfluenceTable], headings: list[str]
 ) -> list[tuple[str, list[list[TableCell]]]]:
-    """The (heading, rows) pairs from extract_tables() whose heading
-    case-insensitively matches one of `headings` (whitespace-normalized
-    exact match, not substring — headings are titles, not free text)."""
+    """Tables whose heading matches one of `headings` (case- and whitespace-insensitive, exact)."""
     wanted = {_normalize(h) for h in headings}
     return [(heading, rows) for heading, rows in tables if heading and _normalize(heading) in wanted]
 
 
 def expand_grid(rows: list[list[TableCell]]) -> list[list[str]]:
-    """A table's rows (unexpanded cell dicts) as a plain 2D grid of
-    strings, with every colspan/rowspan expanded so each covered cell
-    repeats the spanning cell's text and every row ends up the same
-    width. A gap not covered by any cell (a malformed table) becomes an
-    empty string rather than raising."""
+    """Rows as a rectangular grid of strings, with colspan/rowspan expanded; gaps become ""."""
     grid: list[list[str]] = []
     carry: dict[int, tuple[str, int]] = {}  # column -> (text, remaining_rows_including_this_one)
     for row in rows:
@@ -312,9 +269,7 @@ def expand_grid(rows: list[list[TableCell]]) -> list[list[str]]:
 
 
 def leading_header_row_count(rows: list[list[TableCell]]) -> int:
-    """How many rows, starting from the top, contain at least one <th> —
-    stops at the first row with none. 0 if the table uses no <th> at all
-    (some Confluence tables render header cells as plain bold <td>s)."""
+    """Number of leading rows containing a <th>; 0 when the table has none."""
     count = 0
     for row in rows:
         if not any(cell["tag"] == "th" for cell in row):
@@ -324,12 +279,9 @@ def leading_header_row_count(rows: list[list[TableCell]]) -> int:
 
 
 def fallback_header_row_count(grid: list[list[str]]) -> int:
-    """A guess at the header block for a table with no <th> at all (see
-    leading_header_row_count): however many leading rows have an empty
-    first column. True of every observed component-versions table, where
-    the header rows leave the leftmost ("component name") column blank
-    and only the first real data row fills it in — not a general rule,
-    just the best available signal when <th> isn't there to ask."""
+    """Header rows for a table without <th>: leading rows with an empty first column.
+
+    A heuristic that holds for every observed component-versions table."""
     count = 0
     for row in grid:
         if row and row[0].strip():
@@ -339,9 +291,7 @@ def fallback_header_row_count(grid: list[list[str]]) -> int:
 
 
 def effective_header_row_count(rows: list[list[TableCell]], grid: list[list[str]]) -> int:
-    """leading_header_row_count(rows) when the table uses <th> at all;
-    otherwise fallback_header_row_count(grid); always at least 1, since a
-    table needs at least one header row to match columns against."""
+    """leading_header_row_count, else fallback_header_row_count; at least 1."""
     count = leading_header_row_count(rows)
     if count == 0:
         count = fallback_header_row_count(grid)
@@ -349,11 +299,7 @@ def effective_header_row_count(rows: list[list[TableCell]], grid: list[list[str]
 
 
 def header_paths(grid: list[list[str]], header_row_count: int) -> list[list[str]]:
-    """For every column, the stack of distinct header texts above it (top
-    row first) — e.g. ["Versie 4.8", "App"] for a column under a
-    colspan=2 "Versie 4.8" cell and its own "App" sub-header, or just
-    ["Ontwikkelpartij"] for a column whose single header spans every
-    header row via rowspan (deduped so it isn't repeated per row)."""
+    """Per column, the distinct header texts above it, top first (e.g. ["Versie 4.8", "App"])."""
     width = len(grid[0]) if grid else 0
     paths: list[list[str]] = []
     for col in range(width):
@@ -369,19 +315,12 @@ def header_paths(grid: list[list[str]], header_row_count: int) -> list[list[str]
 
 
 def _normalize(text: str) -> str:
-    """Lowercased, whitespace-collapsed, hyphens removed — the real
-    podiumd page spells it "Ontwikkel-partij", and stripping the hyphen
-    (rather than trying to special-case that one header) keeps the match
-    robust to that kind of stylistic hyphenation generally. Safe for the
-    "4.8"/"4.9" needles too since neither contains a hyphen."""
+    """Lowercase, collapse whitespace and drop hyphens (the page writes "Ontwikkel-partij")."""
     return " ".join(text.lower().replace("-", "").split())
 
 
 def find_column(paths: list[list[str]], contains_all: list[str], candidates: list[int] | None = None) -> int | None:
-    """Index of the first column (among `candidates`, default: every
-    column) whose header path contains every one of `contains_all` as a
-    case-insensitive substring of the joined path text, or None if no
-    column matches."""
+    """First column in `candidates` whose joined header path contains all of `contains_all`, or None."""
     needles = [_normalize(n) for n in contains_all]
     indices = range(len(paths)) if candidates is None else candidates
     for idx in indices:
@@ -392,13 +331,10 @@ def find_column(paths: list[list[str]], contains_all: list[str], candidates: lis
 
 
 def find_versie_groups(paths: list[list[str]]) -> list[tuple[str, list[int]]]:
-    """Ordered list of (label, [column_indices]) for every distinct
-    top-level header group whose own label starts with "Versie" (case-
-    insensitive) — e.g. "Versie 4.8"/"Versie 4.9" today, but the version
-    numbers themselves aren't fixed: the page renames these every
-    release. Order is first-appearance (left to right), so a caller that
-    needs "source" (lower/earlier, left-hand) vs "target" (higher/later,
-    right-hand) can just take groups[0] and groups[1]."""
+    """(label, column indices) per top-level "Versie ..." header group, left to right.
+
+    Labels change every release, so they are matched by prefix; groups[0] is the
+    source version, groups[1] the target."""
     groups: list[tuple[str, list[int]]] = []
     index_by_label: dict[str, int] = {}
     for idx, path in enumerate(paths):
@@ -412,62 +348,19 @@ def find_versie_groups(paths: list[list[str]]) -> list[tuple[str, list[int]]]:
     return groups
 
 
-# The exact column set export-confluence-release-table writes to CSV
-# (as "section, vendor, used by, name, source version app/helm,
-# target version app/helm"): the table's own first column (whatever it's
-# labeled — usually the component name), "Ontwikkelpartij" (written to
-# the CSV as "vendor"), "Used by" (written to the CSV as "used_by"), then
-# App/Helm under each of the two "Versie ..." groups (see
-# find_versie_groups) — first one encountered is "source", second is
-# "target". Matched by substring rather than exact text so a header
-# phrased "versie 4.8" vs "Versie 4.8" vs "V4.8" all work, and the
-# version numbers themselves are never hardcoded, since the page renames
-# them every release.
-#
-# "vendor" and "used_by" are both optional, not required, and mutually
-# exclusive in practice rather than actually related columns that happen
-# to share a slot: "vendor" only makes sense for product-facing
-# components with an actual development partner (ZAC, Open Zaak, ...),
-# while "used by" only appears on the shared/technical tooling tables
-# ("Technische component versies" — Elastic operator, Zookeeper, Solr,
-# ...) to say which product/Common Ground component pulls that piece of
-# tooling in — neither column existing on a given table is a reason to
-# skip it.
-#
-# The Helm columns are optional too, for the same reason: as of 2026-09,
-# the "Technische component versies" table on the real page dropped its
-# App/Helm sub-header split entirely (its Helm cells were always empty
-# anyway) and just has one bare version column per "Versie ..." group —
-# find_column(paths, ["helm"], ...) then finds nothing there, same as it
-# already does for a table missing "vendor"/"used_by". Only the App
-# columns (one per "Versie ..." group) are still required — without
-# those there's no version data to export at all.
+# Only the App columns are required: "vendor" (product tables) and "used_by"
+# (technical tables) each appear on only some tables, and the technical table
+# has no separate Helm column.
 REQUIRED_RELEASE_COLUMNS = ["source_app", "target_app"]
 
 
 def select_release_columns(paths: list[list[str]]) -> ReleaseColumns:
-    """{"first": 0, "vendor": <idx-or-None>, "used_by": <idx-or-None>,
-    "source_app": ..., "source_helm": <idx-or-None>, "target_app": ...,
-    "target_helm": <idx-or-None>} — "vendor" is matched against the
-    page's own "Ontwikkelpartij" column and "used_by" against its "Used
-    by" column, just exposed under shorter/snake_case names in the CSV.
-    "first" is always column 0 (the table's own leftmost column,
-    whatever it's labeled), or None if the table has no columns at all.
-    "source_app"/"target_app" stay None (see
-    missing_required_release_columns) if find_versie_groups doesn't find
-    exactly two "Versie ..." groups — more or fewer means this table
-    isn't shaped the way this export expects, not that it's this
-    function's job to guess which pair to use. "source_helm"/
-    "target_helm" are optional — None on a table whose "Versie ..."
-    groups have no separate Helm sub-column at all (e.g. "Technische
-    component versies", whose Helm cells were always empty anyway).
+    """Column index per ReleaseColumns field.
 
-    A "Versie ..." group with exactly ONE column, that isn't itself
-    labeled "Helm", is that group's App column even without its own
-    "App" sub-label — with Helm gone, a lone column that isn't Helm
-    can't be anything else, so it's matched by position rather than
-    text, keeping this working whether the page kept a (now redundant)
-    "App" sub-header row or dropped the sub-header split entirely."""
+    "vendor" is the "Ontwikkelpartij" column, "first" is column 0. The app/helm
+    columns stay None unless there are exactly two "Versie ..." groups. Helm
+    columns are optional. A group with a single non-Helm column is its App column
+    even without an "App" sub-header."""
     columns: ReleaseColumns = {
         "first": 0 if paths else None,
         "vendor": find_column(paths, ["ontwikkelpartij"]),
@@ -479,8 +372,7 @@ def select_release_columns(paths: list[list[str]]) -> ReleaseColumns:
     }
     groups = find_versie_groups(paths)
     if len(groups) == 2:
-        # pylint can't see past the len(groups) == 2 guard above and
-        # still tracks groups as the empty list literal from line 332.
+        # pylint can't see the len(groups) == 2 guard.
         # pylint: disable-next=unbalanced-tuple-unpacking
         (_, source_cols), (_, target_cols) = groups
         columns["source_helm"] = find_column(paths, ["helm"], candidates=source_cols)
@@ -499,26 +391,12 @@ def select_release_columns(paths: list[list[str]]) -> ReleaseColumns:
 
 
 def missing_required_release_columns(columns: ReleaseColumns):
-    """Which of select_release_columns()'s REQUIRED columns (source/
-    target App — not "first", not the optional "vendor"/"used_by"/
-    "source_helm"/"target_helm") came back unresolved (None)."""
+    """REQUIRED_RELEASE_COLUMNS keys that resolved to None."""
     return [key for key in REQUIRED_RELEASE_COLUMNS if columns.get(key) is None]
 
 
-# A deliberately looser MAJOR[.MINOR[.PATCH]][-prerelease][+build] grammar
-# than semver.org's own strict MAJOR.MINOR.PATCH — three allowed variations
-# on top, all common enough in real release notes/container tags to not
-# be worth flagging:
-#   - the minor AND patch components may both be omitted, leaving a bare
-#     discrete version number ("104" — frankgateway's own real app
-#     version, a plain incrementing build number with no dots at all,
-#     never semver in the first place)
-#   - the patch component alone may be omitted ("3.14-slim", "3.20")
-#   - an optional leading "v" may have a stray "." after it ("v.1.25.4"),
-#     alongside the usual bare "v" ("v1.25.4") or no prefix at all
-# Still rejects the things worth flagging: two values run together with
-# no separator ("5.4.3 5.4.4"), a placeholder like "?", or anything else
-# that isn't recognizably version-shaped.
+# Looser than semver: MINOR/PATCH optional ("104", "3.20") and a "v" or "v."
+# prefix allowed; still rejects run-together values ("5.4.3 5.4.4") and "?".
 SEMVER_RE = re.compile(
     r"^(?:v\.?)?(?:0|[1-9]\d*)(?:\.(?:0|[1-9]\d*)){0,2}"
     r"(?:-(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?"
@@ -527,10 +405,7 @@ SEMVER_RE = re.compile(
 
 
 def is_semver_compatible(version: str):
-    """True if `version` matches MAJOR[.MINOR[.PATCH]] (see SEMVER_RE) —
-    e.g. "1.27.4", "9.10.1-slim", "3.14-slim", "3.20", "v.1.25.4", or a
-    bare discrete version number like "104", but not "5.4.3 5.4.4" (two
-    values run together) or "?"."""
+    """True if `version` matches SEMVER_RE, e.g. "1.27.4", "3.14-slim", "v.1.25.4", "104"; not "5.4.3 5.4.4" or "?"."""
     return bool(SEMVER_RE.match(version.strip()))
 
 
@@ -538,9 +413,6 @@ MAJOR_MINOR_RE = re.compile(r"(\d+)\.(\d+)")
 
 
 def major_minor(text: str):
-    """The "MAJOR.MINOR" prefix found anywhere in `text` (the patch
-    component and anything else — a "Versie " label prefix, a "-rc1"
-    suffix — ignored) — e.g. "4.9" from "4.9.0", "Versie 4.9", or
-    "v4.9.2-rc1". None if no such digit.digit pattern is found at all."""
+    """The first "MAJOR.MINOR" in `text` (e.g. "4.9" from "Versie 4.9" or "v4.9.2-rc1"), or None."""
     m = MAJOR_MINOR_RE.search(text)
     return f"{m.group(1)}.{m.group(2)}" if m else None

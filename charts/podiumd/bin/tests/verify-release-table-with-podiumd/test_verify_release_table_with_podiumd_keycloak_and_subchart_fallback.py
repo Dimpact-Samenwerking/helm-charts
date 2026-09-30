@@ -1,14 +1,6 @@
-"""compare() (the pure comparison core) for verify-release-table-with-podiumd:
-keycloak-operator's own anchor-decorated split tag/sha image, basenames
-pinned under a sibling scope, and the vendored-subchart-default fallback for
-check_images_source (clamav/omc-style components with no "repository:"
-override of their own). compare() takes plain in-memory deps/values/lines/
-rows, so these tests need neither a real Chart.yaml nor network access.
-
-Split out of test_verify_release_table_with_podiumd.py (pylint
-too-many-lines) -- purely a test reorganization, no behavior change. See the
-sibling test_verify_release_table_with_podiumd_*.py files for the rest of
-that suite."""
+"""compare(): keycloak-operator's anchor-decorated split tag/sha image,
+basenames pinned under a sibling scope, and check_images_source's
+vendored-subchart-default fallback. In-memory inputs; no Chart.yaml or network."""
 
 from pathlib import Path
 from types import ModuleType
@@ -49,9 +41,6 @@ CLAMAV_BASELINE_VALUES = {"clamav": {"image": {"tag": "1.5.2"}}}
 
 
 # --- compare(): keycloak-operator's own anchor-decorated split tag/sha image ---
-# (used to need a dedicated special-case workaround here -- see lib.image.
-# digests' own anchor-tolerant VERSION_PIN_RE/ACTIVE_REPO_RE fix, which lets
-# the normal basenames_under_scope_any_tag scan resolve this image directly)
 
 KEYCLOAK_BLOCK = (
     "keycloak-operator:\n"
@@ -73,14 +62,9 @@ def keycloak_lines(tag="26.7.2"):
 
 
 def test_compare_checks_keycloak_anchor_decorated_image(vrt: ModuleType):
-    """keycloak-operator's own actual Keycloak SERVER image lives as a
-    split "tag:"/"sha:" field pair, each defined via its own per-scalar
-    YAML anchor (aliased by a sibling "keycloak.image" block elsewhere in
-    the real file) — basenames_under_scope_any_tag resolves it via the
-    normal scan, using the real production settings.yaml default (this
-    test passes no chart_dir, so image_paths_for("keycloak-operator")
-    self-resolves to it — a real component_resolution.image_paths
-    registration, not a synthetic override)."""
+    """keycloak-operator's server image is a split "tag:"/"sha:" pair with
+    per-scalar YAML anchors; the normal any_tag scan resolves it using the
+    real settings.yaml image_paths registration."""
     deps = [{"name": "keycloak-operator", "alias": "", "version": "1.12.1"}]
     rows = [csv_row("Keycloak", "keycloak-operator", image_basename="keycloak", target_app="26.7.3")]
     findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, keycloak_values(), keycloak_lines()))
@@ -98,12 +82,9 @@ def test_compare_keycloak_anchor_decorated_image_matching_passes(vrt: ModuleType
 
 
 def test_compare_finds_basename_pinned_under_a_sibling_scope(vrt: ModuleType):
-    """keycloak-config-cli lives under top-level "keycloak" (a values.yaml
-    sibling block, separate from keycloak-operator's own scope) — a
-    basename is a real repository identity, not a values.yaml path, so it
-    can be pinned somewhere other than its own component's scope. Found
-    via the same whole-file find_matches fallback update-image-version's
-    own <target> resolution uses (lib.image.version.resolve_basename)."""
+    """A basename is a repository identity, not a values.yaml path, so
+    keycloak-config-cli pinned under sibling "keycloak" is found via the
+    whole-file fallback (as resolve_basename does)."""
     keycloak_config_cli_block = (
         "keycloak:\n"
         "  keycloakConfigCli:\n"
@@ -143,14 +124,9 @@ def test_compare_sibling_scope_basename_matching_passes(vrt: ModuleType):
 
 
 def test_compare_image_source_sibling_scope_basename_still_matches(vrt: ModuleType):
-    """The EXISTING working case (keycloak-config-cli, a real image
-    pinned under a SIBLING scope — see test_compare_finds_basename_
-    pinned_under_a_sibling_scope) must still resolve correctly once the
-    baseline-side unscoped fallback gets its own cross-check against the
-    CURRENT chart's own real repository for the same <scope, basename>:
-    this is the legitimate case the fallback exists for, and must never
-    regress just because a DIFFERENT, coincidental collision (see below)
-    now gets rejected."""
+    """The legitimate sibling-scope case must keep resolving now that the
+    baseline-side unscoped fallback is cross-checked against the current
+    chart's repository."""
     current_block = (
         "keycloak:\n"
         "  keycloakConfigCli:\n"
@@ -187,17 +163,9 @@ def test_compare_image_source_sibling_scope_basename_still_matches(vrt: ModuleTy
 
 
 def test_compare_image_source_rejects_stripped_name_collision(vrt: ModuleType):
-    """Regression test: the same real redis/redis-operator basename
-    collision fixed twice already today (lib.chart.historical_app_
-    version_for_repository/find_images_manifest_list_diff, commits
-    c3b27bed/9b9680c1) applies equally to THIS function's own unscoped
-    find_matches_any_tag fallback. global.images.redis genuinely doesn't
-    exist yet at this baseline; redis-operator's own, completely
-    unrelated quay.io/opstree/redis pin (which also reduces to bare
-    basename "redis") must never be accepted as if it were global.
-    images.redis's own baseline value — the baseline is correctly
-    reported as never having had this image pinned at all, not silently
-    matched to the wrong one."""
+    """Regression: redis-operator's unrelated quay.io/opstree/redis pin (also
+    basename "redis") must not be accepted as global.images.redis's baseline
+    value; the image is reported as never pinned at that baseline."""
     current_block = f'global:\n  images:\n    redis:\n      repository: redis\n      tag: "8.0@sha256:{"d" * 64}"\n'
     baseline_block = (
         "redis-operator:\n"
@@ -220,26 +188,14 @@ def test_compare_image_source_rejects_stripped_name_collision(vrt: ModuleType):
 
 
 # --- check_images_source: vendored-subchart-default fallback ---
-# Real bug, real chart: at podiumd-4.8.5, brp-personen-mock/clamav/kiss's own
-# crawler/objecten/open-klant/zaakbrug each had only an explicit "tag:" for
-# their own primary image, no "repository:" override at all — relying
-# entirely on their vendored subchart's own default repository, exactly like
-# primary_image_basename's own CURRENT-side fallback already handles (see
-# lib.chart.pull_and_subchart_resolution.primary_image_repositories).
-# primary_image_repositories itself is monkeypatched here, on the
-# lib.release_table_verification module that actually calls it (rather
-# than vendoring a real .tgz or hitting the network) — its own
-# pull/vendored-tgz resolution already has its own test coverage
-# elsewhere; these tests are purely about check_images_source's own
-# NEW consumption of it (matching a resolved repository to `basename`,
-# reading the ACTUAL pinned tag from baseline_values, and degrading
-# gracefully on failure).
+# At podiumd-4.8.5 several components pinned only "tag:" and relied on the
+# subchart's default repository. primary_image_repositories is patched on
+# lib.release_table_verification (its resolution is tested elsewhere).
 
 
 def test_compare_image_source_falls_back_to_vendored_subchart_default(vrt: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    """Regression test: the vendored-subchart-default fallback resolves a
-    real, comparable baseline version instead of reporting "wasn't pinned
-    anywhere" — the matching source_app must be accepted as OK."""
+    """Regression: the fallback yields a comparable baseline version instead
+    of "wasn't pinned anywhere"; a matching source_app is OK."""
     monkeypatch.setattr(
         "lib.release_table_verification.primary_image_repositories",
         lambda chart_dir, dep, values, allow_pull=True: ({"image": "docker.io/clamav/clamav"}, None),
@@ -270,11 +226,8 @@ def test_compare_image_source_falls_back_to_vendored_subchart_default(vrt: Modul
 def test_compare_image_source_vendored_subchart_default_still_catches_mismatch(
     vrt: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
-    """The mirror-image case: the vendored-subchart-default fallback DOES
-    resolve a real baseline version, and it genuinely disagrees with
-    release-table.csv's own claimed source — still reported, just via a
-    distinctly-worded finding (never silently accepted just because it
-    took a different resolution path than the plain text scan)."""
+    """A fallback-resolved baseline that disagrees with the CSV source is
+    still reported, with a distinct wording."""
     monkeypatch.setattr(
         "lib.release_table_verification.primary_image_repositories",
         lambda chart_dir, dep, values, allow_pull=True: ({"image": "docker.io/clamav/clamav"}, None),
@@ -309,11 +262,8 @@ def test_compare_image_source_vendored_subchart_default_still_catches_mismatch(
 def test_compare_image_source_vendored_subchart_default_resolution_failure_is_reported_honestly(
     vrt: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
-    """A pull failure (no network, or the historical chart version
-    genuinely no longer exists) must never be silently forced into
-    "wasn't pinned anywhere" (actively wrong: something WAS pinned, this
-    just couldn't confirm what) or crash — it's a distinct, honest
-    "can't verify" finding instead."""
+    """A pull failure is a distinct "can't verify" finding, never "wasn't
+    pinned anywhere" (something was pinned) and never a crash."""
     monkeypatch.setattr(
         "lib.release_table_verification.primary_image_repositories",
         lambda chart_dir, dep, values, allow_pull=True: ({"image": None}, "helm pull failed: no such chart version"),
@@ -347,25 +297,14 @@ def test_compare_image_source_vendored_subchart_default_resolution_failure_is_re
     assert not any("wasn't pinned anywhere" in m for m in findings.get("mismatches", []))
 
 
-# omc's own "image:" tag has no ACTIVE "repository:" key at all (a
-# commented-out sibling instead) — its subchart can't handle a digest,
-# so export-confluence-release-table's own resolve_image_basenames now
-# falls back to the digest-OPTIONAL scanner for it, and its release-
-# table.csv row's image_basename column is a real, non-blank
-# "notifynl-omc" (see export-confluence-release-table's own module
-# docstring) — the exact same row shape every other component's row
-# already has, no special-casing needed anywhere downstream any more.
-# THIS script's own digest-OPTIONAL scanner (scan_version_pins, via
-# resolve_pin_repo's own commented-out-sibling fallback) resolves the
-# same basename regardless — real values.yaml shape, not a synthetic one.
+# omc's image has no active "repository:" (only a commented-out sibling) and
+# no digest; its row's image_basename is "notifynl-omc", resolved by the
+# digest-optional scanner via resolve_pin_repo's commented-sibling fallback.
 OMC_BLOCK = 'omc:\n  image:\n    # repository: docker.io/worthnl/notifynl-omc\n    tag: "1.17.19"\n'
 
 
 def test_compare_omc_image_matches_via_ordinary_basename_path(vrt: ModuleType):
-    """omc's row now round-trips through the completely standard
-    basename-matching path check_images already applies to every other
-    component — no special-casing at all, just a real, non-blank
-    image_basename column ("notifynl-omc")."""
+    """omc's row goes through the standard basename-matching path."""
     deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.1"}]
     rows = [
         csv_row(
@@ -382,9 +321,7 @@ def test_compare_omc_image_matches_via_ordinary_basename_path(vrt: ModuleType):
 
 
 def test_compare_omc_image_mismatch_via_ordinary_basename_path(vrt: ModuleType):
-    """Same ordinary path, but the target version genuinely disagrees
-    with what's actually pinned — must still be caught as a real
-    [IMAGE] mismatch, exactly like any other component's row."""
+    """A target that disagrees with the pin is an [IMAGE] mismatch."""
     deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.1"}]
     rows = [
         csv_row(
@@ -401,8 +338,7 @@ def test_compare_omc_image_mismatch_via_ordinary_basename_path(vrt: ModuleType):
 
 
 def test_compare_omc_image_source_matches_via_ordinary_basename_path(vrt: ModuleType):
-    """The baseline/source-side sibling (check_images_source) — omc's
-    row round-trips there too, with no special-casing needed."""
+    """omc's row also works on the source side (check_images_source)."""
     deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.1"}]
     baseline_deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.0"}]
     rows = [
@@ -441,10 +377,7 @@ def test_compare_omc_image_source_mismatch_via_ordinary_basename_path(vrt: Modul
 
 
 def test_compare_omc_still_catches_genuinely_untracked_sibling_basename(vrt: ModuleType):
-    """Negative case: a DIFFERENT, genuinely-untracked basename under
-    the same component's own scope must still be reported as missing —
-    unaffected by omc's own row now having a real, non-blank
-    image_basename."""
+    """A different, untracked basename in the same scope is still reported."""
     deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.1"}]
     rows = [
         csv_row(

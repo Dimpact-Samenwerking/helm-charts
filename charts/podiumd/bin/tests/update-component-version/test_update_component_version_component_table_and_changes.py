@@ -1,9 +1,5 @@
 """find_component_row / update_component_table and make_changes_section /
-insert_changes_section: split out of the former, monolithic
-test_update_component_version.py for pylint's too-many-lines check. This
-cluster doesn't use the git/subprocess helpers from the main()-integration
-files — just its own local DEPS/VALUES/COMPONENT_VERSIONS_HEADING
-constants."""
+insert_changes_section."""
 
 from types import ModuleType
 
@@ -21,16 +17,9 @@ def test_find_component_row_no_match_returns_none(libcomponentdocschanges: Modul
 
 
 def test_find_component_row_plain_name_does_not_match_its_own_sidecar_rows(libcomponentdocschanges: ModuleType):
-    """Regression test: a canonical "<key> - <basename>" sidecar row
-    (e.g. "openbao - openbao-csi-provider") legitimately starts with its
-    owning dependency's own name as a leading word-aligned span — that
-    must never satisfy a lookup for the dependency's OWN plain-name
-    friendly ("openbao"), same class of collision lib.upgradedoc.
-    match_dependency_excluding_sidecar_names already guards against on
-    the read side. Real bug: update_component_table silently overwrote
-    the "openbao - openbao-csi-provider" row with openbao's OWN
-    chart/app values instead of inserting openbao's own new row, because
-    this lookup used to return that sidecar row as a false match."""
+    """Regression: a "<key> - <image-basename>" sidecar row starts with its owner's
+    name but must not match a lookup for the owner itself, or
+    update_component_table overwrites the sidecar row."""
     rows = [
         {"name": "openbao - openbao-csi-provider", "line_index": 0},
         {"name": "openbao - openbao-snapshot-agent", "line_index": 1},
@@ -39,8 +28,7 @@ def test_find_component_row_plain_name_does_not_match_its_own_sidecar_rows(libco
 
 
 def test_find_component_row_sidecar_name_still_matches_its_own_row(libcomponentdocschanges: ModuleType):
-    """The exact-whole-name exception in the fix above: a lookup for the
-    sidecar's own full canonical name must still find its own row."""
+    """A lookup for the sidecar's full canonical name still finds its row."""
     rows = [{"name": "openbao - openbao-csi-provider", "line_index": 0}]
     assert libcomponentdocschanges.find_component_row(rows, "openbao - openbao-csi-provider")["line_index"] == 0
 
@@ -73,9 +61,8 @@ def test_update_component_table_adds_new_row(libcomponentdocschanges: ModuleType
 
 
 def test_update_component_table_without_new_app_keeps_the_rows_app_cell(libcomponentdocschanges: ModuleType):
-    """Regression test: a change with no new app version made the app
-    cell None, and " | ".join() over the cells raised TypeError. The
-    row's app cell is now left as it is."""
+    """Regression: no new app version left the cell None and join() raised
+    TypeError; the app cell is now left as is."""
     text = (
         COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n"
@@ -92,8 +79,7 @@ def test_update_component_table_without_new_app_keeps_the_rows_app_cell(libcompo
 
 
 def test_update_component_table_new_row_without_app_version_writes_dash(libcomponentdocschanges: ModuleType):
-    """Regression test: a new row without an app version used to get the
-    literal text "None" in its app cell."""
+    """Regression: a new row without an app version got the text "None"."""
     text = (
         COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n"
@@ -110,13 +96,8 @@ def test_update_component_table_new_row_without_app_version_writes_dash(libcompo
 
 
 def test_update_component_table_new_row_not_absorbed_by_own_sidecar_rows(libcomponentdocschanges: ModuleType):
-    """Regression test (real bug, real doc): when a dependency's own row
-    doesn't exist yet but its sidecar rows already do (e.g. openbao,
-    whose "openbao - openbao-csi-provider"/"...-snapshot-agent"/"...-
-    vault-k8s" rows were added a prior run, before openbao's own app
-    version became independently resolvable), inserting the dependency's
-    own new row must never overwrite one of those sidecar rows instead —
-    each keeps its own values, and the dependency gets its own new row."""
+    """Regression: with sidecar rows present but the owner's own row missing,
+    the owner gets a new row instead of overwriting a sidecar row."""
     text = (
         COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n"
@@ -136,9 +117,7 @@ def test_update_component_table_new_row_not_absorbed_by_own_sidecar_rows(libcomp
 
 
 def test_update_component_table_new_row_inserted_in_values_yaml_order(libcomponentdocschanges: ModuleType):
-    """openformulieren comes BEFORE zac in VALUES's own top-level key
-    order -- the new row must land above the existing zac row, not always
-    appended at the end."""
+    """New rows follow values.yaml key order, not always appended."""
     text = (
         COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n"
@@ -187,10 +166,7 @@ def test_update_component_table_no_table_returns_none_action(libcomponentdocscha
 
 
 def test_update_component_table_new_component_no_baseline_is_annotated_new(libcomponentdocschanges: ModuleType):
-    """A brand-new component (no baseline app/chart version at all — the
-    old_app/old_chart args are None) gets "(new)" cells, not a bare
-    version indistinguishable from a row whose baseline just wasn't
-    passed in."""
+    """A brand-new component (old versions None) gets "(new)" cells."""
     text = COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n| --- | --- | --- | --- |\n"
     new_text, action = libcomponentdocschanges.update_component_table(
         text,
@@ -203,10 +179,8 @@ def test_update_component_table_new_component_no_baseline_is_annotated_new(libco
 
 
 def test_update_component_table_empty_table_ignores_unrelated_lower_pipe_table(libcomponentdocschanges: ModuleType):
-    """When the "Component versions" table is empty (header + separator
-    only), the new row must be inserted right under THAT separator — not
-    under the last "| --- |" in the whole doc, which would splice it into
-    an unrelated settings-migration table in a "## Changes" subsection."""
+    """An empty table's new row goes under its own separator, not the doc's
+    last "| --- |" (which may belong to another table)."""
     text = (
         COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n"
@@ -232,10 +206,7 @@ def test_update_component_table_empty_table_ignores_unrelated_lower_pipe_table(l
 
 
 def test_update_component_table_new_sidecar_chart_placeholder_stays_bare(libcomponentdocschanges: ModuleType):
-    """A sidecar row's own Helm-chart cell is always the literal "-"
-    not-applicable placeholder (see add_missing_sidecar_rows) — it must
-    never get annotated "(new)" just because old_chart is None too, the
-    same way it's never rewritten with a real chart version either."""
+    """A sidecar row's chart cell stays the "-" placeholder, never "(new)"."""
     text = COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n| --- | --- | --- | --- |\n"
     new_text, action = libcomponentdocschanges.update_component_table(
         text,
@@ -264,12 +235,8 @@ def test_make_changes_section_includes_bullets(libcomponentdocschanges: ModuleTy
 
 
 def test_make_changes_section_unchanged_app_version_renders_no_transition(libcomponentdocschanges: ModuleType):
-    """Regression test: old_app == new_app (real case: a component whose
-    own PRIMARY image is untouched but still qualifies for a row/
-    section because some OTHER path in its subtree changed — e.g. a
-    brand-new sidecar of its own) renders "<app> (unchanged)", matching
-    chart_suffix's own existing "(chart ..., unchanged)" convention,
-    instead of a meaningless "<app> → <app>" self-transition."""
+    """old_app == new_app (e.g. only a sidecar in the subtree changed) renders
+    "<app> (unchanged)", not "<app> → <app>"."""
     section = libcomponentdocschanges.make_changes_section(
         libcomponentdocschanges.ComponentIdentity("zac", "zaakafhandelcomponent", "zac"),
         "4.9.0",
@@ -282,13 +249,8 @@ def test_make_changes_section_unchanged_app_version_renders_no_transition(libcom
 
 
 def test_make_changes_section_old_app_none_renders_new_not_none_arrow(libcomponentdocschanges: ModuleType):
-    """Regression test: old_app is None (real case: openbao — its own
-    app version only ever resolves via the subchart_app_version
-    fallback, which is never attempted for the baseline side) renders
-    "<app> (new)", matching component_version_cell's own "(new)"
-    convention for exactly this case — never a nonsensical "None →
-    <app>", and the chart side (unchanged here) keeps its ordinary
-    "(chart ..., unchanged)" clause."""
+    """old_app None (e.g. openbao: app version only resolvable via the
+    subchart fallback, never tried for the baseline) renders "<app> (new)"."""
     section = libcomponentdocschanges.make_changes_section(
         libcomponentdocschanges.ComponentIdentity("openbao", "openbao", "openbao"),
         "4.9.1",
@@ -302,12 +264,8 @@ def test_make_changes_section_old_app_none_renders_new_not_none_arrow(libcompone
 
 
 def test_make_changes_section_old_chart_none_renders_new_not_none_arrow(libcomponentdocschanges: ModuleType):
-    """Regression test: old_chart is None (a component with no baseline
-    Chart.yaml dependency at all — genuinely brand new this hop) renders
-    "(chart <new_chart>, new)", the chart-side sibling of the old_app is
-    None case above — never a nonsensical "chart None → <new_chart>",
-    and the "Helm chart `...` bump" bullet (which needs a real old_chart
-    to describe a transition) is suppressed."""
+    """old_chart None (brand-new dependency) renders "(chart <new>, new)" and
+    suppresses the "Helm chart ... bump" bullet."""
     section = libcomponentdocschanges.make_changes_section(
         libcomponentdocschanges.ComponentIdentity("openbao", "openbao", "openbao"),
         "4.9.1",
@@ -330,10 +288,7 @@ def test_make_changes_section_includes_chart_bullet_when_changed(libcomponentdoc
 
 
 def test_make_changes_section_native_component_omits_chart_clause(libcomponentdocschanges: ModuleType):
-    """new_chart="-" (the literal not-applicable placeholder — see lib.
-    chart.NATIVE_COMPONENTS) drops the "(chart ...)" heading clause and
-    the "Helm chart" bump bullet entirely, rather than rendering the
-    misleading "(chart None, unchanged)"."""
+    """new_chart="-" (native component) drops the chart clause and bump bullet."""
     section = libcomponentdocschanges.make_changes_section(
         libcomponentdocschanges.ComponentIdentity("frankgateway", "frankgateway", "frankgateway"),
         "4.9.0",
@@ -347,10 +302,7 @@ def test_make_changes_section_native_component_omits_chart_clause(libcomponentdo
 
 
 def test_insert_changes_section_appends_before_next_heading(libcomponentdocschanges: ModuleType):
-    """No existing block resolves to any dependency here ("zac ..." has no
-    real version text to anchor match_dependency, and DEPS/VALUES aren't
-    supplied) -- falls back to appending at the section end, right before
-    the next "## " heading."""
+    """With no block resolvable to a dependency, append at the section end."""
     text = "## Changes\n\n### zac ...\n\nblah\n\n## Per-environment checklist\n\nsteps\n"
     new_text = libcomponentdocschanges.insert_changes_section(
         text, "### openformulieren ...\n\n", "openformulieren", libcomponentdocschanges.OrderingContext([], {})
@@ -360,9 +312,7 @@ def test_insert_changes_section_appends_before_next_heading(libcomponentdocschan
 
 
 def test_insert_changes_section_inserted_in_values_yaml_order(libcomponentdocschanges: ModuleType):
-    """openformulieren comes BEFORE zac in VALUES's own top-level key
-    order -- the new block must land above the existing zac block, not
-    always appended at the end."""
+    """New blocks follow values.yaml key order, not always appended."""
     text = "## Changes\n\n### zac 5.0.2 → 5.1.0 (chart 1.0.297, unchanged)\n\nblah\n"
     new_text = libcomponentdocschanges.insert_changes_section(
         text,

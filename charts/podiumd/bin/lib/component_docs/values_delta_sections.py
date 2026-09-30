@@ -1,24 +1,11 @@
-"""The values-deltas.md doc's own per-component "## <friendly> ..."
-sections: building the heading (values_delta_section_heading), finding
-an existing section (find_values_delta_section), inserting a new one
-in values.yaml's own component order (insert_values_delta_section),
-stripping/detecting the bare TODO stub once real content replaces it
-(_is_bare_values_deltas_todo_stub, strip_stale_values_deltas_todo_stub),
-the gemeente-specific doc's own real-vs-placeholder content check
-(GEMEENTE_SECTION_HEADING_RE, has_real_gemeente_specific_content,
-has_stale_gemeente_specific_placeholder), appending to/removing a
-section's own body (append_values_delta_section_body, remove_values_
-delta_section), keeping every changed component's own section in sync
-with the upgrade doc's own version-change decision
-(sync_values_delta_sections), and pruning sections left empty after all
-that (prune_empty_values_delta_sections). Shared by update-component-
-version, update-image-version, and fix-doc-consistency. Split out of
-the former flat lib/component_docs.py, now the lib.component_docs
-package."""
+"""values-deltas.md per-component "## <friendly> ..." sections, plus gemeente-specific.md placeholder checks.
+
+Shared by update-component-version, update-image-version and fix-doc-consistency."""
 
 import re
 
 from collections.abc import Mapping
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -26,14 +13,23 @@ from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import component_chart_versions
 from lib.component_docs.baseline_doc_stubs import GEMEENTE_SPECIFIC_STUB_LINE
 from lib.component_docs.baseline_doc_stubs import VALUES_DELTAS_STUB_TODO_LINE
+from lib.component_docs.owned_parts import BLANK
+from lib.component_docs.owned_parts import generated_heading_name
+from lib.component_docs.owned_parts import remove_section_owned_parts
+from lib.component_docs.owned_parts import replace_section_owned_parts
+from lib.component_docs.owned_parts import template_re
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
+from lib.upgradedoc.sorting_and_ordering import block_for_component
 from lib.upgradedoc.sorting_and_ordering import component_order_key
 from lib.upgradedoc.sorting_and_ordering import insertion_index
 from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
 from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
+from lib.upgradedoc.version_cells_and_key_changes import KEY_ADDED
+from lib.upgradedoc.version_cells_and_key_changes import KEY_REMOVED
+from lib.upgradedoc.version_cells_and_key_changes import KEY_RENAMED
 from lib.upgradedoc.version_cells_and_key_changes import append_to_doc
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
 from lib.upgradedoc.version_cells_and_key_changes import missing_key_change_lines_by_key
@@ -44,38 +40,12 @@ from lib.yaml_types import YamlMapping
 def values_delta_section_heading(
     friendly: str, old_app: str | None, new_app: str | None, old_chart: str | None, new_chart: str | None
 ):
-    """The "## <friendly> ..." heading for this component's own values-
-    deltas.md section — carries the app/chart-transition info a flat
-    "- **<friendly>** app ..." bullet used to restate on its own first
-    line: once the heading itself already says it, repeating it as the
-    section's first bullet is pure noise (that's the whole point of
-    giving each component its own section instead of a shared flat
-    list). `new_chart == "-"` means a native_components component (see
-    lib.chart.native_components) with no Chart.yaml dependency/chart
-    version at all — the "(chart ...)" clause is dropped entirely rather
-    than rendered as the misleading "chart None → -". `old_app`/
-    `old_chart` may be None (nothing resolved at upgrade_docs_baseline —
-    a genuinely brand-new component this hop, e.g. mi, real case: the
-    Chart.yaml dependency line predates this release but its own
-    "image:" block was only pinned this hop) — rendered "(new)" via
-    lib.upgradedoc.component_version_cell, the exact same wording family
-    make_changes_section's own app_heading/chart_suffix already use for
-    the identical case (real bug, fixed: this used to silently collapse
-    "old is None" into "old == new" via "old_app or new_app", rendering
-    the equally-wrong "(unchanged)" instead — component_version_cell
-    handles None correctly on its own, so there's no reason for this
-    function to re-derive that logic separately and risk drifting from
-    make_changes_section's own).
+    """The "## <friendly> <app> (chart ...)" heading for a component's values-deltas.md section.
 
-    Only ever called (see sync_values_delta_sections) when there's a
-    real "- Key `...`" line to put under this heading — a section with
-    nothing else to say needs no section at all, so there's no "— <note>
-    explaining why nothing else changed" suffix here the way an earlier
-    design had. `new_app is None` (actual_app_version couldn't resolve
-    anything — see that function's own docstring) falls back to a
-    chart-only heading with its own unconditional TODO note instead,
-    since that one isn't about "nothing else changed" but about a real
-    tooling gap (the app version itself is unknown)."""
+    `new_chart == "-"` marks a native component: the chart clause is dropped.
+    None `old_app`/`old_chart` render "(new)" via component_version_cell, matching
+    make_changes_section. `new_app is None` (unresolvable) yields a chart-only
+    heading with a TODO note."""
     if new_app is None:
         if new_chart == "-":
             return (
@@ -106,18 +76,10 @@ def values_delta_section_heading(
 def find_values_delta_section(
     text: str, friendly: str, deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]] | None = None
 ):
-    """The existing "## ..." section (see lib.upgradedoc.parse_values_
-    delta_sections/changes_heading_identities) that already names the
-    SAME component identity `friendly` does — reused for a real
-    Chart.yaml dependency/native_components friendly name, a canonical
-    "<parent> - <basename>" sidecar name, or a bare shared-image
-    basename (see changes_heading_identities for all three shapes), so
-    a hand-written section already covering this identity (KISS's own
-    "## KISS ... — required edits", or a shared-image mention already
-    covered elsewhere) is found and reused instead of creating a
-    redundant new one right next to it. None if `friendly` itself
-    resolves to no real identity at all, or no existing section shares
-    one."""
+    """The existing "## ..." section sharing an identity with `friendly` (see changes_heading_identities), or None.
+
+    Lets a hand-written section covering the component be reused instead of
+    adding a duplicate."""
     target_idents = changes_heading_identities(friendly, deps, canonical_names)
     if not target_idents:
         return None
@@ -128,12 +90,7 @@ def find_values_delta_section(
 
 
 def _is_bare_values_deltas_todo_stub(lines: list[str]):
-    """True if `lines` (a whole values-deltas.md doc with no "## ..."
-    section yet) is JUST STUB_TEMPLATES["values-deltas"]'s own shape: its
-    "# Values deltas — ..." H1 title, then nothing but blank lines and
-    the bare TODO sentence that stub writes (VALUES_DELTAS_STUB_TODO_LINE)
-    — same exact-shape precision as _is_bare_placeholder_span above,
-    never a substring/heuristic match."""
+    """True if `lines` is exactly the values-deltas stub: an H1 title plus VALUES_DELTAS_STUB_TODO_LINE."""
     non_blank = [line.strip() for line in lines if line.strip()]
     return (
         len(non_blank) == 2 and non_blank[0].startswith("# ") and non_blank[1] == VALUES_DELTAS_STUB_TODO_LINE.strip()
@@ -142,13 +99,7 @@ def _is_bare_values_deltas_todo_stub(lines: list[str]):
 
 @dataclass
 class ValuesDeltaOrdering:
-    """deps/values/canonical_names — the component-identity and
-    values.yaml-order context insert_values_delta_section and sync_
-    values_delta_sections both need together (component_order_key/
-    insertion_index read all three at once). Bundled so sync_values_
-    delta_sections' own call into insert_values_delta_section reuses the
-    exact same instance rather than re-assembling it from separate
-    target_deps/target_values/canonical_names locals."""
+    """Component identity and values.yaml-order context for placing a values-deltas.md section."""
 
     deps: list[ChartDependency]
     values: YamlMapping | None
@@ -157,10 +108,7 @@ class ValuesDeltaOrdering:
 
 @dataclass
 class ValuesDeltaBaseline:
-    """deps/values as they stood at upgrade_docs_baseline — bundled since
-    sync_values_delta_sections only ever reads them together, to resolve
-    a NEW section's own old_app/old_chart (a key already covered by an
-    existing section never needs the baseline at all)."""
+    """deps/values at upgrade_docs_baseline, used to resolve a new section's old versions."""
 
     deps: list[ChartDependency] | None
     values: YamlMapping | None
@@ -169,20 +117,10 @@ class ValuesDeltaBaseline:
 def insert_values_delta_section(
     text: str, friendly: str, heading_line: str, body_lines: list[str], ordering: ValuesDeltaOrdering
 ):
-    """Insert a brand-new "## <heading_line>" section (heading_line
-    already includes its own trailing newline) + body_lines as its
-    content, in values.yaml's own top-level component order relative to
-    the "## " sections already there (see lib.upgradedoc.component_
-    order_key/insertion_index) — not always at the end. Mirrors
-    insert_changes_section's own positioning logic, one heading level
-    up (top-level "## " instead of "## Changes"'s own nested "### ..."),
-    including stripping the doc's own bare TODO placeholder (see
-    _is_bare_values_deltas_todo_stub) before the very first real section
-    lands, rather than leaving it stranded above it — the same class of
-    bug insert_changes_section had (see that function's own docstring).
-    `ordering` is this component's own ValuesDeltaOrdering (deps/values/
-    canonical_names), needed only to place a section relative to ones
-    already there — never read at all when this is the doc's first."""
+    """Insert a new section (heading_line ends in a newline) in values.yaml component order.
+
+    Mirrors insert_changes_section one heading level up, including dropping the
+    bare TODO stub before the first real section lands."""
     body = "".join(body_lines)
     section_text = heading_line + "\n" + body + ("\n" if body else "")
     sections = parse_values_delta_sections(text)
@@ -211,23 +149,10 @@ def insert_values_delta_section(
 
 
 def strip_stale_values_deltas_todo_stub(text: str):
-    """Retroactive cleanup companion to insert_values_delta_section's own
-    insertion-time fix (see _is_bare_values_deltas_todo_stub there): a
-    values-deltas.md doc whose FIRST real "## ..." section was inserted
-    BEFORE that fix existed still has the stray TODO sentence stranded
-    between the doc's own H1 title and that first section — real case,
-    confirmed live: 4.9.1-to-4.9.2-values-deltas.md. Mirrors strip_
-    stale_upgrade_placeholders' own shape one heading level up, same as
-    insert_values_delta_section mirrors insert_changes_section.
+    """Remove the TODO stub line left between the H1 title and the first real section.
 
-    Also doubles as the CHECKER side, same trick as strip_stale_upgrade_
-    placeholders: a caller that only wants to know WHETHER the
-    placeholder is still stranded inspects the returned `changed` flag
-    and discards new_text, rather than a separate find-only function.
-
-    Only fires when a real "## ..." section ALREADY exists — a doc that
-    still only has the bare stub (nothing recorded yet) is correct and
-    must never be touched. Returns (new_text, changed)."""
+    Callers can use the `changed` flag alone as a check. A doc with no real
+    section yet is left alone. Returns (new_text, changed)."""
     sections = parse_values_delta_sections(text)
     if not sections:
         return text, False
@@ -246,44 +171,24 @@ GEMEENTE_SECTION_HEADING_RE = re.compile(r"^##\s+\S.*$", re.MULTILINE)
 
 
 def has_real_gemeente_specific_content(text: str):
-    """True if gemeente-specific.md has at least one real "## <gemeente>
-    (<env>)" section outside its own commented-out example template (see
-    STUB_TEMPLATES["gemeente-specific"], whose own EXAMPLE heading of
-    that exact shape lives inside a "<!-- ... -->" block) — the "has
-    real content" signal for has_stale_gemeente_specific_placeholder,
-    mirroring parse_upgrade_doc_changes_blocks/parse_values_delta_
-    sections' own role for the other two doc types. Scans strip_html_
-    comments' own output, never the original text, same precedent as
-    strip_fenced_code_blocks (see that function's own docstring)."""
+    """True if gemeente-specific.md has a real "## ..." section outside HTML comments.
+
+    The stub's example heading lives inside a "<!-- ... -->" block, hence
+    scanning strip_html_comments' output."""
     return bool(GEMEENTE_SECTION_HEADING_RE.search(strip_html_comments(text)))
 
 
 def has_stale_gemeente_specific_placeholder(text: str):
-    """True if gemeente-specific.md still carries its own bare "_None
-    recorded yet._" placeholder (GEMEENTE_SPECIFIC_STUB_LINE) ALONGSIDE
-    at least one real "## <gemeente> (<env>)" section already added by
-    hand — a human added a real finding but left the placeholder behind.
+    """True if gemeente-specific.md still has its "_None recorded yet._" line next to a real section.
 
-    Unlike the other three placeholders (upgrade.md's own two, values-
-    deltas.md's own one), there is NO strip/fixer counterpart for this
-    one: nothing ever writes a new section into gemeente-specific.md
-    automatically — its content is entirely human-authored findings
-    (data quirks, local overrides, incident follow-ups) — so this is a
-    check-only finding for verify-podiumd's own check_docs_consistency
-    to report, left for a human to clear by hand, never something fix-
-    doc-consistency could safely auto-fix."""
+    Check-only: the content is human-authored, so nothing auto-fixes it."""
     if not has_real_gemeente_specific_content(text):
         return False
     return any(line.strip() == GEMEENTE_SPECIFIC_STUB_LINE.strip() for line in text.splitlines())
 
 
 def append_values_delta_section_body(text: str, section: HeadingBlock, new_lines: list[str]):
-    """Append new_lines at the end of an EXISTING values-deltas.md
-    section (see find_values_delta_section) — right before its own next
-    "## " heading (or EOF) — blank-line-separated from whatever already
-    ends the section (append_to_doc's own convention, just section-
-    scoped instead of always true EOF), never disturbing whatever
-    hand-written prose or previously-added lines already sit there."""
+    """Append new_lines at the end of an existing section, blank-line-separated, leaving its content untouched."""
     lines = text.splitlines(keepends=True)
     head = "".join(lines[: section["end"]])
     tail = "".join(lines[section["end"] :])
@@ -293,42 +198,70 @@ def append_values_delta_section_body(text: str, section: HeadingBlock, new_lines
     return new_head + tail
 
 
+_KEY_LINE_RES = [
+    template_re(template, {"path": r"[^`\s]+", "new_path": r"[^`\s]+"})
+    for template in (KEY_ADDED, KEY_REMOVED, KEY_RENAMED)
+]
+_TODO_HEADING_RE = re.compile(r"^(?P<name>.+?)(?: chart [^—]*)? — TODO: describe this component's changes; .*$")
+
+
+def values_delta_body_kinds(body: Sequence[str]) -> list[str | None]:
+    """The owned-part kind of each line after a "## ..." heading: "keys" for a
+    describe_key_changes line, BLANK, or None for a user line."""
+    kinds: list[str | None] = []
+    for line in body:
+        text = line.rstrip("\n")
+        if not text.strip():
+            kinds.append(BLANK)
+        elif any(r.match(text) for r in _KEY_LINE_RES):
+            kinds.append("keys")
+        else:
+            kinds.append(None)
+    return kinds
+
+
+def _values_delta_heading_name(heading_line: str, _body_kinds: Sequence[str | None]) -> str | None:
+    """The component name of a generated "## ..." heading, None for a hand-written one."""
+    return generated_heading_name(heading_line.rstrip("\n").removeprefix("## "), _TODO_HEADING_RE)
+
+
+def _component_section(
+    text: str, friendly: str, deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]] | None
+) -> HeadingBlock | None:
+    """The section naming exactly `friendly`'s component; sections covering several components never match."""
+    return block_for_component(parse_values_delta_sections(text), friendly, deps, canonical_names)
+
+
 def remove_values_delta_section(
     text: str, friendly: str, deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]] | None = None
-):
-    """Delete this component's OWN values-deltas.md section entirely —
-    the counterpart to insert_values_delta_section, for a bump that nets
-    out to no change from upgrade_docs_baseline at all. Only ever
-    deletes a section whose own identity set is EXACTLY `friendly`'s
-    (see find_values_delta_section) — a hand-written section covering
-    several components at once (e.g. "## ZAC and ZGW Office Add-in — no
-    changes") is never a candidate for deletion just because one of ITS
-    components reset to baseline; that always needs a human's own edit.
-    Also swallows the section's own trailing blank line(s). Returns
-    (new_text, removed)."""
-    target_idents = changes_heading_identities(friendly, deps, canonical_names)
-    if not target_idents:
-        return text, False
-    for section in parse_values_delta_sections(text):
-        if changes_heading_identities(section["heading"], deps, canonical_names) == target_idents:
-            lines = text.splitlines(keepends=True)
-            start, end = section["start"], section["end"]
-            while end < len(lines) and not lines[end].strip():
-                end += 1
-            del lines[start:end]
-            return "".join(lines), True
-    return text, False
+) -> tuple[str, bool, bool]:
+    """Remove the generated parts of `friendly`'s section: (new_text, removed, kept_user_text).
+
+    See remove_section_owned_parts."""
+    return remove_section_owned_parts(
+        text, _component_section(text, friendly, deps, canonical_names), values_delta_body_kinds
+    )
+
+
+def write_values_delta_section(
+    text: str, friendly: str, heading_line: str, key_lines: list[str], ordering: "ValuesDeltaOrdering"
+) -> str:
+    """Write `friendly`'s section: replace the generated heading and key lines of its section, or insert one.
+
+    The heading is replaced only when it is generated for the same component;
+    user lines stay in place.
+    """
+    section = _component_section(text, friendly, ordering.deps, ordering.canonical_names)
+    if section is None:
+        return insert_values_delta_section(text, friendly, heading_line, key_lines, ordering)
+    section_text = heading_line + "\n" + "".join(key_lines)
+    return replace_section_owned_parts(text, section, section_text, values_delta_body_kinds, _values_delta_heading_name)
 
 
 def _values_delta_new_section_heading(
     chart_dir: Path, key: str, ordering: ValuesDeltaOrdering, baseline: ValuesDeltaBaseline
 ):
-    """The "## ..." heading line for a brand-new values-deltas.md section
-    for `key` (see sync_values_delta_sections), or None when `key` has no
-    matching Chart.yaml dependency AND no lib.chart.native_components
-    entry — nothing here can be generated confidently without a real
-    Chart.yaml version to read, or the chart-less convention to fall
-    back to (same skip add_missing_component_rows already applies)."""
+    """Heading for a new section for `key`; None when it has no Chart.yaml dependency or native entry."""
     chart_versions = component_chart_versions(chart_dir, key, ordering.deps, baseline.deps)
     if chart_versions is None:
         return None
@@ -345,34 +278,12 @@ def sync_values_delta_sections(
     baseline: ValuesDeltaBaseline,
     actual_changed_keys: set[str],
 ) -> tuple[str, list[str], list[str]]:
-    """Ensure every key in `actual_changed_keys` has its own values-
-    deltas.md section (see find_values_delta_section/insert_values_
-    delta_section) carrying every describe_key_changes line not already
-    mentioned anywhere in the doc (see missing_key_change_lines_by_key)
-    — creating a brand new "## <key> <old> → <new>..." section (see
-    values_delta_section_heading) at its own values.yaml-order position
-    when no existing section (hand-written, or a previous run's own)
-    already covers this key's identity, or appending just the missing
-    lines into whichever section already does, after whatever's already
-    there. Existing content is only ever ADDED to, never reordered or
-    rewritten — see sort_values_delta_sections for reordering.
+    """Give every key in `actual_changed_keys` its describe_key_changes lines not yet in the doc.
 
-    `ordering` is this key's own target-side ValuesDeltaOrdering (deps/
-    values/canonical_names); `baseline` is its ValuesDeltaBaseline (deps/
-    values as they stood at upgrade_docs_baseline).
-
-    A key with no matching Chart.yaml dependency AND no lib.chart.
-    native_components entry either is skipped when it needs a brand-new
-    section (see _values_delta_new_section_heading). A key with NO
-    key_lines of its own (a pure app/chart version bump, already fully
-    covered by -upgrade.md's own table + Changes section) never gets a
-    brand-new section either — values-deltas.md exists to tell gemeentes
-    what THEIR OWN podiumd.yml needs to react to, and a version-only
-    bump needs no gemeente action at all; a heading with nothing under
-    it is worse than no heading. An EXISTING section (hand-written, or a
-    previous run's own) is still left exactly as it already was in that
-    case — this only ever decides whether a NEW one gets created, never
-    touches one that's already there.
+    Appends to an existing section for the key's identity, or creates one in
+    values.yaml order. Existing content is never reordered or rewritten. No new
+    section is created for a key without key lines (a pure version bump needs no
+    gemeente action) or without a dependency/native entry.
     Returns (new_text, created_names, updated_names)."""
     by_key = missing_key_change_lines_by_key(text, actual_changed_keys, baseline.values, ordering.values)
     created_names: list[str] = []
@@ -398,16 +309,10 @@ def sync_values_delta_sections(
 
 
 def prune_empty_values_delta_sections(text: str) -> tuple[str, list[str]]:
-    """Delete every "## ..." section (see lib.upgradedoc.parse_values_
-    delta_sections) whose own body is entirely blank — no content at all
-    between its heading and the next "## " heading (or EOF). Only ever
-    hits a section sync_values_delta_sections/update-component-version/
-    update-image-version themselves left behind BEFORE this rule
-    existed (a heading-only section describing a pure version bump with
-    nothing else to say) — a hand-written section always has SOME prose
-    of its own, so this can never accidentally delete one. Also swallows
-    the pruned section's own trailing blank line(s), same as
-    remove_values_delta_section. Returns (new_text, removed_headings)."""
+    """Delete every "## ..." section with a blank body, with its trailing blank lines.
+
+    Hand-written sections always have prose, so only generated heading-only ones
+    are hit. Returns (new_text, removed_headings)."""
     lines = text.splitlines(keepends=True)
     sections = parse_values_delta_sections(text)
     removed_headings: list[str] = []

@@ -37,7 +37,8 @@ The detailed sections below expand on any row.
 | Open Zaak ZGW consumer | **infra** | client `openbeheer` | _(uses the ZGW secret)_ | Register in Open Zaak admin; `auth_type: zgw`. |
 | Objecttypen token holder | **infra** | token | _(uses the API token)_ | Register in Objecttypen admin; `auth_type: api_key`. |
 | PersistentVolume + PVC | **helm** | PV `<ns>-openbeheer`, PVC `openbeheer` | `persistence.*` | `templates/openbeheer-storage.yaml`; RWX, Retain, `resource-policy: keep`. |
-| Ingress / HTTPRoute | **helm** | host `oidcUrl` → svc `openbeheer:80` | `openbeheer.ingress.*` | Sub-chart `ingress.yaml`; **opt-in per env** (Traefik / `extraIngress` for App Gateway). |
+| Ingress (opt-in) | **helm** | host `oidcUrl` → svc `openbeheer-nginx:80` | `openbeheer.ingress.*` | Sub-chart `ingress.yaml`; **opt-in per env** (Traefik / `extraIngress` for App Gateway). |
+| HTTPRoute | **infra** | `hr-openbeheer-nginx`, `backendRefs` → `openbeheer-nginx:80` | — | Created by ADO `ExternalsPodiumD` on `public-gateway`, not by this chart. |
 | TLS certificate | **helm** | secret `openbeheer-tls` | ingress annotation `cert-manager.io/cluster-issuer` | cert-manager, issuer `letsencrypt-prod`. |
 | Keycloak OIDC client | **helm** | client `openbeheer`, realm `podiumd` | `configuration.oidcUrl`, `configuration.pkceEnabled` | `keycloak-podiumd-realm-config.yaml`; auto. |
 | Secrets / ConfigMap / Deployment / Job | **helm** | — | the `openbeheer` values block | Rendered by the sub-chart (`replicaCount: 2`). |
@@ -72,7 +73,13 @@ the share must already exist:
 The chart does not expose Open Beheer by default — the openbeheer sub-chart ships an `ingress`
 template but ships it disabled. Enable it per environment (same shape as
 [`enabling-pabc.md`](../pabc/enabling-pabc.md) § 3), routing the `configuration.oidcUrl` host to the
-sub-chart `Service` (`ClusterIP`, port 80):
+sub-chart's nginx `Service` `openbeheer-nginx` (`ClusterIP`, port 80) — the sub-chart's `ingress.yaml`
+targets that service itself.
+
+**Route to `openbeheer-nginx`.** It serves the frontend — its `location /` falls back to
+`/static/frontend/index.html` — and proxies `/admin`, `/oidc`, `/static`, `/assets` and
+`/api/` on to the Django backend service `openbeheer`. Every HTTPRoute, App Gateway backend or
+ExternalName for Open Beheer targets `openbeheer-nginx` port 80.
 
 ```yaml
 openbeheer:
@@ -249,9 +256,9 @@ Disabled by default. First provision everything in the [§ Resources](#resources
      configuration:
        oidcUrl: https://openbeheer.<env>.example.nl
        secrets:
-         keycloak_client_secret: "REP_OPENBEHEER_KEYCLOAK_CLIENT_SECRET_REP"
-         openzaak_openbeheer_secret: "REP_OPENBEHEER_OPENZAAK_SECRET_REP"
-         objecttypen_openbeheer_token: "REP_OPENBEHEER_OBJECTTYPEN_TOKEN_REP"
+         keycloak_client_secret: "REP_OPENBEHEER_OIDC_SECRET_REP"
+         openzaak_openbeheer_secret: "REP_OPENZAAK_OPENBEHEER_SECRET_REP"
+         objecttypen_openbeheer_token: "REP_OBJECTTYPEN_OPENBEHEER_TOKEN_REP"
        data: |-
          oidc_db_config_enable: true
          oidc_db_config_admin_auth:
@@ -306,7 +313,7 @@ Disabled by default. First provision everything in the [§ Resources](#resources
          host: <pg-host>
          name: openbeheer
          username: openbeheer
-         password: "REP_OPENBEHEER_DB_PASSWORD_REP"
+         password: "REP_OPENBEHEER_DATABASE_PASSWORD_REP"
    ```
 
    > `value_from: {env: VAR}` pulls from `configuration.secrets`; the literal `REP_..._REP`

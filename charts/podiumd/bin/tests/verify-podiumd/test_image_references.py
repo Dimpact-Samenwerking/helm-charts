@@ -1,6 +1,5 @@
-"""check_image_references / scan_image_references — every image: field in
-templates/*.yaml must call the podiumd.image helper, per
-.github/copilot-instructions.md's "Image References" convention."""
+"""check_image_references / scan_image_references: every image: field in
+templates/*.yaml must use the podiumd.image helper."""
 
 from pathlib import Path
 from types import ModuleType

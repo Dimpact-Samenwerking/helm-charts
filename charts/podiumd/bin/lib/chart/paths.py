@@ -1,5 +1,4 @@
-"""Paths of the podiumd chart that contains these scripts
-(charts/podiumd/bin/lib/chart/ -> charts/podiumd/)."""
+"""Paths of the podiumd chart that contains these scripts."""
 
 from pathlib import Path
 

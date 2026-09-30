@@ -1,12 +1,7 @@
-"""check_dead_values — report-only check for values.yaml leaves no
-template ever reads. No real helm invocation happens in these tests: a
-fake `run` simulates a tiny renderer that only cares about two modeled
-leaves (foo.used — echoed into its output; required.field — makes the
-render fail entirely if nulled), so every other leaf (foo.dead) is
-"dead" by construction. See lib.checks.dead_values's own module
-docstring for the top-down/recurse-on-diff strategy, the per-subchart
-scoped rendering, and the full-chart confirmation safety net this
-exercises."""
+"""check_dead_values: report values.yaml leaves no template reads.
+
+A fake `run` models two read leaves (foo.used, required.field); every other leaf is dead.
+"""
 
 import io
 import tarfile
@@ -43,10 +38,7 @@ def write_chart_yaml_with_dep(tmp_path: Path, dep):
 
 
 def make_tgz(charts_dir, name, version):
-    """A minimal vendored <name>-<version>.tgz — just enough for
-    _resolve_scope's own `.is_file()` check to find it; its content is
-    irrelevant here since these tests fake `run` directly rather than
-    invoking real helm."""
+    """Empty vendored <name>-<version>.tgz; only _resolve_scope's `.is_file()` needs it."""
     charts_dir.mkdir(parents=True, exist_ok=True)
     tgz_path = charts_dir / f"{name}-{version}.tgz"
     data = yaml.safe_dump({}).encode("utf-8")
@@ -57,8 +49,7 @@ def make_tgz(charts_dir, name, version):
 
 
 def _overlay_values(cmd):
-    """Merge every "-f <file>" argument's YAML content in cmd, in order —
-    mirrors how Helm layers multiple -f overlays on top of each other."""
+    """Merge every "-f <file>" in cmd, in order, as Helm layers overlays."""
     merged = {}
     paths = [cmd[i + 1] for i, arg in enumerate(cmd) if arg == "-f"]
     for path in paths:
@@ -85,11 +76,7 @@ def _get(tree, path, default):
 
 
 def fake_run(call_log=None):
-    """A `run` stand-in modeling exactly two leaves: required.field makes
-    the whole render fail if ever nulled (a `required` guard); foo.used
-    is echoed into the rendered output (so nulling it changes the
-    render). Every other leaf (foo.dead) is invisible to this model —
-    nulling it can never change anything, i.e. genuinely dead."""
+    """Fake render: nulling required.field fails; foo.used is echoed; all other leaves are dead."""
 
     def run(cmd, **kwargs):
         if call_log is not None:
@@ -128,9 +115,7 @@ def test_candidate_leaf_paths_skips_null_values(libdeadvaluescheck: ModuleType):
 
 
 def test_candidate_leaf_paths_no_longer_treats_zaakbrug_staging_specially(libdeadvaluescheck: ModuleType):
-    """SUBCHART_VISIBILITY_EXEMPT has been removed entirely: zaakbrug's
-    own "staging" subtree is now an ORDINARY candidate, null-tested like
-    any other leaf — no special-casing left anywhere in this function."""
+    """zaakbrug's "staging" subtree is an ordinary candidate, not special-cased."""
     values = {"zaakbrug": {"staging": {"apiProxy": {"tag": "stable"}}, "other": "x"}}
     paths = libdeadvaluescheck.candidate_leaf_paths(values)
     assert ("zaakbrug", "staging", "apiProxy", "tag") in paths
@@ -178,15 +163,10 @@ def test_check_dead_values_finds_the_one_dead_leaf(
 def test_check_dead_values_whole_subtree_confirmed_dead_in_one_render(
     libdeadvaluescheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Two leaves the fake model never reads at all — nulling both at once
-    (the whole "foo" subtree, tested as one unit) still matches baseline,
-    so both are confirmed dead without ever recursing into "foo"'s own
-    children. 4 `run` calls total: the full-chart baseline, the own-
-    templates-scope baseline ("foo" has no Chart.yaml dependency, so it's
-    tested via the own-templates scope — see _make_own_scope), the one
-    combined subtree render, and the one combined re-confirmation against
-    the full-chart baseline (own_scope is never trusted alone — see this
-    module's docstring's safety-net rationale)."""
+    """An entirely dead subtree is confirmed in one render without recursing.
+
+    4 runs: full baseline, own-templates baseline, subtree render, full-chart re-confirmation.
+    """
     chart_dir = make_chart_dir(tmp_path, values='foo:\n  dead1: "x"\n  dead2: "y"\n')
     call_log = []
     monkeypatch.setattr(libdeadvaluescheck, "run", fake_run(call_log))
@@ -201,17 +181,10 @@ def test_check_dead_values_whole_subtree_confirmed_dead_in_one_render(
 def test_check_dead_values_deep_dead_subtree_confirmed_regardless_of_depth(
     libdeadvaluescheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """The whole point of testing top-down: "bar"'s two dead leaves sit 4
-    levels deep, but since NEITHER is ever read, nulling the entire "bar"
-    subtree in one render already matches baseline — no need to recurse
-    into bar.a, then bar.a.b, then each leaf individually. 5 `run` calls
-    total: the full-chart baseline, the own-templates-scope baseline
-    (neither "foo" nor "bar" has a Chart.yaml dependency, so both are
-    tested via the own-templates scope), "foo" (used, rejected at the
-    top level) and "bar" (dead, confirmed in one shot despite its depth)
-    at the search level, and one combined re-confirmation of "bar"'s two
-    leaves against the full-chart baseline (own_scope is never trusted
-    alone)."""
+    """Top-down search confirms a deep dead subtree in one render.
+
+    5 runs: full baseline, own-templates baseline, "foo" (used), "bar" (dead), full re-confirmation.
+    """
     chart_dir = make_chart_dir(
         tmp_path,
         values=('foo:\n  used: "abc"\nbar:\n  a:\n    b:\n      c: "dead1"\n      d: "dead2"\n'),
@@ -242,12 +215,7 @@ def test_check_dead_values_nothing_dead_prints_ok(
 def test_check_dead_values_zaakbrug_staging_is_now_an_ordinary_dead_finding(
     libdeadvaluescheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """SUBCHART_VISIBILITY_EXEMPT removed: zaakbrug.staging is no longer
-    special-cased at all — it's just another leaf the fake model never
-    reads, so it flows through the ordinary top-down search and shows up
-    in the plain "Found N ... dead" list exactly like foo.dead, counted
-    in "total" like everything else — no separate bucket, no exemption
-    wording anywhere."""
+    """zaakbrug.staging is reported and counted like any other dead leaf, with no exemption bucket."""
     values = (
         "foo:\n"
         '  used: "abc"\n'
@@ -293,17 +261,11 @@ def test_check_dead_values_baseline_render_failure_is_skipped_not_failed(
 
 
 def fake_run_scoped(call_log=None, *, full_reads_dead=False):
-    """Models "zac" as a real vendored dependency: a SCOPED render
-    (chart_name == "zac", the dependency's own release name) sees its
-    overlay's keys flat (no "zac:" nesting — exactly what _resolve_scope
-    is supposed to build) and echoes "used" (default "abc" if not
-    overridden); "dead" is invisible to it. A FULL-chart render
-    (chart_name == CHART_NAME) does the same for zac.used, but ALSO
-    echoes zac.dead when full_reads_dead is True — modeling the
-    "keycloak"-style exception where podiumd's own top-level templates
-    read a dependency-scoped value directly, invisible to that
-    dependency's own isolated render (see this module's docstring's
-    safety-net rationale)."""
+    """Fake render with "zac" as a vendored dependency.
+
+    Scoped render sees un-nested keys and echoes "used". Full-chart render also echoes
+    zac.dead when full_reads_dead: parent templates reading a subchart value directly.
+    """
 
     def run(cmd, **kwargs):
         if call_log is not None:
@@ -351,9 +313,7 @@ def test_check_dead_values_uses_scoped_render_for_matching_dependency(
 def test_check_dead_values_safety_net_rejects_scoped_false_positive(
     libdeadvaluescheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """zac.dead looks dead to zac's own isolated render, but the (faked)
-    full chart actually reads it — the confirmation pass against the
-    real full-chart baseline must catch this and NOT report it."""
+    """A leaf dead in scoped render but read by the full chart is not reported."""
     chart_dir = make_scoped_chart_dir(tmp_path)
     monkeypatch.setattr(libdeadvaluescheck, "run", fake_run_scoped(full_reads_dead=True))
 
@@ -366,14 +326,10 @@ def test_check_dead_values_safety_net_rejects_scoped_false_positive(
 def test_check_dead_values_never_nulls_a_dependencys_own_condition_leaf(
     libdeadvaluescheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """zac.enabled is Chart.yaml's own "condition:" for the zac
-    dependency — real, measured bug: a standalone render of a
-    dependency has no parent to gate, so nulling this ONE leaf within
-    zac's own sub-chart scope can never be honestly observed (it always
-    renders regardless). Excluded from candidacy entirely (see
-    _condition_leaf_paths) rather than tested and then rejected —
-    verified here by making the whole test fail if "enabled" ever shows
-    up nulled in ANY overlay this check writes, scoped or full."""
+    """A Chart.yaml "condition:" leaf (zac.enabled) is never nulled in any overlay.
+
+    A standalone subchart render has no parent to gate, so nulling it is unobservable.
+    """
     write_chart_yaml_with_dep(tmp_path, make_dep("zac", "1.0.0", condition="zac.enabled"))
     make_tgz(tmp_path / "charts", "zac", "1.0.0")
     (tmp_path / "values.yaml").write_text('zac:\n  enabled: true\n  used: "abc"\n', encoding="utf-8")
@@ -393,10 +349,7 @@ def test_check_dead_values_never_nulls_a_dependencys_own_condition_leaf(
     assert detail == "0/1 dead"  # "enabled" excluded entirely; only "used" is a real candidate
     for overlay in seen_overlays:
         zac_view = overlay.get("zac", overlay)
-        # Every overlay is a full deep copy of the base values with only
-        # candidate leaves nulled (see _render_with_null_overrides), so
-        # "enabled" must keep its real original value -- not just non-None,
-        # which an omitted key would also satisfy via dict.get's default.
+        # Overlays are full copies, so check the original value, not just non-None.
         assert zac_view.get("enabled") is True, f"zac.enabled was nulled or dropped in {overlay}"
 
 

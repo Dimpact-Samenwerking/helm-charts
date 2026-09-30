@@ -1,11 +1,7 @@
-"""lib.release_secret_size — packaged_files/bucket_files/build_release/
-check_subchart_freshness/encoded_secret_size/record_result (the core
-computation, shared by the standalone verify-helm-secret-size CLI and
-this module's own check_release_secret_size), plus check_release_secret_
-size itself (the verify-podiumd integration — a REAL pass/fail step, not
-report-only). All `helm package`/`helm template` calls are mocked via
-librelease_secret_size.run/.render_chart — no real helm invocation
-happens in these tests."""
+"""lib.release_secret_size helpers and the check_release_secret_size pass/fail step.
+
+`helm package`/`helm template` are mocked via librelease_secret_size.run/.render_chart.
+"""
 
 import io
 import json
@@ -20,9 +16,7 @@ import yaml
 
 
 def make_tgz_bytes(name, files):
-    """A real gzipped tar, in memory, with every {internal path: text}
-    entry written under a leading "<name>/" prefix — the exact shape
-    `helm package` produces and packaged_files() strips back off."""
+    """In-memory .tgz with entries under a "<name>/" prefix, as `helm package` produces."""
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w:gz") as tar:
         for rel_path, text in files.items():
@@ -34,9 +28,7 @@ def make_tgz_bytes(name, files):
 
 
 def fake_helm_package(tgz_name, files):
-    """A librelease_secret_size.run replacement: writes make_tgz_bytes'
-    own output to the -d destination directory `helm package` was asked
-    for, mirroring what a real `helm package -d <dir>` invocation does."""
+    """Fake run: writes make_tgz_bytes output to the `helm package -d <dir>` destination."""
 
     def run(cmd, **kwargs):
         dest = Path(cmd[cmd.index("-d") + 1])
@@ -112,8 +104,7 @@ def test_check_subchart_freshness_stale_vendored_version_warns(librelease_secret
 
 
 def test_check_subchart_freshness_not_vendored_at_all_is_silent(librelease_secret_size: ModuleType, tmp_path: Path):
-    """Not vendored locally (e.g. condition-disabled) — nothing to compare,
-    not a staleness finding."""
+    """A subchart not vendored locally (e.g. condition-disabled) is not a staleness finding."""
     (tmp_path / "charts").mkdir()
     metadata = {"dependencies": [{"name": "zac", "version": "1.0.297"}]}
     assert librelease_secret_size.check_subchart_freshness(tmp_path, metadata) == []
@@ -283,11 +274,7 @@ def test_encoded_secret_size_round_trips_gzip_base64(librelease_secret_size: Mod
 
 
 def test_encoded_secret_size_pct_crosses_threshold_for_large_release(librelease_secret_size: ModuleType):
-    """Real regression check on the actual pass/fail math: a genuinely
-    incompressible manifest (secrets.token_hex — gzip can't shrink random
-    hex meaningfully, unlike a repetitive string) sized comfortably past
-    the 1 MiB raw mark must report pct >= the configured warn threshold
-    once gzipped and base64-encoded."""
+    """An incompressible manifest well past 1 MiB must reach the warn threshold after gzip+base64."""
     import secrets
 
     release = {"name": "x", "manifest": secrets.token_hex(700_000)}
@@ -421,12 +408,7 @@ def test_check_release_secret_size_fails_at_warn_threshold(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ):
-    """Real pass/fail regression: a percentage right at WARN_THRESHOLD
-    must fail the step (ok=False) and print the same over-limit warning
-    the standalone CLI's own sys.exit(1) path prints — this is the
-    behavior that would NOT have existed at all before this feature was
-    wired into verify-podiumd (a bloated release used to only ever be
-    caught by manually running the standalone script)."""
+    """At WARN_THRESHOLD the step fails and prints the same warning as the standalone CLI."""
     monkeypatch.setattr(
         librelease_secret_size,
         "render_chart",
@@ -481,9 +463,7 @@ def test_check_release_secret_size_prints_subchart_freshness_warnings(
 def test_check_release_secret_size_reads_values_override_from_extra_args(
     librelease_secret_size: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
-    """Reuses verify-podiumd's own already-computed lint_args_for result
-    (extra_args) to locate the values override -- never re-derives
-    ci/lint-values.yaml itself."""
+    """The values override comes from the passed lint extra_args, not a re-derived ci/lint-values.yaml."""
     values_path = tmp_path / "lint-values.yaml"
     values_path.write_text("foo: bar\n")
     monkeypatch.setattr(
@@ -507,9 +487,7 @@ def test_check_release_secret_size_reads_values_override_from_extra_args(
 def test_check_release_secret_size_never_writes_the_doc(
     librelease_secret_size: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
-    """verify-podiumd's checks are read-only -- check_release_secret_size
-    must never call record_result (--record stays exclusive to the
-    standalone CLI)."""
+    """verify-podiumd checks are read-only: never call record_result (--record is CLI-only)."""
     monkeypatch.setattr(
         librelease_secret_size,
         "render_chart",

@@ -1,5 +1,4 @@
-"""Loads render-podiumd (a hyphenated filename, not importable normally)
-as a module named `rp`."""
+"""Load render-podiumd (hyphenated, not importable) as module `rp`."""
 
 import importlib.util
 import sys
@@ -39,9 +38,6 @@ def librenderscope() -> ModuleType:
 
 @pytest.fixture(autouse=True)
 def stub_ensure_vendored_dependencies(rp: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    """main() now calls lib.dependencies.ensure_vendored_dependencies
-    first, but every main()-level test here runs against a fake chart
-    directory with no vendored sub-charts at all. Stubbed to a no-op by
-    default; a test exercising the guard itself puts the real one back
-    via its own monkeypatch.setattr, same as any other autouse default."""
+    """Stub ensure_vendored_dependencies: the fake chart has no vendored
+    sub-charts. Tests of the guard restore the real one."""
     monkeypatch.setattr(rp, "ensure_vendored_dependencies", lambda chart_dir: None)

@@ -188,7 +188,8 @@ grafana:
       allow_assign_grafana_admin: true
       client_id: "monitoring"
       client_secret: ""
-      scopes: openid email profile offline_access roles
+      # No offline_access: Keycloak rejects it (invalid_scope). See docs/grafana-auth.md.
+      scopes: openid email profile roles
       email_attribute_path: email
       login_attribute_path: username
       name_attribute_path: name

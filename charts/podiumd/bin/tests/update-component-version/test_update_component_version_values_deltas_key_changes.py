@@ -1,6 +1,4 @@
-"""main(): values-deltas key-change detection against the real baseline:
-split out of the former, monolithic test_update_component_version.py for
-pylint's too-many-lines check."""
+"""main(): values-deltas key-change detection against the real git baseline."""
 
 import subprocess
 
@@ -31,9 +29,8 @@ def init_git_repo(root):
 def setup_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType):
     chart_yaml = tmp_path / "Chart.yaml"
     values_yaml = tmp_path / "values.yaml"
-    # written as raw text (not yaml.safe_dump, which alphabetizes keys) so
-    # "name:" is the block's first key — same convention as the real
-    # Chart.yaml, which update_chart_yaml's line-scan depends on.
+    # Raw text, not yaml.safe_dump (alphabetizes keys): update_chart_yaml's
+    # line-scan needs "name:" first, as in the real Chart.yaml.
     chart_yaml.write_text(
         "version: 4.9.0\n"
         "dependencies:\n"
@@ -60,28 +57,17 @@ def setup_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType)
 
 
 def mock_registry_passes(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, digest_char="b"):
-    """A component whose values.yaml image path has an explicit
-    "repository:" (e.g. zac) delegates its tag update to
-    lib.image.version.update_image_version, which resolves
-    `registry_tag_exists` via ITS OWN globals — not ucv's — so a main()
-    test mocking this avoids a real network call for the delegated-path
-    write itself. The upfront verification gate (fallback-path digests
-    included) is covered separately by mock_verify_passes."""
+    """Mock registry_tag_exists in lib.image.version: the delegated tag update
+    for explicit-repository images resolves it via that module's globals."""
     digest = "sha256:" + digest_char * 64
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, digest))
 
 
 def mock_verify_passes(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, digest_char="b", calls=None):
-    """Fakes update-component-version's own upfront verify_component_version
-    step (a lib.chart.resolve_chart_values call + lib.chart.
-    check_image_versions call) so main()'s tests don't need real
-    helm/network access. resolve_chart_values/check_image_versions' own
-    correctness is covered by tests/lib/test_chart.py — this only fakes
-    "the chart version and its images exist", returning FOUND for every
-    path passed in. If `calls` is given, each check_image_versions
-    invocation's image_paths argument is appended to it — lets a test
-    assert the upfront check ran exactly once (no second/fallback
-    re-check)."""
+    """Fake the upfront verify_component_version step (FOUND for every path)
+    so tests need no helm/network. If `calls` is given, each
+    check_image_versions image_paths argument is appended, to assert the
+    check ran exactly once."""
     digest = "sha256:" + digest_char * 64
 
     def fake_check_image_versions(values, image_paths, app_version):
@@ -109,12 +95,9 @@ def mock_verify_passes(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, digest_
 
 
 def setup_git_repo_for_baseline_test(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType):
-    """A real git repo with a baseline commit tagged podiumd-4.8.5, then a
-    values.yaml schema key added on top — as if someone hand-edited it to
-    prepare this hop, BEFORE running update-component-version. That
-    ordering is exactly what the old before/after-this-script-run comparison
-    could never see (the key was already present on both sides of that
-    comparison); comparing against the real git baseline must catch it."""
+    """Git repo with a podiumd-4.8.5 baseline plus a schema key added before
+    update-component-version runs: only a comparison against the git
+    baseline (not before/after this run) catches it."""
     chart_yaml = tmp_path / "Chart.yaml"
     values_yaml = tmp_path / "values.yaml"
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
@@ -143,7 +126,7 @@ def setup_git_repo_for_baseline_test(tmp_path: Path, monkeypatch: pytest.MonkeyP
     git("commit", "-q", "-m", "baseline", cwd=tmp_path)
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
-    # the schema edit, made BEFORE update-component-version ever runs
+    # the schema edit, made before update-component-version runs
     values_yaml.write_text(
         "zac:\n"
         "  image:\n"
@@ -193,13 +176,9 @@ def test_main_detects_key_added_before_running_against_real_baseline(
 def test_main_notes_when_baseline_unresolvable_for_key_detection(
     ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """setup_repo's plain tmp_path (no git init) can't resolve any baseline —
-    main() must say so and continue, not silently skip the note or crash.
-    No values-deltas.md section gets written either — whether zac's own
-    schema actually changed can never be determined without a baseline
-    to compare against, and a heading with nothing under it (or worse, a
-    guess) is not the answer (see sync_values_delta_sections' own
-    docstring)."""
+    """Without a resolvable baseline main() says so and continues; no
+    values-deltas.md section is written, since a schema change can't be
+    determined."""
     setup_repo(tmp_path, monkeypatch, ucv)
     (tmp_path / "etc").mkdir(exist_ok=True)
     write(tmp_path / "etc" / "release-baseline.yaml", 'upgrade_docs: "4.8.5"\n')
@@ -231,10 +210,8 @@ def test_main_notes_when_baseline_unresolvable_for_key_detection(
 def test_main_touches_only_the_target_component_end_to_end(
     ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Bumping zac must not modify anything belonging to a different
-    component (openformulieren here) — its Chart.yaml entry, values.yaml
-    subtree, upgrade.md row + Changes section, values-deltas.md mention,
-    and images-manifest entry must all be byte-for-byte unchanged."""
+    """Bumping zac leaves every file's openformulieren parts byte-for-byte
+    unchanged."""
     chart_yaml = tmp_path / "Chart.yaml"
     values_yaml = tmp_path / "values.yaml"
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
@@ -326,18 +303,13 @@ def test_main_touches_only_the_target_component_end_to_end(
     assert upgrade_after.count("### openformulieren") == 1
 
     deltas_after = (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
-    # openformulieren's own section, verbatim, still there — zac (Chart.yaml's
-    # FIRST dependency) gets its own brand new section inserted BEFORE it, in
-    # values.yaml order, so it's no longer immediately after the doc's own H1.
+    # zac's new section goes before openformulieren's, in values.yaml order.
     assert "## openformulieren 3.4.9 → 3.4.10 (chart 1.12.0, unchanged) — image tag only\n" in deltas_after
     assert deltas_after.count("## openformulieren") == 1
 
     images_after = (images_dir / "images-4.9.0.yaml").read_text(encoding="utf-8")
-    # openformulieren's own header ITEM renumbers from "1." to "2." — zac's
-    # own new item is correctly inserted BEFORE it (zac is Chart.yaml's
-    # first dependency, openforms its second), not just appended after the
-    # existing item the way an earlier, position-blind version of this
-    # insertion used to. Its TEXT is still exactly what it was.
+    # openformulieren's item renumbers to "2." (zac's new item is inserted
+    # before it, in dependency order); its text is unchanged.
     assert "2. openformulieren 3.4.9 -> 3.4.10 (chart 1.12.0, unchanged)." in images_after
     assert "1. zac 5.0.2 -> 5.4.3 (chart 1.0.296 -> 1.0.297)." in images_after
     assert '"3.4.10"' in images_after

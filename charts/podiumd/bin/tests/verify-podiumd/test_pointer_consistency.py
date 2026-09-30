@@ -32,9 +32,8 @@ def test_correct_sibling_reference_passes(libdocsconsistencypointer: ModuleType,
 
 
 def test_reference_to_a_different_historical_hop_is_ignored(libdocsconsistencypointer: ModuleType, dirs):
-    """A link to an older hop's doc (e.g. 4.8.1-to-4.8.2) is not this
-    release's concern and must not be flagged just because it doesn't match
-    the current baseline."""
+    """A link to an older hop's doc is not flagged for not matching the
+    current baseline."""
     doc_dir, images_dir = dirs
     doc = doc_dir / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text("See [`4.8.1-to-4.8.2-gemeente-specific.md`](4.8.1-to-4.8.2-gemeente-specific.md#anchor).\n")

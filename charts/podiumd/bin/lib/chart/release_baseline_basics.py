@@ -1,6 +1,4 @@
-"""Release-baseline basics: chart_dir/etc/release-baseline.yaml
-read/write (upgrade_docs_baseline, release_table_baseline,
-write_release_baselines) and chart_version."""
+"""Read/write etc/release-baseline.yaml, and read a Chart.yaml version."""
 
 from pathlib import Path
 
@@ -14,9 +12,11 @@ from lib.yaml_types import load_yaml_mapping
 
 
 def chart_version(chart_yaml_path: Path) -> str:
-    """The "version:" field of a Chart.yaml at `chart_yaml_path`. An
-    unquoted integer is read as its string; any other non-string (a bare
-    "4.90" parses as the float 4.9) raises YamlShapeError naming the file."""
+    """The "version:" of the Chart.yaml at `chart_yaml_path`.
+
+    An unquoted integer is stringified; any other non-string (a bare "4.90"
+    is the float 4.9) raises YamlShapeError.
+    """
     mapping = load_yaml_mapping(chart_yaml_path)
     normalize_int_version(mapping)
     version = mapping.get("version")
@@ -30,15 +30,7 @@ RELEASE_BASELINES_FILE_NAME = "etc/release-baseline.yaml"
 
 
 def _release_baselines(chart_dir: Path) -> YamlMapping:
-    """The parsed contents of chart_dir/etc/release-baseline.yaml — upgrade_
-    docs (the incremental baseline _UPGRADE_PATHS/*.md and docs/images/
-    images-<target>.yaml are written against) and release_table (the
-    cumulative baseline release-table.csv was last generated against;
-    see upgrade_docs_baseline/release_table_baseline below for why
-    podiumd needs two baselines instead of one) — or {} if the file
-    doesn't exist yet. Not a public accessor itself: callers want
-    upgrade_docs_baseline/release_table_baseline below, which each read
-    one specific key."""
+    """The parsed etc/release-baseline.yaml, or {} if it doesn't exist."""
     path = chart_dir / RELEASE_BASELINES_FILE_NAME
     if not path.is_file():
         return {}
@@ -46,9 +38,7 @@ def _release_baselines(chart_dir: Path) -> YamlMapping:
 
 
 def _baseline_value(chart_dir: Path, key: str) -> str | None:
-    """release-baseline.yaml's `key` (see _release_baselines), None if the
-    file or the key doesn't exist yet. Raises YamlShapeError naming the
-    file when the value is there but isn't a string."""
+    """release-baseline.yaml's `key`, or None if missing; raises YamlShapeError if not a string."""
     baselines = _release_baselines(chart_dir)
     problem = key_problem(baselines, key, str, "", required=False)
     if problem is not None:
@@ -58,56 +48,25 @@ def _baseline_value(chart_dir: Path, key: str) -> str | None:
 
 
 def upgrade_docs_baseline(chart_dir: Path):
-    """The incremental baseline _UPGRADE_PATHS/*.md and docs/images/
-    images-<target>.yaml are written against — the immediately
-    preceding release, advanced on every release cycle (see
-    create-podiumd-version). None if release-baseline.yaml or this key
-    doesn't exist yet."""
+    """The incremental baseline of _UPGRADE_PATHS/*.md and images-<target>.yaml, or None.
+
+    The immediately preceding release, advanced every release cycle.
+    """
     return _baseline_value(chart_dir, "upgrade_docs")
 
 
 def release_table_baseline(chart_dir: Path):
-    """The cumulative baseline release-table.csv (the Confluence
-    release-notes export) was last generated against — advanced only on
-    a minor version bump (see create-podiumd-version), left untouched by
-    a patch bump. None if release-baseline.yaml or this key doesn't
-    exist yet."""
+    """The cumulative baseline of release-table.csv, or None; advanced only on a minor bump."""
     return _baseline_value(chart_dir, "release_table")
 
 
 def write_release_baselines(chart_dir: Path, upgrade_docs: str | None = None, release_table: str | None = None):
-    """Read-modify-write chart_dir/etc/release-baseline.yaml, updating only
-    whichever of upgrade_docs/release_table is given (None leaves that
-    key untouched, whatever it already was) — the single write path
-    shared by create-podiumd-version (writes upgrade_docs on every
-    release cycle, release_table only on a minor bump) and
-    change-podiumd-baseline (writes upgrade_docs only, never
-    release_table), so neither script risks clobbering the other's own
-    key by writing a fresh two-key file from scratch.
+    """Update only the given keys of etc/release-baseline.yaml, keeping the other.
 
-    Creates the etc/ directory first if it doesn't exist yet — true on
-    the real chart (etc/ is a permanent fixture there), but a synthetic
-    test chart_dir has no reason to pre-create a directory this is the
-    only thing that ever writes into.
-
-    Each value is written double-quoted (e.g. `upgrade_docs: "4.9.1"`),
-    matching this codebase's own established YAML-writing convention
-    (e.g. images-<version>.yaml's own `version: "3.1.1"`) — plain
-    yaml.safe_dump(data, ...) only quotes a scalar when it's ambiguous
-    with another YAML type (int/float/bool/null); a version string like
-    "4.9.1" (two dots, never a valid number) is never ambiguous, so it
-    would otherwise come out bare. Composed key-by-key (keys stay bare,
-    never quoted — only the values are) rather than dumping the whole
-    dict at once, since yaml.safe_dump has no "quote every string
-    scalar" option of its own to ask for directly. Each value's own
-    quoted-and-escaped form comes from yaml.safe_dump(value,
-    default_style='"') itself (stripped of the single trailing
-    newline it always appends) — never hand-rolled string
-    interpolation: a value containing a literal backslash or an
-    embedded double-quote character needs YAML's own backslash-escape
-    rules applied correctly (the same general idea most languages'
-    double-quoted string escaping already uses), which only PyYAML's
-    own scalar emitter can be trusted to get right."""
+    Values are written double-quoted like the other version files;
+    safe_dump has no "quote every string" option, so each value is dumped
+    on its own with default_style='"' to get correct escaping.
+    """
     path = chart_dir / RELEASE_BASELINES_FILE_NAME
     path.parent.mkdir(parents=True, exist_ok=True)
     data = _release_baselines(chart_dir)
