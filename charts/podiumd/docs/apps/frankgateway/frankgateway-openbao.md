@@ -31,7 +31,9 @@ Once per fresh cluster, an operator must initialise the vault by hand. After
 that, and after **every restart or upgrade**, it must also be unsealed by hand
 (a deliberate safety step). The unseal key and the root token that come out of
 initialisation are kept in the environment's Azure Key Vault, as
-`openbao-unseal-key` and `openbao-root-token`.
+`openbao-unseal-key` and `openbao-root-token`. With the optional static seal
+(§3.6.1) the pods unseal themselves; the vault is still initialised once by
+hand, and `openbao-unseal-key` then holds the recovery key.
 
 ---
 
@@ -52,8 +54,8 @@ Infra to provision per environment (one line each):
 | **Secrets (cluster)** | `openbao-db` (chart-rendered) · `openbao-bootstrap-token` key `token` (**seeded by `scripts/openbao-mint-config-token.sh`** — a scoped periodic token, NOT the root token) · `openbao-oidc-secret` (auto-generated, kept stable). |
 | **Identity** | User-assigned MI + federated credential for SA `openbao`; set client-id in `server.serviceAccount.annotations`. (The Azure KV *crypto key* for auto-unseal is provisioned but unused — Shamir, §3.6.) |
 | **Images / egress** | Allow `quay.io/openbao/openbao` + `docker.io/library/postgres` at the tags pinned in `values.yaml` (§3.1), or mirror to ACR + override. |
-| **One-time bootstrap** | `bao operator init -key-shares=1 -key-threshold=1`; store the key and root token in Key Vault; unseal every pod; mint + seed the scoped config token (`scripts/openbao-mint-config-token.sh`); re-run deploy; check `kubectl --context <ctx> -n <ns> logs job/openbao-config`; only then revoke the root token (§5 step 8). |
-| **Every restart / upgrade** | Unseal every pod with `openbao-unseal-key` from Key Vault (§5.1). ADO `ExternalsPodiumD` environments script the bootstrap and unseal after every deploy automatically (§5.2). |
+| **One-time bootstrap** | `bao operator init -key-shares=1 -key-threshold=1` (static seal: `-recovery-shares=1 -recovery-threshold=1`, §5 step 4); store the key and root token in Key Vault; unseal every pod; mint + seed the scoped config token (`scripts/openbao-mint-config-token.sh`); re-run deploy; check `kubectl --context <ctx> -n <ns> logs job/openbao-config`; only then revoke the root token (§5 step 8). |
+| **Every restart / upgrade** | Shamir: unseal every pod with `openbao-unseal-key` from Key Vault (§5.1). Static seal (§3.6.1): nothing — the pods unseal themselves; check `bao status`. ADO `ExternalsPodiumD` environments script the bootstrap and unseal after every deploy automatically (§5.2). |
 
 Values to set: `openbao.enabled=true`, `openbao.database.host`,
 `openbao.configuration.oidcUrl`, `openbao.configuration.keycloak.url`,
@@ -362,6 +364,92 @@ Consequences (one-time, per fresh cluster):
   `helm upgrade` recreates the server pods to pick up config changes — and
   every recreated pod comes back **sealed** (§5.1).
 
+### 3.6.1 Static seal: unseal without an operator (optional)
+
+With Shamir, every pod restart outside a deploy — node drain, node-pool
+upgrade, eviction, scale-down — leaves that pod sealed until someone unseals
+it, and Frank!Gateway answers 503 on key-bearing routes while no unsealed
+pod is active. Setting `openbao.seal.static.key` switches the environment to
+OpenBao's built-in **`static` seal**: the pods unseal themselves on every
+start. It needs no Azure identity and no network call; it is built into
+OpenBao (not one of the seals that become plugins in 2.7).
+
+How the chart wires it:
+
+- `templates/openbao-seal-secret.yaml` renders `Secret/openbao-seal` when the
+  key is set: a `seal.hcl` with the `seal "static"` stanza and the key as a
+  separate file, referenced with `file://`, so the key is in neither the HCL,
+  the pod spec nor the process environment.
+- `openbao.server.volumes` mounts that Secret (optional) at `/openbao/seal`
+  (the HCL) and `/openbao/seal-key` (the key), and `openbao.server.extraArgs`
+  adds `-config=/openbao/seal`. Without the Secret both directories are empty
+  and the server starts with Shamir, so the wiring is harmless by default.
+- `validations.yaml` fails the render on a key that is not 32 bytes (32 raw
+  characters, 64 hex, 44 standard or 43 unpadded URL-safe base64) — which
+  also catches an unsubstituted `REP_…_REP` placeholder — and when an override
+  dropped the `-config` argument.
+
+Supplying the key (`ExternalsPodiumD`): Terraform creates `openbao-seal-key`
+in the environment Key Vault from the `passwords` list — 32 random
+alphanumeric characters (about 190 bits of entropy), used by OpenBao as a
+raw 32-byte AES key — and
+`ignore_changes` keeps it stable. The environment values set
+`openbao.seal.static.key: "REP_OPENBAO_SEAL_KEY_REP"`, which the deploy
+pipeline substitutes.
+
+Initialising and migrating:
+
+- **Fresh vault:** `bao operator init` under an auto-unseal seal returns
+  **recovery keys** instead of unseal keys (`-recovery-shares=1
+  -recovery-threshold=1`). Store the recovery key and the root token in Key
+  Vault as with Shamir; the recovery key is break-glass material (e.g. `bao
+  operator generate-root`), not needed to start.
+- **Existing Shamir vault:** deploy with the key set. Every pod restarts into
+  migration mode (`type: static`, `sealed: true`, `migration: true`). On one
+  pod run `bao operator unseal -migrate` with the current unseal key; that pod
+  unseals and becomes the leader. The other pods do **not** follow: they stay
+  `sealed: true`, `migration: false` until restarted. Restart them one at a
+  time and check each:
+
+  ```bash
+  kubectl --context <ctx> -n <ns> delete pod <release>-openbao-<i>
+  kubectl --context <ctx> -n <ns> exec <release>-openbao-<i> -- \
+    bao status -format=json | jq '{type, sealed}'   # expect "static", false
+  ```
+
+  The old unseal key becomes the recovery key. A vault that holds nothing yet
+  is simpler to re-initialise. The ExternalsPodiumD pipeline does not migrate:
+  while a pod is in migration mode, `openbao_unseal.py` fails the deploy and
+  points here.
+
+Rotating the key: set `key`/`keyId` to the new key and `previousKey` /
+`previousKeyId` to the old one, and deploy. When the active node unseals with
+the new key it re-wraps the stored keys and logs it; check the active pod
+(the one where `bao status` shows `HA Mode` as `active`):
+
+```bash
+kubectl --context <ctx> -n <ns> logs <release>-openbao-<i> \
+  | grep -E 'core.autoseal: upgrading (recovery key|stored keys)'
+```
+
+Both lines present: clear the previous pair and deploy again; every pod must
+come back `sealed: false`. Never change `key` without `previousKey`, and
+never change `keyId` on its own.
+
+Trust and risk:
+
+- Anyone who can read Secrets in the namespace **and** reach the `openbao`
+  database can decrypt the vault — the same trust as every other PodiumD
+  secret. OpenBao still keeps external-API keys out of Git and values files,
+  and gives uploaders OIDC access without cluster access. Restrict who can
+  read Secrets in the namespace.
+- **Losing the key loses the vault.** Protect `openbao-seal-key` in Key Vault
+  (soft delete and purge protection) — a purged key cannot be recovered.
+- The key is a Helm value, so it is also stored in the Helm release Secrets
+  (`sh.helm.release.v1.*`) of every kept revision. After a rotation the old
+  key stays there until those revisions are pruned (`--history-max`). Same
+  trust boundary: reading Secrets in the namespace.
+
 ### 3.7 Keycloak / OIDC integration
 
 All rendered into the **podiumd realm** import (`keycloak-podiumd-realm-config.yaml`):
@@ -528,6 +616,13 @@ namespace. Name them on every command.
    printing either, so it also catches an item still holding the Terraform
    placeholder. Keep `INIT` until both say `stored`. Then unseal every pod as
    in §5.1.
+
+   **With the static seal (§3.6.1)** the same step differs in three places:
+   initialise with `-recovery-shares=1 -recovery-threshold=1` (the Shamir flags
+   fail with `parameters secret_shares,secret_threshold not applicable to seal
+   type static`); the key is `.recovery_keys_b64[0]`, not `.unseal_keys_b64[0]`
+   (store it as `openbao-unseal-key` all the same); and there is nothing to
+   unseal — the vault is unsealed as soon as it is initialised.
 5. **Mint + seed the config token:**
 
    ```bash
@@ -612,6 +707,9 @@ namespace. Name them on every command.
 
 ### 5.1 Unseal after every restart or upgrade
 
+Shamir only. With the static seal (§3.6.1) the pods unseal themselves; after a
+restart just check that `bao status` reports `sealed: false`.
+
 Shamir seal means **every** server pod comes back sealed whenever it restarts:
 `helm upgrade` (RollingUpdate), node drain, eviction, OOMKill. A sealed pod
 still reports Ready (§3.6), and while the active node is sealed Frank!Gateway
@@ -669,6 +767,26 @@ with the ontw-dim1 Frank!Gateway rollout on PodiumD 4.9.3, 2026-09). The order
 differs from the manual runbook: the vault is initialised **before** the first
 deploy that enables OpenBao, not after.
 
+**With the static seal (§3.6.1) the order is the other way round**, and steps
+1 and 2 below do not apply:
+
+1. **Deploy.** Before it, `openbao_unseal.py --check` requires only
+   `openbao-seal-key` (present, and a 32-byte key); `openbao-unseal-key` may
+   still hold the Terraform placeholder. After it, `openbao_unseal.py` only
+   verifies, never unseals, and on a fresh vault it **fails the run**: the
+   pods are uninitialised. That red run is expected.
+2. **Bootstrap, by an operator:** `openbao_bootstrap.py --env <env>-<gemeente>`.
+   It refuses to run until the StatefulSet and `Secret/openbao-seal` exist,
+   then initialises the running OpenBao through its API with one recovery key
+   (no temporary pod), waits until every pod has unsealed itself, shows the
+   recovery key and root token once, and checks that `openbao-unseal-key` in
+   Key Vault holds the recovery key after the operator stored both.
+3. **Deploy again.** The check now passes: every pod initialised and unsealed.
+   Then continue with step 3 below (config token, reader token, revoke the
+   root token).
+
+The Shamir order:
+
 1. **Bootstrap, once per environment, by an operator:**
 
    ```bash
@@ -713,8 +831,9 @@ deploy that enables OpenBao, not after.
 
 What the scripts do not cover:
 
-- A pod that restarts **between** deploys (node drain, eviction, OOMKill)
-  stays sealed until the next deploy or a manual unseal (§5.1).
+- Shamir only: a pod that restarts **between** deploys (node drain,
+  eviction, OOMKill) stays sealed until the next deploy or a manual unseal
+  (§5.1). With the static seal it unseals itself.
 - The pipeline unseals **after** the deploy but does not re-run the
   `openbao-config` Job. After a deploy that restarted the OpenBao pods, check
   its log and re-run it as in §5.1.
@@ -818,12 +937,12 @@ No observed-usage numbers yet — first production-like deployment pending.
 3. **Release/upgrade docs.** OpenBao is not mentioned in `README.md` or the
    upgrade guides; it is opt-in, but release notes that enable Frank!Gateway
    should point operators here.
-4. **No KV auto-unseal yet.** Shamir requires a manual `bao operator init` +
-   unseal per fresh cluster and after every restart/upgrade (§5.1). Revisit
-   Azure Key Vault auto-unseal once OpenBao honours the workload-identity
-   federated token (openbao-helm#56 / vault#29717). The MI + crypto key are
-   already provisioned. Once adopted, `openbao-unseal-key` is replaced by
-   recovery keys and this runbook changes.
+4. **No KV auto-unseal.** Shamir requires a manual `bao operator init` +
+   unseal per fresh cluster and after every restart/upgrade (§5.1). The
+   static seal (§3.6.1) removes the unseal after restarts without Azure
+   identities; Azure Key Vault auto-unseal would need workload identity and
+   is not planned. With the static seal `openbao-unseal-key` holds the
+   recovery key instead; §5 step 4 and §5.1 note where the static seal differs.
 5. **Route lives in `infra.yml`.** The external Gateway/Ingress route and its TLS
    cert (with the required SAN) are defined outside this chart; they must be kept
    in sync with `openbao.configuration.oidcUrl`.

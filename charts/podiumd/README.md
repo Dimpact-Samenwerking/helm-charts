@@ -798,7 +798,13 @@ PodiumD Helm chart
 | openbao.injector.enabled | bool | `false` |  |
 | openbao.injector.image.repository | string | `"hashicorp/vault-k8s"` |  |
 | openbao.injector.image.tag | string | `"1.7.6@sha256:55e27b080c9b0469fd420dfb3631243488c6319504b779423caa46c529a95490"` |  |
+| openbao.seal.static.key | string | `""` | AES-256 key for the static seal: 32 raw characters, 64 hex, or base64 (44 standard / 43 unpadded URL-safe). Empty keeps the Shamir seal. Pipeline-substituted from the environment Key Vault, never committed. Setting it on an initialised Shamir vault requires a one-time `bao operator unseal -migrate` (docs §3.6). |
+| openbao.seal.static.keyId | string | `"1"` | Permanent identifier of `key`; change it together with the key, never on its own. |
+| openbao.seal.static.previousKey | string | `""` | Previous key during a rotation: set `key`/`keyId` to the new key and these to the old one until OpenBao has re-wrapped its root key, then clear them. |
+| openbao.seal.static.previousKeyId | string | `""` | Identifier of `previousKey`; required when `previousKey` is set. |
+| openbao.seal.static.secretName | string | `"openbao-seal"` | Secret the chart renders; must match `secretName` in both openbao-seal entries of openbao.server.volumes. |
 | openbao.server.dataStorage.enabled | bool | `false` |  |
+| openbao.server.extraArgs | string | `"-config=/openbao/seal"` | Loads the static-seal config directory (see openbao.seal) as a second `-config`; keep it in any override. |
 | openbao.server.extraLabels."azure.workload.identity/use" | string | `"true"` |  |
 | openbao.server.extraSecretEnvironmentVars[0].envName | string | `"BAO_PG_CONNECTION_URL"` |  |
 | openbao.server.extraSecretEnvironmentVars[0].secretKey | string | `"connection-url"` |  |
@@ -821,6 +827,8 @@ PodiumD Helm chart
 | openbao.server.serviceAccount.create | bool | `true` |  |
 | openbao.server.serviceAccount.name | string | `"openbao"` |  |
 | openbao.server.updateStrategyType | string | `"RollingUpdate"` |  |
+| openbao.server.volumeMounts | list | `[{"mountPath":"/openbao/seal","name":"openbao-seal-config","readOnly":true},{"mountPath":"/openbao/seal-key","name":"openbao-seal-key","readOnly":true}]` | Mount points of the openbao-seal volumes; `seal.hcl` in /openbao/seal, the key in /openbao/seal-key. |
+| openbao.server.volumes | list | `[{"name":"openbao-seal-config","secret":{"items":[{"key":"seal.hcl","path":"seal.hcl"}],"optional":true,"secretName":"openbao-seal"}},{"name":"openbao-seal-key","secret":{"defaultMode":288,"items":[{"key":"key","path":"key"},{"key":"previous-key","path":"previous-key"}],"optional":true,"secretName":"openbao-seal"}}]` | Mounts the optional openbao-seal Secret (see openbao.seal); keep both entries in any override. |
 | openbao.snapshotAgent.image.repository | string | `"ghcr.io/openbao/openbao-snapshot-agent"` |  |
 | openbao.snapshotAgent.image.tag | string | `"0.4.5@sha256:ef2c80770e30bba3fcf4d7911cb829607efcea7e7c1a917210c9fa1ba55a8249"` |  |
 | openbeheer.configuration.data | string | `""` |  |
