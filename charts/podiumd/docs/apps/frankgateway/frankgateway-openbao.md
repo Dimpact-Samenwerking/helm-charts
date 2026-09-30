@@ -802,7 +802,7 @@ No observed-usage numbers yet — first production-like deployment pending.
 
 1. **Images manifest.** The `openbao/openbao` and `postgres` images are
    recorded (digest-pinned) in `docs/images/images-baseline.yaml`. If the agent
-   injector is ever re-enabled, add `hashicorp/vault-k8s:1.7.2` there too.
+   injector is ever re-enabled, add `hashicorp/vault-k8s:1.7.6` there too.
    An environment that pulls from its own registry overrides all three
    repositories (§3.1); otherwise egress must reach `quay.io` and `docker.io`.
 2. **Config-Job silent skip.** `openbao-bootstrap-token` is created out-of-band
