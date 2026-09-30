@@ -156,8 +156,8 @@ def test_check_reports_root_and_will_not_start_and_caches_by_digest(
 
     assert result == (True, "root: 1 own, 0 partner, 0 other; will not start: 1; accepted: 0; unreadable image user: 0")
     out = capsys.readouterr().out
-    assert "Deployment/app [wait]: example/wait:1.0@sha256:aaaa runs as root (image default user)" in out
-    assert "CronJob/cron [job]: example/job:3.0@sha256:cccc will not start" in out
+    assert "Deployment/app [wait]:\n    example/wait:1.0@sha256:aaaa\n    runs as root (image default user)\n" in out
+    assert "CronJob/cron [job]:\n    example/job:3.0@sha256:cccc\n    will not start" in out
     assert "example/app" not in calls  # runAsUser decides; the image isn't read
     # A second run reads both users from the digest cache.
     assert _run(monkeypatch, tmp_path, users)[1] == []
@@ -172,7 +172,7 @@ def test_accepted_container_is_listed_as_accepted(
     assert result[1] == "root: 0 own, 0 partner, 0 other; will not start: 0; accepted: 1; unreadable image user: 0"
     out = capsys.readouterr().out
     assert "--- Accepted" in out
-    assert "waits for the database, upstream image" in out
+    assert "\n    accepted: waits for the database, upstream image" in out
     assert "OK: no container runs as root" in out
 
 

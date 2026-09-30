@@ -159,12 +159,16 @@ class Finding:
         """The root_containers.accepted key: "<source template>:<container>"."""
         return f"{self.container.source}:{self.container.container.get('name', '')}"
 
-    def line(self) -> str:
-        """The report line for this finding."""
+    def lines(self) -> list[str]:
+        """The report block for this finding: the container, then its image and verdict indented."""
         c = self.container
         vendor = f" [{self.label}]" if self.bucket == "partner" else ""
         what = VERDICT_TEXT.get(self.verdict, "could not read the image's default user")
-        return f"{c.source} {c.kind}/{c.name} [{c.container.get('name', '')}]{vendor}: {self.image} {what}"
+        return [
+            f"{c.source} {c.kind}/{c.name} [{c.container.get('name', '')}]{vendor}:",
+            f"    {self.image}",
+            f"    {what}",
+        ]
 
 
 def _findings(containers: list[RenderedContainer], lookup: _UserLookup, vendor_map: dict[str, str]) -> list[Finding]:
@@ -187,18 +191,18 @@ def _print_report(findings: list[Finding], accepted: dict[str, str]) -> None:
     """Findings per bucket, then the accepted ones and fetch errors."""
     open_findings = [f for f in findings if f.key not in accepted and f.verdict != "unknown"]
     for bucket, title in _BUCKET_TITLES:
-        lines = [f.line() for f in open_findings if f.bucket == bucket]
+        lines = [line for f in open_findings if f.bucket == bucket for line in f.lines()]
         if lines:
             print(f"--- {title} ---")
             print("\n".join(lines))
     accepted_findings = [f for f in findings if f.key in accepted]
     if accepted_findings:
         print("--- Accepted (etc/settings.yaml root_containers.accepted) ---")
-        print("\n".join(f"{f.line()} — {accepted[f.key]}" for f in accepted_findings))
+        print("\n".join(line for f in accepted_findings for line in [*f.lines(), f"    accepted: {accepted[f.key]}"]))
     unknown = [f for f in findings if f.verdict == "unknown"]
     if unknown:
         print(f"INCOMPLETE: the default user of {len(unknown)} container(s) could not be read:")
-        print("\n".join(f"  {f.line()}" for f in unknown))
+        print("\n".join(line for f in unknown for line in f.lines()))
     elif not open_findings:
         print("OK: no container runs as root")
 
