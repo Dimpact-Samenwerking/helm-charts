@@ -15,6 +15,7 @@ from typing import TypedDict
 from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import text_at
 from lib.procutil import run
+from lib.version_numbers import dotted_numbers
 from lib.yaml_types import YamlValue
 from lib.yaml_types import is_yaml_value
 
@@ -182,6 +183,21 @@ def parse_repo(repository: str) -> tuple[str, str]:
     return "docker.io", repository
 
 
+def _registry_request(
+    registry_host: str, repo: str, path: str, accept: str | None, timeout: float | None
+) -> tuple[str, dict[str, str]]:
+    """(url, headers) for GET /v2/<repo>/<path> on registry_host's API host.
+
+    Hosts in TOKEN_ENDPOINTS get their anonymous pull token up front; others
+    get none, and _get_with_dynamic_auth answers their 401 challenge.
+    """
+    headers = {"Accept": accept} if accept else {}
+    token_url_tmpl = TOKEN_ENDPOINTS.get(registry_host)
+    if token_url_tmpl:
+        headers["Authorization"] = f"Bearer {_read_token(_urlopen(token_url_tmpl.format(repo=repo), timeout=timeout))}"
+    return f"https://{MANIFEST_HOSTS.get(registry_host, registry_host)}/v2/{repo}/{path}", headers
+
+
 def _fetch_manifest_digest(
     url: str, repo: str, headers: dict[str, str], timeout: float | None, method: str
 ) -> tuple[bool, str | None]:
@@ -203,13 +219,7 @@ def registry_tag_exists(
     timeout (seconds) bounds every request; None waits indefinitely. Uses HEAD: only the
     Docker-Content-Digest header is read, and Docker Hub counts a manifest GET against the
     anonymous rate limit but not a HEAD. Falls back to GET only on 405."""
-    headers = {"Accept": MANIFEST_ACCEPT}
-    token_url_tmpl = TOKEN_ENDPOINTS.get(registry_host)
-    if token_url_tmpl:
-        token = _read_token(_urlopen(token_url_tmpl.format(repo=repo), timeout=timeout))
-        headers["Authorization"] = f"Bearer {token}"
-    api_host = MANIFEST_HOSTS.get(registry_host, registry_host)
-    url = f"https://{api_host}/v2/{repo}/manifests/{tag}"
+    url, headers = _registry_request(registry_host, repo, f"manifests/{tag}", MANIFEST_ACCEPT, timeout)
     try:
         return _fetch_manifest_digest(url, repo, headers, timeout, "HEAD")
     except urllib.error.HTTPError as e:
@@ -224,13 +234,8 @@ NODE_PLATFORM = ("linux", "amd64")
 
 
 def _registry_json(registry_host: str, repo: str, path: str, accept: str, timeout: float | None) -> YamlValue:
-    """GET /v2/<repo>/<path> as JSON, authenticated like list_tags."""
-    headers = {"Accept": accept}
-    token_url_tmpl = TOKEN_ENDPOINTS.get(registry_host)
-    if token_url_tmpl:
-        headers["Authorization"] = f"Bearer {_read_token(_urlopen(token_url_tmpl.format(repo=repo)))}"
-    api_host = MANIFEST_HOSTS.get(registry_host, registry_host)
-    url = f"https://{api_host}/v2/{repo}/{path}"
+    """GET /v2/<repo>/<path> as JSON (see _registry_request)."""
+    url, headers = _registry_request(registry_host, repo, path, accept, timeout)
     with _get_with_dynamic_auth(url, repo, headers, timeout=timeout) as resp:
         return _read_json(resp)
 
@@ -291,17 +296,11 @@ def historical_digests_for_tag(values_path: Path, version: str) -> set[str]:
 
 def list_tags(registry_host: str, repo: str):
     """All published tag names, via the generic OCI GET /v2/<repo>/tags/list endpoint."""
-    headers: dict[str, str] = {}
-    token_url_tmpl = TOKEN_ENDPOINTS.get(registry_host)
-    if token_url_tmpl:
-        token = _read_token(_urlopen(token_url_tmpl.format(repo=repo)))
-        headers["Authorization"] = f"Bearer {token}"
-    api_host = MANIFEST_HOSTS.get(registry_host, registry_host)
-    url = f"https://{api_host}/v2/{repo}/tags/list"
+    url, headers = _registry_request(registry_host, repo, "tags/list", None, None)
     with _get_with_dynamic_auth(url, repo, headers) as resp:
         tags = get_path(_read_json(resp), "tags") or []
     if not isinstance(tags, list) or not all(isinstance(tag, str) for tag in tags):
-        msg = f"tags/list response from {api_host} is not a list of tag names"
+        msg = f"tags/list response from {urllib.parse.urlsplit(url).netloc} is not a list of tag names"
         raise urllib.error.URLError(msg)
     return [tag for tag in tags if isinstance(tag, str)]
 
@@ -343,16 +342,13 @@ def find_newest_same_variant_tag(registry_host: str, repo: str, version: str) ->
     if ver_num is None:
         return version
 
-    def numeric_tuple(num: str):
-        return tuple(int(p) for p in num.split("."))
-
     ver_parts = ver_num.split(".")
-    best, best_key = version, numeric_tuple(ver_num)
+    best, best_key = version, dotted_numbers(ver_num)
     for tag in list_tags(registry_host, repo):
         num, suffix = _numeric_prefix_and_suffix(tag)
         if num is None or suffix != ver_suffix or len(num.split(".")) != len(ver_parts):
             continue
-        key = numeric_tuple(num)
+        key = dotted_numbers(num)
         if key > best_key:
             best, best_key = tag, key
     return best

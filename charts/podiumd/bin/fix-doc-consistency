@@ -61,6 +61,8 @@ from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repo_group_representative
 from lib.chart.yaml_alias_groups import alias_groups
 from lib.cli import positional_args
+from lib.cli import print_section
+from lib.cli import print_section_items
 from lib.component_docs.aliased_pin_bullets import add_missing_pin_bullets
 from lib.component_docs.baseline_doc_stubs import IMAGES_STUB_TEMPLATE
 from lib.component_docs.baseline_doc_stubs import STANDARD_SUFFIXES
@@ -387,11 +389,10 @@ def _remove_unchanged_component_rows(
 ) -> tuple[str, bool]:
     """Remove rows (and Changes sections) unchanged vs baseline. Returns (text, changed)."""
     text, removed_names = remove_unchanged_component_rows(text, resolution)
-    if removed_names:
-        print()
-        print(f"=== Removing unchanged component row(s) + Changes section(s) from {upgrade_path.name} ===")
-        for name in removed_names:
-            print(f"  {name} (same app and chart version as {new_baseline})")
+    print_section_items(
+        f"Removing unchanged component row(s) + Changes section(s) from {upgrade_path.name}",
+        [f"{name} (same app and chart version as {new_baseline})" for name in removed_names],
+    )
     return text, bool(removed_names)
 
 
@@ -399,8 +400,7 @@ def _correct_component_table(text: str, upgrade_path: Path, resolution: Resoluti
     """Fix wrong app/chart cells in the Component versions table. Returns (text, changed)."""
     text, changed_rows, unmatched_names, unresolved_names = fix_component_version_table(text, resolution)
     if changed_rows:
-        print()
-        print(f"=== Correcting component version table in {upgrade_path.name} ===")
+        print_section(f"Correcting component version table in {upgrade_path.name}")
         for name, app_cell, chart_cell in changed_rows:
             print(f"  {name}: app {app_cell}  |  chart {chart_cell}")
     if unresolved_names:
@@ -433,21 +433,19 @@ def _add_missing_component_and_sidecar_rows(
     baseline_state = BaselineState(state.baseline_deps, state.baseline_values)
 
     text, added_names = add_missing_component_rows(text, doc_ctx, target_state, baseline_state, actual_changed_keys)
-    if added_names:
-        print()
-        print(f"=== Adding missing component row(s) + Changes section(s) to {upgrade_path.name} ===")
-        for name in added_names:
-            print(f"  {name}")
+    print_section_items(
+        f"Adding missing component row(s) + Changes section(s) to {upgrade_path.name}",
+        [f"{name}" for name in added_names],
+    )
 
     if state.baseline_deps is None:
         return text, added_names, []
 
     text, added_sidecar_names = add_missing_sidecar_rows(text, doc_ctx, target_state, state.baseline_values)
-    if added_sidecar_names:
-        print()
-        print(f"=== Adding missing sidecar/shared-image row(s) + Changes section(s) to {upgrade_path.name} ===")
-        for name in added_sidecar_names:
-            print(f"  {name}")
+    print_section_items(
+        f"Adding missing sidecar/shared-image row(s) + Changes section(s) to {upgrade_path.name}",
+        [f"{name}" for name in added_sidecar_names],
+    )
     return text, added_names, added_sidecar_names
 
 
@@ -466,46 +464,39 @@ def _fix_upgrade_doc_headings(
     text, added = add_missing_changes_sections(
         text, state.target_deps, state.target_values, state.target, canonical_names
     )
-    changed = _report_repair("Adding missing '### ...' Changes section(s)", upgrade_path, added)
+    changed = print_section_items(f"Adding missing '### ...' Changes section(s) in {upgrade_path.name}", added)
     text, stale = update_stale_app_version_headings(text, doc_context, ordering)
-    changed |= _report_repair("Updating '### ...' Changes section(s) missing their app version", upgrade_path, stale)
+    changed |= print_section_items(
+        f"Updating '### ...' Changes section(s) missing their app version in {upgrade_path.name}", stale
+    )
     text, rebuilt = rebuild_changes_sections_contradicting_rows(text, doc_context, ordering)
-    changed |= _report_repair(
-        "Rebuilding '### ...' Changes section(s) that contradict their table row",
-        upgrade_path,
+    changed |= print_section_items(
+        f"Rebuilding '### ...' Changes section(s) that contradict their table row in {upgrade_path.name}",
         [f"'### {s.heading}' -> '### {s.expected_heading}'" for s in rebuilt],
     )
     text, wrong = fix_changes_heading_app_versions(text, resolution)
-    changed |= _report_repair(
-        "Correcting '### ...' Changes section heading(s) with the wrong name/app-version transition",
-        upgrade_path,
+    changed |= print_section_items(
+        "Correcting '### ...' Changes section heading(s) with the wrong name/app-version transition "
+        f"in {upgrade_path.name}",
         wrong,
     )
     return text, canonical_names, changed
-
-
-def _report_repair(title: str, doc: Path, items: list[str]) -> bool:
-    """Print "=== <title> in <doc> ===" and one line per item; returns whether there were any."""
-    if items:
-        print()
-        print(f"=== {title} in {doc.name} ===")
-        for item in items:
-            print(f"  {item}")
-    return bool(items)
 
 
 def _add_missing_pin_bullets(text: str, upgrade_path: Path) -> tuple[str, bool]:
     """Add a pin bullet for each path sharing a YAML anchor with a documented one. Returns (text, changed)."""
     text, added = add_missing_pin_bullets(text, alias_groups(VALUES_YAML))
     items = [f"'### {m.heading}': {m.missing_path} (shares an anchor with {m.documented_path})" for m in added]
-    return text, _report_repair("Adding pin bullet(s) for paths sharing a YAML anchor", upgrade_path, items)
+    return text, print_section_items(
+        f"Adding pin bullet(s) for paths sharing a YAML anchor in {upgrade_path.name}", items
+    )
 
 
 def _fix_pointer_issues(text: str, upgrade_path: Path, target: str) -> tuple[str, bool]:
     """Add a missing "- Image / digest" pointer and the blank line before it. Returns (text, changed)."""
     text, fixed = fix_pointer_issues(text, target)
     items = [f"'### {issue.heading}': {issue.kind.replace('-', ' ')}" for issue in fixed]
-    return text, _report_repair("Fixing the image digest pointer", upgrade_path, items)
+    return text, print_section_items(f"Fixing the image digest pointer in {upgrade_path.name}", items)
 
 
 def _reorder_upgrade_doc(
@@ -519,8 +510,7 @@ def _reorder_upgrade_doc(
     text, moved_rows = sort_upgrade_doc_rows(text, target_deps, target_values, canonical_names)
     text, moved_blocks = sort_changes_blocks(text, target_deps, target_values, canonical_names)
     if moved_rows or moved_blocks:
-        print()
-        print(f"=== Reordering {upgrade_path.name} to match values.yaml's component order ===")
+        print_section(f"Reordering {upgrade_path.name} to match values.yaml's component order")
         for name, old_pos, new_pos in moved_rows:
             print(f"  table row '{name}': position {old_pos} -> {new_pos}")
         for heading, old_pos, new_pos in moved_blocks:
@@ -564,8 +554,7 @@ def _fix_upgrade_doc(state: RebaseState, upgrade_path: Path, actual_changed_keys
     collapsed_text = collapse_multiple_blank_lines(text)
     if collapsed_text != text:
         changed.append(True)
-        print()
-        print(f"=== Collapsing multiple consecutive blank line(s) in {upgrade_path.name} ===")
+        print_section(f"Collapsing multiple consecutive blank line(s) in {upgrade_path.name}")
 
     if any(changed):
         upgrade_path.write_text(collapsed_text, encoding="utf-8")
@@ -578,8 +567,7 @@ def _correct_images_manifest_names(images_path: Path, repo_map: dict[str, ImageP
     new_text, renamed = fix_images_manifest_entry_names(text, repo_map)
     if renamed:
         images_path.write_text(new_text, encoding="utf-8")
-        print()
-        print(f"=== Correcting entry name(s) in {images_path.name} ===")
+        print_section(f"Correcting entry name(s) in {images_path.name}")
         for old_name, new_name in renamed:
             print(f"  {old_name} -> {new_name}")
 
@@ -592,8 +580,7 @@ def _sync_images_manifest_entry_pins(images_path: Path, state: RebaseState) -> N
     )
     if synced:
         images_path.write_text(new_text, encoding="utf-8")
-        print()
-        print(f"=== Syncing entry version/digest in {images_path.name} with values.yaml ===")
+        print_section(f"Syncing entry version/digest in {images_path.name} with values.yaml")
         for name in synced:
             print(f"  {name}")
 
@@ -614,8 +601,7 @@ def _correct_images_manifest_entries(images_path: Path, state: RebaseState, repo
     )
     if changed_entries:
         images_path.write_text(new_text, encoding="utf-8")
-        print()
-        print(f"=== Correcting entry comments in {images_path.name} ===")
+        print_section(f"Correcting entry comments in {images_path.name}")
         for name, source, target_ver in changed_entries:
             print(f"  {name}: {source} -> {target_ver}")
     if unresolved_entry_names:
@@ -638,8 +624,7 @@ def _correct_images_manifest_urls(images_path: Path, state: RebaseState, repo_ma
     )
     if changed_urls:
         images_path.write_text(new_text, encoding="utf-8")
-        print()
-        print(f"=== Correcting entry url(s) in {images_path.name} ===")
+        print_section(f"Correcting entry url(s) in {images_path.name}")
         for name, old_url, new_url in changed_urls:
             print(f"  {name}: {old_url} -> {new_url}")
     if unresolved_url_names:
@@ -672,8 +657,7 @@ def _remove_stale_images_manifest_entries(images_path: Path, state: RebaseState)
     new_text, removed_entry_names = remove_stale_images_manifest_entries(text, _missing_entries_context(state))
     if removed_entry_names:
         images_path.write_text(new_text, encoding="utf-8")
-        print()
-        print(f"=== Removing unchanged entr(y/ies) from {images_path.name} ===")
+        print_section(f"Removing unchanged entr(y/ies) from {images_path.name}")
         for name in removed_entry_names:
             print(f"  {name} (same version and digest as {state.new_baseline})")
 
@@ -689,8 +673,7 @@ def _add_missing_images_manifest_entries(images_path: Path, state: RebaseState):
     )
     if added_entry_names:
         images_path.write_text(new_text, encoding="utf-8")
-        print()
-        print(f"=== Adding missing entr(y/ies) to {images_path.name} ===")
+        print_section(f"Adding missing entr(y/ies) to {images_path.name}")
         for name in added_entry_names:
             print(f"  {name} (review 'name:' for the correct ACR mirror slug)")
     if skipped_entry_names:
@@ -704,8 +687,7 @@ def _add_missing_images_manifest_entries(images_path: Path, state: RebaseState):
             print(f"  {name}")
     if backfilled_header_names:
         images_path.write_text(new_text, encoding="utf-8")
-        print()
-        print(f"=== Adding missing '# Changes:' header item(s) to {images_path.name} ===")
+        print_section(f"Adding missing '# Changes:' header item(s) to {images_path.name}")
         for name in backfilled_header_names:
             print(f"  {name} (entry already existed — only its header item was missing)")
 
@@ -718,7 +700,9 @@ def _fix_stale_changes_items(
     baseline = BaselineState(state.baseline_deps, state.baseline_values)
     resolution = ResolutionContext(CHART_YAML.parent, target, baseline, upgrade_docs_baseline=state.new_baseline)
     fixed = correct_stale_changes_items(images_path, upgrade_path, canonical_names, resolution)
-    _report_repair("Correcting '# Changes:' item(s)", images_path, [f"{old}  ->  {new}" for old, new in fixed])
+    print_section_items(
+        f"Correcting '# Changes:' item(s) in {images_path.name}", [f"{old}  ->  {new}" for old, new in fixed]
+    )
 
 
 def _dedupe_images_manifest_changes_items(images_path: Path):
@@ -727,8 +711,7 @@ def _dedupe_images_manifest_changes_items(images_path: Path):
     removed_duplicate_items = dedupe_images_manifest_changes_items(lines)
     if removed_duplicate_items:
         images_path.write_text("".join(lines), encoding="utf-8")
-        print()
-        print(f"=== Removing duplicate '# Changes:' header item(s) from {images_path.name} ===")
+        print_section(f"Removing duplicate '# Changes:' header item(s) from {images_path.name}")
         for item_text in removed_duplicate_items:
             print(f"  {item_text}")
 
@@ -759,8 +742,7 @@ def _sort_images_manifest(
     if text == before_sort:
         return
     images_path.write_text(text, encoding="utf-8")
-    print()
-    print(f"=== Reordering {images_path.name} to match values.yaml's component order ===")
+    print_section(f"Reordering {images_path.name} to match values.yaml's component order")
     for item_text, old_pos, new_pos in moved_header_items:
         print(f"  '# Changes:' item {old_pos} -> {new_pos}: {item_text}")
     for name, old_pos, new_pos in moved_entries:
@@ -774,8 +756,7 @@ def _renumber_images_manifest_changes_items(images_path: Path):
     lines = images_path.read_text(encoding="utf-8").splitlines(keepends=True)
     if renumber_images_manifest_changes_items(lines):
         images_path.write_text("".join(lines), encoding="utf-8")
-        print()
-        print(f"=== Renumbering '# Changes:' list in {images_path.name} ===")
+        print_section(f"Renumbering '# Changes:' list in {images_path.name}")
 
 
 def _fix_images_manifest_content(state: RebaseState, images_path: Path, upgrade_path: Path):
@@ -823,16 +804,12 @@ def _sync_values_delta_sections(
         ValuesDeltaBaseline(state.baseline_deps, state.baseline_values),
         changed_keys,
     )
-    if created_names:
-        print()
-        print(f"=== Adding new component section(s) to {values_deltas_path.name} ===")
-        for name in created_names:
-            print(f"  {name}")
-    if updated_names:
-        print()
-        print(f"=== Adding missing key-change mention(s) to {values_deltas_path.name} ===")
-        for name in updated_names:
-            print(f"  {name}")
+    print_section_items(
+        f"Adding new component section(s) to {values_deltas_path.name}", [f"{name}" for name in created_names]
+    )
+    print_section_items(
+        f"Adding missing key-change mention(s) to {values_deltas_path.name}", [f"{name}" for name in updated_names]
+    )
     return text, bool(created_names or updated_names)
 
 
@@ -850,10 +827,9 @@ def _fix_values_delta_headings(text: str, state: RebaseState, upgrade_path: Path
         ),
     )
     if updated_delta_headings:
-        print()
-        print(
-            f"=== Correcting '## ...' section heading(s) with the wrong name/app-version "
-            f"transition in {values_deltas_path.name} ==="
+        print_section(
+            f"Correcting '## ...' section heading(s) with the wrong name/app-version "
+            f"transition in {values_deltas_path.name}"
         )
         for heading in updated_delta_headings:
             print(f"  {heading}")
@@ -863,11 +839,9 @@ def _fix_values_delta_headings(text: str, state: RebaseState, upgrade_path: Path
 def _prune_empty_values_delta_sections(text: str, values_deltas_path: Path):
     """Remove empty '## ...' sections. Returns (text, changed)."""
     text, pruned_headings = prune_empty_values_delta_sections(text)
-    if pruned_headings:
-        print()
-        print(f"=== Removing empty section(s) from {values_deltas_path.name} ===")
-        for heading in pruned_headings:
-            print(f"  '## {heading}'")
+    print_section_items(
+        f"Removing empty section(s) from {values_deltas_path.name}", [f"'## {heading}'" for heading in pruned_headings]
+    )
     return text, bool(pruned_headings)
 
 
@@ -877,8 +851,7 @@ def _sort_values_delta_sections(
     """Order '## ...' sections like values.yaml. Returns (text, changed)."""
     text, moved_sections = sort_values_delta_sections(text, state.target_deps, state.target_values, canonical_names)
     if moved_sections:
-        print()
-        print(f"=== Reordering {values_deltas_path.name} to match values.yaml's component order ===")
+        print_section(f"Reordering {values_deltas_path.name} to match values.yaml's component order")
         for heading, old_pos, new_pos in moved_sections:
             print(f"  '## {heading}': position {old_pos} -> {new_pos}")
     return text, bool(moved_sections)
@@ -915,8 +888,7 @@ def _fix_values_deltas(state: RebaseState, upgrade_path: Path, values_deltas_pat
     collapsed_text = collapse_multiple_blank_lines(text)
     blank_lines_fixed = collapsed_text != text
     if blank_lines_fixed:
-        print()
-        print(f"=== Collapsing multiple consecutive blank line(s) in {values_deltas_path.name} ===")
+        print_section(f"Collapsing multiple consecutive blank line(s) in {values_deltas_path.name}")
 
     if any([sections_changed, headings_changed, pruned, reordered, blank_lines_fixed]):
         values_deltas_path.write_text(collapsed_text, encoding="utf-8")

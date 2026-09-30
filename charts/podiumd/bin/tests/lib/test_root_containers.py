@@ -12,6 +12,7 @@ import pytest
 
 from lib import registry
 from lib.checks import root_containers
+from lib.checks.cve import split_image_ref
 from lib.checks.root_containers import RunAs
 from lib.checks.root_containers import check_root_containers
 from lib.checks.root_containers import effective_run_as
@@ -226,3 +227,17 @@ def test_redirect_to_another_host_drops_the_authorization_header():
 
     assert to_cdn is not None and not to_cdn.has_header("Authorization")
     assert same_host is not None and same_host.has_header("Authorization")
+
+
+@pytest.mark.parametrize(
+    ("ref", "expected"),
+    [
+        ("example/app:1.0@sha256:abc", ("example/app", "1.0", "abc")),
+        ("example/app@sha256:abc", ("example/app", None, "abc")),
+        ("example/app:1.0", ("example/app", "1.0", None)),
+        ("registry:5000/app", ("registry:5000/app", None, None)),
+        ("registry:5000/app:2", ("registry:5000/app", "2", None)),
+    ],
+)
+def test_split_image_ref(ref: str, expected: tuple[str, str | None, str | None]):
+    assert split_image_ref(ref) == expected

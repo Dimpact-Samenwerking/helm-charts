@@ -32,6 +32,7 @@ from lib.chart.paths import CHART_DIR
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.chart.release_baseline_basics import write_release_baselines
 from lib.cli import positional_args
+from lib.cli import print_section
 from lib.gitutil import find_repo_root
 from lib.gitutil import resolve_baseline_ref
 from lib.procutil import run_script
@@ -68,14 +69,12 @@ def main():
     else:
         print(f"release-baseline.yaml: upgrade_docs {old_baseline or '(none)'} -> {new_baseline} (resolved to {ref})")
 
-    print()
-    print(f"=== Running fix-doc-consistency (upgrade_docs baseline {new_baseline}) ===")
+    print_section(f"Running fix-doc-consistency (upgrade_docs baseline {new_baseline})")
     result = run_script([sys.executable, str(FIX_DOC_CONSISTENCY_SCRIPT)])
     if result.returncode != 0:
         sys.exit(result.returncode)
 
-    print()
-    print("=== Regenerating README.md (fix-helm-doc) ===")
+    print_section("Regenerating README.md (fix-helm-doc)")
     result = run_script([sys.executable, str(FIX_HELM_DOC_SCRIPT)])
     sys.exit(result.returncode)
 

@@ -4,6 +4,9 @@ import json
 
 from collections.abc import Callable
 from collections.abc import Mapping
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
 from pathlib import Path
 from typing import TypeGuard
 from typing import TypeVar
@@ -40,3 +43,16 @@ def save_json_cache(path: Path, cache: Mapping[str, object]) -> None:
     """Write cache to path as indented, key-sorted JSON, creating the directory if needed."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(cache, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def checked_within(timestamp: object, max_age: timedelta) -> bool:
+    """Whether the ISO `timestamp` a cache entry was recorded at is less than `max_age` old.
+
+    A missing, malformed or timezone-less timestamp counts as stale, so the entry is refetched.
+    """
+    if not isinstance(timestamp, str):
+        return False
+    try:
+        return datetime.now(timezone.utc) - datetime.fromisoformat(timestamp) < max_age
+    except (ValueError, TypeError):
+        return False

@@ -13,6 +13,8 @@ from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repo_group_representative
 from lib.chart.repo_and_path_resolution import repository_group_key
 from lib.images_manifest import try_parse_images_manifest
+from lib.version_numbers import dotted_numbers
+from lib.version_numbers import stable_semver_key
 from lib.yaml_types import YamlMapping
 
 # A bare MAJOR.MINOR.PATCH version; callers reject anything else up front.
@@ -32,13 +34,13 @@ def historical_images_manifest_paths(chart_dir: Path | None, at_or_before: str |
     images_dir = chart_dir / "docs" / "images"
     if not images_dir.is_dir():
         return []
-    limit = tuple(int(p) for p in at_or_before.split(".")) if at_or_before and SEMVER_RE.match(at_or_before) else None
+    limit = stable_semver_key(at_or_before) if at_or_before else None
     dated: list[tuple[tuple[int, ...], Path]] = []
     for path in images_dir.glob("images-*.yaml"):
         m = re.match(r"^images-(\d+\.\d+\.\d+)\.yaml$", path.name)
         if not m:
             continue
-        version_tuple = tuple(int(p) for p in m.group(1).split("."))
+        version_tuple = dotted_numbers(m.group(1))
         if limit is not None and version_tuple > limit:
             continue
         dated.append((version_tuple, path))

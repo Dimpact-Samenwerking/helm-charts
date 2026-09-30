@@ -6,7 +6,6 @@ count as newer. Results are cached per (repository, chart, version) in the
 gitignored .cache/chart-upgrade-cache.json. Never fails on findings.
 """
 
-import re
 import urllib.error
 import urllib.request
 
@@ -30,27 +29,20 @@ from lib.render_scope import resolve_dependency_repo
 from lib.settings import chart_upgrade_check_cache_ttl_days
 from lib.settings import helm_repos_urls_by_alias
 from lib.settings import repo_access_request_timeout_seconds
+from lib.version_numbers import stable_semver_key
 from lib.yaml_types import YamlShapeError
 from lib.yaml_types import parse_yaml
 
 CACHE_FILENAME = "chart-upgrade-cache.json"
 
-_STABLE_VERSION_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
-
-
-def stable_version_key(version: str) -> tuple[int, int, int] | None:
-    """(major, minor, patch) of a stable semver version ("v" prefix allowed), else None."""
-    m = _STABLE_VERSION_RE.match(version)
-    return (int(m.group(1)), int(m.group(2)), int(m.group(3))) if m else None
-
 
 def newest_stable_version(current: str, published: list[str]) -> str:
     """The highest stable version in `published` above `current`, else `current`."""
-    best, best_key = current, stable_version_key(current)
+    best, best_key = current, stable_semver_key(current)
     if best_key is None:
         return current
     for version in published:
-        key = stable_version_key(version)
+        key = stable_semver_key(version)
         if key is not None and key > best_key:
             best, best_key = version, key
     return best

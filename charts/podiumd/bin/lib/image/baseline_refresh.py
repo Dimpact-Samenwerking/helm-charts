@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 from lib.chart.chart_yaml import ChartDependency
+from lib.cli import print_section
 from lib.image.docs import regenerate_images_baseline_manifest
 from lib.render_scope import lint_args_for
 from lib.render_scope import render_chart
@@ -19,8 +20,7 @@ def refresh_images_baseline(
 
     Needs vendored sub-charts in sync with `deps`. Exits 1 when the render fails.
     """
-    print()
-    print("=== Regenerating images-baseline.yaml ===")
+    print_section("Regenerating images-baseline.yaml")
     # ci/lint-values.yaml: a bare values.yaml render fails on sub-charts' required fields.
     render_result = render_chart(chart_dir, lint_args_for(chart_dir))
     if render_result.returncode != 0:

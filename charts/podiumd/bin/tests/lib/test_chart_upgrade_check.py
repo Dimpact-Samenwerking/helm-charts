@@ -11,7 +11,6 @@ from lib.chart.upgrade_check import chart_sources
 from lib.chart.upgrade_check import check_chart_upgrades
 from lib.chart.upgrade_check import index_chart_versions
 from lib.chart.upgrade_check import newest_stable_version
-from lib.chart.upgrade_check import stable_version_key
 
 INDEX = """\
 apiVersion: v1
@@ -24,12 +23,6 @@ entries:
   other:
     - version: 9.9.9
 """
-
-
-def test_stable_version_key_accepts_v_prefix_and_rejects_prereleases():
-    assert stable_version_key("v1.2.3") == (1, 2, 3)
-    assert stable_version_key("1.2.3-rc.1") is None
-    assert stable_version_key("1.2") is None
 
 
 def test_newest_stable_version_compares_numerically_and_skips_prereleases():

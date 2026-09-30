@@ -22,6 +22,7 @@ import re
 import shutil
 
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from datetime import timedelta
@@ -38,6 +39,7 @@ from lib.image.upgrade_cache import cache_entry_is_fresh as upgrade_entry_is_fre
 from lib.image.upgrade_cache import cache_key as upgrade_cache_key
 from lib.image.upgrade_cache import load_cache as load_upgrade_cache
 from lib.json_cache import cache_file
+from lib.json_cache import checked_within
 from lib.json_cache import load_json_cache
 from lib.json_cache import save_json_cache
 from lib.procutil import run
@@ -182,11 +184,7 @@ def cache_key(repository: str, digest: str):
 
 def cache_entry_is_fresh(entry: CveEntry, ttl_days: int):
     """True when `entry` was scanned within the last `ttl_days` days."""
-    try:
-        scanned_at = datetime.fromisoformat(entry["scanned_at"])
-    except (KeyError, ValueError, TypeError):
-        return False
-    return datetime.now(timezone.utc) - scanned_at < timedelta(days=ttl_days)
+    return checked_within(entry.get("scanned_at"), timedelta(days=ttl_days))
 
 
 def run_trivy(image_ref: str) -> list[Vulnerability] | None:
@@ -263,15 +261,24 @@ ImageKey = tuple[str, str | None, str]
 ScanTargetPin = tuple[tuple[str, str], tuple[str, int]]
 
 
-def parse_image_ref(ref: str) -> ImageKey:
-    """ "<repository>[:<version>]@sha256:<digest>" -> (repository, version, digest).
+def split_image_ref(ref: str) -> tuple[str, str | None, str | None]:
+    """ "<repository>[:<tag>][@sha256:<digest>]" -> (repository, tag, digest), None for a missing part.
 
-    version is None for a tagless ref; a "host:port" colon is not a tag (a tag has no "/").
+    A "host:port" colon is not a tag (a tag has no "/").
     """
-    repo_and_tag, digest = ref.rsplit("@sha256:", 1)
-    repository, sep, version = repo_and_tag.rpartition(":")
-    if not sep or "/" in version:
-        return repo_and_tag, None, digest
+    repo_and_tag, _, digest = ref.partition("@sha256:")
+    repository, sep, tag = repo_and_tag.rpartition(":")
+    if not sep or "/" in tag:
+        return repo_and_tag, None, digest or None
+    return repository, tag, digest or None
+
+
+def parse_image_ref(ref: str) -> ImageKey:
+    """ "<repository>[:<version>]@sha256:<digest>" -> (repository, version, digest); ValueError without a digest."""
+    repository, version, digest = split_image_ref(ref)
+    if digest is None:
+        msg = f"image reference without a digest: {ref}"
+        raise ValueError(msg)
     return repository, version, digest
 
 
@@ -304,6 +311,21 @@ def classify_by_key(top_level_key: str | None, dep_names: set[str], vendor_map: 
     if top_level_key is None or top_level_key not in dep_names:
         return "own"
     return vendor_map.get(top_level_key, "other")
+
+
+BUCKETS = ("own", "partner", "other")
+_BUCKET_ADJECTIVES = {"own": "Own", "partner": "Partner-vendor", "other": "Other-vendor"}
+
+
+def bucket_title(bucket: str, noun: str) -> str:
+    """A report section title, e.g. "Partner-vendor images" for ("partner", "images")."""
+    return f"{_BUCKET_ADJECTIVES[bucket]} {noun}"
+
+
+def refs_by_bucket(items: Mapping[str, Mapping[str, object]]) -> tuple[list[str], list[str], list[str]]:
+    """(own, partner, other) keys of `items` by their "bucket", in insertion order."""
+    own, partner, other = ([ref for ref, info in items.items() if info["bucket"] == b] for b in BUCKETS)
+    return own, partner, other
 
 
 def bucket_of(label: str) -> str:
@@ -488,17 +510,12 @@ def _scan_all_targets(targets: list[ScanTargetPin], context: ScanContext):
 
 def _bucket_refs(images: dict[str, ImageCves]):
     """(own_refs, partner_refs, other_refs) with at least one finding, in insertion order."""
-
-    def refs_in(bucket: str):
-        return [ref for ref, info in images.items() if info["bucket"] == bucket and info["vulns"]]
-
-    return refs_in("own"), refs_in("partner"), refs_in("other")
+    return refs_by_bucket({ref: info for ref, info in images.items() if info["vulns"]})
 
 
 def _print_bucket_reports(images: dict[str, ImageCves], buckets: BucketRefs, report_settings: ReportSettings):
-    print_bucket_report("Own images", buckets.own, images, report_settings)
-    print_bucket_report("Partner-vendor images", buckets.partner, images, report_settings)
-    print_bucket_report("Other-vendor images", buckets.other, images, report_settings)
+    for bucket, refs in zip(BUCKETS, (buckets.own, buckets.partner, buckets.other), strict=True):
+        print_bucket_report(bucket_title(bucket, "images"), refs, images, report_settings)
 
 
 def _print_cve_summary_lines(buckets: BucketRefs, stats: ScanStats, cve_cache_ttl_days: int):

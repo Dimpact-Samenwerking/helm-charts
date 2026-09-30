@@ -7,6 +7,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from lib.cli import print_section
 from lib.component_docs import NO_CHANGES_CLAIMED_RE
 from lib.component_docs.changes_section import OrderingContext
 from lib.component_docs.changes_section import VersionChange
@@ -58,8 +59,7 @@ def reset_upgrade_doc(
     new_text, section_removed, kept_user_text = remove_changes_section(new_text, friendly, ordering)
     if row_removed or section_removed:
         upgrade_path.write_text(new_text, encoding="utf-8")
-    print()
-    print(f"=== Updating {upgrade_path.name} ===")
+    print_section(f"Updating {upgrade_path.name}")
     print(
         f"  {friendly} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version — nothing left to document"
     )
@@ -85,8 +85,7 @@ def rewrite_upgrade_doc(
         return
     new_text = replace_changes_section(new_text, section, friendly, ordering)
     upgrade_path.write_text(new_text, encoding="utf-8")
-    print()
-    print(f"=== Updating {upgrade_path.name} ===")
+    print_section(f"Updating {upgrade_path.name}")
     print(f"  {table_action} table row")
     print(f"  (re)wrote '### {friendly} ...' Changes section")
 
@@ -99,8 +98,7 @@ def write_values_delta_entry(
     no_changes_claimed = bool(NO_CHANGES_CLAIMED_RE.search(text))
     text = write_values_delta_section(text, entry.friendly, entry.heading_line, entry.key_lines, delta_ordering)
     values_deltas_path.write_text(text, encoding="utf-8")
-    print()
-    print(f"=== Updating {values_deltas_path.name} ===")
+    print_section(f"Updating {values_deltas_path.name}")
     print(f"  '{entry.heading_line.rstrip()}'")
     for line in entry.key_lines:
         print(f"  {line.rstrip()}")
@@ -118,8 +116,7 @@ def write_removed_values_delta_section(
     """Write values-deltas.md text after the generated parts of friendly's
     stale section were removed (the bump has no values-schema change to document)."""
     values_deltas_path.write_text(text, encoding="utf-8")
-    print()
-    print(f"=== Updating {values_deltas_path.name} ===")
+    print_section(f"Updating {values_deltas_path.name}")
     if kept_user_text:
         print(f"  section for {friendly} holds hand-written text: kept it, removed the generated key lines; review it")
     else:
@@ -129,8 +126,7 @@ def write_removed_values_delta_section(
 def complete_docs_and_finish() -> None:
     """Run fix-doc-consistency on the chart's docs, then print the closing
     reminder to re-render before committing."""
-    print()
-    print("=== Completing the docs (fix-doc-consistency) ===")
+    print_section("Completing the docs (fix-doc-consistency)")
     run_script([sys.executable, str(FIX_DOC_CONSISTENCY_SCRIPT)])
     print()
     print("Done. Re-render the chart to confirm (verify-podiumd or /helm-render-all) before committing.")

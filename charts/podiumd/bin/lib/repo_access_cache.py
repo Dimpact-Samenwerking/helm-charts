@@ -9,15 +9,14 @@ response) would outlive its cause. The TTL is short: enough to skip network
 round trips on quick re-runs (avoiding Docker Hub's anonymous rate limit),
 short enough to notice real access changes soon."""
 
-from datetime import datetime
 from datetime import timedelta
-from datetime import timezone
 from pathlib import Path
 from typing import NotRequired
 from typing import TypedDict
 from typing import TypeGuard
 
 from lib.json_cache import cache_file
+from lib.json_cache import checked_within
 from lib.json_cache import load_json_cache
 from lib.json_cache import save_json_cache
 from lib.yaml_types import shape_problem
@@ -64,8 +63,4 @@ def cache_key(test_kind: str, target: str | tuple[str, ...]):
 
 def cache_entry_is_fresh(entry: RepoAccessEntry, ttl_minutes: float):
     """True when `entry` was checked within the last `ttl_minutes` minutes."""
-    try:
-        checked_at = datetime.fromisoformat(entry["checked_at"])
-    except (KeyError, ValueError, TypeError):
-        return False
-    return datetime.now(timezone.utc) - checked_at < timedelta(minutes=ttl_minutes)
+    return checked_within(entry.get("checked_at"), timedelta(minutes=ttl_minutes))

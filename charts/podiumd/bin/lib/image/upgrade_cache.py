@@ -3,14 +3,13 @@
 Its own module to avoid a circular import between those two.
 """
 
-from datetime import datetime
 from datetime import timedelta
-from datetime import timezone
 from pathlib import Path
 from typing import TypedDict
 from typing import TypeGuard
 
 from lib.json_cache import cache_file
+from lib.json_cache import checked_within
 from lib.json_cache import load_json_cache
 from lib.json_cache import save_json_cache
 from lib.yaml_types import shape_problem
@@ -58,8 +57,4 @@ def cache_key(repository: str, version: str):
 
 def cache_entry_is_fresh(entry: UpgradeEntry, ttl_days: int):
     """Whether `entry` was checked within the last `ttl_days` days."""
-    try:
-        checked_at = datetime.fromisoformat(entry["checked_at"])
-    except (KeyError, ValueError, TypeError):
-        return False
-    return datetime.now(timezone.utc) - checked_at < timedelta(days=ttl_days)
+    return checked_within(entry.get("checked_at"), timedelta(days=ttl_days))

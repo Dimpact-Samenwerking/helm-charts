@@ -72,6 +72,7 @@ from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.yaml_alias_groups import alias_groups
 from lib.cli import network_errors
 from lib.cli import positional_args
+from lib.cli import print_section
 from lib.component_docs.baseline_doc_stubs import baseline_doc_paths as _baseline_doc_paths
 from lib.component_docs.baseline_doc_stubs import images_manifest_path as _images_manifest_path
 from lib.component_docs.baseline_doc_stubs import load_baseline_state as _load_baseline_state
@@ -450,8 +451,7 @@ def _write_split_tag_sha_pins(
     if not split_paths:
         return
     values_lines = VALUES_YAML.read_text(encoding="utf-8").splitlines(keepends=True)
-    print()
-    print(f"=== Writing split tag/sha pin(s) for {', '.join(f'{ctx.values_key}.{p}' for p in split_paths)} ===")
+    print_section(f"Writing split tag/sha pin(s) for {', '.join(f'{ctx.values_key}.{p}' for p in split_paths)}")
     for path in split_paths:
         _write_split_tag_sha_pin(ctx, values_lines, path, split_tag_sha_paths[(ctx.values_key, path)], acc)
     VALUES_YAML.write_text("".join(values_lines), encoding="utf-8")
@@ -551,10 +551,8 @@ def _plan_delegated_tags(
 def _write_delegated_tags(ctx: BumpContext, updates: list[DelegatedUpdate]) -> None:
     """Write the pin updates _plan_delegated_tags resolved."""
     for update in updates:
-        print()
-        print(
-            f"=== Updating '{update.basename}' image pin(s) for "
-            f"{', '.join(f'{ctx.values_key}.{p}' for p in update.paths)} ==="
+        print_section(
+            f"Updating '{update.basename}' image pin(s) for {', '.join(f'{ctx.values_key}.{p}' for p in update.paths)}"
         )
         for c in update.changes:
             print(f"  values.yaml:{c['line']}  ({c['repository']})")
@@ -572,8 +570,7 @@ def _write_fallback_tags(
     """Write the already-resolved sub-chart-default digests for fallback_paths."""
     if not fallback_paths:
         return
-    print()
-    print(f"=== Using sub-chart default digests for: {', '.join(fallback_paths)} ===")
+    print_section(f"Using sub-chart default digests for: {', '.join(fallback_paths)}")
     for path in fallback_paths:
         r = upstream_images.get(path)
         if r is None or not r["exists"] or not r["digest"]:
@@ -582,8 +579,7 @@ def _write_fallback_tags(
         acc.repos[path] = r["repository"]
         acc.new_tags_by_path[path] = f"{ctx.app_version}@{r['digest']}"
         print(f"  {ctx.values_key}.{path}: {r['host']}/{r['repo_path']}:{ctx.app_version} -> {r['digest']}")
-    print()
-    print(f"=== Writing {VALUES_YAML} ===")
+    print_section(f"Writing {VALUES_YAML}")
     for dotted, old_v, new_v in update_values_yaml(ctx.values_key, fallback_paths, acc.new_tags_by_path):
         print(f"  {dotted}:")
         print(f"    {old_v}")
@@ -765,8 +761,7 @@ def _update_values_deltas_section(ctx: BumpContext, comparison: BaselineComparis
         if kept_user_text
         else ("removed its section" if section_removed else "nothing to remove")
     )
-    print()
-    print(f"=== Updating {comparison.values_deltas_path.name} ===")
+    print_section(f"Updating {comparison.values_deltas_path.name}")
     print(f"  {friendly} is back at its upgrade_docs_baseline {comparison.upgrade_docs_baseline} version — {outcome}")
 
 
@@ -775,8 +770,7 @@ def _remove_images_manifest_entries(
 ):
     """Remove the component's manifest entries when it is back at its baseline."""
     changes_action, entry_removals = remove_component_from_images_manifest(manifest_target, path_update)
-    print()
-    print(f"=== Updating {manifest_target.images_path.name} ===")
+    print_section(f"Updating {manifest_target.images_path.name}")
     if changes_action:
         print(
             f"  {manifest_target.friendly} is back at its upgrade_docs_baseline "
@@ -798,8 +792,7 @@ def _write_images_manifest_updates(
     changes_action, entry_updates, _missing_entries = update_images_manifest(
         manifest_target, change, path_update, ctx.deps, ctx.values
     )
-    print()
-    print(f"=== Updating {manifest_target.images_path.name} ===")
+    print_section(f"Updating {manifest_target.images_path.name}")
     if changes_action:
         print(f"  {changes_action} 'changes:' list entry")
     for name in entry_updates:
@@ -833,8 +826,7 @@ def _update_images_manifest_section(
 
 def _run_fix_helm_doc() -> None:
     """Run fix-helm-doc; SystemExit on failure."""
-    print()
-    print("=== Regenerating README.md (fix-helm-doc) ===")
+    print_section("Regenerating README.md (fix-helm-doc)")
     result = run_script([sys.executable, str(FIX_HELM_DOC_SCRIPT)])
     if result.returncode != 0:
         msg = f"error: fix-helm-doc failed (exit {result.returncode}); README.md was not regenerated"
@@ -860,8 +852,7 @@ def main():
     new_tags_by_path, repos = _update_image_tags(ctx, paths_to_update, split_tag_sha_paths, upstream_images)
 
     if not chart_unchanged:
-        print()
-        print(f"=== Writing {CHART_YAML} ===")
+        print_section(f"Writing {CHART_YAML}")
         old_v, new_v = update_chart_yaml(ctx.chart_name, chart_version)
         print(f"  {old_v}  ->  {new_v}")
 
@@ -875,8 +866,7 @@ def main():
     _run_fix_helm_doc()
 
     # The doc steps above only read a vendored .tgz whose version didn't change.
-    print()
-    print("=== Re-vendoring changed sub-charts ===")
+    print_section("Re-vendoring changed sub-charts")
     ensure_vendored_dependencies(CHART_DIR)
 
     # Last: its render needs the re-vendored sub-charts.

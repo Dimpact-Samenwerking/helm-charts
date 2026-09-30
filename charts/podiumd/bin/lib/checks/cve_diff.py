@@ -30,11 +30,13 @@ from typing import TypedDict
 
 import yaml
 
+from lib.checks.cve import BUCKETS
 from lib.checks.cve import SEVERITY_ORDER
 from lib.checks.cve import CacheSession
 from lib.checks.cve import ScanTarget
 from lib.checks.cve import Vulnerability
 from lib.checks.cve import bucket_of
+from lib.checks.cve import bucket_title
 from lib.checks.cve import classify_by_key
 from lib.checks.cve import dependency_names
 from lib.checks.cve import open_cache_session
@@ -302,8 +304,7 @@ def _process_bucket(context: DiffContext, title: str, bucket_candidates: list[Cl
 
 def _partition_by_bucket(candidates: list[ClassifiedCandidate]) -> list[CandidateBucket]:
     """(bucket_key, title, candidates) for own/partner/other, in print order."""
-    titles = (("own", "Own images"), ("partner", "Partner-vendor images"), ("other", "Other-vendor images"))
-    return [(key, title, [c for c in candidates if c["bucket"] == key]) for key, title in titles]
+    return [(key, bucket_title(key, "images"), [c for c in candidates if c["bucket"] == key]) for key in BUCKETS]
 
 
 def _build_diff_context(chart_dir: Path, *, detail: bool):

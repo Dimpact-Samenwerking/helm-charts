@@ -15,9 +15,11 @@ from typing import Literal
 from typing import TypedDict
 from typing import TypeGuard
 
+from lib.checks.cve import BUCKETS
 from lib.checks.cve import bucket_of
+from lib.checks.cve import bucket_title
 from lib.checks.cve import classify_source
-from lib.checks.cve import parse_image_ref
+from lib.checks.cve import split_image_ref
 from lib.json_cache import cache_file
 from lib.json_cache import load_json_cache
 from lib.json_cache import save_json_cache
@@ -105,13 +107,10 @@ def root_verdict(run_as: RunAs, image_user: str | None) -> Verdict:
 
 def _image_reference(image: str) -> tuple[str, str, str | None]:
     """(repository, tag-or-digest reference, cache key or None) of a container image string."""
-    if "@sha256:" in image:
-        repository, _version, digest = parse_image_ref(image)
+    repository, tag, digest = split_image_ref(image)
+    if digest is not None:
         return repository, f"sha256:{digest}", f"{repository}@sha256:{digest}"
-    repository, sep, tag = image.rpartition(":")
-    if not sep or "/" in tag:
-        return image, "latest", None
-    return repository, tag, None
+    return repository, tag or "latest", None
 
 
 @dataclass
@@ -181,7 +180,7 @@ def _findings(containers: list[RenderedContainer], lookup: _UserLookup, vendor_m
     return findings
 
 
-_BUCKET_TITLES = (("own", "Own templates"), ("partner", "Partner-vendor charts"), ("other", "Other-vendor charts"))
+_BUCKET_TITLES = tuple((bucket, bucket_title(bucket, "containers")) for bucket in BUCKETS)
 
 
 def _print_report(findings: list[Finding], accepted: dict[str, str]) -> None:
