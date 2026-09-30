@@ -3616,6 +3616,8 @@ ita:
 
   # -- Nieuw in ITA 3.3.0: dagelijkse herinnering voor verlopen
   # contactverzoeken, op werkdagen om 07:00.
+  # Standaard uitgeschakeld, er zit nog een fout in de e-mail
+  # Zie ook DRT-726
   verlopenContactverzoekHerinneringNotificatie:
     enabled: false
     schedule: "0 7 * * 1-5"
