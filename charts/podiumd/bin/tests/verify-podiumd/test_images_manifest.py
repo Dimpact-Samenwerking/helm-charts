@@ -534,7 +534,7 @@ def test_images_manifest_format_sidecars_recognized_within_group_by_basename(
 
 
 def test_images_manifest_format_out_of_order_entries_are_flagged(libimagesmanifest: ModuleType, tmp_path: Path):
-    """Entries must follow values.yaml's top-level component order (images_manifest_entry_order_key)."""
+    """Entries must follow values.yaml's top-level component order (path_order_key)."""
     deps = [
         {"name": "redis-operator", "version": "1.0.0"},
         {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.0"},
@@ -1113,10 +1113,8 @@ def test_images_manifest_format_new_component_image_not_in_historical_manifest(
     assert any('image "brppersonenmock" changed vs 4.8.5 but has no entry' in i for i in issues)
 
 
-def test_changes_items_out_of_order_ignores_a_free_form_item(libimagesmanifest: ModuleType):
-    """A free-form item that resolves to no display name and no entry
-    sorts last in the fixer, but is never reported as out of order
-    against the resolvable item after it."""
+def test_changes_items_out_of_order_reports_what_the_fixer_moves(libimagesmanifest: ModuleType):
+    """A hand-written item sorts last in the fixer, so a resolvable item after it is reported."""
     text = (
         "# Changes:\n"
         "#   1. Renovate-integrated bumps of several helper images.\n"
@@ -1124,24 +1122,20 @@ def test_changes_items_out_of_order_ignores_a_free_form_item(libimagesmanifest: 
         "#   3. redis-operator 0.25.0 -> 0.26.0.\n"
     )
 
-    pairs = libimagesmanifest.find_images_manifest_changes_items_out_of_order(
-        text, [], {"infonl/zaakafhandelcomponent": 0, "opstree/redis-operator": 1}, {"zac": 0, "redis-operator": 1}
-    )
+    pairs = libimagesmanifest.find_images_manifest_changes_items_out_of_order(text, {"zac": 0, "redis-operator": 1})
 
-    assert pairs == []
+    assert pairs == [("Renovate-integrated bumps of several helper images.", "zac 5.0.2 -> 5.4.4.")]
 
 
 def test_changes_items_out_of_order_still_flags_two_resolved_items(libimagesmanifest: ModuleType):
     text = (
         "# Changes:\n"
-        "#   1. Renovate-integrated bumps of several helper images.\n"
-        "#   2. redis-operator 0.25.0 -> 0.26.0.\n"
-        "#   3. zac 5.0.2 -> 5.4.4.\n"
+        "#   1. redis-operator 0.25.0 -> 0.26.0.\n"
+        "#   2. zac 5.0.2 -> 5.4.4.\n"
+        "#   3. Renovate-integrated bumps of several helper images.\n"
     )
 
-    pairs = libimagesmanifest.find_images_manifest_changes_items_out_of_order(
-        text, [], {}, {"zac": 0, "redis-operator": 1}
-    )
+    pairs = libimagesmanifest.find_images_manifest_changes_items_out_of_order(text, {"zac": 0, "redis-operator": 1})
 
     assert pairs == [("redis-operator 0.25.0 -> 0.26.0.", "zac 5.0.2 -> 5.4.4.")]
 

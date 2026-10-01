@@ -61,12 +61,12 @@ from lib.upgradedoc.consistency_checks import find_changes_row_correspondence_ga
 from lib.upgradedoc.consistency_checks import resolve_component_identity
 from lib.upgradedoc.grouped_comments_and_changes_block import find_preceding_comment_line
 from lib.upgradedoc.images_manifest_ordering import delete_images_manifest_entry
-from lib.upgradedoc.images_manifest_ordering import images_manifest_entry_order_key
 from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
 from lib.upgradedoc.sorting_and_ordering import changes_blocks_with_lines
 from lib.upgradedoc.sorting_and_ordering import component_order_key
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
+from lib.upgradedoc.sorting_and_ordering import path_order_key
 from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import ComponentRef
 from lib.upgradedoc.string_and_parsing_basics import VersionRow
@@ -701,7 +701,7 @@ def _resolve_baseline_entry(
         if not exists or not digest:
             return None
 
-    sort_key = images_manifest_entry_order_key(representative, ctx.deps, ctx.key_order, ctx.values)
+    sort_key = path_order_key(representative, ctx.deps, ctx.key_order, ctx.values)
     return sort_key, repo, full_repo, new_version, digest
 
 

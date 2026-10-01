@@ -348,37 +348,35 @@ def test_find_images_manifest_faulty_headers_version_paths_for_primary_is_exempt
     assert problems == []
 
 
-# --- images_manifest_entry_order_key ---
+# --- path_order_key ---
 
 
-def test_images_manifest_entry_order_key_primary_uses_values_key_index(libupgradedocmanifestordering: ModuleType):
+def test_path_order_key_primary_uses_values_key_index(libupgradedocmanifestordering: ModuleType):
     deps = [{"name": "zac", "version": "1.0.0"}]
     key_order = ["redis-operator", "zac"]
-    assert libupgradedocmanifestordering.images_manifest_entry_order_key(("zac", "image"), deps, key_order) == (1, 0)
+    assert libupgradedocmanifestordering.path_order_key(("zac", "image"), deps, key_order) == (1, 0)
 
 
-def test_images_manifest_entry_order_key_sidecar_sorts_after_primary(libupgradedocmanifestordering: ModuleType):
+def test_path_order_key_sidecar_sorts_after_primary(libupgradedocmanifestordering: ModuleType):
     deps = [{"name": "redis-operator", "version": "1.0.0"}]
     key_order = ["redis-operator", "zac"]
-    assert libupgradedocmanifestordering.images_manifest_entry_order_key(
-        ("redis-operator", "redis-ha", "image"), deps, key_order
-    ) == (
+    assert libupgradedocmanifestordering.path_order_key(("redis-operator", "redis-ha", "image"), deps, key_order) == (
         0,
         1,
     )
 
 
-def test_images_manifest_entry_order_key_unresolved_path_sorts_last(libupgradedocmanifestordering: ModuleType):
+def test_path_order_key_unresolved_path_sorts_last(libupgradedocmanifestordering: ModuleType):
     """An unresolved entry sorts last, like component_order_key's no-dependency sentinel."""
     key_order = ["redis-operator", "zac"]
-    assert libupgradedocmanifestordering.images_manifest_entry_order_key(None, deps=[], key_order=key_order) == (2, 1)
+    assert libupgradedocmanifestordering.path_order_key(None, deps=[], key_order=key_order) == (2, 1)
 
 
-def test_images_manifest_entry_order_key_unknown_values_key_sorts_last(libupgradedocmanifestordering: ModuleType):
+def test_path_order_key_unknown_values_key_sorts_last(libupgradedocmanifestordering: ModuleType):
     """A path[0] missing from key_order sorts last instead of crashing."""
     deps = [{"name": "mystery", "version": "1.0.0"}]
     key_order = ["redis-operator", "zac"]
-    assert libupgradedocmanifestordering.images_manifest_entry_order_key(("mystery", "image"), deps, key_order) == (
+    assert libupgradedocmanifestordering.path_order_key(("mystery", "image"), deps, key_order) == (
         2,
         0,
     )

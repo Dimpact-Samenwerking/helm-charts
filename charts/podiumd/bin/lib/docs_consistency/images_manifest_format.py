@@ -42,6 +42,7 @@ from lib.upgradedoc.images_manifest_list_diff import find_images_manifest_list_d
 from lib.upgradedoc.images_manifest_ordering import EntryResolution
 from lib.upgradedoc.images_manifest_ordering import ManifestSortContext
 from lib.upgradedoc.images_manifest_ordering import ParsedManifest
+from lib.upgradedoc.images_manifest_ordering import changes_item_order_keys
 from lib.upgradedoc.images_manifest_ordering import find_images_manifest_faulty_headers
 from lib.upgradedoc.images_manifest_ordering import find_images_manifest_out_of_order_names
 from lib.upgradedoc.images_manifest_ordering import images_manifest_display_name_positions
@@ -111,9 +112,8 @@ def match_changes_item_to_entry(item_name: str, entries: list[ManifestEntry]) ->
 def _images_manifest_changes_items(lines: list[str]) -> list[tuple[str, int, int]]:
     """[(rest, start, end)] for every "#   N. ..." item in the "# Changes:" header, or [].
 
-    `rest` is the item's first line. A single item is returned too: the coverage check
-    needs it, while the ordering check applies its own >= 2 floor. Shared so both agree
-    on what the list is.
+    `rest` is the item's first line. Shared by the coverage and ordering checks so both
+    agree on what the list is.
     """
     header_idx, _has_count = find_images_manifest_changes_header(lines)
     if header_idx is None:
@@ -123,34 +123,17 @@ def _images_manifest_changes_items(lines: list[str]) -> list[tuple[str, int, int
 
 
 def find_images_manifest_changes_items_out_of_order(
-    text: str, entries: list[ManifestEntry], entry_positions: dict[str, int], display_name_positions: dict[str, int]
+    text: str, display_name_positions: dict[str, int]
 ) -> list[tuple[str, str]]:
-    """[(item_a_text, item_b_text)] for adjacent "# Changes:" items ordered against the entry list.
+    """[(item_a_text, item_b_text)] for adjacent "# Changes:" items in the wrong order.
 
-    Entries can be ordered while the header list isn't. Items resolve with the same
-    two-tier match as sort_images_manifest_changes_items (exact display-name prefix,
-    then fuzzy basename), so checker and fixer agree. Unresolvable items are never
-    compared.
+    Entries can be ordered while the header list isn't. Keys come from
+    changes_item_order_keys, as sort_images_manifest_changes_items uses, so
+    this reports exactly what fix-doc-consistency would reorder.
     """
-    lines = text.splitlines(keepends=True)
-    items = _images_manifest_changes_items(lines)
-    if len(items) < 2:
-        return []
-
-    keys: list[int | None] = []
-    for rest, _start, _end in items:
-        display_name = match_changes_item_display_name(rest, display_name_positions)
-        if display_name is not None:
-            keys.append(display_name_positions[display_name])
-            continue
-        entry = match_changes_item_to_entry(rest, entries)
-        keys.append(entry_positions.get(entry["name"]) if entry else None)
-
-    return [
-        (items[i][0], items[i + 1][0])
-        for i, (key, next_key) in enumerate(pairwise(keys))
-        if key is not None and next_key is not None and next_key < key
-    ]
+    items = _images_manifest_changes_items(text.splitlines(keepends=True))
+    keys = changes_item_order_keys([rest for rest, _start, _end in items], display_name_positions)
+    return [(items[i][0], items[i + 1][0]) for i, (key, next_key) in enumerate(pairwise(keys)) if next_key < key]
 
 
 def _covered_changes_display_names(
@@ -483,18 +466,10 @@ def _out_of_order_entry_issues(
     return issues
 
 
-def _changes_items_out_of_order_issues(
-    name: str,
-    text: str,
-    entries: list[ManifestEntry],
-    entry_positions: dict[str, int],
-    display_name_positions: dict[str, int],
-):
+def _changes_items_out_of_order_issues(name: str, text: str, display_name_positions: dict[str, int]):
     """One issue per adjacent "# Changes:" item pair ordered against the entry list."""
     issues: list[str] = []
-    for item_a, item_b in find_images_manifest_changes_items_out_of_order(
-        text, entries, entry_positions, display_name_positions
-    ):
+    for item_a, item_b in find_images_manifest_changes_items_out_of_order(text, display_name_positions):
         issues.append(
             f'{name}: "# Changes:" list has "{item_b}" right after "{item_a}", but '
             f"the entry list has them in the opposite order — Changes items should follow the "
@@ -524,11 +499,8 @@ def _structural_issues(
     issues.extend(_out_of_order_entry_issues(name, parsed, resolution, key_order, context.values))
 
     sort_context = ManifestSortContext(context.deps, context.values, resolution.repo_map, resolution.canonical_names)
-    entry_positions = images_manifest_entry_positions(text, sort_context)
     display_name_positions = images_manifest_display_name_positions(text, sort_context)
-    issues.extend(
-        _changes_items_out_of_order_issues(name, text, parsed.entries, entry_positions, display_name_positions)
-    )
+    issues.extend(_changes_items_out_of_order_issues(name, text, display_name_positions))
     issues.extend(_missing_changes_mention_issues(name, text, parsed.entries, sort_context))
     return issues
 

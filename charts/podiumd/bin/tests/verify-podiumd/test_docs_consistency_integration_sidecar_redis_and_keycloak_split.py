@@ -252,8 +252,8 @@ KEYCLOAK_SPLIT_IMAGES_MANIFEST = """\
 # Images new or changed in podiumd 4.9.0 vs {baseline}.
 #
 # Changes:
-#   1. keycloak {app_source} -> {app_target}.
-#   2. keycloak-operator {op_source} -> {op_target}.
+#   1. keycloak-operator {op_source} -> {op_target}.
+#   2. keycloak {app_source} -> {app_target}.
 #
 
 # keycloak {app_source} -> {app_target}

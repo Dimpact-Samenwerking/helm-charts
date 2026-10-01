@@ -87,7 +87,6 @@ from lib.fix_doc_consistency.manifest_changes_items import correct_stale_changes
 from lib.fix_doc_consistency.manifest_changes_items import dedupe_images_manifest_changes_items
 from lib.fix_doc_consistency.manifest_changes_items import sort_images_manifest_changes_items
 from lib.gitutil import git_show_text
-from lib.images_manifest import try_parse_images_manifest
 from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import load_yaml_mapping
@@ -136,7 +135,6 @@ from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
 from lib.upgradedoc.images_manifest_ordering import ManifestSortContext
 from lib.upgradedoc.images_manifest_ordering import images_manifest_display_name_positions
-from lib.upgradedoc.images_manifest_ordering import images_manifest_entry_positions
 from lib.upgradedoc.images_manifest_ordering import sort_images_manifest_entries
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.sorting_and_ordering import sort_changes_blocks
@@ -709,13 +707,9 @@ def _reorder_manifest_text(
     before_sort: str, sort_context: ManifestSortContext
 ) -> tuple[str, list[tuple[str, int, int]], list[tuple[str, int, int]]]:
     """Reordered text without writing. Returns (text, moved_header_items, moved_entries)."""
-    entries_for_header_sort = try_parse_images_manifest(before_sort) or []
-    entry_positions = images_manifest_entry_positions(before_sort, sort_context)
     display_name_positions = images_manifest_display_name_positions(before_sort, sort_context)
     lines = before_sort.splitlines(keepends=True)
-    moved_header_items = sort_images_manifest_changes_items(
-        lines, entries_for_header_sort, entry_positions, display_name_positions
-    )
+    moved_header_items = sort_images_manifest_changes_items(lines, display_name_positions)
     text = "".join(lines)
     text, moved_entries = sort_images_manifest_entries(text, sort_context)
     return text, moved_header_items, moved_entries

@@ -103,13 +103,9 @@ def test_dedupe_images_manifest_changes_items_no_header_returns_empty(cdb: Modul
 
 # --- sort_images_manifest_changes_items ---
 
-# entries + entry_positions as images_manifest_entry_positions would compute
-# them for a manifest listing redis-operator before zac.
-CHANGES_ITEMS_ENTRIES = [
-    {"name": "opstree/redis-operator", "version": "0.26.0"},
-    {"name": "infonl/zac", "version": "5.4.4"},
-]
-CHANGES_ITEMS_POSITIONS = {"opstree/redis-operator": 0, "infonl/zac": 1}
+# display_name_positions as images_manifest_display_name_positions computes them
+# for a manifest listing redis-operator before zac.
+CHANGES_ITEMS_POSITIONS = {"redis-operator": 0, "zac": 1}
 
 
 def test_sort_images_manifest_changes_items_reorders_and_renumbers(cdb: ModuleType):
@@ -121,26 +117,14 @@ def test_sort_images_manifest_changes_items_reorders_and_renumbers(cdb: ModuleTy
         "#   2. redis-operator 0.25.0 -> 0.26.0.\n",
         "\n",
     ]
-    moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_ENTRIES, CHANGES_ITEMS_POSITIONS)
+    moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_POSITIONS)
     assert moved == [("redis-operator 0.25.0 -> 0.26.0.", 2, 1), ("zac 5.0.2 -> 5.4.4.", 1, 2)]
     assert lines[3] == "#   1. redis-operator 0.25.0 -> 0.26.0.\n"
     assert lines[4] == "#   2. zac 5.0.2 -> 5.4.4.\n"
 
 
-def test_sort_images_manifest_changes_items_display_name_exact_match_takes_priority(cdb: ModuleType):
-    """Regression: "kiss" shares no word with its basename "kiss-frontend",
-    so fuzzy matching separated it from its sidecars; display_name_positions
-    matches by exact prefix instead."""
-    entries = [
-        {"name": "klantinteractie-servicesysteem/kiss-frontend", "version": "3.0.0"},
-        {"name": "integrations/crawler", "version": "1.0.0"},
-        {"name": "opstree/redis-operator", "version": "0.26.0"},
-    ]
-    entry_positions = {
-        "klantinteractie-servicesysteem/kiss-frontend": 0,
-        "integrations/crawler": 1,
-        "opstree/redis-operator": 2,
-    }
+def test_sort_images_manifest_changes_items_matches_the_display_name_not_the_image_basename(cdb: ModuleType):
+    """Regression: "kiss" shares no word with its basename "kiss-frontend"; the display name keeps it with its sidecars."""
     display_name_positions = {"kiss": 0, "kiss - crawler": 1, "redis-operator": 2}
     lines = [
         "# Changes:\n",
@@ -149,21 +133,16 @@ def test_sort_images_manifest_changes_items_display_name_exact_match_takes_prior
         "#   3. kiss - crawler 1.0.0 -> 1.0.0.\n",
         "\n",
     ]
-    moved = cdb.sort_images_manifest_changes_items(lines, entries, entry_positions, display_name_positions)
+    moved = cdb.sort_images_manifest_changes_items(lines, display_name_positions)
     assert moved == [
         ("kiss 2.2.4 -> 3.0.0.", 2, 1),
         ("kiss - crawler 1.0.0 -> 1.0.0.", 3, 2),
         ("redis-operator 0.25.0 -> 0.26.0.", 1, 3),
     ]
-    assert lines[1] == "#   1. kiss 2.2.4 -> 3.0.0.\n"
-    assert lines[2] == "#   2. kiss - crawler 1.0.0 -> 1.0.0.\n"
-    assert lines[3] == "#   3. redis-operator 0.25.0 -> 0.26.0.\n"
 
 
 def test_sort_images_manifest_changes_items_display_name_prefers_longest_match(cdb: ModuleType):
     """The longest matching display-name prefix wins over the primary's."""
-    entries = [{"name": "postgres", "version": "16.15"}, {"name": "keycloak/keycloak", "version": "26.7.2"}]
-    entry_positions = {"postgres": 1, "keycloak/keycloak": 0}
     display_name_positions = {"keycloak-operator": 0, "keycloak-operator - postgres": 1}
     lines = [
         "# Changes:\n",
@@ -171,21 +150,9 @@ def test_sort_images_manifest_changes_items_display_name_prefers_longest_match(c
         "#   2. keycloak-operator 26.6.4 -> 26.7.2.\n",
         "\n",
     ]
-    cdb.sort_images_manifest_changes_items(lines, entries, entry_positions, display_name_positions)
+    cdb.sort_images_manifest_changes_items(lines, display_name_positions)
     assert lines[1] == "#   1. keycloak-operator 26.6.4 -> 26.7.2.\n"
     assert lines[2] == "#   2. keycloak-operator - postgres 16 -> 16.15.\n"
-
-
-def test_sort_images_manifest_changes_items_no_display_name_positions_falls_back_to_fuzzy(cdb: ModuleType):
-    """Without display_name_positions the fuzzy match path is unchanged."""
-    lines = [
-        "# Changes:\n",
-        "#   1. zac 5.0.2 -> 5.4.4.\n",
-        "#   2. redis-operator 0.25.0 -> 0.26.0.\n",
-        "\n",
-    ]
-    moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_ENTRIES, CHANGES_ITEMS_POSITIONS)
-    assert moved == [("redis-operator 0.25.0 -> 0.26.0.", 2, 1), ("zac 5.0.2 -> 5.4.4.", 1, 2)]
 
 
 def test_sort_images_manifest_changes_items_continuation_line_travels_with_item(cdb: ModuleType):
@@ -197,45 +164,26 @@ def test_sort_images_manifest_changes_items_continuation_line_travels_with_item(
         "#      nginx sidecar in the chart) 0.25.0 -> 0.26.0.\n",
         "\n",
     ]
-    moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_ENTRIES, CHANGES_ITEMS_POSITIONS)
+    moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_POSITIONS)
     assert len(moved) == 2
     assert lines[1].startswith("#   1. redis-operator (shared")
     assert lines[2] == "#      nginx sidecar in the chart) 0.25.0 -> 0.26.0.\n"
     assert lines[3] == "#   2. zac 5.0.2 -> 5.4.4.\n"
 
 
-def test_sort_images_manifest_changes_items_unresolved_item_sorts_last(cdb: ModuleType):
-    """An item matching no entry (free-form prose) sorts after all real ones."""
+def test_sort_images_manifest_changes_items_hand_written_item_sorts_last(cdb: ModuleType):
+    """An item naming no display name sorts after all real ones, even when it mentions a component."""
     lines = [
         "# Changes:\n",
-        "#   1. Totally Unknown Thing 1.0.0 -> 2.0.0.\n",
+        "#   1. Keycloak app image 26.6.4 -> 26.7.2 (zac chart unchanged).\n",
         "#   2. zac 5.0.2 -> 5.4.4.\n",
         "#   3. redis-operator 0.25.0 -> 0.26.0.\n",
         "\n",
     ]
-    cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_ENTRIES, CHANGES_ITEMS_POSITIONS)
+    cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_POSITIONS)
     assert lines[1] == "#   1. redis-operator 0.25.0 -> 0.26.0.\n"
     assert lines[2] == "#   2. zac 5.0.2 -> 5.4.4.\n"
-    assert lines[3] == "#   3. Totally Unknown Thing 1.0.0 -> 2.0.0.\n"
-
-
-def test_sort_images_manifest_changes_items_mirrors_entry_order_not_fuzzy_dependency_match(cdb: ModuleType):
-    """Regression: prose that incidentally mentions another dependency
-    ("keycloak-operator") must sort by the entry match_changes_item_to_entry
-    resolves it to, not by that dependency name."""
-    entries = [{"name": "postgres", "version": "16.15"}, {"name": "keycloak/keycloak", "version": "26.7.2"}]
-    positions = {"postgres": 0, "keycloak/keycloak": 1}
-    lines = [
-        "# Changes:\n",
-        "#   1. Keycloak app image 26.6.4 -> 26.7.2 (keycloak-operator chart\n",
-        "#      unchanged, 1.12.1).\n",
-        "#   2. keycloak-operator - postgres 16 -> 16.15.\n",
-        "\n",
-    ]
-    moved = cdb.sort_images_manifest_changes_items(lines, entries, positions)
-    assert len(moved) == 2
-    assert lines[1] == "#   1. keycloak-operator - postgres 16 -> 16.15.\n"
-    assert lines[2].startswith("#   2. Keycloak app image")
+    assert lines[3].startswith("#   3. Keycloak app image")
 
 
 def test_sort_images_manifest_changes_items_already_ordered_reports_nothing(cdb: ModuleType):
@@ -246,14 +194,14 @@ def test_sort_images_manifest_changes_items_already_ordered_reports_nothing(cdb:
         "\n",
     ]
     original = list(lines)
-    moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_ENTRIES, CHANGES_ITEMS_POSITIONS)
+    moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_POSITIONS)
     assert moved == []
     assert lines == original
 
 
 def test_sort_images_manifest_changes_items_no_header_is_a_noop(cdb: ModuleType):
     lines = ["- name: opstree/redis-operator\n", '  version: "0.26.0"\n']
-    moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_ENTRIES, CHANGES_ITEMS_POSITIONS)
+    moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_POSITIONS)
     assert moved == []
 
 

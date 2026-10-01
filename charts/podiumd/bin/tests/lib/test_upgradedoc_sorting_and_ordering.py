@@ -35,7 +35,7 @@ def test_component_order_key_matches_free_form_name(libupgradedocsorting: Module
 def test_component_order_key_unmatched_name_sorts_after_every_real_component(libupgradedocsorting: ModuleType):
     assert libupgradedocsorting.component_order_key("nginx-unprivileged (shared sidecar)", DEPS, KEY_ORDER) == (
         len(KEY_ORDER),
-        0,
+        1,
     )
 
 
@@ -54,7 +54,7 @@ def test_component_order_key_global_shared_image_uses_its_own_values_position(li
 
 def test_component_order_key_no_canonical_names_given_is_unaffected(libupgradedocsorting: ModuleType):
     """Without canonical_names, real dependency names are unaffected."""
-    assert libupgradedocsorting.component_order_key("nginx-unprivileged", DEPS, KEY_ORDER) == (len(KEY_ORDER), 0)
+    assert libupgradedocsorting.component_order_key("nginx-unprivileged", DEPS, KEY_ORDER) == (len(KEY_ORDER), 1)
 
 
 def test_component_order_key_native_component_uses_its_own_values_position(libupgradedocsorting: ModuleType):
@@ -74,14 +74,30 @@ def test_component_order_key_matched_dep_not_in_key_order_sorts_last(libupgraded
 
 def test_component_order_key_sidecar_sorts_after_its_own_parent_row(libupgradedocsorting: ModuleType):
     """A "<parent> - <image-basename>" sidecar shares its parent's index; the secondary key sorts it after."""
-    assert libupgradedocsorting.component_order_key(
-        "redis-operator", [*DEPS, {"name": "redis-operator", "version": "0.26.0"}], [*KEY_ORDER, "redis-operator"]
-    ) == (3, 0)
-    assert libupgradedocsorting.component_order_key(
-        "redis-operator - redis",
-        [*DEPS, {"name": "redis-operator", "version": "0.26.0"}],
-        [*KEY_ORDER, "redis-operator"],
-    ) == (3, 1)
+    deps = [*DEPS, {"name": "redis-operator", "version": "0.26.0"}]
+    key_order = [*KEY_ORDER, "redis-operator"]
+    canonical_names = {"redis-operator - redis": ("redis-operator", "redis", "image")}
+
+    assert libupgradedocsorting.component_order_key("redis-operator", deps, key_order, canonical_names) == (3, 0)
+    assert libupgradedocsorting.component_order_key("redis-operator - redis", deps, key_order, canonical_names) == (
+        3,
+        1,
+    )
+
+
+def test_component_order_key_sidecars_of_one_parent_keep_values_order(libupgradedocsorting: ModuleType):
+    """Two sidecars of one parent sort by their values.yaml position, as in the images manifest, not by name."""
+    deps = [{"name": "openbao", "version": "0.29.6"}]
+    values = {"openbao": {"injector": {"image": {}}, "csi": {"image": {}}}}
+    canonical_names = {
+        "openbao - vault-k8s": ("openbao", "injector", "image"),
+        "openbao - openbao-csi-provider": ("openbao", "csi", "image"),
+    }
+
+    def key(name: str):
+        return libupgradedocsorting.component_order_key(name, deps, ["openbao"], canonical_names, values)
+
+    assert key("openbao") < key("openbao - vault-k8s 1.7.2 → 1.7.6") < key("openbao - openbao-csi-provider 2.0.3")
 
 
 # --- values_tree_position ---

@@ -11,9 +11,7 @@ from lib.component_docs.images_manifest_changes_header import find_images_manife
 from lib.component_docs.images_manifest_changes_header import images_manifest_changes_item_spans
 from lib.component_docs.images_manifest_entries import expected_changes_items
 from lib.component_docs.images_manifest_entries import fix_stale_changes_items
-from lib.docs_consistency.images_manifest_format import match_changes_item_to_entry
-from lib.images_manifest import ManifestEntry
-from lib.upgradedoc.images_manifest_ordering import match_changes_item_display_name
+from lib.upgradedoc.images_manifest_ordering import changes_item_order_keys
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.string_and_parsing_basics import match_located_line
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
@@ -88,43 +86,12 @@ def dedupe_images_manifest_changes_items(lines: list[str]) -> list[str]:
     return removed
 
 
-def _resolved_changes_items(
-    lines: list[str],
-    item_bounds: list[tuple[int, int]],
-    entries: list[ManifestEntry],
-    entry_positions: dict[str, int],
-    display_name_positions: dict[str, int] | None,
-) -> list[ChangesItem]:
-    """Each item's sort key: exact display-name match first, else fuzzy match_changes_item_to_entry.
-
-    Returns ChangesItems in original order."""
-    items: list[ChangesItem] = []
-    for start, end in item_bounds:
-        rest = match_located_line(CHANGES_ITEM_RE, lines[start]).group("rest")
-        display_name = match_changes_item_display_name(rest, display_name_positions or {})
-        if display_name is not None and display_name_positions:
-            position = display_name_positions[display_name]
-        else:
-            entry = match_changes_item_to_entry(rest, entries)
-            position = entry_positions.get(entry["name"], len(entry_positions)) if entry else len(entry_positions)
-        items.append({"start": start, "end": end, "rest": rest, "key": position})
-    return items
-
-
 def sort_images_manifest_changes_items(
-    lines: list[str],
-    entries: list[ManifestEntry],
-    entry_positions: dict[str, int],
-    display_name_positions: dict[str, int] | None = None,
+    lines: list[str], display_name_positions: dict[str, int]
 ) -> list[tuple[str, int, int]]:
-    """Reorder "# Changes:" items to mirror the entry list order (entry_positions).
+    """Reorder "# Changes:" items by changes_item_order_keys, as the checker orders them.
 
-    Items match exactly by display name first, since some names share no
-    word with their image basename (e.g. "kiss" / "kiss-frontend"), then
-    fall back to match_changes_item_to_entry. Not ordered via
-    match_dependency: incidental mentions in prose (e.g. "keycloak-operator
-    chart unchanged") would misplace items. Unresolved items sort last;
-    continuation lines move with their item; items are renumbered.
+    Continuation lines move with their item; items are renumbered.
 
     Mutates `lines`. Returns [(item_text, old_pos, new_pos)] (1-based) for
     moved items; empty if no header or fewer than 2 items."""
@@ -136,7 +103,12 @@ def sort_images_manifest_changes_items(
     if len(spans) < 2:
         return []
 
-    items = _resolved_changes_items(lines, spans, entries, entry_positions, display_name_positions)
+    rests = [match_located_line(CHANGES_ITEM_RE, lines[start]).group("rest") for start, _end in spans]
+    keys = changes_item_order_keys(rests, display_name_positions)
+    items: list[ChangesItem] = [
+        {"start": start, "end": end, "rest": rest, "key": key}
+        for (start, end), rest, key in zip(spans, rests, keys, strict=True)
+    ]
 
     order = sorted(range(len(items)), key=lambda i: items[i]["key"])
     moved = [(items[i]["rest"], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]

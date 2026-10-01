@@ -9,13 +9,9 @@ from typing import TypedDict
 from typing import TypeVar
 
 from lib.chart.chart_yaml import ChartDependency
-from lib.chart.registered_paths import native_components
-from lib.chart.values_tree_primitives import values_key_of
+from lib.chart.registered_paths import is_primary_image_path
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
-from lib.upgradedoc.string_and_parsing_basics import match_canonical_sidecar_name
-from lib.upgradedoc.string_and_parsing_basics import match_dependency
 from lib.upgradedoc.string_and_parsing_basics import match_located_line
-from lib.upgradedoc.string_and_parsing_basics import match_native_component
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.yaml_types import YamlMapping
 
@@ -59,6 +55,29 @@ def values_tree_position(values: YamlMapping, path: tuple[str, ...]) -> tuple[in
     return tuple(position)
 
 
+def _key_index(values_key: str, key_order: list[str]) -> int:
+    return key_order.index(values_key) if values_key in key_order else len(key_order)
+
+
+def path_order_key(
+    path: tuple[str, ...] | None, deps: list[ChartDependency], key_order: list[str], values: YamlMapping | None = None
+) -> tuple[int, ...]:
+    """Sort key (values_key_index, is_sidecar[, *nested position]) of a values-tree path.
+
+    The one ordering of every generated list: images manifests, table rows,
+    "### ..." blocks and values-deltas sections. path=None sorts after every
+    real path. With values, the nested position (values_tree_position) keeps
+    peers that tie on (idx, is_sidecar), e.g. global.images.* or two sidecars
+    of one parent, in values.yaml order. Primaries sort before sidecars."""
+    if path is None:
+        return (len(key_order), 1)
+    idx = _key_index(path[0], key_order)
+    is_sidecar = 0 if is_primary_image_path(path, deps) else 1
+    if values is not None:
+        return (idx, is_sidecar, *values_tree_position(values, path)[1:])
+    return (idx, is_sidecar)
+
+
 def component_order_key(
     name: str,
     deps: list[ChartDependency],
@@ -66,37 +85,20 @@ def component_order_key(
     canonical_names: Mapping[str, tuple[str, ...]] | None = None,
     values: YamlMapping | None = None,
 ) -> tuple[int, ...]:
-    """Sort key for a doc item (table row name or "### ..." Changes heading).
+    """path_order_key of a doc item's name (table row name, "### ..." or "## ..." heading).
 
-    Returns (values_key_index, is_sidecar): the index in key_order of the
-    top-level key name resolves to (via match_dependency, then
-    match_native_component), or len(key_order) if unresolved. is_sidecar puts a
-    "<parent> - <image-basename>" name after its parent, which resolves to the same key.
-
-    canonical_names is consulted only when no dependency matches, so a bare
-    global shared-image name (e.g. "nginx-unprivileged") sorts at its real
-    position instead of last. With values also given, such a name returns
-    (values_key_index, *nested position) so peers under the same key (e.g.
-    global.images.*) keep values.yaml order instead of tying."""
-    dep = match_dependency(name, deps)
-    values_key = values_key_of(dep) if dep else None
-    is_sidecar = 1 if " - " in name else 0
-    sidecar_path = None
-    if values_key is None:
-        values_key = match_native_component(name, native_components())
-    if values_key is None and canonical_names is not None:
-        sidecar_path = match_canonical_sidecar_name(name, canonical_names)
-        if sidecar_path:
-            values_key = sidecar_path[0]
-    if values_key is None:
-        return (len(key_order), is_sidecar)
-    try:
-        idx = key_order.index(values_key)
-    except ValueError:
-        return (len(key_order), is_sidecar)
-    if sidecar_path is not None and values is not None:
-        return (idx, *values_tree_position(values, sidecar_path)[1:])
-    return (idx, is_sidecar)
+    The name resolves as the checker pairs it (changes_heading_identities): a
+    canonical sidecar or shared-image name to its path, a dependency or native
+    component to its top-level key, which sorts before that key's sidecars.
+    A name naming several components sorts at the first; an unresolved one
+    sorts last."""
+    keys: list[tuple[int, ...]] = []
+    for _kind, ref in changes_heading_identities(name, deps, canonical_names):
+        if isinstance(ref, tuple):
+            keys.append(path_order_key(ref, deps, key_order, values))
+        else:
+            keys.append((_key_index(ref, key_order), 0))
+    return min(keys, default=path_order_key(None, deps, key_order))
 
 
 def find_out_of_order_names(
@@ -229,6 +231,24 @@ def reorder_heading_blocks(text: str, blocks: list[HeadingBlock], order: list[in
     return prefix + body + suffix
 
 
+def _doc_item_order(
+    names: list[str],
+    deps: list[ChartDependency],
+    values: YamlMapping,
+    canonical_names: Mapping[str, tuple[str, ...]] | None,
+) -> tuple[list[int], list[tuple[str, int, int]]]:
+    """(order, moved) for doc items by component_order_key, the key find_out_of_order_names checks.
+
+    order is the stable sorted permutation of `names`' indices; moved is
+    [(name, old_pos, new_pos)] (1-based) for each item that moves.
+    """
+    key_order = values_key_order(values)
+    order = sorted(
+        range(len(names)), key=lambda i: component_order_key(names[i], deps, key_order, canonical_names, values)
+    )
+    return order, [(names[i], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]
+
+
 def sort_upgrade_doc_rows(
     text: str,
     deps: list[ChartDependency],
@@ -241,15 +261,7 @@ def sort_upgrade_doc_rows(
     for rows that moved; empty with text unchanged if already sorted or fewer
     than 2 rows. Row content is never changed."""
     rows = parse_upgrade_doc_rows(text)
-    if len(rows) < 2:
-        return text, []
-
-    key_order = values_key_order(values)
-    names = [row["name"] for row in rows]
-    order = sorted(
-        range(len(names)), key=lambda i: component_order_key(names[i], deps, key_order, canonical_names, values)
-    )
-    moved = [(names[i], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]
+    order, moved = _doc_item_order([row["name"] for row in rows], deps, values, canonical_names)
     if not moved:
         return text, []
 
@@ -271,15 +283,7 @@ def sort_changes_blocks(
 
     Returns (new_text, moved) as sort_upgrade_doc_rows does."""
     blocks = parse_upgrade_doc_changes_blocks(text)
-    if len(blocks) < 2:
-        return text, []
-
-    key_order = values_key_order(values)
-    headings = [b["heading"] for b in blocks]
-    order = sorted(
-        range(len(headings)), key=lambda i: component_order_key(headings[i], deps, key_order, canonical_names, values)
-    )
-    moved = [(headings[i], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]
+    order, moved = _doc_item_order([b["heading"] for b in blocks], deps, values, canonical_names)
     if not moved:
         return text, []
 
@@ -317,15 +321,7 @@ def sort_values_delta_sections(
     Section content is never changed. Returns (new_text, moved) as
     sort_upgrade_doc_rows does."""
     sections = parse_values_delta_sections(text)
-    if len(sections) < 2:
-        return text, []
-
-    key_order = values_key_order(values)
-    headings = [s["heading"] for s in sections]
-    order = sorted(
-        range(len(headings)), key=lambda i: component_order_key(headings[i], deps, key_order, canonical_names, values)
-    )
-    moved = [(headings[i], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]
+    order, moved = _doc_item_order([s["heading"] for s in sections], deps, values, canonical_names)
     if not moved:
         return text, []
 
