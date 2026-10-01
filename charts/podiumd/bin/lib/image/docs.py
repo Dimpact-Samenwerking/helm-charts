@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from lib.chart.chart_state import ComponentState
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.historical_baselines import baseline_lookup
 from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
@@ -34,7 +35,6 @@ from lib.component_docs.changes_section import IMAGE_PATH_BULLET
 from lib.component_docs.changes_section import PINNED_AT
 from lib.component_docs.changes_section import TODO_STUB
 from lib.component_docs.changes_section import ComponentIdentity
-from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import DocContext
 from lib.component_docs.changes_section import VersionChange
 from lib.component_docs.changes_section import changes_body_kinds
@@ -44,12 +44,11 @@ from lib.component_docs.changes_section import render_changes_section
 from lib.component_docs.changes_section import replace_changes_block
 from lib.component_docs.changes_section import replace_changes_section
 from lib.component_docs.changes_section import update_component_table
-from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
 from lib.component_docs.images_manifest_changes_header import find_changes_item
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
 from lib.component_docs.images_manifest_changes_header import images_manifest_changes_block
-from lib.component_docs.images_manifest_changes_header import insert_images_manifest_header_item
 from lib.component_docs.images_manifest_changes_header import remove_changes_item
+from lib.component_docs.images_manifest_changes_header import upsert_images_manifest_header_item
 from lib.image.digests import cached_tag_exists
 from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
@@ -65,7 +64,6 @@ from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.upgradedoc.sorting_and_ordering import changes_blocks_with_lines
-from lib.upgradedoc.sorting_and_ordering import component_order_key
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.sorting_and_ordering import path_order_key
 from lib.upgradedoc.sorting_and_ordering import values_key_order
@@ -73,7 +71,6 @@ from lib.upgradedoc.string_and_parsing_basics import ComponentRef
 from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
-from lib.upgradedoc.string_and_parsing_basics import match_located_line
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text
 from lib.upgradedoc.version_cells_and_key_changes import pin_version_text
@@ -544,54 +541,19 @@ def _update_manifest_entry_scalars(
     return entry_updated
 
 
-def _update_manifest_changes_header(lines: list[str], bump: ImageBump, ordering: OrderingContext):
-    """Insert or update the basename's "#   N. ..." changes-header item.
-
-    Returns None without a header, else "updated" or "added"; new items go
-    in values.yaml order when `ordering.values` is given, else at the end.
-    """
-    # Not CHANGES_HEADER_RE alone: it doesn't match the plain "# Changes:" header.
-    header_idx, _header_has_count = find_images_manifest_changes_header(lines)
-    if header_idx is None:
-        return None
-
-    item_indices, block_end = images_manifest_changes_block(lines, header_idx)
-    match_idx = find_changes_item(lines, item_indices, bump.basename)
-    item_text = f"{bump.basename} {image_manifest_version_text(bump.old_version, bump.new_version)}."
-
-    if match_idx is not None:
-        m = match_located_line(CHANGES_ITEM_RE, lines[match_idx])
-        lines[match_idx] = f"#   {m.group('num')}. {item_text}\n"
-        return "updated"
-    if ordering.values is not None:
-        # Keeps a bare "# Changes:" header uncounted.
-        key_order = values_key_order(ordering.values)
-        new_key = component_order_key(
-            bump.basename, ordering.deps, key_order, ordering.canonical_names, ordering.values
-        )
-        insert_images_manifest_header_item(lines, ordering.deps, key_order, new_key, item_text)
-        return "added"
-    # No ordering context: append.
-    new_num = len(item_indices) + 1
-    insert_at = block_end if item_indices else header_idx + 1
-    lines.insert(insert_at, f"#   {new_num}. {item_text}\n")
-    return "added"
-
-
-def update_image_manifest(images_path: Path, bump: ImageBump, ordering: OrderingContext | None = None):
+def update_image_manifest(images_path: Path, bump: ImageBump):
     """Update the changes-header item and images-manifest entry for a shared image basename bump.
 
     The entry is matched by host-stripped "url:" against `bump.repository`.
     Returns (changes_action, entry_updated); a missing entry is not created
-    here but by the closing fix-doc-consistency run. `ordering` places a
-    new header item in values.yaml order, like lib.component_docs does, so
-    items from both writers stay ordered; without it, the item is appended.
+    here but by the closing fix-doc-consistency run, which also puts a new
+    header item in place.
     """
-    ordering = ordering or OrderingContext([], None)
     original_text = images_path.read_text(encoding="utf-8")
     lines = original_text.splitlines(keepends=True)
 
-    changes_action = _update_manifest_changes_header(lines, bump, ordering)
+    item_text = f"{bump.basename} {image_manifest_version_text(bump.old_version, bump.new_version)}."
+    changes_action = upsert_images_manifest_header_item(lines, bump.basename, item_text)
 
     entry_line, block_end2 = _find_manifest_entry(lines, bump.repository)
     entry_updated = _update_manifest_entry_scalars(lines, entry_line, block_end2, bump.new_version, bump.digest)

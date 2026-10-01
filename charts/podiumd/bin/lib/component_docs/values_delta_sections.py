@@ -8,11 +8,11 @@ from collections.abc import Mapping
 from collections.abc import Sequence
 from pathlib import Path
 
+from lib.chart.chart_state import BaselineState
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import component_chart_versions
 from lib.component_docs.baseline_doc_stubs import GEMEENTE_SPECIFIC_STUB_LINE
 from lib.component_docs.baseline_doc_stubs import VALUES_DELTAS_STUB_TODO_LINE
-from lib.component_docs.changes_section import BaselineState
 from lib.component_docs.doc_lines import is_bare_placeholder_span
 from lib.component_docs.doc_lines import normalize_blank_line_before_insert
 from lib.component_docs.owned_parts import BLANK

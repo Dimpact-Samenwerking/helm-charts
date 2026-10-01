@@ -310,7 +310,8 @@ def test_main_touches_only_the_target_component_end_to_end(
     images_after = (images_dir / "images-4.9.0.yaml").read_text(encoding="utf-8")
     # openformulieren's item renumbers to "2." (zac's new item is inserted
     # before it, in dependency order); its text is unchanged.
-    assert "2. openformulieren 3.4.9 -> 3.4.10 (chart 1.12.0, unchanged)." in images_after
-    assert "1. zac 5.0.2 -> 5.4.3 (chart 1.0.296 -> 1.0.297)." in images_after
+    # zac's item is appended; the (stubbed) closing fix-doc-consistency run sorts it.
+    assert "1. openformulieren 3.4.9 -> 3.4.10 (chart 1.12.0, unchanged)." in images_after
+    assert "2. zac 5.0.2 -> 5.4.3 (chart 1.0.296 -> 1.0.297)." in images_after
     assert '"3.4.10"' in images_after
     assert "sha256:bbbb" in images_after

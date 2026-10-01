@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
 
-from lib.component_docs.changes_section import BaselineState
-from lib.component_docs.changes_section import ComponentState
+from lib.chart.chart_state import BaselineState
+from lib.chart.chart_state import ComponentState
 from lib.settings import DigestPinningException
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.chart_image_index import ChartImageIndex

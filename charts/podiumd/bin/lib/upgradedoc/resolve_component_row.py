@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Literal
 from typing import TypedDict
 
+from lib.chart.chart_state import BaselineState
+from lib.chart.chart_state import ComponentState
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.historical_baselines import BaselineLookup
 from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
@@ -19,8 +21,6 @@ from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.values_tree_primitives import dep_for_values_key
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
-from lib.component_docs.changes_section import BaselineState
-from lib.component_docs.changes_section import ComponentState
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components

@@ -14,8 +14,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from lib.chart.chart_yaml import ChartDependency
-from lib.chart.historical_baselines import historical_app_version_for_path
+from lib.chart.chart_state import BaselineState
+from lib.chart.chart_state import ComponentState
 from lib.chart.registered_paths import component_chart_versions
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.registered_paths import version_paths_for
@@ -31,9 +31,10 @@ from lib.component_docs.owned_parts import remove_section_owned_parts
 from lib.component_docs.owned_parts import replace_section_owned_parts
 from lib.component_docs.owned_parts import template_prefix_re
 from lib.component_docs.owned_parts import template_re
-from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.consistency_checks import rowed_component_keys
+from lib.upgradedoc.resolve_component_row import ResolutionContext
+from lib.upgradedoc.resolve_component_row import resolve_component_row
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.upgradedoc.sorting_and_ordering import block_for_component
@@ -51,7 +52,6 @@ from lib.upgradedoc.version_cells_and_key_changes import chart_version_suffix
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
 from lib.upgradedoc.version_cells_and_key_changes import pin_version_text
 from lib.upgradedoc.version_cells_and_key_changes import version_transition
-from lib.yaml_types import YamlMapping
 
 
 @dataclass
@@ -76,23 +76,6 @@ class ComponentIdentity:
     friendly: str
     chart_name: str
     values_key: str
-
-
-@dataclass
-class ComponentState:
-    """Target or baseline deps/values; never mixed across sides."""
-
-    deps: list[ChartDependency]
-    values: YamlMapping
-
-
-@dataclass
-class BaselineState:
-    """deps/values at upgrade_docs_baseline. deps is None when no baseline
-    was resolved: baseline comparisons are then skipped."""
-
-    deps: list[ChartDependency] | None
-    values: YamlMapping | None
 
 
 @dataclass
@@ -579,22 +562,12 @@ def resolve_component_own_version_change(
     chart_unchanged = new_chart == "-" or (
         old_chart is not None and normalize_version(old_chart) == normalize_version(new_chart)
     )
-    old_app = actual_app_version(baseline_state.values, key, chart_name) if baseline_state.values else None
-    new_app = actual_app_version(target_state.values, key, chart_name, chart_dir=chart_dir, dep=dep)
-    if old_app is None and baseline_state.values:
-        # Baseline values lack the path (e.g. image block added this
-        # release): fall back to past images-<version>.yaml manifests.
-        for path in image_paths_for(chart_name, chart_dir):
-            old_app = historical_app_version_for_path(
-                chart_dir, target_state.deps, target_state.values, (key, *tuple(path.split("."))), upgrade_docs_baseline
-            )
-            if old_app is not None:
-                break
-    if old_app is None and baseline_state.values and dep is not None and chart_unchanged:
-        # The vendored-.tgz appVersion fallback is keyed on dep["version"],
-        # so it's normally unavailable for the baseline; with an unchanged
-        # chart the same .tgz backs both sides (e.g. openbao's blank tag).
-        old_app = actual_app_version(baseline_state.values, key, chart_name, chart_dir=chart_dir, dep=dep)
+    # The same resolver as the key's table row, so a row added here can't contradict it.
+    resolved = resolve_component_row(
+        key, {}, ResolutionContext(chart_dir, target_state, baseline_state, upgrade_docs_baseline)
+    )
+    old_app = resolved["baseline_app"] if resolved["kind"] != "unmatched" else None
+    new_app = resolved["target_app"] if resolved["kind"] != "unmatched" else None
     # No own app version on either side (only sidecar images) is unchanged too:
     # a sidecar change gets its own row, not one for its parent.
     app_unchanged = normalize_version(old_app) == normalize_version(new_app)

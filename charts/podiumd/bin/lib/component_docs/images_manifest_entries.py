@@ -9,9 +9,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from lib.chart.chart_yaml import ChartDependency
 from lib.chart.values_tree_primitives import replace_scalar_value
-from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import VersionChange
 from lib.component_docs.images_manifest_changes_header import CHANGES_HEADER_RE
 from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
@@ -21,9 +19,8 @@ from lib.component_docs.images_manifest_changes_header import find_images_manife
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_items
 from lib.component_docs.images_manifest_changes_header import images_manifest_changes_count_word
 from lib.component_docs.images_manifest_changes_header import images_manifest_changes_item_spans
-from lib.component_docs.images_manifest_changes_header import images_manifest_order_key
-from lib.component_docs.images_manifest_changes_header import insert_images_manifest_header_item
 from lib.component_docs.images_manifest_changes_header import remove_changes_item
+from lib.component_docs.images_manifest_changes_header import upsert_images_manifest_header_item
 from lib.images_manifest import ManifestEntry
 from lib.images_manifest import try_parse_images_manifest
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_path
@@ -33,14 +30,12 @@ from lib.upgradedoc.images_manifest_ordering import match_changes_item_display_n
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.resolve_component_row import resolve_component_row
 from lib.upgradedoc.resolve_component_row import resolved_row_unchanged
-from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
 from lib.upgradedoc.string_and_parsing_basics import match_located_line
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import text_names
 from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text
 from lib.upgradedoc.version_cells_and_key_changes import replace_version_pair
-from lib.yaml_types import YamlMapping
 
 
 @dataclass
@@ -248,27 +243,6 @@ def fix_stale_changes_items(lines: list[str], expected: Mapping[str, ExpectedCha
     return fixed
 
 
-def _update_changes_header_item(
-    lines: list[str], target: ManifestUpdateTarget, change: VersionChange, state: ComponentState
-):
-    """Update this component's changes-header item, or insert it in values.yaml order.
-
-    Returns "updated" or "added"."""
-    _header_idx, _header_has_count, item_indices = find_images_manifest_changes_items(lines)
-    match_idx = find_changes_item(lines, item_indices, target.friendly)
-    item_text = changes_header_item_text(target.friendly, change)
-
-    if match_idx is not None:
-        m = match_located_line(CHANGES_ITEM_RE, lines[match_idx])
-        lines[match_idx] = f"#   {m.group('num')}. {item_text}\n"
-        return "updated"
-
-    key_order = values_key_order(state.values)
-    new_key = images_manifest_order_key(key_order, target.values_key, is_sidecar=" - " in target.friendly)
-    insert_images_manifest_header_item(lines, state.deps, key_order, new_key, item_text)
-    return "added"
-
-
 def _apply_entry_updates(
     manifest: ParsedManifest, path_update: ImagePathUpdate, values_key: str
 ) -> tuple[list[str], list[tuple[str, str, str]]]:
@@ -291,13 +265,7 @@ def _apply_entry_updates(
     return entry_updates, missing_entries
 
 
-def update_images_manifest(
-    target: ManifestUpdateTarget,
-    change: VersionChange,
-    path_update: ImagePathUpdate,
-    deps: list[ChartDependency],
-    values: YamlMapping,
-):
+def update_images_manifest(target: ManifestUpdateTarget, change: VersionChange, path_update: ImagePathUpdate):
     """Update the "# <N> changes:" item and existing entries for this component.
 
     Returns (changes_action, entry_names_updated, missing_entries). Missing
@@ -314,7 +282,9 @@ def update_images_manifest(
 
     changes_action = None
     if header_idx is not None:
-        changes_action = _update_changes_header_item(lines, target, change, ComponentState(deps, values))
+        changes_action = upsert_images_manifest_header_item(
+            lines, target.friendly, changes_header_item_text(target.friendly, change)
+        )
 
     manifest = _parsed_manifest(lines)
     entry_updates, missing_entries = _apply_entry_updates(manifest, path_update, target.values_key)

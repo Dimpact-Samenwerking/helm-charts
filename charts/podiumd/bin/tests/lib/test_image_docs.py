@@ -311,8 +311,8 @@ def test_update_image_manifest_adds_new_changes_item_when_absent(libimagedocs: M
     assert changes_action == "added"
     assert entry_updated is False
     text = path.read_text(encoding="utf-8")
-    # The header's wording is never rewritten into a counted form.
-    assert "# One change:" in text
+    # Appended and renumbered, the count word included; fix-doc-consistency puts it in place.
+    assert "# Two changes:" in text
     assert "#   2. curl 8.20.0 -> 8.21.0." in text
 
 
@@ -341,47 +341,6 @@ def test_update_image_manifest_new_item_no_baseline_renders_new(libimagedocs: Mo
     text = path.read_text(encoding="utf-8")
     assert "redis 8.10.1 (new)." in text
     assert "8.10.1 -> 8.10.1" not in text
-
-
-def test_update_image_manifest_new_item_uses_values_yaml_order_not_append(libimagedocs: ModuleType, tmp_path: Path):
-    """A new header item is positioned by values.yaml order, not appended.
-
-    Uses lib.upgradedoc.component_order_key, like the upgrade doc's table and
-    Changes sections, so both docs agree on order.
-    """
-    path = tmp_path / "images-4.9.1.yaml"
-    write_manifest(
-        path,
-        (
-            "# One change:\n"
-            "#   1. mi 2.90.0 (new) (chart 1.1.0, new).\n"
-            "#\n\n"
-            "- name: mi-data\n"
-            "  url: example/mi-data\n"
-            '  version: "2.90.0"\n'
-            '  digest: "sha256:aaaa"\n'
-        ),
-    )
-    deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
-    values = {
-        "global": {"images": {"redis": {"repository": "bitnami/redis", "tag": "8.0@sha256:bbbb"}}},
-        "mi": {"enabled": False, "image": {"repository": "example/mi-data", "tag": "2.90.0@sha256:aaaa"}},
-    }
-    canonical_names = {"redis": ("global", "images", "redis")}
-
-    changes_action, entry_updated = libimagedocs.update_image_manifest(
-        path,
-        libimagedocs.ImageBump("redis", "bitnami/redis", "7.4", "8.0", "sha256:bbbb"),
-        libimagedocs.OrderingContext(deps, values, canonical_names),
-    )
-
-    assert changes_action == "added"
-    assert entry_updated is False
-    text = path.read_text(encoding="utf-8")
-    # redis ("global:", values.yaml's first key) lands before mi.
-    assert "#   1. redis 7.4 -> 8.0.\n" in text
-    assert "#   2. mi 2.90.0 (new) (chart 1.1.0, new).\n" in text
-    assert text.index("1. redis") < text.index("2. mi")
 
 
 def test_update_image_manifest_recognizes_bare_changes_header(libimagedocs: ModuleType, tmp_path: Path):

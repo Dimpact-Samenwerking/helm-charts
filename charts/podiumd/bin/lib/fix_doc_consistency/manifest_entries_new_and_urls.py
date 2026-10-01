@@ -24,7 +24,6 @@ from lib.component_docs.images_manifest_changes_header import find_changes_item
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_items
 from lib.component_docs.images_manifest_changes_header import images_manifest_changes_block
-from lib.component_docs.images_manifest_changes_header import images_manifest_order_key
 from lib.component_docs.images_manifest_changes_header import insert_images_manifest_header_item
 from lib.component_docs.images_manifest_changes_header import remove_changes_item
 from lib.image.repository_check import find_images_without_repository
@@ -44,7 +43,6 @@ from lib.upgradedoc.images_manifest_list_diff import ManifestDiffInputs
 from lib.upgradedoc.images_manifest_list_diff import find_images_manifest_list_diff
 from lib.upgradedoc.images_manifest_ordering import delete_images_manifest_entry
 from lib.upgradedoc.images_manifest_ordering import images_manifest_block_start
-from lib.upgradedoc.sorting_and_ordering import insertion_index
 from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
 from lib.upgradedoc.string_and_parsing_basics import extract_target_version
@@ -390,49 +388,10 @@ def _manifest_lines_for_insert(text: str):
     return lines
 
 
-def _entry_insertion_keys(
-    lines: list[str], context: MissingEntriesContext, resolution: MissingEntriesResolution
-) -> tuple[list[int], list[tuple[int, ...]]]:
-    """(entry_line_indices, entry_keys) of existing entries, for finding a
-    new entry's insertion point."""
-    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
-    entry_keys: list[tuple[int, ...]] = []
-    for idx in entry_line_indices:
-        m = re.match(r"^-\s*name:\s*(\S+)\s*$", lines[idx])
-        entry_path = (
-            resolve_entry_image_path(m.group(1), resolution.current_paths.keys(), resolution.repo.repo_map)
-            if m
-            else None
-        )
-        if entry_path is None:
-            entry_keys.append((len(resolution.key_order), 0))
-            continue
-        entry_display = path_display_name(entry_path, context.deps, resolution.canonical_names)
-        entry_keys.append(
-            images_manifest_order_key(
-                resolution.key_order, entry_path, is_sidecar=" - " in entry_display, values=context.target_values
-            )
-        )
-    return entry_line_indices, entry_keys
-
-
-def _splice_added_entry_block(
-    lines: list[str],
-    context: MissingEntriesContext,
-    resolution: MissingEntriesResolution,
-    new_key: tuple[int, ...],
-    block_lines: list[str],
-):
-    """Insert a new entry block in values.yaml component order, or append
-    it when nothing sorts after it."""
-    entry_line_indices, entry_keys = _entry_insertion_keys(lines, context, resolution)
-    body_slot = insertion_index(new_key, entry_keys)
-    if body_slot < len(entry_line_indices):
-        insert_at = images_manifest_block_start(lines, entry_line_indices[body_slot])
-        lines[insert_at:insert_at] = [*block_lines, "\n"]
-    else:
-        lines.append("\n")
-        lines.extend(block_lines)
+def _append_entry_block(lines: list[str], block_lines: list[str]) -> None:
+    """Append a new entry block; sort_images_manifest_entries puts it in place afterwards."""
+    lines.append("\n")
+    lines.extend(block_lines)
 
 
 def _insert_added_entry(
@@ -448,17 +407,13 @@ def _insert_added_entry(
     old_version, digest_only_change = _entry_old_version_and_digest_change(
         path, new_version, fields.pinned_tag, context, resolution
     )
-    new_key = images_manifest_order_key(
-        resolution.key_order, path, is_sidecar=" - " in fields.name, values=context.target_values
-    )
     version_text = image_manifest_version_text(old_version, new_version, digest_only_change=digest_only_change)
     version_text = f"{fields.name} {version_text}"
 
     lines = _manifest_lines_for_insert(text)
     ensure_images_manifest_changes_header(lines)
-    header_text = _images_manifest_changes_header_text(lines)
-    if not re.search(rf"\b{re.escape(fields.name)}\b", header_text, re.IGNORECASE):
-        insert_images_manifest_header_item(lines, context.deps, resolution.key_order, new_key, f"{version_text}.")
+    if fields.name not in covered_display_names(lines, [fields.name]):
+        insert_images_manifest_header_item(lines, f"{version_text}.")
 
     header_prefix = "# " if is_primary_image_path(path, context.deps, context.chart_dir) else "#   sidecar: "
     block_lines = [
@@ -468,7 +423,7 @@ def _insert_added_entry(
         f'  version: "{new_version}"\n',
         f'  digest: "{digest}"\n',
     ]
-    _splice_added_entry_block(lines, context, resolution, new_key, block_lines)
+    _append_entry_block(lines, block_lines)
     return "".join(lines)
 
 
@@ -521,13 +476,8 @@ def _backfill_header_items(
         if target is None:
             break
 
-        entry_path, entry_name, entry_old, entry_new = target
-        new_key = images_manifest_order_key(
-            resolution.key_order, entry_path, is_sidecar=" - " in entry_name, values=context.target_values
-        )
-        insert_images_manifest_header_item(
-            lines, context.deps, resolution.key_order, new_key, f"{entry_name} {entry_old} -> {entry_new}."
-        )
+        _entry_path, entry_name, entry_old, entry_new = target
+        insert_images_manifest_header_item(lines, f"{entry_name} {entry_old} -> {entry_new}.")
         text = "".join(lines)
         backfilled_names.append(entry_name)
     return text, backfilled_names

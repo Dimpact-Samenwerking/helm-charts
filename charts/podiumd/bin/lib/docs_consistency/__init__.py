@@ -10,12 +10,12 @@ import re
 from collections.abc import Sequence
 from pathlib import Path
 
+from lib.chart.chart_state import BaselineState
+from lib.chart.chart_state import ComponentState
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.release_baseline_basics import chart_version
 from lib.chart.values_tree_primitives import version_of
-from lib.component_docs.changes_section import BaselineState
-from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import DocContext
 from lib.component_docs.changes_section import edited_changes_lines
 from lib.component_docs.changes_section import pointer_issues

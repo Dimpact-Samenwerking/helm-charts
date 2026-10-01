@@ -132,8 +132,6 @@ def test_update_images_manifest_creates_missing_header(ucv: ModuleType, tmp_path
         ucv.ImagePathUpdate(
             ["image"], {"image": "ghcr.io/infonl/zaakafhandelcomponent"}, {"image": "5.4.3@sha256:cccc"}
         ),
-        [],
-        {},
     )
     assert changes_action == "added"
     assert entry_updates == ["zac"]
@@ -166,8 +164,6 @@ def test_update_images_manifest_no_baseline_app_renders_new(ucv: ModuleType, tmp
         ucv.ManifestUpdateTarget(images_path, "redis", "redis"),
         ucv.VersionChange(None, "8.10.1", "-", "-"),
         ucv.ImagePathUpdate(["image"], {"image": "redis"}, {"image": "8.10.1@sha256:cccc"}),
-        [],
-        {},
     )
     assert changes_action == "added"
     text = images_path.read_text(encoding="utf-8")
@@ -194,8 +190,6 @@ def test_update_images_manifest_updates_existing_entry(ucv: ModuleType, tmp_path
         ucv.ImagePathUpdate(
             ["image"], {"image": "ghcr.io/infonl/zaakafhandelcomponent"}, {"image": "5.4.3@sha256:cccc"}
         ),
-        [],
-        {},
     )
     assert changes_action == "updated"
     assert entry_updates == ["zac"]
@@ -223,8 +217,6 @@ def test_update_images_manifest_native_component_omits_chart_clause(ucv: ModuleT
         ucv.ManifestUpdateTarget(images_path, "frankgateway", "frankgateway"),
         ucv.VersionChange("100", "104", None, "-"),
         ucv.ImagePathUpdate([], {}, {}),
-        [],
-        {},
     )
     assert changes_action == "added"
     assert entry_updates == []
@@ -253,8 +245,6 @@ def test_update_images_manifest_recognizes_bare_changes_header(ucv: ModuleType, 
         ucv.ImagePathUpdate(
             ["image"], {"image": "ghcr.io/infonl/zaakafhandelcomponent"}, {"image": "5.4.3@sha256:cccc"}
         ),
-        [],
-        {},
     )
     assert changes_action == "updated"
     assert entry_updates == ["zac"]
@@ -280,8 +270,6 @@ def test_update_images_manifest_bare_header_new_item_no_count_word_invented(ucv:
         ucv.ManifestUpdateTarget(images_path, "openformulieren", "openformulieren"),
         ucv.VersionChange("3.4.10", "3.5.6", "1.12.0", "1.12.0"),
         ucv.ImagePathUpdate(["image"], {"image": "openformulieren/open-forms"}, {"image": "3.5.6@sha256:dddd"}),
-        [],
-        {},
     )
     assert changes_action == "added"
     assert missing == [("image", "openformulieren/open-forms", "3.5.6@sha256:dddd")]
@@ -306,8 +294,6 @@ def test_update_images_manifest_reports_missing_entry(ucv: ModuleType, tmp_path:
         ucv.ManifestUpdateTarget(images_path, "openformulieren", "openformulieren"),
         ucv.VersionChange("3.4.10", "3.5.6", "1.12.0", "1.12.0"),
         ucv.ImagePathUpdate(["image"], {"image": "openformulieren/open-forms"}, {"image": "3.5.6@sha256:dddd"}),
-        [],
-        {},
     )
     assert changes_action == "added"
     assert entry_updates == []
@@ -336,48 +322,9 @@ def test_update_images_manifest_new_item_lands_after_continuation_line(ucv: Modu
         ucv.ManifestUpdateTarget(images_path, "openformulieren", "openformulieren"),
         ucv.VersionChange("3.4.10", "3.5.6", "1.12.0", "1.12.0"),
         ucv.ImagePathUpdate(["image"], {"image": "openformulieren/open-forms"}, {"image": "3.5.6@sha256:dddd"}),
-        [],
-        {},
     )
     assert changes_action == "added"
     lines = images_path.read_text(encoding="utf-8").splitlines()
     assert lines[3] == "#      Repository names (zgw-office-addin-{frontend,backend}) unchanged from 4.8.5."
     assert lines[4] == "#   3. openformulieren 3.4.10 -> 3.5.6 (chart 1.12.0, unchanged)."
     assert lines[5] == "#"
-
-
-def test_update_images_manifest_new_item_inserted_at_values_yaml_position_not_appended(ucv: ModuleType, tmp_path: Path):
-    """Regression: a new item follows values.yaml component order instead of
-    always landing at the end of the list."""
-    images_path = tmp_path / "images-4.9.0.yaml"
-    images_path.write_text(
-        "# One change:\n"
-        "#   1. zac 5.0.2 -> 5.4.3 (chart 1.0.297, unchanged).\n"
-        "#\n"
-        "# ZAC — 5.0.2 -> 5.4.3\n"
-        "- name: zac\n"
-        '  version: "5.4.3"\n'
-        '  digest: "sha256:aaaa"\n',
-        encoding="utf-8",
-    )
-    deps = [
-        {"name": "redis-operator", "version": "1.0.0"},
-        {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"},
-    ]
-    values = {
-        "redis-operator": {"image": {"repository": "opstree/redis-operator", "tag": "0.26.0@sha256:bbbb"}},
-        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.3@sha256:aaaa"}},
-    }
-    changes_action, _entry_updates, missing = ucv.update_images_manifest(
-        ucv.ManifestUpdateTarget(images_path, "redis-operator", "redis-operator"),
-        ucv.VersionChange("0.25.0", "0.26.0", "1.0.0", "1.0.0"),
-        ucv.ImagePathUpdate(["image"], {"image": "opstree/redis-operator"}, {"image": "0.26.0@sha256:bbbb"}),
-        deps,
-        values,
-    )
-    assert changes_action == "added"
-    assert missing == [("image", "opstree/redis-operator", "0.26.0@sha256:bbbb")]
-    text = images_path.read_text(encoding="utf-8")
-    assert "#   1. redis-operator 0.25.0 -> 0.26.0 (chart 1.0.0, unchanged).\n" in text
-    assert "#   2. zac 5.0.2 -> 5.4.3 (chart 1.0.297, unchanged).\n" in text
-    assert "Two changes:" in text

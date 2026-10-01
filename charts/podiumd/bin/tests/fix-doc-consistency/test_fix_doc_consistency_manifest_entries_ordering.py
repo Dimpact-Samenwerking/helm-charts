@@ -72,56 +72,6 @@ def _ordered_baseline_values() -> YamlMapping:
     }
 
 
-def test_add_missing_images_manifest_entries_inserts_at_correct_body_and_header_position(
-    cdb: ModuleType, ordered_images_manifest_chart_dir
-):
-    """A missing middle component is inserted between its neighbours in both
-    body and "# Changes:" list, not appended at the end."""
-    text = (
-        "# Two changes:\n"
-        "#   1. openzaak 1.27.4 -> 1.29.3.\n"
-        "#   2. zac 5.0.2 -> 5.1.0.\n"
-        "\n"
-        "# openzaak — 1.27.4 -> 1.29.3\n"
-        "- name: openzaak/open-zaak\n"
-        "  url: openzaak/open-zaak\n"
-        '  version: "1.29.3"\n'
-        '  digest: "sha256:aaaa"\n'
-        "\n"
-        "# zac — 5.0.2 -> 5.1.0\n"
-        "- name: infonl/zaakafhandelcomponent\n"
-        "  url: infonl/zaakafhandelcomponent\n"
-        '  version: "5.1.0"\n'
-        '  digest: "sha256:cccc"\n'
-    )
-
-    new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
-        text,
-        MissingEntriesContext(
-            ordered_images_manifest_chart_dir,
-            _ordered_deps(),
-            _ordered_target_values(),
-            _ordered_baseline_values(),
-        ),
-    )
-
-    assert skipped == []
-    assert added == ["keycloak-operator - postgres"]
-
-    lines = new_text.splitlines()
-    openzaak_idx = next(i for i, line in enumerate(lines) if line.startswith("# openzaak"))
-    kc_idx = next(i for i, line in enumerate(lines) if line.startswith("#   sidecar: keycloak-operator - postgres"))
-    zac_idx = next(i for i, line in enumerate(lines) if line.startswith("# zac"))
-    assert openzaak_idx < kc_idx < zac_idx
-
-    assert "#   2. keycloak-operator - postgres 16.0 -> 16.15." in new_text
-    assert "#   3. zac 5.0.2 -> 5.1.0." in new_text
-    assert "# Three changes:" in new_text
-    assert "#   1. openzaak 1.27.4 -> 1.29.3." in new_text
-    assert "- name: openzaak/open-zaak" in new_text
-    assert "- name: infonl/zaakafhandelcomponent" in new_text
-
-
 def test_add_missing_images_manifest_entries_ignores_wrapped_line_that_looks_like_an_item(
     cdb: ModuleType, ordered_images_manifest_chart_dir
 ):
@@ -171,77 +121,6 @@ def test_add_missing_images_manifest_entries_ignores_wrapped_line_that_looks_lik
         "#      1.19.1-static and 2.3.4-slim, both unrelated to this number.\n"
         "#   2."
     ) in new_text
-
-
-def test_add_missing_images_manifest_entries_valid_yaml_after_middle_insertion(
-    cdb: ModuleType, ordered_images_manifest_chart_dir
-):
-    """The inserted block is blank-line separated and the result is valid YAML."""
-    text = (
-        "# openzaak — 1.27.4 -> 1.29.3\n"
-        "- name: openzaak/open-zaak\n"
-        "  url: openzaak/open-zaak\n"
-        '  version: "1.29.3"\n'
-        '  digest: "sha256:aaaa"\n'
-        "\n"
-        "# zac — 5.0.2 -> 5.1.0\n"
-        "- name: infonl/zaakafhandelcomponent\n"
-        "  url: infonl/zaakafhandelcomponent\n"
-        '  version: "5.1.0"\n'
-        '  digest: "sha256:cccc"\n'
-    )
-
-    new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
-        text,
-        MissingEntriesContext(
-            ordered_images_manifest_chart_dir,
-            _ordered_deps(),
-            _ordered_target_values(),
-            _ordered_baseline_values(),
-        ),
-    )
-
-    assert skipped == []
-    assert added == ["keycloak-operator - postgres"]
-    entries = yaml.safe_load(new_text)
-    assert [e["name"] for e in entries] == ["openzaak/open-zaak", "library/postgres", "infonl/zaakafhandelcomponent"]
-
-
-def test_add_missing_images_manifest_entries_no_header_still_orders_body(
-    cdb: ModuleType, ordered_images_manifest_chart_dir
-):
-    """Without a "# Changes:" header the body is still ordered."""
-    text = (
-        "# openzaak — 1.27.4 -> 1.29.3\n"
-        "- name: openzaak/open-zaak\n"
-        "  url: openzaak/open-zaak\n"
-        '  version: "1.29.3"\n'
-        '  digest: "sha256:aaaa"\n'
-        "\n"
-        "# zac — 5.0.2 -> 5.1.0\n"
-        "- name: infonl/zaakafhandelcomponent\n"
-        "  url: infonl/zaakafhandelcomponent\n"
-        '  version: "5.1.0"\n'
-        '  digest: "sha256:cccc"\n'
-    )
-
-    new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
-        text,
-        MissingEntriesContext(
-            ordered_images_manifest_chart_dir,
-            _ordered_deps(),
-            _ordered_target_values(),
-            _ordered_baseline_values(),
-        ),
-    )
-
-    assert skipped == []
-    assert added == ["keycloak-operator - postgres"]
-    lines = new_text.splitlines()
-    openzaak_idx = next(i for i, line in enumerate(lines) if line.startswith("# openzaak"))
-    kc_idx = next(i for i, line in enumerate(lines) if line.startswith("#   sidecar: keycloak-operator - postgres"))
-    zac_idx = next(i for i, line in enumerate(lines) if line.startswith("# zac"))
-    assert openzaak_idx < kc_idx < zac_idx
 
 
 def test_add_missing_images_manifest_entries_creates_missing_header_from_scratch(
@@ -421,8 +300,9 @@ def test_add_missing_images_manifest_entries_backfills_header_item_for_existing_
     assert added == []
     assert skipped == []
     assert backfilled == ["keycloak-operator - postgres"]
-    assert "#   2. keycloak-operator - postgres 16 -> 16.15." in new_text
-    assert "#   3. zac 5.0.2 -> 5.1.0." in new_text
+    # Appended; fix-doc-consistency's sort puts it in place.
+    assert "#   3. keycloak-operator - postgres 16 -> 16.15." in new_text
+    assert "#   2. zac 5.0.2 -> 5.1.0." in new_text
     assert "# Three changes:" in new_text
     assert new_text.count("- name: postgres") == 1
 
@@ -536,11 +416,11 @@ def test_add_missing_images_manifest_entries_does_not_backfill_already_covered_e
 
     assert added == []
     assert skipped == []
-    # The dependency-level mention doesn't cover the postgres sidecar; its
-    # item sorts right after keycloak-operator's (sidecar tie-break).
+    # The dependency-level mention doesn't cover the postgres sidecar; its item
+    # is appended (fix-doc-consistency's sort puts it in place).
     assert backfilled == ["keycloak-operator - postgres"]
-    assert "#   3. keycloak-operator - postgres 16 -> 16.15." in new_text
-    assert "#   4. zac 5.0.2 -> 5.1.0." in new_text
+    assert "#   4. keycloak-operator - postgres 16 -> 16.15." in new_text
+    assert "#   3. zac 5.0.2 -> 5.1.0." in new_text
 
 
 def test_add_missing_images_manifest_entries_backfill_is_noop_when_already_covered(

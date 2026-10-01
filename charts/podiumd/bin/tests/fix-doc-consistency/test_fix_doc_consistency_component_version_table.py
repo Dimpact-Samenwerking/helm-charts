@@ -4,9 +4,9 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
+from lib.chart.chart_state import BaselineState
+from lib.chart.chart_state import ComponentState
 from lib.chart.chart_yaml import ChartDependency
-from lib.component_docs.changes_section import BaselineState
-from lib.component_docs.changes_section import ComponentState
 from lib.fix_doc_consistency.component_version_table import fix_changes_heading_app_versions
 from lib.fix_doc_consistency.component_version_table import fix_component_version_table
 from lib.fix_doc_consistency.component_version_table import fix_values_delta_heading_app_versions

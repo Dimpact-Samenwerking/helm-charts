@@ -201,13 +201,13 @@ def test_main_fixes_a_preexisting_changes_numbering_gap_when_adding_an_item(
 
     ucv.main()
 
-    # zac is the only item resolving to a real dependency, and resolved items
-    # sort first, so it becomes "1." and the other two "2."/"3.".
+    # zac's item is appended and the whole list renumbered, closing the "1, 3" gap;
+    # the (stubbed) closing fix-doc-consistency run sorts it.
     images = (ucv.IMAGES_DIR / "images-4.9.0.yaml").read_text(encoding="utf-8")
-    assert "#   2. redis-operator v0.25.0 -> v0.26.0.\n" in images
-    assert "#   3. openbao 0.28.4, unchanged.\n" in images
+    assert "#   1. redis-operator v0.25.0 -> v0.26.0.\n" in images
+    assert "#   2. openbao 0.28.4, unchanged.\n" in images
+    assert "#   3. zac" in images
     assert "#   4." not in images
-    assert ". zac" in images
 
 
 def test_main_updates_existing_component_mention_end_to_end(

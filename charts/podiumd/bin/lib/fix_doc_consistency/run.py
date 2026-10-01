@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
 
+from lib.chart.chart_state import BaselineState
+from lib.chart.chart_state import ComponentState
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.chart_yaml import parse_chart_dependencies
@@ -22,8 +24,6 @@ from lib.component_docs.baseline_doc_stubs import IMAGES_STUB_TEMPLATE
 from lib.component_docs.baseline_doc_stubs import STANDARD_SUFFIXES
 from lib.component_docs.baseline_doc_stubs import STUB_TEMPLATES
 from lib.component_docs.baseline_doc_stubs import existing_doc_baselines
-from lib.component_docs.changes_section import BaselineState
-from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import DocContext
 from lib.component_docs.changes_section import add_missing_component_rows
 from lib.component_docs.changes_section import fix_pointer_issues

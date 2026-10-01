@@ -4,15 +4,9 @@ import re
 
 from collections.abc import Iterable
 
-from lib.chart.chart_yaml import ChartDependency
-from lib.chart.values_tree_primitives import values_key_of
 from lib.upgradedoc.images_manifest_ordering import match_changes_item_display_name
-from lib.upgradedoc.sorting_and_ordering import insertion_index
-from lib.upgradedoc.sorting_and_ordering import values_tree_position
 from lib.upgradedoc.string_and_parsing_basics import changes_item_names
-from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
 from lib.upgradedoc.string_and_parsing_basics import match_located_line
-from lib.yaml_types import YamlMapping
 
 NUMBER_WORDS = [
     "Zero",
@@ -127,24 +121,6 @@ def renumber_images_manifest_changes_items(lines: list[str]):
     return changed
 
 
-def images_manifest_order_key(
-    key_order: list[str], values_key: str | tuple[str, ...], *, is_sidecar: bool, values: YamlMapping | None = None
-) -> tuple[int, ...]:
-    """Sort key for a "# Changes:" item by values.yaml top-level order; unknown keys sort last.
-
-    With a path tuple and `values`, the nested position breaks ties between items under the
-    same top-level key (e.g. the "global.images.*" images). A bare string or values=None
-    orders by top-level key and sidecar flag only."""
-    path = values_key if isinstance(values_key, tuple) else (values_key,)
-    try:
-        idx = key_order.index(path[0])
-    except ValueError:
-        return (len(key_order), 1 if is_sidecar else 0)
-    if values is not None and len(path) > 1:
-        return (idx, *values_tree_position(values, path)[1:])
-    return (idx, 1 if is_sidecar else 0)
-
-
 def images_manifest_changes_block(lines: list[str], header_idx: int) -> tuple[list[int], int]:
     """(item_starts, block_end) for the "# Changes:" block at header_idx.
 
@@ -181,35 +157,36 @@ def remove_changes_item(lines: list[str], item_indices: list[int], match_idx: in
     return remaining_indices
 
 
-def insert_images_manifest_header_item(
-    lines: list[str], deps: list[ChartDependency], key_order: list[str], new_key: tuple[int, ...], item_text: str
-) -> None:
-    """Insert "#   N. <item_text>" into the "# Changes:" list at new_key's order position.
+def insert_images_manifest_header_item(lines: list[str], item_text: str) -> None:
+    """Append "#   N. <item_text>" to the "# Changes:" list; no-op without a header.
 
-    Uses the same ordering as upgrade.md's rows. Items not resolvable to a dependency sort
-    last for this purpose only. Mutates `lines`; no-op without a header. Renumbers absolutely
-    via renumber_images_manifest_changes_items, which also repairs pre-existing gaps."""
-    header_idx, _header_has_count, item_indices = find_images_manifest_changes_items(lines)
+    sort_images_manifest_changes_items puts it in place: fix-doc-consistency
+    sorts after it adds, and update-* end with fix-doc-consistency. Renumbers
+    via renumber_images_manifest_changes_items, which also repairs gaps.
+    """
+    header_idx, _header_has_count, _item_indices = find_images_manifest_changes_items(lines)
     if header_idx is None:
         return
-
-    block_end = images_manifest_changes_block(lines, header_idx)[1]
-
-    item_keys: list[tuple[int, ...]] = []
-    for idx in item_indices:
-        m = CHANGES_ITEM_RE.match(lines[idx])
-        item_dep = match_dependency_excluding_sidecar_names(m.group("rest"), deps) if m else None
-        if item_dep is None:
-            item_keys.append((len(key_order), 0))
-            continue
-        item_keys.append(images_manifest_order_key(key_order, values_key_of(item_dep), is_sidecar=False))
-
-    insert_slot = insertion_index(new_key, item_keys)
-    insert_line = item_indices[insert_slot] if insert_slot < len(item_indices) else block_end
     # Placeholder number; renumbered below.
-    lines.insert(insert_line, f"#   0. {item_text}\n")
-
+    lines.insert(images_manifest_changes_block(lines, header_idx)[1], f"#   0. {item_text}\n")
     renumber_images_manifest_changes_items(lines)
+
+
+def upsert_images_manifest_header_item(lines: list[str], name: str, item_text: str) -> str | None:
+    """Rewrite the "# Changes:" item that names `name` to item_text, or append one.
+
+    Returns "updated", "added", or None when there is no header.
+    """
+    header_idx, _header_has_count, item_indices = find_images_manifest_changes_items(lines)
+    if header_idx is None:
+        return None
+    match_idx = find_changes_item(lines, item_indices, name)
+    if match_idx is None:
+        insert_images_manifest_header_item(lines, item_text)
+        return "added"
+    m = match_located_line(CHANGES_ITEM_RE, lines[match_idx])
+    lines[match_idx] = f"#   {m.group('num')}. {item_text}\n"
+    return "updated"
 
 
 def changes_item_texts(lines: list[str]) -> list[tuple[str, int, int]]:

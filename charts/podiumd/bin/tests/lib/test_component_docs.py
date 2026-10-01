@@ -8,8 +8,9 @@ from pathlib import Path
 from types import ModuleType
 from typing import TYPE_CHECKING
 
+from lib.chart.chart_state import BaselineState
+from lib.chart.chart_state import ComponentState
 from lib.chart.chart_yaml import ChartDependency
-from lib.component_docs.changes_section import BaselineState
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
 
 if TYPE_CHECKING:
@@ -114,72 +115,20 @@ def test_renumber_images_manifest_changes_items_no_header_is_a_noop(libcomponent
 # --- images_manifest_order_key ---
 
 
-def test_images_manifest_order_key_bare_string_unaffected_by_values(libcomponentdocsheader: ModuleType):
-    """A bare string values_key keeps the (index, is_sidecar) key even when `values` is given."""
-    key_order = ["global", "zac"]
-    values = {"global": {"images": {"nginx": {}, "curl": {}}}, "zac": {}}
-    order_key = libcomponentdocsheader.images_manifest_order_key
-    assert order_key(key_order, "global", is_sidecar=False, values=values) == (0, 0)
-    assert order_key(key_order, "global", is_sidecar=True, values=values) == (0, 1)
-
-
-def test_images_manifest_order_key_path_tuple_resolves_full_nested_position(libcomponentdocsheader: ModuleType):
-    """A path tuple resolves the full nested position via lib.upgradedoc.values_tree_position."""
-    key_order = ["global"]
-    values = {
-        "global": {
-            "images": {
-                "nginx": {},
-                "curl": {},
-                "busybox": {},
-                "redis": {},
-            }
-        }
-    }
-    order_key = libcomponentdocsheader.images_manifest_order_key
-    keys = [
-        order_key(key_order, ("global", "images", name), is_sidecar=True, values=values)
-        for name in ("nginx", "curl", "busybox", "redis")
-    ]
-    assert keys == sorted(keys)
-    assert len(set(keys)) == 4
-
-
 # --- insert_images_manifest_header_item ---
 
 
-def test_insert_images_manifest_header_item_at_correct_position(libcomponentdocsheader: ModuleType):
-    lines = ("# Changes:\n#   1. openformulieren 3.4.10 -> 3.5.6.\n").splitlines(keepends=True)
-    deps = [
-        {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"},
-        {"name": "openformulieren", "version": "1.12.0"},
-    ]
-    key_order = ["zac", "openformulieren"]
-    libcomponentdocsheader.insert_images_manifest_header_item(lines, deps, key_order, (0, 0), "zac 5.0.2 -> 5.4.3.")
-    assert lines == [
-        "# Changes:\n",
-        "#   1. zac 5.0.2 -> 5.4.3.\n",
-        "#   2. openformulieren 3.4.10 -> 3.5.6.\n",
-    ]
-
-
-def test_insert_images_manifest_header_item_fixes_a_preexisting_gap(libcomponentdocsheader: ModuleType):
-    """Inserting renumbers the whole list 1..N, fixing pre-existing gaps ("1, 3" -> "1, 2, 3")."""
+def test_insert_images_manifest_header_item_appends_and_fixes_a_preexisting_gap(libcomponentdocsheader: ModuleType):
+    """The new item goes last and the whole list is renumbered 1..N ("1, 3" -> "1, 2, 3")."""
     lines = ("# Changes:\n#   1. openzaak 1.27.4 -> 1.29.3.\n#   3. zgw-office-addin v0.9.313 -> 0.11.0.\n").splitlines(
         keepends=True
     )
-    deps = [
-        {"name": "openzaak", "version": "1.14.2"},
-        {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"},
-        {"name": "zgw-office-addin", "version": "0.0.89"},
-    ]
-    key_order = ["openzaak", "zac", "zgw-office-addin"]
-    libcomponentdocsheader.insert_images_manifest_header_item(lines, deps, key_order, (1, 0), "zac 5.0.2 -> 5.4.3.")
+    libcomponentdocsheader.insert_images_manifest_header_item(lines, "zac 5.0.2 -> 5.4.3.")
     assert lines == [
         "# Changes:\n",
         "#   1. openzaak 1.27.4 -> 1.29.3.\n",
-        "#   2. zac 5.0.2 -> 5.4.3.\n",
-        "#   3. zgw-office-addin v0.9.313 -> 0.11.0.\n",
+        "#   2. zgw-office-addin v0.9.313 -> 0.11.0.\n",
+        "#   3. zac 5.0.2 -> 5.4.3.\n",
     ]
 
 
@@ -352,9 +301,9 @@ DEPS: list[ChartDependency] = [
 
 def test_resolve_component_own_version_change_true_when_both_unchanged(libcomponentdocschanges: ModuleType):
     """A component whose own chart and app are unchanged resolves unchanged=True."""
-    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
-    state = libcomponentdocschanges.ComponentState(deps, values)
+    deps: list[ChartDependency] = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    values: YamlMapping = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
+    state = ComponentState(deps, values)
     resolved = libcomponentdocschanges.resolve_component_own_version_change("zac", state, state, None, [])
     assert resolved is not None
     *_rest, unchanged = resolved
@@ -362,13 +311,13 @@ def test_resolve_component_own_version_change_true_when_both_unchanged(libcompon
 
 
 def test_resolve_component_own_version_change_false_when_app_changed(libcomponentdocschanges: ModuleType):
-    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    current = {"zac": {"image": {"tag": "5.4.4@sha256:bbbb"}}}
-    baseline = {"zac": {"image": {"tag": "5.0.2@sha256:aaaa"}}}
+    deps: list[ChartDependency] = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    current: YamlMapping = {"zac": {"image": {"tag": "5.4.4@sha256:bbbb"}}}
+    baseline: YamlMapping = {"zac": {"image": {"tag": "5.0.2@sha256:aaaa"}}}
     resolved = libcomponentdocschanges.resolve_component_own_version_change(
         "zac",
-        libcomponentdocschanges.ComponentState(deps, current),
-        libcomponentdocschanges.ComponentState(deps, baseline),
+        ComponentState(deps, current),
+        BaselineState(deps, baseline),
         None,
         [],
     )
@@ -377,13 +326,13 @@ def test_resolve_component_own_version_change_false_when_app_changed(libcomponen
 
 
 def test_resolve_component_own_version_change_false_when_chart_changed(libcomponentdocschanges: ModuleType):
-    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.251"}]
-    values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
+    deps: list[ChartDependency] = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    baseline_deps: list[ChartDependency] = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.251"}]
+    values: YamlMapping = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
     resolved = libcomponentdocschanges.resolve_component_own_version_change(
         "zac",
-        libcomponentdocschanges.ComponentState(deps, values),
-        libcomponentdocschanges.ComponentState(baseline_deps, values),
+        ComponentState(deps, values),
+        BaselineState(baseline_deps, values),
         None,
         [],
     )
@@ -393,13 +342,17 @@ def test_resolve_component_own_version_change_false_when_chart_changed(libcompon
 
 def test_resolve_component_own_version_change_only_sidecar_images_is_unchanged(libcomponentdocschanges: ModuleType):
     """No own app version on either side and the same chart: a sidecar change needs no row for the parent."""
-    deps = [{"name": "redis-operator", "version": "0.26.1"}]
-    current = {"redis-operator": {"redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.6"}}}}
-    baseline = {"redis-operator": {"redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.2"}}}}
+    deps: list[ChartDependency] = [{"name": "redis-operator", "version": "0.26.1"}]
+    current: YamlMapping = {
+        "redis-operator": {"redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.6"}}}
+    }
+    baseline: YamlMapping = {
+        "redis-operator": {"redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.2"}}}
+    }
     resolved = libcomponentdocschanges.resolve_component_own_version_change(
         "redis-operator",
-        libcomponentdocschanges.ComponentState(deps, current),
-        libcomponentdocschanges.ComponentState(deps, baseline),
+        ComponentState(deps, current),
+        BaselineState(deps, baseline),
         None,
         [],
     )
@@ -410,15 +363,15 @@ def test_resolve_component_own_version_change_only_sidecar_images_is_unchanged(l
 
 def test_resolve_component_own_version_change_native_component_ignores_chart(libcomponentdocschanges: ModuleType):
     """A native component (chart "-") is decided by its app version alone."""
-    values = {"frankgateway": {"image": {"tag": "104@sha256:aaaa"}}}
-    state = libcomponentdocschanges.ComponentState([], values)
+    values: YamlMapping = {"frankgateway": {"image": {"tag": "104@sha256:aaaa"}}}
+    state = ComponentState([], values)
     resolved = libcomponentdocschanges.resolve_component_own_version_change("frankgateway", state, state, None, [])
     *_rest, unchanged = resolved
     assert unchanged is True
 
 
 def test_resolve_component_own_version_change_none_for_unmatched_key(libcomponentdocschanges: ModuleType):
-    state = libcomponentdocschanges.ComponentState([], {})
+    state = ComponentState([], {})
     resolved = libcomponentdocschanges.resolve_component_own_version_change("ghost", state, state, None, [])
     assert resolved is None
 
@@ -449,10 +402,10 @@ def test_resolve_component_own_version_change_vendored_subchart_fallback_applies
             info.size = len(data)
             tar.addfile(info, io.BytesIO(data))
 
-    dep = {"name": "openbao", "version": "0.28.4"}
-    values = {"openbao": {"server": {"image": {"repository": "quay.io/openbao/openbao", "tag": ""}}}}
+    dep: ChartDependency = {"name": "openbao", "version": "0.28.4"}
+    values: YamlMapping = {"openbao": {"server": {"image": {"repository": "quay.io/openbao/openbao", "tag": ""}}}}
 
-    state = libcomponentdocschanges.ComponentState([dep], values)
+    state = ComponentState([dep], values)
     resolved = libcomponentdocschanges.resolve_component_own_version_change("openbao", state, state, tmp_path, [])
     _dep, _chart_name, old_chart, new_chart, old_app, new_app, unchanged = resolved
     assert (old_chart, new_chart, old_app, new_app, unchanged) == ("0.28.4", "0.28.4", "v2.5.5", "v2.5.5", True)
@@ -480,14 +433,14 @@ def test_resolve_component_own_version_change_vendored_fallback_never_used_when_
             info.size = len(data)
             tar.addfile(info, io.BytesIO(data))
 
-    dep = {"name": "openbao", "version": "0.29.0"}
-    baseline_dep = {"name": "openbao", "version": "0.28.4"}
-    values = {"openbao": {"server": {"image": {"repository": "quay.io/openbao/openbao", "tag": ""}}}}
+    dep: ChartDependency = {"name": "openbao", "version": "0.29.0"}
+    baseline_dep: ChartDependency = {"name": "openbao", "version": "0.28.4"}
+    values: YamlMapping = {"openbao": {"server": {"image": {"repository": "quay.io/openbao/openbao", "tag": ""}}}}
 
     resolved = libcomponentdocschanges.resolve_component_own_version_change(
         "openbao",
-        libcomponentdocschanges.ComponentState([dep], values),
-        libcomponentdocschanges.ComponentState([baseline_dep], values),
+        ComponentState([dep], values),
+        BaselineState([baseline_dep], values),
         tmp_path,
         [],
     )
@@ -517,14 +470,16 @@ def test_resolve_component_own_version_change_eck_operator_now_reads_unchanged(
             info.size = len(data)
             tar.addfile(info, io.BytesIO(data))
 
-    dep = {"name": "eck-operator", "version": "3.5.0", "condition": "eck-operator.enabled"}
-    baseline_values = {"eck-operator": {"enabled": True}}  # no "image:" override, as in 4.9.1
-    target_values = {"eck-operator": {"enabled": True, "image": {"tag": "3.5.0", "digest": "sha256:" + "b" * 64}}}
+    dep: ChartDependency = {"name": "eck-operator", "version": "3.5.0", "condition": "eck-operator.enabled"}
+    baseline_values: YamlMapping = {"eck-operator": {"enabled": True}}  # no "image:" override, as in 4.9.1
+    target_values: YamlMapping = {
+        "eck-operator": {"enabled": True, "image": {"tag": "3.5.0", "digest": "sha256:" + "b" * 64}}
+    }
 
     resolved = libcomponentdocschanges.resolve_component_own_version_change(
         "eck-operator",
-        libcomponentdocschanges.ComponentState([dep], target_values),
-        libcomponentdocschanges.ComponentState([dep], baseline_values),
+        ComponentState([dep], target_values),
+        BaselineState([dep], baseline_values),
         tmp_path,
         [],
     )
@@ -534,15 +489,15 @@ def test_resolve_component_own_version_change_eck_operator_now_reads_unchanged(
 
 def test_add_missing_component_rows_skips_own_unchanged_component(libcomponentdocschanges: ModuleType, tmp_path: Path):
     """A changed key whose owner's chart and app are unchanged gets no owner row; sidecars get their own."""
-    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
+    deps: list[ChartDependency] = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    values: YamlMapping = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
     text = (
         "## Component versions (4.9.1 vs 4.9.0)\n\n"
         "| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n\n"
         "## Changes\n\n"
     )
-    state = libcomponentdocschanges.ComponentState(deps, values)
+    state = ComponentState(deps, values)
     new_text, added_names = libcomponentdocschanges.add_missing_component_rows(
         text, libcomponentdocschanges.DocContext(tmp_path, "4.9.1"), state, state, {"zac"}
     )
@@ -551,9 +506,9 @@ def test_add_missing_component_rows_skips_own_unchanged_component(libcomponentdo
 
 
 def test_add_missing_component_rows_still_adds_a_real_bump(libcomponentdocschanges: ModuleType, tmp_path: Path):
-    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    current_values = {"zac": {"image": {"tag": "5.4.4@sha256:bbbb"}}}
-    baseline_values = {"zac": {"image": {"tag": "5.0.2@sha256:aaaa"}}}
+    deps: list[ChartDependency] = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    current_values: YamlMapping = {"zac": {"image": {"tag": "5.4.4@sha256:bbbb"}}}
+    baseline_values: YamlMapping = {"zac": {"image": {"tag": "5.0.2@sha256:aaaa"}}}
     text = (
         "## Component versions (4.9.1 vs 4.9.0)\n\n"
         "| Component | App version | Helm chart | Notes |\n"
@@ -563,8 +518,8 @@ def test_add_missing_component_rows_still_adds_a_real_bump(libcomponentdocschang
     new_text, added_names = libcomponentdocschanges.add_missing_component_rows(
         text,
         libcomponentdocschanges.DocContext(tmp_path, "4.9.1"),
-        libcomponentdocschanges.ComponentState(deps, current_values),
-        libcomponentdocschanges.ComponentState(deps, baseline_values),
+        ComponentState(deps, current_values),
+        ComponentState(deps, baseline_values),
         {"zac"},
     )
     assert added_names == ["zac"]
@@ -904,7 +859,7 @@ def test_remove_values_delta_section_never_removes_multi_identity_heading(libcom
     """A hand-written section covering several components at once must
     never be deleted just because one of them reset to baseline."""
     text = "# Values deltas\n\n## ZAC and ZGW Office Add-in — no changes\n\nProse.\n"
-    deps = [*DEPS, {"name": "zgw-office-addin", "version": "0.0.89"}]
+    deps: list[ChartDependency] = [*DEPS, {"name": "zgw-office-addin", "version": "0.0.89"}]
     assert libcomponentdocsdeltas.remove_values_delta_section(text, "zac", deps) == (text, False, False)
 
 
