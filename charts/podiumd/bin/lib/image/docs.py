@@ -746,11 +746,11 @@ def regenerate_images_baseline_manifest(
 ):
     """Rewrite docs/images/images-baseline.yaml as a full snapshot of every image the chart deploys.
 
-    Includes all pinned paths plus live images defined only in a vendored
-    subchart's defaults (e.g. eck-operator's null tag -> appVersion), gated
-    by `rendered_paths` so condition/tag-disabled charts are left out. One
-    entry per repository, in images-<target>.yaml entry order; never
-    incremental.
+    Includes every chart_image_paths path plus live images defined only in a
+    vendored subchart's defaults (a null tag resolving to its appVersion),
+    gated by `rendered_paths` so condition/tag-disabled charts are left out.
+    One entry per repository, in path_order_key order like
+    images-<target>.yaml; never incremental.
 
     `name` is the stripped repository, `url` the host-qualified one;
     the digest comes from the pin or, failing that, a registry lookup.

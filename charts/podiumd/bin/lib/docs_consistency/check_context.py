@@ -102,7 +102,6 @@ class ComponentRowsResult:
     """_check_component_rows' outputs, consumed by the later checks of the same section."""
 
     mismatches: list[str]
-    changed_component_keys: set[str]
     # Identity -> resolved app version for "dep" rows; Changes headings must show it.
     resolved_app_by_identity: dict[ComponentIdentity, str]
     # Identity -> baseline app version (None when new); catches headings with the right

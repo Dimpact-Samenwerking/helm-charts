@@ -18,9 +18,7 @@ from lib.chart.chart_yaml import ChartDependency
 from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.registered_paths import component_chart_versions
 from lib.chart.registered_paths import image_paths_for
-from lib.chart.registered_paths import native_components
 from lib.chart.registered_paths import version_paths_for
-from lib.chart.values_tree_primitives import values_key_of
 from lib.component_docs.baseline_doc_stubs import UPGRADE_CHANGES_STUB_TODO_LINE
 from lib.component_docs.baseline_doc_stubs import UPGRADE_INTRO_STUB_TODO_LINE
 from lib.component_docs.doc_lines import is_bare_placeholder_span
@@ -34,6 +32,8 @@ from lib.component_docs.owned_parts import replace_section_owned_parts
 from lib.component_docs.owned_parts import template_prefix_re
 from lib.component_docs.owned_parts import template_re
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
+from lib.upgradedoc.chart_image_index import ChartImageIndex
+from lib.upgradedoc.consistency_checks import rowed_component_keys
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.upgradedoc.sorting_and_ordering import block_for_component
@@ -43,8 +43,6 @@ from lib.upgradedoc.sorting_and_ordering import component_insertion_index
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.string_and_parsing_basics import COMPONENT_VERSIONS_HEADING_RE
 from lib.upgradedoc.string_and_parsing_basics import TableRow
-from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
-from lib.upgradedoc.string_and_parsing_basics import match_native_component
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.string_and_parsing_basics import text_names
@@ -603,27 +601,10 @@ def resolve_component_own_version_change(
         # so it's normally unavailable for the baseline; with an unchanged
         # chart the same .tgz backs both sides (e.g. openbao's blank tag).
         old_app = actual_app_version(baseline_state.values, key, chart_name, chart_dir=chart_dir, dep=dep)
-    app_unchanged = (
-        old_app is not None and new_app is not None and normalize_version(old_app) == normalize_version(new_app)
-    )
+    # No own app version on either side (only sidecar images) is unchanged too:
+    # a sidecar change gets its own row, not one for its parent.
+    app_unchanged = normalize_version(old_app) == normalize_version(new_app)
     return dep, chart_name, old_chart, new_chart, old_app, new_app, (chart_unchanged and app_unchanged)
-
-
-def _matched_component_keys(text: str, target_deps: list[ChartDependency], chart_dir: Path) -> set[str]:
-    """Component keys (dependency alias-or-name or native component) that
-    already have a "Component versions" row in `text`."""
-    matched_keys: set[str] = set()
-    for row in parse_upgrade_doc_rows(text):
-        # A sidecar row like "redis-operator - redis" must not count as
-        # redis-operator's own row.
-        dep = match_dependency_excluding_sidecar_names(row["name"], target_deps)
-        if dep:
-            matched_keys.add(values_key_of(dep))
-            continue
-        native_key = match_native_component(row["name"], native_components(chart_dir))
-        if native_key:
-            matched_keys.add(native_key)
-    return matched_keys
 
 
 def _new_component_section(key: str, chart_name: str, change: VersionChange, doc_context: DocContext):
@@ -698,7 +679,8 @@ def add_missing_component_rows(
     (add those by hand). Native components get chart "-". An unresolvable
     app version gets "-" and a TODO-stub section. Returns
     (new_text, added_names)."""
-    matched_keys = _matched_component_keys(text, target_state.deps, doc_context.chart_dir)
+    canonical_names = ChartImageIndex(doc_context.chart_dir, target_state.deps, target_state.values).canonical_names
+    matched_keys = rowed_component_keys(parse_upgrade_doc_rows(text), target_state.deps, canonical_names)
     added_names: list[str] = []
     for key in sorted(actual_changed_keys - matched_keys):
         text, added = _add_missing_row_for_key(text, key, target_state, baseline_state, doc_context)

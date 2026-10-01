@@ -19,10 +19,10 @@ from lib.chart.repo_and_path_resolution import repository_group_key
 from lib.chart.values_tree_primitives import values_key_of
 from lib.component_docs.images_manifest_changes_header import CHANGES_HEADER_RE
 from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
-from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
+from lib.component_docs.images_manifest_changes_header import changes_item_texts
+from lib.component_docs.images_manifest_changes_header import covered_display_names
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_items
 from lib.component_docs.images_manifest_changes_header import images_manifest_changes_count_word
-from lib.component_docs.images_manifest_changes_header import images_manifest_changes_item_spans
 from lib.image.repository_check import find_images_without_repository
 from lib.images_manifest import ManifestEntry
 from lib.images_manifest import images_manifest_problem
@@ -48,7 +48,6 @@ from lib.upgradedoc.images_manifest_ordering import find_images_manifest_out_of_
 from lib.upgradedoc.images_manifest_ordering import images_manifest_display_name_positions
 from lib.upgradedoc.images_manifest_ordering import images_manifest_entries_share_group
 from lib.upgradedoc.images_manifest_ordering import images_manifest_entry_positions
-from lib.upgradedoc.images_manifest_ordering import match_changes_item_display_name
 from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import best_name_match
@@ -109,19 +108,6 @@ def match_changes_item_to_entry(item_name: str, entries: list[ManifestEntry]) ->
     )
 
 
-def _images_manifest_changes_items(lines: list[str]) -> list[tuple[str, int, int]]:
-    """[(rest, start, end)] for every "#   N. ..." item in the "# Changes:" header, or [].
-
-    `rest` is the item's first line. Shared by the coverage and ordering checks so both
-    agree on what the list is.
-    """
-    header_idx, _has_count = find_images_manifest_changes_header(lines)
-    if header_idx is None:
-        return []
-    spans, _block_end = images_manifest_changes_item_spans(lines, header_idx)
-    return [(match_located_line(CHANGES_ITEM_RE, lines[start]).group("rest"), start, end) for start, end in spans]
-
-
 def find_images_manifest_changes_items_out_of_order(
     text: str, display_name_positions: dict[str, int]
 ) -> list[tuple[str, str]]:
@@ -131,31 +117,9 @@ def find_images_manifest_changes_items_out_of_order(
     changes_item_order_keys, as sort_images_manifest_changes_items uses, so
     this reports exactly what fix-doc-consistency would reorder.
     """
-    items = _images_manifest_changes_items(text.splitlines(keepends=True))
+    items = changes_item_texts(text.splitlines(keepends=True))
     keys = changes_item_order_keys([rest for rest, _start, _end in items], display_name_positions)
     return [(items[i][0], items[i + 1][0]) for i, (key, next_key) in enumerate(pairwise(keys)) if next_key < key]
-
-
-def _covered_changes_display_names(
-    lines: list[str], entries: list[ManifestEntry], display_name_positions: dict[str, int], resolution: EntryResolution
-) -> set[str]:
-    """Every entry display name some "# Changes:" item resolves to (the fixer's two-tier match)."""
-
-    def entry_display_name(entry: ManifestEntry) -> str | None:
-        path = resolve_entry_image_path(entry["name"], resolution.current_paths.keys(), resolution.repo_map)
-        return path_display_name(path, resolution.deps, resolution.canonical_names) if path else None
-
-    covered_names: set[str] = set()
-    for rest, _start, _end in _images_manifest_changes_items(lines):
-        display_name = match_changes_item_display_name(rest, display_name_positions)
-        if display_name is not None:
-            covered_names.add(display_name)
-            continue
-        entry = match_changes_item_to_entry(rest, entries)
-        matched_name = entry_display_name(entry) if entry is not None else None
-        if matched_name is not None:
-            covered_names.add(matched_name)
-    return covered_names
 
 
 def _uncovered_entry_display_names(
@@ -188,7 +152,7 @@ def find_images_manifest_entries_missing_changes_mention(
     list-diff only catches changed images without an entry, not entries missing from
     the header. `context` is a ManifestSortContext.
 
-    Uses the fixer's two-tier match, not a literal search. Compared by display name,
+    Uses covered_display_names, as the fixer does. Compared by display name,
     since one item covers every entry of a multi-image component (e.g. eck-stack's
     elasticsearch + kibana). Raw-dotted-path display names are skipped (no human writes
     those). [] for invalid YAML or fewer than 2 entries.
@@ -201,8 +165,7 @@ def find_images_manifest_entries_missing_changes_mention(
     current_paths = chart_image_paths(context.values, context.deps)
     resolution = EntryResolution(context.deps, current_paths, context.repo_map, context.canonical_names)
 
-    lines = text.splitlines(keepends=True)
-    covered_names = _covered_changes_display_names(lines, entries, display_name_positions, resolution)
+    covered_names = covered_display_names(text.splitlines(keepends=True), display_name_positions)
     return sorted(_uncovered_entry_display_names(entries, entry_positions, resolution, covered_names))
 
 

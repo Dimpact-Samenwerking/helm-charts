@@ -62,7 +62,7 @@ def _source_app_mismatches(libdocsconsistency: ModuleType, app_source: str | Non
         "baseline_app": baseline_app,
     }
     row_ctx = RowContext(Path("4.8.5-to-4.9.0-upgrade.md"), "podiumd-4.8.5")
-    result = ComponentRowsResult([], set(), {}, {}, set())
+    result = ComponentRowsResult([], {}, {}, set())
     libdocsconsistency._check_row_baseline_versions(row, row_ctx, resolved, "mi", result)
     return result.mismatches
 

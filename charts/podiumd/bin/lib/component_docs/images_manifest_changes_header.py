@@ -2,8 +2,11 @@
 
 import re
 
+from collections.abc import Iterable
+
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.values_tree_primitives import values_key_of
+from lib.upgradedoc.images_manifest_ordering import match_changes_item_display_name
 from lib.upgradedoc.sorting_and_ordering import insertion_index
 from lib.upgradedoc.sorting_and_ordering import values_tree_position
 from lib.upgradedoc.string_and_parsing_basics import changes_item_names
@@ -207,3 +210,31 @@ def insert_images_manifest_header_item(
     lines.insert(insert_line, f"#   0. {item_text}\n")
 
     renumber_images_manifest_changes_items(lines)
+
+
+def changes_item_texts(lines: list[str]) -> list[tuple[str, int, int]]:
+    """[(rest, start, end)] for every "#   N. ..." item in the "# Changes:" header, or [].
+
+    `rest` is the item's first line. Shared by the writers and the checks so all
+    agree on what the list is.
+    """
+    header_idx, _has_count = find_images_manifest_changes_header(lines)
+    if header_idx is None:
+        return []
+    spans, _block_end = images_manifest_changes_item_spans(lines, header_idx)
+    return [(match_located_line(CHANGES_ITEM_RE, lines[start]).group("rest"), start, end) for start, end in spans]
+
+
+def covered_display_names(lines: list[str], display_names: Iterable[str]) -> set[str]:
+    """The entry display names some "# Changes:" item names (match_changes_item_display_name).
+
+    The writer adds an item for every other entry and the checker reports
+    them; an item covers an entry only by naming its display name first,
+    never by a word it merely mentions.
+    """
+    names = list(display_names)
+    return {
+        name
+        for rest, _start, _end in changes_item_texts(lines)
+        if (name := match_changes_item_display_name(rest, names))
+    }

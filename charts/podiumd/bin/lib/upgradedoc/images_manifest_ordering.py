@@ -346,10 +346,10 @@ def images_manifest_display_name_positions(text: str, context: ManifestSortConte
 def match_changes_item_display_name(rest: str, names: Iterable[str]) -> str | None:
     """The longest of `names` that rest names (see changes_item_names), or None.
 
-    Exact for tooling-written items; callers fall back to
-    match_changes_item_to_entry for hand-written ones. Longest wins so a sidecar
-    ("keycloak-operator - postgres") beats its primary's shorter prefix. Shared
-    by fixer and checker, for both manifest display names and upgrade-doc row names."""
+    Exact: a hand-written item that names no display name first matches
+    nothing. Longest wins so a sidecar ("keycloak-operator - postgres") beats
+    its primary's shorter prefix. Shared by fixer and checker, for both
+    manifest display names and upgrade-doc row names."""
     best: str | None = None
     for name in names:
         if changes_item_names(rest, name) and (best is None or len(name) > len(best)):

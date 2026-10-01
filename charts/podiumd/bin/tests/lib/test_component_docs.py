@@ -391,6 +391,23 @@ def test_resolve_component_own_version_change_false_when_chart_changed(libcompon
     assert unchanged is False
 
 
+def test_resolve_component_own_version_change_only_sidecar_images_is_unchanged(libcomponentdocschanges: ModuleType):
+    """No own app version on either side and the same chart: a sidecar change needs no row for the parent."""
+    deps = [{"name": "redis-operator", "version": "0.26.1"}]
+    current = {"redis-operator": {"redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.6"}}}}
+    baseline = {"redis-operator": {"redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.2"}}}}
+    resolved = libcomponentdocschanges.resolve_component_own_version_change(
+        "redis-operator",
+        libcomponentdocschanges.ComponentState(deps, current),
+        libcomponentdocschanges.ComponentState(deps, baseline),
+        None,
+        [],
+    )
+    assert resolved is not None
+    *_rest, unchanged = resolved
+    assert unchanged is True
+
+
 def test_resolve_component_own_version_change_native_component_ignores_chart(libcomponentdocschanges: ModuleType):
     """A native component (chart "-") is decided by its app version alone."""
     values = {"frankgateway": {"image": {"tag": "104@sha256:aaaa"}}}

@@ -18,6 +18,7 @@ from lib.chart.repo_and_path_resolution import full_repository_for_path
 from lib.chart.repo_and_path_resolution import repository_group_key
 from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.chart.values_tree_primitives import version_of
+from lib.component_docs.images_manifest_changes_header import covered_display_names
 from lib.component_docs.images_manifest_changes_header import ensure_images_manifest_changes_header
 from lib.component_docs.images_manifest_changes_header import find_changes_item
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
@@ -472,25 +473,25 @@ def _insert_added_entry(
 
 
 def _backfilled_header_target(
-    lines: list[str], header_text: str, context: MissingEntriesContext, resolution: MissingEntriesResolution
+    lines: list[str], context: MissingEntriesContext, resolution: MissingEntriesResolution
 ) -> tuple[ImagePath, str, str, str] | None:
-    """(entry_path, entry_name, entry_old, entry_new) of the first entry not
-    named in `header_text`, or None. Entries whose display name is only the
-    raw dotted path are skipped: not prose worth adding."""
-    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
-    for idx in entry_line_indices:
-        m = re.match(r"^-\s*name:\s*(\S+)\s*$", lines[idx])
+    """(entry_path, entry_name, entry_old, entry_new) of the first entry no
+    "# Changes:" item covers (covered_display_names, as the checker uses), or
+    None. Entries whose display name is only the raw dotted path are skipped:
+    not prose worth adding."""
+    entries: list[tuple[int, ImagePath, str]] = []
+    for idx, line in enumerate(lines):
+        m = re.match(r"^-\s*name:\s*(\S+)\s*$", line)
         entry_path = (
             resolve_entry_image_path(m.group(1), resolution.current_paths.keys(), resolution.repo.repo_map)
             if m
             else None
         )
-        if entry_path is None:
-            continue
-        entry_name = path_display_name(entry_path, context.deps, resolution.canonical_names)
-        if entry_name == ".".join(entry_path):
-            continue
-        if re.search(rf"\b{re.escape(entry_name)}\b", header_text, re.IGNORECASE):
+        if entry_path is not None:
+            entries.append((idx, entry_path, path_display_name(entry_path, context.deps, resolution.canonical_names)))
+    covered = covered_display_names(lines, [name for _idx, _path, name in entries])
+    for idx, entry_path, entry_name in entries:
+        if entry_name == ".".join(entry_path) or entry_name in covered:
             continue
         comment_text = "".join(lines[images_manifest_block_start(lines, idx) : idx])
         entry_new = extract_target_version(comment_text)
@@ -516,7 +517,7 @@ def _backfill_header_items(
             break
         text = "".join(lines)
 
-        target = _backfilled_header_target(lines, header_text, context, resolution)
+        target = _backfilled_header_target(lines, context, resolution)
         if target is None:
             break
 

@@ -38,6 +38,23 @@ def resolve_component_identity(
     return None
 
 
+def rowed_component_keys(
+    rows: Sequence[VersionRow], deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]] | None
+) -> set[str]:
+    """Top-level keys of the components with a "Component versions" row of their own.
+
+    A sidecar row ("redis-operator - redis") does not count for its parent.
+    Shared by add_missing_component_rows and the checker's "changed but has no
+    row" finding, so they agree on which components still need a row.
+    """
+    return {
+        identity[1]
+        for row in rows
+        if (identity := resolve_component_identity(row["name"], deps, canonical_names)) is not None
+        and identity[0] == "dep"
+    }
+
+
 def find_changes_row_correspondence_gaps(
     rows: Sequence[VersionRow],
     headings: list[str],

@@ -59,6 +59,7 @@ from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.consistency_checks import find_changes_duplicate_identities
 from lib.upgradedoc.consistency_checks import find_changes_row_correspondence_gaps
 from lib.upgradedoc.consistency_checks import find_wrong_or_duplicate_dependency_claims
+from lib.upgradedoc.consistency_checks import rowed_component_keys
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
 from lib.upgradedoc.removed_items import RemovedItem
 from lib.upgradedoc.removed_items import removed_item_named
@@ -217,7 +218,7 @@ def _doc_header_mismatches(doc_path: Path, ctx: DocsCheckContext):
 def _record_row_identity(resolved: ResolvedRow, result: ComponentRowsResult):
     """Record one resolved row's bookkeeping on `result`; return (values_key, actual_app)."""
     sidecar_path = resolved["sidecar_path"]
-    values_key, top_level_key = resolved["values_key"], resolved["top_level_key"]
+    values_key = resolved["values_key"]
     actual_app = resolved["target_app"]
 
     if resolved["kind"] == "sidecar":
@@ -228,7 +229,6 @@ def _record_row_identity(resolved: ResolvedRow, result: ComponentRowsResult):
         # resolve_component_identity/changes_heading_identities.
         result.resolved_app_by_identity[("dep", values_key)] = actual_app
 
-    result.changed_component_keys.add(top_level_key)
     return values_key, actual_app
 
 
@@ -304,7 +304,7 @@ def _check_component_rows(
     Rows resolve via resolve_component_row, shared with fix-doc-consistency so checker
     and fixer agree on what's correct.
     """
-    result = ComponentRowsResult([], set(), {}, {}, set())
+    result = ComponentRowsResult([], {}, {}, set())
 
     for row in rows:
         if row["name"] in row_lookup.stale_names:
@@ -342,7 +342,8 @@ def _check_missing_component_rows(ctx: DocsCheckContext, scan: DocScanState, row
     """
     mismatches: list[str] = []
     # A removed component's row is checked by removed_item_issues.
-    for key in sorted(ctx.actual_changed_keys - rows_result.changed_component_keys - set(scan.removed)):
+    rowed_keys = rowed_component_keys(scan.rows, ctx.current.deps, scan.canonical_names)
+    for key in sorted(ctx.actual_changed_keys - rowed_keys - set(scan.removed)):
         resolved = resolve_component_own_version_change(
             key,
             ComponentState(ctx.current.deps, ctx.current.values),
