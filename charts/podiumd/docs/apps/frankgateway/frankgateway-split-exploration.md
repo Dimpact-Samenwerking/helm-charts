@@ -7,22 +7,22 @@
 > shaped the way it is. For how to actually use it, see
 > [`frankgateway-traffic-classes.md`](frankgateway-traffic-classes.md).
 >
-> Two things changed between this assessment and what was built:
+> One thing changed between this assessment and what was built: the instances
+> are named **`inway` / `outway` / `internal`**, not incoming/outgoing/internal
+> — matching the FSC vocabulary already used in the backlog for the eventual
+> inway work.
 >
-> - the instances are named **`inway` / `outway` / `internal`**, not
->   incoming/outgoing/internal — matching the FSC vocabulary already used in the
->   backlog for the eventual inway work;
-> - there is **one dashboard per instance**, not one designated instance, since
->   apisix-dashboard binds a single etcd prefix and operators want GUI access to
->   each class.
->
-> A third thing changed in **4.8.5**: the compatibility scaffolding this
+> A second thing changed in **4.8.5**: the compatibility scaffolding this
 > assessment assumes — a reserved single-instance `gateway` key keeping the
 > unsuffixed object names, plus a `serviceAlias` Service for a phased cutover —
 > **no longer exists**. Frank!Gateway turned out to be deployed in no customer
 > environment, so there was nothing to stay compatible with. The three classes
 > are simply the shape of the chart. Passages below describing phase 1, the
 > byte-identical default render, or the alias are historical.
+>
+> A third change is coming: the next release retires etcd, so the prefix
+> separation this assessment rests on goes with it — see
+> [Changing in the next release](frankgateway-BASICS.md#changing-in-the-next-release).
 >
 > The open questions at the bottom are answered in a closing section.
 
@@ -44,7 +44,6 @@ pods, one per traffic class:
   (traditional mode, prefix `/apisix`).
 - Routes seeded declaratively from `files/frankgateway/routes/*.json` by the
   `frankgateway-apply-routes` hook Job (route id = file name, idempotent PUT).
-- Dashboard chain: `oauth2-proxy → shim → apisix-dashboard`, one of each.
 - External API keys injected as env vars from the out-of-band Secret
   `frankgateway-api-keys`; only var *names* appear in config.
 - No in-chart consumer hardcodes `http://frankgateway:9080` — apps are pointed
@@ -111,27 +110,20 @@ frankgateway:
 
 ### Costs and complications
 
-1. **Dashboard is the main friction.** `apisix-dashboard` binds to exactly
-   one etcd prefix. Options:
-   - one dashboard per instance (3× dashboard + 3 hostnames + 3 Keycloak
-     clients, oauth2-proxy/shim chain shared or tripled) — heavy;
-   - dashboard on **one** designated instance only, others admin-API-only —
-     pragmatic recommendation;
-   - drop the dashboard in split mode.
-2. Admin credentials: the lookup-stable random-key logic multiplies per
+1. Admin credentials: the lookup-stable random-key logic multiplies per
    instance (Secret `frankgateway-<instance>-admin-credentials`).
-3. Consumer migration: per-gemeente values must repoint apps from
+2. Consumer migration: per-gemeente values must repoint apps from
    `frankgateway:9080` to `frankgateway-outgoing:9080` (etc.). Mitigated by
    keeping the legacy Service name as an alias during transition.
-4. **`incoming` has no current function.** North-south ingress is handled
+3. **`incoming` has no current function.** North-south ingress is handled
    deploy-side by NGF/HTTPRoute straight to app Services; nothing routes
    inbound through the gateway today. An incoming instance only makes sense
    with a concrete use-case (e.g. exposing ZGW APIs to external parties with
    key-auth/rate-limiting at the gateway). Needs a product decision before
    building; the chart shape above supports it whenever defined.
-5. Footprint grows from 4 pods to 6–8 (3 gateways + etcd + dashboard chain);
+4. Footprint grows: three gateways instead of one, still sharing one etcd;
    BASICS doc and per-gemeente sizing need updating.
-6. Routes job, ServiceMonitor and Prometheus dashboards multiply per
+5. Routes job, ServiceMonitor and Prometheus dashboards multiply per
    instance (mechanical, low risk).
 
 ### Not recommended: three etcds
@@ -148,14 +140,13 @@ instance's config churn ever needs independent backup/restore.
    Verify with `helm template` diff against 4.8.4 base.
 2. **Phase 2 (jim00):** enable `outgoing` + `internal` split, move the BRP
    route to `internal`, add the per-class NetworkPolicies, repoint app
-   values. Dashboard on `outgoing` only.
+   values.
 3. **Phase 3 (blocked on use-case):** define what `incoming` fronts, then
    enable it with TLS + key-auth.
 
 ## Open questions
 
 - What should `incoming` actually front? (ZGW APIs for external parties?)
-- Dashboard: one-instance-only acceptable, or is GUI access needed per class?
 - Shared admin key across instances (simpler pipelines) vs per-instance keys
   (better isolation)?
 - Do any gemeente pipelines read Secret `frankgateway-admin-credentials` by
@@ -170,10 +161,6 @@ instance's config churn ever needs independent backup/restore.
   the instance simply takes over routing that already exists. Exposing ZGW APIs
   to external parties with key-auth and rate-limiting remains a later use of the
   same instance, not a prerequisite.
-- **Dashboard:** one per instance. The chain (dashboard + shim + oauth2-proxy +
-  Keycloak client + realm secret) is templated per instance, so the cost is
-  mechanical rather than manual; instances that do not need a GUI can set
-  `dashboard.enabled: false` and keep Admin-API-only access.
 - **Admin keys:** per instance. Each gets its own
   `frankgateway-<instance>-admin-credentials`, generated and lookup-stable like
   the single-instance one. A shared key would have re-coupled the classes for no

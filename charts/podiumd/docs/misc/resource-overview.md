@@ -368,17 +368,13 @@ live at QA traffic levels, not carried over from the single-gateway setup.
 | frankgateway (per instance) | 100m | 384Mi | 1 | 1Gi |
 | wait-for-etcd (init) | 10m | 16Mi | 100m | 64Mi |
 | etcd (per member) | 50m | 192Mi | 500m | 512Mi |
-| apisix-dashboard | 25m | 128Mi | 500m | 512Mi |
-| oauth2-proxy | 10m | 64Mi | 250m | 256Mi |
-| shim (nginx) | 10m | 32Mi | 250m | 128Mi |
 | seed Job | 25m | 32Mi | 250m | 128Mi |
 | ssl-sync CronJob | 25m | 32Mi | 250m | 128Mi |
 | client-cert-sync CronJob | 25m | 32Mi | 250m | 128Mi |
 
-*Dashboards ship **off** (`frankgateway.dashboard.enabled: false`). On, the
-dashboard chain — dashboard + oauth2-proxy + shim, two replicas each — is 18 of
-the 27 pods a full three-class gateway costs. Turn a class's dashboard on for
-as long as an investigation needs it and off again afterwards.*
+*The next release retires etcd (with its `wait-for-etcd` init container) and
+the `client-cert-sync` CronJob — see
+[Changing in the next release](../apps/frankgateway/frankgateway-BASICS.md#changing-in-the-next-release).*
 
 *The gateway memory request is 384Mi and deliberately **not** the 256Mi the
 single gateway used: that number sat below the observed peak, which is how a
