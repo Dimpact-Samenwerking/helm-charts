@@ -13,7 +13,6 @@ from pathlib import Path
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.release_baseline_basics import chart_version
-from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
 from lib.chart.values_tree_primitives import version_of
 from lib.chart.yaml_alias_groups import alias_groups
 from lib.component_docs.aliased_pin_bullets import find_missing_pin_bullets
@@ -36,10 +35,10 @@ from lib.docs_consistency.check_context import DocQuery
 from lib.docs_consistency.check_context import DocScanState
 from lib.docs_consistency.check_context import DocsCheckContext
 from lib.docs_consistency.check_context import Findings
-from lib.docs_consistency.check_context import ImagePaths
 from lib.docs_consistency.check_context import ManifestEntryScan
 from lib.docs_consistency.check_context import RowContext
 from lib.docs_consistency.check_context import RowLookup
+from lib.docs_consistency.check_context import StateImages
 from lib.docs_consistency.images_manifest_format import ManifestCheckContext
 from lib.docs_consistency.images_manifest_format import check_images_manifest_format
 from lib.docs_consistency.markdown_format import check_baseline_doc_set
@@ -49,15 +48,14 @@ from lib.docs_consistency.pointer_consistency import check_pointer_consistency
 from lib.docs_consistency.values_diff import ValuesDeltaInputs
 from lib.docs_consistency.values_diff import check_values_deltas_content
 from lib.image.docs import changes_sections_contradicting_rows
-from lib.image.manifest_entry_pins import current_image_paths
 from lib.image.manifest_entry_pins import entry_pin
-from lib.image.manifest_entry_pins import image_repo_map
 from lib.images_manifest import ManifestEntry
 from lib.images_manifest import parse_images_manifest
 from lib.release_baseline import resolve_baseline_chart_state
 from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
+from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.consistency_checks import find_changes_duplicate_identities
 from lib.upgradedoc.consistency_checks import find_changes_row_correspondence_gaps
 from lib.upgradedoc.consistency_checks import find_wrong_or_duplicate_dependency_claims
@@ -158,23 +156,6 @@ def _resolve_baseline(
     return baseline_ref, baseline_deps, baseline_values, mismatch
 
 
-def _resolve_image_paths(
-    chart_dir: Path | None,
-    deps: list[ChartDependency],
-    values: YamlMapping,
-    baseline_ref: str | None,
-    baseline_values: YamlMapping,
-):
-    """Current/baseline image-tag-path maps and the shared-image representative map.
-
-    Baseline maps are empty without a baseline_ref.
-    """
-    current_paths = current_image_paths(values)
-    baseline_paths = current_image_paths(baseline_values) if baseline_ref else {}
-    repo_map = image_repo_map(chart_dir, deps, values, current_paths) if chart_dir is not None else {}
-    return current_paths, baseline_paths, repo_map
-
-
 def _build_docs_check_context(
     chart_dir: Path,
     deps: list[ChartDependency],
@@ -184,7 +165,7 @@ def _build_docs_check_context(
 ):
     """Resolve the baseline and derived image maps into a DocsCheckContext.
 
-    Returns (ctx, repo_map, baseline_mismatch); the caller adds baseline_mismatch to `findings`.
+    Returns (ctx, baseline_mismatch); the caller adds baseline_mismatch to `findings`.
     """
     baseline_ref, baseline_deps, baseline_values, baseline_mismatch = _resolve_baseline(
         chart_dir, upgrade_docs_baseline
@@ -193,10 +174,6 @@ def _build_docs_check_context(
     actual_changed_keys: set[str] = (
         compute_changed_components(deps, baseline_deps, values, baseline_values) if baseline_ref else set()
     )
-    current_paths, baseline_paths, repo_map = _resolve_image_paths(
-        chart_dir, deps, values, baseline_ref, baseline_values
-    )
-
     ctx = DocsCheckContext(
         chart_dir=chart_dir,
         current=ComponentState(deps, values),
@@ -208,10 +185,13 @@ def _build_docs_check_context(
             upgrade_docs_baseline,
             bool(upgrade_docs_baseline and re.match(r"^\d+\.\d+\.\d+", upgrade_docs_baseline)),
         ),
-        image_paths=ImagePaths(current_paths, baseline_paths),
+        images=StateImages(
+            ChartImageIndex(chart_dir, deps, values),
+            ChartImageIndex(chart_dir, deps, baseline_values if baseline_ref else None),
+        ),
         actual_changed_keys=actual_changed_keys,
     )
-    return ctx, repo_map, baseline_mismatch
+    return ctx, baseline_mismatch
 
 
 def _doc_header_mismatches(doc_path: Path, ctx: DocsCheckContext):
@@ -376,7 +356,7 @@ def _check_missing_component_rows(ctx: DocsCheckContext, scan: DocScanState, row
     for name, path in sorted(scan.canonical_names.items()):
         if path in rows_result.matched_sidecar_paths:
             continue
-        baseline_tag, current_tag = ctx.image_paths.baseline.get(path), ctx.image_paths.current.get(path)
+        baseline_tag, current_tag = ctx.images.baseline.paths.get(path), ctx.images.current.paths.get(path)
         # Compare versions (digest stripped), not raw tags: a digest-only re-pin needs no row.
         if (version_of(baseline_tag) if baseline_tag is not None else None) != (
             version_of(current_tag) if current_tag is not None else None
@@ -602,9 +582,7 @@ def _check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
     if doc_path is None:
         return
 
-    canonical_names = canonical_sidecar_row_names(
-        ctx.chart_dir, ctx.current.deps, ctx.current.values, ctx.image_paths.current.keys()
-    )
+    canonical_names = ctx.images.current.canonical_names
     resolution = ResolutionContext(
         ctx.chart_dir,
         ComponentState(ctx.current.deps, ctx.current.values),
@@ -650,7 +628,9 @@ def _check_images_manifest_entry(
     name = entry.get("name")
     if not name:
         return
-    path, actual_tag = entry_pin(entry, ctx.current.values, ctx.image_paths.current, scan.repo_map, scan.sibling_fields)
+    path, actual_tag = entry_pin(
+        entry, ctx.current.values, ctx.images.current.paths, scan.repo_map, scan.sibling_fields
+    )
     if not path:
         print(f'  ({scan.images_path.name}: entry "{name}" — no matching image in values.yaml, skipped)')
         return
@@ -665,7 +645,7 @@ def _check_images_manifest_entry(
             f'{name}: values.yaml tag is "{actual_tag}", {scan.images_path.name} says "{expected_tag}"'
         )
 
-    if ctx.baseline_ref and ctx.image_paths.baseline.get(path) == expected_tag:
+    if ctx.baseline_ref and ctx.images.baseline.paths.get(path) == expected_tag:
         findings.mismatches.append(
             f"{name}: listed in {scan.images_path.name} as new/changed, but {ctx.baseline_ref} "
             f'already has this exact tag ("{expected_tag}") — did it actually change?'
@@ -674,7 +654,6 @@ def _check_images_manifest_entry(
 
 def _check_images_manifest(
     ctx: DocsCheckContext,
-    repo_map: dict[str, ImagePath],
     sibling_fields: dict[ImagePath, DigestPinningException],
     findings: Findings,
 ):
@@ -720,7 +699,7 @@ def _check_images_manifest(
                 f"at all — every real change is undocumented in the summary list"
             )
 
-    scan = ManifestEntryScan(images_path, repo_map, sibling_fields)
+    scan = ManifestEntryScan(images_path, ctx.images.current.repo_map, sibling_fields)
     for entry in entries_list:
         _check_images_manifest_entry(ctx, scan, entry, findings)
 
@@ -731,14 +710,13 @@ def _check_values_deltas(ctx: DocsCheckContext, findings: Findings):
         ctx.doc_query.doc_dir
         / f"{ctx.doc_query.upgrade_docs_baseline}-to-{ctx.doc_query.podiumd_version}-values-deltas.md"
     )
-    canonical_names_for_deltas = canonical_sidecar_row_names(
-        ctx.chart_dir, ctx.current.deps, ctx.current.values, ctx.image_paths.current.keys()
-    )
     findings.mismatches.extend(
         check_values_deltas_content(
             values_deltas_path,
             ctx.actual_changed_keys,
-            ValuesDeltaInputs(ctx.baseline.values, ctx.current.values, ctx.current.deps, canonical_names_for_deltas),
+            ValuesDeltaInputs(
+                ctx.baseline.values, ctx.current.values, ctx.current.deps, ctx.images.current.canonical_names
+            ),
         )
     )
 
@@ -748,7 +726,7 @@ def _check_values_deltas(ctx: DocsCheckContext, findings: Findings):
     deltas_key_order = values_key_order(ctx.current.values)
     deltas_headings = [s["heading"] for s in parse_values_delta_sections(deltas_text)]
     for name_a, name_b in find_out_of_order_names(
-        deltas_headings, ctx.current.deps, deltas_key_order, canonical_names_for_deltas, ctx.current.values
+        deltas_headings, ctx.current.deps, deltas_key_order, ctx.images.current.canonical_names, ctx.current.values
     ):
         findings.mismatches.append(
             f'{values_deltas_path.name}: "## {name_b}" section comes right after "## {name_a}", '
@@ -812,14 +790,12 @@ def check_docs_consistency(chart_dir: Path, upgrade_docs_baseline: str | None = 
             doc_dir, upgrade_docs_baseline, podiumd_version, findings, is_bare_version=is_bare_version
         )
 
-    ctx, repo_map, baseline_mismatch = _build_docs_check_context(
-        chart_dir, deps, values, podiumd_version, upgrade_docs_baseline
-    )
+    ctx, baseline_mismatch = _build_docs_check_context(chart_dir, deps, values, podiumd_version, upgrade_docs_baseline)
     if baseline_mismatch:
         findings.mismatches.append(baseline_mismatch)
 
     _check_component_versions_table(ctx, findings)
-    _check_images_manifest(ctx, repo_map, sibling_fields, findings)
+    _check_images_manifest(ctx, sibling_fields, findings)
 
     if ctx.baseline_ref and is_bare_version and ctx.actual_changed_keys:
         _check_values_deltas(ctx, findings)

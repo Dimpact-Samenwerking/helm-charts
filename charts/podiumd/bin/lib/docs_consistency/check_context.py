@@ -7,6 +7,7 @@ from lib.component_docs.changes_section import BaselineState
 from lib.component_docs.changes_section import ComponentState
 from lib.settings import DigestPinningException
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
+from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.string_and_parsing_basics import TableRow
 
 # A component as resolve_component_identity names it: ("dep", values_key)
@@ -23,14 +24,6 @@ class Findings:
 
 
 @dataclass
-class ImagePaths:
-    """Current/baseline image-tag-path maps."""
-
-    current: dict[ImagePath, str | None]
-    baseline: dict[ImagePath, str | None]
-
-
-@dataclass
 class DocQuery:
     """Which doc set to look for (podiumd_version, upgrade_docs_baseline, is_bare_version) and where."""
 
@@ -38,6 +31,14 @@ class DocQuery:
     podiumd_version: str
     upgrade_docs_baseline: str | None
     is_bare_version: bool
+
+
+@dataclass
+class StateImages:
+    """The ChartImageIndex of the current and the baseline state; baseline is empty without a baseline_ref."""
+
+    current: ChartImageIndex
+    baseline: ChartImageIndex
 
 
 @dataclass
@@ -52,7 +53,7 @@ class DocsCheckContext:
     baseline: BaselineState
     baseline_ref: str | None
     doc_query: DocQuery
-    image_paths: ImagePaths
+    images: StateImages
     actual_changed_keys: set[str]
 
 

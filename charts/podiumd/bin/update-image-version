@@ -48,10 +48,8 @@ from lib.chart.paths import CHART_YAML
 from lib.chart.paths import DOC_DIR
 from lib.chart.paths import IMAGES_DIR
 from lib.chart.paths import VALUES_YAML
-from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.release_baseline_basics import chart_version
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
-from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
 from lib.chart.repo_and_path_resolution import doc_row_name
 from lib.chart.values_tree_primitives import dotted_key_path
 from lib.chart.values_tree_primitives import find_dependency
@@ -93,7 +91,7 @@ from lib.image.version import resolve_key_scope
 from lib.image.version import update_image_version
 from lib.procutil import run_script
 from lib.registry import parse_repo
-from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
+from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.resolve_component_row import compare_component_to_baseline
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
@@ -502,12 +500,10 @@ def _ordering_and_row_name(
     deps: list[ChartDependency], values: YamlMapping, values_key: str, group: ComponentGroup
 ) -> tuple[OrderingContext, str | None]:
     """(OrderingContext, doc row name or None) for `group`'s first image path."""
-    all_paths = [p for p, _tag in find_all_image_and_version_paths(values, deps)] + [
-        p for p, _tag in global_image_paths(values)
-    ]
-    ordering = OrderingContext(deps, values, canonical_sidecar_row_names(CHART_DIR, deps, values, all_paths))
+    index = ChartImageIndex(CHART_DIR, deps, values)
+    ordering = OrderingContext(deps, values, index.canonical_names)
     bumped_path = (values_key, *filter(None, group["paths"][0].split(".")))
-    return ordering, doc_row_name(CHART_DIR, deps, values, bumped_path, all_paths)
+    return ordering, doc_row_name(CHART_DIR, deps, values, bumped_path, list(index.paths))
 
 
 def update_docs(basename: str, new_version: str, changes: list[PinUpdate], values_lines_before_write: list[str]):

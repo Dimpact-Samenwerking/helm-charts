@@ -12,13 +12,9 @@ from lib.chart.historical_baselines import baseline_lookup
 from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
 from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.nested_subchart_identity import documented_repository_for_path
-from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
 from lib.chart.registered_paths import is_primary_image_path
-from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
 from lib.chart.repo_and_path_resolution import full_repository_for_path
-from lib.chart.repo_and_path_resolution import paths_by_repository
-from lib.chart.repo_and_path_resolution import repo_group_representative
 from lib.chart.repo_and_path_resolution import repository_group_key
 from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.chart.values_tree_primitives import version_of
@@ -38,8 +34,9 @@ from lib.registry import registry_tag_exists
 from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
-from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
+from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
+from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.grouped_comments_and_changes_block import path_display_name
 from lib.upgradedoc.images_manifest_list_diff import ManifestDiffContext
 from lib.upgradedoc.images_manifest_list_diff import ManifestDiffInputs
@@ -187,8 +184,7 @@ def fix_images_manifest_entry_urls(
         return text, [], []
 
     entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
-    current_paths = dict(find_all_image_and_version_paths(target_values, deps))
-    current_paths.update(global_image_paths(target_values))
+    current_paths = chart_image_paths(target_values, deps)
 
     changed_names: list[tuple[str, str, str]] = []
     unresolved_names: list[str] = []
@@ -248,31 +244,6 @@ def _images_manifest_changes_header_text(lines: list[str]):
     return "".join(lines[header_idx:block_end])
 
 
-def _baseline_setup(context: MissingEntriesContext) -> tuple[dict[ImagePath, str], dict[str, list[ImagePath]]]:
-    """(baseline_paths, baseline_repo_groups), grouped against
-    baseline_values (where each repository lived in the baseline)."""
-    baseline_paths = (
-        dict(find_all_image_and_version_paths(context.baseline_values, context.deps)) if context.baseline_values else {}
-    )
-    baseline_paths.update(global_image_paths(context.baseline_values) if context.baseline_values else [])
-    baseline_repo_groups = (
-        paths_by_repository(context.chart_dir, context.deps, context.baseline_values, baseline_paths.keys())
-        if context.baseline_values
-        else {}
-    )
-    return baseline_paths, baseline_repo_groups
-
-
-def _repo_setup(
-    context: MissingEntriesContext, current_paths: dict[ImagePath, str]
-) -> tuple[dict[str, list[ImagePath]], dict[str, ImagePath], dict[ImagePath, str]]:
-    """(repo_groups, repo_map, path_to_repo) for target_values."""
-    repo_groups = paths_by_repository(context.chart_dir, context.deps, context.target_values, current_paths.keys())
-    repo_map = {repo: repo_group_representative(group_paths, context.deps) for repo, group_paths in repo_groups.items()}
-    path_to_repo = {path: repo for repo, group_paths in repo_groups.items() for path in group_paths}
-    return repo_groups, repo_map, path_to_repo
-
-
 def _manifest_list_diff(
     text: str, context: MissingEntriesContext, resolution: MissingEntriesResolution
 ) -> tuple[list[ImagePath], list[str], list[str]]:
@@ -300,25 +271,18 @@ def _manifest_list_diff(
 
 def _entries_resolution(context: MissingEntriesContext) -> MissingEntriesResolution:
     """Shared per-run resolution for adding and removing entries."""
-    current_paths = dict(find_all_image_and_version_paths(context.target_values, context.deps))
-    current_paths.update(global_image_paths(context.target_values))
-    baseline_paths, baseline_repo_groups = _baseline_setup(context)
-    repo_groups, repo_map, path_to_repo = _repo_setup(context, current_paths)
-    unresolvable_paths = set(find_images_without_repository(context.chart_dir))
-    canonical_names = canonical_sidecar_row_names(
-        context.chart_dir, context.deps, context.target_values, current_paths.keys()
-    )
-    key_order = values_key_order(context.target_values)
-    sibling_fields = digest_pinning_exceptions(context.chart_dir)
-
+    target = ChartImageIndex(context.chart_dir, context.deps, context.target_values)
+    # Grouped against baseline_values: where each repository lived in the baseline.
+    baseline = ChartImageIndex(context.chart_dir, context.deps, context.baseline_values)
+    path_to_repo = {path: repo for repo, group_paths in target.repo_groups.items() for path in group_paths}
     return MissingEntriesResolution(
-        current_paths,
-        BaselineResolution(baseline_paths, baseline_repo_groups),
-        RepoResolution(repo_groups, repo_map, path_to_repo),
-        unresolvable_paths,
-        canonical_names,
-        key_order,
-        sibling_fields,
+        target.paths,
+        BaselineResolution(baseline.paths, baseline.repo_groups),
+        RepoResolution(target.repo_groups, target.repo_map, path_to_repo),
+        set(find_images_without_repository(context.chart_dir)),
+        target.canonical_names,
+        values_key_order(context.target_values),
+        digest_pinning_exceptions(context.chart_dir),
     )
 
 

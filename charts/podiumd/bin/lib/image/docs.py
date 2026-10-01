@@ -16,11 +16,9 @@ from lib.chart.chart_yaml import ChartDependency
 from lib.chart.historical_baselines import baseline_lookup
 from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
 from lib.chart.historical_baselines import historical_app_version_for_path
-from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.registered_paths import version_paths_for
-from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
 from lib.chart.repo_and_path_resolution import full_repository_for_path
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repo_group_representative
@@ -57,8 +55,8 @@ from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
-from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
-from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
+from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
+from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.consistency_checks import find_changes_row_correspondence_gaps
 from lib.upgradedoc.consistency_checks import resolve_component_identity
 from lib.upgradedoc.grouped_comments_and_changes_block import find_preceding_comment_line
@@ -136,23 +134,16 @@ def _sidecar_scan_state(
     text: str, doc_context: DocContext, target_state: ComponentState, baseline_values: YamlMapping | None
 ) -> _SidecarScanState:
     """Build _SidecarScanState (split out to limit local variables)."""
-    current_paths = dict(find_image_tag_paths(target_state.values))
-    current_paths.update(global_image_paths(target_state.values))
-    baseline_paths: dict[ImagePath, str] = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
-    baseline_paths.update(global_image_paths(baseline_values) if baseline_values else [])
-    canonical_names = canonical_sidecar_row_names(
-        doc_context.chart_dir, target_state.deps, target_state.values, current_paths.keys()
-    )
+    target = ChartImageIndex(doc_context.chart_dir, target_state.deps, target_state.values)
     # Against baseline_values: where the repository lived in the baseline tree.
-    baseline_repo_groups: dict[str, list[ImagePath]] = (
-        paths_by_repository(doc_context.chart_dir, target_state.deps, baseline_values, baseline_paths.keys())
-        if baseline_values
-        else {}
-    )
+    baseline = ChartImageIndex(doc_context.chart_dir, target_state.deps, baseline_values)
     matched_paths = {
-        path for row in parse_upgrade_doc_rows(text) for path in [canonical_names.get(row["name"])] if path is not None
+        path
+        for row in parse_upgrade_doc_rows(text)
+        for path in [target.canonical_names.get(row["name"])]
+        if path is not None
     }
-    return _SidecarScanState(canonical_names, current_paths, baseline_paths, baseline_repo_groups, matched_paths)
+    return _SidecarScanState(target.canonical_names, target.paths, baseline.paths, baseline.repo_groups, matched_paths)
 
 
 def _resolve_sidecar_old_app(path: tuple[str, ...], ctx: _SidecarRowContext):
@@ -679,8 +670,7 @@ def _current_image_paths(
     chart_dir: Path, deps: list[ChartDependency], values: YamlMapping, rendered_paths: set[str]
 ) -> dict[ImagePath, str]:
     """Every pinned image path, plus live unpinned subchart-default images (find_unresolved_subchart_images)."""
-    current_paths = dict(find_all_image_and_version_paths(values, deps))
-    current_paths.update(global_image_paths(values))
+    current_paths = chart_image_paths(values, deps)
     for scope_key, subpath, tag, _already_pinned in find_unresolved_subchart_images(
         chart_dir, deps, values, rendered_paths
     ):

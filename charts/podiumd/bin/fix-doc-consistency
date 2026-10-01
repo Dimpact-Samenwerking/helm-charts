@@ -53,12 +53,8 @@ from lib.chart.paths import CHART_YAML
 from lib.chart.paths import DOC_DIR
 from lib.chart.paths import IMAGES_DIR
 from lib.chart.paths import VALUES_YAML
-from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.release_baseline_basics import chart_version
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
-from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
-from lib.chart.repo_and_path_resolution import paths_by_repository
-from lib.chart.repo_and_path_resolution import repo_group_representative
 from lib.chart.yaml_alias_groups import alias_groups
 from lib.cli import positional_args
 from lib.cli import print_section
@@ -92,6 +88,7 @@ from lib.fix_doc_consistency.manifest_changes_items import dedupe_images_manifes
 from lib.fix_doc_consistency.manifest_changes_items import sort_images_manifest_changes_items
 from lib.gitutil import git_show_text
 from lib.images_manifest import try_parse_images_manifest
+from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import load_yaml_mapping
 
@@ -136,8 +133,6 @@ from lib.image.docs import update_stale_app_version_headings
 from lib.image.manifest_entry_pins import sync_entry_pins
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
-from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
-from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
 from lib.upgradedoc.images_manifest_ordering import ManifestSortContext
 from lib.upgradedoc.images_manifest_ordering import images_manifest_display_name_positions
@@ -451,11 +446,7 @@ def _fix_upgrade_doc_headings(
     text: str, state: RebaseState, upgrade_path: Path, resolution: ResolutionContext
 ) -> tuple[str, dict[str, ImagePath], bool]:
     """Add missing '### ...' sections and fix heading app versions. Returns (text, canonical_names, changed)."""
-    current_paths = dict(find_image_tag_paths(state.target_values))
-    current_paths.update(global_image_paths(state.target_values))
-    canonical_names = canonical_sidecar_row_names(
-        CHART_YAML.parent, state.target_deps, state.target_values, current_paths.keys()
-    )
+    canonical_names = ChartImageIndex(CHART_YAML.parent, state.target_deps, state.target_values).canonical_names
 
     doc_context = DocContext(CHART_YAML.parent, state.target)
     ordering = OrderingContext(state.target_deps, state.target_values, canonical_names)
@@ -764,16 +755,8 @@ def _fix_images_manifest_content(state: RebaseState, images_path: Path, upgrade_
     """
     if not images_path.is_file():
         return
-    target_paths = [p for p, _tag in find_all_image_and_version_paths(state.target_values, state.target_deps)] + [
-        p for p, _tag in global_image_paths(state.target_values)
-    ]
-    repo_groups = paths_by_repository(CHART_YAML.parent, state.target_deps, state.target_values, target_paths)
-    repo_map = {
-        repo: repo_group_representative(group_paths, state.target_deps) for repo, group_paths in repo_groups.items()
-    }
-    canonical_names = canonical_sidecar_row_names(
-        CHART_YAML.parent, state.target_deps, state.target_values, target_paths
-    )
+    index = ChartImageIndex(CHART_YAML.parent, state.target_deps, state.target_values)
+    repo_map, canonical_names = index.repo_map, index.canonical_names
 
     _correct_images_manifest_urls(images_path, state, repo_map)
     _correct_images_manifest_names(images_path, repo_map)
@@ -871,12 +854,7 @@ def _fix_values_deltas(state: RebaseState, upgrade_path: Path, values_deltas_pat
         state.target_deps, state.baseline_deps, state.target_values, state.baseline_values
     )
     text = values_deltas_path.read_text(encoding="utf-8")
-    target_paths = [p for p, _tag in find_all_image_and_version_paths(state.target_values, state.target_deps)] + [
-        p for p, _tag in global_image_paths(state.target_values)
-    ]
-    canonical_names = canonical_sidecar_row_names(
-        CHART_YAML.parent, state.target_deps, state.target_values, target_paths
-    )
+    canonical_names = ChartImageIndex(CHART_YAML.parent, state.target_deps, state.target_values).canonical_names
 
     text, sections_changed = _sync_values_delta_sections(text, state, values_deltas_path, changed_keys, canonical_names)
     text, headings_changed = _fix_values_delta_headings(text, state, upgrade_path, values_deltas_path)

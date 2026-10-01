@@ -15,10 +15,6 @@ from pathlib import Path
 import yaml
 
 from lib.chart.chart_yaml import ChartDependency
-from lib.chart.pull_and_subchart_resolution import global_image_paths
-from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
-from lib.chart.repo_and_path_resolution import paths_by_repository
-from lib.chart.repo_and_path_resolution import repo_group_representative
 from lib.chart.repo_and_path_resolution import repository_group_key
 from lib.chart.values_tree_primitives import values_key_of
 from lib.component_docs.images_manifest_changes_header import CHANGES_HEADER_RE
@@ -33,8 +29,9 @@ from lib.images_manifest import images_manifest_problem
 from lib.images_manifest import is_images_manifest
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
-from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
+from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
+from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.consistency_checks import find_wrong_or_duplicate_dependency_claims
 from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment
 from lib.upgradedoc.grouped_comments_and_changes_block import parse_changes_block
@@ -218,8 +215,7 @@ def find_images_manifest_entries_missing_changes_mention(
         return []
     display_name_positions = images_manifest_display_name_positions(text, context)
 
-    current_paths = dict(find_all_image_and_version_paths(context.values, context.deps))
-    current_paths.update(global_image_paths(context.values))
+    current_paths = chart_image_paths(context.values, context.deps)
     resolution = EntryResolution(context.deps, current_paths, context.repo_map, context.canonical_names)
 
     lines = text.splitlines(keepends=True)
@@ -296,20 +292,10 @@ def _manifest_resolution_context(context: ManifestCheckContext) -> tuple[dict[st
     values-tree path, which text-only matching can't do. Empty chart_dir-gated parts
     when context.chart_dir is None.
     """
-    current_paths = dict(find_all_image_and_version_paths(context.values, context.deps))
-    current_paths.update(global_image_paths(context.values))
-    repo_groups = (
-        paths_by_repository(context.chart_dir, context.deps, context.values, current_paths.keys())
-        if context.chart_dir is not None
-        else {}
-    )
-    repo_map = {repo: repo_group_representative(paths, context.deps) for repo, paths in repo_groups.items()}
-    canonical_names = (
-        canonical_sidecar_row_names(context.chart_dir, context.deps, context.values, current_paths.keys())
-        if context.chart_dir is not None
-        else {}
-    )
-    return repo_groups, EntryResolution(context.deps, current_paths, repo_map, canonical_names)
+    index = ChartImageIndex(context.chart_dir, context.deps, context.values)
+    if context.chart_dir is None:
+        return {}, EntryResolution(context.deps, index.paths, {}, {})
+    return index.repo_groups, EntryResolution(context.deps, index.paths, index.repo_map, index.canonical_names)
 
 
 def _plain_image_entry_for_item(item_name: str, resolved: ResolvedManifest) -> ManifestEntry | None:
@@ -650,10 +636,7 @@ def check_images_manifest_format(images_path: Path, context: ManifestCheckContex
 
     lines = text.splitlines()
     entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
-    baseline_paths = (
-        dict(find_all_image_and_version_paths(context.baseline_values, context.deps)) if context.baseline_values else {}
-    )
-    baseline_paths.update(global_image_paths(context.baseline_values) if context.baseline_values else [])
+    baseline_paths = chart_image_paths(context.baseline_values, context.deps)
     issues.extend(_entry_comment_issues(images_path.name, lines, resolved, entry_line_indices, baseline_paths))
 
     if context.chart_dir is not None:

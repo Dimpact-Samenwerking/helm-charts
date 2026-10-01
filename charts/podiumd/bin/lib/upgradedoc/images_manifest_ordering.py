@@ -10,12 +10,11 @@ from dataclasses import dataclass
 from itertools import pairwise
 
 from lib.chart.chart_yaml import ChartDependency
-from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.registered_paths import is_primary_image_path
 from lib.images_manifest import ManifestEntry
 from lib.images_manifest import try_parse_images_manifest
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
-from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
+from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment_line
 from lib.upgradedoc.grouped_comments_and_changes_block import find_preceding_comment_line
@@ -296,11 +295,10 @@ def _images_manifest_sorted_groups(
 ) -> tuple[list[ManifestGroup], list[int]]:
     """(groups, order): the groups and the permutation sort_images_manifest_entries applies.
 
-    current_paths includes global_image_paths(values); without it a shared base
+    current_paths includes the global.images anchors; without them a shared base
     image entry (e.g. "curlimages/curl") can't resolve and sorts last instead of
     under "global"."""
-    current_paths = dict(find_all_image_and_version_paths(context.values, context.deps))
-    current_paths.update(global_image_paths(context.values))
+    current_paths = chart_image_paths(context.values, context.deps)
     resolution = EntryResolution(context.deps, current_paths, context.repo_map, context.canonical_names)
     groups = _images_manifest_groups(manifest, resolution)
     key_order = values_key_order(context.values)

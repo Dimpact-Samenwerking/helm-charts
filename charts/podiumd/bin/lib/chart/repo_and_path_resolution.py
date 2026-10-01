@@ -3,6 +3,7 @@
 import tarfile
 
 from collections.abc import Collection
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,6 +17,7 @@ from lib.chart.pull_and_subchart_resolution import resolve_chart_values
 from lib.chart.pull_and_subchart_resolution import subchart_values
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.registered_paths import is_primary_image_path
+from lib.chart.registered_paths import is_primary_rel_path
 from lib.chart.registered_paths import native_component_named
 from lib.chart.registered_paths import native_components
 from lib.chart.values_tree_primitives import dotted_key_path
@@ -284,10 +286,14 @@ def repository_path_map(
     paths exactly where name-word matching fails ("infonl/zaakafhandelcomponent"
     vs "zac"). Use paths_by_repository for every path of a group.
     """
-    return {
-        repo: repo_group_representative(repo_paths, deps)
-        for repo, repo_paths in paths_by_repository(chart_dir, deps, values, paths, allow_pull=allow_pull).items()
-    }
+    return group_representatives(paths_by_repository(chart_dir, deps, values, paths, allow_pull=allow_pull), deps)
+
+
+def group_representatives(
+    repo_groups: Mapping[str, list[tuple[str, ...]]], deps: list[ChartDependency]
+) -> dict[str, tuple[str, ...]]:
+    """{repository: repo_group_representative of its paths} for paths_by_repository's groups."""
+    return {repo: repo_group_representative(repo_paths, deps) for repo, repo_paths in repo_groups.items()}
 
 
 def canonical_sidecar_row_names(
@@ -380,7 +386,7 @@ def _classify_image_paths(
         owner_name = _owner_name(deps, natives, path)
         if owner_name is None:
             continue
-        if ".".join(path[1:]) in set(image_paths_for(owner_name, chart_dir)):
+        if is_primary_rel_path(owner_name, ".".join(path[1:]), chart_dir):
             primary_paths.append(path)
         else:
             sidecar_paths.append(path)
