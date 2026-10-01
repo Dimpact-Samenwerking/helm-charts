@@ -45,6 +45,7 @@ from lib.upgradedoc.string_and_parsing_basics import COMPONENT_VERSIONS_HEADING_
 from lib.upgradedoc.string_and_parsing_basics import TableRow
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
+from lib.upgradedoc.string_and_parsing_basics import set_row_cells
 from lib.upgradedoc.string_and_parsing_basics import text_names
 from lib.upgradedoc.version_cells_and_key_changes import chart_version_suffix
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
@@ -144,15 +145,8 @@ def update_component_table(text: str, friendly: str, change: VersionChange, orde
     chart_cell = component_version_cell(change.old_chart, change.new_chart)
 
     if row is not None:
-        old_line = lines[row["line_index"]]
-        cells = [c.strip() for c in old_line.strip().strip("|").split("|")]
         # No new version for a cell: leave what the row already says.
-        if app_cell is not None:
-            cells[1] = app_cell
-        if chart_cell is not None:
-            cells[2] = chart_cell
-        suffix = "\n" if old_line.endswith("\n") else ""
-        lines[row["line_index"]] = "| " + " | ".join(cells) + " |" + suffix
+        set_row_cells(lines, row, app_cell, chart_cell)
         return "".join(lines), "updated"
 
     new_row_line = f"| {friendly} | {app_cell or '-'} | {chart_cell or '-'} | - |\n"

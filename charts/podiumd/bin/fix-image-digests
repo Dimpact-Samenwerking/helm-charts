@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# The help text repeats other scripts' argument explanations on purpose;
+# tests/lib/test_script_help_consistency.py keeps them equal.
+# jscpd:ignore-start
 """
 Refresh stale image digest pins in charts/podiumd/values.yaml.
 
@@ -29,6 +32,7 @@ Examples:
     fix-image-digests MULTIPLE redis
     fix-image-digests --dry-run openklant open-klant
 """
+# jscpd:ignore-end
 
 import sys
 import urllib.error

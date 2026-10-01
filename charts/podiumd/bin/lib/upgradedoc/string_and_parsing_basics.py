@@ -82,6 +82,30 @@ def _table_cell_source_version(cell: str) -> str | None:
     return None if cell.strip().endswith("(new)") else extract_source_version(cell)
 
 
+def table_cells(line: str) -> list[str]:
+    """The stripped cells of a Markdown table row."""
+    return [c.strip() for c in line.strip().strip("|").split("|")]
+
+
+def set_row_cells(lines: list[str], row: TableRow, app_cell: str | None, chart_cell: str | None) -> list[str] | None:
+    """Write `row`'s App version and Helm chart cells into `lines`; None leaves a cell as it is.
+
+    Returns the row's new cells when the line changed, else None. The other
+    cells (name, notes) are kept.
+    """
+    line = lines[row["line_index"]]
+    old_cells = table_cells(line)
+    cells = [*old_cells]
+    if app_cell is not None:
+        cells[1] = app_cell
+    if chart_cell is not None:
+        cells[2] = chart_cell
+    if cells == old_cells:
+        return None
+    lines[row["line_index"]] = "| " + " | ".join(cells) + " |" + ("\n" if line.endswith("\n") else "")
+    return cells
+
+
 def parse_upgrade_doc_rows(text: str) -> list[TableRow]:
     """Every row of the "## Component versions" table, with its 0-based `line_index`.
 
@@ -107,7 +131,7 @@ def parse_upgrade_doc_rows(text: str) -> list[TableRow]:
         line = lines[i]
         if not line.strip().startswith("|"):
             continue
-        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        cells = table_cells(line)
         if len(cells) < 3 or cells[0].lower() == "component":
             continue
         if all(re.match(r"^:?-+:?$", c) for c in cells):

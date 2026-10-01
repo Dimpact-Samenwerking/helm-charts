@@ -303,22 +303,29 @@ def _parsed_manifest_from_text(text: str) -> tuple[ParsedManifest | None, bool]:
     return ParsedManifest(entries, entry_line_indices, lines), True
 
 
+def _positioned_groups(
+    text: str, context: ManifestSortContext
+) -> tuple[ParsedManifest, list[tuple[ManifestGroup, int]]]:
+    """(manifest, [(group, 0-based position after sorting)]) in manifest order; no groups if invalid or < 2 entries."""
+    manifest, ok = _parsed_manifest_from_text(text)
+    if not ok or manifest is None:
+        return ParsedManifest([], [], []), []
+    groups, order = _images_manifest_sorted_groups(manifest, context)
+    position_of_group = {orig_i: slot for slot, orig_i in enumerate(order)}
+    return manifest, [(group, position_of_group[i]) for i, group in enumerate(groups)]
+
+
 def images_manifest_entry_positions(text: str, context: ManifestSortContext) -> dict[str, int]:
     """{entry_name: 0-based final position} after sort_images_manifest_entries' group reordering.
 
     Lets callers mirror the entry order instead of fuzzy text matching. Entries
     in one group share its position. {} if invalid or fewer than 2 entries."""
-    manifest, ok = _parsed_manifest_from_text(text)
-    if not ok or manifest is None:
-        return {}
-
-    groups, order = _images_manifest_sorted_groups(manifest, context)
-    position_of_group = {orig_i: slot for slot, orig_i in enumerate(order)}
-    positions: dict[str, int] = {}
-    for group_index, (indices, _path, _name) in enumerate(groups):
-        for entry_index in indices:
-            positions[manifest.entries[entry_index]["name"]] = position_of_group[group_index]
-    return positions
+    manifest, positioned = _positioned_groups(text, context)
+    return {
+        manifest.entries[entry_index]["name"]: position
+        for (indices, _path, _name), position in positioned
+        for entry_index in indices
+    }
 
 
 def images_manifest_display_name_positions(text: str, context: ManifestSortContext) -> dict[str, int]:
@@ -329,17 +336,9 @@ def images_manifest_display_name_positions(text: str, context: ManifestSortConte
     fails where alias and image basename differ (e.g. "kiss" vs "kiss-frontend").
     Groups sharing a display name are adjacent; the lowest position wins.
     {} if invalid or fewer than 2 entries."""
-    manifest, ok = _parsed_manifest_from_text(text)
-    if not ok or manifest is None:
-        return {}
-
-    groups, order = _images_manifest_sorted_groups(manifest, context)
-    position_of_group = {orig_i: slot for slot, orig_i in enumerate(order)}
     positions: dict[str, int] = {}
-    for group_index, (_indices, _path, name) in enumerate(groups):
-        position = position_of_group[group_index]
-        if name not in positions or position < positions[name]:
-            positions[name] = position
+    for (_indices, _path, name), position in _positioned_groups(text, context)[1]:
+        positions[name] = min(position, positions.get(name, position))
     return positions
 
 

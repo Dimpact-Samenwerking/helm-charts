@@ -21,6 +21,7 @@ from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
 from lib.upgradedoc.string_and_parsing_basics import TableRow
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
+from lib.upgradedoc.string_and_parsing_basics import set_row_cells
 from lib.upgradedoc.version_cells_and_key_changes import canonical_version_cell
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
 
@@ -35,76 +36,48 @@ class HeadingFixInputs:
     heading_marker: str
 
 
+# Native components and sidecars have no chart: "-" is what the checker expects.
+NO_CHART = "-"
+
+
 def _new_dependency_row_update(lines: list[str], row: TableRow, resolved: ResolvedRow) -> tuple[str, str, str] | None:
     """Rewrite a baseline_resolved=False row to "<target> (new)" cells.
 
-    Returns (row_name, app_cell, chart_cell) if the row changed, else None."""
-    actual_target_chart, actual_target_app = resolved["target_chart"], resolved["target_app"]
-
-    # The chart cell is "(new)" regardless; the app may predate the dependency.
-    old_app_for_cell = resolved["baseline_app"]
-
-    row_changed = False
-    line = lines[row["line_index"]]
-    cells = [c.strip() for c in line.strip().strip("|").split("|")]
-
-    if actual_target_app is not None:
-        new_app_cell = component_version_cell(old_app_for_cell, actual_target_app)
-        if cells[1] != new_app_cell:
-            cells[1] = new_app_cell
-            row_changed = True
-    if actual_target_chart is not None:
-        new_chart_cell = component_version_cell(None, actual_target_chart)
-        if cells[2] != new_chart_cell:
-            cells[2] = new_chart_cell
-            row_changed = True
-    elif cells[2] != "-":
-        # Native components and sidecars have no chart: "-" is what the checker expects.
-        cells[2] = "-"
-        row_changed = True
-
-    if not row_changed:
-        return None
-    suffix = "\n" if line.endswith("\n") else ""
-    lines[row["line_index"]] = "| " + " | ".join(cells) + " |" + suffix
-    return (row["name"], cells[1], cells[2])
+    The chart cell is "(new)" regardless; the app may predate the dependency
+    (resolved["baseline_app"] from a past manifest). Returns (row_name,
+    app_cell, chart_cell) if the row changed, else None."""
+    target_chart, target_app = resolved["target_chart"], resolved["target_app"]
+    cells = set_row_cells(
+        lines,
+        row,
+        component_version_cell(resolved["baseline_app"], target_app) if target_app is not None else None,
+        component_version_cell(None, target_chart) if target_chart is not None else NO_CHART,
+    )
+    return (row["name"], cells[1], cells[2]) if cells else None
 
 
 def _existing_row_update(lines: list[str], row: TableRow, resolved: ResolvedRow) -> tuple[str, str, str] | None:
     """Rewrite a baseline_resolved=True row to source-to-target cells.
 
-    Returns (row_name, app_cell, chart_cell) if the row changed, else None."""
-    actual_target_chart, actual_target_app = resolved["target_chart"], resolved["target_app"]
-    actual_baseline_chart, actual_baseline_app = resolved["baseline_chart"], resolved["baseline_app"]
-
-    row_changed = False
-    line = lines[row["line_index"]]
-    cells = [c.strip() for c in line.strip().strip("|").split("|")]
-
-    if actual_target_app is not None:
-        # component_version_cell: the baseline app can be None even when the
-        # dependency existed (image pinned only this hop), rendering "(new)".
-        # Compare full cell text so a stale "(new)"/"(unchanged)" gets fixed.
-        new_app_cell = component_version_cell(actual_baseline_app, actual_target_app)
-        if cells[1] != new_app_cell:
-            cells[1] = new_app_cell
-            row_changed = True
-
-    if actual_target_chart is not None and actual_baseline_chart is not None:
-        new_chart_cell = canonical_version_cell(actual_baseline_chart, actual_target_chart)
-        if cells[2] != new_chart_cell:
-            cells[2] = new_chart_cell
-            row_changed = True
-    elif actual_target_chart is None and cells[2] != "-":
-        # See the identical branch in _new_dependency_row_update.
-        cells[2] = "-"
-        row_changed = True
-
-    if not row_changed:
-        return None
-    suffix = "\n" if line.endswith("\n") else ""
-    lines[row["line_index"]] = "| " + " | ".join(cells) + " |" + suffix
-    return (row["name"], cells[1], cells[2])
+    The baseline app can be None even when the dependency existed (image
+    pinned only this hop), rendering "(new)"; full cell text is compared so a
+    stale "(new)"/"(unchanged)" gets fixed. Returns (row_name, app_cell,
+    chart_cell) if the row changed, else None."""
+    target_chart, target_app = resolved["target_chart"], resolved["target_app"]
+    baseline_chart = resolved["baseline_chart"]
+    if target_chart is None:
+        chart_cell = NO_CHART
+    elif baseline_chart is not None:
+        chart_cell = canonical_version_cell(baseline_chart, target_chart)
+    else:
+        chart_cell = None
+    cells = set_row_cells(
+        lines,
+        row,
+        component_version_cell(resolved["baseline_app"], target_app) if target_app is not None else None,
+        chart_cell,
+    )
+    return (row["name"], cells[1], cells[2]) if cells else None
 
 
 def fix_component_version_table(

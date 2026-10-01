@@ -50,7 +50,7 @@ def test_canonical_sidecar_row_names_dependency_sidecar(tmp_path: Path, libchart
     values = {"redis-operator": {"redis-ha": {"image": {"repository": "quay.io/opstree/redis"}}}}
     paths = [("redis-operator", "redis-ha", "image")]
 
-    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
+    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [dep], values, paths)
 
     assert names == {"redis-operator - redis": ("redis-operator", "redis-ha", "image")}
 
@@ -62,7 +62,7 @@ def test_canonical_sidecar_row_names_native_component_sidecar(
     values = {"frankgateway": {"etcd": {"image": {"repository": "quay.io/coreos/etcd"}}}}
     paths = [("frankgateway", "etcd", "image")]
 
-    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [], values, paths, allow_pull=False)
+    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [], values, paths)
 
     assert names == {"frankgateway - etcd": ("frankgateway", "etcd", "image")}
 
@@ -74,7 +74,7 @@ def test_canonical_sidecar_row_names_excludes_native_components_own_primary_imag
     values = {"frankgateway": {"image": {"repository": "ghcr.io/wearefrank/frank-gateway"}}}
     paths = [("frankgateway", "image")]
 
-    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [], values, paths, allow_pull=False)
+    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [], values, paths)
 
     assert names == {}
 
@@ -87,7 +87,7 @@ def test_canonical_sidecar_row_names_excludes_dependencys_own_primary_image(
     values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"}}}
     paths = [("zac", "image")]
 
-    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
+    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [dep], values, paths)
 
     assert names == {}
 
@@ -103,7 +103,7 @@ def test_canonical_sidecar_row_names_self_referential_basename_falls_back_to_pat
     values = {"redis-operator": {"redisOperator": {"image": {"repository": "quay.io/opstree/redis-operator"}}}}
     paths = [("redis-operator", "redisOperator", "image")]
 
-    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
+    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [dep], values, paths)
 
     assert names == {"redis-operator - redisOperator": ("redis-operator", "redisOperator", "image")}
 
@@ -128,7 +128,7 @@ def test_canonical_sidecar_row_names_excludes_sidecar_aliasing_an_owners_primary
         ("keycloak-operator", "operator", "config", "keycloakImage"),
     ]
 
-    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
+    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [dep], values, paths)
     row_names = [libchartrepoandpathresolution.doc_row_name(tmp_path, [dep], values, p, paths) for p in paths]
 
     assert names == {}
@@ -143,7 +143,7 @@ def test_canonical_sidecar_row_names_self_referential_basename_no_fallback_segme
     values = {"keycloak-operator": {"image": {"repository": "quay.io/keycloak/keycloak-operator"}}}
     paths = [("keycloak-operator", "image")]
 
-    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
+    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [dep], values, paths)
 
     assert names == {}
 
@@ -153,7 +153,7 @@ def test_canonical_sidecar_row_names_global_shared_image(tmp_path: Path, libchar
     values = {"global": {"images": {"nginx": {"image": {"repository": "docker.io/nginxinc/nginx-unprivileged"}}}}}
     paths = [("global", "images", "nginx", "image")]
 
-    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [], values, paths, allow_pull=False)
+    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [], values, paths)
 
     assert names == {"nginx-unprivileged": ("global", "images", "nginx", "image")}
 
@@ -180,7 +180,7 @@ def test_canonical_sidecar_row_names_excludes_sidecar_sharing_a_global_repositor
         ("frankgateway", "dashboard", "auth", "shim", "image"),
     ]
 
-    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, deps, values, paths, allow_pull=False)
+    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, deps, values, paths)
 
     assert names == {"nginx-unprivileged": ("global", "images", "nginx")}
 
@@ -197,7 +197,7 @@ def test_canonical_sidecar_row_names_multiple_sidecars_stay_distinct(
     dep = {"name": "redis-operator", "alias": "", "version": "0.26.0"}
     paths = [("redis-operator", "redis-ha", "image"), ("redis-operator", "redis-exporter", "image")]
 
-    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
+    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [dep], values, paths)
 
     assert names == {
         "redis-operator - redis": ("redis-operator", "redis-ha", "image"),

@@ -301,8 +301,6 @@ def canonical_sidecar_row_names(
     deps: list[ChartDependency],
     values: YamlMapping,
     paths: Collection[tuple[str, ...]],
-    *,
-    allow_pull: bool = False,
 ) -> dict[str, tuple[str, ...]]:
     """{canonical doc-row name: values-tree path} for image paths that aren't a dependency's primary image.
 
@@ -316,11 +314,11 @@ def canonical_sidecar_row_names(
     """
     sidecar_paths, global_paths, primary_paths = _classify_image_paths(chart_dir, deps, paths)
     covered_repos = _global_repository_set(values, global_paths) | set(
-        repository_path_map(chart_dir, deps, values, primary_paths, allow_pull=allow_pull)
+        repository_path_map(chart_dir, deps, values, primary_paths)
     )
 
     names: dict[str, tuple[str, ...]] = {}
-    for repo, path in repository_path_map(chart_dir, deps, values, sidecar_paths, allow_pull=allow_pull).items():
+    for repo, path in repository_path_map(chart_dir, deps, values, sidecar_paths).items():
         if repo in covered_repos:
             continue
         row_name = _sidecar_row_name(repo, path)

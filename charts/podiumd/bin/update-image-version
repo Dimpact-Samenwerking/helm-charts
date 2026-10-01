@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# The help text repeats other scripts' argument explanations on purpose;
+# tests/lib/test_script_help_consistency.py keeps them equal.
+# jscpd:ignore-start
 """
 Bump every values.yaml image tag pin sharing an image basename, scoped to
 <key>, to a new version.
@@ -29,6 +32,7 @@ To bump a component's app and chart version together, use
 update-component-version. Re-render the chart (verify-podiumd) before
 committing.
 """
+# jscpd:ignore-end
 
 import sys
 

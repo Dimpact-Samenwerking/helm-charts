@@ -15,6 +15,7 @@ from lib.upgradedoc.removed_items import removed_item_named
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
+from lib.upgradedoc.string_and_parsing_basics import set_row_cells
 
 REMOVED = "(removed)"
 
@@ -45,10 +46,7 @@ def _sync_row(text: str, item: RemovedItem, ordering: OrderingContext) -> str:
             return text
         lines.insert(insert_at, f"| {item.name} | {app} | {chart} | - |\n")
         return "".join(lines)
-    line = lines[row["line_index"]]
-    cells = [c.strip() for c in line.strip().strip("|").split("|")]
-    cells[1:3] = [app, chart]
-    lines[row["line_index"]] = "| " + " | ".join(cells) + " |" + ("\n" if line.endswith("\n") else "")
+    set_row_cells(lines, row, app, chart)
     return "".join(lines)
 
 

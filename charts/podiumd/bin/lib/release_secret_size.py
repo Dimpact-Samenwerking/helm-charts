@@ -36,6 +36,7 @@ from lib.render_scope import render_chart
 from lib.settings import release_secret_kubernetes_limit_bytes
 from lib.settings import release_secret_warn_at_fraction_of_limit
 from lib.settings import render_report_default_output_file_name
+from lib.upgradedoc.string_and_parsing_basics import table_cells
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import YamlShapeError
 from lib.yaml_types import load_yaml_mapping
@@ -246,7 +247,7 @@ def _merge_row(doc_path: Path, lines: list[str], version: str, row: str):
         stripped = line.strip()
         if not stripped.startswith("|") or stripped.startswith("|---"):
             continue
-        cells = [c.strip() for c in stripped.strip("|").split("|")]
+        cells = table_cells(stripped)
         if cells and cells[0] == version:
             if replaced:
                 print(
