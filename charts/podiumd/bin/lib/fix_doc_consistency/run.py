@@ -21,7 +21,6 @@ from lib.cli import print_section
 from lib.cli import print_section_items
 from lib.component_docs.aliased_pin_bullets import add_missing_pin_bullets
 from lib.component_docs.baseline_doc_stubs import IMAGES_STUB_TEMPLATE
-from lib.component_docs.baseline_doc_stubs import STANDARD_SUFFIXES
 from lib.component_docs.baseline_doc_stubs import STUB_TEMPLATES
 from lib.component_docs.baseline_doc_stubs import existing_doc_baselines
 from lib.component_docs.changes_section import DocContext
@@ -70,6 +69,9 @@ from lib.image.manifest_entry_pins import sync_entry_pins
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.chart_image_index import ChartImageIndex
+from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
+from lib.upgradedoc.doc_names import doc_name
+from lib.upgradedoc.doc_names import images_manifest_path
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
 from lib.upgradedoc.images_manifest_ordering import ManifestSortContext
 from lib.upgradedoc.images_manifest_ordering import images_manifest_display_name_positions
@@ -107,11 +109,6 @@ class FixDocPaths:
     def values_yaml(self) -> Path:
         """The chart's values.yaml."""
         return self.chart_dir / "values.yaml"
-
-
-def images_manifest_path(paths: FixDocPaths, target: str):
-    """docs/images/images-<target>.yaml, whether or not it exists."""
-    return paths.images_dir / f"images-{target}.yaml"
 
 
 def load_target_state(paths: FixDocPaths):
@@ -215,7 +212,7 @@ def _rebase_doc_to_new_baseline(
     paths: FixDocPaths, doc: DocRename, target: str, new_baseline: str, acc: RebaseAccumulator
 ):
     """Rename doc onto new_baseline and rewrite its title, heading, refs and stubs."""
-    new_name = f"{new_baseline}-to-{target}-{doc.suffix}.md"
+    new_name = doc_name(new_baseline, target, doc.suffix)
     new_path = paths.doc_dir / new_name
     text = doc.path.read_text(encoding="utf-8")
 
@@ -256,7 +253,7 @@ def _rebase_docs(
     all_suffixes = sorted(set(by_suffix) | set(STANDARD_SUFFIXES))
     for suffix in all_suffixes:
         if suffix not in by_suffix:
-            new_name = f"{new_baseline}-to-{target}-{suffix}.md"
+            new_name = doc_name(new_baseline, target, suffix)
             new_path = paths.doc_dir / new_name
             new_path.write_text(
                 STUB_TEMPLATES[suffix].format(upgrade_docs_baseline=new_baseline, target=target), encoding="utf-8"
@@ -279,7 +276,7 @@ def _bump_images_manifest_baseline(
     paths: FixDocPaths, target: str, new_baseline: str, review_notes: list[tuple[str, list[int]]]
 ):
     """Stub images-<target>.yaml if missing, else rebase its baseline header and refs. Returns its path."""
-    images_path = images_manifest_path(paths, target)
+    images_path = images_manifest_path(paths.images_dir, target)
     if not images_path.is_file():
         images_path.write_text(
             IMAGES_STUB_TEMPLATE.format(upgrade_docs_baseline=new_baseline, target=target), encoding="utf-8"
@@ -848,10 +845,10 @@ def fix_docs(paths: FixDocPaths, target: str, new_baseline: str) -> RebaseState:
         else set()
     )
 
-    upgrade_path = paths.doc_dir / f"{new_baseline}-to-{target}-upgrade.md"
+    upgrade_path = paths.doc_dir / doc_name(new_baseline, target, "upgrade")
     _fix_upgrade_doc(state, upgrade_path, actual_changed_keys)
     _fix_images_manifest_content(state, images_path, upgrade_path)
-    values_deltas_path = paths.doc_dir / f"{new_baseline}-to-{target}-values-deltas.md"
+    values_deltas_path = paths.doc_dir / doc_name(new_baseline, target, "values-deltas")
     _fix_values_deltas(state, upgrade_path, values_deltas_path)
 
     if todo_stub_docs:

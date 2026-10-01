@@ -30,7 +30,6 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 # sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
-from lib.chart.historical_baselines import SEMVER_RE as BASELINE_VERSION_RE
 from lib.chart.paths import CHART_DIR
 from lib.chart.paths import CHART_YAML
 from lib.chart.paths import DOC_DIR
@@ -42,6 +41,7 @@ from lib.cli import print_section
 from lib.component_docs.baseline_doc_stubs import create_missing_docs
 from lib.component_docs.baseline_doc_stubs import existing_doc_baselines
 from lib.procutil import run_script
+from lib.version_numbers import is_bare_version
 
 FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 
@@ -63,7 +63,7 @@ def main():
         )
         sys.exit(1)
 
-    if not BASELINE_VERSION_RE.match(upgrade_docs_baseline):
+    if not is_bare_version(upgrade_docs_baseline):
         print(f"error: '{upgrade_docs_baseline}' is not a valid MAJOR.MINOR.PATCH version")
         sys.exit(1)
     target = current_chart_version()

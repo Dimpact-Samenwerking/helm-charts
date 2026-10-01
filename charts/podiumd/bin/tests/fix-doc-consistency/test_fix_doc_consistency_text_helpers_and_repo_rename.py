@@ -8,13 +8,13 @@ from types import ModuleType
 
 import pytest
 
-from lib.component_docs.baseline_doc_stubs import STANDARD_SUFFIXES
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import collapse_multiple_blank_lines
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import ensure_blank_lines_around_headings
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import find_collisions
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import remaining_mentions
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import update_component_versions_heading
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import update_title_line
+from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
 
 
 def write(path, text):
@@ -506,8 +506,3 @@ def test_main_rejects_non_semver_baseline_from_release_baseline_yaml(
     assert exc_info.value.code == 1
     assert "not a valid MAJOR.MINOR.PATCH version" in capsys.readouterr().out
     assert sorted(p.name for p in repo.iterdir()) == before
-
-
-def test_main_accepts_valid_semver_baseline(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    assert cdb.BASELINE_VERSION_RE.match("4.8.2")
-    assert cdb.BASELINE_VERSION_RE.match("10.20.300")

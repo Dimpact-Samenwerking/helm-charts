@@ -59,6 +59,9 @@ from lib.upgradedoc.consistency_checks import find_changes_row_correspondence_ga
 from lib.upgradedoc.consistency_checks import find_wrong_or_duplicate_dependency_claims
 from lib.upgradedoc.consistency_checks import rowed_component_keys
 from lib.upgradedoc.consistency_checks import rowed_sidecar_paths
+from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
+from lib.upgradedoc.doc_names import doc_name
+from lib.upgradedoc.doc_names import images_manifest_path
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
 from lib.upgradedoc.removed_items import RemovedItem
 from lib.upgradedoc.removed_items import removed_item_named
@@ -76,6 +79,7 @@ from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows as _parse_upgrade_doc_rows
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
+from lib.version_numbers import is_bare_version
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import load_yaml_mapping
 
@@ -91,29 +95,22 @@ def _pointer_consistency_mismatches(doc_dir: Path, upgrade_docs_baseline: str, p
     Returned rather than returning early, so one stale link doesn't hide every other finding.
     """
     images_dir = doc_dir.parent / "images"
-    pointer_docs = [
-        doc_dir / f"{upgrade_docs_baseline}-to-{podiumd_version}-{suffix}.md"
-        for suffix in ("upgrade", "gemeente-specific", "values-deltas")
-    ]
-    images_path_for_pointers = images_dir / f"images-{podiumd_version}.yaml"
+    pointer_docs = [doc_dir / doc_name(upgrade_docs_baseline, podiumd_version, suffix) for suffix in STANDARD_SUFFIXES]
+    images_path_for_pointers = images_manifest_path(images_dir, podiumd_version)
     if images_path_for_pointers.is_file():
         pointer_docs.append(images_path_for_pointers)
     return [
-        issue
-        for doc in pointer_docs
-        for issue in check_pointer_consistency(doc, upgrade_docs_baseline, podiumd_version, doc_dir, images_dir)
+        issue for doc in pointer_docs for issue in check_pointer_consistency(doc, podiumd_version, doc_dir, images_dir)
     ]
 
 
-def _check_companion_docs(
-    doc_dir: Path, upgrade_docs_baseline: str, podiumd_version: str, findings: Findings, *, is_bare_version: bool
-):
+def _check_companion_docs(doc_dir: Path, upgrade_docs_baseline: str, podiumd_version: str, findings: Findings):
     """Append gemeente-specific/values-deltas companion-doc findings to `findings`.
 
     Only the gemeente-specific placeholder, which nothing auto-fixes, is
     checked; fix-doc-consistency clears the values-deltas one.
     """
-    if not is_bare_version:
+    if not is_bare_version(upgrade_docs_baseline):
         print(
             f'WARNING: upgrade_docs_baseline "{upgrade_docs_baseline}" is not a bare version — cannot check '
             f"for matching gemeente-specific / values-deltas docs"
@@ -121,16 +118,16 @@ def _check_companion_docs(
         return
 
     for suffix in ("gemeente-specific", "values-deltas"):
-        doc_name, doc_mismatches = check_companion_doc(doc_dir, upgrade_docs_baseline, podiumd_version, suffix)
-        findings.checked.append(doc_name)
+        companion_name, doc_mismatches = check_companion_doc(doc_dir, upgrade_docs_baseline, podiumd_version, suffix)
+        findings.checked.append(companion_name)
         findings.mismatches.extend(doc_mismatches)
 
-        companion_path = doc_dir / doc_name
+        companion_path = doc_dir / companion_name
         if companion_path.is_file():
             companion_text = companion_path.read_text(encoding="utf-8")
             if suffix == "gemeente-specific" and has_stale_gemeente_specific_placeholder(companion_text):
                 findings.mismatches.append(
-                    f'{doc_name}: still has its own stale "_None recorded yet._" placeholder '
+                    f'{companion_name}: still has its own stale "_None recorded yet._" placeholder '
                     f'stranded alongside a real "## <gemeente> (<env>)" section — clear it by hand '
                     f"(nothing auto-fixes this one)"
                 )
@@ -175,7 +172,7 @@ def _build_docs_check_context(chart_dir: Path, doc_dir: Path, podiumd_version: s
             doc_dir,
             podiumd_version,
             upgrade_docs_baseline,
-            bool(upgrade_docs_baseline and re.match(r"^\d+\.\d+\.\d+", upgrade_docs_baseline)),
+            is_bare_version(upgrade_docs_baseline),
         ),
         images=StateImages(
             ChartImageIndex(chart_dir, deps, values),
@@ -436,10 +433,9 @@ def _select_upgrade_doc(ctx: DocsCheckContext, findings: Findings):
 
     Warns (never fails) on zero or multiple matches; None when there is no doc.
     """
-    doc_glob = (
-        f"{ctx.doc_query.upgrade_docs_baseline}-to-{ctx.doc_query.podiumd_version}-upgrade.md"
-        if ctx.doc_query.is_bare_version
-        else f"*-to-{ctx.doc_query.podiumd_version}-upgrade.md"
+    baseline = ctx.doc_query.upgrade_docs_baseline
+    doc_glob = doc_name(
+        baseline if ctx.doc_query.is_bare_version and baseline else "*", ctx.doc_query.podiumd_version, "upgrade"
     )
     doc_matches = sorted(ctx.doc_query.doc_dir.glob(doc_glob))
     if not doc_matches:
@@ -462,7 +458,7 @@ def _stale_changes_item_mismatches(
     ctx: DocsCheckContext, scan: DocScanState, resolution: ResolutionContext
 ) -> list[str]:
     """An images-manifest "# Changes:" item contradicts its upgrade-doc table row."""
-    images_path = ctx.doc_query.doc_dir.parent / "images" / f"images-{ctx.doc_query.podiumd_version}.yaml"
+    images_path = images_manifest_path(ctx.doc_query.doc_dir.parent / "images", ctx.doc_query.podiumd_version)
     if not images_path.is_file():
         return []
     lines = images_path.read_text(encoding="utf-8").splitlines(keepends=True)
@@ -604,7 +600,7 @@ def _check_images_manifest(
     Appends onto `findings`. Entry checks are skipped when the format isn't
     interpretable, but earlier findings are kept (no early return on findings).
     """
-    images_path = ctx.doc_query.doc_dir.parent / "images" / f"images-{ctx.doc_query.podiumd_version}.yaml"
+    images_path = images_manifest_path(ctx.doc_query.doc_dir.parent / "images", ctx.doc_query.podiumd_version)
 
     images_format_ok = True
     if ctx.doc_query.is_bare_version:
@@ -646,11 +642,10 @@ def _check_images_manifest(
         _check_images_manifest_entry(ctx, scan, entry, findings)
 
 
-def _check_values_deltas(ctx: DocsCheckContext, findings: Findings):
+def _check_values_deltas(ctx: DocsCheckContext, upgrade_docs_baseline: str, findings: Findings):
     """The values-deltas doc's content checks (see caller's guard); fix-doc-consistency orders its sections."""
-    values_deltas_path = (
-        ctx.doc_query.doc_dir
-        / f"{ctx.doc_query.upgrade_docs_baseline}-to-{ctx.doc_query.podiumd_version}-values-deltas.md"
+    values_deltas_path = ctx.doc_query.doc_dir / doc_name(
+        upgrade_docs_baseline, ctx.doc_query.podiumd_version, "values-deltas"
     )
     findings.mismatches.extend(
         check_values_deltas_content(
@@ -675,7 +670,7 @@ def _check_baseline_doc_set_and_pointers(
     Returns an early-return result the caller must propagate when the doc set is
     malformed; otherwise None (pointer findings go into `findings`).
     """
-    if not upgrade_docs_baseline or not re.match(r"^\d+\.\d+\.\d+", upgrade_docs_baseline):
+    if not is_bare_version(upgrade_docs_baseline):
         return None
     precheck_issues = check_baseline_doc_set(doc_dir, upgrade_docs_baseline, podiumd_version)
     if precheck_issues:
@@ -694,8 +689,6 @@ def _check_docs(chart_dir: Path, doc_dir: Path, upgrade_docs_baseline: str | Non
     """Every finding about the docs in doc_dir; an early (ok, detail) result when the doc set itself is malformed."""
     podiumd_version = chart_version(chart_dir / "Chart.yaml")
     sibling_fields = digest_pinning_exceptions(chart_dir)
-    is_bare_version = bool(upgrade_docs_baseline and re.match(r"^\d+\.\d+\.\d+", upgrade_docs_baseline))
-
     findings = Findings([], [])
 
     precheck_result = _check_baseline_doc_set_and_pointers(doc_dir, upgrade_docs_baseline, podiumd_version, findings)
@@ -703,9 +696,7 @@ def _check_docs(chart_dir: Path, doc_dir: Path, upgrade_docs_baseline: str | Non
         return precheck_result
 
     if upgrade_docs_baseline:
-        _check_companion_docs(
-            doc_dir, upgrade_docs_baseline, podiumd_version, findings, is_bare_version=is_bare_version
-        )
+        _check_companion_docs(doc_dir, upgrade_docs_baseline, podiumd_version, findings)
 
     ctx, baseline_mismatch = _build_docs_check_context(chart_dir, doc_dir, podiumd_version, upgrade_docs_baseline)
     if baseline_mismatch:
@@ -714,8 +705,8 @@ def _check_docs(chart_dir: Path, doc_dir: Path, upgrade_docs_baseline: str | Non
     _check_component_versions_table(ctx, findings)
     _check_images_manifest(ctx, sibling_fields, findings)
 
-    if ctx.baseline_ref and is_bare_version and ctx.actual_changed_keys:
-        _check_values_deltas(ctx, findings)
+    if ctx.baseline_ref and is_bare_version(upgrade_docs_baseline) and ctx.actual_changed_keys:
+        _check_values_deltas(ctx, upgrade_docs_baseline, findings)
     return findings
 
 
@@ -742,8 +733,7 @@ def check_docs_consistency(chart_dir: Path, upgrade_docs_baseline: str | None = 
     Returns (True, "no matching docs found — skipped") when there's nothing to check,
     (False, "<detail>") with findings printed, or (True, "matches ...").
     """
-    is_bare_version = bool(upgrade_docs_baseline and re.match(r"^\d+\.\d+\.\d+", upgrade_docs_baseline))
-    if not is_bare_version or upgrade_docs_baseline is None:
+    if not is_bare_version(upgrade_docs_baseline):
         result = _check_docs(chart_dir, chart_dir / "docs" / "_UPGRADE_PATHS", upgrade_docs_baseline)
         return result if isinstance(result, tuple) else _report(None, result)
     with fix_docs_dry_run(chart_dir, chart_version(chart_dir / "Chart.yaml"), upgrade_docs_baseline) as dry:

@@ -44,7 +44,6 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 # sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
-from lib.chart.historical_baselines import SEMVER_RE as BASELINE_VERSION_RE
 from lib.chart.paths import CHART_YAML
 from lib.chart.paths import DOC_DIR
 from lib.chart.paths import IMAGES_DIR
@@ -55,6 +54,7 @@ from lib.dependencies import ensure_vendored_dependencies
 from lib.fix_doc_consistency.run import FixDocPaths
 from lib.fix_doc_consistency.run import fix_docs
 from lib.image.baseline_refresh import refresh_images_baseline
+from lib.version_numbers import is_bare_version
 
 
 def current_chart_version():
@@ -78,7 +78,7 @@ def _load_and_validate_baseline():
         )
         sys.exit(1)
 
-    if not BASELINE_VERSION_RE.match(new_baseline):
+    if not is_bare_version(new_baseline):
         print(f"error: '{new_baseline}' is not a valid MAJOR.MINOR.PATCH version")
         sys.exit(1)
     return new_baseline, current_chart_version()

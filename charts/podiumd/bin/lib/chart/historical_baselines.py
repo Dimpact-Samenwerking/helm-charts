@@ -1,7 +1,5 @@
 """Past-release images-manifest lookups and the shared two-tier baseline-tag resolution."""
 
-import re
-
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,12 +11,10 @@ from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repo_group_representative
 from lib.chart.repo_and_path_resolution import repository_group_key
 from lib.images_manifest import try_parse_images_manifest
+from lib.upgradedoc.doc_names import IMAGES_MANIFEST_NAME_RE
 from lib.version_numbers import dotted_numbers
 from lib.version_numbers import stable_semver_key
 from lib.yaml_types import YamlMapping
-
-# A bare MAJOR.MINOR.PATCH version; callers reject anything else up front.
-SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
 
 def historical_images_manifest_paths(chart_dir: Path | None, at_or_before: str | None = None) -> list[Path]:
@@ -37,7 +33,7 @@ def historical_images_manifest_paths(chart_dir: Path | None, at_or_before: str |
     limit = stable_semver_key(at_or_before) if at_or_before else None
     dated: list[tuple[tuple[int, ...], Path]] = []
     for path in images_dir.glob("images-*.yaml"):
-        m = re.match(r"^images-(\d+\.\d+\.\d+)\.yaml$", path.name)
+        m = IMAGES_MANIFEST_NAME_RE.fullmatch(path.name)
         if not m:
             continue
         version_tuple = dotted_numbers(m.group(1))

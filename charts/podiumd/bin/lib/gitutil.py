@@ -1,10 +1,9 @@
 """Git helpers for reading a chart's state at a baseline ref without checking it out."""
 
-import re
-
 from pathlib import Path
 
 from lib.procutil import run
+from lib.version_numbers import is_bare_version
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import parse_yaml_mapping
 
@@ -25,7 +24,7 @@ def current_branch(repo_root: Path):
 
 def baseline_ref_candidates(baseline: str):
     """Refs to try for baseline: a bare version maps to tag, then feature branch; any other ref as-is."""
-    if re.match(r"^\d+\.\d+\.\d+", baseline):
+    if is_bare_version(baseline):
         return [f"podiumd-{baseline}", f"origin/feature/podiumd-{baseline}", f"feature/podiumd-{baseline}"]
     return [baseline]
 

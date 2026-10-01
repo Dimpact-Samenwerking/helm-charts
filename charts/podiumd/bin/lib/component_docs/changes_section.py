@@ -33,6 +33,7 @@ from lib.component_docs.owned_parts import template_prefix_re
 from lib.component_docs.owned_parts import template_re
 from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.consistency_checks import rowed_component_keys
+from lib.upgradedoc.doc_names import images_manifest_name
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.resolve_component_row import resolve_component_row
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
@@ -342,7 +343,8 @@ def make_changes_section(
 
 def image_digest_pointer(target: str) -> str:
     """The "- Image / digest" line that ends every Changes section."""
-    return f"{IMAGE_DIGEST_POINTER_PREFIX}[`images-{target}.yaml`](../images/images-{target}.yaml).\n"
+    name = images_manifest_name(target)
+    return f"{IMAGE_DIGEST_POINTER_PREFIX}[`{name}`](../images/{name}).\n"
 
 
 @dataclass(frozen=True)

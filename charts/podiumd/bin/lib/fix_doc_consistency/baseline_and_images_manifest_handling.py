@@ -2,8 +2,10 @@
 
 import re
 
-# Same shape as verify-podiumd's SIBLING_DOC_RE/IMAGES_REF check.
-SIBLING_DOC_RE_TMPL = r"(?P<baseline>\d+\.\d+\.\d+)-to-{target}-(?P<suffix>upgrade|gemeente-specific|values-deltas)\.md"
+from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
+from lib.upgradedoc.doc_names import doc_name
+from lib.upgradedoc.doc_names import doc_name_re
+
 BASELINE_LINE_RE = re.compile(r"(?P<prefix>Baseline:\s*podiumd\s+)(?P<baseline>\d+\.\d+\.\d+)")
 # Any target and baseline, so a wrong one is rewritten too.
 VS_LINE_RE = re.compile(r"(?P<prefix>podiumd\s+)(?P<target>\d+\.\d+\.\d+)(?P<vs>\s+vs\s+)(?P<baseline>\d+\.\d+\.\d+)")
@@ -21,8 +23,8 @@ def update_sibling_doc_refs(text: str, target: str, new_baseline: str):
     Safe unconditionally: the chart supports exactly one upgrade path per target.
     `changed` means the text differs, not that the pattern matched (an already-correct
     reference matches too). Returns (new_text, changed)."""
-    pattern = re.compile(SIBLING_DOC_RE_TMPL.format(target=re.escape(target)))
-    new_text = pattern.sub(lambda m: f"{new_baseline}-to-{target}-{m.group('suffix')}.md", text)
+    pattern = doc_name_re(target, STANDARD_SUFFIXES)
+    new_text = pattern.sub(lambda m: doc_name(new_baseline, target, m.group("suffix")), text)
     return new_text, new_text != text
 
 

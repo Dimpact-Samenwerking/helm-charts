@@ -1,8 +1,17 @@
-"""Version strings as comparable number tuples."""
+"""Bare release versions, and version strings as comparable number tuples."""
 
 import re
 
-_STABLE_SEMVER_RE = re.compile(r"^v?(\d+\.\d+\.\d+)$")
+from typing import TypeGuard
+
+# A bare MAJOR.MINOR.PATCH, as in Chart.yaml's version and release-baseline.yaml's upgrade_docs.
+BARE_VERSION_PATTERN = r"\d+\.\d+\.\d+"
+_STABLE_SEMVER_RE = re.compile(rf"^v?({BARE_VERSION_PATTERN})$")
+
+
+def is_bare_version(version: str | None) -> TypeGuard[str]:
+    """Whether `version` is a bare MAJOR.MINOR.PATCH (no "v", no pre-release): a release, not a git ref."""
+    return version is not None and re.fullmatch(BARE_VERSION_PATTERN, version) is not None
 
 
 def dotted_numbers(text: str) -> tuple[int, ...]:

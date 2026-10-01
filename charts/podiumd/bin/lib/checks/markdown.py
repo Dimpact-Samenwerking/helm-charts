@@ -19,6 +19,7 @@ from lib.gitutil import find_repo_root
 from lib.procutil import run
 from lib.render_scope import print_grouped_findings
 from lib.settings import quality_gates_markdown_disabled_rules
+from lib.upgradedoc.doc_names import doc_name_re
 
 # Applied on every invocation (scan and fix); see module docstring for md024.
 MARKDOWN_PLUGIN_SETTINGS = ["-s", "plugins.md024.siblings_only=$!True"]
@@ -28,9 +29,6 @@ MARKDOWN_FINDING_RE = re.compile(
     r"(?P<rule>MD\d+):\s+(?P<message>.*?)\s*\((?P<aliases>[a-z0-9,-]+)\)\s*$",
     re.MULTILINE,
 )
-
-# docs/_UPGRADE_PATHS name shape; suffix left open so new doc types need no change.
-UPGRADE_PATH_DOC_RE = re.compile(r"^(?P<baseline>\d+\.\d+\.\d+)-to-(?P<target>\d+\.\d+\.\d+)-.+\.md$")
 
 
 def find_markdown_files(chart_dir: Path):
@@ -52,7 +50,7 @@ def find_markdown_files(chart_dir: Path):
         if vendored in p.parents or bin_dir in p.parents or p == readme:
             return False
         if upgrade_paths_dir in p.parents:
-            m = UPGRADE_PATH_DOC_RE.match(p.name)
+            m = doc_name_re().fullmatch(p.name)
             if m:
                 if m.group("target") != current_target:
                     return False

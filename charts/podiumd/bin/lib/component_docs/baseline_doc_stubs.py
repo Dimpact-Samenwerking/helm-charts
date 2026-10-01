@@ -4,8 +4,6 @@ values.yaml/Chart.yaml at the upgrade_docs_baseline. Shared by
 create-doc-version, fix-doc-consistency, update-component-version, and
 update-image-version."""
 
-import re
-
 from pathlib import Path
 
 from lib.chart.chart_yaml import ChartDependency
@@ -14,12 +12,11 @@ from lib.gitutil import find_repo_root
 from lib.gitutil import git_show_yaml
 from lib.gitutil import resolve_git_ref
 from lib.release_baseline import resolve_baseline_chart_state
+from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
+from lib.upgradedoc.doc_names import doc_name
+from lib.upgradedoc.doc_names import doc_name_re
+from lib.upgradedoc.doc_names import images_manifest_path
 from lib.yaml_types import YamlMapping
-
-
-def images_manifest_path(images_dir: Path, target: str):
-    """The docs/images/images-<target>.yaml path for `target`."""
-    return images_dir / f"images-{target}.yaml"
 
 
 def baseline_doc_paths(doc_dir: Path, upgrade_docs_baseline: str | None, target: str):
@@ -29,15 +26,12 @@ def baseline_doc_paths(doc_dir: Path, upgrade_docs_baseline: str | None, target:
     exist yet (run create-doc-version first)."""
     if upgrade_docs_baseline is None:
         return None, None
-    upgrade_path = doc_dir / f"{upgrade_docs_baseline}-to-{target}-upgrade.md"
+    upgrade_path = doc_dir / doc_name(upgrade_docs_baseline, target, "upgrade")
     if not upgrade_path.is_file():
         return None, None
-    values_deltas_path = doc_dir / f"{upgrade_docs_baseline}-to-{target}-values-deltas.md"
+    values_deltas_path = doc_dir / doc_name(upgrade_docs_baseline, target, "values-deltas")
     return upgrade_path, (values_deltas_path if values_deltas_path.is_file() else None)
 
-
-# The docs check_baseline_doc_set expects for every target.
-STANDARD_SUFFIXES = ("upgrade", "gemeente-specific", "values-deltas")
 
 # Bare placeholder lines the stubs write; shared with the "is this just the
 # stub" checks so they can't drift. Both upgrade-doc placeholders are cleared
@@ -92,19 +86,16 @@ IMAGES_STUB_TEMPLATE = (
     "[]\n"
 )
 
-# Baseline segment is bare MAJOR.MINOR.PATCH, as in release-baseline.yaml's upgrade_docs.
-DOC_FILENAME_RE_TMPL = r"^(?P<upgrade_docs_baseline>\d+\.\d+\.\d+)-to-{target}-(?P<suffix>[\w\-]+)\.md$"
-
 
 def existing_doc_baselines(doc_dir: Path, target: str) -> dict[str, list[tuple[str, Path]]]:
     """{suffix: [(upgrade_docs_baseline, path), ...]} for every *-to-<target>-<suffix>.md in doc_dir."""
-    pattern = re.compile(DOC_FILENAME_RE_TMPL.format(target=re.escape(target)))
+    pattern = doc_name_re(target)
     by_suffix: dict[str, list[tuple[str, Path]]] = {}
     for path in doc_dir.glob(f"*-to-{target}-*.md"):
-        m = pattern.match(path.name)
+        m = pattern.fullmatch(path.name)
         if not m:
             continue
-        by_suffix.setdefault(m.group("suffix"), []).append((m.group("upgrade_docs_baseline"), path))
+        by_suffix.setdefault(m.group("suffix"), []).append((m.group("baseline"), path))
     return by_suffix
 
 
@@ -114,7 +105,7 @@ def create_missing_docs(doc_dir: Path, images_dir: Path, upgrade_docs_baseline: 
     Returns the created filenames (doc suffix order, images manifest last)."""
     created: list[str] = []
     for suffix in STANDARD_SUFFIXES:
-        path = doc_dir / f"{upgrade_docs_baseline}-to-{target}-{suffix}.md"
+        path = doc_dir / doc_name(upgrade_docs_baseline, target, suffix)
         if not path.is_file():
             path.write_text(
                 STUB_TEMPLATES[suffix].format(upgrade_docs_baseline=upgrade_docs_baseline, target=target),

@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING
 from lib.chart.chart_state import BaselineState
 from lib.chart.chart_state import ComponentState
 from lib.chart.chart_yaml import ChartDependency
+from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
+from lib.upgradedoc.doc_names import images_manifest_path
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
 
 if TYPE_CHECKING:
@@ -135,10 +137,8 @@ def test_insert_images_manifest_header_item_appends_and_fixes_a_preexisting_gap(
 # --- images_manifest_path ---
 
 
-def test_images_manifest_path(
-    libcomponentdocs: ModuleType, libcomponentdocsbaselinedocstubs: ModuleType, tmp_path: Path
-):
-    assert libcomponentdocsbaselinedocstubs.images_manifest_path(tmp_path, "4.9.0") == tmp_path / "images-4.9.0.yaml"
+def test_images_manifest_path(tmp_path: Path):
+    assert images_manifest_path(tmp_path, "4.9.0") == tmp_path / "images-4.9.0.yaml"
 
 
 # --- baseline_doc_paths ---
@@ -260,7 +260,7 @@ def test_create_missing_docs_nothing_to_do_when_all_exist(
     images_dir = tmp_path / "images"
     doc_dir.mkdir()
     images_dir.mkdir()
-    for suffix in libcomponentdocsbaselinedocstubs.STANDARD_SUFFIXES:
+    for suffix in STANDARD_SUFFIXES:
         (doc_dir / f"4.8.5-to-4.9.0-{suffix}.md").write_text("x", encoding="utf-8")
     (images_dir / "images-4.9.0.yaml").write_text("x", encoding="utf-8")
 

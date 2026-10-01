@@ -37,7 +37,6 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 # sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
-from lib.chart.historical_baselines import SEMVER_RE as CHART_VERSION_RE
 from lib.chart.paths import CHART_DIR
 from lib.chart.paths import CHART_YAML
 from lib.chart.release_baseline_basics import chart_version
@@ -51,6 +50,7 @@ from lib.gitutil import current_branch
 from lib.gitutil import find_repo_root
 from lib.gitutil import resolve_baseline_ref
 from lib.procutil import run_script
+from lib.version_numbers import is_bare_version
 
 CREATE_DOC_VERSION_SCRIPT = SCRIPT_DIR / "create-doc-version"
 
@@ -131,7 +131,7 @@ def outgoing_version(chart_version_now: str, target: str) -> str:
     if chart_version_now != target:
         return chart_version_now
     recorded = read_upgrade_docs_baseline(CHART_DIR)
-    if recorded is None or not CHART_VERSION_RE.match(recorded):
+    if recorded is None or not is_bare_version(recorded):
         print(
             f"error: {CHART_YAML.name} is already at {target}, but release-baseline.yaml "
             f"upgrade_docs is {recorded!r} — set it with change-podiumd-baseline"
@@ -160,7 +160,7 @@ def main():
     target = m.group(1)
 
     chart_version_now = current_chart_version()
-    if not CHART_VERSION_RE.match(chart_version_now):
+    if not is_bare_version(chart_version_now):
         print(f"error: {CHART_YAML}'s version '{chart_version_now}' is not a plain MAJOR.MINOR.PATCH")
         sys.exit(1)
     baseline = outgoing_version(chart_version_now, target)
