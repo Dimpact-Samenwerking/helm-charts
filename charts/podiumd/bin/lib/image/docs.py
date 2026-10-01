@@ -37,6 +37,7 @@ from lib.component_docs.changes_section import ComponentIdentity
 from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import DocContext
 from lib.component_docs.changes_section import VersionChange
+from lib.component_docs.changes_section import changes_body_kinds
 from lib.component_docs.changes_section import insert_changes_section
 from lib.component_docs.changes_section import make_changes_section
 from lib.component_docs.changes_section import render_changes_section
@@ -382,20 +383,31 @@ def update_stale_app_version_headings(
 
 
 _CHART_PART_RE = re.compile(r"\(chart [^)]*\)$")
-_INTRO_VERB_RE = re.compile(r"^PodiumD \S+ (introduces|upgrades) \*\*", re.MULTILINE)
+
+
+def _owned_lines(body: str, kind: str) -> list[str]:
+    """The lines of `body` that changes_body_kinds labels `kind`."""
+    lines = body.splitlines(keepends=True)
+    return [line for line, line_kind in zip(lines, changes_body_kinds(lines), strict=True) if line_kind == kind]
 
 
 def _section_contradicts(heading: str, body: str, expected_heading: str, expected: str) -> bool:
-    """Whether the heading's "(chart ...)" part or the generated intro verb differs from the row's section.
+    """Whether a generated part of the section differs from the section its row gives.
 
-    Hand-written headings without a chart part and hand-written intros are not compared.
+    Compared: the heading's "(chart ...)" part, the generated intro, and each
+    expected pin bullet. Extra generated bullets (an aliased path's pin) are
+    allowed; hand-written headings, intros and lines are never compared.
     """
     chart = _CHART_PART_RE.search(heading)
     expected_chart = _CHART_PART_RE.search(expected_heading)
     if chart and expected_chart and chart.group(0) != expected_chart.group(0):
         return True
-    verb, expected_verb = _INTRO_VERB_RE.search(body), _INTRO_VERB_RE.search(expected)
-    return bool(verb) and (expected_verb is None or verb.group(1) != expected_verb.group(1))
+    expected_body = expected.split("\n", 1)[1]
+    intro = _owned_lines(body, "intro")
+    if intro and intro != _owned_lines(expected_body, "intro"):
+        return True
+    bullets = _owned_lines(body, "bullet")
+    return bool(bullets) and not set(_owned_lines(expected_body, "bullet")) <= set(bullets)
 
 
 @dataclass(frozen=True)
