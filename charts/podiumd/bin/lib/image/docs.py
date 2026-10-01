@@ -251,20 +251,17 @@ def build_changes_section_for_row(
         version_paths = version_paths_for(dep["name"])
         image_paths = [] if version_paths else image_paths_for(dep["name"])
         identity = ComponentIdentity(row["name"], dep["name"], values_key)
+        # A "(new)" cell has no source version: the section then says "new" too.
         change = VersionChange(
-            row["app_source"] or row["app"],
+            row["app_source"],
             row["app"],
-            row["chart_source"] or row["chart"] or str(dep["version"]),
+            row["chart_source"] if row["chart"] else str(dep["version"]),
             row["chart"] or str(dep["version"]),
         )
         return make_changes_section(identity, target, change, image_paths, version_paths)
     dotted_path = ".".join(ident[1]) + ".tag"
     return make_image_changes_section(
-        row["name"],
-        target,
-        row["app_source"] or row["app"],
-        row["app"],
-        [(dotted_path, row["app_source"] or row["app"])],
+        row["name"], target, row["app_source"], row["app"], [(dotted_path, row["app_source"])]
     )
 
 

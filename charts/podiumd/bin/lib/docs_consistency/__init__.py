@@ -74,7 +74,6 @@ from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import TableRow
 from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
-from lib.upgradedoc.string_and_parsing_basics import extract_source_version
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows as _parse_upgrade_doc_rows
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
@@ -281,7 +280,8 @@ def _check_row_baseline_versions(
             f"or its version isn't resolvable there; source cells left unchecked"
         )
         if resolved["kind"] != "sidecar" and actual_app:
-            result.baseline_app_by_identity[("dep", values_key)] = None
+            # A past images manifest can still know the image (see _dependency_baseline_result).
+            result.baseline_app_by_identity[("dep", values_key)] = resolved["baseline_app"]
         return
 
     baseline_chart_actual, baseline_app_actual = resolved["baseline_chart"], resolved["baseline_app"]
@@ -302,7 +302,7 @@ def _check_row_baseline_versions(
     elif actual_app:
         # Dependency existed at baseline but its app version didn't: the fixer writes
         # "<target> (new)", so a stale "<old> → <target>" cell is flagged.
-        expected_app_source = extract_source_version(component_version_cell(None, actual_app))
+        expected_app_source = None
         baseline_app_label = "no app version (new)"
     else:
         return

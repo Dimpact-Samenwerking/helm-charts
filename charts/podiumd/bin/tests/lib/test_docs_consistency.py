@@ -46,7 +46,7 @@ def test_match_changes_item_to_entry_no_match_returns_none(libimagesmanifest: Mo
 # --- _check_row_baseline_versions ---
 
 
-def _source_app_mismatches(libdocsconsistency: ModuleType, app_source: str, baseline_app: str | None):
+def _source_app_mismatches(libdocsconsistency: ModuleType, app_source: str | None, baseline_app: str | None):
     """Mismatches for one "mi" row (target app 2.0.0, cell source app_source) with baseline_app at 4.8.5."""
     row = {"name": "mi", "app_source": app_source, "app": "2.0.0", "chart_source": "1.0.0", "chart": "1.0.0"}
     resolved = {
@@ -76,8 +76,8 @@ def test_check_row_baseline_versions_flags_stale_transition_for_new_app_version(
 
 
 # "2.0.0 (new)" and "1.9.0 → 2.0.0" cells, as parse_upgrade_doc_rows reads them.
-@pytest.mark.parametrize(("app_source", "baseline_app"), [("2.0.0", None), ("1.9.0", "1.9.0")])
+@pytest.mark.parametrize(("app_source", "baseline_app"), [(None, None), ("1.9.0", "1.9.0")])
 def test_check_row_baseline_versions_accepts_the_cell_fix_doc_consistency_writes(
-    libdocsconsistency: ModuleType, app_source: str, baseline_app: str | None
+    libdocsconsistency: ModuleType, app_source: str | None, baseline_app: str | None
 ):
     assert not _source_app_mismatches(libdocsconsistency, app_source, baseline_app)

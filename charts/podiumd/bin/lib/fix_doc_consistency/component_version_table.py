@@ -4,9 +4,7 @@ import re
 
 from dataclasses import dataclass
 
-from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.pull_and_subchart_resolution import global_image_paths
-from lib.chart.registered_paths import image_paths_for
 from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
 from lib.component_docs.changes_section import OrderingContext
 from lib.component_docs.changes_section import remove_changes_section
@@ -39,37 +37,14 @@ class HeadingFixInputs:
     heading_marker: str
 
 
-def _dep_old_app_for_new_dependency(resolution: ResolutionContext, resolved: ResolvedRow) -> str | None:
-    """The old app version of a dependency with no baseline value, from past images-<version>.yaml manifests.
-
-    None if not found there either (genuinely new). Shared by the table-row and
-    heading fixes so both agree on a new dependency's old app version."""
-    if resolved["dep"] is None or resolved["target_app"] is None:
-        return None
-    old_app = None
-    for path in image_paths_for(resolved["dep"]["name"], resolution.chart_dir):
-        old_app = historical_app_version_for_path(
-            resolution.chart_dir,
-            resolution.target.deps,
-            resolution.target.values,
-            (resolved["values_key"], *tuple(path.split("."))),
-            resolution.upgrade_docs_baseline,
-        )
-        if old_app is not None:
-            break
-    return old_app
-
-
-def _new_dependency_row_update(
-    lines: list[str], row: TableRow, resolved: ResolvedRow, resolution: ResolutionContext
-) -> tuple[str, str, str] | None:
+def _new_dependency_row_update(lines: list[str], row: TableRow, resolved: ResolvedRow) -> tuple[str, str, str] | None:
     """Rewrite a baseline_resolved=False row to "<target> (new)" cells.
 
     Returns (row_name, app_cell, chart_cell) if the row changed, else None."""
     actual_target_chart, actual_target_app = resolved["target_chart"], resolved["target_app"]
 
     # The chart cell is "(new)" regardless; the app may predate the dependency.
-    old_app_for_cell = _dep_old_app_for_new_dependency(resolution, resolved)
+    old_app_for_cell = resolved["baseline_app"]
 
     row_changed = False
     line = lines[row["line_index"]]
@@ -182,7 +157,7 @@ def fix_component_version_table(
             if resolved["dep"] is None and resolved["target_app"] is None:
                 unresolved_names.append(row["name"])
                 continue
-            changed = _new_dependency_row_update(lines, row, resolved, resolution)
+            changed = _new_dependency_row_update(lines, row, resolved)
         else:
             changed = _existing_row_update(lines, row, resolved)
 
@@ -237,12 +212,9 @@ def _heading_resolved_row(
         return None
     row_name, resolved = inputs.resolved_by_values_key[lookup_key]
 
-    if resolved["baseline_resolved"] is False:
-        old_app = _dep_old_app_for_new_dependency(resolution, resolved)
-    elif resolved["baseline_resolved"] is True:
-        old_app = resolved["baseline_app"]
-    else:
+    if resolved["baseline_resolved"] is None:
         return None
+    old_app = resolved["baseline_app"]
     return row_name, resolved, old_app, expected_bare_name
 
 

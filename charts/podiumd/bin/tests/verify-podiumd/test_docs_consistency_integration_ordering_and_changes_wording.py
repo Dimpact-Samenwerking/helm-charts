@@ -365,6 +365,40 @@ def test_new_dependency_unresolvable_baseline_row_is_a_warning_not_a_failure(
     assert 'openklant" target app' not in out  # target side still resolves fine, no false mismatch there
 
 
+def test_new_dependency_known_in_historical_manifest_heading_passes(
+    vp: ModuleType, new_dependency_chart_repo: Path, capsys: pytest.CaptureFixture[str]
+):
+    """A new dependency whose image is in an earlier images manifest gets "<old> → <new>", as fix-doc-consistency writes.
+
+    The checker must expect the same old app version, and the "(new)" chart cell must keep the heading's "new".
+    """
+    chart_dir = new_dependency_chart_repo
+    (chart_dir / "docs" / "images" / "images-4.8.0.yaml").write_text(
+        '- name: openklant/open-klant\n  url: docker.io/openklant/open-klant\n  version: "2.14.0"\n  digest: "sha256:abc"\n'
+    )
+    doc_path = chart_dir / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
+    doc_path.write_text(
+        doc_path.read_text().replace("| openklant | 2.15.0 (new) |", "| openklant | 2.14.0 → 2.15.0 |")
+        + "\n## Changes\n\n### openklant 2.14.0 → 2.15.0 (chart 2.15.0, new)\n\nDetails.\n\n"
+        "- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).\n"
+    )
+    manifest_path = chart_dir / "docs" / "images" / "images-4.9.0.yaml"
+    manifest_path.write_text(
+        manifest_path.read_text()
+        .replace("#   1. openklant 2.15.0.", "#   1. openklant 2.14.0 -> 2.15.0.")
+        .replace("# openklant — 2.15.0", "# openklant — 2.14.0 -> 2.15.0")
+    )
+    git("add", "-A", cwd=chart_dir.parents[1])
+    git("commit", "-q", "-m", "historical manifest", cwd=chart_dir.parents[1])
+
+    ok, _detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline="4.8.5")
+
+    out = capsys.readouterr().out
+    assert "wrong app-version transition" not in out
+    assert "contradicts its table row" not in out
+    assert ok is True, out
+
+
 def test_plus_in_heading_not_naming_two_real_components_still_resolves_normally(
     vp: ModuleType, order_chart_dir, capsys: pytest.CaptureFixture[str]
 ):

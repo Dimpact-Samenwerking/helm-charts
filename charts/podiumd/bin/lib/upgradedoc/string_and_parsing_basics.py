@@ -21,7 +21,8 @@ ComponentRef = tuple[Literal["sidecar"], tuple[str, ...]] | tuple[Literal["dep"]
 class VersionRow(TypedDict):
     """One component's version change as a document states it: the
     Component-versions table row (see TableRow) or a "# Changes:" item
-    (parse_changes_block). Each version is None when its cell has none."""
+    (parse_changes_block). Each version is None when its cell has none; a
+    source is also None for a "<version> (new)" table cell."""
 
     name: str
     app_source: str | None
@@ -76,6 +77,11 @@ def extract_source_version(cell: str) -> str | None:
     return m.group(1) if m else None
 
 
+def _table_cell_source_version(cell: str) -> str | None:
+    """extract_source_version for a table cell; None for "<version> (new)", which has no source."""
+    return None if cell.strip().endswith("(new)") else extract_source_version(cell)
+
+
 def parse_upgrade_doc_rows(text: str) -> list[TableRow]:
     """Every row of the "## Component versions" table, with its 0-based `line_index`.
 
@@ -110,9 +116,9 @@ def parse_upgrade_doc_rows(text: str) -> list[TableRow]:
             {
                 "line_index": i,
                 "name": cells[0],
-                "app_source": extract_source_version(cells[1]),
+                "app_source": _table_cell_source_version(cells[1]),
                 "app": extract_target_version(cells[1]),
-                "chart_source": extract_source_version(cells[2]),
+                "chart_source": _table_cell_source_version(cells[2]),
                 "chart": extract_target_version(cells[2]),
             }
         )
