@@ -38,6 +38,17 @@ def resolve_component_identity(
     return None
 
 
+def row_identities(
+    rows: Sequence[VersionRow], deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]] | None
+) -> set[ComponentRef]:
+    """The component or sidecar/shared image each "Component versions" row names (resolve_component_identity)."""
+    return {
+        identity
+        for row in rows
+        if (identity := resolve_component_identity(row["name"], deps, canonical_names)) is not None
+    }
+
+
 def rowed_component_keys(
     rows: Sequence[VersionRow], deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]] | None
 ) -> set[str]:
@@ -47,11 +58,15 @@ def rowed_component_keys(
     Shared by add_missing_component_rows and the checker's "changed but has no
     row" finding, so they agree on which components still need a row.
     """
+    return {ref for kind, ref in row_identities(rows, deps, canonical_names) if kind == "dep" and isinstance(ref, str)}
+
+
+def rowed_sidecar_paths(
+    rows: Sequence[VersionRow], deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]] | None
+) -> set[tuple[str, ...]]:
+    """Values paths of the sidecar/shared images with a row; shared by add_missing_sidecar_rows and the checker."""
     return {
-        identity[1]
-        for row in rows
-        if (identity := resolve_component_identity(row["name"], deps, canonical_names)) is not None
-        and identity[0] == "dep"
+        ref for kind, ref in row_identities(rows, deps, canonical_names) if kind == "sidecar" and isinstance(ref, tuple)
     }
 
 
@@ -73,20 +88,17 @@ def find_changes_row_correspondence_gaps(
         if len(idents) == 1:
             all_heading_identities |= idents
 
-    row_identities: set[ComponentRef] = set()
-    rows_without_heading: list[str] = []
-    for row in rows:
-        ident = resolve_component_identity(row["name"], deps, canonical_names)
-        if ident is None:
-            continue
-        row_identities.add(ident)
-        if ident not in all_heading_identities:
-            rows_without_heading.append(row["name"])
-
+    rows_without_heading = [
+        row["name"]
+        for row in rows
+        if (ident := resolve_component_identity(row["name"], deps, canonical_names)) is not None
+        and ident not in all_heading_identities
+    ]
+    rowed = row_identities(rows, deps, canonical_names)
     headings_without_row = [
         heading
         for heading, idents in zip(headings, heading_identity_sets, strict=True)
-        if len(idents) != 1 or idents.isdisjoint(row_identities)
+        if len(idents) != 1 or idents.isdisjoint(rowed)
     ]
 
     return rows_without_heading, headings_without_row

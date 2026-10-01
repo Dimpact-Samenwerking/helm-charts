@@ -24,9 +24,9 @@ from lib.chart.repo_and_path_resolution import full_repository_for_path
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repo_group_representative
 from lib.chart.values_tree_primitives import dep_for_values_key
+from lib.chart.values_tree_primitives import image_version_changed
 from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.chart.values_tree_primitives import text_at
-from lib.chart.values_tree_primitives import version_of
 from lib.checks.digest_pinning import find_unresolved_subchart_images
 from lib.component_docs.changes_section import IMAGE_INTRO_KEPT
 from lib.component_docs.changes_section import IMAGE_INTRO_NEW
@@ -58,6 +58,7 @@ from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
 from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.consistency_checks import find_changes_row_correspondence_gaps
 from lib.upgradedoc.consistency_checks import resolve_component_identity
+from lib.upgradedoc.consistency_checks import rowed_sidecar_paths
 from lib.upgradedoc.grouped_comments_and_changes_block import find_preceding_comment_line
 from lib.upgradedoc.images_manifest_ordering import delete_images_manifest_entry
 from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
@@ -135,12 +136,7 @@ def _sidecar_scan_state(
     target = ChartImageIndex(doc_context.chart_dir, target_state.deps, target_state.values)
     # Against baseline_values: where the repository lived in the baseline tree.
     baseline = ChartImageIndex(doc_context.chart_dir, target_state.deps, baseline_values)
-    matched_paths = {
-        path
-        for row in parse_upgrade_doc_rows(text)
-        for path in [target.canonical_names.get(row["name"])]
-        if path is not None
-    }
+    matched_paths = rowed_sidecar_paths(parse_upgrade_doc_rows(text), target_state.deps, target.canonical_names)
     return _SidecarScanState(target.canonical_names, target.paths, baseline.paths, baseline.repo_groups, matched_paths)
 
 
@@ -178,7 +174,7 @@ def _add_sidecar_row(text: str, name: str, path: tuple[str, ...], ctx: _SidecarR
         return text, False
     current_tag = ctx.state.current_paths.get(path)
     baseline_tag = ctx.state.baseline_paths.get(path)
-    if current_tag is None or (baseline_tag is not None and version_of(current_tag) == version_of(baseline_tag)):
+    if current_tag is None or not image_version_changed(baseline_tag, current_tag):
         return text, False
     new_app = current_tag.split("@", 1)[0]
     old_app = _resolve_sidecar_old_app(path, ctx)

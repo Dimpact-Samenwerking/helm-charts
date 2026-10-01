@@ -15,7 +15,7 @@ from lib.chart.chart_state import ComponentState
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.release_baseline_basics import chart_version
-from lib.chart.values_tree_primitives import version_of
+from lib.chart.values_tree_primitives import image_version_changed
 from lib.component_docs.changes_section import DocContext
 from lib.component_docs.changes_section import edited_changes_lines
 from lib.component_docs.changes_section import pointer_issues
@@ -58,6 +58,7 @@ from lib.upgradedoc.consistency_checks import find_changes_duplicate_identities
 from lib.upgradedoc.consistency_checks import find_changes_row_correspondence_gaps
 from lib.upgradedoc.consistency_checks import find_wrong_or_duplicate_dependency_claims
 from lib.upgradedoc.consistency_checks import rowed_component_keys
+from lib.upgradedoc.consistency_checks import rowed_sidecar_paths
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
 from lib.upgradedoc.removed_items import RemovedItem
 from lib.upgradedoc.removed_items import removed_item_named
@@ -194,14 +195,10 @@ def _doc_header_mismatches(doc_path: Path, ctx: DocsCheckContext) -> list[str]:
 
 def _record_row_identity(resolved: ResolvedRow, result: ComponentRowsResult):
     """Record one resolved row's bookkeeping on `result`; return (values_key, actual_app)."""
-    sidecar_path = resolved["sidecar_path"]
     values_key = resolved["values_key"]
     actual_app = resolved["target_app"]
 
-    if resolved["kind"] == "sidecar":
-        if sidecar_path is not None:
-            result.matched_sidecar_paths.add(sidecar_path)
-    elif actual_app:
+    if resolved["kind"] != "sidecar" and actual_app:
         # Native components resolve to ("dep", values_key) too, so keys match
         # resolve_component_identity/changes_heading_identities.
         result.resolved_app_by_identity[("dep", values_key)] = actual_app
@@ -281,7 +278,7 @@ def _check_component_rows(
     Rows resolve via resolve_component_row, shared with fix-doc-consistency so checker
     and fixer agree on what's correct.
     """
-    result = ComponentRowsResult([], {}, {}, set())
+    result = ComponentRowsResult([], {}, {})
 
     for row in rows:
         if row["name"] in row_lookup.stale_names:
@@ -310,7 +307,7 @@ def _check_component_rows(
     return result
 
 
-def _check_missing_component_rows(ctx: DocsCheckContext, scan: DocScanState, rows_result: ComponentRowsResult):
+def _check_missing_component_rows(ctx: DocsCheckContext, scan: DocScanState):
     """Flag components changed vs baseline that have no row at all.
 
     Covers own primary rows (resolve_component_own_version_change, shared with
@@ -335,14 +332,12 @@ def _check_missing_component_rows(ctx: DocsCheckContext, scan: DocScanState, row
             f'in the "Component versions" table'
         )
 
+    rowed_paths = rowed_sidecar_paths(scan.rows, ctx.current.deps, scan.canonical_names)
     for name, path in sorted(scan.canonical_names.items()):
-        if path in rows_result.matched_sidecar_paths:
+        if path in rowed_paths:
             continue
-        baseline_tag, current_tag = ctx.images.baseline.paths.get(path), ctx.images.current.paths.get(path)
-        # Compare versions (digest stripped), not raw tags: a digest-only re-pin needs no row.
-        if (version_of(baseline_tag) if baseline_tag is not None else None) != (
-            version_of(current_tag) if current_tag is not None else None
-        ):
+        # A digest-only re-pin needs no row.
+        if image_version_changed(ctx.images.baseline.paths.get(path), ctx.images.current.paths.get(path)):
             mismatches.append(
                 f'{scan.doc_path.name}: sidecar/shared image "{name}" changed vs {ctx.baseline_ref} '
                 f'but has no row in the "Component versions" table'
@@ -555,7 +550,7 @@ def _check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
     findings.mismatches.extend(rows_result.mismatches)
 
     if ctx.baseline_ref:
-        findings.mismatches.extend(_check_missing_component_rows(ctx, scan, rows_result))
+        findings.mismatches.extend(_check_missing_component_rows(ctx, scan))
 
     doc_text = doc_path.read_text(encoding="utf-8")
     changes_headings = [b["heading"] for b in parse_upgrade_doc_changes_blocks(doc_text)]

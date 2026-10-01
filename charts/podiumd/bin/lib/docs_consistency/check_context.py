@@ -99,7 +99,6 @@ class ComponentRowsResult:
     # Identity -> baseline app version (None when new); catches headings with the right
     # version but the wrong "(new)"/"(unchanged)"/"X -> Y" wording.
     baseline_app_by_identity: dict[ComponentIdentity, str | None]
-    matched_sidecar_paths: set[ImagePath]
 
 
 @dataclass

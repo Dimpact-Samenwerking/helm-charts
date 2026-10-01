@@ -11,6 +11,7 @@ from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
 from lib.chart.registered_paths import native_components
 from lib.chart.repo_and_path_resolution import full_repository_for_path
+from lib.chart.values_tree_primitives import image_version_changed
 from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.values_tree_primitives import version_of
 from lib.images_manifest import ManifestEntry
@@ -122,7 +123,7 @@ def _pin_changed(
 ) -> bool:
     baseline_tag = inputs.baseline_paths.get(path)
     if baseline_tag is not None:
-        return version_of(tag) != version_of(baseline_tag) or _digest_changed(
+        return image_version_changed(baseline_tag, tag) or _digest_changed(
             inputs, sibling_fields, path, tag, baseline_tag
         )
     # New path: check past images-<version>.yaml manifests for this
@@ -147,7 +148,7 @@ def _pin_changed(
         )
     if historical_version is None:
         return True
-    return version_of(tag) != version_of(historical_version)
+    return image_version_changed(historical_version, tag)
 
 
 def _match_entries(
