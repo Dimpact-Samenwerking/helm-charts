@@ -10,7 +10,7 @@ import pytest
 import yaml
 
 from lib.fix_doc_consistency.baseline_and_images_manifest_handling import extract_images_baseline
-from lib.fix_doc_consistency.baseline_and_images_manifest_handling import update_images_manifest_baseline
+from lib.fix_doc_consistency.baseline_and_images_manifest_handling import fix_images_manifest_header_lines
 from lib.fix_doc_consistency.baseline_and_images_manifest_handling import update_sibling_doc_refs
 
 
@@ -41,7 +41,7 @@ def test_current_chart_version_reads_chart_yaml(cdb: ModuleType, tmp_path: Path,
     assert cdb.current_chart_version() == "4.9.0"
 
 
-# --- extract_images_baseline / update_sibling_doc_refs / update_images_manifest_baseline ---
+# --- extract_images_baseline / update_sibling_doc_refs / fix_images_manifest_header_lines ---
 
 
 def test_extract_images_baseline_finds_version(cdb: ModuleType):
@@ -78,23 +78,47 @@ def test_update_sibling_doc_refs_already_correct_reference_is_not_reported_chang
     assert new_text == text
 
 
-def test_update_images_manifest_baseline_rewrites_both_lines(cdb: ModuleType):
+def test_fix_images_manifest_header_lines_rewrites_both_lines(cdb: ModuleType):
     text = (
         "# Baseline: podiumd 4.8.2 (main @ abc1234). Re-verify before release.\n"
         "#\n"
         "# Images new or changed in podiumd 4.9.0 vs 4.8.2.\n"
     )
-    new_text, changed = update_images_manifest_baseline(text, "4.9.0", "4.8.5")
+    new_text, changed = fix_images_manifest_header_lines(text, "4.9.0", "4.8.5")
     assert changed is True
     assert "Baseline: podiumd 4.8.5 (main @ abc1234)" in new_text
     assert "podiumd 4.9.0 vs 4.8.5" in new_text
 
 
-def test_update_images_manifest_baseline_no_match_returns_unchanged(cdb: ModuleType):
-    text = "no baseline lines here\n"
-    new_text, changed = update_images_manifest_baseline(text, "4.9.0", "4.8.5")
-    assert changed is False
-    assert new_text == text
+def test_fix_images_manifest_header_lines_corrects_a_wrong_target(cdb: ModuleType):
+    text = "# Baseline: podiumd 4.8.5.\n#\n# Images new or changed in podiumd 4.8.9 vs 4.8.5.\n"
+    new_text, changed = fix_images_manifest_header_lines(text, "4.9.0", "4.8.5")
+    assert changed is True
+    assert "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n" in new_text
+
+
+def test_fix_images_manifest_header_lines_adds_a_missing_vs_line_after_the_baseline_line(cdb: ModuleType):
+    text = "# Baseline: podiumd 4.8.5. Re-verify before release.\n#\n# Changes:\n#\n"
+    new_text, changed = fix_images_manifest_header_lines(text, "4.9.0", "4.8.5")
+    assert changed is True
+    assert new_text == (
+        "# Baseline: podiumd 4.8.5. Re-verify before release.\n"
+        "#\n# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n"
+        "#\n# Changes:\n#\n"
+    )
+
+
+def test_fix_images_manifest_header_lines_adds_both_lines_to_a_bare_manifest(cdb: ModuleType):
+    new_text, changed = fix_images_manifest_header_lines("[]\n", "4.9.0", "4.8.5")
+    assert changed is True
+    assert new_text.startswith(
+        "# Baseline: podiumd 4.8.5. Re-verify before release.\n#\n# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n"
+    )
+
+
+def test_fix_images_manifest_header_lines_correct_lines_are_unchanged(cdb: ModuleType):
+    text = "# Baseline: podiumd 4.8.5.\n#\n# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n"
+    assert fix_images_manifest_header_lines(text, "4.9.0", "4.8.5") == (text, False)
 
 
 # --- main() integration: images-<target>.yaml handling ---
@@ -141,7 +165,10 @@ def test_main_images_manifest_already_at_baseline_is_noop(
     cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
     images_path = repo.parent / "images" / "images-4.9.0.yaml"
-    original = "# Baseline: podiumd 4.8.2 (main @ abc1234). Re-verify before release.\n"
+    original = (
+        "# Baseline: podiumd 4.8.2 (main @ abc1234). Re-verify before release.\n"
+        "#\n# Images new or changed in podiumd 4.9.0 vs 4.8.2.\n"
+    )
     write(images_path, original)
     set_argv_and_dir(cdb, monkeypatch, repo, "4.8.2")
     cdb.main()

@@ -4,8 +4,6 @@ writer_then_checker (conftest.py) also runs the writer a second time and
 requires that it changes nothing.
 """
 
-import pytest
-
 UPGRADE = "_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md"
 DELTAS = "_UPGRADE_PATHS/4.8.5-to-4.9.0-values-deltas.md"
 MANIFEST = "images/images-4.9.0.yaml"
@@ -155,7 +153,6 @@ def test_a_shared_image_and_two_sidecars_of_one_parent_follow_values_yaml(writer
     assert [item.split(". ", 1)[1].split(" ")[0] for item in items[:3]] == ["curl", "zac", "zac"]
 
 
-@pytest.mark.xfail(strict=True, reason='known gap: the writer never adds a missing "podiumd X vs Y" line')
 def test_a_manifest_without_its_vs_line(writer_then_checker):
     manifest = "# Baseline: podiumd 4.8.5. Re-verify before release.\n#\n# Changes:\n#\n\n"
     docs = writer_then_checker(

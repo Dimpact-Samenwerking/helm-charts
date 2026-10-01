@@ -1,4 +1,4 @@
-"""lib.docs_consistency: match_changes_item_to_entry and the "Component versions" source-cell check."""
+"""lib.docs_consistency: the "Component versions" source-cell check."""
 
 from pathlib import Path
 from types import ModuleType
@@ -7,41 +7,6 @@ import pytest
 
 from lib.docs_consistency.check_context import ComponentRowsResult
 from lib.docs_consistency.check_context import RowContext
-
-# --- match_changes_item_to_entry ---
-
-
-def test_match_changes_item_to_entry_canonical_sidecar_name_matches_own_basename(libimagesmanifest: ModuleType):
-    """A "<key> - <image-basename>" sidecar name matches on its basename only.
-
-    "keycloak-operator - postgres" must match "postgres", not "keycloak".
-    """
-    keycloak_entry = {"name": "keycloak/keycloak", "version": "26.7.2"}
-    postgres_entry = {"name": "postgres", "version": "16.15"}
-
-    match = libimagesmanifest.match_changes_item_to_entry(
-        "keycloak-operator - postgres", [keycloak_entry, postgres_entry]
-    )
-
-    assert match is postgres_entry
-
-
-def test_match_changes_item_to_entry_plain_name_matches_by_basename(libimagesmanifest: ModuleType):
-    """Without " - ", the whole item name is matched against entry basenames."""
-    entry = {"name": "library/python", "version": "3.14.7-slim"}
-
-    match = libimagesmanifest.match_changes_item_to_entry("python", [entry])
-
-    assert match is entry
-
-
-def test_match_changes_item_to_entry_no_match_returns_none(libimagesmanifest: ModuleType):
-    entries = [{"name": "postgres", "version": "16.15"}]
-
-    match = libimagesmanifest.match_changes_item_to_entry("gotenberg", entries)
-
-    assert match is None
-
 
 # --- _check_row_baseline_versions ---
 

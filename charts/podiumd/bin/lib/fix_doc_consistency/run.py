@@ -34,7 +34,7 @@ from lib.component_docs.values_delta_sections import prune_empty_values_delta_se
 from lib.component_docs.values_delta_sections import strip_stale_values_deltas_todo_stub
 from lib.component_docs.values_delta_sections import sync_values_delta_sections
 from lib.fix_doc_consistency.baseline_and_images_manifest_handling import extract_images_baseline
-from lib.fix_doc_consistency.baseline_and_images_manifest_handling import update_images_manifest_baseline
+from lib.fix_doc_consistency.baseline_and_images_manifest_handling import fix_images_manifest_header_lines
 from lib.fix_doc_consistency.baseline_and_images_manifest_handling import update_sibling_doc_refs
 from lib.fix_doc_consistency.component_version_table import fix_changes_heading_app_versions
 from lib.fix_doc_consistency.component_version_table import fix_component_version_table
@@ -289,19 +289,18 @@ def _bump_images_manifest_baseline(
 
     text = images_path.read_text(encoding="utf-8")
     old_images_baseline = extract_images_baseline(text)
-    if old_images_baseline == new_baseline:
+    text, refs_changed = update_sibling_doc_refs(text, target, new_baseline)
+    text, baseline_changed = fix_images_manifest_header_lines(text, target, new_baseline)
+    if not (refs_changed or baseline_changed):
         print(f"  {images_path.name}: already baseline {new_baseline} — unchanged")
         return images_path
-
-    text, refs_changed = update_sibling_doc_refs(text, target, new_baseline)
-    text, baseline_changed = update_images_manifest_baseline(text, target, new_baseline)
     images_path.write_text(text, encoding="utf-8")
     print(f"  {images_path.name}: baseline updated")
     if refs_changed:
         print(f"    doc references -> {new_baseline}-to-{target}-*.md")
     if baseline_changed:
         print(f"    baseline header line(s): -> {new_baseline}")
-    if old_images_baseline:
+    if old_images_baseline and old_images_baseline != new_baseline:
         leftovers = remaining_mentions(text, old_images_baseline)
         if leftovers:
             review_notes.append((images_path.name, leftovers))

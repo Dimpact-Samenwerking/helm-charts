@@ -136,24 +136,6 @@ def test_images_manifest_format_missing_required_keys(libimagesmanifest: ModuleT
     assert any("missing key" in i for i in issues)
 
 
-def test_images_manifest_format_stale_baseline_header(libimagesmanifest: ModuleType, tmp_path: Path):
-    text = REAL_MANIFEST.replace("podiumd 4.8.5", "podiumd 4.8.2").replace("4.9.0 vs 4.8.5", "4.9.0 vs 4.8.2")
-    images_path = tmp_path / "images-4.9.0.yaml"
-    images_path.write_text(text)
-    issues = libimagesmanifest.check_images_manifest_format(
-        images_path,
-        libimagesmanifest.ManifestCheckContext(
-            "4.8.5",
-            "4.9.0",
-            DEPS,
-            VALUES,
-            {},
-        ),
-    )
-    assert any('baseline line says "4.8.2"' in i for i in issues)
-    assert any('"... vs ..." line says upgrade_docs_baseline "4.8.2"' in i for i in issues)
-
-
 def test_images_manifest_format_trailing_period_not_captured(libimagesmanifest: ModuleType, tmp_path: Path):
     """Regression: the trailing period in "vs 4.8.5." must not be captured in the version."""
     images_path = tmp_path / "images-4.9.0.yaml"
@@ -728,42 +710,6 @@ PYTHON_MANIFEST = """\
   version: "3.14.7-slim"
   digest: "sha256:ccc"
 """
-
-
-def test_images_manifest_format_plain_image_changes_item_matches_entry(libimagesmanifest: ModuleType, tmp_path: Path):
-    """A plain-image Changes item resolves against the manifest's "library/python" entry
-    and passes when target versions agree."""
-    images_path = tmp_path / "images-4.9.0.yaml"
-    images_path.write_text(PYTHON_MANIFEST)
-    issues = libimagesmanifest.check_images_manifest_format(
-        images_path,
-        libimagesmanifest.ManifestCheckContext(
-            "4.8.5",
-            "4.9.0",
-            DEPS,
-            VALUES,
-            {},
-        ),
-    )
-    assert issues == []
-
-
-def test_images_manifest_format_plain_image_changes_item_target_mismatch(libimagesmanifest: ModuleType, tmp_path: Path):
-    """Once resolved to its entry, a real mismatch must still be caught."""
-    text = PYTHON_MANIFEST.replace("3.14-slim -> 3.14.7-slim —", "3.14-slim -> 9.9.9 —")
-    images_path = tmp_path / "images-4.9.0.yaml"
-    images_path.write_text(text)
-    issues = libimagesmanifest.check_images_manifest_format(
-        images_path,
-        libimagesmanifest.ManifestCheckContext(
-            "4.8.5",
-            "4.9.0",
-            DEPS,
-            VALUES,
-            {},
-        ),
-    )
-    assert any("target app" in i and "9.9.9" in i for i in issues)
 
 
 def test_images_manifest_format_changes_item_matching_neither_dep_nor_entry_still_reported(
