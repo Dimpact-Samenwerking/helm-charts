@@ -6,7 +6,6 @@ from collections.abc import Mapping
 from collections.abc import Sequence
 from dataclasses import dataclass
 from dataclasses import field
-from itertools import pairwise
 from typing import TypedDict
 from typing import TypeVar
 
@@ -126,15 +125,6 @@ class OrderingContext:
         return min(removed, default=key)
 
 
-def find_out_of_order_names(names: list[str], ordering: OrderingContext) -> list[tuple[str, str]]:
-    """Every adjacent (a, b) pair whose ordering.key order is inverted.
-
-    Adjacent pairs suffice to detect any non-monotonic sequence; the sorters
-    order by the same key, so this flags exactly what they would move.
-    Unresolved names share one sentinel key and never flag each other."""
-    return [(a, b) for a, b in pairwise(names) if ordering.key(b) < ordering.key(a)]
-
-
 def insertion_index(new_key: OrderKeyT, existing_keys: list[OrderKeyT]) -> int:
     """Index in existing_keys before the first key greater than new_key, or the end.
 
@@ -234,7 +224,7 @@ def reorder_heading_blocks(text: str, blocks: list[HeadingBlock], order: list[in
 
 
 def _doc_item_order(names: list[str], ordering: OrderingContext) -> tuple[list[int], list[tuple[str, int, int]]]:
-    """(order, moved) for doc items by ordering.key, the key find_out_of_order_names checks.
+    """(order, moved) for doc items by ordering.key.
 
     order is the stable sorted permutation of `names`' indices; moved is
     [(name, old_pos, new_pos)] (1-based) for each item that moves.

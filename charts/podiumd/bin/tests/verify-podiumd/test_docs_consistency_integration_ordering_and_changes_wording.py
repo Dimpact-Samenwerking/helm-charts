@@ -91,32 +91,6 @@ def test_hand_edited_generated_line_warns_without_failing(
     )
 
 
-def test_out_of_order_table_row_is_caught(vp: ModuleType, order_chart_dir, capsys: pytest.CaptureFixture[str]):
-    chart_dir, doc_dir = order_chart_dir
-    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        order_doc([INWONER_ROW, ZAAK_ROW], ["Open Zaak bump", "Open Inwoner bump"])
-    )
-    ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
-    assert ok is False
-    assert "to fix by hand" in detail
-    out = capsys.readouterr().out
-    assert '"Component versions" table lists "Open Zaak" right after "Open Inwoner"' in out
-    assert "should follow values.yaml's own component order" in out
-
-
-def test_out_of_order_changes_block_is_caught(vp: ModuleType, order_chart_dir, capsys: pytest.CaptureFixture[str]):
-    chart_dir, doc_dir = order_chart_dir
-    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        order_doc([ZAAK_ROW, INWONER_ROW], ["Open Inwoner bump", "Open Zaak bump"])
-    )
-    ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
-    assert ok is False
-    assert "to fix by hand" in detail
-    out = capsys.readouterr().out
-    assert '"## Changes" section has "### Open Zaak bump" right after "### Open Inwoner bump"' in out
-    assert "Changes blocks should follow values.yaml's own component order" in out
-
-
 def test_unmatched_summary_row_never_flagged_against_real_components(
     vp: ModuleType, order_chart_dir, capsys: pytest.CaptureFixture[str]
 ):

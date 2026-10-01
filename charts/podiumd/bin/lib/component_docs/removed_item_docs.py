@@ -1,7 +1,7 @@
 """The -upgrade.md row and "### ..." section of each removed component or image.
 
-fix-doc-consistency writes them with sync_removed_items; the checker reports
-removed_item_issues, which is what sync_removed_items would change.
+fix-doc-consistency writes them with sync_removed_items; verify-podiumd
+reports what it would change through fix-doc-consistency's dry-run.
 """
 
 from collections.abc import Sequence
@@ -74,16 +74,3 @@ def sync_removed_items(
             changed.append(item.name)
             text = new_text
     return text, changed
-
-
-def removed_item_issues(
-    doc_name: str, text: str, items: Sequence[RemovedItem], target: str, ordering: OrderingContext
-) -> list[str]:
-    """One finding per removed item whose row or section sync_removed_items would add or rewrite."""
-    issues: list[str] = []
-    for item in items:
-        if _sync_row(text, item, ordering) != text:
-            issues.append(f'{doc_name}: removed "{item.name}" has no row, or a stale one, in the table')
-        if _sync_section(text, item, target, ordering) != text:
-            issues.append(f'{doc_name}: removed "{item.name}" has no "### ..." section, or a stale one')
-    return [f"{issue}; run fix-doc-consistency" for issue in issues]

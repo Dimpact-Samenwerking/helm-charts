@@ -14,22 +14,17 @@ from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.release_baseline_basics import chart_version
 from lib.chart.values_tree_primitives import version_of
-from lib.chart.yaml_alias_groups import alias_groups
-from lib.component_docs.aliased_pin_bullets import find_missing_pin_bullets
 from lib.component_docs.changes_section import BaselineState
 from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import DocContext
 from lib.component_docs.changes_section import edited_changes_lines
 from lib.component_docs.changes_section import pointer_issues
 from lib.component_docs.changes_section import resolve_component_own_version_change
-from lib.component_docs.changes_section import strip_stale_upgrade_placeholders
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
 from lib.component_docs.images_manifest_entries import expected_changes_items
 from lib.component_docs.images_manifest_entries import stale_changes_items
-from lib.component_docs.removed_item_docs import removed_item_issues
 from lib.component_docs.values_delta_sections import edited_values_delta_lines
 from lib.component_docs.values_delta_sections import has_stale_gemeente_specific_placeholder
-from lib.component_docs.values_delta_sections import strip_stale_values_deltas_todo_stub
 from lib.docs_consistency.check_context import ComponentRowsResult
 from lib.docs_consistency.check_context import DocQuery
 from lib.docs_consistency.check_context import DocScanState
@@ -73,9 +68,7 @@ from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
 from lib.upgradedoc.resolve_component_row import resolve_component_row
 from lib.upgradedoc.resolve_component_row import resolved_row_unchanged
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
-from lib.upgradedoc.sorting_and_ordering import find_out_of_order_names
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
-from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
 from lib.upgradedoc.string_and_parsing_basics import TableRow
 from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
@@ -116,8 +109,8 @@ def _check_companion_docs(
 ):
     """Append gemeente-specific/values-deltas companion-doc findings to `findings`.
 
-    Stale placeholders are reported even where fix-doc-consistency would auto-fix them,
-    since a doc can carry one until that script next runs.
+    Only the gemeente-specific placeholder, which nothing auto-fixes, is
+    checked; fix-doc-consistency clears the values-deltas one.
     """
     if not is_bare_version:
         print(
@@ -134,12 +127,7 @@ def _check_companion_docs(
         companion_path = doc_dir / doc_name
         if companion_path.is_file():
             companion_text = companion_path.read_text(encoding="utf-8")
-            if suffix == "values-deltas" and strip_stale_values_deltas_todo_stub(companion_text)[1]:
-                findings.mismatches.append(
-                    f"{doc_name}: still has its own stale TODO placeholder stranded alongside a "
-                    f'real "## ..." section — run fix-doc-consistency to clear it'
-                )
-            elif suffix == "gemeente-specific" and has_stale_gemeente_specific_placeholder(companion_text):
+            if suffix == "gemeente-specific" and has_stale_gemeente_specific_placeholder(companion_text):
                 findings.mismatches.append(
                     f'{doc_name}: still has its own stale "_None recorded yet._" placeholder '
                     f'stranded alongside a real "## <gemeente> (<env>)" section — clear it by hand '
@@ -197,21 +185,11 @@ def _build_docs_check_context(chart_dir: Path, doc_dir: Path, podiumd_version: s
     return ctx, baseline_mismatch
 
 
-def _doc_header_mismatches(doc_path: Path, ctx: DocsCheckContext):
-    """Title and stale-TODO-placeholder checks on the selected upgrade doc.
-
-    Reported even where fix-doc-consistency would auto-fix it; reuses
-    strip_stale_upgrade_placeholders unapplied, its `changed` flag being the finding.
-    """
-    mismatches: list[str] = []
+def _doc_header_mismatches(doc_path: Path, ctx: DocsCheckContext) -> list[str]:
+    """Title check on the selected upgrade doc (fix-doc-consistency clears stale TODO placeholders)."""
     if ctx.doc_query.is_bare_version and ctx.doc_query.upgrade_docs_baseline:
-        mismatches.extend(check_doc_title(doc_path, ctx.doc_query.upgrade_docs_baseline, ctx.doc_query.podiumd_version))
-    if strip_stale_upgrade_placeholders(doc_path.read_text(encoding="utf-8"))[1]:
-        mismatches.append(
-            f'{doc_path.name}: still has a stale "TODO" placeholder stranded alongside real content '
-            f"— run fix-doc-consistency to clear it"
-        )
-    return mismatches
+        return check_doc_title(doc_path, ctx.doc_query.upgrade_docs_baseline, ctx.doc_query.podiumd_version)
+    return []
 
 
 def _record_row_identity(resolved: ResolvedRow, result: ComponentRowsResult):
@@ -340,7 +318,7 @@ def _check_missing_component_rows(ctx: DocsCheckContext, scan: DocScanState, row
     (e.g. redis-ha under redis-operator). Only called when ctx.baseline_ref is set.
     """
     mismatches: list[str] = []
-    # A removed component's row is checked by removed_item_issues.
+    # fix-doc-consistency writes a removed component's row (sync_removed_items).
     rowed_keys = rowed_component_keys(scan.rows, ctx.current.deps, scan.canonical_names)
     for key in sorted(ctx.actual_changed_keys - rowed_keys - set(scan.removed)):
         resolved = resolve_component_own_version_change(
@@ -370,32 +348,6 @@ def _check_missing_component_rows(ctx: DocsCheckContext, scan: DocScanState, row
                 f'but has no row in the "Component versions" table'
             )
     return mismatches
-
-
-def _check_row_and_heading_order(ctx: DocsCheckContext, scan: DocScanState):
-    """Check table rows and "## Changes" headings follow values.yaml component order.
-
-    Returns (mismatches, changes_headings, doc_text); the latter two are reused by
-    _check_changes_heading_correspondence.
-    """
-    mismatches: list[str] = []
-    ordering = scan.ordering(ctx.current.deps, ctx.current.values)
-    for name_a, name_b in find_out_of_order_names([row["name"] for row in scan.rows], ordering):
-        mismatches.append(
-            f'{scan.doc_path.name}: "Component versions" table lists "{name_b}" right after "{name_a}", '
-            f"but values.yaml lists {name_b} before {name_a} — rows should follow values.yaml's "
-            f"own component order"
-        )
-
-    doc_text = scan.doc_path.read_text(encoding="utf-8")
-    changes_headings = [b["heading"] for b in parse_upgrade_doc_changes_blocks(doc_text)]
-    for name_a, name_b in find_out_of_order_names(changes_headings, ordering):
-        mismatches.append(
-            f'{scan.doc_path.name}: "## Changes" section has "### {name_b}" right after "### {name_a}", '
-            f"but values.yaml lists the {name_b} component before {name_a} — Changes blocks should "
-            f"follow values.yaml's own component order"
-        )
-    return mismatches, changes_headings, doc_text
 
 
 def _duplicate_identity_mismatches(ctx: DocsCheckContext, scan: DocScanState, changes_headings: list[str]):
@@ -440,7 +392,7 @@ def _check_changes_heading_correspondence(
         return []
 
     mismatches: list[str] = []
-    # A removed item's row and section are paired by removed_item_issues.
+    # fix-doc-consistency writes a removed item's row and section (sync_removed_items).
     rows_without_heading, headings_without_row = find_changes_row_correspondence_gaps(
         scan.rows,
         [heading for heading in changes_headings if removed_item_named(heading, scan.removed) is None],
@@ -511,15 +463,6 @@ def _select_upgrade_doc(ctx: DocsCheckContext, findings: Findings):
     return doc_path
 
 
-def _missing_pin_bullet_mismatches(ctx: DocsCheckContext, doc_path: Path, doc_text: str) -> list[str]:
-    """A Changes block names a pin but not a path that shares its YAML anchor."""
-    return [
-        f"{doc_path.name}: '### {m.heading}' names `{m.documented_path}` but not `{m.missing_path}`, "
-        "which shares its YAML anchor; run fix-doc-consistency to add it"
-        for m in find_missing_pin_bullets(doc_text, alias_groups(ctx.chart_dir / "values.yaml"))
-    ]
-
-
 def _stale_changes_item_mismatches(
     ctx: DocsCheckContext, scan: DocScanState, resolution: ResolutionContext
 ) -> list[str]:
@@ -549,20 +492,12 @@ def _contradicting_section_mismatches(ctx: DocsCheckContext, scan: DocScanState,
     ]
 
 
-_POINTER_FINDINGS = {
-    "missing": 'has no "- Image / digest" pointer; run fix-doc-consistency to add it',
-    "duplicate": 'has {count} "- Image / digest" pointers; keep one',
-    "no-blank-line-before": (
-        'has no blank line before the "- Image / digest" pointer; run fix-doc-consistency to add it'
-    ),
-}
-
-
 def _pointer_mismatches(doc_path: Path, doc_text: str) -> list[str]:
-    """A Changes section's pointer is missing, duplicated or not separated by a blank line."""
+    """A Changes section with more than one pointer; fix-doc-consistency adds a missing one, not removes one."""
     return [
-        f"{doc_path.name}: '### {issue.heading}' " + _POINTER_FINDINGS[issue.kind].format(count=issue.count)
+        f"{doc_path.name}: '### {issue.heading}' has {issue.count} \"- Image / digest\" pointers; keep one"
         for issue in pointer_issues(doc_text)
+        if issue.kind == "duplicate"
     ]
 
 
@@ -614,7 +549,7 @@ def _check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
         for name in sorted(duplicate_names | wrong_fuzzy_names)
     )
 
-    # Removed items' rows are checked by removed_item_issues below.
+    # fix-doc-consistency writes removed items' rows (sync_removed_items).
     row_lookup = RowLookup(scan.canonical_names, duplicate_names | wrong_fuzzy_names | set(scan.removed))
     rows_result = _check_component_rows(scan.rows, RowContext(doc_path, ctx.baseline_ref), row_lookup, resolution)
     findings.mismatches.extend(rows_result.mismatches)
@@ -622,24 +557,14 @@ def _check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
     if ctx.baseline_ref:
         findings.mismatches.extend(_check_missing_component_rows(ctx, scan, rows_result))
 
-    order_mismatches, changes_headings, doc_text = _check_row_and_heading_order(ctx, scan)
-    findings.mismatches.extend(order_mismatches)
+    doc_text = doc_path.read_text(encoding="utf-8")
+    changes_headings = [b["heading"] for b in parse_upgrade_doc_changes_blocks(doc_text)]
     findings.mismatches.extend(
         _check_changes_heading_correspondence(ctx, scan, rows_result, changes_headings, doc_text)
     )
-    findings.mismatches.extend(_missing_pin_bullet_mismatches(ctx, doc_path, doc_text))
     findings.mismatches.extend(_stale_changes_item_mismatches(ctx, scan, resolution))
     findings.mismatches.extend(_contradicting_section_mismatches(ctx, scan, doc_text))
     findings.mismatches.extend(_pointer_mismatches(doc_path, doc_text))
-    findings.mismatches.extend(
-        removed_item_issues(
-            doc_path.name,
-            doc_text,
-            list(scan.removed.values()),
-            ctx.doc_query.podiumd_version,
-            scan.ordering(ctx.current.deps, ctx.current.values),
-        )
-    )
     _warn_edited_generated_lines(doc_path, "###", edited_changes_lines(doc_text))
 
 
@@ -727,7 +652,7 @@ def _check_images_manifest(
 
 
 def _check_values_deltas(ctx: DocsCheckContext, findings: Findings):
-    """The values-deltas doc's content and section-ordering checks (see caller's guard)."""
+    """The values-deltas doc's content checks (see caller's guard); fix-doc-consistency orders its sections."""
     values_deltas_path = (
         ctx.doc_query.doc_dir
         / f"{ctx.doc_query.upgrade_docs_baseline}-to-{ctx.doc_query.podiumd_version}-values-deltas.md"
@@ -745,15 +670,6 @@ def _check_values_deltas(ctx: DocsCheckContext, findings: Findings):
 
     deltas_text = values_deltas_path.read_text(encoding="utf-8")
     _warn_edited_generated_lines(values_deltas_path, "##", edited_values_delta_lines(deltas_text))
-
-    deltas_headings = [s["heading"] for s in parse_values_delta_sections(deltas_text)]
-    ordering = OrderingContext(ctx.current.deps, ctx.current.values, ctx.images.current.canonical_names)
-    for name_a, name_b in find_out_of_order_names(deltas_headings, ordering):
-        findings.mismatches.append(
-            f'{values_deltas_path.name}: "## {name_b}" section comes right after "## {name_a}", '
-            f"but values.yaml lists the {name_b} component before {name_a} — sections should follow "
-            f"values.yaml's own component order"
-        )
 
 
 def _check_baseline_doc_set_and_pointers(

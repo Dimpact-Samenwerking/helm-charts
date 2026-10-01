@@ -3,7 +3,6 @@
 from pathlib import Path
 
 from lib.chart.chart_yaml import ChartDependency
-from lib.component_docs.removed_item_docs import removed_item_issues
 from lib.component_docs.removed_item_docs import sync_removed_items
 from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.removed_items import RemovedItem
@@ -68,19 +67,6 @@ def test_sync_removed_items_writes_rows_and_sections_in_baseline_order(tmp_path:
         "### kiss 3.1.1 (removed)\n\nPodiumD 4.9.3 removes **kiss** (was 3.1.1).\n"
     ) in text
     assert sync_removed_items(text, items, "4.9.3", ordering) == (text, [])
-
-
-def test_removed_item_issues_reports_exactly_what_sync_would_change(tmp_path: Path):
-    items, ordering = _items_and_ordering(tmp_path)
-    text, _synced = sync_removed_items(DOC, items, "4.9.3", ordering)
-
-    assert removed_item_issues("doc.md", DOC, items, "4.9.3", ordering) == [
-        'doc.md: removed "zac - opa" has no row, or a stale one, in the table; run fix-doc-consistency',
-        'doc.md: removed "zac - opa" has no "### ..." section, or a stale one; run fix-doc-consistency',
-        'doc.md: removed "kiss" has no row, or a stale one, in the table; run fix-doc-consistency',
-        'doc.md: removed "kiss" has no "### ..." section, or a stale one; run fix-doc-consistency',
-    ]
-    assert removed_item_issues("doc.md", text, items, "4.9.3", ordering) == []
 
 
 def test_sync_removed_items_keeps_user_text_in_a_removed_section(tmp_path: Path):

@@ -60,31 +60,6 @@ def test_parse_changes_block_no_changes_section(libupgradedoccomments: ModuleTyp
     assert libupgradedoccomments.parse_changes_block("# just a header\n# no changes block\n") == []
 
 
-# --- check_images_manifest_changes_numbering ---
-
-
-def test_changes_numbering_flags_a_gap(libimagesmanifest: ModuleType):
-    """A gap left by removing an item without renumbering the rest."""
-    text = "# Changes:\n#   1. zac 5.0.2 -> 5.4.3.\n#   3. openformulieren 3.4.10 -> 3.5.6.\n"
-    issues = libimagesmanifest.check_images_manifest_changes_numbering("images-4.9.0.yaml", text)
-    assert any("item numbered 3 should be 2" in i for i in issues)
-
-
-def test_changes_numbering_correct_sequence_is_clean(libimagesmanifest: ModuleType):
-    text = "# Changes:\n#   1. zac 5.0.2 -> 5.4.3.\n#   2. openformulieren 3.4.10 -> 3.5.6.\n"
-    assert libimagesmanifest.check_images_manifest_changes_numbering("images-4.9.0.yaml", text) == []
-
-
-def test_changes_numbering_flags_stale_count_word(libimagesmanifest: ModuleType):
-    text = "# Three changes:\n#   1. zac 5.0.2 -> 5.4.3.\n#   2. openformulieren 3.4.10 -> 3.5.6.\n"
-    issues = libimagesmanifest.check_images_manifest_changes_numbering("images-4.9.0.yaml", text)
-    assert any('header says "Three changes" but there are actually 2' in i for i in issues)
-
-
-def test_changes_numbering_no_header_is_clean(libimagesmanifest: ModuleType):
-    assert libimagesmanifest.check_images_manifest_changes_numbering("images-4.9.0.yaml", "some: yaml\n") == []
-
-
 # --- check_images_manifest_format ---
 
 DEPS = [
@@ -113,24 +88,6 @@ def test_images_manifest_format_passes_for_consistent_manifest(libimagesmanifest
         ),
     )
     assert issues == []
-
-
-def test_images_manifest_format_flags_a_numbering_gap(libimagesmanifest: ModuleType, tmp_path: Path):
-    """check_images_manifest_format reports a gap in the "# Changes:" numbering."""
-    text = REAL_MANIFEST.replace("#   2. ZGW Office Add-in", "#   3. ZGW Office Add-in")
-    images_path = tmp_path / "images-4.9.0.yaml"
-    images_path.write_text(text)
-    issues = libimagesmanifest.check_images_manifest_format(
-        images_path,
-        libimagesmanifest.ManifestCheckContext(
-            "4.8.5",
-            "4.9.0",
-            DEPS,
-            VALUES,
-            {},
-        ),
-    )
-    assert any("item numbered 3 should be 2" in i for i in issues)
 
 
 def test_images_manifest_format_missing_file(libimagesmanifest: ModuleType, tmp_path: Path):
@@ -533,51 +490,6 @@ def test_images_manifest_format_sidecars_recognized_within_group_by_basename(
     assert not any("has no entry" in i for i in issues)
 
 
-def test_images_manifest_format_out_of_order_entries_are_flagged(libimagesmanifest: ModuleType, tmp_path: Path):
-    """Entries must follow values.yaml's top-level component order (path_order_key)."""
-    deps = [
-        {"name": "redis-operator", "version": "1.0.0"},
-        {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.0"},
-    ]
-    values = {
-        "redis-operator": {"image": {"repository": "quay.io/opstree/redis-operator", "tag": "0.26.0@sha256:aaaa"}},
-        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.4@sha256:bbbb"}},
-    }
-    (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}, sort_keys=False), encoding="utf-8")
-    (tmp_path / "values.yaml").write_text(yaml.safe_dump(values, sort_keys=False), encoding="utf-8")
-    images_path = tmp_path / "images-4.9.0.yaml"
-    images_path.write_text(
-        "# Baseline: podiumd 4.8.5.\n#\n# podiumd 4.9.0 vs 4.8.5.\n\n"
-        "# zac 5.0.2 -> 5.4.4\n"
-        "- name: infonl/zaakafhandelcomponent\n"
-        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
-        '  version: "5.4.4"\n'
-        '  digest: "sha256:bbbb"\n\n'
-        "# redis-operator 0.25.0 -> 0.26.0\n"
-        "- name: opstree/redis-operator\n"
-        "  url: quay.io/opstree/redis-operator\n"
-        '  version: "0.26.0"\n'
-        '  digest: "sha256:aaaa"\n'
-    )
-
-    issues = libimagesmanifest.check_images_manifest_format(
-        images_path,
-        libimagesmanifest.ManifestCheckContext(
-            "4.8.5",
-            "4.9.0",
-            deps,
-            values,
-            {},
-            chart_dir=tmp_path,
-        ),
-    )
-
-    assert any(
-        'entry "redis-operator" is listed right after "zac"' in i and "values.yaml lists redis-operator before zac" in i
-        for i in issues
-    )
-
-
 def test_images_manifest_format_correctly_ordered_entries_are_not_flagged(
     libimagesmanifest: ModuleType, tmp_path: Path
 ):
@@ -619,54 +531,6 @@ def test_images_manifest_format_correctly_ordered_entries_are_not_flagged(
     )
 
     assert not any("is listed right after" in i for i in issues)
-
-
-def test_images_manifest_format_changes_list_out_of_order_is_flagged(libimagesmanifest: ModuleType, tmp_path: Path):
-    """The "# Changes:" list must follow values.yaml order even when the entry list does."""
-    deps = [
-        {"name": "redis-operator", "version": "1.0.0"},
-        {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.0"},
-    ]
-    values = {
-        "redis-operator": {"image": {"repository": "quay.io/opstree/redis-operator", "tag": "0.26.0@sha256:aaaa"}},
-        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.4@sha256:bbbb"}},
-    }
-    (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}, sort_keys=False), encoding="utf-8")
-    (tmp_path / "values.yaml").write_text(yaml.safe_dump(values, sort_keys=False), encoding="utf-8")
-    images_path = tmp_path / "images-4.9.0.yaml"
-    images_path.write_text(
-        "# Baseline: podiumd 4.8.5.\n#\n# podiumd 4.9.0 vs 4.8.5.\n#\n"
-        "# Changes:\n"
-        "#   1. zac 5.0.2 -> 5.4.4.\n"
-        "#   2. redis-operator 0.25.0 -> 0.26.0.\n\n"
-        "# redis-operator 0.25.0 -> 0.26.0\n"
-        "- name: opstree/redis-operator\n"
-        "  url: quay.io/opstree/redis-operator\n"
-        '  version: "0.26.0"\n'
-        '  digest: "sha256:aaaa"\n\n'
-        "# zac 5.0.2 -> 5.4.4\n"
-        "- name: infonl/zaakafhandelcomponent\n"
-        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
-        '  version: "5.4.4"\n'
-        '  digest: "sha256:bbbb"\n'
-    )
-
-    issues = libimagesmanifest.check_images_manifest_format(
-        images_path,
-        libimagesmanifest.ManifestCheckContext(
-            "4.8.5",
-            "4.9.0",
-            deps,
-            values,
-            {},
-            chart_dir=tmp_path,
-        ),
-    )
-
-    assert any(
-        '"# Changes:" list has "redis-operator 0.25.0 -> 0.26.0." right after "zac 5.0.2 -> 5.4.4."' in i
-        for i in issues
-    )
 
 
 def test_images_manifest_format_changes_list_correct_order_is_not_flagged(
@@ -1111,33 +975,6 @@ def test_images_manifest_format_new_component_image_not_in_historical_manifest(
         ),
     )
     assert any('image "brppersonenmock" changed vs 4.8.5 but has no entry' in i for i in issues)
-
-
-def test_changes_items_out_of_order_reports_what_the_fixer_moves(libimagesmanifest: ModuleType):
-    """A hand-written item sorts last in the fixer, so a resolvable item after it is reported."""
-    text = (
-        "# Changes:\n"
-        "#   1. Renovate-integrated bumps of several helper images.\n"
-        "#   2. zac 5.0.2 -> 5.4.4.\n"
-        "#   3. redis-operator 0.25.0 -> 0.26.0.\n"
-    )
-
-    pairs = libimagesmanifest.find_images_manifest_changes_items_out_of_order(text, {"zac": 0, "redis-operator": 1})
-
-    assert pairs == [("Renovate-integrated bumps of several helper images.", "zac 5.0.2 -> 5.4.4.")]
-
-
-def test_changes_items_out_of_order_still_flags_two_resolved_items(libimagesmanifest: ModuleType):
-    text = (
-        "# Changes:\n"
-        "#   1. redis-operator 0.25.0 -> 0.26.0.\n"
-        "#   2. zac 5.0.2 -> 5.4.4.\n"
-        "#   3. Renovate-integrated bumps of several helper images.\n"
-    )
-
-    pairs = libimagesmanifest.find_images_manifest_changes_items_out_of_order(text, {"zac": 0, "redis-operator": 1})
-
-    assert pairs == [("redis-operator 0.25.0 -> 0.26.0.", "zac 5.0.2 -> 5.4.4.")]
 
 
 def test_images_manifest_format_reports_an_entry_count_mismatch(libimagesmanifest: ModuleType, tmp_path: Path):

@@ -382,7 +382,7 @@ def test_path_order_key_unknown_values_key_sorts_last(libupgradedocmanifestorder
     )
 
 
-# --- find_images_manifest_out_of_order_names / sort_images_manifest_entries ---
+# --- sort_images_manifest_entries ---
 
 
 def _images_manifest_two_component_fixture():
@@ -410,35 +410,6 @@ def _images_manifest_two_component_fixture():
     repo_map = {"infonl/zaakafhandelcomponent": ("zac", "image"), "opstree/redis-operator": ("redis-operator", "image")}
     key_order = ["redis-operator", "zac"]
     return text, entries, deps, values, current_paths, repo_map, key_order
-
-
-def test_find_images_manifest_out_of_order_names_detects_violation(libupgradedocmanifestordering: ModuleType):
-    text, entries, deps, _values, current_paths, repo_map, key_order = _images_manifest_two_component_fixture()
-    lines = text.splitlines()
-    entry_line_indices = _entry_line_indices(lines)
-
-    violations = libupgradedocmanifestordering.find_images_manifest_out_of_order_names(
-        libupgradedocmanifestordering.ParsedManifest(entries, entry_line_indices, lines),
-        libupgradedocmanifestordering.EntryResolution(deps, current_paths, repo_map, {}),
-        key_order,
-    )
-    assert violations == [("zac", "redis-operator")]
-
-
-def test_find_images_manifest_out_of_order_names_correctly_ordered_reports_nothing(
-    libupgradedocmanifestordering: ModuleType,
-):
-    text, entries, deps, _values, current_paths, repo_map, key_order = _images_manifest_two_component_fixture()
-    lines = text.splitlines()
-    entry_line_indices = _entry_line_indices(lines)
-    key_order = ["zac", "redis-operator"]  # now matches the manifest's actual order
-
-    violations = libupgradedocmanifestordering.find_images_manifest_out_of_order_names(
-        libupgradedocmanifestordering.ParsedManifest(entries, entry_line_indices, lines),
-        libupgradedocmanifestordering.EntryResolution(deps, current_paths, repo_map, {}),
-        key_order,
-    )
-    assert violations == []
 
 
 def test_sort_images_manifest_entries_reorders_to_match_values_yaml(libupgradedocmanifestordering: ModuleType):

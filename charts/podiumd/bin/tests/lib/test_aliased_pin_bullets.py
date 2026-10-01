@@ -1,8 +1,7 @@
-"""lib.component_docs.aliased_pin_bullets — find_missing_pin_bullets, add_missing_pin_bullets."""
+"""lib.component_docs.aliased_pin_bullets — add_missing_pin_bullets."""
 
 from lib.component_docs.aliased_pin_bullets import MissingPinBullet
 from lib.component_docs.aliased_pin_bullets import add_missing_pin_bullets
-from lib.component_docs.aliased_pin_bullets import find_missing_pin_bullets
 
 K8S: tuple[str, ...] = ("redis-operator.cron.image.tag", "redis-operator.pre.image.tag")
 BAO: tuple[str, ...] = ("openbao.job.image.tag", "openbao.server.image.tag")
@@ -34,7 +33,7 @@ to 2.5.5.
 
 
 def test_find_reports_each_aliased_path_without_a_bullet():
-    assert find_missing_pin_bullets(DOC, GROUPS) == [
+    assert add_missing_pin_bullets(DOC, GROUPS)[1] == [
         MissingPinBullet("redis-operator - k8s 1.37.0 → 1.37.1", K8S[0], K8S[1]),
         MissingPinBullet("openbao 2.5.4 → 2.5.5 (chart 0.28.4, unchanged)", BAO[1], BAO[0]),
     ]
@@ -60,7 +59,7 @@ def test_add_copies_the_bullet_for_the_aliased_path():
 
 def test_add_is_idempotent_and_the_result_passes_find():
     text, _ = add_missing_pin_bullets(DOC, GROUPS)
-    assert not find_missing_pin_bullets(text, GROUPS)
+    assert not add_missing_pin_bullets(text, GROUPS)[1]
     assert add_missing_pin_bullets(text, GROUPS) == (text, [])
 
 
@@ -69,9 +68,9 @@ def test_a_hand_written_bullet_for_the_aliased_path_counts():
         "- `redis-operator.cron.image.tag` `1.37.0` → `1.37.1`\n",
         "- `redis-operator.cron.image.tag` `1.37.0` → `1.37.1`\n- `redis-operator.pre.image.tag` also bumped\n",
     )
-    assert [m.missing_path for m in find_missing_pin_bullets(doc, GROUPS)] == [BAO[0]]
+    assert [m.missing_path for m in add_missing_pin_bullets(doc, GROUPS)[1]] == [BAO[0]]
 
 
 def test_bullets_outside_changes_and_unaliased_paths_are_ignored():
     doc = "## Notes\n\n- `redis-operator.cron.image.tag` `1` → `2`\n\n## Changes\n\n### zac 1 → 2\n\n- `zac.image.tag` `1` → `2`\n"
-    assert not find_missing_pin_bullets(doc, GROUPS)
+    assert not add_missing_pin_bullets(doc, GROUPS)[1]

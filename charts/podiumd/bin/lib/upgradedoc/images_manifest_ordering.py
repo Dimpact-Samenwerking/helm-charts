@@ -7,7 +7,6 @@ import re
 from collections.abc import Iterable
 from collections.abc import Mapping
 from dataclasses import dataclass
-from itertools import pairwise
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import is_primary_image_path
@@ -243,24 +242,8 @@ def _images_manifest_groups(manifest: ParsedManifest, resolution: EntryResolutio
 def _group_order_keys(
     groups: list[ManifestGroup], deps: list[ChartDependency], key_order: list[str], values: YamlMapping | None
 ) -> list[tuple[int, ...]]:
-    """path_order_key of each group's path: the sorter orders by it and the checker compares it."""
+    """path_order_key of each group's path, the key sort_images_manifest_entries orders by."""
     return [path_order_key(path, deps, key_order, values) for _indices, path, _name in groups]
-
-
-def find_images_manifest_out_of_order_names(
-    manifest: ParsedManifest, resolution: EntryResolution, key_order: list[str], values: YamlMapping | None = None
-) -> list[tuple[str, str]]:
-    """Every adjacent (name_a, name_b) group pair whose path_order_key order is inverted.
-
-    Without values, non-primary entries under the same top-level key tie and are
-    never flagged."""
-    groups = _images_manifest_groups(manifest, resolution)
-    keys = _group_order_keys(groups, resolution.deps, key_order, values)
-    return [
-        (group_a[2], group_b[2])
-        for (group_a, key_a), (group_b, key_b) in pairwise(zip(groups, keys, strict=True))
-        if key_b < key_a
-    ]
 
 
 def _collapse_group_internal_blank_lines(group_text: str) -> str:
@@ -359,9 +342,9 @@ def match_changes_item_display_name(rest: str, names: Iterable[str]) -> str | No
 def changes_item_order_keys(rests: Iterable[str], display_name_positions: Mapping[str, int]) -> list[int]:
     """Each "# Changes:" item's sort key: the entry position of the display name it names.
 
-    The sorter and the checker both order by this. An item naming no display
-    name (hand-written prose) sorts after every real one; there is no fuzzy
-    fallback, which can misplace an item by a word it merely mentions.
+    An item naming no display name (hand-written prose) sorts after every
+    real one; there is no fuzzy fallback, which can misplace an item by a
+    word it merely mentions.
     """
     last = max(display_name_positions.values(), default=-1) + 1
     return [

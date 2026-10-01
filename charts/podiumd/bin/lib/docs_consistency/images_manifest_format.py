@@ -9,7 +9,6 @@ import re
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from itertools import pairwise
 from pathlib import Path
 
 import yaml
@@ -17,12 +16,7 @@ import yaml
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.repo_and_path_resolution import repository_group_key
 from lib.chart.values_tree_primitives import values_key_of
-from lib.component_docs.images_manifest_changes_header import CHANGES_HEADER_RE
-from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
-from lib.component_docs.images_manifest_changes_header import changes_item_texts
 from lib.component_docs.images_manifest_changes_header import covered_display_names
-from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_items
-from lib.component_docs.images_manifest_changes_header import images_manifest_changes_count_word
 from lib.image.repository_check import find_images_without_repository
 from lib.images_manifest import ManifestEntry
 from lib.images_manifest import images_manifest_problem
@@ -42,19 +36,15 @@ from lib.upgradedoc.images_manifest_list_diff import find_images_manifest_list_d
 from lib.upgradedoc.images_manifest_ordering import EntryResolution
 from lib.upgradedoc.images_manifest_ordering import ManifestSortContext
 from lib.upgradedoc.images_manifest_ordering import ParsedManifest
-from lib.upgradedoc.images_manifest_ordering import changes_item_order_keys
 from lib.upgradedoc.images_manifest_ordering import find_images_manifest_faulty_headers
-from lib.upgradedoc.images_manifest_ordering import find_images_manifest_out_of_order_names
 from lib.upgradedoc.images_manifest_ordering import images_manifest_display_name_positions
 from lib.upgradedoc.images_manifest_ordering import images_manifest_entries_share_group
 from lib.upgradedoc.images_manifest_ordering import images_manifest_entry_positions
-from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import best_name_match
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
 from lib.upgradedoc.string_and_parsing_basics import extract_target_version
 from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
-from lib.upgradedoc.string_and_parsing_basics import match_located_line
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import YamlShapeError
@@ -108,20 +98,6 @@ def match_changes_item_to_entry(item_name: str, entries: list[ManifestEntry]) ->
     )
 
 
-def find_images_manifest_changes_items_out_of_order(
-    text: str, display_name_positions: dict[str, int]
-) -> list[tuple[str, str]]:
-    """[(item_a_text, item_b_text)] for adjacent "# Changes:" items in the wrong order.
-
-    Entries can be ordered while the header list isn't. Keys come from
-    changes_item_order_keys, as sort_images_manifest_changes_items uses, so
-    this reports exactly what fix-doc-consistency would reorder.
-    """
-    items = changes_item_texts(text.splitlines(keepends=True))
-    keys = changes_item_order_keys([rest for rest, _start, _end in items], display_name_positions)
-    return [(items[i][0], items[i + 1][0]) for i, (key, next_key) in enumerate(pairwise(keys)) if next_key < key]
-
-
 def _uncovered_entry_display_names(
     entries: list[ManifestEntry], entry_positions: dict[str, int], resolution: EntryResolution, covered_names: set[str]
 ) -> list[str]:
@@ -167,39 +143,6 @@ def find_images_manifest_entries_missing_changes_mention(
 
     covered_names = covered_display_names(text.splitlines(keepends=True), display_name_positions)
     return sorted(_uncovered_entry_display_names(entries, entry_positions, resolution, covered_names))
-
-
-def check_images_manifest_changes_numbering(images_path_name: str, text: str) -> list[str]:
-    """The "# Changes:" items must be numbered 1..N in document order, and the header's count
-    word (if any) must equal N.
-
-    The sort/dedupe fixers renumber only as a side effect, so a hand-removed item
-    leaving a gap goes unnoticed without this.
-    """
-    lines = text.splitlines(keepends=True)
-    header_idx, header_has_count, item_indices = find_images_manifest_changes_items(lines)
-    if header_idx is None or not item_indices:
-        return []
-
-    issues: list[str] = []
-    for slot, idx in enumerate(item_indices):
-        expected = slot + 1
-        actual = int(match_located_line(CHANGES_ITEM_RE, lines[idx]).group("num"))
-        if actual != expected:
-            issues.append(
-                f'{images_path_name}: "# Changes:" item numbered {actual} should be {expected} '
-                f"(item #{expected} in the list, top to bottom)"
-            )
-
-    if header_has_count:
-        count_word, noun = images_manifest_changes_count_word(len(item_indices))
-        header_m = CHANGES_HEADER_RE.match(lines[header_idx])
-        if header_m and header_m.group("count_word").lower() != count_word.lower():
-            issues.append(
-                f'{images_path_name}: header says "{header_m.group("count_word")} {noun}" but there '
-                f"are actually {len(item_indices)}"
-            )
-    return issues
 
 
 def _baseline_and_vs_line_issues(name: str, text: str, context: ManifestCheckContext):
@@ -415,32 +358,6 @@ def _sidecar_header_issues(name: str, parsed: ParsedManifest, resolution: EntryR
     return issues
 
 
-def _out_of_order_entry_issues(
-    name: str, parsed: ParsedManifest, resolution: EntryResolution, key_order: list[str], values: YamlMapping
-):
-    """One issue per adjacent entry pair (or header group) out of values.yaml component order."""
-    issues: list[str] = []
-    for name_a, name_b in find_images_manifest_out_of_order_names(parsed, resolution, key_order, values):
-        issues.append(
-            f'{name}: entry "{name_b}" is listed right after "{name_a}", but '
-            f"values.yaml lists {name_b} before {name_a} — entries should follow values.yaml's "
-            f"own component order"
-        )
-    return issues
-
-
-def _changes_items_out_of_order_issues(name: str, text: str, display_name_positions: dict[str, int]):
-    """One issue per adjacent "# Changes:" item pair ordered against the entry list."""
-    issues: list[str] = []
-    for item_a, item_b in find_images_manifest_changes_items_out_of_order(text, display_name_positions):
-        issues.append(
-            f'{name}: "# Changes:" list has "{item_b}" right after "{item_a}", but '
-            f"the entry list has them in the opposite order — Changes items should follow the "
-            f"same order as the entries below them"
-        )
-    return issues
-
-
 def _missing_changes_mention_issues(
     name: str, text: str, entries: list[ManifestEntry], sort_context: ManifestSortContext
 ):
@@ -455,15 +372,12 @@ def _missing_changes_mention_issues(
 def _structural_issues(
     name: str, text: str, parsed: ParsedManifest, resolution: EntryResolution, context: ManifestCheckContext
 ):
-    """chart_dir-gated structural checks: sidecar headers, component order, Changes order/coverage."""
+    """chart_dir-gated structural checks: sidecar headers and Changes coverage.
+
+    fix-doc-consistency orders the entries and "# Changes:" items and numbers the items.
+    """
     issues = _sidecar_header_issues(name, parsed, resolution)
-
-    key_order = values_key_order(context.values)
-    issues.extend(_out_of_order_entry_issues(name, parsed, resolution, key_order, context.values))
-
     sort_context = ManifestSortContext(context.deps, context.values, resolution.repo_map, resolution.canonical_names)
-    display_name_positions = images_manifest_display_name_positions(text, sort_context)
-    issues.extend(_changes_items_out_of_order_issues(name, text, display_name_positions))
     issues.extend(_missing_changes_mention_issues(name, text, parsed.entries, sort_context))
     return issues
 
@@ -562,7 +476,6 @@ def check_images_manifest_format(images_path: Path, context: ManifestCheckContex
         return [f"{images_path.name} {problem}"]
 
     issues = _baseline_and_vs_line_issues(images_path.name, text, context)
-    issues.extend(check_images_manifest_changes_numbering(images_path.name, text))
     issues.extend(_entry_name_issues(images_path.name, entries))
 
     repo_groups, resolution = _manifest_resolution_context(context)

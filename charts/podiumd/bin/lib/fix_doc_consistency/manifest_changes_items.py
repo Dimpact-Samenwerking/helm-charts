@@ -89,7 +89,7 @@ def dedupe_images_manifest_changes_items(lines: list[str]) -> list[str]:
 def sort_images_manifest_changes_items(
     lines: list[str], display_name_positions: dict[str, int]
 ) -> list[tuple[str, int, int]]:
-    """Reorder "# Changes:" items by changes_item_order_keys, as the checker orders them.
+    """Reorder "# Changes:" items by changes_item_order_keys.
 
     Continuation lines move with their item; items are renumbered.
 

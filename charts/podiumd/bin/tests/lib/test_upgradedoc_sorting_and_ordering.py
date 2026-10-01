@@ -165,30 +165,6 @@ def test_component_order_key_distinguishes_multiple_global_images_given_values(l
     assert len(set(with_values)) == 4  # no longer tied
 
 
-# --- find_out_of_order_names ---
-
-
-def test_find_out_of_order_names_correctly_ordered_is_empty(libupgradedocsorting: ModuleType):
-    names = ["Open Zaak", "ZAC", "Open Inwoner"]
-    assert libupgradedocsorting.find_out_of_order_names(names, KEY_ORDERING) == []
-
-
-def test_find_out_of_order_names_flags_a_swapped_pair(libupgradedocsorting: ModuleType):
-    names = ["ZAC", "Open Zaak", "Open Inwoner"]
-    assert libupgradedocsorting.find_out_of_order_names(names, KEY_ORDERING) == [("ZAC", "Open Zaak")]
-
-
-def test_find_out_of_order_names_two_unmatched_names_never_conflict(libupgradedocsorting: ModuleType):
-    names = ["Some Shared Sidecar", "Another Shared Thing"]
-    assert libupgradedocsorting.find_out_of_order_names(names, KEY_ORDERING) == []
-
-
-def test_find_out_of_order_names_unmatched_before_a_real_component_is_flagged(libupgradedocsorting: ModuleType):
-    """An unmatched row before a real component is out of order."""
-    names = ["Some Shared Sidecar", "Open Zaak"]
-    assert libupgradedocsorting.find_out_of_order_names(names, KEY_ORDERING) == [("Some Shared Sidecar", "Open Zaak")]
-
-
 # --- insertion_index ---
 
 

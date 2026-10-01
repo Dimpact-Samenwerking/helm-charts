@@ -9,8 +9,6 @@ from types import ModuleType
 import pytest
 
 from lib.component_docs.baseline_doc_stubs import STANDARD_SUFFIXES
-from lib.component_docs.changes_section import strip_stale_upgrade_placeholders
-from lib.component_docs.values_delta_sections import strip_stale_values_deltas_todo_stub
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import collapse_multiple_blank_lines
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import ensure_blank_lines_around_headings
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import find_collisions
@@ -441,19 +439,17 @@ def test_main_already_at_new_baseline_strips_stale_values_deltas_todo_stub(
 
 
 def test_stale_placeholder_functions_are_reused_not_reimplemented(cdb: ModuleType):
-    """Writer, fixer and checker share the same stranded-stub-placeholder
-    function objects, so they can't diverge."""
+    """The writers and the checker share the same stranded-stub-placeholder function objects.
+
+    fix-doc-consistency clears the TODO stubs (verify-podiumd reports that through its
+    dry-run); only the gemeente-specific placeholder, which nothing clears, is checked."""
     import lib.component_docs.changes_section as changes_section
     import lib.component_docs.values_delta_sections as values_delta_sections
     import lib.docs_consistency as docs_consistency
+    import lib.fix_doc_consistency.run as run
 
-    assert strip_stale_upgrade_placeholders is changes_section.strip_stale_upgrade_placeholders
-    assert strip_stale_values_deltas_todo_stub is values_delta_sections.strip_stale_values_deltas_todo_stub
-    assert docs_consistency.strip_stale_upgrade_placeholders is changes_section.strip_stale_upgrade_placeholders
-    assert (
-        docs_consistency.strip_stale_values_deltas_todo_stub
-        is values_delta_sections.strip_stale_values_deltas_todo_stub
-    )
+    assert run.strip_stale_upgrade_placeholders is changes_section.strip_stale_upgrade_placeholders
+    assert run.strip_stale_values_deltas_todo_stub is values_delta_sections.strip_stale_values_deltas_todo_stub
     assert (
         docs_consistency.has_stale_gemeente_specific_placeholder
         is values_delta_sections.has_stale_gemeente_specific_placeholder
