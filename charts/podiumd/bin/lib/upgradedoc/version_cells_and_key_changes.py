@@ -48,6 +48,19 @@ def version_transition(old: str | None, new: str | None) -> str:
     return f"{new} {suffix}" if suffix else f"{old} → {new}"
 
 
+def chart_version_suffix(old_chart: str | None, new_chart: str | None) -> str:
+    """Upgrade-doc heading chart clause: " (chart 1.2 → 1.3)", " (chart 1.3, unchanged)" or " (chart 1.3, new)".
+
+    Empty for a native component (`new_chart == "-"`); "new" when there is no `old_chart`."""
+    if new_chart == "-":
+        return ""
+    if old_chart is None:
+        return f" (chart {new_chart}, new)"
+    if normalize_version(old_chart) != normalize_version(new_chart):
+        return f" (chart {old_chart} → {new_chart})"
+    return f" (chart {new_chart}, unchanged)"
+
+
 def pin_version_text(old: str | None, new: str | None) -> str:
     """Upgrade-doc pin bullet version text: "`1.2` → `1.3`", "`1.3` (new)" or "`1.3` (unchanged)"."""
     suffix = version_change_suffix(old, new)

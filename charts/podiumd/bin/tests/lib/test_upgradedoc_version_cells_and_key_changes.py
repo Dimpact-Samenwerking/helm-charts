@@ -260,6 +260,25 @@ def test_compute_changed_components_still_detects_a_components_own_change_alongs
     assert libupgradedocmanifestdiff.compute_changed_components(deps, deps, current, baseline) == {"zac"}
 
 
+# --- chart_version_suffix ---
+
+
+def test_chart_version_suffix_changed(libupgradedocversioncells: ModuleType):
+    assert libupgradedocversioncells.chart_version_suffix("0.28.4", "0.29.6") == " (chart 0.28.4 → 0.29.6)"
+
+
+def test_chart_version_suffix_unchanged(libupgradedocversioncells: ModuleType):
+    assert libupgradedocversioncells.chart_version_suffix("1.0.0", "1.0.0") == " (chart 1.0.0, unchanged)"
+
+
+def test_chart_version_suffix_new_without_old_chart(libupgradedocversioncells: ModuleType):
+    assert libupgradedocversioncells.chart_version_suffix(None, "3.5.0") == " (chart 3.5.0, new)"
+
+
+def test_chart_version_suffix_native_component_is_empty(libupgradedocversioncells: ModuleType):
+    assert libupgradedocversioncells.chart_version_suffix("-", "-") == ""
+
+
 # --- describe_key_changes / append_to_doc ---
 
 

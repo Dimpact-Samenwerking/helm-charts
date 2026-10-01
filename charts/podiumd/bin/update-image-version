@@ -79,7 +79,6 @@ from lib.component_docs.images_manifest_entries import ImagePathUpdate
 from lib.component_docs.images_manifest_entries import ManifestUpdateTarget
 from lib.component_docs.images_manifest_entries import remove_component_from_images_manifest
 from lib.component_docs.images_manifest_entries import update_images_manifest
-from lib.component_docs.values_delta_sections import ValuesDeltaOrdering
 from lib.component_docs.values_delta_sections import remove_values_delta_section
 from lib.component_docs.values_delta_sections import values_delta_section_heading
 from lib.dependencies import ensure_vendored_dependencies
@@ -274,7 +273,7 @@ def _update_single_component_values_deltas(
             values_deltas_path,
             text,
             ValuesDeltaEntry(context.friendly, heading_line, key_lines),
-            ValuesDeltaOrdering(context.ordering.deps, context.ordering.values, context.ordering.canonical_names),
+            context.ordering,
         )
     else:
         text, section_removed, kept_user_text = remove_values_delta_section(

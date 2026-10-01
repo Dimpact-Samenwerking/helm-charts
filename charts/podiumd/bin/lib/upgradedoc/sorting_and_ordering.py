@@ -3,6 +3,7 @@
 import re
 
 from collections.abc import Mapping
+from collections.abc import Sequence
 from itertools import pairwise
 from typing import TypedDict
 from typing import TypeVar
@@ -127,6 +128,22 @@ def insertion_index(new_key: OrderKeyT, existing_keys: list[OrderKeyT]) -> int:
         if k > new_key:
             return i
     return len(existing_keys)
+
+
+def component_insertion_index(
+    new_name: str,
+    existing_names: Sequence[str],
+    deps: list[ChartDependency],
+    values: YamlMapping | None,
+    canonical_names: Mapping[str, tuple[str, ...]] | None = None,
+) -> int:
+    """insertion_index of new_name among existing_names, each keyed by component_order_key in values.yaml order."""
+    key_order = values_key_order(values)
+
+    def order_key(name: str):
+        return component_order_key(name, deps, key_order, canonical_names, values)
+
+    return insertion_index(order_key(new_name), [order_key(name) for name in existing_names])
 
 
 def changes_section_bounds(lines: list[str]) -> tuple[int | None, int]:

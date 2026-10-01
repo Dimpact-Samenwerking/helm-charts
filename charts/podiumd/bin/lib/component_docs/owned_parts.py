@@ -10,6 +10,7 @@ import re
 from collections.abc import Callable
 from collections.abc import Mapping
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
 
@@ -61,14 +62,18 @@ def _collapse_blank_runs(lines: list[str]) -> list[str]:
     return out
 
 
-def _anchors(old_kinds: Sequence[str | None], order: list[str]) -> dict[str, int]:
-    """Old-body index each new kind is written at: its first old line, else just before the next kind that has one."""
+def _anchors(old_kinds: Sequence[str | None], order: list[str], *, absent_first: bool) -> dict[str, int]:
+    """Old-body index each new kind is written at: its first old line, else just before the next kind that has one.
+
+    With no such next kind: the end of the body, or with `absent_first` its first non-blank line."""
     first: dict[str, int] = {}
     for i, kind in enumerate(old_kinds):
         if kind is not None and kind != BLANK:
             first.setdefault(kind, i)
     anchors: dict[str, int] = {}
     following = len(old_kinds)
+    if absent_first:
+        following = next((i for i, kind in enumerate(old_kinds) if kind != BLANK), following)
     for kind in reversed(order):
         following = first.get(kind, following)
         anchors[kind] = following
@@ -76,16 +81,21 @@ def _anchors(old_kinds: Sequence[str | None], order: list[str]) -> dict[str, int
 
 
 def replace_owned_parts(
-    old_body: Sequence[str], old_kinds: Sequence[str | None], new_body: Sequence[str], new_kinds: Sequence[str | None]
+    old_body: Sequence[str],
+    old_kinds: Sequence[str | None],
+    new_body: Sequence[str],
+    new_kinds: Sequence[str | None],
+    *,
+    absent_first: bool = False,
 ) -> list[str]:
     """`old_body` with its owned lines replaced by `new_body`'s, user lines kept in place and in order.
 
     Each kind of `new_body` goes where that kind was in `old_body`; a kind
-    `old_body` lacks goes before the next kind that it has, and an owned kind
-    `new_body` lacks is dropped.
+    `old_body` lacks goes before the next kind that it has (see _anchors for
+    `absent_first`), and an owned kind `new_body` lacks is dropped.
     """
     new_groups = _grouped(new_body, new_kinds)
-    anchors = _anchors(old_kinds, list(new_groups))
+    anchors = _anchors(old_kinds, list(new_groups), absent_first=absent_first)
     old_groups = set(_grouped(old_body, old_kinds))
     out: list[str] = []
     for i in range(len(old_body) + 1):
@@ -113,6 +123,18 @@ BodyKinds = Callable[[Sequence[str]], list[str | None]]
 HeadingName = Callable[[str, Sequence[str | None]], str | None]
 
 
+@dataclass(frozen=True)
+class SectionShape:
+    """How one doc's sections are labelled: body_kinds and heading_name.
+
+    With absent_first, an owned kind the old body lacks goes before its user
+    lines instead of after them (see _anchors)."""
+
+    body_kinds: BodyKinds
+    heading_name: HeadingName
+    absent_first: bool = False
+
+
 def _with_section_gap(body: list[str], *, followed: bool) -> list[str]:
     """`body` without trailing blank lines, plus one when another line follows the section."""
     while body and not body[-1].strip():
@@ -128,9 +150,7 @@ def _kept_or_new_heading(
     return new[0] if old_name is not None and old_name == heading_name(*new) else old[0]
 
 
-def replace_section_owned_parts(
-    text: str, block: HeadingBlock, section_text: str, body_kinds: BodyKinds, heading_name: HeadingName
-) -> str:
+def replace_section_owned_parts(text: str, block: HeadingBlock, section_text: str, shape: SectionShape) -> str:
     """`block` with its owned parts replaced by `section_text`'s; user lines stay in place.
 
     The heading is replaced only when it is generated and names the same
@@ -140,14 +160,14 @@ def replace_section_owned_parts(
     start, end = block["start"], block["end"]
     new_lines = section_text.splitlines(keepends=True)
     old_body, new_body = lines[start + 1 : end], new_lines[1:]
-    old_kinds, new_kinds = body_kinds(old_body), body_kinds(new_body)
-    heading = _kept_or_new_heading((lines[start], old_kinds), (new_lines[0], new_kinds), heading_name)
-    body = replace_owned_parts(old_body, old_kinds, new_body, new_kinds)
+    old_kinds, new_kinds = shape.body_kinds(old_body), shape.body_kinds(new_body)
+    heading = _kept_or_new_heading((lines[start], old_kinds), (new_lines[0], new_kinds), shape.heading_name)
+    body = replace_owned_parts(old_body, old_kinds, new_body, new_kinds, absent_first=shape.absent_first)
     lines[start:end] = [heading, *_with_section_gap(body, followed=end < len(lines))]
     return "".join(lines)
 
 
-def remove_section_owned_parts(text: str, block: HeadingBlock | None, body_kinds: BodyKinds) -> tuple[str, bool, bool]:
+def remove_section_owned_parts(text: str, block: HeadingBlock | None, shape: SectionShape) -> tuple[str, bool, bool]:
     """Remove `block`'s owned parts: (new_text, removed, kept_user_text).
 
     A block without user lines is deleted with its trailing blank lines; one
@@ -159,7 +179,7 @@ def remove_section_owned_parts(text: str, block: HeadingBlock | None, body_kinds
     lines = text.splitlines(keepends=True)
     start, end = block["start"], block["end"]
     body = lines[start + 1 : end]
-    kinds = body_kinds(body)
+    kinds = shape.body_kinds(body)
     if has_user_lines(kinds):
         kept = _with_section_gap(remove_owned_parts(body, kinds), followed=end < len(lines))
         lines[start:end] = [lines[start], *kept]

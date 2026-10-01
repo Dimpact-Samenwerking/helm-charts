@@ -200,6 +200,20 @@ def test_insertion_index_new_unmatched_item_among_unmatched_ones_goes_last(libup
     assert libupgradedocsorting.insertion_index(3, [3, 3, 3]) == 3
 
 
+# --- component_insertion_index ---
+
+
+def test_component_insertion_index_follows_values_yaml_order(libupgradedocsorting: ModuleType):
+    deps = [{"name": "zac", "version": "1"}, {"name": "openzaak", "version": "1"}, {"name": "kiss", "version": "1"}]
+    values = {"zac": {}, "openzaak": {}, "kiss": {}}
+    assert libupgradedocsorting.component_insertion_index("openzaak", ["zac", "kiss"], deps, values) == 1
+
+
+def test_component_insertion_index_unmatched_name_goes_last(libupgradedocsorting: ModuleType):
+    deps = [{"name": "zac", "version": "1"}]
+    assert libupgradedocsorting.component_insertion_index("unknown", ["zac"], deps, {"zac": {}}) == 1
+
+
 # --- parse_upgrade_doc_changes_blocks ---
 
 

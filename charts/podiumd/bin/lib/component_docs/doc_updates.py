@@ -15,7 +15,6 @@ from lib.component_docs.changes_section import remove_changes_section
 from lib.component_docs.changes_section import remove_component_row
 from lib.component_docs.changes_section import replace_changes_section
 from lib.component_docs.changes_section import update_component_table
-from lib.component_docs.values_delta_sections import ValuesDeltaOrdering
 from lib.component_docs.values_delta_sections import write_values_delta_section
 from lib.procutil import run_script
 
@@ -91,7 +90,7 @@ def rewrite_upgrade_doc(
 
 
 def write_values_delta_entry(
-    values_deltas_path: Path, text: str, entry: ValuesDeltaEntry, delta_ordering: ValuesDeltaOrdering
+    values_deltas_path: Path, text: str, entry: ValuesDeltaEntry, delta_ordering: OrderingContext
 ) -> None:
     """Insert entry's section into values-deltas.md text and write it,
     noting when the doc claims no gemeente changes are required."""

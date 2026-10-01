@@ -6,14 +6,18 @@ import re
 
 from collections.abc import Mapping
 from collections.abc import Sequence
-from dataclasses import dataclass
 from pathlib import Path
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import component_chart_versions
 from lib.component_docs.baseline_doc_stubs import GEMEENTE_SPECIFIC_STUB_LINE
 from lib.component_docs.baseline_doc_stubs import VALUES_DELTAS_STUB_TODO_LINE
+from lib.component_docs.changes_section import BaselineState
+from lib.component_docs.changes_section import OrderingContext
+from lib.component_docs.doc_lines import is_bare_placeholder_span
+from lib.component_docs.doc_lines import normalize_blank_line_before_insert
 from lib.component_docs.owned_parts import BLANK
+from lib.component_docs.owned_parts import SectionShape
 from lib.component_docs.owned_parts import generated_heading_name
 from lib.component_docs.owned_parts import remove_section_owned_parts
 from lib.component_docs.owned_parts import replace_section_owned_parts
@@ -21,21 +25,19 @@ from lib.component_docs.owned_parts import template_re
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
 from lib.upgradedoc.sorting_and_ordering import block_for_component
-from lib.upgradedoc.sorting_and_ordering import component_order_key
-from lib.upgradedoc.sorting_and_ordering import insertion_index
+from lib.upgradedoc.sorting_and_ordering import component_insertion_index
 from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
-from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.version_cells_and_key_changes import KEY_ADDED
 from lib.upgradedoc.version_cells_and_key_changes import KEY_REMOVED
 from lib.upgradedoc.version_cells_and_key_changes import KEY_RENAMED
 from lib.upgradedoc.version_cells_and_key_changes import append_to_doc
+from lib.upgradedoc.version_cells_and_key_changes import chart_version_suffix
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
 from lib.upgradedoc.version_cells_and_key_changes import key_change_lines
 from lib.upgradedoc.version_cells_and_key_changes import missing_key_change_lines
 from lib.upgradedoc.version_cells_and_key_changes import strip_html_comments
-from lib.yaml_types import YamlMapping
 
 
 def values_delta_section_heading(
@@ -63,15 +65,7 @@ def values_delta_section_heading(
             f"version could not be resolved automatically.\n"
         )
 
-    app_bit = component_version_cell(old_app, new_app)
-    if new_chart == "-":
-        chart_bit = ""
-    elif old_chart is None:
-        chart_bit = f" (chart {new_chart}, new)"
-    else:
-        chart_changed = normalize_version(old_chart) != normalize_version(new_chart)
-        chart_bit = f" (chart {old_chart} → {new_chart})" if chart_changed else f" (chart {new_chart}, unchanged)"
-    return f"## {friendly} {app_bit}{chart_bit}\n"
+    return f"## {friendly} {component_version_cell(old_app, new_app)}{chart_version_suffix(old_chart, new_chart)}\n"
 
 
 def find_values_delta_section(
@@ -92,31 +86,16 @@ def find_values_delta_section(
 
 def _is_bare_values_deltas_todo_stub(lines: list[str]):
     """True if `lines` is exactly the values-deltas stub: an H1 title plus VALUES_DELTAS_STUB_TODO_LINE."""
-    non_blank = [line.strip() for line in lines if line.strip()]
+    title_idx = next((i for i, line in enumerate(lines) if line.strip()), None)
     return (
-        len(non_blank) == 2 and non_blank[0].startswith("# ") and non_blank[1] == VALUES_DELTAS_STUB_TODO_LINE.strip()
+        title_idx is not None
+        and lines[title_idx].strip().startswith("# ")
+        and is_bare_placeholder_span(lines, title_idx + 1, len(lines), VALUES_DELTAS_STUB_TODO_LINE)
     )
 
 
-@dataclass
-class ValuesDeltaOrdering:
-    """Component identity and values.yaml-order context for placing a values-deltas.md section."""
-
-    deps: list[ChartDependency]
-    values: YamlMapping | None
-    canonical_names: dict[str, tuple[str, ...]] | None = None
-
-
-@dataclass
-class ValuesDeltaBaseline:
-    """deps/values at upgrade_docs_baseline, used to resolve a new section's old versions."""
-
-    deps: list[ChartDependency] | None
-    values: YamlMapping | None
-
-
 def insert_values_delta_section(
-    text: str, friendly: str, heading_line: str, body_lines: list[str], ordering: ValuesDeltaOrdering
+    text: str, friendly: str, heading_line: str, body_lines: list[str], ordering: OrderingContext
 ):
     """Insert a new section (heading_line ends in a newline) in values.yaml component order.
 
@@ -134,17 +113,11 @@ def insert_values_delta_section(
             text = text.rstrip("\n") + "\n\n"
         return text + section_text
 
-    key_order = values_key_order(ordering.values)
-    new_key = component_order_key(friendly, ordering.deps, key_order, ordering.canonical_names, ordering.values)
-    existing_keys = [
-        component_order_key(s["heading"], ordering.deps, key_order, ordering.canonical_names, ordering.values)
-        for s in sections
-    ]
-    idx = insertion_index(new_key, existing_keys)
+    idx = component_insertion_index(
+        friendly, [s["heading"] for s in sections], ordering.deps, ordering.values, ordering.canonical_names
+    )
     insert_at = sections[idx]["start"] if idx < len(sections) else len(lines)
-    if insert_at > 0 and lines[insert_at - 1].strip():
-        lines.insert(insert_at, "\n")
-        insert_at += 1
+    insert_at = normalize_blank_line_before_insert(lines, insert_at)
     lines[insert_at:insert_at] = [section_text]
     return "".join(lines)
 
@@ -226,6 +199,10 @@ def _values_delta_heading_name(heading_line: str, _body_kinds: Sequence[str | No
     return generated_heading_name(heading_line.rstrip("\n").removeprefix("## "), _TODO_HEADING_RE)
 
 
+# Key lines lead every section, above any user text.
+_VALUES_DELTA_SHAPE = SectionShape(values_delta_body_kinds, _values_delta_heading_name, absent_first=True)
+
+
 def _component_section(
     text: str, friendly: str, deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]] | None
 ) -> HeadingBlock | None:
@@ -248,6 +225,11 @@ def section_block_text(text: str, section: HeadingBlock):
     return "".join(text.splitlines(keepends=True)[section["start"] : section["end"]])
 
 
+def has_blank_body(lines: list[str], section: HeadingBlock):
+    """True if nothing but blank lines follows `section`'s heading."""
+    return not "".join(lines[section["start"] + 1 : section["end"]]).strip()
+
+
 def remove_values_delta_section(
     text: str, friendly: str, deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]] | None = None
 ) -> tuple[str, bool, bool]:
@@ -255,12 +237,12 @@ def remove_values_delta_section(
 
     See remove_section_owned_parts."""
     return remove_section_owned_parts(
-        text, _component_section(text, friendly, deps, canonical_names), values_delta_body_kinds
+        text, _component_section(text, friendly, deps, canonical_names), _VALUES_DELTA_SHAPE
     )
 
 
 def write_values_delta_section(
-    text: str, friendly: str, heading_line: str, key_lines: list[str], ordering: "ValuesDeltaOrdering"
+    text: str, friendly: str, heading_line: str, key_lines: list[str], ordering: OrderingContext
 ) -> str:
     """Write `friendly`'s section: replace the generated heading and key lines of its section, or insert one.
 
@@ -270,30 +252,11 @@ def write_values_delta_section(
     section = _component_section(text, friendly, ordering.deps, ordering.canonical_names)
     if section is None:
         return insert_values_delta_section(text, friendly, heading_line, key_lines, ordering)
-    text, section = _insert_first_key_lines(text, section, key_lines)
     section_text = heading_line + "\n" + "".join(key_lines)
-    return replace_section_owned_parts(text, section, section_text, values_delta_body_kinds, _values_delta_heading_name)
+    return replace_section_owned_parts(text, section, section_text, _VALUES_DELTA_SHAPE)
 
 
-def _insert_first_key_lines(text: str, section: HeadingBlock, key_lines: list[str]) -> tuple[str, HeadingBlock]:
-    """(text, section) with key_lines right after the heading, for a section with user lines but no key lines.
-
-    replace_section_owned_parts would put them after the user text instead; key
-    lines lead every section."""
-    lines = text.splitlines(keepends=True)
-    body_start = section["start"] + 1
-    kinds = values_delta_body_kinds(lines[body_start : section["end"]])
-    if not key_lines or "keys" in kinds or None not in kinds:
-        return text, section
-    first_user = body_start + kinds.index(None)
-    inserted = [*([] if first_user > body_start else ["\n"]), *key_lines, "\n"]
-    lines[first_user:first_user] = inserted
-    return "".join(lines), {**section, "end": section["end"] + len(inserted)}
-
-
-def _values_delta_new_section_heading(
-    chart_dir: Path, key: str, ordering: ValuesDeltaOrdering, baseline: ValuesDeltaBaseline
-):
+def _values_delta_new_section_heading(chart_dir: Path, key: str, ordering: OrderingContext, baseline: BaselineState):
     """Heading for a new section for `key`; None when it has no Chart.yaml dependency or native entry."""
     chart_versions = component_chart_versions(chart_dir, key, ordering.deps, baseline.deps)
     if chart_versions is None:
@@ -305,7 +268,7 @@ def _values_delta_new_section_heading(
 
 
 def _sync_section_key_lines(
-    text: str, key: str, section: HeadingBlock, key_lines: list[str], ordering: ValuesDeltaOrdering
+    text: str, key: str, section: HeadingBlock, key_lines: list[str], ordering: OrderingContext
 ) -> str:
     """`section` with `key`'s generated key lines, user text untouched.
 
@@ -322,8 +285,8 @@ def _sync_section_key_lines(
 def sync_values_delta_sections(
     text: str,
     chart_dir: Path,
-    ordering: ValuesDeltaOrdering,
-    baseline: ValuesDeltaBaseline,
+    ordering: OrderingContext,
+    baseline: BaselineState,
     actual_changed_keys: set[str],
 ) -> tuple[str, list[str], list[str]]:
     """Give every key in `actual_changed_keys` its describe_key_changes lines.
@@ -365,8 +328,7 @@ def prune_empty_values_delta_sections(text: str) -> tuple[str, list[str]]:
     sections = parse_values_delta_sections(text)
     removed_headings: list[str] = []
     for section in reversed(sections):
-        body = "".join(lines[section["start"] + 1 : section["end"]]).strip()
-        if body:
+        if not has_blank_body(lines, section):
             continue
         start, end = section["start"], section["end"]
         while end < len(lines) and not lines[end].strip():

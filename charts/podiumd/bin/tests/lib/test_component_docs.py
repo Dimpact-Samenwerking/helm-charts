@@ -6,6 +6,14 @@ update-image-version suites.
 
 from pathlib import Path
 from types import ModuleType
+from typing import TYPE_CHECKING
+
+from lib.chart.chart_yaml import ChartDependency
+from lib.component_docs.changes_section import BaselineState
+from lib.component_docs.changes_section import OrderingContext
+
+if TYPE_CHECKING:
+    from lib.yaml_types import YamlMapping
 
 # --- ensure_images_manifest_changes_header ---
 
@@ -333,7 +341,7 @@ def test_values_delta_section_heading_unresolved_app_version_with_chart(libcompo
 
 # --- find_values_delta_section / insert_values_delta_section / append_values_delta_section_body ---
 
-DEPS = [
+DEPS: list[ChartDependency] = [
     {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"},
     {"name": "openformulieren", "version": "1.12.0"},
 ]
@@ -719,7 +727,7 @@ def test_insert_values_delta_section_positions_by_values_yaml_order(libcomponent
         "zac",
         "## zac 5.0.2 → 5.4.3\n",
         ["- Key `zac.a` was added.\n"],
-        libcomponentdocsdeltas.ValuesDeltaOrdering(DEPS, {"zac": {}, "openformulieren": {}}),
+        OrderingContext(DEPS, {"zac": {}, "openformulieren": {}}),
     )
     assert new_text.index("## zac") < new_text.index("## openformulieren")
 
@@ -735,7 +743,7 @@ def test_insert_values_delta_section_strips_bare_todo_stub_on_first_insertion(li
         "zac",
         "## zac 5.0.2 → 5.4.3\n",
         ["- Key `zac.a` was added.\n"],
-        libcomponentdocsdeltas.ValuesDeltaOrdering(DEPS, {"zac": {}}),
+        OrderingContext(DEPS, {"zac": {}}),
     )
     assert "TODO" not in new_text
     assert new_text == (
@@ -751,7 +759,7 @@ def test_insert_values_delta_section_second_insertion_unaffected(libcomponentdoc
         "zac",
         "## zac 5.0.2 → 5.4.3\n",
         ["- Key `zac.a` was added.\n"],
-        libcomponentdocsdeltas.ValuesDeltaOrdering(DEPS, {"zac": {}, "openformulieren": {}}),
+        OrderingContext(DEPS, {"zac": {}, "openformulieren": {}}),
     )
     assert "## openformulieren" in new_text
     assert "## zac" in new_text
@@ -765,7 +773,7 @@ def test_insert_values_delta_section_never_strips_real_prose_mentioning_todo(lib
         "zac",
         "## zac 5.0.2 → 5.4.3\n",
         ["- Key `zac.a` was added.\n"],
-        libcomponentdocsdeltas.ValuesDeltaOrdering(DEPS, {"zac": {}}),
+        OrderingContext(DEPS, {"zac": {}}),
     )
     assert "TODO: check with gemeente X about their override Y." in new_text
 
@@ -902,7 +910,7 @@ def test_write_values_delta_section_replaces_generated_lines_and_keeps_user_text
         "# Values deltas\n\n## zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)\n\n"
         "- Key `zac.foo` was added.\n\nSet foo per gemeente.\n"
     )
-    ordering = libcomponentdocsdeltas.ValuesDeltaOrdering(DEPS, {"zac": {}})
+    ordering = OrderingContext(DEPS, {"zac": {}})
     new_text = libcomponentdocsdeltas.write_values_delta_section(
         text,
         "zac",
@@ -919,7 +927,7 @@ def test_write_values_delta_section_replaces_generated_lines_and_keeps_user_text
 def test_write_values_delta_section_puts_first_key_lines_above_user_text(libcomponentdocsdeltas: ModuleType):
     """A hand-written section without generated lines gets them right after its heading."""
     text = "# Values deltas\n\n## zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)\n\nSet `zac.foo` per gemeente.\n"
-    ordering = libcomponentdocsdeltas.ValuesDeltaOrdering(DEPS, {"zac": {}})
+    ordering = OrderingContext(DEPS, {"zac": {}})
     new_text = libcomponentdocsdeltas.write_values_delta_section(
         text, "zac", "## zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)\n", ["- Key `zac.foo` was added.\n"], ordering
     )
@@ -935,12 +943,12 @@ def test_write_values_delta_section_puts_first_key_lines_above_user_text(libcomp
 def test_sync_values_delta_sections_skips_key_with_no_schema_change(libcomponentdocsdeltas: ModuleType, tmp_path: Path):
     """A pure version bump (no schema change lines) gets no empty section."""
     text = "# Values deltas\n\nNo gemeente podiumd.yml changes are required for this hop.\n"
-    values = {"zac": {"image": {}}}
+    values: YamlMapping = {"zac": {"image": {}}}
     new_text, created, updated = libcomponentdocsdeltas.sync_values_delta_sections(
         text,
         tmp_path,
-        libcomponentdocsdeltas.ValuesDeltaOrdering(DEPS, values),
-        libcomponentdocsdeltas.ValuesDeltaBaseline(DEPS, values),
+        OrderingContext(DEPS, values),
+        BaselineState(DEPS, values),
         {"zac"},
     )
     assert created == []
@@ -952,13 +960,13 @@ def test_sync_values_delta_sections_creates_section_only_when_key_lines_exist(
     libcomponentdocsdeltas: ModuleType, tmp_path: Path
 ):
     text = "# Values deltas\n\nNo gemeente podiumd.yml changes are required for this hop.\n"
-    baseline_values = {"zac": {"image": {}}}
-    target_values = {"zac": {"image": {}, "newFeature": True}}
+    baseline_values: YamlMapping = {"zac": {"image": {}}}
+    target_values: YamlMapping = {"zac": {"image": {}, "newFeature": True}}
     new_text, created, _updated = libcomponentdocsdeltas.sync_values_delta_sections(
         text,
         tmp_path,
-        libcomponentdocsdeltas.ValuesDeltaOrdering(DEPS, target_values),
-        libcomponentdocsdeltas.ValuesDeltaBaseline(DEPS, baseline_values),
+        OrderingContext(DEPS, target_values),
+        BaselineState(DEPS, baseline_values),
         {"zac"},
     )
     assert created == ["zac"]

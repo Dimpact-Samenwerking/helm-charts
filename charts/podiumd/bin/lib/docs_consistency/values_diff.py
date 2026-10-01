@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from lib.chart.chart_yaml import ChartDependency
+from lib.component_docs.values_delta_sections import has_blank_body
 from lib.component_docs.values_delta_sections import section_block_text
 from lib.component_docs.values_delta_sections import values_delta_section_for
 from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
@@ -48,7 +49,7 @@ def _check_empty_sections(doc_path: Path, text: str):
     return [
         f'{doc_path.name}: "## {section["heading"]}" section has nothing under its own heading'
         for section in parse_values_delta_sections(text)
-        if not "".join(lines[section["start"] + 1 : section["end"]]).strip()
+        if has_blank_body(lines, section)
     ]
 
 

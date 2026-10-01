@@ -23,7 +23,10 @@ from lib.chart.registered_paths import version_paths_for
 from lib.chart.values_tree_primitives import values_key_of
 from lib.component_docs.baseline_doc_stubs import UPGRADE_CHANGES_STUB_TODO_LINE
 from lib.component_docs.baseline_doc_stubs import UPGRADE_INTRO_STUB_TODO_LINE
+from lib.component_docs.doc_lines import is_bare_placeholder_span
+from lib.component_docs.doc_lines import normalize_blank_line_before_insert
 from lib.component_docs.owned_parts import BLANK
+from lib.component_docs.owned_parts import SectionShape
 from lib.component_docs.owned_parts import generated_heading_name
 from lib.component_docs.owned_parts import remove_section_owned_parts
 from lib.component_docs.owned_parts import replace_section_owned_parts
@@ -33,10 +36,8 @@ from lib.upgradedoc.sorting_and_ordering import HeadingBlock
 from lib.upgradedoc.sorting_and_ordering import block_for_component
 from lib.upgradedoc.sorting_and_ordering import changes_blocks_with_lines
 from lib.upgradedoc.sorting_and_ordering import changes_section_bounds
-from lib.upgradedoc.sorting_and_ordering import component_order_key
-from lib.upgradedoc.sorting_and_ordering import insertion_index
+from lib.upgradedoc.sorting_and_ordering import component_insertion_index
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
-from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import COMPONENT_VERSIONS_HEADING_RE
 from lib.upgradedoc.string_and_parsing_basics import TableRow
 from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
@@ -44,6 +45,7 @@ from lib.upgradedoc.string_and_parsing_basics import match_native_component
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.string_and_parsing_basics import text_names
+from lib.upgradedoc.version_cells_and_key_changes import chart_version_suffix
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
 from lib.upgradedoc.version_cells_and_key_changes import pin_version_text
 from lib.upgradedoc.version_cells_and_key_changes import version_transition
@@ -124,13 +126,9 @@ def _new_row_insert_index(lines: list[str], rows: list[TableRow], friendly: str,
     the table is empty. Scoped to that section so a later pipe table is
     never hit. None if the doc has no such table."""
     if rows:
-        key_order = values_key_order(ordering.values)
-        new_key = component_order_key(friendly, ordering.deps, key_order, ordering.canonical_names, ordering.values)
-        existing_keys = [
-            component_order_key(r["name"], ordering.deps, key_order, ordering.canonical_names, ordering.values)
-            for r in rows
-        ]
-        idx = insertion_index(new_key, existing_keys)
+        idx = component_insertion_index(
+            friendly, [r["name"] for r in rows], ordering.deps, ordering.values, ordering.canonical_names
+        )
         return rows[idx]["line_index"] if idx < len(rows) else rows[-1]["line_index"] + 1
     in_section = False
     for i, line in enumerate(lines):
@@ -293,6 +291,9 @@ def _heading_name(heading_line: str, body_kinds: Sequence[str | None]) -> str | 
     return None
 
 
+_CHANGES_SHAPE = SectionShape(changes_body_kinds, _heading_name)
+
+
 def make_changes_section(
     identity: ComponentIdentity,
     target: str,
@@ -312,19 +313,12 @@ def make_changes_section(
     "<app> (new)"; old_app == new_app renders "<app> (unchanged)" (the
     component qualifies only through another changed path, e.g. a new
     sidecar)."""
-    if change.new_chart == "-":
-        chart_changed = False
-        chart_suffix = ""
-    elif change.old_chart is None:
-        chart_changed = False
-        chart_suffix = f" (chart {change.new_chart}, new)"
-    else:
-        chart_changed = normalize_version(change.old_chart) != normalize_version(change.new_chart)
-        chart_suffix = (
-            f" (chart {change.old_chart} → {change.new_chart})"
-            if chart_changed
-            else f" (chart {change.new_chart}, unchanged)"
-        )
+    chart_changed = (
+        change.new_chart != "-"
+        and change.old_chart is not None
+        and normalize_version(change.old_chart) != normalize_version(change.new_chart)
+    )
+    chart_suffix = chart_version_suffix(change.old_chart, change.new_chart)
     heading = f"{identity.friendly} {version_transition(change.old_app, change.new_app)}{chart_suffix}"
     name, new = identity.friendly, change.new_app
     if change.old_app is None:
@@ -414,14 +408,6 @@ def render_changes_section(heading: str, intro: Sequence[str], bullets: Sequence
     return "\n".join(part for part in parts if part) + "\n"
 
 
-def _is_bare_placeholder_span(lines: list[str], start: int, end: int, placeholder_text: str):
-    """True if lines[start:end] holds only blank lines and exactly one line
-    equal to placeholder_text (stripped). Exact match on purpose: human
-    prose mentioning the placeholder must never be deleted."""
-    non_blank = [line.strip() for line in lines[start:end] if line.strip()]
-    return non_blank == [placeholder_text.strip()]
-
-
 def _find_standalone_placeholder_line(lines: list[str], end: int, placeholder_text: str):
     """Index of a line in lines[:end] that stripped-equals placeholder_text
     and is its own paragraph (blank or doc edge on both sides), else None.
@@ -453,7 +439,7 @@ def _strip_bare_changes_todo(lines: list[str], changes_idx: int, end_bound: int)
     """Delete "## Changes"' bare TODO stub in place if that is all the span
     holds; returns the new end bound (end_bound unchanged if nothing was
     stripped)."""
-    if not _is_bare_placeholder_span(lines, changes_idx + 1, end_bound, UPGRADE_CHANGES_STUB_TODO_LINE):
+    if not is_bare_placeholder_span(lines, changes_idx + 1, end_bound, UPGRADE_CHANGES_STUB_TODO_LINE):
         return end_bound
     del lines[changes_idx + 1 : end_bound]
     return changes_idx + 1
@@ -469,24 +455,6 @@ def _insert_index_for_empty_changes_section(lines: list[str], changes_idx: int, 
         if new_changes_idx is not None:
             changes_idx = new_changes_idx
     return _strip_bare_changes_todo(lines, changes_idx, section_end)
-
-
-def _normalize_blank_line_before_insert(lines: list[str], insert_at: int):
-    """Ensure exactly one blank line before insert_at, returning the shifted
-    index. Section text starts with "### " and the preceding trailing blank
-    may already be gone (EOF collapsing), which would break MD022/MD032."""
-    blank_count = 0
-    i = insert_at - 1
-    while i >= 0 and not lines[i].strip():
-        blank_count += 1
-        i -= 1
-    if blank_count == 0:
-        lines[insert_at:insert_at] = ["\n"]
-        insert_at += 1
-    elif blank_count > 1:
-        del lines[insert_at - (blank_count - 1) : insert_at]
-        insert_at -= blank_count - 1
-    return insert_at
 
 
 def insert_changes_section(text: str, section_text: str, friendly: str, ordering: OrderingContext):
@@ -505,16 +473,12 @@ def insert_changes_section(text: str, section_text: str, friendly: str, ordering
     if not blocks:
         insert_at = _insert_index_for_empty_changes_section(lines, changes_idx, section_end)
     else:
-        key_order = values_key_order(ordering.values)
-        new_key = component_order_key(friendly, ordering.deps, key_order, ordering.canonical_names, ordering.values)
-        existing_keys = [
-            component_order_key(b["heading"], ordering.deps, key_order, ordering.canonical_names, ordering.values)
-            for b in blocks
-        ]
-        idx = insertion_index(new_key, existing_keys)
+        idx = component_insertion_index(
+            friendly, [b["heading"] for b in blocks], ordering.deps, ordering.values, ordering.canonical_names
+        )
         insert_at = blocks[idx]["start"] if idx < len(blocks) else section_end
 
-    insert_at = _normalize_blank_line_before_insert(lines, insert_at)
+    insert_at = normalize_blank_line_before_insert(lines, insert_at)
     lines[insert_at:insert_at] = [section_text]
     return "".join(lines)
 
@@ -551,12 +515,12 @@ def strip_stale_upgrade_placeholders(text: str):
 
 def replace_changes_block(text: str, block: HeadingBlock, section_text: str) -> str:
     """`block` with its owned parts replaced by `section_text`'s; user lines stay in place."""
-    return replace_section_owned_parts(text, block, section_text, changes_body_kinds, _heading_name)
+    return replace_section_owned_parts(text, block, section_text, _CHANGES_SHAPE)
 
 
 def remove_changes_block(text: str, block: HeadingBlock | None) -> tuple[str, bool, bool]:
     """Remove `block`'s owned parts: (new_text, removed, kept_user_text); see remove_section_owned_parts."""
-    return remove_section_owned_parts(text, block, changes_body_kinds)
+    return remove_section_owned_parts(text, block, _CHANGES_SHAPE)
 
 
 def component_changes_block(text: str, friendly: str, ordering: OrderingContext) -> HeadingBlock | None:
