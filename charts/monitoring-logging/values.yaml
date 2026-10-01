@@ -585,7 +585,7 @@ alloy:
   image:
     registry: docker.io
     repository: grafana/alloy
-    tag: v1.14.0
+    tag: v1.20.1
     pullPolicy: IfNotPresent
   configReloader:
     # -- config-reloader sidecar image settings (Alloy hot-reload, separate from the operator's config-reloader)
