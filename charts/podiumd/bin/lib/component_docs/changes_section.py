@@ -27,9 +27,11 @@ from lib.component_docs.doc_lines import is_bare_placeholder_span
 from lib.component_docs.doc_lines import normalize_blank_line_before_insert
 from lib.component_docs.owned_parts import BLANK
 from lib.component_docs.owned_parts import SectionShape
+from lib.component_docs.owned_parts import edited_generated_lines
 from lib.component_docs.owned_parts import generated_heading_name
 from lib.component_docs.owned_parts import remove_section_owned_parts
 from lib.component_docs.owned_parts import replace_section_owned_parts
+from lib.component_docs.owned_parts import template_prefix_re
 from lib.component_docs.owned_parts import template_re
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
@@ -291,7 +293,34 @@ def _heading_name(heading_line: str, body_kinds: Sequence[str | None]) -> str | 
     return None
 
 
-_CHANGES_SHAPE = SectionShape(changes_body_kinds, _heading_name)
+_CHANGES_SHAPE = SectionShape(
+    changes_body_kinds,
+    _heading_name,
+    edited_openers=[
+        template_prefix_re(template, _FIELD_PATTERNS)
+        for template in (
+            INTRO_NEW,
+            INTRO_UNCHANGED,
+            INTRO_UPGRADE,
+            IMAGE_INTRO_NEW,
+            IMAGE_INTRO_KEPT,
+            IMAGE_INTRO_UPGRADE,
+            HELM_CHART_BULLET,
+            IMAGE_TAG_PIN_BULLET,
+            VERSION_PIN_BULLET,
+            IMAGE_PATH_BULLET,
+        )
+    ],
+    edited_continuations=[
+        template_prefix_re(template, _FIELD_PATTERNS)
+        for template in (INTRO_UPGRADE_TO, PINNED_AT, CHART_YAML_LINE, VALUES_YAML_LINE)
+    ],
+)
+
+
+def edited_changes_lines(text: str) -> list[tuple[str, str]]:
+    """(heading, line) for each hand-edited generated line in the "## Changes" "### ..." sections."""
+    return edited_generated_lines(text, parse_upgrade_doc_changes_blocks(text), _CHANGES_SHAPE)
 
 
 def make_changes_section(

@@ -23,12 +23,19 @@ _GENERATED_HEADING_RE = re.compile(
 )
 
 
+def _template_pattern(template: str, field_patterns: Mapping[str, str]) -> str:
+    parts = re.split(r"\{(\w+)\}", template)
+    return "".join(re.escape(part) if i % 2 == 0 else field_patterns[part] for i, part in enumerate(parts))
+
+
 def template_re(template: str, field_patterns: Mapping[str, str]) -> re.Pattern[str]:
     """A full-line regex for `template`, each {field} matched by field_patterns[field]."""
-    parts = re.split(r"\{(\w+)\}", template)
-    return re.compile(
-        "".join(re.escape(part) if i % 2 == 0 else field_patterns[part] for i, part in enumerate(parts)) + r"$"
-    )
+    return re.compile(_template_pattern(template, field_patterns) + r"$")
+
+
+def template_prefix_re(template: str, field_patterns: Mapping[str, str]) -> re.Pattern[str]:
+    """A regex for a line that starts as `template` does, without its final punctuation, and may go on."""
+    return re.compile(_template_pattern(template.rstrip(".:,"), field_patterns))
 
 
 def generated_heading_name(heading: str, *other_shapes: re.Pattern[str]) -> str | None:
@@ -125,7 +132,7 @@ HeadingName = Callable[[str, Sequence[str | None]], str | None]
 
 @dataclass(frozen=True)
 class SectionShape:
-    """How one doc's sections are labelled: body_kinds and heading_name.
+    """How one doc's sections are labelled: body_kinds, heading_name and the edited-line prefixes.
 
     With absent_first, an owned kind the old body lacks goes before its user
     lines instead of after them (see _anchors)."""
@@ -133,6 +140,10 @@ class SectionShape:
     body_kinds: BodyKinds
     heading_name: HeadingName
     absent_first: bool = False
+    # template_prefix_re of the generated lines, for edited_generated_lines; a
+    # continuation ("to 1.3.") counts only right after a generated line.
+    edited_openers: Sequence[re.Pattern[str]] = ()
+    edited_continuations: Sequence[re.Pattern[str]] = ()
 
 
 def _with_section_gap(body: list[str], *, followed: bool) -> list[str]:
@@ -188,3 +199,23 @@ def remove_section_owned_parts(text: str, block: HeadingBlock | None, shape: Sec
         end += 1
     del lines[start:end]
     return "".join(lines), True, False
+
+
+def edited_generated_lines(text: str, blocks: Sequence[HeadingBlock], shape: SectionShape) -> list[tuple[str, str]]:
+    """(heading, line) for each user line in `blocks` that starts like a generated line but goes on.
+
+    Such a line is usually a generated line edited by hand. The writers no
+    longer own it, so it stays next to the rewritten line and can go stale.
+    """
+    lines = text.splitlines(keepends=True)
+    found: list[tuple[str, str]] = []
+    for block in blocks:
+        body = lines[block["start"] + 1 : block["end"]]
+        after_owned = False
+        for line, kind in zip(body, shape.body_kinds(body), strict=True):
+            text_line = line.rstrip("\n")
+            prefixes = [*shape.edited_openers, *(shape.edited_continuations if after_owned else ())]
+            if kind is None and any(r.match(text_line) for r in prefixes):
+                found.append((block["heading"], text_line))
+            after_owned = kind not in (None, BLANK)
+    return found

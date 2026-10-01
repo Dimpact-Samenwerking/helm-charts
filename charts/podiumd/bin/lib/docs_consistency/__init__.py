@@ -21,12 +21,14 @@ from lib.component_docs.changes_section import BaselineState
 from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import DocContext
 from lib.component_docs.changes_section import OrderingContext
+from lib.component_docs.changes_section import edited_changes_lines
 from lib.component_docs.changes_section import pointer_issues
 from lib.component_docs.changes_section import resolve_component_own_version_change
 from lib.component_docs.changes_section import strip_stale_upgrade_placeholders
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
 from lib.component_docs.images_manifest_entries import expected_changes_items
 from lib.component_docs.images_manifest_entries import stale_changes_items
+from lib.component_docs.values_delta_sections import edited_values_delta_lines
 from lib.component_docs.values_delta_sections import has_stale_gemeente_specific_placeholder
 from lib.component_docs.values_delta_sections import strip_stale_values_deltas_todo_stub
 from lib.docs_consistency.check_context import ComponentRowsResult
@@ -581,6 +583,16 @@ def _pointer_mismatches(doc_path: Path, doc_text: str) -> list[str]:
     ]
 
 
+def _warn_edited_generated_lines(doc_path: Path, heading_marker: str, edited: list[tuple[str, str]]):
+    """A warning, not a mismatch: the doc is still correct, but the edited line can go stale."""
+    for heading, line in edited:
+        print(
+            f"WARNING: {doc_path.name}: '{heading_marker} {heading}' has a hand-edited generated line, "
+            f'which fix-doc-consistency and update-* no longer update: "{line}"; '
+            f"restore the generated line and put the remark on a line of its own"
+        )
+
+
 def _check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
     """The "Component versions" section: per-row, missing-row, ordering and Changes-heading checks.
 
@@ -628,6 +640,7 @@ def _check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
     findings.mismatches.extend(_stale_changes_item_mismatches(ctx, scan, resolution))
     findings.mismatches.extend(_contradicting_section_mismatches(ctx, scan, doc_text))
     findings.mismatches.extend(_pointer_mismatches(doc_path, doc_text))
+    _warn_edited_generated_lines(doc_path, "###", edited_changes_lines(doc_text))
 
 
 def _check_images_manifest_entry(
@@ -729,10 +742,11 @@ def _check_values_deltas(ctx: DocsCheckContext, findings: Findings):
         )
     )
 
+    deltas_text = values_deltas_path.read_text(encoding="utf-8")
+    _warn_edited_generated_lines(values_deltas_path, "##", edited_values_delta_lines(deltas_text))
+
     deltas_key_order = values_key_order(ctx.current.values)
-    deltas_headings = [
-        s["heading"] for s in parse_values_delta_sections(values_deltas_path.read_text(encoding="utf-8"))
-    ]
+    deltas_headings = [s["heading"] for s in parse_values_delta_sections(deltas_text)]
     for name_a, name_b in find_out_of_order_names(
         deltas_headings, ctx.current.deps, deltas_key_order, canonical_names_for_deltas, ctx.current.values
     ):

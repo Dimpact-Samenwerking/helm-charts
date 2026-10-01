@@ -18,9 +18,11 @@ from lib.component_docs.doc_lines import is_bare_placeholder_span
 from lib.component_docs.doc_lines import normalize_blank_line_before_insert
 from lib.component_docs.owned_parts import BLANK
 from lib.component_docs.owned_parts import SectionShape
+from lib.component_docs.owned_parts import edited_generated_lines
 from lib.component_docs.owned_parts import generated_heading_name
 from lib.component_docs.owned_parts import remove_section_owned_parts
 from lib.component_docs.owned_parts import replace_section_owned_parts
+from lib.component_docs.owned_parts import template_prefix_re
 from lib.component_docs.owned_parts import template_re
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
@@ -172,10 +174,8 @@ def append_values_delta_section_body(text: str, section: HeadingBlock, new_lines
     return new_head + tail
 
 
-_KEY_LINE_RES = [
-    template_re(template, {"path": r"[^`\s]+", "new_path": r"[^`\s]+"})
-    for template in (KEY_ADDED, KEY_REMOVED, KEY_RENAMED)
-]
+_KEY_FIELD_PATTERNS = {"path": r"[^`\s]+", "new_path": r"[^`\s]+"}
+_KEY_LINE_RES = [template_re(template, _KEY_FIELD_PATTERNS) for template in (KEY_ADDED, KEY_REMOVED, KEY_RENAMED)]
 _TODO_HEADING_RE = re.compile(r"^(?P<name>.+?)(?: chart [^—]*)? — TODO: describe this component's changes; .*$")
 
 
@@ -200,7 +200,19 @@ def _values_delta_heading_name(heading_line: str, _body_kinds: Sequence[str | No
 
 
 # Key lines lead every section, above any user text.
-_VALUES_DELTA_SHAPE = SectionShape(values_delta_body_kinds, _values_delta_heading_name, absent_first=True)
+_VALUES_DELTA_SHAPE = SectionShape(
+    values_delta_body_kinds,
+    _values_delta_heading_name,
+    absent_first=True,
+    edited_openers=[
+        template_prefix_re(template, _KEY_FIELD_PATTERNS) for template in (KEY_ADDED, KEY_REMOVED, KEY_RENAMED)
+    ],
+)
+
+
+def edited_values_delta_lines(text: str) -> list[tuple[str, str]]:
+    """(heading, line) for each hand-edited generated key line in the values-deltas "## ..." sections."""
+    return edited_generated_lines(text, parse_values_delta_sections(text), _VALUES_DELTA_SHAPE)
 
 
 def _component_section(

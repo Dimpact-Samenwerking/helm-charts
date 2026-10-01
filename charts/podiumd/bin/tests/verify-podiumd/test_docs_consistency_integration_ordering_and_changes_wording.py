@@ -74,6 +74,23 @@ def test_correctly_ordered_table_and_changes_pass(vp: ModuleType, order_chart_di
     assert ok is True, detail
 
 
+def test_hand_edited_generated_line_warns_without_failing(
+    vp: ModuleType, order_chart_dir, capsys: pytest.CaptureFixture[str]
+):
+    chart_dir, doc_dir = order_chart_dir
+    doc = order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump 1.27.4 → 1.27.4", "Open Inwoner bump 2.4.2 → 2.4.2"])
+    edited_line = "- Image tag pin `openzaak.image.tag` `1.27.3` → `1.27.4` in values.yaml, see the note"
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(doc.replace("Details.\n", edited_line + "\n", 1))
+
+    ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
+
+    assert ok is True, detail
+    assert (
+        "WARNING: 4.8.5-to-4.9.0-upgrade.md: '### Open Zaak bump 1.27.4 → 1.27.4' has a hand-edited generated line"
+        in capsys.readouterr().out
+    )
+
+
 def test_out_of_order_table_row_is_caught(vp: ModuleType, order_chart_dir, capsys: pytest.CaptureFixture[str]):
     chart_dir, doc_dir = order_chart_dir
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(

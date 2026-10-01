@@ -937,6 +937,17 @@ def test_write_values_delta_section_puts_first_key_lines_above_user_text(libcomp
     )
 
 
+def test_edited_values_delta_lines_finds_hand_edited_key_lines(libcomponentdocsdeltas: ModuleType):
+    text = (
+        "# Values deltas\n\n## zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)\n\n"
+        "- Key `zac.foo` was added (set it per gemeente).\n- Key `zac.bar` was removed.\n\n"
+        "Key `zac.baz` was added for the zaakbrug.\n"
+    )
+    assert libcomponentdocsdeltas.edited_values_delta_lines(text) == [
+        ("zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)", "- Key `zac.foo` was added (set it per gemeente).")
+    ]
+
+
 # --- sync_values_delta_sections ---
 
 
