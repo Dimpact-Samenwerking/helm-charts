@@ -54,6 +54,7 @@ from lib.release_table.component_resolution import global_image_names
 from lib.release_table.component_resolution import native_component_keys
 from lib.release_table.component_resolution import orphan_values_yaml_keys
 from lib.release_table.csv_rows import CSV_HEADER
+from lib.release_table.csv_rows import release_table_records
 from lib.release_table.image_basenames import resolve_image_basenames
 
 DEFAULT_OUTPUT = CHART_DIR / "etc" / "release-table.csv"
@@ -203,25 +204,17 @@ def recompute_image_basenames(csv_path: Path, chart_dir: Path) -> list[tuple[str
 
 
 def _read_csv_rows(csv_path: Path) -> list[list[str]]:
-    """Data rows of `csv_path`; SystemExit if missing or header is not CSV_HEADER."""
+    """Data rows of `csv_path`; SystemExit if missing or its header is not CSV_HEADER."""
     if not csv_path.is_file():
         msg = f"error: {csv_path} does not exist — nothing to recompute"
         raise SystemExit(msg)
-    with csv_path.open(newline="", encoding="utf-8") as f:
-        reader = csv.reader(f)
-        header = next(reader, None)
-        if header != CSV_HEADER:
-            msg = (
-                f"error: {csv_path}'s header doesn't match the expected CSV_HEADER — "
-                f"refusing to recompute a file this script didn't write"
-            )
-            raise SystemExit(msg)
-        return list(reader)
+    return [values for _line_num, values in release_table_records(csv_path)]
 
 
 def _write_csv_rows(csv_path: Path, rows: list[list[str]]):
     """Writes CSV_HEADER + `rows` to `csv_path`, LF-terminated."""
     with csv_path.open("w", newline="", encoding="utf-8") as f:
+        # csv defaults to CRLF; LF so re-exports produce no spurious diffs.
         writer = csv.writer(f, lineterminator="\n")
         writer.writerow(CSV_HEADER)
         writer.writerows(rows)
@@ -487,11 +480,7 @@ def main():
     html = fetch_page_html(args.url, args.user, token)
     rows = extract_release_rows(html, args.heading)
 
-    with output_path.open("w", newline="", encoding="utf-8") as f:
-        # csv defaults to CRLF; force LF so re-exports produce no spurious diffs.
-        writer = csv.writer(f, lineterminator="\n")
-        writer.writerow(CSV_HEADER)
-        writer.writerows(rows)
+    _write_csv_rows(output_path, rows)
 
     print(f"Wrote {len(rows)} row(s) to {output_path}")
     warn_unknown_lines(rows, output_path)

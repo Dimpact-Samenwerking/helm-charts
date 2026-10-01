@@ -23,12 +23,11 @@ from lib.chart.registered_paths import chart_version_lockstep_components
 from lib.chart.registered_paths import component_image_paths
 from lib.chart.registered_paths import component_version_paths
 from lib.chart.registered_paths import embedded_version_images
-from lib.chart.registered_paths import image_paths_for
-from lib.chart.registered_paths import version_paths_for
 from lib.chart.values_tree_primitives import find_dependency
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.values_tree_primitives import version_of
+from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import load_yaml_mapping
 
@@ -70,8 +69,8 @@ def find_chart_version_mismatches(
 ) -> list[tuple[str, str, str, str]]:
     """[(component, values_key, chart_version, app_version)] where the two disagree.
 
-    App version resolves like lib.upgradedoc.actual_app_version (image paths, then
-    version paths). Components without an app version or dependency are skipped.
+    The app version is actual_app_version's (image paths, then version paths).
+    Components without an app version or dependency are skipped.
     """
     findings: list[tuple[str, str, str, str]] = []
     for component in sorted(chart_version_lockstep_components()):
@@ -79,22 +78,10 @@ def find_chart_version_mismatches(
         if dep is None:
             continue
         values_key = values_key_of(dep)
-        base = values.get(values_key, {}) if isinstance(values, dict) else {}
-
-        app_version = None
-        for path in image_paths_for(component):
-            tag = text_at(base, f"{path}.tag")
-            if tag:
-                app_version = version_of(tag)
-                break
-        if app_version is None:
-            for path in version_paths_for(component):
-                version = text_at(base, path)
-                if isinstance(version, str) and version:
-                    app_version = version_of(version)
-                    break
-        if app_version is None:
+        pinned = actual_app_version(values, values_key, component)
+        if pinned is None:
             continue
+        app_version = version_of(pinned)
 
         chart_version = str(dep.get("version", ""))
         if chart_version and app_version != chart_version:

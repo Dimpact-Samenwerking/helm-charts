@@ -71,12 +71,10 @@ def find_grouped_preceding_comment(
     frontend + backend). same_group should require the same component and
     declared version, so independently versioned siblings (zac vs zac.opa)
     don't inherit each other's comment."""
-    comment = find_preceding_comment(lines, entry_line_indices[index])
-    if comment or index == 0:
-        return comment
-    if not same_group(entries[index], entries[index - 1]):
-        return ""
-    return find_grouped_preceding_comment(lines, entries, entry_line_indices, index - 1, same_group)
+    owner = _comment_owner(
+        entries, entry_line_indices, index, same_group, lambda i: bool(find_preceding_comment(lines, i))
+    )
+    return "" if owner is None else find_preceding_comment(lines, entry_line_indices[owner])
 
 
 def find_grouped_preceding_comment_line(
@@ -87,12 +85,25 @@ def find_grouped_preceding_comment_line(
     same_group: Callable[[ManifestEntry, ManifestEntry], bool],
 ) -> int | None:
     """Like find_grouped_preceding_comment, but returns the comment's line index."""
-    comment_idx = find_preceding_comment_line(lines, entry_line_indices[index])
-    if comment_idx is not None or index == 0:
-        return comment_idx
-    if not same_group(entries[index], entries[index - 1]):
-        return None
-    return find_grouped_preceding_comment_line(lines, entries, entry_line_indices, index - 1, same_group)
+    owner = _comment_owner(
+        entries, entry_line_indices, index, same_group, lambda i: find_preceding_comment_line(lines, i) is not None
+    )
+    return None if owner is None else find_preceding_comment_line(lines, entry_line_indices[owner])
+
+
+def _comment_owner(
+    entries: list[ManifestEntry],
+    entry_line_indices: list[int],
+    index: int,
+    same_group: Callable[[ManifestEntry, ManifestEntry], bool],
+    has_comment: Callable[[int], bool],
+) -> int | None:
+    """Index of the entry whose comment describes entries[index]: itself, or an earlier entry of its group."""
+    while not has_comment(entry_line_indices[index]):
+        if index == 0 or not same_group(entries[index], entries[index - 1]):
+            return None
+        index -= 1
+    return index
 
 
 def diff_keys(

@@ -29,6 +29,7 @@ from lib.chart.paths import CHART_DIR
 from lib.checks.node_selector import DOC_SPLIT_RE
 from lib.checks.node_selector import file_define_bodies
 from lib.checks.node_selector import missing_node_selector
+from lib.cli import flag_args
 
 # Anchor on `containers:`, a required sibling of nodeSelector at any depth;
 # textual because Go templates break a YAML parser. Spaces-only indent, so
@@ -85,10 +86,7 @@ def apply_fixes(text: str, fixes: list[NodeSelectorFix]):
 
 def main():
     """CLI entry point; exits 1 on unresolved docs, or in dry-run when anything would change."""
-    if "-h" in sys.argv[1:] or "--help" in sys.argv[1:]:
-        print(__doc__)
-        sys.exit(0)
-    dry_run = "--dry-run" in sys.argv[1:]
+    dry_run = "--dry-run" in flag_args(__doc__, "--dry-run")
 
     templates_dir = CHART_DIR / "templates"
     total_fixed = 0

@@ -199,15 +199,22 @@ class RebaseAccumulator:
     review_notes: list[tuple[str, list[int]]]
 
 
-def _rebase_already_at_baseline(doc: DocRename, target: str, new_baseline: str, acc: RebaseAccumulator):
-    """Fix stale sibling refs, TODO stubs and double blank lines in a doc already at new_baseline."""
-    text = doc.path.read_text(encoding="utf-8")
+def _fix_refs_and_stubs(text: str, suffix: str, target: str, new_baseline: str) -> tuple[str, bool, bool]:
+    """(text, refs_changed, todo_stripped): sibling-doc references rebased and a stale TODO stub removed."""
     text, refs_changed = update_sibling_doc_refs(text, target, new_baseline)
     todo_stripped = False
-    if doc.suffix == "upgrade":
+    if suffix == "upgrade":
         text, todo_stripped = strip_stale_upgrade_placeholders(text)
-    elif doc.suffix == "values-deltas":
+    elif suffix == "values-deltas":
         text, todo_stripped = strip_stale_values_deltas_todo_stub(text)
+    return text, refs_changed, todo_stripped
+
+
+def _rebase_already_at_baseline(doc: DocRename, target: str, new_baseline: str, acc: RebaseAccumulator):
+    """Fix stale sibling refs, TODO stubs and double blank lines in a doc already at new_baseline."""
+    text, refs_changed, todo_stripped = _fix_refs_and_stubs(
+        doc.path.read_text(encoding="utf-8"), doc.suffix, target, new_baseline
+    )
     collapsed_text = collapse_multiple_blank_lines(text)
     blank_lines_fixed = collapsed_text != text
     if not (refs_changed or blank_lines_fixed or todo_stripped):
@@ -235,12 +242,7 @@ def _rebase_doc_to_new_baseline(
 
     text, title_changed = update_title_line(text, doc.old_baseline, target, new_baseline)
     text, heading_changed = update_component_versions_heading(text, doc.old_baseline, target, new_baseline)
-    text, refs_changed = update_sibling_doc_refs(text, target, new_baseline)
-    todo_stripped = False
-    if doc.suffix == "upgrade":
-        text, todo_stripped = strip_stale_upgrade_placeholders(text)
-    elif doc.suffix == "values-deltas":
-        text, todo_stripped = strip_stale_values_deltas_todo_stub(text)
+    text, refs_changed, todo_stripped = _fix_refs_and_stubs(text, doc.suffix, target, new_baseline)
 
     if doc.path != new_path:
         paths.rename(doc.path, new_path)

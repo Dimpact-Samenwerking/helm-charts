@@ -38,15 +38,30 @@ def resolve_component_identity(
     return None
 
 
+def _named_row_identities(
+    rows: Sequence[VersionRow], deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]] | None
+) -> list[tuple[str, ComponentRef]]:
+    """(row name, identity) of each "Component versions" row that resolve_component_identity resolves."""
+    return [
+        (row["name"], identity)
+        for row in rows
+        if (identity := resolve_component_identity(row["name"], deps, canonical_names)) is not None
+    ]
+
+
+def _single_heading_identities(
+    headings: list[str], deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]]
+) -> list[ComponentRef | None]:
+    """Per heading, the one component it names, or None when it names none or several."""
+    identities = [changes_heading_identities(h, deps, canonical_names) for h in headings]
+    return [next(iter(idents)) if len(idents) == 1 else None for idents in identities]
+
+
 def row_identities(
     rows: Sequence[VersionRow], deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]] | None
 ) -> set[ComponentRef]:
     """The component or sidecar/shared image each "Component versions" row names (resolve_component_identity)."""
-    return {
-        identity
-        for row in rows
-        if (identity := resolve_component_identity(row["name"], deps, canonical_names)) is not None
-    }
+    return {identity for _name, identity in _named_row_identities(rows, deps, canonical_names)}
 
 
 def rowed_component_keys(
@@ -82,23 +97,12 @@ def find_changes_row_correspondence_gaps(
     vice versa. A heading naming zero or several components credits no row
     and is itself reported. Unresolvable rows are skipped. Returns
     (rows_without_heading, headings_without_row) in original order."""
-    heading_identity_sets = [changes_heading_identities(h, deps, canonical_names) for h in headings]
-    all_heading_identities: set[ComponentRef] = set()
-    for idents in heading_identity_sets:
-        if len(idents) == 1:
-            all_heading_identities |= idents
-
-    rows_without_heading = [
-        row["name"]
-        for row in rows
-        if (ident := resolve_component_identity(row["name"], deps, canonical_names)) is not None
-        and ident not in all_heading_identities
-    ]
-    rowed = row_identities(rows, deps, canonical_names)
+    heading_idents = _single_heading_identities(headings, deps, canonical_names)
+    named_rows = _named_row_identities(rows, deps, canonical_names)
+    rows_without_heading = [name for name, ident in named_rows if ident not in heading_idents]
+    rowed = {ident for _name, ident in named_rows}
     headings_without_row = [
-        heading
-        for heading, idents in zip(headings, heading_identity_sets, strict=True)
-        if len(idents) != 1 or idents.isdisjoint(rowed)
+        heading for heading, ident in zip(headings, heading_idents, strict=True) if ident is None or ident not in rowed
     ]
 
     return rows_without_heading, headings_without_row
@@ -123,18 +127,12 @@ def find_changes_duplicate_identities(
 
     E.g. rows "KISS" and "Kiss". Only single-identity headings count; others
     are already reported by find_changes_row_correspondence_gaps."""
-    row_idents: list[tuple[str, ComponentRef]] = []
-    for row in rows:
-        ident = resolve_component_identity(row["name"], deps, canonical_names)
-        if ident is not None:
-            row_idents.append((row["name"], ident))
-
-    heading_idents: list[tuple[str, ComponentRef]] = []
-    for heading in headings:
-        idents = changes_heading_identities(heading, deps, canonical_names)
-        if len(idents) == 1:
-            heading_idents.append((heading, next(iter(idents))))
-
+    heading_idents = [
+        (heading, ident)
+        for heading, ident in zip(headings, _single_heading_identities(headings, deps, canonical_names), strict=True)
+        if ident is not None
+    ]
+    row_idents = _named_row_identities(rows, deps, canonical_names)
     return _group_by_identity(row_idents), _group_by_identity(heading_idents)
 
 

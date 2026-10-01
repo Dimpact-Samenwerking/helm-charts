@@ -12,6 +12,7 @@ from typing import Literal
 from typing import TypedDict
 from typing import TypeVar
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.repo_and_path_resolution import SubchartValuesCache
 from lib.chart.repo_and_path_resolution import subchart_default_repository
@@ -187,12 +188,29 @@ def unique_digest_pin_targets(values_lines: list[str]) -> dict[tuple[str, str], 
 
     No subchart-default fallback (see resolve_pin_targets for that).
     """
-    pins = scan_digest_pins(values_lines)
-    targets: dict[tuple[str, str], tuple[str, int]] = {}
+    return {
+        target: (pins[0]["digest"], pins[0]["line"])
+        for target, pins in group_pins_by_target(scan_digest_pins(values_lines)).items()
+    }
+
+
+def group_pins_by_target(pins: list[DigestPin]) -> dict[tuple[str, str], list[DigestPin]]:
+    """Pins with a repository, grouped by (repository, version) so each is fetched once."""
+    targets: dict[tuple[str, str], list[DigestPin]] = {}
     for p in pins:
         if p["repository"]:
-            targets.setdefault((p["repository"], p["version"]), (p["digest"], p["line"]))
+            targets.setdefault((p["repository"], p["version"]), []).append(p)
     return targets
+
+
+def fill_pin_repositories(
+    chart_dir: Path, lines: list[str], pins: list[DigestPin], deps: list[ChartDependency]
+) -> None:
+    """Set each pin without a repository to its vendored subchart's default one, when there is one."""
+    subchart_cache: SubchartValuesCache = {}
+    for p in pins:
+        if not p["repository"]:
+            p["repository"] = subchart_default_repository(chart_dir, lines, p["line"], deps, subchart_cache)
 
 
 def resolve_pin_targets(chart_dir: Path) -> tuple[list[DigestPin], dict[tuple[str, str], list[DigestPin]]]:
@@ -203,16 +221,8 @@ def resolve_pin_targets(chart_dir: Path) -> tuple[list[DigestPin], dict[tuple[st
 
     chart_yaml_path = chart_dir / "Chart.yaml"
     deps = load_chart_dependencies(chart_yaml_path) if chart_yaml_path.is_file() else []
-    subchart_cache: SubchartValuesCache = {}
-    for p in pins:
-        if not p["repository"]:
-            p["repository"] = subchart_default_repository(chart_dir, lines, p["line"], deps, subchart_cache)
-
-    targets: dict[tuple[str, str], list[DigestPin]] = {}
-    for p in pins:
-        if p["repository"]:
-            targets.setdefault((p["repository"], p["version"]), []).append(p)
-    return pins, targets
+    fill_pin_repositories(chart_dir, lines, pins, deps)
+    return pins, group_pins_by_target(pins)
 
 
 _tag_exists_cache: dict[tuple[str, str], tuple[bool, str | None]] = {}

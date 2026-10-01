@@ -109,20 +109,20 @@ def _assign_component_basenames(
     sub_indices = [i for i in info["indices"] if rows[i][2]]
     primary_indices = [i for i in info["indices"] if not rows[i][2]]
 
-    unclaimed_primary_indices: list[int] = []
-    for i in primary_indices:
-        match = exact_match(rows[i][3], available.keys())
-        if match is not None:
+    def claim(indices: list[int]) -> list[int]:
+        """Give each row the available basename its name matches exactly; returns the rows left without one."""
+        unclaimed: list[int] = []
+        for i in indices:
+            match = exact_match(rows[i][3], available.keys())
+            if match is None:
+                unclaimed.append(i)
+                continue
             result[i] = match
             del available[match]
-        else:
-            unclaimed_primary_indices.append(i)
+        return unclaimed
 
-    for i in sub_indices:
-        match = exact_match(rows[i][3], available.keys())
-        if match is not None:
-            result[i] = match
-            del available[match]
+    unclaimed_primary_indices = claim(primary_indices)
+    claim(sub_indices)
 
     remaining = sorted(basename for basename in available if basename in primary)
     if unclaimed_primary_indices and remaining:
