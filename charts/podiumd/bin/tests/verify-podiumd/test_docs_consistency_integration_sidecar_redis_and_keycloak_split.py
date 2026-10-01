@@ -36,6 +36,17 @@ REDIS_UPGRADE_DOC = """\
 | redis-operator - redis | {app_source} → {app_target} | - | ACR mirror only |
 
 See [`{baseline}-to-4.9.0-values-deltas.md`]({baseline}-to-4.9.0-values-deltas.md).
+
+## Changes
+
+### redis-operator - redis {app_source} → {app_target}
+
+PodiumD 4.9.0 upgrades the **redis-operator - redis** image to {app_target},
+pinned at:
+
+- `redis-operator.redis-ha.image.tag` `{app_source}` → `{app_target}`
+
+- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).
 """
 REDIS_GEMEENTE_DOC = "# Gemeente-specific notes — PodiumD {baseline} → 4.9.0\n\nNone.\n"
 REDIS_VALUES_DELTAS_DOC = (
@@ -49,7 +60,7 @@ REDIS_IMAGES_MANIFEST = """\
 # Images new or changed in podiumd 4.9.0 vs {baseline}.
 #
 # Changes:
-#   1. redis-ha {app_source} -> {app_target}
+#   1. redis-operator - redis {app_source} -> {app_target}.
 #
 # See docs/_UPGRADE_PATHS/{baseline}-to-4.9.0-upgrade.md for the operator upgrade notes.
 
@@ -112,7 +123,7 @@ def test_sidecar_row_with_canonical_name_is_verified(vp: ModuleType, redis_sidec
 
 
 def test_sidecar_row_wrong_target_app_is_caught(
-    vp: ModuleType, redis_sidecar_chart_repo, capsys: pytest.CaptureFixture[str]
+    vp: ModuleType, assert_would_change, redis_sidecar_chart_repo, capsys: pytest.CaptureFixture[str]
 ):
     doc = redis_sidecar_chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(REDIS_UPGRADE_DOC.format(baseline="4.8.5", app_source="8.6.2", app_target="9.9.9"))
@@ -120,15 +131,11 @@ def test_sidecar_row_wrong_target_app_is_caught(
     ok, _detail = vp.check_docs_consistency(redis_sidecar_chart_repo, upgrade_docs_baseline="4.8.5")
 
     assert ok is False
-    out = capsys.readouterr().out
-    assert (
-        'redis-operator.redis-ha.image ("redis-operator - redis") target app: values.yaml image tag is '
-        '"8.6.6", 4.8.5-to-4.9.0-upgrade.md says "9.9.9"'
-    ) in out
+    assert_would_change(capsys.readouterr().out, "+| redis-operator - redis | 8.6.2 → 8.6.6 |")
 
 
 def test_sidecar_row_wrong_source_app_vs_baseline_is_caught(
-    vp: ModuleType, redis_sidecar_chart_repo, capsys: pytest.CaptureFixture[str]
+    vp: ModuleType, assert_would_change, redis_sidecar_chart_repo, capsys: pytest.CaptureFixture[str]
 ):
     doc = redis_sidecar_chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(REDIS_UPGRADE_DOC.format(baseline="4.8.5", app_source="1.1.1", app_target="8.6.6"))
@@ -136,11 +143,7 @@ def test_sidecar_row_wrong_source_app_vs_baseline_is_caught(
     ok, _detail = vp.check_docs_consistency(redis_sidecar_chart_repo, upgrade_docs_baseline="4.8.5")
 
     assert ok is False
-    out = capsys.readouterr().out
-    assert (
-        'redis-operator.redis-ha.image ("redis-operator - redis") source app: podiumd-4.8.5 has "8.6.2", '
-        '4.8.5-to-4.9.0-upgrade.md says "1.1.1"'
-    ) in out
+    assert_would_change(capsys.readouterr().out, "+| redis-operator - redis | 8.6.2 → 8.6.6 |")
 
 
 def test_sidecar_row_with_old_style_phrasing_is_flagged_as_wrong_phrasing(
@@ -162,7 +165,7 @@ def test_sidecar_row_with_old_style_phrasing_is_flagged_as_wrong_phrasing(
 
 
 def test_sidecar_digest_only_repin_is_not_flagged_as_changed(
-    vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    vp: ModuleType, assert_would_change, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
     """A digest-only re-pin (same version) must not be flagged in -upgrade.md, which
     documents version changes only.
@@ -215,9 +218,8 @@ def test_sidecar_digest_only_repin_is_not_flagged_as_changed(
 
     assert ok is False, detail
     out = capsys.readouterr().out
-    assert 'sidecar/shared image "redis-operator - redis" changed' not in out
-    assert 'redis-operator - redis" but has no row in the "Component versions" table' not in out
-    assert 'image "redis-operator - redis" changed vs 4.8.5 but has no entry' in out
+    assert_would_change(out, "images/images-4.9.0.yaml (changed", "+- name: opstree/redis")
+    assert "4.8.5-to-4.9.0-upgrade.md (changed" not in out
 
 
 KEYCLOAK_SPLIT_CHART_YAML = """\
@@ -241,6 +243,24 @@ KEYCLOAK_SPLIT_UPGRADE_DOC = """\
 | keycloak-operator | {op_source} → {op_target} | 1.13.0 (unchanged) | - |
 
 See [`{baseline}-to-4.9.0-values-deltas.md`]({baseline}-to-4.9.0-values-deltas.md).
+
+## Changes
+
+### keycloak {app_source} → {app_target}
+
+The keycloak server image the operator deploys.
+
+- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).
+
+### keycloak-operator {op_source} → {op_target} (chart 1.13.0, unchanged)
+
+PodiumD 4.9.0 upgrades **keycloak-operator** from app version {op_source}
+to {op_target}.
+
+- Image tag pin `keycloak-operator.operator.image.tag` `{op_source}` → `{op_target}` in
+  `charts/podiumd/values.yaml`.
+
+- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).
 """
 KEYCLOAK_SPLIT_GEMEENTE_DOC = "# Gemeente-specific notes — PodiumD {baseline} → 4.9.0\n\nNone.\n"
 KEYCLOAK_SPLIT_VALUES_DELTAS_DOC = (
@@ -258,12 +278,13 @@ KEYCLOAK_SPLIT_IMAGES_MANIFEST = """\
 
 # keycloak {app_source} -> {app_target}
 - name: keycloak/keycloak
-  url: keycloak/keycloak
+  url: quay.io/keycloak/keycloak
   version: "{app_target}"
   digest: "sha256:{app_digest}"
+
 # keycloak-operator {op_source} -> {op_target}
 - name: keycloak/keycloak-operator
-  url: keycloak/keycloak-operator
+  url: quay.io/keycloak/keycloak-operator
   version: "{op_target}"
   digest: "sha256:{op_digest}"
 """
@@ -379,7 +400,7 @@ def test_unresolvable_entry_names_the_manifest_file_its_own_message(
 
 
 def test_split_tag_sha_path_real_mismatch_is_still_caught(
-    vp: ModuleType, keycloak_split_chart_repo, capsys: pytest.CaptureFixture[str]
+    vp: ModuleType, assert_would_change, keycloak_split_chart_repo, capsys: pytest.CaptureFixture[str]
 ):
     """A real digest mismatch on a resolved sha: field must still be caught."""
     values_path = keycloak_split_chart_repo / "values.yaml"
@@ -389,11 +410,11 @@ def test_split_tag_sha_path_real_mismatch_is_still_caught(
     out = capsys.readouterr().out
 
     assert ok is False
-    assert 'keycloak/keycloak: values.yaml tag is "26.7.3@sha256:' + "e" * 64 in out
+    assert_would_change(out, '+  digest: "sha256:' + "e" * 64)
 
 
 def test_sidecar_with_no_row_at_all_is_caught_as_missing(
-    vp: ModuleType, redis_sidecar_chart_repo, capsys: pytest.CaptureFixture[str]
+    vp: ModuleType, assert_would_change, redis_sidecar_chart_repo, capsys: pytest.CaptureFixture[str]
 ):
     """A changed sidecar with no row at all must be flagged: the "component changed but
     has no row" check only tracks top-level keys, so this needs a per-sidecar check."""
@@ -409,15 +430,11 @@ def test_sidecar_with_no_row_at_all_is_caught_as_missing(
     ok, _detail = vp.check_docs_consistency(redis_sidecar_chart_repo, upgrade_docs_baseline="4.8.5")
 
     assert ok is False
-    out = capsys.readouterr().out
-    assert (
-        '4.8.5-to-4.9.0-upgrade.md: sidecar/shared image "redis-operator - redis" changed vs '
-        'podiumd-4.8.5 but has no row in the "Component versions" table'
-    ) in out
+    assert_would_change(capsys.readouterr().out, "+| redis-operator - redis | 8.6.2 → 8.6.6 |")
 
 
 def test_sidecar_missing_from_images_manifest_uses_canonical_name(
-    vp: ModuleType, redis_sidecar_chart_repo, capsys: pytest.CaptureFixture[str]
+    vp: ModuleType, assert_would_change, redis_sidecar_chart_repo, capsys: pytest.CaptureFixture[str]
 ):
     """A sidecar missing from images-manifest is reported by its canonical
     "<values_key> - <image-basename>" name, not the dotted values path."""
@@ -437,7 +454,7 @@ def test_sidecar_missing_from_images_manifest_uses_canonical_name(
 
     assert ok is False
     out = capsys.readouterr().out
-    assert 'image "redis-operator - redis" changed vs 4.8.5 but has no entry' in out
+    assert_would_change(out, "+#   1. redis-operator - redis 8.6.2 -> 8.6.6.")
     assert "redis-operator.redis-ha.image" not in out
 
 

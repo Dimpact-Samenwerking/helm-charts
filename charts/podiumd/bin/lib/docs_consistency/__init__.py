@@ -39,6 +39,9 @@ from lib.docs_consistency.check_context import ManifestEntryScan
 from lib.docs_consistency.check_context import RowContext
 from lib.docs_consistency.check_context import RowLookup
 from lib.docs_consistency.check_context import StateImages
+from lib.docs_consistency.dry_run import MAX_DIFF_LINES
+from lib.docs_consistency.dry_run import DocChange
+from lib.docs_consistency.dry_run import fix_docs_dry_run
 from lib.docs_consistency.images_manifest_format import ManifestCheckContext
 from lib.docs_consistency.images_manifest_format import check_images_manifest_format
 from lib.docs_consistency.markdown_format import check_baseline_doc_set
@@ -88,12 +91,12 @@ def parse_upgrade_doc_rows(doc_path: Path) -> list[TableRow]:
     return _parse_upgrade_doc_rows(doc_path.read_text(encoding="utf-8"))
 
 
-def _pointer_consistency_mismatches(chart_dir: Path, doc_dir: Path, upgrade_docs_baseline: str, podiumd_version: str):
+def _pointer_consistency_mismatches(doc_dir: Path, upgrade_docs_baseline: str, podiumd_version: str):
     """Stale sibling-doc/images-manifest reference findings for the caller's `mismatches`.
 
     Returned rather than returning early, so one stale link doesn't hide every other finding.
     """
-    images_dir = chart_dir / "docs" / "images"
+    images_dir = doc_dir.parent / "images"
     pointer_docs = [
         doc_dir / f"{upgrade_docs_baseline}-to-{podiumd_version}-{suffix}.md"
         for suffix in ("upgrade", "gemeente-specific", "values-deltas")
@@ -160,17 +163,13 @@ def _resolve_baseline(
     return baseline_ref, baseline_deps, baseline_values, mismatch
 
 
-def _build_docs_check_context(
-    chart_dir: Path,
-    deps: list[ChartDependency],
-    values: YamlMapping,
-    podiumd_version: str,
-    upgrade_docs_baseline: str | None,
-):
-    """Resolve the baseline and derived image maps into a DocsCheckContext.
+def _build_docs_check_context(chart_dir: Path, doc_dir: Path, podiumd_version: str, upgrade_docs_baseline: str | None):
+    """Load the chart, resolve the baseline and derived image maps into a DocsCheckContext.
 
     Returns (ctx, baseline_mismatch); the caller adds baseline_mismatch to `findings`.
     """
+    deps = load_chart_dependencies(chart_dir / "Chart.yaml")
+    values = load_yaml_mapping(chart_dir / "values.yaml")
     baseline_ref, baseline_deps, baseline_values, baseline_mismatch = _resolve_baseline(
         chart_dir, upgrade_docs_baseline
     )
@@ -184,7 +183,7 @@ def _build_docs_check_context(
         baseline=BaselineState(baseline_deps, baseline_values),
         baseline_ref=baseline_ref,
         doc_query=DocQuery(
-            chart_dir / "docs" / "_UPGRADE_PATHS",
+            doc_dir,
             podiumd_version,
             upgrade_docs_baseline,
             bool(upgrade_docs_baseline and re.match(r"^\d+\.\d+\.\d+", upgrade_docs_baseline)),
@@ -525,7 +524,7 @@ def _stale_changes_item_mismatches(
     ctx: DocsCheckContext, scan: DocScanState, resolution: ResolutionContext
 ) -> list[str]:
     """An images-manifest "# Changes:" item contradicts its upgrade-doc table row."""
-    images_path = ctx.chart_dir / "docs" / "images" / f"images-{ctx.doc_query.podiumd_version}.yaml"
+    images_path = ctx.doc_query.doc_dir.parent / "images" / f"images-{ctx.doc_query.podiumd_version}.yaml"
     if not images_path.is_file():
         return []
     lines = images_path.read_text(encoding="utf-8").splitlines(keepends=True)
@@ -685,7 +684,7 @@ def _check_images_manifest(
     Appends onto `findings`. Entry checks are skipped when the format isn't
     interpretable, but earlier findings are kept (no early return on findings).
     """
-    images_path = ctx.chart_dir / "docs" / "images" / f"images-{ctx.doc_query.podiumd_version}.yaml"
+    images_path = ctx.doc_query.doc_dir.parent / "images" / f"images-{ctx.doc_query.podiumd_version}.yaml"
 
     images_format_ok = True
     if ctx.doc_query.is_bare_version:
@@ -758,7 +757,7 @@ def _check_values_deltas(ctx: DocsCheckContext, findings: Findings):
 
 
 def _check_baseline_doc_set_and_pointers(
-    chart_dir: Path, doc_dir: Path, upgrade_docs_baseline: str | None, podiumd_version: str, findings: Findings
+    doc_dir: Path, upgrade_docs_baseline: str | None, podiumd_version: str, findings: Findings
 ):
     """Baseline doc-set precheck and pointer-consistency checks for a bare-version baseline.
 
@@ -776,34 +775,19 @@ def _check_baseline_doc_set_and_pointers(
         for issue in sorted(precheck_issues):
             print(" ", issue)
         return False, f"{len(precheck_issues)} upgrade_docs_baseline doc issue(s)"
-    findings.mismatches.extend(
-        _pointer_consistency_mismatches(chart_dir, doc_dir, upgrade_docs_baseline, podiumd_version)
-    )
+    findings.mismatches.extend(_pointer_consistency_mismatches(doc_dir, upgrade_docs_baseline, podiumd_version))
     return None
 
 
-def check_docs_consistency(chart_dir: Path, upgrade_docs_baseline: str | None = None):
-    """Check component versions against the upgrade doc set and images manifest.
-
-    With `upgrade_docs_baseline`, every component changed since it must appear in the
-    docs. None means no change comparison; checks relying on the
-    "<baseline>-to-<target>-<suffix>.md" shape only run for a bare MAJOR.MINOR.PATCH.
-
-    Returns (True, "no matching docs found — skipped") when there's nothing to check,
-    (False, "<n> mismatch(es)") with findings printed, or (True, "matches ...").
-    """
+def _check_docs(chart_dir: Path, doc_dir: Path, upgrade_docs_baseline: str | None) -> Findings | tuple[bool, str]:
+    """Every finding about the docs in doc_dir; an early (ok, detail) result when the doc set itself is malformed."""
     podiumd_version = chart_version(chart_dir / "Chart.yaml")
-    deps = load_chart_dependencies(chart_dir / "Chart.yaml")
-    values = load_yaml_mapping(chart_dir / "values.yaml")
     sibling_fields = digest_pinning_exceptions(chart_dir)
-    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
     is_bare_version = bool(upgrade_docs_baseline and re.match(r"^\d+\.\d+\.\d+", upgrade_docs_baseline))
 
     findings = Findings([], [])
 
-    precheck_result = _check_baseline_doc_set_and_pointers(
-        chart_dir, doc_dir, upgrade_docs_baseline, podiumd_version, findings
-    )
+    precheck_result = _check_baseline_doc_set_and_pointers(doc_dir, upgrade_docs_baseline, podiumd_version, findings)
     if precheck_result is not None:
         return precheck_result
 
@@ -812,7 +796,7 @@ def check_docs_consistency(chart_dir: Path, upgrade_docs_baseline: str | None = 
             doc_dir, upgrade_docs_baseline, podiumd_version, findings, is_bare_version=is_bare_version
         )
 
-    ctx, baseline_mismatch = _build_docs_check_context(chart_dir, deps, values, podiumd_version, upgrade_docs_baseline)
+    ctx, baseline_mismatch = _build_docs_check_context(chart_dir, doc_dir, podiumd_version, upgrade_docs_baseline)
     if baseline_mismatch:
         findings.mismatches.append(baseline_mismatch)
 
@@ -821,14 +805,61 @@ def check_docs_consistency(chart_dir: Path, upgrade_docs_baseline: str | None = 
 
     if ctx.baseline_ref and is_bare_version and ctx.actual_changed_keys:
         _check_values_deltas(ctx, findings)
+    return findings
 
-    if not findings.checked:
+
+def _print_doc_changes(changes: list[DocChange]) -> None:
+    print("fix-doc-consistency would change:")
+    for change in changes:
+        print(f"  {change.name} ({change.status}, {change.changed_lines} line(s)):")
+        for line in change.diff[:MAX_DIFF_LINES]:
+            print(f"    {line}")
+        if len(change.diff) > MAX_DIFF_LINES:
+            print(f"    ... {len(change.diff) - MAX_DIFF_LINES} more diff line(s)")
+    print("  run fix-doc-consistency")
+
+
+def check_docs_consistency(chart_dir: Path, upgrade_docs_baseline: str | None = None):
+    """Check the upgrade doc set and images manifest against Chart.yaml, values.yaml and the baseline.
+
+    With a bare MAJOR.MINOR.PATCH `upgrade_docs_baseline`, fix-doc-consistency
+    first runs on a copy of the docs: what it would change is one list, and
+    every other check runs on the copy, so the second list holds only what
+    must be fixed by hand. Without one, the checks run on the docs as they are
+    and nothing is compared with a baseline.
+
+    Returns (True, "no matching docs found — skipped") when there's nothing to check,
+    (False, "<detail>") with findings printed, or (True, "matches ...").
+    """
+    is_bare_version = bool(upgrade_docs_baseline and re.match(r"^\d+\.\d+\.\d+", upgrade_docs_baseline))
+    if not is_bare_version or upgrade_docs_baseline is None:
+        result = _check_docs(chart_dir, chart_dir / "docs" / "_UPGRADE_PATHS", upgrade_docs_baseline)
+        return result if isinstance(result, tuple) else _report(None, result)
+    with fix_docs_dry_run(chart_dir, chart_version(chart_dir / "Chart.yaml"), upgrade_docs_baseline) as dry:
+        if dry.error is not None:
+            print(f"fix-doc-consistency can't run on these docs:\n{dry.error}")
+            return False, "fix-doc-consistency refused to run"
+        result = _check_docs(chart_dir, dry.docs_dir / "_UPGRADE_PATHS", upgrade_docs_baseline)
+    if isinstance(result, tuple):
+        return result
+    return _report(dry.changes, result)
+
+
+def _report(changes: list[DocChange] | None, findings: Findings):
+    """Print the two lists; (ok, detail) for verify-podiumd. changes is None when no dry-run ran."""
+    if not findings.checked and not changes:
         return True, "no matching docs found — skipped"
-
+    if changes:
+        _print_doc_changes(changes)
     if findings.mismatches:
-        print(f"FOUND {len(findings.mismatches)} mismatch(es) vs {', '.join(findings.checked)}:")
+        header = "fix by hand" + (" (found in the docs as fix-doc-consistency would leave them)" if changes else "")
+        print(f"{header}, {len(findings.mismatches)} issue(s) vs {', '.join(findings.checked)}:")
         for m in sorted(findings.mismatches):
             print(" ", m)
-        return False, f"{len(findings.mismatches)} mismatch(es)"
+    by_hand = f"{len(findings.mismatches)} to fix by hand"
+    if changes:
+        return False, f"{len(changes)} doc(s) fix-doc-consistency would change, {by_hand}"
+    if findings.mismatches:
+        return False, by_hand
     print(f"OK: chart versions match {', '.join(findings.checked)}")
     return True, f"matches {', '.join(findings.checked)}"

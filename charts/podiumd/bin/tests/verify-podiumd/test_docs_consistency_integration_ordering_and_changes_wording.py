@@ -98,7 +98,7 @@ def test_out_of_order_table_row_is_caught(vp: ModuleType, order_chart_dir, capsy
     )
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is False
-    assert "mismatch" in detail
+    assert "to fix by hand" in detail
     out = capsys.readouterr().out
     assert '"Component versions" table lists "Open Zaak" right after "Open Inwoner"' in out
     assert "should follow values.yaml's own component order" in out
@@ -111,7 +111,7 @@ def test_out_of_order_changes_block_is_caught(vp: ModuleType, order_chart_dir, c
     )
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is False
-    assert "mismatch" in detail
+    assert "to fix by hand" in detail
     out = capsys.readouterr().out
     assert '"## Changes" section has "### Open Zaak bump" right after "### Open Inwoner bump"' in out
     assert "Changes blocks should follow values.yaml's own component order" in out
@@ -139,7 +139,7 @@ def test_table_row_with_no_changes_section_is_caught(
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump"]))
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is False
-    assert "mismatch" in detail
+    assert "to fix by hand" in detail
     out = capsys.readouterr().out
     assert 'table row "Open Inwoner" has no matching "### ..." section under "## Changes"' in out
 
@@ -151,7 +151,7 @@ def test_changes_section_with_no_table_row_is_caught(
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(order_doc([ZAAK_ROW], ["Open Zaak bump", "Open Inwoner bump"]))
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is False
-    assert "mismatch" in detail
+    assert "to fix by hand" in detail
     out = capsys.readouterr().out
     assert '"## Changes" section "### Open Inwoner bump" has no matching row in the "Component versions" table' in out
 
@@ -198,7 +198,7 @@ def test_heading_naming_two_components_is_flagged_and_neither_row_is_credited(
     )
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is False
-    assert "mismatch" in detail
+    assert "to fix by hand" in detail
     out = capsys.readouterr().out
     assert (
         '"## Changes" section "### Open Zaak bump + Open Inwoner bump" has no matching row in the '
@@ -219,7 +219,7 @@ def test_changes_heading_naming_no_real_component_is_caught_as_no_matching_row(
     )
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is False
-    assert "mismatch" in detail
+    assert "to fix by hand" in detail
     out = capsys.readouterr().out
     assert (
         '"## Changes" section "### Unrelated release note" has no matching row in the "Component versions" table' in out
@@ -238,7 +238,7 @@ def test_changes_heading_missing_app_version_is_caught(
     )
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is False
-    assert "mismatch" in detail
+    assert "to fix by hand" in detail
     out = capsys.readouterr().out
     assert (
         '"## Changes" section "### Open Zaak bump" is missing the primary-image app version '
@@ -280,6 +280,17 @@ NEW_DEP_UPGRADE_DOC = """\
 | openklant | 2.15.0 (new) | 2.15.0 (new) | - |
 
 See [`{baseline}-to-4.9.0-values-deltas.md`]({baseline}-to-4.9.0-values-deltas.md).
+
+## Changes
+
+### openklant 2.15.0 (new) (chart 2.15.0, new)
+
+PodiumD 4.9.0 introduces **openklant** at app version 2.15.0.
+
+- Image tag pin `openklant.image.tag` `2.15.0` (new) in
+  `charts/podiumd/values.yaml`.
+
+- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).
 """
 NEW_DEP_GEMEENTE_DOC = "# Gemeente-specific notes — PodiumD {baseline} → 4.9.0\n\nNone.\n"
 NEW_DEP_VALUES_DELTAS_DOC = (
@@ -299,7 +310,7 @@ NEW_DEP_IMAGES_MANIFEST = """\
 
 # openklant — 2.15.0
 - name: openklant/open-klant
-  url: openklant/open-klant
+  url: docker.io/openklant/open-klant
   version: "2.15.0"
   digest: "sha256:abc"
 """
@@ -363,40 +374,6 @@ def test_new_dependency_unresolvable_baseline_row_is_a_warning_not_a_failure(
         'WARNING: 4.8.5-to-4.9.0-upgrade.md: doc row "openklant" source version could not be verified against'
     ) in out
     assert 'openklant" target app' not in out  # target side still resolves fine, no false mismatch there
-
-
-def test_new_dependency_known_in_historical_manifest_heading_passes(
-    vp: ModuleType, new_dependency_chart_repo: Path, capsys: pytest.CaptureFixture[str]
-):
-    """A new dependency whose image is in an earlier images manifest gets "<old> → <new>", as fix-doc-consistency writes.
-
-    The checker must expect the same old app version, and the "(new)" chart cell must keep the heading's "new".
-    """
-    chart_dir = new_dependency_chart_repo
-    (chart_dir / "docs" / "images" / "images-4.8.0.yaml").write_text(
-        '- name: openklant/open-klant\n  url: docker.io/openklant/open-klant\n  version: "2.14.0"\n  digest: "sha256:abc"\n'
-    )
-    doc_path = chart_dir / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
-    doc_path.write_text(
-        doc_path.read_text().replace("| openklant | 2.15.0 (new) |", "| openklant | 2.14.0 → 2.15.0 |")
-        + "\n## Changes\n\n### openklant 2.14.0 → 2.15.0 (chart 2.15.0, new)\n\nDetails.\n\n"
-        "- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).\n"
-    )
-    manifest_path = chart_dir / "docs" / "images" / "images-4.9.0.yaml"
-    manifest_path.write_text(
-        manifest_path.read_text()
-        .replace("#   1. openklant 2.15.0.", "#   1. openklant 2.14.0 -> 2.15.0.")
-        .replace("# openklant — 2.15.0", "# openklant — 2.14.0 -> 2.15.0")
-    )
-    git("add", "-A", cwd=chart_dir.parents[1])
-    git("commit", "-q", "-m", "historical manifest", cwd=chart_dir.parents[1])
-
-    ok, _detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline="4.8.5")
-
-    out = capsys.readouterr().out
-    assert "wrong app-version transition" not in out
-    assert "contradicts its table row" not in out
-    assert ok is True, out
 
 
 def test_plus_in_heading_not_naming_two_real_components_still_resolves_normally(
@@ -475,7 +452,16 @@ def two_dep_chart_repo(tmp_path: Path):
         "| --- | --- | --- | --- |\n"
         "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | n/a |\n"
         "| openformulieren | 3.4.10 → 3.5.6 | 1.12.0 (unchanged) | n/a |\n\n"
-        "See [`4.8.5-to-4.9.0-values-deltas.md`](4.8.5-to-4.9.0-values-deltas.md).\n"
+        "See [`4.8.5-to-4.9.0-values-deltas.md`](4.8.5-to-4.9.0-values-deltas.md).\n\n"
+        "## Changes\n\n"
+        "### ZAC (Zaakafhandelcomponent) 5.0.2 → 5.4.3 (chart 1.0.297, unchanged)\n\n"
+        "PodiumD 4.9.0 upgrades **ZAC (Zaakafhandelcomponent)** from app version 5.0.2\nto 5.4.3.\n\n"
+        "- Image tag pin `zac.image.tag` `5.0.2` → `5.4.3` in\n  `charts/podiumd/values.yaml`.\n\n"
+        "- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).\n\n"
+        "### openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged)\n\n"
+        "PodiumD 4.9.0 upgrades **openformulieren** from app version 3.4.10\nto 3.5.6.\n\n"
+        "- Image tag pin `openformulieren.image.tag` `3.4.10` → `3.5.6` in\n  `charts/podiumd/values.yaml`.\n\n"
+        "- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).\n"
     )
     (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(
         "# Gemeente-specific notes — PodiumD 4.8.5 → 4.9.0\n\nNone.\n"
@@ -502,7 +488,7 @@ def two_dep_chart_repo(tmp_path: Path):
         '  digest: "sha256:abc"\n\n'
         "# openformulieren — 3.4.10 -> 3.5.6\n"
         "- name: openformulieren/open-forms\n"
-        "  url: openformulieren/open-forms\n"
+        "  url: docker.io/openformulieren/open-forms\n"
         '  version: "3.5.6"\n'
         '  digest: "sha256:def"\n'
     )
@@ -513,16 +499,13 @@ def two_dep_chart_repo(tmp_path: Path):
 
 
 def test_values_deltas_sections_out_of_order_is_caught(
-    vp: ModuleType, two_dep_chart_repo, capsys: pytest.CaptureFixture[str]
+    vp: ModuleType, assert_would_change, two_dep_chart_repo, capsys: pytest.CaptureFixture[str]
 ):
     ok, _detail = vp.check_docs_consistency(two_dep_chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is False
     out = capsys.readouterr().out
-    assert (
-        '4.8.5-to-4.9.0-values-deltas.md: "## ZAC' in out
-        and 'section comes right after "## openformulieren' in out
-        and "sections should follow values.yaml's own component order" in out
-    )
+    assert_would_change(out, "4.8.5-to-4.9.0-values-deltas.md (changed")
+    assert "4.8.5-to-4.9.0-upgrade.md" not in out
 
 
 def test_values_deltas_sections_correctly_ordered_passes(vp: ModuleType, two_dep_chart_repo):
@@ -543,7 +526,7 @@ def test_values_deltas_sections_correctly_ordered_passes(vp: ModuleType, two_dep
 
 
 def test_changes_heading_wrong_transition_wording_is_caught(
-    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
+    vp: ModuleType, assert_would_change, chart_repo, capsys: pytest.CaptureFixture[str]
 ):
     """zac changed 5.0.2 -> 5.4.3 but its heading says "(unchanged)"; the row is correct.
 
@@ -559,15 +542,11 @@ def test_changes_heading_wrong_transition_wording_is_caught(
         "### ZAC (Zaakafhandelcomponent) 5.4.3 (unchanged) (chart 1.0.297, unchanged)\n\n"
         "blah\n"
     )
-    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+    ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is False
-    assert "mismatch" in detail
-    out = capsys.readouterr().out
-    assert (
-        '"## Changes" section "### ZAC (Zaakafhandelcomponent) 5.4.3 (unchanged) (chart 1.0.297, '
-        'unchanged)" shows the wrong app-version transition in its own heading — expected '
-        "\"5.0.2 → 5.4.3\" (values.yaml/podiumd-4.8.5 show '5.0.2' -> '5.4.3')"
-    ) in out
+    assert_would_change(
+        capsys.readouterr().out, "+### ZAC (Zaakafhandelcomponent) 5.0.2 → 5.4.3 (chart 1.0.297, unchanged)"
+    )
 
 
 def test_changes_heading_correct_transition_wording_passes(vp: ModuleType, chart_repo):
