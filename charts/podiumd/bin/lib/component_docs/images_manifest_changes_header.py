@@ -161,7 +161,7 @@ def insert_images_manifest_header_item(lines: list[str], item_text: str) -> None
     """Append "#   N. <item_text>" to the "# Changes:" list; no-op without a header.
 
     sort_images_manifest_changes_items puts it in place: fix-doc-consistency
-    sorts after it adds, and update-* end with fix-doc-consistency. Renumbers
+    sorts after it adds. Renumbers
     via renumber_images_manifest_changes_items, which also repairs gaps.
     """
     header_idx, _header_has_count, _item_indices = find_images_manifest_changes_items(lines)
@@ -170,23 +170,6 @@ def insert_images_manifest_header_item(lines: list[str], item_text: str) -> None
     # Placeholder number; renumbered below.
     lines.insert(images_manifest_changes_block(lines, header_idx)[1], f"#   0. {item_text}\n")
     renumber_images_manifest_changes_items(lines)
-
-
-def upsert_images_manifest_header_item(lines: list[str], name: str, item_text: str) -> str | None:
-    """Rewrite the "# Changes:" item that names `name` to item_text, or append one.
-
-    Returns "updated", "added", or None when there is no header.
-    """
-    header_idx, _header_has_count, item_indices = find_images_manifest_changes_items(lines)
-    if header_idx is None:
-        return None
-    match_idx = find_changes_item(lines, item_indices, name)
-    if match_idx is None:
-        insert_images_manifest_header_item(lines, item_text)
-        return "added"
-    m = match_located_line(CHANGES_ITEM_RE, lines[match_idx])
-    lines[match_idx] = f"#   {m.group('num')}. {item_text}\n"
-    return "updated"
 
 
 def changes_item_texts(lines: list[str]) -> list[tuple[str, int, int]]:

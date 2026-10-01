@@ -23,7 +23,6 @@ from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
-from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
 from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
 from lib.upgradedoc.string_and_parsing_basics import match_native_component
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
@@ -294,25 +293,6 @@ def resolve_component_row(
         _add_baseline_result(resolution, match, result)
 
     return result
-
-
-def compare_component_to_baseline(
-    resolution: ResolutionContext, values_key: str
-) -> tuple[str | None, str | None, bool]:
-    """(old_app, old_chart, reset_to_baseline) of the component with top-level key `values_key`.
-
-    old_app/old_chart are resolved as its "Component versions" row is, so a
-    Changes section written by update-* can't contradict the row; None when
-    unresolvable. reset_to_baseline: the component equals the baseline again.
-    """
-    baseline_deps = resolution.baseline.deps or []
-    changed = compute_changed_components(
-        resolution.target.deps, baseline_deps, resolution.target.values, resolution.baseline.values
-    )
-    resolved = resolve_component_row(values_key, {}, resolution)
-    if resolved["kind"] == "unmatched":
-        return None, None, values_key not in changed
-    return resolved["baseline_app"], resolved["baseline_chart"], values_key not in changed
 
 
 def resolved_row_unchanged(resolved: ResolvedRow) -> bool:

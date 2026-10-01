@@ -286,7 +286,7 @@ def _check_component_rows(
             result.mismatches.append(
                 f'{row_ctx.doc_path.name}: doc row "{row["name"]}" does not match a Chart.yaml '
                 f'dependency or a canonical sidecar/shared-image name ("<component> - '
-                f'<image-basename>" or "<image-basename>", the exact form update-image-version writes) '
+                f'<image-basename>" or "<image-basename>", the exact form fix-doc-consistency writes) '
                 f"— wrong phrasing, or a stale row"
             )
             continue
@@ -498,7 +498,7 @@ def _warn_edited_generated_lines(doc_path: Path, heading_marker: str, edited: li
     for heading, line in edited:
         print(
             f"WARNING: {doc_path.name}: '{heading_marker} {heading}' has a hand-edited generated line, "
-            f'which fix-doc-consistency and update-* no longer update: "{line}"; '
+            f'which fix-doc-consistency no longer updates: "{line}"; '
             f"restore the generated line and put the remark on a line of its own"
         )
 

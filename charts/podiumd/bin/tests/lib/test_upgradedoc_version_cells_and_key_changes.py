@@ -44,7 +44,7 @@ def test_component_version_cell_no_baseline_no_target_either(libupgradedocversio
     assert libupgradedocversioncells.component_version_cell(None, None) is None
 
 
-# --- find_preceding_comment_line / replace_version_pair ---
+# --- find_preceding_comment_line ---
 
 
 def test_find_preceding_comment_line_finds_arrow_comment(libupgradedoccomments: ModuleType):
@@ -55,22 +55,6 @@ def test_find_preceding_comment_line_finds_arrow_comment(libupgradedoccomments: 
 def test_find_preceding_comment_line_none_when_no_arrow(libupgradedoccomments: ModuleType):
     lines = ["#repository:\n", "- name: zac\n"]
     assert libupgradedoccomments.find_preceding_comment_line(lines, 1) is None
-
-
-def test_replace_version_pair_preserves_prefix_and_arrow_style(libupgradedocversioncells: ModuleType):
-    assert (
-        libupgradedocversioncells.replace_version_pair("# ZAC — 5.0.1 -> 5.1.0\n", "5.0.2", "5.1.0")
-        == "# ZAC — 5.0.2 -> 5.1.0\n"
-    )
-    assert (
-        libupgradedocversioncells.replace_version_pair("# ZAC — 5.0.1 → 5.1.0\n", "5.0.2", "5.1.0")
-        == "# ZAC — 5.0.2 → 5.1.0\n"
-    )
-
-
-def test_replace_version_pair_no_match_returns_unchanged(libupgradedocversioncells: ModuleType):
-    line = "# no version pair here\n"
-    assert libupgradedocversioncells.replace_version_pair(line, "1.0.0", "2.0.0") == line
 
 
 # --- version_change_suffix / image_manifest_version_text ---

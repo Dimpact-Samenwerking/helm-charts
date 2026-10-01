@@ -1,6 +1,4 @@
-"""values-deltas.md per-component "## <friendly> ..." sections, plus gemeente-specific.md placeholder checks.
-
-Shared by update-component-version, update-image-version and fix-doc-consistency."""
+"""values-deltas.md per-component "## <friendly> ..." sections, plus gemeente-specific.md placeholder checks."""
 
 import re
 
@@ -19,7 +17,6 @@ from lib.component_docs.owned_parts import BLANK
 from lib.component_docs.owned_parts import SectionShape
 from lib.component_docs.owned_parts import edited_generated_lines
 from lib.component_docs.owned_parts import generated_heading_name
-from lib.component_docs.owned_parts import remove_section_owned_parts
 from lib.component_docs.owned_parts import replace_section_owned_parts
 from lib.component_docs.owned_parts import template_prefix_re
 from lib.component_docs.owned_parts import template_re
@@ -240,17 +237,6 @@ def has_blank_body(lines: list[str], section: HeadingBlock):
     return not "".join(lines[section["start"] + 1 : section["end"]]).strip()
 
 
-def remove_values_delta_section(
-    text: str, friendly: str, deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]] | None = None
-) -> tuple[str, bool, bool]:
-    """Remove the generated parts of `friendly`'s section: (new_text, removed, kept_user_text).
-
-    See remove_section_owned_parts."""
-    return remove_section_owned_parts(
-        text, _component_section(text, friendly, deps, canonical_names), _VALUES_DELTA_SHAPE
-    )
-
-
 def write_values_delta_section(
     text: str, friendly: str, heading_line: str, key_lines: list[str], ordering: OrderingContext
 ) -> str:
@@ -304,11 +290,13 @@ def sync_values_delta_sections(
     Writes them into the section for the key's identity (see
     _sync_section_key_lines), or creates one in values.yaml order. No new
     section is created for a key without key lines (a pure version bump needs no
-    gemeente action) or without a dependency/native entry.
+    gemeente action) or without a dependency/native entry. A key with a
+    section of its own is synced too when it no longer changed, so a
+    component back at its baseline loses its stale key lines.
     Returns (new_text, created_names, updated_names)."""
     created_names: list[str] = []
     updated_names: list[str] = []
-    for key in sorted(actual_changed_keys):
+    for key in sorted(actual_changed_keys | _keys_with_own_section(text, ordering)):
         key_lines = key_change_lines(key, baseline.values, ordering.values)
         section = values_delta_section_for(text, key, ordering.deps, ordering.canonical_names)
         if section is not None:
@@ -327,6 +315,16 @@ def sync_values_delta_sections(
         created_names.append(key)
 
     return text, created_names, updated_names
+
+
+def _keys_with_own_section(text: str, ordering: OrderingContext) -> set[str]:
+    """Values keys of the components a values-deltas section names alone."""
+    keys: set[str] = set()
+    for section in parse_values_delta_sections(text):
+        idents = changes_heading_identities(section["heading"], ordering.deps, ordering.canonical_names)
+        if len(idents) == 1 and (ident := next(iter(idents)))[0] == "dep":
+            keys.add(ident[1])
+    return keys
 
 
 def prune_empty_values_delta_sections(text: str) -> tuple[str, list[str]]:

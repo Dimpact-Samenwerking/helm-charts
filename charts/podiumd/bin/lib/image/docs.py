@@ -25,8 +25,6 @@ from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repo_group_representative
 from lib.chart.values_tree_primitives import dep_for_values_key
 from lib.chart.values_tree_primitives import image_version_changed
-from lib.chart.values_tree_primitives import replace_scalar_value
-from lib.chart.values_tree_primitives import text_at
 from lib.checks.digest_pinning import find_unresolved_subchart_images
 from lib.component_docs.changes_section import IMAGE_INTRO_KEPT
 from lib.component_docs.changes_section import IMAGE_INTRO_NEW
@@ -44,11 +42,6 @@ from lib.component_docs.changes_section import render_changes_section
 from lib.component_docs.changes_section import replace_changes_block
 from lib.component_docs.changes_section import replace_changes_section
 from lib.component_docs.changes_section import update_component_table
-from lib.component_docs.images_manifest_changes_header import find_changes_item
-from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
-from lib.component_docs.images_manifest_changes_header import images_manifest_changes_block
-from lib.component_docs.images_manifest_changes_header import remove_changes_item
-from lib.component_docs.images_manifest_changes_header import upsert_images_manifest_header_item
 from lib.image.digests import cached_tag_exists
 from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
@@ -59,8 +52,6 @@ from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.consistency_checks import find_changes_row_correspondence_gaps
 from lib.upgradedoc.consistency_checks import resolve_component_identity
 from lib.upgradedoc.consistency_checks import rowed_sidecar_paths
-from lib.upgradedoc.grouped_comments_and_changes_block import find_preceding_comment_line
-from lib.upgradedoc.images_manifest_ordering import delete_images_manifest_entry
 from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
@@ -70,11 +61,8 @@ from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import ComponentRef
 from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
-from lib.upgradedoc.string_and_parsing_basics import extract_source_version
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
-from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text
 from lib.upgradedoc.version_cells_and_key_changes import pin_version_text
-from lib.upgradedoc.version_cells_and_key_changes import replace_version_pair
 from lib.upgradedoc.version_cells_and_key_changes import version_change_suffix
 from lib.upgradedoc.version_cells_and_key_changes import version_transition
 from lib.yaml_types import YamlMapping
@@ -479,135 +467,6 @@ def rebuild_changes_sections_contradicting_rows(
             text = replace_changes_block(text, block, section.expected_section)
             rebuilt.append(section)
     return text, rebuilt
-
-
-def resolve_basename_baseline_version(
-    baseline_values: YamlMapping | None, full_paths: list[tuple[str, str | None]]
-) -> str | None:
-    """The baseline version shared by all of a basename's touched pins, or None if they differ or are absent.
-
-    A uniform baseline lets a bump repeated within a release document
-    baseline -> latest instead of each intermediate hop. `full_paths` is
-    [(dotted "...tag" path, old_version), ...].
-    """
-    versions: set[str] = set()
-    for dotted_path, _old_version in full_paths:
-        tag = text_at(baseline_values, dotted_path)
-        if not isinstance(tag, str) or not tag:
-            return None
-        versions.add(tag.split("@", 1)[0])
-    return next(iter(versions)) if len(versions) == 1 else None
-
-
-@dataclass
-class ImageBump:
-    """A shared image basename's version-bump facts, for locating its images-manifest entry."""
-
-    basename: str
-    repository: str
-    old_version: str | None
-    new_version: str
-    digest: str
-
-
-def _find_manifest_entry(lines: list[str], repository: str):
-    """(entry_line, block_end) of the first entry whose host-stripped "url:" is `repository`, or (None, None)."""
-    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
-    url_re = re.compile(r"^\s*url:\s*(\S+)\s*$")
-    for idx in entry_line_indices:
-        block_end = len(lines)
-        for j in range(idx + 1, len(lines)):
-            if re.match(r"^-\s*name:", lines[j]) or not lines[j].strip():
-                block_end = j
-                break
-        for j in range(idx, block_end):
-            m = url_re.match(lines[j])
-            if m and m.group(1).rstrip("/").endswith(repository):
-                return idx, block_end
-    return None, None
-
-
-def _update_manifest_entry_scalars(
-    lines: list[str], entry_line: int | None, block_end: int | None, new_version: str, digest: str
-):
-    """Set the entry's "version:"/"digest:" in place; False (no-op) when entry_line is None."""
-    if entry_line is None or block_end is None:
-        return False
-    entry_updated = False
-    for i in range(entry_line, block_end):
-        m = re.match(r"^\s*(version|digest):", lines[i])
-        if not m:
-            continue
-        new_value = new_version if m.group(1) == "version" else digest
-        lines[i] = replace_scalar_value(lines[i], new_value)
-        entry_updated = True
-    return entry_updated
-
-
-def update_image_manifest(images_path: Path, bump: ImageBump):
-    """Update the changes-header item and images-manifest entry for a shared image basename bump.
-
-    The entry is matched by host-stripped "url:" against `bump.repository`.
-    Returns (changes_action, entry_updated); a missing entry is not created
-    here but by the closing fix-doc-consistency run, which also puts a new
-    header item in place.
-    """
-    original_text = images_path.read_text(encoding="utf-8")
-    lines = original_text.splitlines(keepends=True)
-
-    item_text = f"{bump.basename} {image_manifest_version_text(bump.old_version, bump.new_version)}."
-    changes_action = upsert_images_manifest_header_item(lines, bump.basename, item_text)
-
-    entry_line, block_end2 = _find_manifest_entry(lines, bump.repository)
-    entry_updated = _update_manifest_entry_scalars(lines, entry_line, block_end2, bump.new_version, bump.digest)
-    if entry_line is not None:
-        comment_idx = find_preceding_comment_line(lines, entry_line)
-        if comment_idx is not None:
-            current_source = extract_source_version(lines[comment_idx])
-            if current_source:
-                lines[comment_idx] = replace_version_pair(lines[comment_idx], current_source, bump.new_version)
-
-    new_text = "".join(lines)
-    if new_text != original_text:
-        images_path.write_text(new_text, encoding="utf-8")
-    return changes_action, entry_updated
-
-
-def _remove_manifest_changes_header_item(lines: list[str], basename: str):
-    """Delete the basename's changes-header item and renumber; "removed", or None if nothing matched."""
-    header_idx, _header_has_count = find_images_manifest_changes_header(lines)
-    if header_idx is None:
-        return None
-    item_indices, _block_end = images_manifest_changes_block(lines, header_idx)
-    match_idx = find_changes_item(lines, item_indices, basename)
-    if match_idx is None:
-        return None
-
-    remove_changes_item(lines, item_indices, match_idx)
-    return "removed"
-
-
-def remove_image_manifest_entry(images_path: Path, basename: str, repository: str):
-    """Counterpart to update_image_manifest for a shared-image bump that
-    nets out to no change from baseline at all: removes the "changes:"
-    list item and the matching entry with its own comment, since the
-    manifest only lists images that changed. A same-version re-pin with
-    a new digest is added back as "(digest changed)" by the
-    fix-doc-consistency run that follows. Returns (changes_action,
-    entry_removed)."""
-    original_text = images_path.read_text(encoding="utf-8")
-    lines = original_text.splitlines(keepends=True)
-
-    changes_action = _remove_manifest_changes_header_item(lines, basename)
-
-    entry_line, _block_end = _find_manifest_entry(lines, repository)
-    if entry_line is not None:
-        delete_images_manifest_entry(lines, entry_line)
-
-    new_text = "".join(lines)
-    if new_text != original_text:
-        images_path.write_text(new_text, encoding="utf-8")
-    return changes_action, entry_line is not None
 
 
 IMAGES_BASELINE_HEADER = (

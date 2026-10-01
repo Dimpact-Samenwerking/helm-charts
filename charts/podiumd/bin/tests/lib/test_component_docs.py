@@ -141,40 +141,6 @@ def test_images_manifest_path(tmp_path: Path):
     assert images_manifest_path(tmp_path, "4.9.0") == tmp_path / "images-4.9.0.yaml"
 
 
-# --- baseline_doc_paths ---
-
-
-def test_baseline_doc_paths_none_baseline_returns_none_none(
-    libcomponentdocs: ModuleType, libcomponentdocsbaselinedocstubs: ModuleType, tmp_path: Path
-):
-    assert libcomponentdocsbaselinedocstubs.baseline_doc_paths(tmp_path, None, "4.9.0") == (None, None)
-
-
-def test_baseline_doc_paths_missing_upgrade_doc_returns_none_none(
-    libcomponentdocs: ModuleType, libcomponentdocsbaselinedocstubs: ModuleType, tmp_path: Path
-):
-    assert libcomponentdocsbaselinedocstubs.baseline_doc_paths(tmp_path, "4.8.5", "4.9.0") == (None, None)
-
-
-def test_baseline_doc_paths_finds_both(
-    libcomponentdocs: ModuleType, libcomponentdocsbaselinedocstubs: ModuleType, tmp_path: Path
-):
-    (tmp_path / "4.8.5-to-4.9.0-upgrade.md").write_text("x", encoding="utf-8")
-    (tmp_path / "4.8.5-to-4.9.0-values-deltas.md").write_text("x", encoding="utf-8")
-    upgrade_path, values_deltas_path = libcomponentdocsbaselinedocstubs.baseline_doc_paths(tmp_path, "4.8.5", "4.9.0")
-    assert upgrade_path == tmp_path / "4.8.5-to-4.9.0-upgrade.md"
-    assert values_deltas_path == tmp_path / "4.8.5-to-4.9.0-values-deltas.md"
-
-
-def test_baseline_doc_paths_missing_values_deltas_is_none(
-    libcomponentdocs: ModuleType, libcomponentdocsbaselinedocstubs: ModuleType, tmp_path: Path
-):
-    (tmp_path / "4.8.5-to-4.9.0-upgrade.md").write_text("x", encoding="utf-8")
-    upgrade_path, values_deltas_path = libcomponentdocsbaselinedocstubs.baseline_doc_paths(tmp_path, "4.8.5", "4.9.0")
-    assert upgrade_path == tmp_path / "4.8.5-to-4.9.0-upgrade.md"
-    assert values_deltas_path is None
-
-
 # --- existing_doc_baselines ---
 
 
@@ -273,6 +239,13 @@ def test_create_missing_docs_nothing_to_do_when_all_exist(
 def test_values_delta_section_heading_app_changed_chart_unchanged(libcomponentdocsdeltas: ModuleType):
     heading = libcomponentdocsdeltas.values_delta_section_heading("zac", "5.0.2", "5.4.3", "1.0.297", "1.0.297")
     assert heading == "## zac 5.0.2 → 5.4.3 (chart 1.0.297, unchanged)\n"
+
+
+def test_values_delta_section_heading_app_and_chart_changed(libcomponentdocsdeltas: ModuleType):
+    heading = libcomponentdocsdeltas.values_delta_section_heading(
+        "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.13.0"
+    )
+    assert heading == "## openformulieren 3.4.10 → 3.5.6 (chart 1.12.0 → 1.13.0)\n"
 
 
 def test_values_delta_section_heading_native_component_omits_chart_clause(libcomponentdocsdeltas: ModuleType):
@@ -853,27 +826,6 @@ def test_append_values_delta_section_body_adds_after_existing_content(libcompone
     sections = libcomponentdocsdeltas.find_values_delta_section(text, "kiss", [{"name": "kiss", "version": "1.0.0"}])
     new_text = libcomponentdocsdeltas.append_values_delta_section_body(text, sections, ["- Key `kiss.a` was added.\n"])
     assert "Some prose.\n\n- Key `kiss.a` was added.\n\n## PABC" in new_text
-
-
-def test_remove_values_delta_section_never_removes_multi_identity_heading(libcomponentdocsdeltas: ModuleType):
-    """A hand-written section covering several components at once must
-    never be deleted just because one of them reset to baseline."""
-    text = "# Values deltas\n\n## ZAC and ZGW Office Add-in — no changes\n\nProse.\n"
-    deps: list[ChartDependency] = [*DEPS, {"name": "zgw-office-addin", "version": "0.0.89"}]
-    assert libcomponentdocsdeltas.remove_values_delta_section(text, "zac", deps) == (text, False, False)
-
-
-def test_remove_values_delta_section_keeps_hand_written_text(libcomponentdocsdeltas: ModuleType):
-    """Only the generated key lines go; the heading and the user's note stay."""
-    text = (
-        "# Values deltas\n\n## zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)\n\n"
-        "- Key `zac.foo` was added.\n\nSet foo per gemeente.\n\n## Other\n\nx\n"
-    )
-    new_text, removed, kept = libcomponentdocsdeltas.remove_values_delta_section(text, "zac", DEPS)
-    assert (removed, kept) == (True, True)
-    assert new_text == (
-        "# Values deltas\n\n## zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)\n\nSet foo per gemeente.\n\n## Other\n\nx\n"
-    )
 
 
 def test_write_values_delta_section_replaces_generated_lines_and_keeps_user_text(libcomponentdocsdeltas: ModuleType):

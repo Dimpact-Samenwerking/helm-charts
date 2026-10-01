@@ -104,18 +104,6 @@ def component_version_cell(old: str | None, new: str | None) -> str | None:
     return new
 
 
-def replace_version_pair(line: str, new_source: str, new_target: str):
-    """Replace the first "<source> -> <target>" (or "→") pair in line with
-    new_source/new_target, preserving everything else (the "# <Name> — "
-    prefix, arrow style, trailing newline)."""
-
-    def repl(m: re.Match[str]):
-        return f"{new_source} {m.group('arrow')} {new_target}"
-
-    new_line, count = VERSION_PAIR_RE.subn(repl, line, count=1)
-    return new_line if count else line
-
-
 def replace_version_spec(line: str, new_spec: str):
     """Replace the first version spec in `line` with `new_spec`; `line` unchanged if none.
 

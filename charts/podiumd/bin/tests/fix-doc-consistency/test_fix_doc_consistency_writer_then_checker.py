@@ -217,3 +217,83 @@ def test_a_second_sidecar_bump_rewrites_the_generated_lines_of_its_section(write
     assert "- `zac.opa.image.tag` `1.4.1` → `1.4.3`" in docs[UPGRADE]
     assert "1.4.2" not in docs[UPGRADE]
     assert note in docs[UPGRADE]
+
+
+def with_curl(values: dict[str, object], curl: str) -> dict[str, object]:
+    return {"global": {"images": {"curl": image("curlimages/curl", curl)}}, **values}
+
+
+def test_a_component_bumped_and_reset_to_its_baseline_leaves_no_docs(writer_then_checker):
+    baseline = {"zac": {**zac("5.4.4"), "oldFeature": {"enabled": True}}}
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC], "values": baseline},
+        {"version": "4.9.0", "deps": [ZAC], "values": baseline},
+        earlier={"version": "4.9.0", "deps": [ZAC], "values": {"zac": zac("5.4.5")}},
+    )
+
+    assert "zac" not in docs[UPGRADE]
+    assert "zac" not in docs[DELTAS]
+    assert "zac" not in docs[MANIFEST]
+    assert "- name:" not in docs[MANIFEST]
+
+
+def test_a_shared_image_bumped_twice_is_documented_from_its_baseline(writer_then_checker):
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC], "values": with_curl({"zac": zac("5.4.4")}, "8.1.0")},
+        {"version": "4.9.0", "deps": [ZAC], "values": with_curl({"zac": zac("5.4.4")}, "8.3.0")},
+        earlier={"version": "4.9.0", "deps": [ZAC], "values": with_curl({"zac": zac("5.4.4")}, "8.2.0")},
+    )
+
+    assert "| curl | 8.1.0 → 8.3.0 | - | - |" in docs[UPGRADE]
+    assert "- `global.images.curl.tag` `8.1.0` → `8.3.0`" in docs[UPGRADE]
+    assert "8.2.0" not in docs[UPGRADE] + docs[MANIFEST]
+    assert "#   1. curl 8.1.0 -> 8.3.0." in docs[MANIFEST]
+
+
+def test_a_shared_image_reset_to_its_baseline_leaves_no_docs(writer_then_checker):
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC], "values": with_curl({"zac": zac("5.4.4")}, "8.1.0")},
+        {"version": "4.9.0", "deps": [ZAC], "values": with_curl({"zac": zac("5.4.4")}, "8.1.0")},
+        earlier={"version": "4.9.0", "deps": [ZAC], "values": with_curl({"zac": zac("5.4.4")}, "8.2.0")},
+    )
+
+    assert "curl" not in docs[UPGRADE] + docs[MANIFEST]
+
+
+def test_a_shared_image_absent_at_the_baseline_is_new(writer_then_checker):
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC], "values": {"zac": zac("5.4.4")}},
+        {"version": "4.9.0", "deps": [ZAC], "values": with_curl({"zac": zac("5.4.4")}, "8.2.0")},
+    )
+
+    assert "| curl | 8.2.0 (new) | - | - |" in docs[UPGRADE]
+    assert "#   1. curl 8.2.0 (new)." in docs[MANIFEST]
+
+
+def test_a_sidecar_bump_keeps_its_parents_own_row(writer_then_checker):
+    opa = image("openpolicyagent/opa", "1.4.1")
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC], "values": {"zac": zac("5.4.4", opa=opa)}},
+        {"version": "4.9.0", "deps": [ZAC], "values": {"zac": zac("5.4.5", opa=image("openpolicyagent/opa", "1.4.2"))}},
+        earlier={"version": "4.9.0", "deps": [ZAC], "values": {"zac": zac("5.4.5", opa=opa)}},
+    )
+
+    assert ("| zac | 5.4.4 → 5.4.5 | 1.0.297 (unchanged) | - |\n| zac - opa | 1.4.1 → 1.4.2 | - | - |\n") in docs[
+        UPGRADE
+    ]
+
+
+def test_a_sidecar_reset_to_its_baseline_keeps_its_parents_docs(writer_then_checker):
+    opa = image("openpolicyagent/opa", "1.4.1")
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC], "values": {"zac": zac("5.4.4", opa=opa)}},
+        {"version": "4.9.0", "deps": [ZAC], "values": {"zac": zac("5.4.5", opa=opa)}},
+        earlier={
+            "version": "4.9.0",
+            "deps": [ZAC],
+            "values": {"zac": zac("5.4.5", opa=image("openpolicyagent/opa", "1.4.2"))},
+        },
+    )
+
+    assert "| zac | 5.4.4 → 5.4.5 | 1.0.297 (unchanged) | - |" in docs[UPGRADE]
+    assert "opa" not in docs[UPGRADE] + docs[MANIFEST]

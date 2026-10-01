@@ -3,11 +3,11 @@
 import importlib.util
 import subprocess
 
-from collections.abc import Callable
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from types import ModuleType
 from types import SimpleNamespace
+from typing import Protocol
 from typing import Required
 from typing import TypedDict
 
@@ -358,7 +358,10 @@ def _doc_snapshot(chart_dir: Path) -> dict[str, str]:
     }
 
 
-WriterThenChecker = Callable[[ChartState, ChartState], dict[str, str]]
+class WriterThenChecker(Protocol):
+    def __call__(
+        self, baseline: ChartState, target: ChartState, *, earlier: ChartState | None = None
+    ) -> dict[str, str]: ...
 
 
 @pytest.fixture
@@ -367,11 +370,13 @@ def writer_then_checker(
 ) -> WriterThenChecker:
     """Run fix-doc-consistency from `baseline` (tagged podiumd-<version>) to `target`; return the docs it wrote.
 
-    Fails unless check_docs_consistency then reports nothing and a second
+    With `earlier`, the docs of that state are written first, as for an
+    earlier bump in the same release cycle. Fails unless
+    check_docs_consistency then reports nothing and a second
     fix-doc-consistency run changes nothing: writers and checker must agree.
     """
 
-    def run(baseline: ChartState, target: ChartState) -> dict[str, str]:
+    def run(baseline: ChartState, target: ChartState, *, earlier: ChartState | None = None) -> dict[str, str]:
         git("init", "-q", cwd=tmp_path)
         git("config", "user.email", "test@example.com", cwd=tmp_path)
         git("config", "user.name", "Test", cwd=tmp_path)
@@ -381,16 +386,18 @@ def writer_then_checker(
         git("tag", f"podiumd-{baseline['version']}", cwd=tmp_path)
         (tmp_path / "docs" / "_UPGRADE_PATHS").mkdir(parents=True, exist_ok=True)
         (tmp_path / "docs" / "images").mkdir(parents=True, exist_ok=True)
-        _write_state(tmp_path, target)
-        git("add", "-A", cwd=tmp_path)
-        git("commit", "-q", "-m", "target", cwd=tmp_path)
-
         monkeypatch.setattr("sys.argv", ["fix-doc-consistency"])
         monkeypatch.setattr(cdb, "read_upgrade_docs_baseline", lambda chart_dir: baseline["version"])
         monkeypatch.setattr(cdb, "DOC_DIR", tmp_path / "docs" / "_UPGRADE_PATHS")
         monkeypatch.setattr(cdb, "IMAGES_DIR", tmp_path / "docs" / "images")
         monkeypatch.setattr(cdb, "CHART_YAML", tmp_path / "Chart.yaml")
         monkeypatch.setattr(cdb, "current_chart_version", lambda: target["version"])
+        if earlier is not None:
+            _write_state(tmp_path, earlier)
+            cdb.main()
+        _write_state(tmp_path, target)
+        git("add", "-A", cwd=tmp_path)
+        git("commit", "-q", "-m", "target", cwd=tmp_path)
 
         cdb.main()
         written = _doc_snapshot(tmp_path)

@@ -331,32 +331,6 @@ def canonical_sidecar_row_names(
     return names
 
 
-def doc_row_name(
-    chart_dir: Path,
-    deps: list[ChartDependency],
-    values: YamlMapping,
-    path: tuple[str, ...],
-    all_paths: list[tuple[str, ...]],
-) -> str | None:
-    """The upgrade-doc row name for the image at `path` (ending in the image key), or None.
-
-    path[0] for a primary image, else its canonical_sidecar_row_names name,
-    or the owner's row name when the repository is also an owner's primary.
-    update-image-version uses this so rows match what the checks resolve.
-    """
-    names = canonical_sidecar_row_names(chart_dir, deps, values, all_paths)
-    _sidecar_paths, _global_paths, primary_paths = _classify_image_paths(chart_dir, deps, [*all_paths, path])
-    if path in primary_paths:
-        return path[0]
-    for group in paths_by_repository(chart_dir, deps, values, all_paths).values():
-        if path in group:
-            primary = next((group_path for group_path in group if group_path in primary_paths), None)
-            if primary is not None:
-                return primary[0]
-            return next((name for name, name_path in names.items() if name_path in group), None)
-    return None
-
-
 def _owner_name(deps: list[ChartDependency], natives: frozenset[str], path: tuple[str, ...]) -> str | None:
     """The Chart.yaml dependency name or native component (`natives`)
     that owns values-tree `path` (by its top-level key), or None."""

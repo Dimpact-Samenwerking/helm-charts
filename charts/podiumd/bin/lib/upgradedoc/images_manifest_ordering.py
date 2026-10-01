@@ -128,7 +128,8 @@ def delete_images_manifest_entry(lines: list[str], entry_line_idx: int) -> None:
     comment of its own, since that entry shares it. A blank line left
     doubled by the deletion is dropped too, and so is a blank line left
     right below a kept comment, so a divider stays on top of the next
-    entry."""
+    entry. Deleting the last entry leaves the stub's bare "[]", so the file
+    stays a YAML list."""
     block_end = entry_line_idx + 1
     while block_end < len(lines):
         line = lines[block_end]
@@ -145,6 +146,10 @@ def delete_images_manifest_entry(lines: list[str], entry_line_idx: int) -> None:
             del lines[start]
     elif start == len(lines) and start > 0 and not lines[start - 1].strip():
         del lines[start - 1]
+    if not any(re.match(r"^-\s*name:", line) for line in lines):
+        if lines and not lines[-1].endswith("\n"):
+            lines[-1] += "\n"
+        lines.append("\n[]\n" if lines and lines[-1].strip() else "[]\n")
 
 
 def header_name_segment(text: str) -> str:
