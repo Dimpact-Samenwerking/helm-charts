@@ -8,7 +8,6 @@ from lib.chart.chart_yaml import parse_chart_dependencies
 from lib.component_docs.changes_section import BaselineState
 from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import DocContext
-from lib.component_docs.changes_section import OrderingContext
 from lib.component_docs.images_manifest_entries import expected_changes_items
 from lib.component_docs.images_manifest_entries import fix_stale_changes_items
 from lib.component_docs.images_manifest_entries import stale_changes_items
@@ -16,6 +15,7 @@ from lib.image.docs import changes_sections_contradicting_rows
 from lib.image.docs import rebuild_changes_sections_contradicting_rows
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.resolve_component_row import compare_component_to_baseline
+from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.yaml_types import parse_yaml_mapping
 
 TARGET_DEPS = parse_chart_dependencies(

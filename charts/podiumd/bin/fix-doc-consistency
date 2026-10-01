@@ -67,11 +67,11 @@ from lib.component_docs.baseline_doc_stubs import existing_doc_baselines
 from lib.component_docs.changes_section import BaselineState
 from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import DocContext
-from lib.component_docs.changes_section import OrderingContext
 from lib.component_docs.changes_section import add_missing_component_rows
 from lib.component_docs.changes_section import fix_pointer_issues
 from lib.component_docs.changes_section import strip_stale_upgrade_placeholders
 from lib.component_docs.images_manifest_changes_header import renumber_images_manifest_changes_items
+from lib.component_docs.removed_item_docs import sync_removed_items
 from lib.component_docs.values_delta_sections import prune_empty_values_delta_sections
 from lib.component_docs.values_delta_sections import strip_stale_values_deltas_todo_stub
 from lib.component_docs.values_delta_sections import sync_values_delta_sections
@@ -88,6 +88,9 @@ from lib.fix_doc_consistency.manifest_changes_items import dedupe_images_manifes
 from lib.fix_doc_consistency.manifest_changes_items import sort_images_manifest_changes_items
 from lib.gitutil import git_show_text
 from lib.upgradedoc.chart_image_index import ChartImageIndex
+from lib.upgradedoc.removed_items import RemovedItem
+from lib.upgradedoc.removed_items import removed_items
+from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import load_yaml_mapping
 
@@ -387,9 +390,13 @@ def _remove_unchanged_component_rows(
     return text, bool(removed_names)
 
 
-def _correct_component_table(text: str, upgrade_path: Path, resolution: ResolutionContext, new_baseline: str):
+def _correct_component_table(text: str, upgrade_path: Path, resolution: ResolutionContext, state: RebaseState):
     """Fix wrong app/chart cells in the Component versions table. Returns (text, changed)."""
+    new_baseline = state.new_baseline
     text, changed_rows, unmatched_names, unresolved_names = fix_component_version_table(text, resolution)
+    # Removed items' rows are written by _sync_removed_items.
+    removed_names = {item.name for item in _removed_items_ordering(state)[0]}
+    unmatched_names = [name for name in unmatched_names if name not in removed_names]
     if changed_rows:
         print_section(f"Correcting component version table in {upgrade_path.name}")
         for name, app_cell, chart_cell in changed_rows:
@@ -442,8 +449,8 @@ def _add_missing_component_and_sidecar_rows(
 
 def _fix_upgrade_doc_headings(
     text: str, state: RebaseState, upgrade_path: Path, resolution: ResolutionContext
-) -> tuple[str, dict[str, ImagePath], bool]:
-    """Add missing '### ...' sections and fix heading app versions. Returns (text, canonical_names, changed)."""
+) -> tuple[str, bool]:
+    """Add missing '### ...' sections and fix heading app versions. Returns (text, changed)."""
     canonical_names = ChartImageIndex(CHART_YAML.parent, state.target_deps, state.target_values).canonical_names
 
     doc_context = DocContext(CHART_YAML.parent, state.target)
@@ -467,7 +474,7 @@ def _fix_upgrade_doc_headings(
         f"in {upgrade_path.name}",
         wrong,
     )
-    return text, canonical_names, changed
+    return text, changed
 
 
 def _add_missing_pin_bullets(text: str, upgrade_path: Path) -> tuple[str, bool]:
@@ -486,16 +493,32 @@ def _fix_pointer_issues(text: str, upgrade_path: Path, target: str) -> tuple[str
     return text, print_section_items(f"Fixing the image digest pointer in {upgrade_path.name}", items)
 
 
-def _reorder_upgrade_doc(
-    text: str,
-    upgrade_path: Path,
-    target_deps: list[ChartDependency],
-    target_values: YamlMapping,
-    canonical_names: dict[str, ImagePath],
-):
+def _removed_items_ordering(state: RebaseState) -> tuple[list[RemovedItem], OrderingContext]:
+    """The removed items vs the baseline, and the OrderingContext that places them."""
+    target = ChartImageIndex(CHART_YAML.parent, state.target_deps, state.target_values)
+    items = (
+        removed_items(target, ChartImageIndex(CHART_YAML.parent, state.baseline_deps, state.baseline_values))
+        if state.baseline_deps is not None
+        else []
+    )
+    removed_keys = {item.name: item.order_key for item in items}
+    return items, OrderingContext(state.target_deps, state.target_values, target.canonical_names, removed_keys)
+
+
+def _sync_removed_items(text: str, state: RebaseState, upgrade_path: Path) -> tuple[str, bool]:
+    """Add or rewrite the rows and Changes sections of removed components/images. Returns (text, changed)."""
+    items, ordering = _removed_items_ordering(state)
+    text, synced = sync_removed_items(text, items, state.target, ordering)
+    return text, print_section_items(
+        f"Adding or updating removed component/image row(s) + Changes section(s) in {upgrade_path.name}", synced
+    )
+
+
+def _reorder_upgrade_doc(text: str, upgrade_path: Path, state: RebaseState):
     """Order table rows and Changes blocks like values.yaml. Returns (text, changed)."""
-    text, moved_rows = sort_upgrade_doc_rows(text, target_deps, target_values, canonical_names)
-    text, moved_blocks = sort_changes_blocks(text, target_deps, target_values, canonical_names)
+    _items, ordering = _removed_items_ordering(state)
+    text, moved_rows = sort_upgrade_doc_rows(text, ordering)
+    text, moved_blocks = sort_changes_blocks(text, ordering)
     if moved_rows or moved_blocks:
         print_section(f"Reordering {upgrade_path.name} to match values.yaml's component order")
         for name, old_pos, new_pos in moved_rows:
@@ -520,21 +543,21 @@ def _fix_upgrade_doc(state: RebaseState, upgrade_path: Path, actual_changed_keys
     changed: list[bool] = []
     text, step_changed = _remove_unchanged_component_rows(text, upgrade_path, resolution, state.new_baseline)
     changed.append(step_changed)
-    text, step_changed = _correct_component_table(text, upgrade_path, resolution, state.new_baseline)
+    text, step_changed = _correct_component_table(text, upgrade_path, resolution, state)
     changed.append(step_changed)
     text, added_names, added_sidecar_names = _add_missing_component_and_sidecar_rows(
         text, state, upgrade_path, actual_changed_keys
     )
     changed += [bool(added_names), bool(added_sidecar_names)]
-    text, canonical_names, step_changed = _fix_upgrade_doc_headings(text, state, upgrade_path, resolution)
+    text, step_changed = _fix_upgrade_doc_headings(text, state, upgrade_path, resolution)
     changed.append(step_changed)
     text, step_changed = _add_missing_pin_bullets(text, upgrade_path)
     changed.append(step_changed)
     text, step_changed = _fix_pointer_issues(text, upgrade_path, state.target)
     changed.append(step_changed)
-    text, step_changed = _reorder_upgrade_doc(
-        text, upgrade_path, state.target_deps, state.target_values, canonical_names
-    )
+    text, step_changed = _sync_removed_items(text, state, upgrade_path)
+    changed.append(step_changed)
+    text, step_changed = _reorder_upgrade_doc(text, upgrade_path, state)
     changed.append(step_changed)
 
     # Also collapse double blank lines that predate this run.
@@ -824,7 +847,9 @@ def _sort_values_delta_sections(
     text: str, state: RebaseState, values_deltas_path: Path, canonical_names: dict[str, ImagePath]
 ):
     """Order '## ...' sections like values.yaml. Returns (text, changed)."""
-    text, moved_sections = sort_values_delta_sections(text, state.target_deps, state.target_values, canonical_names)
+    text, moved_sections = sort_values_delta_sections(
+        text, OrderingContext(state.target_deps, state.target_values, canonical_names)
+    )
     if moved_sections:
         print_section(f"Reordering {values_deltas_path.name} to match values.yaml's component order")
         for heading, old_pos, new_pos in moved_sections:

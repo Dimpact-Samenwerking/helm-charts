@@ -1,14 +1,19 @@
 """State types shared by check_docs_consistency's phase helpers."""
 
 from dataclasses import dataclass
+from dataclasses import field
 from pathlib import Path
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.component_docs.changes_section import BaselineState
 from lib.component_docs.changes_section import ComponentState
 from lib.settings import DigestPinningException
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.chart_image_index import ChartImageIndex
+from lib.upgradedoc.removed_items import RemovedItem
+from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.upgradedoc.string_and_parsing_basics import TableRow
+from lib.yaml_types import YamlMapping
 
 # A component as resolve_component_identity names it: ("dep", values_key)
 # or ("sidecar", values-tree path).
@@ -59,11 +64,17 @@ class DocsCheckContext:
 
 @dataclass
 class DocScanState:
-    """The selected upgrade doc: its path, parsed rows and canonical sidecar/shared-image names."""
+    """The selected upgrade doc: its path, parsed rows, canonical sidecar/shared-image names and removed items."""
 
     doc_path: Path
     rows: list[TableRow]
     canonical_names: dict[str, ImagePath]
+    removed: dict[str, RemovedItem] = field(default_factory=dict[str, RemovedItem])
+
+    def ordering(self, deps: list[ChartDependency], values: YamlMapping) -> OrderingContext:
+        """The OrderingContext fix-doc-consistency sorts this doc with."""
+        removed_keys = {name: item.order_key for name, item in self.removed.items()}
+        return OrderingContext(deps, values, self.canonical_names, removed_keys)
 
 
 @dataclass

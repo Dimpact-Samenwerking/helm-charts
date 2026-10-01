@@ -4,9 +4,9 @@ Must match check_docs_consistency (match_canonical_sidecar_name).
 """
 
 from lib.chart.chart_yaml import ChartDependency
-from lib.component_docs.changes_section import OrderingContext
 from lib.component_docs.changes_section import remove_changes_section
 from lib.component_docs.images_manifest_changes_header import find_changes_item
+from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.upgradedoc.string_and_parsing_basics import changes_item_names
 from lib.upgradedoc.string_and_parsing_basics import match_canonical_sidecar_name
 from lib.upgradedoc.string_and_parsing_basics import text_names

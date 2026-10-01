@@ -7,7 +7,6 @@ section gained before the "- Image / digest" pointer."""
 import pytest
 
 from lib.component_docs.changes_section import ComponentIdentity
-from lib.component_docs.changes_section import OrderingContext
 from lib.component_docs.changes_section import VersionChange
 from lib.component_docs.changes_section import changes_body_kinds
 from lib.component_docs.changes_section import edited_changes_lines
@@ -17,6 +16,7 @@ from lib.component_docs.changes_section import pointer_issues
 from lib.component_docs.changes_section import render_changes_section
 from lib.component_docs.changes_section import replace_changes_section
 from lib.image.docs import make_image_changes_section
+from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.upgradedoc.version_cells_and_key_changes import pin_version_text
 from lib.upgradedoc.version_cells_and_key_changes import version_transition
 

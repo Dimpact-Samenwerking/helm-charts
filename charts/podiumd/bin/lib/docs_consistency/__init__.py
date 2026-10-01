@@ -19,7 +19,6 @@ from lib.component_docs.aliased_pin_bullets import find_missing_pin_bullets
 from lib.component_docs.changes_section import BaselineState
 from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import DocContext
-from lib.component_docs.changes_section import OrderingContext
 from lib.component_docs.changes_section import edited_changes_lines
 from lib.component_docs.changes_section import pointer_issues
 from lib.component_docs.changes_section import resolve_component_own_version_change
@@ -27,6 +26,7 @@ from lib.component_docs.changes_section import strip_stale_upgrade_placeholders
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
 from lib.component_docs.images_manifest_entries import expected_changes_items
 from lib.component_docs.images_manifest_entries import stale_changes_items
+from lib.component_docs.removed_item_docs import removed_item_issues
 from lib.component_docs.values_delta_sections import edited_values_delta_lines
 from lib.component_docs.values_delta_sections import has_stale_gemeente_specific_placeholder
 from lib.component_docs.values_delta_sections import strip_stale_values_deltas_todo_stub
@@ -60,15 +60,18 @@ from lib.upgradedoc.consistency_checks import find_changes_duplicate_identities
 from lib.upgradedoc.consistency_checks import find_changes_row_correspondence_gaps
 from lib.upgradedoc.consistency_checks import find_wrong_or_duplicate_dependency_claims
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
+from lib.upgradedoc.removed_items import RemovedItem
+from lib.upgradedoc.removed_items import removed_item_named
+from lib.upgradedoc.removed_items import removed_items
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.resolve_component_row import ResolvedRow
 from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
 from lib.upgradedoc.resolve_component_row import resolve_component_row
 from lib.upgradedoc.resolve_component_row import resolved_row_unchanged
+from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.upgradedoc.sorting_and_ordering import find_out_of_order_names
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
-from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import TableRow
 from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
@@ -187,7 +190,7 @@ def _build_docs_check_context(
         ),
         images=StateImages(
             ChartImageIndex(chart_dir, deps, values),
-            ChartImageIndex(chart_dir, deps, baseline_values if baseline_ref else None),
+            ChartImageIndex(chart_dir, baseline_deps or [], baseline_values if baseline_ref else None),
         ),
         actual_changed_keys=actual_changed_keys,
     )
@@ -338,7 +341,8 @@ def _check_missing_component_rows(ctx: DocsCheckContext, scan: DocScanState, row
     (e.g. redis-ha under redis-operator). Only called when ctx.baseline_ref is set.
     """
     mismatches: list[str] = []
-    for key in sorted(ctx.actual_changed_keys - rows_result.changed_component_keys):
+    # A removed component's row is checked by removed_item_issues.
+    for key in sorted(ctx.actual_changed_keys - rows_result.changed_component_keys - set(scan.removed)):
         resolved = resolve_component_own_version_change(
             key,
             ComponentState(ctx.current.deps, ctx.current.values),
@@ -375,11 +379,8 @@ def _check_row_and_heading_order(ctx: DocsCheckContext, scan: DocScanState):
     _check_changes_heading_correspondence.
     """
     mismatches: list[str] = []
-    key_order = values_key_order(ctx.current.values)
-    row_names = [row["name"] for row in scan.rows]
-    for name_a, name_b in find_out_of_order_names(
-        row_names, ctx.current.deps, key_order, scan.canonical_names, ctx.current.values
-    ):
+    ordering = scan.ordering(ctx.current.deps, ctx.current.values)
+    for name_a, name_b in find_out_of_order_names([row["name"] for row in scan.rows], ordering):
         mismatches.append(
             f'{scan.doc_path.name}: "Component versions" table lists "{name_b}" right after "{name_a}", '
             f"but values.yaml lists {name_b} before {name_a} — rows should follow values.yaml's "
@@ -388,9 +389,7 @@ def _check_row_and_heading_order(ctx: DocsCheckContext, scan: DocScanState):
 
     doc_text = scan.doc_path.read_text(encoding="utf-8")
     changes_headings = [b["heading"] for b in parse_upgrade_doc_changes_blocks(doc_text)]
-    for name_a, name_b in find_out_of_order_names(
-        changes_headings, ctx.current.deps, key_order, scan.canonical_names, ctx.current.values
-    ):
+    for name_a, name_b in find_out_of_order_names(changes_headings, ordering):
         mismatches.append(
             f'{scan.doc_path.name}: "## Changes" section has "### {name_b}" right after "### {name_a}", '
             f"but values.yaml lists the {name_b} component before {name_a} — Changes blocks should "
@@ -441,8 +440,12 @@ def _check_changes_heading_correspondence(
         return []
 
     mismatches: list[str] = []
+    # A removed item's row and section are paired by removed_item_issues.
     rows_without_heading, headings_without_row = find_changes_row_correspondence_gaps(
-        scan.rows, changes_headings, ctx.current.deps, scan.canonical_names
+        scan.rows,
+        [heading for heading in changes_headings if removed_item_named(heading, scan.removed) is None],
+        ctx.current.deps,
+        scan.canonical_names,
     )
     mismatches.extend(
         f'{scan.doc_path.name}: table row "{name}" has no matching "### ..." section under "## Changes"'
@@ -573,6 +576,13 @@ def _warn_edited_generated_lines(doc_path: Path, heading_marker: str, edited: li
         )
 
 
+def _removed_items_by_name(ctx: DocsCheckContext) -> dict[str, RemovedItem]:
+    """The components and images removed vs the baseline; none without a baseline_ref."""
+    if not ctx.baseline_ref:
+        return {}
+    return {item.name: item for item in removed_items(ctx.images.current, ctx.images.baseline)}
+
+
 def _check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
     """The "Component versions" section: per-row, missing-row, ordering and Changes-heading checks.
 
@@ -582,30 +592,33 @@ def _check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
     if doc_path is None:
         return
 
-    canonical_names = ctx.images.current.canonical_names
     resolution = ResolutionContext(
         ctx.chart_dir,
         ComponentState(ctx.current.deps, ctx.current.values),
         BaselineState(ctx.baseline.deps if ctx.baseline_ref else None, ctx.baseline.values),
         ctx.doc_query.upgrade_docs_baseline if ctx.baseline_ref else None,
     )
-    rows = list(parse_upgrade_doc_rows(doc_path))
+    scan = DocScanState(
+        doc_path,
+        list(parse_upgrade_doc_rows(doc_path)),
+        ctx.images.current.canonical_names,
+        _removed_items_by_name(ctx),
+    )
 
     # Duplicate row names, and free-form rows fuzzy-matching a dependency another row claims.
     duplicate_names, wrong_fuzzy_names = find_wrong_or_duplicate_dependency_claims(
-        [row["name"] for row in rows], ctx.current.deps
+        [row["name"] for row in scan.rows if row["name"] not in scan.removed], ctx.current.deps
     )
     findings.mismatches.extend(
         f'{doc_path.name}: doc row "{name}" is wrong or stale — not found in Chart.yaml or values.yaml'
         for name in sorted(duplicate_names | wrong_fuzzy_names)
     )
 
-    row_lookup = RowLookup(canonical_names, duplicate_names | wrong_fuzzy_names)
-    row_ctx = RowContext(doc_path, ctx.baseline_ref)
-    rows_result = _check_component_rows(rows, row_ctx, row_lookup, resolution)
+    # Removed items' rows are checked by removed_item_issues below.
+    row_lookup = RowLookup(scan.canonical_names, duplicate_names | wrong_fuzzy_names | set(scan.removed))
+    rows_result = _check_component_rows(scan.rows, RowContext(doc_path, ctx.baseline_ref), row_lookup, resolution)
     findings.mismatches.extend(rows_result.mismatches)
 
-    scan = DocScanState(doc_path, rows, canonical_names)
     if ctx.baseline_ref:
         findings.mismatches.extend(_check_missing_component_rows(ctx, scan, rows_result))
 
@@ -618,6 +631,15 @@ def _check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
     findings.mismatches.extend(_stale_changes_item_mismatches(ctx, scan, resolution))
     findings.mismatches.extend(_contradicting_section_mismatches(ctx, scan, doc_text))
     findings.mismatches.extend(_pointer_mismatches(doc_path, doc_text))
+    findings.mismatches.extend(
+        removed_item_issues(
+            doc_path.name,
+            doc_text,
+            list(scan.removed.values()),
+            ctx.doc_query.podiumd_version,
+            scan.ordering(ctx.current.deps, ctx.current.values),
+        )
+    )
     _warn_edited_generated_lines(doc_path, "###", edited_changes_lines(doc_text))
 
 
@@ -713,7 +735,8 @@ def _check_values_deltas(ctx: DocsCheckContext, findings: Findings):
     findings.mismatches.extend(
         check_values_deltas_content(
             values_deltas_path,
-            ctx.actual_changed_keys,
+            # Removed components are listed in the upgrade doc only.
+            ctx.actual_changed_keys - set(_removed_items_by_name(ctx)),
             ValuesDeltaInputs(
                 ctx.baseline.values, ctx.current.values, ctx.current.deps, ctx.images.current.canonical_names
             ),
@@ -723,11 +746,9 @@ def _check_values_deltas(ctx: DocsCheckContext, findings: Findings):
     deltas_text = values_deltas_path.read_text(encoding="utf-8")
     _warn_edited_generated_lines(values_deltas_path, "##", edited_values_delta_lines(deltas_text))
 
-    deltas_key_order = values_key_order(ctx.current.values)
     deltas_headings = [s["heading"] for s in parse_values_delta_sections(deltas_text)]
-    for name_a, name_b in find_out_of_order_names(
-        deltas_headings, ctx.current.deps, deltas_key_order, ctx.images.current.canonical_names, ctx.current.values
-    ):
+    ordering = OrderingContext(ctx.current.deps, ctx.current.values, ctx.images.current.canonical_names)
+    for name_a, name_b in find_out_of_order_names(deltas_headings, ordering):
         findings.mismatches.append(
             f'{values_deltas_path.name}: "## {name_b}" section comes right after "## {name_a}", '
             f"but values.yaml lists the {name_b} component before {name_a} — sections should follow "

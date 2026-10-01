@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.component_docs.changes_section import BaselineState
-from lib.component_docs.changes_section import OrderingContext
+from lib.upgradedoc.sorting_and_ordering import OrderingContext
 
 if TYPE_CHECKING:
     from lib.yaml_types import YamlMapping

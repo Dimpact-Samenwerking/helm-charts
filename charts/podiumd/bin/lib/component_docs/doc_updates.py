@@ -9,7 +9,6 @@ from pathlib import Path
 
 from lib.cli import print_section
 from lib.component_docs import NO_CHANGES_CLAIMED_RE
-from lib.component_docs.changes_section import OrderingContext
 from lib.component_docs.changes_section import VersionChange
 from lib.component_docs.changes_section import remove_changes_section
 from lib.component_docs.changes_section import remove_component_row
@@ -17,6 +16,7 @@ from lib.component_docs.changes_section import replace_changes_section
 from lib.component_docs.changes_section import update_component_table
 from lib.component_docs.values_delta_sections import write_values_delta_section
 from lib.procutil import run_script
+from lib.upgradedoc.sorting_and_ordering import OrderingContext
 
 FIX_DOC_CONSISTENCY_SCRIPT = Path(__file__).resolve().parents[2] / "fix-doc-consistency"
 

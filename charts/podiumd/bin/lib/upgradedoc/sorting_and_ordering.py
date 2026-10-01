@@ -4,6 +4,8 @@ import re
 
 from collections.abc import Mapping
 from collections.abc import Sequence
+from dataclasses import dataclass
+from dataclasses import field
 from itertools import pairwise
 from typing import TypedDict
 from typing import TypeVar
@@ -13,6 +15,7 @@ from lib.chart.registered_paths import is_primary_image_path
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import match_located_line
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
+from lib.upgradedoc.string_and_parsing_basics import text_names
 from lib.yaml_types import YamlMapping
 
 CHANGES_BLOCK_HEADING_RE = re.compile(r"^###\s+(.+)$")
@@ -101,25 +104,35 @@ def component_order_key(
     return min(keys, default=path_order_key(None, deps, key_order))
 
 
-def find_out_of_order_names(
-    names: list[str],
-    deps: list[ChartDependency],
-    key_order: list[str],
-    canonical_names: Mapping[str, tuple[str, ...]] | None = None,
-    values: YamlMapping | None = None,
-) -> list[tuple[str, str]]:
-    """Every adjacent (a, b) pair whose component_order_key order is inverted.
+@dataclass
+class OrderingContext:
+    """What a doc item's order depends on; key(name) is the component_order_key every sorter and check uses.
 
-    Adjacent pairs suffice to detect any non-monotonic sequence. Unresolved names
-    share one sentinel key and never flag each other. Without values, canonical
-    sidecar names under the same top-level key tie and are never flagged."""
-    violations: list[tuple[str, str]] = []
-    for a, b in pairwise(names):
-        if component_order_key(b, deps, key_order, canonical_names, values) < component_order_key(
-            a, deps, key_order, canonical_names, values
-        ):
-            violations.append((a, b))
-    return violations
+    canonical_names lets a sidecar/shared-image name sort at its values.yaml
+    position; removed_keys places removed items (see lib.upgradedoc.removed_items)."""
+
+    deps: list[ChartDependency]
+    values: YamlMapping | None
+    canonical_names: Mapping[str, tuple[str, ...]] | None = None
+    removed_keys: Mapping[str, tuple[int, ...]] = field(default_factory=dict[str, tuple[int, ...]])
+
+    def key(self, name: str) -> tuple[int, ...]:
+        """component_order_key of `name`; a name it can't resolve may still be a removed item."""
+        key_order = values_key_order(self.values)
+        key = component_order_key(name, self.deps, key_order, self.canonical_names, self.values)
+        if key != path_order_key(None, self.deps, key_order):
+            return key
+        removed = [k for removed, k in self.removed_keys.items() if name == removed or text_names(name, removed)]
+        return min(removed, default=key)
+
+
+def find_out_of_order_names(names: list[str], ordering: OrderingContext) -> list[tuple[str, str]]:
+    """Every adjacent (a, b) pair whose ordering.key order is inverted.
+
+    Adjacent pairs suffice to detect any non-monotonic sequence; the sorters
+    order by the same key, so this flags exactly what they would move.
+    Unresolved names share one sentinel key and never flag each other."""
+    return [(a, b) for a, b in pairwise(names) if ordering.key(b) < ordering.key(a)]
 
 
 def insertion_index(new_key: OrderKeyT, existing_keys: list[OrderKeyT]) -> int:
@@ -132,20 +145,9 @@ def insertion_index(new_key: OrderKeyT, existing_keys: list[OrderKeyT]) -> int:
     return len(existing_keys)
 
 
-def component_insertion_index(
-    new_name: str,
-    existing_names: Sequence[str],
-    deps: list[ChartDependency],
-    values: YamlMapping | None,
-    canonical_names: Mapping[str, tuple[str, ...]] | None = None,
-) -> int:
-    """insertion_index of new_name among existing_names, each keyed by component_order_key in values.yaml order."""
-    key_order = values_key_order(values)
-
-    def order_key(name: str):
-        return component_order_key(name, deps, key_order, canonical_names, values)
-
-    return insertion_index(order_key(new_name), [order_key(name) for name in existing_names])
+def component_insertion_index(new_name: str, existing_names: Sequence[str], ordering: OrderingContext) -> int:
+    """insertion_index of new_name among existing_names, each keyed by ordering.key."""
+    return insertion_index(ordering.key(new_name), [ordering.key(name) for name in existing_names])
 
 
 def changes_section_bounds(lines: list[str]) -> tuple[int | None, int]:
@@ -231,37 +233,24 @@ def reorder_heading_blocks(text: str, blocks: list[HeadingBlock], order: list[in
     return prefix + body + suffix
 
 
-def _doc_item_order(
-    names: list[str],
-    deps: list[ChartDependency],
-    values: YamlMapping,
-    canonical_names: Mapping[str, tuple[str, ...]] | None,
-) -> tuple[list[int], list[tuple[str, int, int]]]:
-    """(order, moved) for doc items by component_order_key, the key find_out_of_order_names checks.
+def _doc_item_order(names: list[str], ordering: OrderingContext) -> tuple[list[int], list[tuple[str, int, int]]]:
+    """(order, moved) for doc items by ordering.key, the key find_out_of_order_names checks.
 
     order is the stable sorted permutation of `names`' indices; moved is
     [(name, old_pos, new_pos)] (1-based) for each item that moves.
     """
-    key_order = values_key_order(values)
-    order = sorted(
-        range(len(names)), key=lambda i: component_order_key(names[i], deps, key_order, canonical_names, values)
-    )
+    order = sorted(range(len(names)), key=lambda i: ordering.key(names[i]))
     return order, [(names[i], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]
 
 
-def sort_upgrade_doc_rows(
-    text: str,
-    deps: list[ChartDependency],
-    values: YamlMapping,
-    canonical_names: Mapping[str, tuple[str, ...]] | None = None,
-) -> tuple[str, list[tuple[str, int, int]]]:
+def sort_upgrade_doc_rows(text: str, ordering: OrderingContext) -> tuple[str, list[tuple[str, int, int]]]:
     """Reorder the "Component versions" table rows into values.yaml order.
 
     Returns (new_text, moved), moved being [(name, old_pos, new_pos)] (1-based)
     for rows that moved; empty with text unchanged if already sorted or fewer
     than 2 rows. Row content is never changed."""
     rows = parse_upgrade_doc_rows(text)
-    order, moved = _doc_item_order([row["name"] for row in rows], deps, values, canonical_names)
+    order, moved = _doc_item_order([row["name"] for row in rows], ordering)
     if not moved:
         return text, []
 
@@ -273,17 +262,12 @@ def sort_upgrade_doc_rows(
     return "".join(lines), moved
 
 
-def sort_changes_blocks(
-    text: str,
-    deps: list[ChartDependency],
-    values: YamlMapping,
-    canonical_names: Mapping[str, tuple[str, ...]] | None = None,
-) -> tuple[str, list[tuple[str, int, int]]]:
+def sort_changes_blocks(text: str, ordering: OrderingContext) -> tuple[str, list[tuple[str, int, int]]]:
     """Reorder the "## Changes" "### ..." blocks into values.yaml order.
 
     Returns (new_text, moved) as sort_upgrade_doc_rows does."""
     blocks = parse_upgrade_doc_changes_blocks(text)
-    order, moved = _doc_item_order([b["heading"] for b in blocks], deps, values, canonical_names)
+    order, moved = _doc_item_order([b["heading"] for b in blocks], ordering)
     if not moved:
         return text, []
 
@@ -310,18 +294,13 @@ def parse_values_delta_sections(text: str) -> list[HeadingBlock]:
     return sections
 
 
-def sort_values_delta_sections(
-    text: str,
-    deps: list[ChartDependency],
-    values: YamlMapping,
-    canonical_names: Mapping[str, tuple[str, ...]] | None = None,
-) -> tuple[str, list[tuple[str, int, int]]]:
+def sort_values_delta_sections(text: str, ordering: OrderingContext) -> tuple[str, list[tuple[str, int, int]]]:
     """Reorder values-deltas "## ..." sections into values.yaml order.
 
     Section content is never changed. Returns (new_text, moved) as
     sort_upgrade_doc_rows does."""
     sections = parse_values_delta_sections(text)
-    order, moved = _doc_item_order([s["heading"] for s in sections], deps, values, canonical_names)
+    order, moved = _doc_item_order([s["heading"] for s in sections], ordering)
     if not moved:
         return text, []
 

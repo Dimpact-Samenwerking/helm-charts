@@ -19,7 +19,7 @@ BLANK = "blank"
 # A generated heading: "<name> <version transition>[ (chart ...)]", as version_transition /
 # component_version_cell and the chart suffixes write it.
 _GENERATED_HEADING_RE = re.compile(
-    r"^(?P<name>.+?) (?:\S+ → \S+|\S+ \((?:new|unchanged|digest changed)\))(?: \(chart [^)]*\))?$"
+    r"^(?P<name>.+?) (?:\S+ → \S+|\S+ \((?:new|unchanged|digest changed|removed)\))(?: \(chart [^)]*\))?$"
 )
 
 

@@ -13,7 +13,6 @@ from lib.chart.registered_paths import component_chart_versions
 from lib.component_docs.baseline_doc_stubs import GEMEENTE_SPECIFIC_STUB_LINE
 from lib.component_docs.baseline_doc_stubs import VALUES_DELTAS_STUB_TODO_LINE
 from lib.component_docs.changes_section import BaselineState
-from lib.component_docs.changes_section import OrderingContext
 from lib.component_docs.doc_lines import is_bare_placeholder_span
 from lib.component_docs.doc_lines import normalize_blank_line_before_insert
 from lib.component_docs.owned_parts import BLANK
@@ -26,6 +25,7 @@ from lib.component_docs.owned_parts import template_prefix_re
 from lib.component_docs.owned_parts import template_re
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
+from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.upgradedoc.sorting_and_ordering import block_for_component
 from lib.upgradedoc.sorting_and_ordering import component_insertion_index
 from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
@@ -115,9 +115,7 @@ def insert_values_delta_section(
             text = text.rstrip("\n") + "\n\n"
         return text + section_text
 
-    idx = component_insertion_index(
-        friendly, [s["heading"] for s in sections], ordering.deps, ordering.values, ordering.canonical_names
-    )
+    idx = component_insertion_index(friendly, [s["heading"] for s in sections], ordering)
     insert_at = sections[idx]["start"] if idx < len(sections) else len(lines)
     insert_at = normalize_blank_line_before_insert(lines, insert_at)
     lines[insert_at:insert_at] = [section_text]

@@ -35,6 +35,7 @@ from lib.component_docs.owned_parts import template_prefix_re
 from lib.component_docs.owned_parts import template_re
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
+from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.upgradedoc.sorting_and_ordering import block_for_component
 from lib.upgradedoc.sorting_and_ordering import changes_blocks_with_lines
 from lib.upgradedoc.sorting_and_ordering import changes_section_bounds
@@ -66,16 +67,6 @@ class VersionChange:
     new_app: str | None = None
     old_chart: str | None = None
     new_chart: str | None = None
-
-
-@dataclass
-class OrderingContext:
-    """Inputs for component_order_key/insertion_index. canonical_names lets a
-    bare "global" shared-image entry sort at its values.yaml position."""
-
-    deps: list[ChartDependency]
-    values: YamlMapping | None
-    canonical_names: dict[str, tuple[str, ...]] | None = None
 
 
 @dataclass
@@ -122,15 +113,13 @@ def find_component_row(rows: list[TableRow], friendly: str):
     return next((row for row in rows if text_names(row["name"], friendly)), None)
 
 
-def _new_row_insert_index(lines: list[str], rows: list[TableRow], friendly: str, ordering: OrderingContext):
+def new_row_insert_index(lines: list[str], rows: list[TableRow], friendly: str, ordering: OrderingContext):
     """Line index for a new component row: in values.yaml order among the
     existing rows, or right after the "Component versions" separator when
     the table is empty. Scoped to that section so a later pipe table is
     never hit. None if the doc has no such table."""
     if rows:
-        idx = component_insertion_index(
-            friendly, [r["name"] for r in rows], ordering.deps, ordering.values, ordering.canonical_names
-        )
+        idx = component_insertion_index(friendly, [r["name"] for r in rows], ordering)
         return rows[idx]["line_index"] if idx < len(rows) else rows[-1]["line_index"] + 1
     in_section = False
     for i, line in enumerate(lines):
@@ -169,7 +158,7 @@ def update_component_table(text: str, friendly: str, change: VersionChange, orde
         return "".join(lines), "updated"
 
     new_row_line = f"| {friendly} | {app_cell or '-'} | {chart_cell or '-'} | - |\n"
-    insert_at = _new_row_insert_index(lines, rows, friendly, ordering)
+    insert_at = new_row_insert_index(lines, rows, friendly, ordering)
     if insert_at is None:
         return text, None
     lines.insert(insert_at, new_row_line)
@@ -195,6 +184,7 @@ INTRO_NEW = "PodiumD {target} introduces **{name}** at app version {new}."
 INTRO_UNCHANGED = "**{name}**'s own app version ({new}) is unchanged this hop."
 INTRO_UPGRADE = "PodiumD {target} upgrades **{name}** from app version {old}"
 INTRO_UPGRADE_TO = "to {new}."
+INTRO_REMOVED = "PodiumD {target} removes **{name}** (was {old})."
 IMAGE_INTRO_NEW = "PodiumD {target} introduces the {image} image at {new},"
 IMAGE_INTRO_KEPT = "PodiumD {target} keeps the {image} image at {new},"
 IMAGE_INTRO_UPGRADE = "PodiumD {target} upgrades the {image} image to {new},"
@@ -238,6 +228,7 @@ _OWNED_LINES = [
     (_template_re(INTRO_NEW), None, "intro"),
     (_template_re(INTRO_UNCHANGED), None, "intro"),
     (_template_re(INTRO_UPGRADE), _template_re(INTRO_UPGRADE_TO), "intro"),
+    (_template_re(INTRO_REMOVED), None, "removed"),
     (_template_re(IMAGE_INTRO_NEW), _template_re(PINNED_AT), "intro"),
     (_template_re(IMAGE_INTRO_KEPT), _template_re(PINNED_AT), "intro"),
     (_template_re(IMAGE_INTRO_UPGRADE), _template_re(PINNED_AT), "intro"),
@@ -302,6 +293,7 @@ _CHANGES_SHAPE = SectionShape(
             INTRO_NEW,
             INTRO_UNCHANGED,
             INTRO_UPGRADE,
+            INTRO_REMOVED,
             IMAGE_INTRO_NEW,
             IMAGE_INTRO_KEPT,
             IMAGE_INTRO_UPGRADE,
@@ -391,14 +383,15 @@ class PointerIssue:
 def pointer_issues(text: str) -> list[PointerIssue]:
     """Each Changes section's missing, duplicate or not blank-separated pointer, from one pass.
 
-    TODO stub sections have no pointer by design and are skipped. A missing
-    pointer's `line` is the section's last non-blank line.
+    TODO stub sections and removed items (their image is in no manifest) have no
+    pointer by design and are skipped. A missing pointer's `line` is the
+    section's last non-blank line.
     """
     lines, blocks = changes_blocks_with_lines(text)
     issues: list[PointerIssue] = []
     for block in blocks:
         body = range(block["start"] + 1, block["end"])
-        if "stub" in changes_body_kinds([lines[i] for i in body]):
+        if {"stub", "removed"} & set(changes_body_kinds([lines[i] for i in body])):
             continue
         pointers = [i for i in body if lines[i].startswith(IMAGE_DIGEST_POINTER_PREFIX)]
         if not pointers:
@@ -502,9 +495,7 @@ def insert_changes_section(text: str, section_text: str, friendly: str, ordering
     if not blocks:
         insert_at = _insert_index_for_empty_changes_section(lines, changes_idx, section_end)
     else:
-        idx = component_insertion_index(
-            friendly, [b["heading"] for b in blocks], ordering.deps, ordering.values, ordering.canonical_names
-        )
+        idx = component_insertion_index(friendly, [b["heading"] for b in blocks], ordering)
         insert_at = blocks[idx]["start"] if idx < len(blocks) else section_end
 
     insert_at = normalize_blank_line_before_insert(lines, insert_at)

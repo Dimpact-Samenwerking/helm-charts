@@ -2,6 +2,9 @@
 
 from types import ModuleType
 
+from lib.chart.chart_yaml import ChartDependency
+from lib.upgradedoc.sorting_and_ordering import OrderingContext
+
 # --- values_key_order ---
 
 
@@ -16,12 +19,13 @@ def test_values_key_order_non_dict_returns_empty(libupgradedocsorting: ModuleTyp
 
 # --- component_order_key ---
 
-DEPS = [
+DEPS: list[ChartDependency] = [
     {"name": "openzaak", "version": "1.14.2"},
     {"name": "openinwoner", "version": "2.4.0"},
     {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"},
 ]
 KEY_ORDER = ["openzaak", "zac", "openinwoner"]
+KEY_ORDERING = OrderingContext(DEPS, {key: {} for key in KEY_ORDER})
 
 
 def test_component_order_key_matches_by_alias(libupgradedocsorting: ModuleType):
@@ -166,25 +170,23 @@ def test_component_order_key_distinguishes_multiple_global_images_given_values(l
 
 def test_find_out_of_order_names_correctly_ordered_is_empty(libupgradedocsorting: ModuleType):
     names = ["Open Zaak", "ZAC", "Open Inwoner"]
-    assert libupgradedocsorting.find_out_of_order_names(names, DEPS, KEY_ORDER) == []
+    assert libupgradedocsorting.find_out_of_order_names(names, KEY_ORDERING) == []
 
 
 def test_find_out_of_order_names_flags_a_swapped_pair(libupgradedocsorting: ModuleType):
     names = ["ZAC", "Open Zaak", "Open Inwoner"]
-    assert libupgradedocsorting.find_out_of_order_names(names, DEPS, KEY_ORDER) == [("ZAC", "Open Zaak")]
+    assert libupgradedocsorting.find_out_of_order_names(names, KEY_ORDERING) == [("ZAC", "Open Zaak")]
 
 
 def test_find_out_of_order_names_two_unmatched_names_never_conflict(libupgradedocsorting: ModuleType):
     names = ["Some Shared Sidecar", "Another Shared Thing"]
-    assert libupgradedocsorting.find_out_of_order_names(names, DEPS, KEY_ORDER) == []
+    assert libupgradedocsorting.find_out_of_order_names(names, KEY_ORDERING) == []
 
 
 def test_find_out_of_order_names_unmatched_before_a_real_component_is_flagged(libupgradedocsorting: ModuleType):
     """An unmatched row before a real component is out of order."""
     names = ["Some Shared Sidecar", "Open Zaak"]
-    assert libupgradedocsorting.find_out_of_order_names(names, DEPS, KEY_ORDER) == [
-        ("Some Shared Sidecar", "Open Zaak")
-    ]
+    assert libupgradedocsorting.find_out_of_order_names(names, KEY_ORDERING) == [("Some Shared Sidecar", "Open Zaak")]
 
 
 # --- insertion_index ---
@@ -222,12 +224,22 @@ def test_insertion_index_new_unmatched_item_among_unmatched_ones_goes_last(libup
 def test_component_insertion_index_follows_values_yaml_order(libupgradedocsorting: ModuleType):
     deps = [{"name": "zac", "version": "1"}, {"name": "openzaak", "version": "1"}, {"name": "kiss", "version": "1"}]
     values = {"zac": {}, "openzaak": {}, "kiss": {}}
-    assert libupgradedocsorting.component_insertion_index("openzaak", ["zac", "kiss"], deps, values) == 1
+    assert (
+        libupgradedocsorting.component_insertion_index(
+            "openzaak", ["zac", "kiss"], libupgradedocsorting.OrderingContext(deps, values)
+        )
+        == 1
+    )
 
 
 def test_component_insertion_index_unmatched_name_goes_last(libupgradedocsorting: ModuleType):
     deps = [{"name": "zac", "version": "1"}]
-    assert libupgradedocsorting.component_insertion_index("unknown", ["zac"], deps, {"zac": {}}) == 1
+    assert (
+        libupgradedocsorting.component_insertion_index(
+            "unknown", ["zac"], libupgradedocsorting.OrderingContext(deps, {"zac": {}})
+        )
+        == 1
+    )
 
 
 # --- parse_upgrade_doc_changes_blocks ---
@@ -284,7 +296,7 @@ def test_sort_upgrade_doc_rows_reorders_out_of_order_rows(libupgradedocsorting: 
         "| Open Zaak | 1.27.4 | 1.14.2 |\n"
     )
     new_text, moved = libupgradedocsorting.sort_upgrade_doc_rows(
-        text, DEPS, {"openzaak": {}, "zac": {}, "openinwoner": {}}
+        text, libupgradedocsorting.OrderingContext(DEPS, {"openzaak": {}, "zac": {}, "openinwoner": {}})
     )
     assert moved == [("Open Zaak", 2, 1), ("Open Inwoner", 1, 2)]
     lines = new_text.splitlines()
@@ -300,7 +312,9 @@ def test_sort_upgrade_doc_rows_already_in_order_is_unchanged(libupgradedocsortin
         "| Open Inwoner | 2.4.2 | 2.4.0 |\n"
     )
     values = {"openzaak": {}, "zac": {}, "openinwoner": {}}
-    new_text, moved = libupgradedocsorting.sort_upgrade_doc_rows(text, DEPS, values)
+    new_text, moved = libupgradedocsorting.sort_upgrade_doc_rows(
+        text, libupgradedocsorting.OrderingContext(DEPS, values)
+    )
     assert moved == []
     assert new_text == text
 
@@ -311,7 +325,9 @@ def test_sort_upgrade_doc_rows_fewer_than_two_rows_is_unchanged(libupgradedocsor
         "| --- | --- | --- |\n"
         "| Open Zaak | 1.27.4 | 1.14.2 |\n"
     )
-    new_text, moved = libupgradedocsorting.sort_upgrade_doc_rows(text, DEPS, {"openzaak": {}})
+    new_text, moved = libupgradedocsorting.sort_upgrade_doc_rows(
+        text, libupgradedocsorting.OrderingContext(DEPS, {"openzaak": {}})
+    )
     assert moved == []
     assert new_text == text
 
@@ -324,7 +340,9 @@ def test_sort_upgrade_doc_rows_unmatched_row_stays_last(libupgradedocsorting: Mo
         "| Open Zaak | 1.27.4 | 1.14.2 |\n"
     )
     values = {"openzaak": {}, "zac": {}, "openinwoner": {}}
-    new_text, _moved = libupgradedocsorting.sort_upgrade_doc_rows(text, DEPS, values)
+    new_text, _moved = libupgradedocsorting.sort_upgrade_doc_rows(
+        text, libupgradedocsorting.OrderingContext(DEPS, values)
+    )
     lines = new_text.splitlines()
     assert lines[4].startswith("| Open Zaak")
     assert lines[5].startswith("| nginx-unprivileged")
@@ -342,7 +360,9 @@ def test_sort_upgrade_doc_rows_global_row_sorts_to_its_own_real_position(libupgr
     values = {"global": {}, "openzaak": {}, "zac": {}, "openinwoner": {}}
     canonical_names = {"nginx-unprivileged": ("global", "images", "nginx")}
 
-    new_text, _moved = libupgradedocsorting.sort_upgrade_doc_rows(text, DEPS, values, canonical_names)
+    new_text, _moved = libupgradedocsorting.sort_upgrade_doc_rows(
+        text, libupgradedocsorting.OrderingContext(DEPS, values, canonical_names)
+    )
 
     lines = new_text.splitlines()
     assert lines[4].startswith("| nginx-unprivileged")
@@ -364,7 +384,7 @@ def test_sort_upgrade_doc_rows_multiple_global_images_use_their_own_real_suborde
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
 
     new_text, _moved = libupgradedocsorting.sort_upgrade_doc_rows(
-        text, deps, GLOBAL_IMAGES_VALUES, GLOBAL_IMAGES_CANONICAL_NAMES
+        text, libupgradedocsorting.OrderingContext(deps, GLOBAL_IMAGES_VALUES, GLOBAL_IMAGES_CANONICAL_NAMES)
     )
 
     lines = [
@@ -391,7 +411,7 @@ def test_sort_changes_blocks_reorders_and_preserves_block_content(libupgradedocs
         "Zaak details here.\n"
     )
     values = {"openzaak": {}, "zac": {}, "openinwoner": {}}
-    new_text, moved = libupgradedocsorting.sort_changes_blocks(text, DEPS, values)
+    new_text, moved = libupgradedocsorting.sort_changes_blocks(text, libupgradedocsorting.OrderingContext(DEPS, values))
     assert moved == [("Open Zaak 1.27.3 → 1.27.4", 2, 1), ("Open Inwoner 2.3.1 → 2.4.2", 1, 2)]
     assert "### Open Zaak 1.27.3 → 1.27.4\n\nZaak details here.\n" in new_text
     assert new_text.index("### Open Zaak") < new_text.index("### Open Inwoner")
@@ -401,7 +421,9 @@ def test_sort_changes_blocks_last_block_moved_up_keeps_one_blank_line_between(li
     text = "## Changes\n\n### Open Inwoner 2.3.1 → 2.4.2\n\nInwoner.\n\n### Open Zaak 1.27.3 → 1.27.4\n\nZaak.\n"
     values = {"openzaak": {}, "zac": {}, "openinwoner": {}}
 
-    new_text, _moved = libupgradedocsorting.sort_changes_blocks(text, DEPS, values)
+    new_text, _moved = libupgradedocsorting.sort_changes_blocks(
+        text, libupgradedocsorting.OrderingContext(DEPS, values)
+    )
 
     assert (
         new_text
@@ -418,7 +440,7 @@ def test_sort_changes_blocks_already_in_order_is_unchanged(libupgradedocsorting:
         "Inwoner details.\n"
     )
     values = {"openzaak": {}, "zac": {}, "openinwoner": {}}
-    new_text, moved = libupgradedocsorting.sort_changes_blocks(text, DEPS, values)
+    new_text, moved = libupgradedocsorting.sort_changes_blocks(text, libupgradedocsorting.OrderingContext(DEPS, values))
     assert moved == []
     assert new_text == text
 
@@ -435,7 +457,9 @@ def test_sort_changes_blocks_unmatched_block_stays_last_and_later_h2_untouched(l
         "- [ ] Do the thing.\n"
     )
     values = {"openzaak": {}, "zac": {}, "openinwoner": {}}
-    new_text, _moved = libupgradedocsorting.sort_changes_blocks(text, DEPS, values)
+    new_text, _moved = libupgradedocsorting.sort_changes_blocks(
+        text, libupgradedocsorting.OrderingContext(DEPS, values)
+    )
     assert new_text.index("### Open Zaak") < new_text.index("### Fix: something unrelated")
     assert new_text.index("### Fix: something unrelated") < new_text.index("## Per-environment checklist")
     assert "## Per-environment checklist\n\n### A. Prepare\n\n- [ ] Do the thing.\n" in new_text
@@ -455,7 +479,9 @@ def test_sort_changes_blocks_global_block_sorts_to_its_own_real_position(libupgr
     values = {"global": {}, "openzaak": {}, "zac": {}, "openinwoner": {}}
     canonical_names = {"nginx-unprivileged": ("global", "images", "nginx")}
 
-    new_text, _moved = libupgradedocsorting.sort_changes_blocks(text, DEPS, values, canonical_names)
+    new_text, _moved = libupgradedocsorting.sort_changes_blocks(
+        text, libupgradedocsorting.OrderingContext(DEPS, values, canonical_names)
+    )
 
     assert (
         new_text.index("### nginx-unprivileged") < new_text.index("### Open Zaak") < new_text.index("### Open Inwoner")
@@ -475,7 +501,7 @@ def test_sort_changes_blocks_multiple_global_images_use_their_own_real_suborder(
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
 
     new_text, _moved = libupgradedocsorting.sort_changes_blocks(
-        text, deps, GLOBAL_IMAGES_VALUES, GLOBAL_IMAGES_CANONICAL_NAMES
+        text, libupgradedocsorting.OrderingContext(deps, GLOBAL_IMAGES_VALUES, GLOBAL_IMAGES_CANONICAL_NAMES)
     )
 
     headings = [line for line in new_text.splitlines() if line.startswith("### ")]
@@ -490,7 +516,9 @@ def test_sort_changes_blocks_multiple_global_images_use_their_own_real_suborder(
 
 def test_sort_changes_blocks_fewer_than_two_blocks_is_unchanged(libupgradedocsorting: ModuleType):
     text = "## Changes\n\n### Open Zaak 1.27.3 → 1.27.4\n\nZaak details.\n"
-    new_text, moved = libupgradedocsorting.sort_changes_blocks(text, DEPS, {"openzaak": {}})
+    new_text, moved = libupgradedocsorting.sort_changes_blocks(
+        text, libupgradedocsorting.OrderingContext(DEPS, {"openzaak": {}})
+    )
     assert moved == []
     assert new_text == text
 
@@ -533,7 +561,9 @@ def test_sort_values_delta_sections_reorders_out_of_order_sections(libupgradedoc
         "## openzaak 1.27.4 → 1.29.3\n\n"
         "- Key `openzaak.b` was added.\n"
     )
-    new_text, moved = libupgradedocsorting.sort_values_delta_sections(text, DEPS, {"openzaak": {}, "openinwoner": {}})
+    new_text, moved = libupgradedocsorting.sort_values_delta_sections(
+        text, libupgradedocsorting.OrderingContext(DEPS, {"openzaak": {}, "openinwoner": {}})
+    )
     assert moved == [("openzaak 1.27.4 → 1.29.3", 2, 1), ("openinwoner 2.4.2 → 2.4.3", 1, 2)]
     assert new_text == (
         "## openzaak 1.27.4 → 1.29.3\n\n"
@@ -548,14 +578,18 @@ def test_sort_values_delta_sections_already_in_order_is_unchanged(libupgradedocs
         "## openzaak 1.27.4 → 1.29.3\n\n- Key `openzaak.b` was added.\n\n"
         "## openinwoner 2.4.2 → 2.4.3\n\n- Key `openinwoner.a` was added.\n"
     )
-    new_text, moved = libupgradedocsorting.sort_values_delta_sections(text, DEPS, {"openzaak": {}, "openinwoner": {}})
+    new_text, moved = libupgradedocsorting.sort_values_delta_sections(
+        text, libupgradedocsorting.OrderingContext(DEPS, {"openzaak": {}, "openinwoner": {}})
+    )
     assert moved == []
     assert new_text == text
 
 
 def test_sort_values_delta_sections_fewer_than_two_is_unchanged(libupgradedocsorting: ModuleType):
     text = "## openzaak 1.27.4 → 1.29.3\n\n- Key `openzaak.b` was added.\n"
-    new_text, moved = libupgradedocsorting.sort_values_delta_sections(text, DEPS, {"openzaak": {}})
+    new_text, moved = libupgradedocsorting.sort_values_delta_sections(
+        text, libupgradedocsorting.OrderingContext(DEPS, {"openzaak": {}})
+    )
     assert moved == []
     assert new_text == text
 
@@ -568,7 +602,9 @@ def test_sort_values_delta_sections_never_touches_intro_prose_above(libupgradedo
         "## openinwoner 2.4.2 → 2.4.3\n\n- Key `openinwoner.a` was added.\n\n"
         "## openzaak 1.27.4 → 1.29.3\n\n- Key `openzaak.b` was added.\n"
     )
-    new_text, moved = libupgradedocsorting.sort_values_delta_sections(text, DEPS, {"openzaak": {}, "openinwoner": {}})
+    new_text, moved = libupgradedocsorting.sort_values_delta_sections(
+        text, libupgradedocsorting.OrderingContext(DEPS, {"openzaak": {}, "openinwoner": {}})
+    )
     assert moved
     assert new_text.startswith("# Values deltas — PodiumD 4.8.5 → 4.9.0\n\nSome intro prose.\n\n")
 
@@ -580,7 +616,9 @@ def test_sort_values_delta_sections_reorders_hand_written_sections_too(libupgrad
         "## ZAC 5.0.2 → 5.4.4 — required edits\n\nSome hand-written prose.\n\n"
     )
     values = {"zac": {}, "openinwoner": {}}
-    new_text, moved = libupgradedocsorting.sort_values_delta_sections(text, DEPS, values)
+    new_text, moved = libupgradedocsorting.sort_values_delta_sections(
+        text, libupgradedocsorting.OrderingContext(DEPS, values)
+    )
     assert moved == [("ZAC 5.0.2 → 5.4.4 — required edits", 2, 1), ("openinwoner 2.4.2 → 2.4.3", 1, 2)]
     assert new_text == (
         "## ZAC 5.0.2 → 5.4.4 — required edits\n\nSome hand-written prose.\n\n"
@@ -600,7 +638,7 @@ def test_sort_values_delta_sections_multiple_global_images_use_their_own_real_su
     )
 
     new_text, _moved = libupgradedocsorting.sort_values_delta_sections(
-        text, [], GLOBAL_IMAGES_VALUES, GLOBAL_IMAGES_CANONICAL_NAMES
+        text, libupgradedocsorting.OrderingContext([], GLOBAL_IMAGES_VALUES, GLOBAL_IMAGES_CANONICAL_NAMES)
     )
 
     headings = [line for line in new_text.splitlines() if line.startswith("## ")]

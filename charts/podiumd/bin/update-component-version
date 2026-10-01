@@ -80,7 +80,6 @@ from lib.component_docs.baseline_doc_stubs import load_baseline_values as _load_
 from lib.component_docs.changes_section import BaselineState
 from lib.component_docs.changes_section import ComponentIdentity
 from lib.component_docs.changes_section import ComponentState
-from lib.component_docs.changes_section import OrderingContext
 from lib.component_docs.changes_section import VersionChange
 from lib.component_docs.changes_section import make_changes_section
 from lib.component_docs.doc_updates import ValuesDeltaEntry
@@ -108,6 +107,7 @@ from lib.registry import registry_tag_exists
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.resolve_component_row import compare_component_to_baseline
+from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.version_cells_and_key_changes import describe_key_changes
 from lib.yaml_types import YamlMapping

@@ -4,7 +4,6 @@ import re
 
 from dataclasses import dataclass
 
-from lib.component_docs.changes_section import OrderingContext
 from lib.component_docs.changes_section import remove_changes_section
 from lib.component_docs.changes_section import remove_component_row
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
@@ -16,6 +15,7 @@ from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
 from lib.upgradedoc.resolve_component_row import resolve_component_row
 from lib.upgradedoc.resolve_component_row import resolved_row_unchanged
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
+from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
 from lib.upgradedoc.string_and_parsing_basics import TableRow
