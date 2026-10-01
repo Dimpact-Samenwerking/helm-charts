@@ -211,6 +211,24 @@ def block_for_component(
     return next((b for b in blocks if changes_heading_identities(b["heading"], deps, canonical_names) == target), None)
 
 
+def reorder_heading_blocks(text: str, blocks: list[HeadingBlock], order: list[int]) -> str:
+    """text with its contiguous `blocks` put in `order` (indices into blocks), each block's content unchanged.
+
+    Exactly one blank line separates the blocks, and one follows the last
+    block when text continues after it.
+    """
+    lines = text.splitlines(keepends=True)
+    # A block's own trailing blank lines depend on its old place (the last
+    # block at EOF has none), so they are dropped and the join adds them back.
+    original_texts = ["".join(lines[b["start"] : b["end"]]).rstrip("\n") + "\n" for b in blocks]
+    prefix = "".join(lines[: blocks[0]["start"]])
+    suffix = "".join(lines[blocks[-1]["end"] :])
+    body = "\n".join(original_texts[i] for i in order)
+    if suffix:
+        body += "\n"
+    return prefix + body + suffix
+
+
 def sort_upgrade_doc_rows(
     text: str,
     deps: list[ChartDependency],
@@ -265,13 +283,7 @@ def sort_changes_blocks(
     if not moved:
         return text, []
 
-    lines = text.splitlines(keepends=True)
-    original_texts = ["".join(lines[b["start"] : b["end"]]) for b in blocks]
-    new_texts = [original_texts[i] for i in order]
-
-    prefix = "".join(lines[: blocks[0]["start"]])
-    suffix = "".join(lines[blocks[-1]["end"] :])
-    return prefix + "".join(new_texts) + suffix, moved
+    return reorder_heading_blocks(text, blocks, order), moved
 
 
 def parse_values_delta_sections(text: str) -> list[HeadingBlock]:
@@ -317,15 +329,4 @@ def sort_values_delta_sections(
     if not moved:
         return text, []
 
-    lines = text.splitlines(keepends=True)
-    # Strip each section's own trailing blank lines (the last one has none);
-    # the join below puts exactly one between sections.
-    original_texts = ["".join(lines[s["start"] : s["end"]]).rstrip("\n") + "\n" for s in sections]
-    new_texts = [original_texts[i] for i in order]
-
-    prefix = "".join(lines[: sections[0]["start"]])
-    suffix = "".join(lines[sections[-1]["end"] :])
-    body = "\n".join(new_texts)
-    if suffix:
-        body += "\n"
-    return prefix + body + suffix, moved
+    return reorder_heading_blocks(text, sections, order), moved

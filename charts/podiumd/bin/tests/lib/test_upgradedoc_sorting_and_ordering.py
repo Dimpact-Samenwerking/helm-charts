@@ -381,6 +381,18 @@ def test_sort_changes_blocks_reorders_and_preserves_block_content(libupgradedocs
     assert new_text.index("### Open Zaak") < new_text.index("### Open Inwoner")
 
 
+def test_sort_changes_blocks_last_block_moved_up_keeps_one_blank_line_between(libupgradedocsorting: ModuleType):
+    text = "## Changes\n\n### Open Inwoner 2.3.1 → 2.4.2\n\nInwoner.\n\n### Open Zaak 1.27.3 → 1.27.4\n\nZaak.\n"
+    values = {"openzaak": {}, "zac": {}, "openinwoner": {}}
+
+    new_text, _moved = libupgradedocsorting.sort_changes_blocks(text, DEPS, values)
+
+    assert (
+        new_text
+        == "## Changes\n\n### Open Zaak 1.27.3 → 1.27.4\n\nZaak.\n\n### Open Inwoner 2.3.1 → 2.4.2\n\nInwoner.\n"
+    )
+
+
 def test_sort_changes_blocks_already_in_order_is_unchanged(libupgradedocsorting: ModuleType):
     text = (
         "## Changes\n\n"
