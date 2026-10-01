@@ -47,11 +47,13 @@ fi
 echo "=== ruff format --check ==="
 ruff format --check . "${python_scripts[@]}"
 
-# Import lines and the sys.path setup every script needs are not duplication.
+# Weak mode and low thresholds also catch short copies with renamed
+# identifiers. Import lines, the sys.path setup every script needs and
+# typed parameter lines (same-shaped signatures) are not duplication.
 echo "=== jscpd (duplicate code) ==="
-jscpd --exit-code 1 --format python --min-lines 5 --min-tokens 50 --reporters console \
+jscpd --exit-code 1 --format python --mode weak --min-lines 4 --min-tokens 35 --reporters console \
     --ignore '**/__pycache__/**' \
-    --ignore-pattern 'from .* import .*,import .*,SCRIPT_DIR = .*,sys\.path\.insert.*' \
+    --ignore-pattern 'from .* import .*,import .*,SCRIPT_DIR = .*,sys\.path\.insert.*, +[a-z_]+: [^=\n]+\x2c\n' \
     lib "${python_scripts[@]}"
 
 # Same rules as verify-podiumd's markdown check, which skips bin/.

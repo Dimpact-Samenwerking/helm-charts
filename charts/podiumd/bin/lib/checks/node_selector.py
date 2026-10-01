@@ -12,6 +12,7 @@ that block's text, since a define emits nothing where it is written. Only plain
 
 import re
 
+from collections.abc import Iterator
 from pathlib import Path
 
 WORKLOAD_KIND_RE = re.compile(r"^kind:\s*(Deployment|StatefulSet|DaemonSet|Job|CronJob)\s*$", re.MULTILINE)
@@ -46,13 +47,17 @@ def missing_node_selector(doc: str, define_bodies: dict[str, str]) -> tuple[str,
     return kind_m.group(1), (name_m.group(1).strip() if name_m else "(unknown name)")
 
 
+def template_texts(templates_dir: Path) -> Iterator[tuple[Path, str]]:
+    """(path, text) of every templates/**/*.yaml, in path order."""
+    for path in sorted(templates_dir.rglob("*.yaml")):
+        if path.is_file():
+            yield path, path.read_text(encoding="utf-8")
+
+
 def scan_missing_node_selector(templates_dir: Path) -> list[tuple[Path, str, str]]:
     """(path, kind, name) for every workload in templates/*.yaml missing nodeSelector."""
     findings: list[tuple[Path, str, str]] = []
-    for path in sorted(templates_dir.rglob("*.yaml")):
-        if not path.is_file():
-            continue
-        text = path.read_text(encoding="utf-8")
+    for path, text in template_texts(templates_dir):
         define_bodies = file_define_bodies(text)
         for doc in DOC_SPLIT_RE.split(text):
             missing = missing_node_selector(doc, define_bodies)
