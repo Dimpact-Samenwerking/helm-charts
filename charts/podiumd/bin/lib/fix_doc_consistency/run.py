@@ -401,7 +401,7 @@ def _fix_upgrade_doc_headings(text: str, state: RebaseState, upgrade_path: Path)
     doc_context = DocContext(state.paths.chart_dir, state.target)
     ordering = OrderingContext(state.target_deps, state.target_values, canonical_names)
     text, added = add_missing_changes_sections(
-        text, state.target_deps, state.target_values, state.target, canonical_names
+        text, state.target_deps, state.target_values, doc_context, canonical_names
     )
     changed = print_section_items(f"Adding missing '### ...' Changes section(s) in {upgrade_path.name}", added)
     text, stale = update_stale_app_version_headings(text, doc_context, ordering)

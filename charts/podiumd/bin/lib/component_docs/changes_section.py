@@ -576,15 +576,22 @@ def resolve_component_own_version_change(
     return dep, chart_name, old_chart, new_chart, old_app, new_app, (chart_unchanged and app_unchanged)
 
 
+def component_changes_section(identity: ComponentIdentity, change: VersionChange, doc_context: DocContext) -> str:
+    """make_changes_section for a dependency or native component, with its registered pins.
+
+    version_paths_for wins over image_paths_for: registered bare-version
+    fields (eck-stack) have no image block, so the generic
+    "<key>.image.tag" would name a nonexistent path."""
+    version_paths = version_paths_for(identity.chart_name, doc_context.chart_dir)
+    image_paths = [] if version_paths else image_paths_for(identity.chart_name, doc_context.chart_dir)
+    return make_changes_section(identity, doc_context.target, change, image_paths, version_paths)
+
+
 def _new_component_section(key: str, chart_name: str, change: VersionChange, doc_context: DocContext):
-    """Changes section for an auto-added row: make_changes_section when the
-    app version resolved (version_paths_for wins over image_paths_for), else
-    a TODO stub rather than guessed prose."""
+    """Changes section for an auto-added row: component_changes_section when
+    the app version resolved, else a TODO stub rather than guessed prose."""
     if change.new_app is not None:
-        version_paths = version_paths_for(chart_name, doc_context.chart_dir)
-        image_paths = [] if version_paths else image_paths_for(chart_name, doc_context.chart_dir)
-        identity = ComponentIdentity(key, chart_name, key)
-        return make_changes_section(identity, doc_context.target, change, image_paths, version_paths)
+        return component_changes_section(ComponentIdentity(key, chart_name, key), change, doc_context)
     chart_suffix = (
         f"{change.old_chart} → {change.new_chart}"
         if change.old_chart and normalize_version(change.old_chart) != normalize_version(change.new_chart)

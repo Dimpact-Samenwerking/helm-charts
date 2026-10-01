@@ -18,12 +18,10 @@ from lib.chart.historical_baselines import baseline_lookup
 from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
 from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
-from lib.chart.registered_paths import image_paths_for
-from lib.chart.registered_paths import version_paths_for
+from lib.chart.registered_paths import component_chart_versions
 from lib.chart.repo_and_path_resolution import full_repository_for_path
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repo_group_representative
-from lib.chart.values_tree_primitives import dep_for_values_key
 from lib.chart.values_tree_primitives import image_version_changed
 from lib.checks.digest_pinning import find_unresolved_subchart_images
 from lib.component_docs.changes_section import IMAGE_INTRO_KEPT
@@ -36,8 +34,8 @@ from lib.component_docs.changes_section import ComponentIdentity
 from lib.component_docs.changes_section import DocContext
 from lib.component_docs.changes_section import VersionChange
 from lib.component_docs.changes_section import changes_body_kinds
+from lib.component_docs.changes_section import component_changes_section
 from lib.component_docs.changes_section import insert_changes_section
-from lib.component_docs.changes_section import make_changes_section
 from lib.component_docs.changes_section import render_changes_section
 from lib.component_docs.changes_section import replace_changes_block
 from lib.component_docs.changes_section import replace_changes_section
@@ -202,38 +200,35 @@ def add_missing_sidecar_rows(
 
 
 def build_changes_section_for_row(
-    row: VersionRow, ident: ComponentRef, deps: list[ChartDependency], target: str
+    row: VersionRow, ident: ComponentRef, deps: list[ChartDependency], doc_context: DocContext
 ) -> str | None:
     """The "### ..." Changes section for a table row and its resolved identity.
 
     Built from the row's own cells so the two can't disagree; a row
     without a target app version gets a TODO stub. None if a "dep" identity
-    has no dependency in `deps`.
+    is neither a Chart.yaml dependency nor a native component.
     """
     if row["app"] in (None, "-"):
         chart_bit = row["chart"] or row["chart_source"] or "-"
         return f"### {row['name']} {chart_bit}\n\n{TODO_STUB}\n\n"
     if ident[0] == "dep":
         values_key = ident[1]
-        dep = dep_for_values_key(deps, values_key)
-        if dep is None:
+        chart_versions = component_chart_versions(doc_context.chart_dir, values_key, deps, None)
+        if chart_versions is None:
             return None
-        # Registered bare-version fields (eck-stack) have no image block, so the
-        # generic "<key>.image.tag" default would name a nonexistent path.
-        version_paths = version_paths_for(dep["name"])
-        image_paths = [] if version_paths else image_paths_for(dep["name"])
-        identity = ComponentIdentity(row["name"], dep["name"], values_key)
+        _dep, chart_name, _old_chart, new_chart = chart_versions
         # A "(new)" cell has no source version: the section then says "new" too.
+        # A native component has no chart ("-").
         change = VersionChange(
             row["app_source"],
             row["app"],
-            row["chart_source"] if row["chart"] else str(dep["version"]),
-            row["chart"] or str(dep["version"]),
+            None if new_chart == "-" else (row["chart_source"] if row["chart"] else new_chart),
+            new_chart if new_chart == "-" else (row["chart"] or new_chart),
         )
-        return make_changes_section(identity, target, change, image_paths, version_paths)
+        return component_changes_section(ComponentIdentity(row["name"], chart_name, values_key), change, doc_context)
     dotted_path = ".".join(ident[1]) + ".tag"
     return make_image_changes_section(
-        row["name"], target, row["app_source"], row["app"], [(dotted_path, row["app_source"])]
+        row["name"], doc_context.target, row["app_source"], row["app"], [(dotted_path, row["app_source"])]
     )
 
 
@@ -241,7 +236,7 @@ def add_missing_changes_sections(
     text: str,
     deps: list[ChartDependency],
     target_values: YamlMapping,
-    target: str,
+    doc_context: DocContext,
     canonical_names: dict[str, ImagePath],
 ) -> tuple[str, list[str]]:
     """Insert a "### ..." section for every table row lacking one.
@@ -263,7 +258,7 @@ def add_missing_changes_sections(
         ident = resolve_component_identity(row["name"], deps, canonical_names)
         if ident is None:
             continue
-        section = build_changes_section_for_row(row, ident, deps, target)
+        section = build_changes_section_for_row(row, ident, deps, doc_context)
         if section is None:
             continue
         text = insert_changes_section(text, section, row["name"], OrderingContext(deps, target_values, canonical_names))
@@ -311,6 +306,15 @@ def _stale_app_version_headings(text: str, ctx: _StaleHeadingContext) -> list[tu
     return stale
 
 
+def _current_app_version(values_key: str, ctx: _StaleHeadingContext) -> str | None:
+    """A dependency's or native component's app version in values.yaml, or None."""
+    chart_versions = component_chart_versions(ctx.doc_context.chart_dir, values_key, ctx.ordering.deps, None)
+    if chart_versions is None:
+        return None
+    dep, chart_name, _old_chart, _new_chart = chart_versions
+    return actual_app_version(ctx.ordering.values, values_key, chart_name, chart_dir=ctx.doc_context.chart_dir, dep=dep)
+
+
 def _rewrite_stale_heading(
     text: str,
     heading: str,
@@ -319,26 +323,23 @@ def _rewrite_stale_heading(
     ctx: _StaleHeadingContext,
 ) -> tuple[str, bool]:
     """Rewrite `heading`'s block from its table row; (text, False) if anything is unresolvable."""
-    _, values_key = ident
-    dep = dep_for_values_key(ctx.ordering.deps, values_key)
-    if dep is None:
-        return text, False
-    actual_app = actual_app_version(
-        ctx.ordering.values, values_key, dep["name"], chart_dir=ctx.doc_context.chart_dir, dep=dep
-    )
-    if not actual_app:
+    if not _current_app_version(ident[1], ctx):
         return text, False
     row = rows_by_identity.get(ident)
     if row is None:
         return text, False
-    section = build_changes_section_for_row(row, ident, ctx.ordering.deps, ctx.doc_context.target)
+    section = build_changes_section_for_row(row, ident, ctx.ordering.deps, ctx.doc_context)
     if section is None:
         return text, False
 
     block = _block_by_exact_heading(text, heading)
     if block is None:
         return text, False
-    return replace_changes_block(text, block, section), True
+    # replace_changes_block keeps a heading it can't tell is generated, as
+    # this one, which names the component but lacks its app version.
+    lines = replace_changes_block(text, block, section).splitlines(keepends=True)
+    lines[block["start"]] = section.splitlines(keepends=True)[0]
+    return "".join(lines), True
 
 
 def update_stale_app_version_headings(
@@ -346,10 +347,11 @@ def update_stale_app_version_headings(
 ) -> tuple[str, list[str]]:
     """Regenerate Changes sections whose heading lacks an app version that now resolves.
 
-    E.g. an old chart-only stub "### openbao 0.28.4". Its generated parts are
-    rewritten from the component's table row; text a user added stays. Only
-    headings naming exactly one "dep" component are touched (sidecar
-    headings are written with a known tag). Returns (new_text,
+    E.g. an old chart-only stub "### openbao 0.28.4" or a bare "### frankgateway".
+    The heading and generated parts are rewritten from the component's table
+    row; text a user added stays. Only headings naming exactly one
+    dependency or native component are touched (sidecar headings are
+    written with a known tag). Returns (new_text,
     updated_headings), the latter with the original heading texts.
     """
     ctx = _StaleHeadingContext(doc_context, ordering)
@@ -422,7 +424,7 @@ def changes_sections_contradicting_rows(
         row = rows_by_identity.get(ident) if ident is not None else None
         if row is None or ident is None or row["app"] in (None, "-"):
             continue
-        expected = build_changes_section_for_row(row, ident, ordering.deps, doc_context.target)
+        expected = build_changes_section_for_row(row, ident, ordering.deps, doc_context)
         if expected is not None:
             section = _contradicting_section(text, block, row["name"], expected, bullets=ident[0] == "dep")
             if section is not None:

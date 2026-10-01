@@ -297,3 +297,52 @@ def test_a_sidecar_reset_to_its_baseline_keeps_its_parents_docs(writer_then_chec
 
     assert "| zac | 5.4.4 → 5.4.5 | 1.0.297 (unchanged) | - |" in docs[UPGRADE]
     assert "opa" not in docs[UPGRADE] + docs[MANIFEST]
+
+
+NATIVE_SETTINGS = {"etc/settings.yaml": 'component_resolution:\n  native_components: ["frankgateway"]\n'}
+
+
+def frankgateway(tag: str) -> dict[str, object]:
+    return {"image": image("frankframework/frankframework", tag)}
+
+
+def test_a_native_component_bump(writer_then_checker):
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC], "values": {"zac": zac("5.4.4"), "frankgateway": frankgateway("100")}},
+        {
+            "version": "4.9.0",
+            "deps": [ZAC],
+            "values": {"zac": zac("5.4.4"), "frankgateway": frankgateway("104")},
+            "files": NATIVE_SETTINGS,
+        },
+    )
+
+    assert "| frankgateway | 100 → 104 | - | - |" in docs[UPGRADE]
+    assert "### frankgateway 100 → 104\n" in docs[UPGRADE]
+
+
+def test_a_native_components_heading_without_its_app_version_is_rewritten(writer_then_checker):
+    note = "Restart every gateway instance.\n"
+    earlier_doc = (
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| frankgateway | 100 → 104 | - | - |\n\n"
+        "## Changes\n\n"
+        "### frankgateway\n\n"
+        f"{note}\n"
+        "- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).\n"
+    )
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC], "values": {"zac": zac("5.4.4"), "frankgateway": frankgateway("100")}},
+        {
+            "version": "4.9.0",
+            "deps": [ZAC],
+            "values": {"zac": zac("5.4.4"), "frankgateway": frankgateway("104")},
+            "files": {**NATIVE_SETTINGS, f"docs/{UPGRADE}": earlier_doc},
+        },
+    )
+
+    assert "### frankgateway 100 → 104\n" in docs[UPGRADE]
+    assert note in docs[UPGRADE]

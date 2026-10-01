@@ -9,6 +9,8 @@ from types import ModuleType
 import pytest
 import yaml
 
+from lib.component_docs.changes_section import DocContext
+
 # --- add_missing_sidecar_rows ---
 
 
@@ -190,7 +192,9 @@ def test_build_changes_section_for_row_without_app_version_is_a_todo_stub(libima
     gets the TODO stub, never a section built from "-"."""
     row = {"name": "curl", "app_source": None, "app": app, "chart_source": None, "chart": "-"}
 
-    section = libimagedocs.build_changes_section_for_row(row, ("sidecar", ("global", "images", "curl")), [], "4.9.2")
+    section = libimagedocs.build_changes_section_for_row(
+        row, ("sidecar", ("global", "images", "curl")), [], DocContext(Path(), "4.9.2")
+    )
 
     assert section == (
         "### curl -\n\nTODO: describe this component's changes — its app version could not be "
