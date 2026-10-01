@@ -5,8 +5,6 @@ component or image as its table row does, cover every entry and state the right
 versions. Ordering and numbering are fix-doc-consistency's (see its dry-run).
 """
 
-import re
-
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,6 +18,8 @@ from lib.chart.values_tree_primitives import values_key_of
 from lib.component_docs.images_manifest_changes_header import covered_display_names
 from lib.image.repository_check import find_images_without_repository
 from lib.images_manifest import ManifestEntry
+from lib.images_manifest import ParsedManifest
+from lib.images_manifest import entry_line_indices
 from lib.images_manifest import images_manifest_problem
 from lib.images_manifest import is_images_manifest
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
@@ -37,7 +37,6 @@ from lib.upgradedoc.images_manifest_list_diff import ManifestDiffInputs
 from lib.upgradedoc.images_manifest_list_diff import find_images_manifest_list_diff
 from lib.upgradedoc.images_manifest_ordering import EntryResolution
 from lib.upgradedoc.images_manifest_ordering import ManifestSortContext
-from lib.upgradedoc.images_manifest_ordering import ParsedManifest
 from lib.upgradedoc.images_manifest_ordering import find_images_manifest_faulty_headers
 from lib.upgradedoc.images_manifest_ordering import images_manifest_display_name_positions
 from lib.upgradedoc.images_manifest_ordering import images_manifest_entries_share_group
@@ -253,7 +252,7 @@ def _entry_comment_issues(
     name: str,
     lines: list[str],
     resolved: ResolvedManifest,
-    entry_line_indices: list[int],
+    entry_starts: list[int],
     baseline_paths: dict[ImagePath, str],
 ):
     """One issue per entry whose preceding comment is missing or disagrees on versions.
@@ -262,11 +261,11 @@ def _entry_comment_issues(
     they can't then be paired.
     """
 
-    if len(resolved.entries) != len(entry_line_indices):
+    if len(resolved.entries) != len(entry_starts):
         return [
             (
                 f"{name}: found {len(resolved.entries)} manifest entries but "
-                f'{len(entry_line_indices)} lines matched by "^-\\s*name:" -- cannot '
+                f'{len(entry_starts)} lines matched by "^-\\s*name:" -- cannot '
                 f"reliably match entries to their preceding comments"
             )
         ]
@@ -277,8 +276,8 @@ def _entry_comment_issues(
         )
 
     issues: list[str] = []
-    for index, (entry, _line_idx) in enumerate(zip(resolved.entries, entry_line_indices, strict=True)):
-        comment = find_grouped_preceding_comment(lines, resolved.entries, entry_line_indices, index, same_group)
+    for index, (entry, _line_idx) in enumerate(zip(resolved.entries, entry_starts, strict=True)):
+        comment = find_grouped_preceding_comment(lines, resolved.entries, entry_starts, index, same_group)
         if not comment:
             issues.append(f'{name}: entry "{entry["name"]}" has no preceding comment')
             continue
@@ -430,12 +429,12 @@ def check_images_manifest_format(images_path: Path, context: ManifestCheckContex
     issues.extend(_changes_block_item_issues(images_path.name, text, resolved, context))
 
     lines = text.splitlines()
-    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
+    line_indices = entry_line_indices(lines)
     baseline_paths = chart_image_paths(context.baseline_values, context.deps)
-    issues.extend(_entry_comment_issues(images_path.name, lines, resolved, entry_line_indices, baseline_paths))
+    issues.extend(_entry_comment_issues(images_path.name, lines, resolved, line_indices, baseline_paths))
 
     if context.chart_dir is not None:
-        parsed = ParsedManifest(entries, entry_line_indices, lines)
+        parsed = ParsedManifest(entries, line_indices, lines)
         issues.extend(_structural_issues(images_path.name, text, parsed, resolution, context))
 
     # baseline_paths is empty without a resolvable baseline, so "changed" can't be computed.

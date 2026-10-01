@@ -9,13 +9,12 @@ from lib.chart.chart_yaml import ChartDependency
 from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
 from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.images_manifest import ManifestEntry
-from lib.images_manifest import try_parse_images_manifest
+from lib.images_manifest import entry_block_end
+from lib.images_manifest import parse_manifest_lines
 from lib.settings import DigestPinningException
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.yaml_types import YamlMapping
-
-ENTRY_START_RE = re.compile(r"^-\s*name:")
 
 
 def entry_pin(
@@ -40,23 +39,10 @@ def _rewrite_entry_pin(lines: list[str], start: int, tag: str) -> None:
     """Sets the version:/digest: lines of the entry starting at
     lines[start] to `tag` ("<version>@<digest>")."""
     version, digest = tag.split("@", 1)
-    end = next(
-        (i for i in range(start + 1, len(lines)) if ENTRY_START_RE.match(lines[i]) or not lines[i].strip()), len(lines)
-    )
-    for i in range(start, end):
+    for i in range(start, entry_block_end(lines, start)):
         m = re.match(r"^\s*(version|digest):", lines[i])
         if m:
             lines[i] = replace_scalar_value(lines[i], version if m.group(1) == "version" else digest)
-
-
-def _parsed_entries(text: str) -> tuple[list[str], list[tuple[int, ManifestEntry]]]:
-    """(lines, [(start line index, entry), ...]); no entries unless the "- name:" lines match the entries."""
-    lines = text.splitlines(keepends=True)
-    entries = try_parse_images_manifest(text)
-    starts = [i for i, line in enumerate(lines) if ENTRY_START_RE.match(line)]
-    if entries is None or len(starts) != len(entries):
-        return lines, []
-    return lines, list(zip(starts, entries, strict=True))
 
 
 def sync_entry_pins(
@@ -70,10 +56,13 @@ def sync_entry_pins(
 
     Returns (new_text, [entry name, ...]).
     """
-    lines, entries = _parsed_entries(text)
+    parsed = parse_manifest_lines(text)
+    if parsed is None:
+        return text, []
+    lines = parsed.lines
     index = ChartImageIndex(chart_dir, deps, values)
     synced: list[str] = []
-    for start, entry in entries:
+    for start, entry in zip(parsed.entry_line_indices, parsed.entries, strict=True):
         _path, tag = entry_pin(entry, values, index.paths, index.repo_map, sibling_fields)
         if tag is None or "@" not in tag or tag == f"{entry.get('version')}@{entry.get('digest')}":
             continue

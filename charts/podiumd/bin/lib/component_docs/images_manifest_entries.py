@@ -10,7 +10,6 @@ from lib.component_docs.changes_section import VersionChange
 from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
 from lib.component_docs.images_manifest_changes_header import images_manifest_changes_item_spans
-from lib.images_manifest import ManifestEntry
 from lib.upgradedoc.grouped_comments_and_changes_block import parse_changes_block
 from lib.upgradedoc.images_manifest_ordering import match_changes_item_display_name
 from lib.upgradedoc.resolve_component_row import ResolutionContext
@@ -20,15 +19,6 @@ from lib.upgradedoc.resolve_component_row import resolved_row_unchanged
 from lib.upgradedoc.string_and_parsing_basics import match_located_line
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text
-
-
-@dataclass
-class ParsedManifest:
-    """Manifest lines with entries and their line indices, derived from and kept in sync with `lines`."""
-
-    lines: list[str]
-    entries: list[ManifestEntry]
-    entry_line_indices: list[int]
 
 
 def changes_header_item_text(friendly: str, change: VersionChange):

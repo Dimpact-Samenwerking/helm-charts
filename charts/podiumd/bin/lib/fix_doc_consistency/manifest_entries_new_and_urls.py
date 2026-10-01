@@ -1,8 +1,6 @@
 """fix-doc-consistency's images-manifest fixes: url/name repair, adding
 missing entries and removing stale ones."""
 
-import re
-
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -27,7 +25,12 @@ from lib.component_docs.images_manifest_changes_header import images_manifest_ch
 from lib.component_docs.images_manifest_changes_header import insert_images_manifest_header_item
 from lib.component_docs.images_manifest_changes_header import remove_changes_item
 from lib.image.repository_check import find_images_without_repository
+from lib.images_manifest import ENTRY_NAME_RE
+from lib.images_manifest import ENTRY_URL_RE
 from lib.images_manifest import ManifestEntry
+from lib.images_manifest import entry_field_line
+from lib.images_manifest import entry_line_indices
+from lib.images_manifest import parse_manifest_lines
 from lib.images_manifest import try_parse_images_manifest
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
@@ -114,20 +117,6 @@ class AddedEntryFields:
     pinned_tag: str
 
 
-def _entry_url_line_index(lines: list[str], line_idx: int) -> int | None:
-    """Index of the entry's "url:" line within its block (up to the next
-    entry or blank line), or None."""
-    block_end = len(lines)
-    for j in range(line_idx + 1, len(lines)):
-        if re.match(r"^-\s*name:", lines[j]) or not lines[j].strip():
-            block_end = j
-            break
-    for j in range(line_idx, block_end):
-        if re.match(r"^\s*url:\s*\S", lines[j]):
-            return j
-    return None
-
-
 def _entry_url_status(
     entry: ManifestEntry, line_idx: int, lines: list[str], current_paths: dict[ImagePath, str], context: UrlFixContext
 ) -> (
@@ -148,11 +137,11 @@ def _entry_url_status(
     if full_repo is None:
         return "unresolved", name
 
-    url_idx = _entry_url_line_index(lines, line_idx)
+    url_idx = entry_field_line(lines, line_idx, "url")
     if url_idx is None:
         return "unresolved", name
 
-    url_m = re.match(r"^\s*url:\s*(\S+)\s*$", lines[url_idx])
+    url_m = ENTRY_URL_RE.match(lines[url_idx])
     if url_m is None:
         return "unresolved", name  # text after the url: no single value to compare
     current_url = url_m.group(1)
@@ -177,17 +166,15 @@ def fix_images_manifest_entry_urls(
     [(name, old_url, new_url), ...]; unresolved_names are entries whose
     path/repository can't be resolved or that lack a "url:" (reported, not
     touched)."""
-    lines = text.splitlines(keepends=True)
-    entries = try_parse_images_manifest(text)
-    if entries is None:
+    parsed = parse_manifest_lines(text)
+    if parsed is None:
         return text, [], []
-
-    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
+    lines = parsed.lines
     current_paths = chart_image_paths(target_values, deps)
 
     changed_names: list[tuple[str, str, str]] = []
     unresolved_names: list[str] = []
-    for entry, line_idx in zip(entries, entry_line_indices, strict=False):
+    for entry, line_idx in zip(parsed.entries, parsed.entry_line_indices, strict=True):
         status = _entry_url_status(
             entry, line_idx, lines, current_paths, UrlFixContext(chart_dir, deps, target_values, repo_map)
         )
@@ -207,13 +194,13 @@ def fix_images_manifest_entry_names(text: str, repo_map: dict[str, ImagePath]) -
     fix_images_manifest_entry_urls. Returns (new_text,
     [(old_name, new_name), ...])."""
     lines = text.splitlines(keepends=True)
-    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
-    names = {_unquoted(m.group(1)) for i in entry_line_indices if (m := _ENTRY_NAME_RE.match(lines[i]))}
+    starts = entry_line_indices(lines)
+    names = {_unquoted(m.group(1)) for i in starts if (m := ENTRY_NAME_RE.match(lines[i]))}
     renamed: list[tuple[str, str]] = []
-    for line_idx in entry_line_indices:
-        name_m = _ENTRY_NAME_RE.match(lines[line_idx])
-        url_idx = _entry_url_line_index(lines, line_idx)
-        url_m = re.match(r"^\s*url:\s*(\S+)\s*$", lines[url_idx]) if url_idx is not None else None
+    for line_idx in starts:
+        name_m = ENTRY_NAME_RE.match(lines[line_idx])
+        url_idx = entry_field_line(lines, line_idx, "url")
+        url_m = ENTRY_URL_RE.match(lines[url_idx]) if url_idx is not None else None
         if name_m is None or url_m is None:
             continue
         old_name, new_name = _unquoted(name_m.group(1)), repository_group_key(_unquoted(url_m.group(1)))
@@ -223,9 +210,6 @@ def fix_images_manifest_entry_names(text: str, repo_map: dict[str, ImagePath]) -
         names.add(new_name)
         renamed.append((old_name, new_name))
     return "".join(lines), renamed
-
-
-_ENTRY_NAME_RE = re.compile(r"^-\s*name:\s*(\S+)\s*$")
 
 
 def _unquoted(scalar: str) -> str:
@@ -436,7 +420,7 @@ def _backfilled_header_target(
     not prose worth adding."""
     entries: list[tuple[int, ImagePath, str]] = []
     for idx, line in enumerate(lines):
-        m = re.match(r"^-\s*name:\s*(\S+)\s*$", line)
+        m = ENTRY_NAME_RE.match(line)
         entry_path = (
             resolve_entry_image_path(m.group(1), resolution.current_paths.keys(), resolution.repo.repo_map)
             if m
@@ -525,9 +509,9 @@ def _remove_stale_entry(
 ):
     """Delete the entry and its comment, and its "# Changes:" item unless
     another entry has the same display name (lockstep component)."""
-    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
     entry_line = next(
-        (i for i in entry_line_indices if re.match(rf"^-\s*name:\s*{re.escape(entry_name)}\s*$", lines[i])), None
+        (i for i in entry_line_indices(lines) if (m := ENTRY_NAME_RE.match(lines[i])) and m.group(1) == entry_name),
+        None,
     )
     if entry_line is None:
         return

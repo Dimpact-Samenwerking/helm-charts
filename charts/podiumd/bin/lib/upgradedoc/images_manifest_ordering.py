@@ -10,8 +10,11 @@ from dataclasses import dataclass
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import is_primary_image_path
+from lib.images_manifest import ENTRY_START_RE
 from lib.images_manifest import ManifestEntry
-from lib.images_manifest import try_parse_images_manifest
+from lib.images_manifest import ParsedManifest
+from lib.images_manifest import entry_line_indices
+from lib.images_manifest import parse_manifest_lines
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
@@ -30,15 +33,6 @@ SIDECAR_HEADER_RE = re.compile(r"^#\s{2,}sidecar:\s*(?P<text>.*)$", re.IGNORECAS
 # One _images_manifest_groups group: (entry indices, the first entry's
 # values-tree path or None, its display name).
 ManifestGroup = tuple[list[int], ImagePath | None, str]
-
-
-@dataclass
-class ParsedManifest:
-    """Parsed manifest entries, their "- name:" line indices and the raw lines, kept in lockstep."""
-
-    entries: list[ManifestEntry]
-    entry_line_indices: list[int]
-    lines: list[str]
 
 
 @dataclass
@@ -133,10 +127,10 @@ def delete_images_manifest_entry(lines: list[str], entry_line_idx: int) -> None:
     block_end = entry_line_idx + 1
     while block_end < len(lines):
         line = lines[block_end]
-        if not line.strip() or line.lstrip().startswith("#") or re.match(r"^-\s*name:", line):
+        if not line.strip() or line.lstrip().startswith("#") or ENTRY_START_RE.match(line):
             break
         block_end += 1
-    shares_comment = block_end < len(lines) and re.match(r"^-\s*name:", lines[block_end]) is not None
+    shares_comment = block_end < len(lines) and ENTRY_START_RE.match(lines[block_end]) is not None
     comment_idx = None if shares_comment else find_preceding_comment_line(lines, entry_line_idx)
     start = entry_line_idx if comment_idx is None else comment_idx
     del lines[start:block_end]
@@ -146,7 +140,7 @@ def delete_images_manifest_entry(lines: list[str], entry_line_idx: int) -> None:
             del lines[start]
     elif start == len(lines) and start > 0 and not lines[start - 1].strip():
         del lines[start - 1]
-    if not any(re.match(r"^-\s*name:", line) for line in lines):
+    if not entry_line_indices(lines):
         if lines and not lines[-1].endswith("\n"):
             lines[-1] += "\n"
         lines.append("\n[]\n" if lines and lines[-1].strip() else "[]\n")
@@ -278,17 +272,10 @@ def _images_manifest_sorted_groups(
 
 def _parsed_manifest_from_text(text: str) -> tuple[ParsedManifest | None, bool]:
     """(ParsedManifest, True), or (None, False) if text isn't a valid manifest list or has < 2 entries."""
-    lines = text.splitlines(keepends=True)
-    entries = try_parse_images_manifest(text)
-    if entries is None:
+    parsed = parse_manifest_lines(text)
+    if parsed is None or len(parsed.entries) < 2:
         return None, False
-
-    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
-    n = min(len(entries), len(entry_line_indices))
-    entries, entry_line_indices = entries[:n], entry_line_indices[:n]
-    if n < 2:
-        return None, False
-    return ParsedManifest(entries, entry_line_indices, lines), True
+    return parsed, True
 
 
 def _positioned_groups(
@@ -402,10 +389,10 @@ def _merge_ordered_groups(per_group_texts: list[str], components: list[str | Non
 
 
 def _sorted_manifest_text(
-    lines: list[str], entry_line_indices: list[int], groups: list[ManifestGroup], order: list[int]
+    lines: list[str], entry_starts: list[int], groups: list[ManifestGroup], order: list[int]
 ) -> str:
     """The manifest text with order applied to groups, keeping the leading prefix."""
-    starts = [images_manifest_block_start(lines, entry_line_indices[indices[0]]) for indices, _, _ in groups]
+    starts = [images_manifest_block_start(lines, entry_starts[indices[0]]) for indices, _, _ in groups]
     per_group_texts, components = _group_texts_and_components(lines, groups, starts)
     merged_texts = _merge_ordered_groups(per_group_texts, components, order)
     prefix = "".join(lines[: starts[0]])

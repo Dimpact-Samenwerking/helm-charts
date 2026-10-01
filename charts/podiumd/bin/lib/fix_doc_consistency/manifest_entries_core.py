@@ -1,7 +1,5 @@
 """fix-doc-consistency's images-manifest entry-comment version verification/repair."""
 
-import re
-
 from collections.abc import Callable
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -14,7 +12,7 @@ from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.images_manifest import ManifestEntry
-from lib.images_manifest import try_parse_images_manifest
+from lib.images_manifest import parse_manifest_lines
 from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
@@ -82,12 +80,10 @@ def resolve_entry_version(
 
 def _manifest_entries_setup(text: str, context: ManifestEntriesContext) -> _ManifestEntriesSetup | None:
     """None when text isn't a parsable list (caller returns text unchanged)."""
-    lines = text.splitlines(keepends=True)
-    entries = try_parse_images_manifest(text)
-    if entries is None:
+    parsed = parse_manifest_lines(text)
+    if parsed is None:
         return None
-
-    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
+    lines, entries, entry_line_indices = parsed.lines, parsed.entries, parsed.entry_line_indices
     current_paths = chart_image_paths(context.target_values, context.deps)
     baseline_values = context.baseline_values
     baseline_paths = chart_image_paths(baseline_values, context.deps)
@@ -224,7 +220,7 @@ def fix_images_manifest_entries(
         return text, [], []
 
     state = _ManifestFixState([], [], {})
-    for index, (entry, _line_idx) in enumerate(zip(setup.entries, setup.entry_line_indices, strict=False)):
+    for index, (entry, _line_idx) in enumerate(zip(setup.entries, setup.entry_line_indices, strict=True)):
         _process_manifest_entry(index, entry, context, setup, state)
 
     return "".join(setup.lines), state.changed_entries, state.unresolved_names
