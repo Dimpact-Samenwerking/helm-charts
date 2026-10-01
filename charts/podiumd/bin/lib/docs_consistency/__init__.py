@@ -461,8 +461,9 @@ def _stale_changes_item_mismatches(
     images_path = images_manifest_path(ctx.doc_query.doc_dir.parent / "images", ctx.doc_query.podiumd_version)
     if not images_path.is_file():
         return []
-    lines = images_path.read_text(encoding="utf-8").splitlines(keepends=True)
-    expected = expected_changes_items([row["name"] for row in scan.rows], scan.canonical_names, resolution)
+    text = images_path.read_text(encoding="utf-8")
+    lines = text.splitlines(keepends=True)
+    expected = expected_changes_items([row["name"] for row in scan.rows], text, scan.canonical_names, resolution)
     return [
         f"{images_path.name}: '# Changes:' item \"{current}\" contradicts the {scan.doc_path.name} table row "
         f'(expected "{wanted}"); run fix-doc-consistency to correct it'

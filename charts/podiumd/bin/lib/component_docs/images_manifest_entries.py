@@ -25,9 +25,11 @@ from lib.images_manifest import ManifestEntry
 from lib.images_manifest import try_parse_images_manifest
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_path
 from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment_line
+from lib.upgradedoc.grouped_comments_and_changes_block import parse_changes_block
 from lib.upgradedoc.images_manifest_ordering import delete_images_manifest_entry
 from lib.upgradedoc.images_manifest_ordering import match_changes_item_display_name
 from lib.upgradedoc.resolve_component_row import ResolutionContext
+from lib.upgradedoc.resolve_component_row import ResolvedRow
 from lib.upgradedoc.resolve_component_row import resolve_component_row
 from lib.upgradedoc.resolve_component_row import resolved_row_unchanged
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
@@ -173,37 +175,54 @@ _CHART_CLAUSE_RE = re.compile(r" (\(chart [^)]*\))\.$")
 
 
 def expected_changes_items(
-    row_names: Iterable[str], canonical_names: Mapping[str, tuple[str, ...]], resolution: ResolutionContext
+    row_names: Iterable[str],
+    manifest_text: str,
+    canonical_names: Mapping[str, tuple[str, ...]],
+    resolution: ResolutionContext,
 ) -> dict[str, ExpectedChangesItem]:
-    """{row name: its expected "# Changes:" item} for each changed upgrade-doc table row.
+    """{name: its expected "# Changes:" item} for each changed upgrade-doc table row and each item without a row.
 
     Resolved as the table row is (resolve_component_row), so the item can't
-    contradict the row. Rows unchanged vs the baseline, or not fully
-    resolvable, are left out.
+    contradict the row. An unchanged row is left out (fix-doc-consistency
+    removes it), but an unchanged item without a row is a digest-only re-pin:
+    its entry stays, as the list diff counts a new digest as a change. Names
+    not fully resolvable are left out.
     """
+    rows = list(row_names)
+    names = rows + [item["name"] for item in parse_changes_block(manifest_text) if item["name"] not in rows]
     expected: dict[str, ExpectedChangesItem] = {}
-    for name in row_names:
+    for name in names:
         resolved = resolve_component_row(name, canonical_names, resolution)
         if resolved["kind"] == "unmatched" or resolved["target_app"] is None or resolved["baseline_app"] is None:
             continue
         if resolved["kind"] != "native" and resolved["baseline_resolved"] is not True:
             continue
-        if resolved_row_unchanged(resolved):
+        digest_only = resolved_row_unchanged(resolved)
+        if digest_only and name in rows:
             continue
-        chart_clause = None
-        chart_changed = False
-        if resolved["kind"] == "dependency":
-            if resolved["baseline_chart"] is None or resolved["target_chart"] is None:
-                continue
-            change = VersionChange(
-                resolved["baseline_app"], resolved["target_app"], resolved["baseline_chart"], resolved["target_chart"]
-            )
-            m = _CHART_CLAUSE_RE.search(changes_header_item_text(name, change))
-            chart_clause = m.group(1) if m else None
-            chart_changed = normalize_version(resolved["baseline_chart"]) != normalize_version(resolved["target_chart"])
-        core = f"{name} {image_manifest_version_text(resolved['baseline_app'], resolved['target_app'])}"
-        expected[name] = ExpectedChangesItem(core, chart_clause, chart_changed)
+        item = _expected_changes_item(name, resolved, digest_only=digest_only)
+        if item is not None:
+            expected[name] = item
     return expected
+
+
+def _expected_changes_item(name: str, resolved: ResolvedRow, *, digest_only: bool) -> ExpectedChangesItem | None:
+    """The item for one resolved name; None for a dependency without both chart versions."""
+    chart_clause = None
+    chart_changed = False
+    if resolved["kind"] == "dependency":
+        if resolved["baseline_chart"] is None or resolved["target_chart"] is None:
+            return None
+        change = VersionChange(
+            resolved["baseline_app"], resolved["target_app"], resolved["baseline_chart"], resolved["target_chart"]
+        )
+        m = _CHART_CLAUSE_RE.search(changes_header_item_text(name, change))
+        chart_clause = m.group(1) if m else None
+        chart_changed = normalize_version(resolved["baseline_chart"]) != normalize_version(resolved["target_chart"])
+    version_text = image_manifest_version_text(
+        resolved["baseline_app"], resolved["target_app"], digest_only_change=digest_only
+    )
+    return ExpectedChangesItem(f"{name} {version_text}", chart_clause, chart_changed)
 
 
 def stale_changes_items(lines: list[str], expected: Mapping[str, ExpectedChangesItem]) -> list[tuple[int, str, str]]:

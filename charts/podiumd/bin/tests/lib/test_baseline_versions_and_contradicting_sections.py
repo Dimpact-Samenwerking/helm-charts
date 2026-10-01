@@ -148,7 +148,7 @@ def _expected_items(chart_dir: Path):
         BaselineState(BASELINE_DEPS, BASELINE_VALUES),
         "4.9.2",
     )
-    return expected_changes_items(["openbao"], {}, resolution)
+    return expected_changes_items(["openbao"], "", {}, resolution)
 
 
 def test_stale_changes_item_is_reported_and_fixed_from_its_row(chart_dir: Path):

@@ -5,10 +5,13 @@ import re
 from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
 from lib.upgradedoc.doc_names import doc_name
 from lib.upgradedoc.doc_names import doc_name_re
+from lib.version_numbers import BARE_VERSION_PATTERN
 
-BASELINE_LINE_RE = re.compile(r"(?P<prefix>Baseline:\s*podiumd\s+)(?P<baseline>\d+\.\d+\.\d+)")
+BASELINE_LINE_RE = re.compile(rf"(?P<prefix>Baseline:\s*podiumd\s+)(?P<baseline>{BARE_VERSION_PATTERN})")
 # Any target and baseline, so a wrong one is rewritten too.
-VS_LINE_RE = re.compile(r"(?P<prefix>podiumd\s+)(?P<target>\d+\.\d+\.\d+)(?P<vs>\s+vs\s+)(?P<baseline>\d+\.\d+\.\d+)")
+VS_LINE_RE = re.compile(
+    rf"(?P<prefix>podiumd\s+)(?P<target>{BARE_VERSION_PATTERN})(?P<vs>\s+vs\s+)(?P<baseline>{BARE_VERSION_PATTERN})"
+)
 
 
 def extract_images_baseline(text: str):

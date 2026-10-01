@@ -11,13 +11,13 @@ ZAC = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "r
 KISS = {"name": "kiss", "version": "3.1.1", "repository": "@kiss"}
 
 
-def image(repository: str, tag: str) -> dict[str, str]:
-    return {"repository": repository, "tag": f"{tag}@sha256:{'a' * 64}"}
+def image(repository: str, tag: str, digest: str = "a") -> dict[str, str]:
+    return {"repository": repository, "tag": f"{tag}@sha256:{digest * 64}"}
 
 
-def zac(tag: str, **sidecars: dict[str, str]) -> dict[str, object]:
+def zac(tag: str, digest: str = "a", **sidecars: dict[str, str]) -> dict[str, object]:
     return {
-        "image": image("ghcr.io/infonl/zaakafhandelcomponent", tag),
+        "image": image("ghcr.io/infonl/zaakafhandelcomponent", tag, digest),
         **{k: {"image": v} for k, v in sidecars.items()},
     }
 
@@ -161,3 +161,59 @@ def test_a_manifest_without_its_vs_line(writer_then_checker):
     )
 
     assert "# Images new or changed in podiumd 4.9.0 vs 4.8.5." in docs[MANIFEST]
+
+
+def test_a_digest_only_re_pin_corrects_the_item_of_an_earlier_bump(writer_then_checker):
+    """Back at the baseline version with a new digest: the entry stays, its row goes, its item says so."""
+    earlier_manifest = (
+        "# Baseline: podiumd 4.8.5. Re-verify before release.\n#\n"
+        "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n#\n"
+        "# Changes:\n#   1. zac 5.4.4 -> 5.4.5.\n#\n\n"
+        "# zac 5.4.4 -> 5.4.5\n"
+        "- name: infonl/zaakafhandelcomponent\n  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+        f'  version: "5.4.5"\n  digest: "sha256:{"c" * 64}"\n'
+    )
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC], "values": {"zac": zac("5.4.4")}},
+        {
+            "version": "4.9.0",
+            "deps": [ZAC],
+            "values": {"zac": zac("5.4.4", digest="b")},
+            "files": {f"docs/{MANIFEST}": earlier_manifest},
+        },
+    )
+
+    assert "#   1. zac 5.4.4 (digest changed)." in docs[MANIFEST]
+    assert f'version: "5.4.4"\n  digest: "sha256:{"b" * 64}"' in docs[MANIFEST]
+    assert "| zac |" not in docs[UPGRADE]
+
+
+def test_a_second_sidecar_bump_rewrites_the_generated_lines_of_its_section(writer_then_checker):
+    note = "Check the OPA policies after the upgrade.\n"
+    earlier_doc = (
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| zac - opa | 1.4.1 → 1.4.2 | - | - |\n\n"
+        "## Changes\n\n"
+        "### zac - opa 1.4.1 → 1.4.2\n\n"
+        f"{note}\n"
+        "PodiumD 4.9.0 upgrades the **zac - opa** image to 1.4.2,\npinned at:\n\n"
+        "- `zac.opa.image.tag` `1.4.1` → `1.4.2`\n\n"
+        "- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).\n"
+    )
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC], "values": {"zac": zac("5.4.4", opa=image("openpolicyagent/opa", "1.4.1"))}},
+        {
+            "version": "4.9.0",
+            "deps": [ZAC],
+            "values": {"zac": zac("5.4.4", opa=image("openpolicyagent/opa", "1.4.3"))},
+            "files": {f"docs/{UPGRADE}": earlier_doc},
+        },
+    )
+
+    assert "upgrades the **zac - opa** image to 1.4.3," in docs[UPGRADE]
+    assert "- `zac.opa.image.tag` `1.4.1` → `1.4.3`" in docs[UPGRADE]
+    assert "1.4.2" not in docs[UPGRADE]
+    assert note in docs[UPGRADE]

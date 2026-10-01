@@ -28,6 +28,12 @@ VERSION_SPEC_RE = re.compile(
 )
 
 
+# "<version> (new)", "(unchanged)" or "(digest changed)": an item without a version pair.
+_SINGLE_VERSION_SPEC_RE = re.compile(
+    r"(?<!\S)(?P<version>[A-Za-z0-9][\w.\-]*)\s*\((?P<kind>new|unchanged|digest changed)\)"
+)
+
+
 def find_preceding_comment(lines: list[str], entry_line_index: int) -> str:
     """The contiguous comment line(s) directly above a "- name: ..." line, joined."""
     comment_lines: list[str] = []
@@ -235,35 +241,35 @@ def _finalize_changes_item(rest: str) -> VersionRow:
             chart_target = extract_target_version(bare_chart_m.group(0))
         app_search_text = rest[: bare_chart_m.start()] + " " + rest[bare_chart_m.end() :]
 
-    # Without an arrow, the extractors' fallback would return leftover prose
-    # as a fake app version.
-    if re.search(r"(?:→|->)", app_search_text):
-        app_source = extract_source_version(app_search_text)
-        app_target = extract_target_version(app_search_text)
-    else:
-        app_source = app_target = None
-
-    if app_source:
-        app_source = app_source.rstrip(".")
-    if app_target:
-        app_target = app_target.rstrip(".")
-    if chart_source:
-        chart_source = chart_source.rstrip(".")
-    if chart_target:
-        chart_target = chart_target.rstrip(".")
-
-    name = rest
-    if app_source:
-        idx = app_search_text.find(app_source)
-        if idx > 0:
-            name = app_search_text[:idx].strip()
+    app_source, app_target, name = _app_versions_and_name(rest, app_search_text)
     return {
         "name": name,
         "app_source": app_source,
         "app": app_target,
-        "chart_source": chart_source,
-        "chart": chart_target,
+        "chart_source": _strip_period(chart_source),
+        "chart": _strip_period(chart_target),
     }
+
+
+def _strip_period(version: str | None) -> str | None:
+    return version.rstrip(".") if version else version
+
+
+def _app_versions_and_name(rest: str, app_search_text: str) -> tuple[str | None, str | None, str]:
+    """(app_source, app_target, name) of an item; name is `rest` when no app version is found."""
+    if re.search(r"(?:→|->)", app_search_text):
+        app_source = _strip_period(extract_source_version(app_search_text))
+        app_target = _strip_period(extract_target_version(app_search_text))
+        idx = app_search_text.find(app_source) if app_source else -1
+        return app_source, app_target, app_search_text[:idx].strip() if idx > 0 else rest
+    # Without an arrow, the extractors' fallback would return leftover prose
+    # as a fake app version.
+    single_m = _SINGLE_VERSION_SPEC_RE.search(app_search_text)
+    if single_m is None:
+        return None, None, rest
+    app_target = single_m.group("version")
+    app_source = None if single_m.group("kind") == "new" else app_target
+    return app_source, app_target, app_search_text[: single_m.start()].strip()
 
 
 def path_display_name(

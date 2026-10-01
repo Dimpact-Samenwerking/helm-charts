@@ -130,8 +130,9 @@ def correct_stale_changes_items(
     if not upgrade_path.is_file() or not images_path.is_file():
         return []
     row_names = [row["name"] for row in parse_upgrade_doc_rows(upgrade_path.read_text(encoding="utf-8"))]
-    lines = images_path.read_text(encoding="utf-8").splitlines(keepends=True)
-    fixed = fix_stale_changes_items(lines, expected_changes_items(row_names, canonical_names, resolution))
+    text = images_path.read_text(encoding="utf-8")
+    lines = text.splitlines(keepends=True)
+    fixed = fix_stale_changes_items(lines, expected_changes_items(row_names, text, canonical_names, resolution))
     if fixed:
         images_path.write_text("".join(lines), encoding="utf-8")
     return fixed

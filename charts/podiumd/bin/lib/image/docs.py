@@ -64,7 +64,6 @@ from lib.upgradedoc.images_manifest_ordering import delete_images_manifest_entry
 from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
-from lib.upgradedoc.sorting_and_ordering import changes_blocks_with_lines
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.sorting_and_ordering import path_order_key
 from lib.upgradedoc.sorting_and_ordering import values_key_order
@@ -384,12 +383,14 @@ def _owned_lines(body: str, kind: str) -> list[str]:
     return [line for line, line_kind in zip(lines, changes_body_kinds(lines), strict=True) if line_kind == kind]
 
 
-def _section_contradicts(heading: str, body: str, expected_heading: str, expected: str) -> bool:
+def _section_contradicts(heading: str, body: str, expected_heading: str, expected: str, *, bullets: bool) -> bool:
     """Whether a generated part of the section differs from the section its row gives.
 
-    Compared: the heading's "(chart ...)" part, the generated intro, and each
-    expected pin bullet. Extra generated bullets (an aliased path's pin) are
-    allowed; hand-written headings, intros and lines are never compared.
+    Compared: the heading's "(chart ...)" part, the generated intro, and, with
+    `bullets`, each expected pin bullet. Extra generated bullets (an aliased
+    path's pin) are allowed; hand-written headings, intros and lines are
+    never compared. A sidecar's row names one of its pins, while its section
+    may list them all, so its bullets are not compared.
     """
     chart = _CHART_PART_RE.search(heading)
     expected_chart = _CHART_PART_RE.search(expected_heading)
@@ -399,8 +400,10 @@ def _section_contradicts(heading: str, body: str, expected_heading: str, expecte
     intro = _owned_lines(body, "intro")
     if intro and intro != _owned_lines(expected_body, "intro"):
         return True
-    bullets = _owned_lines(body, "bullet")
-    return bool(bullets) and not set(_owned_lines(expected_body, "bullet")) <= set(bullets)
+    if not bullets:
+        return False
+    owned_bullets = _owned_lines(body, "bullet")
+    return bool(owned_bullets) and not set(_owned_lines(expected_body, "bullet")) <= set(owned_bullets)
 
 
 @dataclass(frozen=True)
@@ -417,44 +420,48 @@ class ContradictingSection:
 def changes_sections_contradicting_rows(
     text: str, doc_context: DocContext, ordering: OrderingContext
 ) -> list[ContradictingSection]:
-    """Dependency Changes sections whose heading or "introduces"/"upgrades" intro contradicts the table row.
+    """Changes sections whose heading or "introduces"/"upgrades" intro contradicts the table row.
 
     E.g. row "0.28.4 → 0.29.6" with heading "(chart 0.29.6, new)" and
     "introduces". Compared with the section build_changes_section_for_row
     writes for that row; rows without an app version are skipped.
     """
-    ctx = _StaleHeadingContext(doc_context, ordering)
-    rows_by_identity = _rows_by_identity(text, ctx)
-    lines, blocks = changes_blocks_with_lines(text)
+    rows_by_identity = _rows_by_identity(text, _StaleHeadingContext(doc_context, ordering))
     found: list[ContradictingSection] = []
-    for block in blocks:
+    for block in parse_upgrade_doc_changes_blocks(text):
         idents = changes_heading_identities(block["heading"], ordering.deps, ordering.canonical_names)
         ident = next(iter(idents)) if len(idents) == 1 else None
-        row = rows_by_identity.get(ident) if ident is not None and ident[0] == "dep" else None
+        row = rows_by_identity.get(ident) if ident is not None else None
         if row is None or ident is None or row["app"] in (None, "-"):
             continue
         expected = build_changes_section_for_row(row, ident, ordering.deps, doc_context.target)
-        if expected is None:
-            continue
-        expected_heading = expected.splitlines()[0].removeprefix("### ")
-        body = "".join(lines[block["start"] + 1 : block["end"]])
-        if not _section_contradicts(block["heading"], body, expected_heading, expected):
-            continue
-        found.append(
-            ContradictingSection(
-                block["heading"], expected_heading, row["name"], expected, _repair_resolves(text, block, expected)
-            )
-        )
+        if expected is not None:
+            section = _contradicting_section(text, block, row["name"], expected, bullets=ident[0] == "dep")
+            if section is not None:
+                found.append(section)
     return found
 
 
-def _repair_resolves(text: str, block: HeadingBlock, expected: str) -> bool:
+def _contradicting_section(
+    text: str, block: HeadingBlock, row_name: str, expected: str, *, bullets: bool
+) -> ContradictingSection | None:
+    """The ContradictingSection for one block and the section its row gives, or None when they agree."""
+    body = "".join(text.splitlines(keepends=True)[block["start"] + 1 : block["end"]])
+    expected_heading = expected.splitlines()[0].removeprefix("### ")
+    if not _section_contradicts(block["heading"], body, expected_heading, expected, bullets=bullets):
+        return None
+    repairable = _repair_resolves(text, block, expected, bullets=bullets)
+    return ContradictingSection(block["heading"], expected_heading, row_name, expected, repairable)
+
+
+def _repair_resolves(text: str, block: HeadingBlock, expected: str, *, bullets: bool) -> bool:
     """Whether rewriting the block's owned parts removes the contradiction (it may sit in user text)."""
     rewritten = replace_changes_block(text, block, expected)
     new_block = next(b for b in parse_upgrade_doc_changes_blocks(rewritten) if b["start"] == block["start"])
     lines = rewritten.splitlines(keepends=True)
     body = "".join(lines[new_block["start"] + 1 : new_block["end"]])
-    return not _section_contradicts(new_block["heading"], body, expected.splitlines()[0].removeprefix("### "), expected)
+    expected_heading = expected.splitlines()[0].removeprefix("### ")
+    return not _section_contradicts(new_block["heading"], body, expected_heading, expected, bullets=bullets)
 
 
 def rebuild_changes_sections_contradicting_rows(
