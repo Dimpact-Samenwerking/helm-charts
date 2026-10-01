@@ -4,27 +4,37 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
+from lib.chart.chart_yaml import ChartDependency
+from lib.component_docs.changes_section import BaselineState
+from lib.component_docs.changes_section import ComponentState
+from lib.fix_doc_consistency.component_version_table import fix_changes_heading_app_versions
+from lib.fix_doc_consistency.component_version_table import fix_component_version_table
+from lib.fix_doc_consistency.component_version_table import fix_values_delta_heading_app_versions
+from lib.upgradedoc.resolve_component_row import ResolutionContext
+from lib.upgradedoc.version_cells_and_key_changes import canonical_version_cell
+from lib.yaml_types import YamlMapping
+
 # --- canonical_version_cell ---
 
 
 def test_canonical_version_cell_arrow_form(cdb: ModuleType):
-    assert cdb.canonical_version_cell("5.0.2", "5.1.0") == "5.0.2 → 5.1.0"
+    assert canonical_version_cell("5.0.2", "5.1.0") == "5.0.2 → 5.1.0"
 
 
 def test_canonical_version_cell_unchanged_form(cdb: ModuleType):
-    assert cdb.canonical_version_cell("1.0.297", "1.0.297") == "1.0.297 (unchanged)"
+    assert canonical_version_cell("1.0.297", "1.0.297") == "1.0.297 (unchanged)"
 
 
 def test_canonical_version_cell_v_prefix_counts_as_unchanged(cdb: ModuleType):
-    assert cdb.canonical_version_cell("v0.9.352", "0.9.352") == "0.9.352 (unchanged)"
+    assert canonical_version_cell("v0.9.352", "0.9.352") == "0.9.352 (unchanged)"
 
 
 # --- fix_component_version_table ---
 
 
-def target_deps_and_values():
-    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
-    values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
+def target_deps_and_values() -> tuple[list[ChartDependency], YamlMapping]:
+    deps: list[ChartDependency] = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
+    values: YamlMapping = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
     return deps, values
 
 
@@ -36,13 +46,13 @@ def test_fix_component_version_table_corrects_stale_source(cdb: ModuleType):
         "| ZAC (Zaakafhandelcomponent) | 5.0.1 → 5.1.0 | 1.0.251 → 1.0.257 | ACR mirror only |\n"
     )
     target_deps, target_values = target_deps_and_values()
-    baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    baseline_values = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
+    baseline_deps: list[ChartDependency] = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    baseline_values: YamlMapping = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
 
-    new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
+    new_text, changed, unmatched, unresolved = fix_component_version_table(
         text,
-        cdb.ResolutionContext(
-            None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState(baseline_deps, baseline_values)
+        ResolutionContext(
+            None, ComponentState(target_deps, target_values), BaselineState(baseline_deps, baseline_values)
         ),
     )
     assert unmatched == [] and unresolved == []
@@ -62,13 +72,13 @@ def test_fix_component_version_table_leaves_correct_row_untouched(cdb: ModuleTyp
         "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.1.0 | 1.0.297 → 1.0.257 | ACR mirror only |\n"
     )
     target_deps, target_values = target_deps_and_values()
-    baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    baseline_values = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
+    baseline_deps: list[ChartDependency] = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    baseline_values: YamlMapping = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
 
-    new_text, changed, _unmatched, _unresolved = cdb.fix_component_version_table(
+    new_text, changed, _unmatched, _unresolved = fix_component_version_table(
         text,
-        cdb.ResolutionContext(
-            None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState(baseline_deps, baseline_values)
+        ResolutionContext(
+            None, ComponentState(target_deps, target_values), BaselineState(baseline_deps, baseline_values)
         ),
     )
     assert changed == []
@@ -83,12 +93,12 @@ def test_fix_component_version_table_unmatched_component_reported(cdb: ModuleTyp
         "| Totally Unknown Thing | 1.0.0 → 2.0.0 | 1.0.0 → 2.0.0 | - |\n"
     )
     target_deps, target_values = target_deps_and_values()
-    new_text, changed, unmatched, _unresolved = cdb.fix_component_version_table(
+    new_text, changed, unmatched, _unresolved = fix_component_version_table(
         text,
-        cdb.ResolutionContext(
+        ResolutionContext(
             None,
-            cdb.ComponentState(target_deps, target_values),
-            cdb.ComponentState([{"name": "zac", "version": "1.0.297"}], {}),
+            ComponentState(target_deps, target_values),
+            BaselineState([{"name": "zac", "version": "1.0.297"}], {}),
         ),
     )
     assert changed == []
@@ -104,9 +114,9 @@ def test_fix_component_version_table_no_baseline_data_reported_unresolved(cdb: M
         "| ZAC (Zaakafhandelcomponent) | 5.0.1 → 5.1.0 | 1.0.251 → 1.0.257 | ACR mirror only |\n"
     )
     target_deps, target_values = target_deps_and_values()
-    new_text, changed, _unmatched, unresolved = cdb.fix_component_version_table(
+    new_text, changed, _unmatched, unresolved = fix_component_version_table(
         text,
-        cdb.ResolutionContext(None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState(None, None)),
+        ResolutionContext(None, ComponentState(target_deps, target_values), BaselineState(None, None)),
     )
     assert changed == []
     assert unresolved == ["ZAC (Zaakafhandelcomponent)"]
@@ -114,14 +124,14 @@ def test_fix_component_version_table_no_baseline_data_reported_unresolved(cdb: M
 
 
 def redis_sidecar_deps_and_values(target_chart="0.26.1", baseline_chart="0.25.0", target_tag="8.6.6"):
-    target_deps = [{"name": "redis-operator", "version": target_chart}]
-    baseline_deps = [{"name": "redis-operator", "version": baseline_chart}]
+    target_deps: list[ChartDependency] = [{"name": "redis-operator", "version": target_chart}]
+    baseline_deps: list[ChartDependency] = [{"name": "redis-operator", "version": baseline_chart}]
     target_values: dict[str, Any] = {
         "redis-operator": {
             "redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": f"{target_tag}@sha256:aaaa"}}
         }
     }
-    baseline_values = {
+    baseline_values: YamlMapping = {
         "redis-operator": {"redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.2@sha256:aaaa"}}}
     }
     return target_deps, target_values, baseline_deps, baseline_values
@@ -137,10 +147,10 @@ def test_fix_component_version_table_leaves_a_correct_sidecar_row_untouched(cdb:
     )
     target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values()
 
-    new_text, changed, _unmatched, _unresolved = cdb.fix_component_version_table(
+    new_text, changed, _unmatched, _unresolved = fix_component_version_table(
         text,
-        cdb.ResolutionContext(
-            None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState(baseline_deps, baseline_values)
+        ResolutionContext(
+            None, ComponentState(target_deps, target_values), BaselineState(baseline_deps, baseline_values)
         ),
     )
     assert changed == []
@@ -157,10 +167,10 @@ def test_fix_component_version_table_corrects_a_stale_sidecar_row_using_its_own_
     )
     target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values()
 
-    new_text, changed, _unmatched, _unresolved = cdb.fix_component_version_table(
+    new_text, changed, _unmatched, _unresolved = fix_component_version_table(
         text,
-        cdb.ResolutionContext(
-            None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState(baseline_deps, baseline_values)
+        ResolutionContext(
+            None, ComponentState(target_deps, target_values), BaselineState(baseline_deps, baseline_values)
         ),
     )
     assert len(changed) == 1
@@ -177,15 +187,15 @@ def test_fix_component_version_table_corrects_a_native_components_wrong_chart_ce
         "| --- | --- | --- | --- |\n"
         "| frankgateway | 104 (unchanged) | 1.1.0 (new) | - |\n"
     )
-    target_deps = [{"name": "zac", "version": "1.0.297"}]
-    target_values = {"frankgateway": {"image": {"tag": "104@sha256:aaaa"}}}
-    baseline_deps = [{"name": "zac", "version": "1.0.297"}]
-    baseline_values = {"frankgateway": {"image": {"tag": "104@sha256:aaaa"}}}
+    target_deps: list[ChartDependency] = [{"name": "zac", "version": "1.0.297"}]
+    target_values: YamlMapping = {"frankgateway": {"image": {"tag": "104@sha256:aaaa"}}}
+    baseline_deps: list[ChartDependency] = [{"name": "zac", "version": "1.0.297"}]
+    baseline_values: YamlMapping = {"frankgateway": {"image": {"tag": "104@sha256:aaaa"}}}
 
-    new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
+    new_text, changed, unmatched, unresolved = fix_component_version_table(
         text,
-        cdb.ResolutionContext(
-            None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState(baseline_deps, baseline_values)
+        ResolutionContext(
+            None, ComponentState(target_deps, target_values), BaselineState(baseline_deps, baseline_values)
         ),
     )
     assert unmatched == [] and unresolved == []
@@ -201,15 +211,15 @@ def test_fix_component_version_table_leaves_a_correct_native_component_row_untou
         "| --- | --- | --- | --- |\n"
         "| frankgateway | 104 (unchanged) | - | - |\n"
     )
-    target_deps = [{"name": "zac", "version": "1.0.297"}]
-    target_values = {"frankgateway": {"image": {"tag": "104@sha256:aaaa"}}}
-    baseline_deps = [{"name": "zac", "version": "1.0.297"}]
-    baseline_values = {"frankgateway": {"image": {"tag": "104@sha256:aaaa"}}}
+    target_deps: list[ChartDependency] = [{"name": "zac", "version": "1.0.297"}]
+    target_values: YamlMapping = {"frankgateway": {"image": {"tag": "104@sha256:aaaa"}}}
+    baseline_deps: list[ChartDependency] = [{"name": "zac", "version": "1.0.297"}]
+    baseline_values: YamlMapping = {"frankgateway": {"image": {"tag": "104@sha256:aaaa"}}}
 
-    new_text, changed, _unmatched, _unresolved = cdb.fix_component_version_table(
+    new_text, changed, _unmatched, _unresolved = fix_component_version_table(
         text,
-        cdb.ResolutionContext(
-            None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState(baseline_deps, baseline_values)
+        ResolutionContext(
+            None, ComponentState(target_deps, target_values), BaselineState(baseline_deps, baseline_values)
         ),
     )
     assert changed == []
@@ -226,10 +236,10 @@ def test_fix_component_version_table_unresolvable_canonical_row_reported_not_cor
     )
     target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values()
 
-    new_text, changed, _unmatched, unresolved = cdb.fix_component_version_table(
+    new_text, changed, _unmatched, unresolved = fix_component_version_table(
         text,
-        cdb.ResolutionContext(
-            None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState(baseline_deps, baseline_values)
+        ResolutionContext(
+            None, ComponentState(target_deps, target_values), BaselineState(baseline_deps, baseline_values)
         ),
     )
     assert changed == []
@@ -245,11 +255,11 @@ def test_fix_component_version_table_new_dependency_annotated_new_not_reported_u
         "| --- | --- | --- | --- |\n"
         "| openklant | 2.15.0 | 1.11.0 | - |\n"
     )
-    target_deps = [{"name": "openklant", "version": "1.11.0"}]
-    target_values = {"openklant": {"image": {"tag": "2.15.0@sha256:aaaa"}}}
+    target_deps: list[ChartDependency] = [{"name": "openklant", "version": "1.11.0"}]
+    target_values: YamlMapping = {"openklant": {"image": {"tag": "2.15.0@sha256:aaaa"}}}
 
-    new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
-        text, cdb.ResolutionContext(None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState([], {}))
+    new_text, changed, unmatched, unresolved = fix_component_version_table(
+        text, ResolutionContext(None, ComponentState(target_deps, target_values), BaselineState([], {}))
     )
     assert unmatched == [] and unresolved == []
     assert len(changed) == 1
@@ -264,11 +274,11 @@ def test_fix_component_version_table_new_dependency_already_annotated_is_untouch
         "| --- | --- | --- | --- |\n"
         "| openklant | 2.15.0 (new) | 1.11.0 (new) | - |\n"
     )
-    target_deps = [{"name": "openklant", "version": "1.11.0"}]
-    target_values = {"openklant": {"image": {"tag": "2.15.0@sha256:aaaa"}}}
+    target_deps: list[ChartDependency] = [{"name": "openklant", "version": "1.11.0"}]
+    target_values: YamlMapping = {"openklant": {"image": {"tag": "2.15.0@sha256:aaaa"}}}
 
-    new_text, changed, _unmatched, _unresolved = cdb.fix_component_version_table(
-        text, cdb.ResolutionContext(None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState([], {}))
+    new_text, changed, _unmatched, _unresolved = fix_component_version_table(
+        text, ResolutionContext(None, ComponentState(target_deps, target_values), BaselineState([], {}))
     )
     assert changed == []
     assert new_text == text
@@ -287,10 +297,10 @@ def test_fix_component_version_table_new_sidecar_app_annotated_new_chart_cell_un
         "image": {"repository": "alpine/k8s", "tag": "1.36.2@sha256:cccc"}
     }
 
-    new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
+    new_text, changed, unmatched, unresolved = fix_component_version_table(
         text,
-        cdb.ResolutionContext(
-            None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState(baseline_deps, baseline_values)
+        ResolutionContext(
+            None, ComponentState(target_deps, target_values), BaselineState(baseline_deps, baseline_values)
         ),
     )
     assert unmatched == [] and unresolved == []
@@ -335,19 +345,19 @@ def test_fix_component_version_table_new_dependency_known_in_historical_manifest
         "| --- | --- | --- | --- |\n"
         "| brppersonenmock | 2.7.0-202606230850 | 1.2.9 | - |\n"
     )
-    target_deps = [{"name": "brppersonenmock", "version": "1.2.9"}]
-    target_values = {
+    target_deps: list[ChartDependency] = [{"name": "brppersonenmock", "version": "1.2.9"}]
+    target_values: YamlMapping = {
         "brppersonenmock": {
             "image": {"repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0-202606230850@sha256:aaaa"}
         }
     }
 
-    new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
+    new_text, changed, unmatched, unresolved = fix_component_version_table(
         text,
-        cdb.ResolutionContext(
+        ResolutionContext(
             tmp_path,
-            cdb.ComponentState(target_deps, target_values),
-            cdb.ComponentState([], {}),
+            ComponentState(target_deps, target_values),
+            BaselineState([], {}),
             upgrade_docs_baseline="4.8.5",
         ),
     )
@@ -377,12 +387,12 @@ def test_fix_component_version_table_new_sidecar_known_in_historical_manifest_is
         "image": {"repository": "quay.io/alpine/k8s", "tag": "1.36.2@sha256:cccc"}
     }
 
-    new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
+    new_text, changed, unmatched, unresolved = fix_component_version_table(
         text,
-        cdb.ResolutionContext(
+        ResolutionContext(
             tmp_path,
-            cdb.ComponentState(target_deps, target_values),
-            cdb.ComponentState(baseline_deps, baseline_values),
+            ComponentState(target_deps, target_values),
+            BaselineState(baseline_deps, baseline_values),
             upgrade_docs_baseline="4.8.5",
         ),
     )
@@ -414,12 +424,12 @@ def test_fix_component_version_table_corrects_a_stale_new_annotation_with_matchi
         "image": {"repository": "quay.io/alpine/k8s", "tag": "1.36.2@sha256:cccc"}
     }
 
-    new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
+    new_text, changed, unmatched, unresolved = fix_component_version_table(
         text,
-        cdb.ResolutionContext(
+        ResolutionContext(
             tmp_path,
-            cdb.ComponentState(target_deps, target_values),
-            cdb.ComponentState(baseline_deps, baseline_values),
+            ComponentState(target_deps, target_values),
+            BaselineState(baseline_deps, baseline_values),
             upgrade_docs_baseline="4.8.5",
         ),
     )
@@ -445,14 +455,12 @@ def test_fix_changes_heading_app_versions_corrects_wrong_new_dependency_heading(
         "### mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)\n\n"
         "Some stale prose here.\n"
     )
-    deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
-    target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+    deps: list[ChartDependency] = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
+    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
-    new_text, updated_headings = cdb.fix_changes_heading_app_versions(
+    new_text, updated_headings = fix_changes_heading_app_versions(
         text,
-        cdb.ResolutionContext(
-            None, cdb.ComponentState(deps, target_values), cdb.ComponentState([], {}), upgrade_docs_baseline=None
-        ),
+        ResolutionContext(None, ComponentState(deps, target_values), BaselineState([], {}), upgrade_docs_baseline=None),
     )
 
     assert updated_headings == ["mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)"]
@@ -473,14 +481,12 @@ def test_fix_changes_heading_app_versions_syncs_headings_name_to_rows(cdb: Modul
         "### mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)\n\n"
         "Some stale prose here.\n"
     )
-    deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
-    target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+    deps: list[ChartDependency] = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
+    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
-    new_text, updated_headings = cdb.fix_changes_heading_app_versions(
+    new_text, updated_headings = fix_changes_heading_app_versions(
         text,
-        cdb.ResolutionContext(
-            None, cdb.ComponentState(deps, target_values), cdb.ComponentState([], {}), upgrade_docs_baseline=None
-        ),
+        ResolutionContext(None, ComponentState(deps, target_values), BaselineState([], {}), upgrade_docs_baseline=None),
     )
 
     assert updated_headings == ["mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)"]
@@ -500,14 +506,12 @@ def test_fix_changes_heading_app_versions_renames_even_when_app_version_already_
         "### mi 2.90.0 (new) (chart 1.1.0, unchanged)\n\n"
         "Some stale prose here.\n"
     )
-    deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
-    target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+    deps: list[ChartDependency] = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
+    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
-    new_text, updated_headings = cdb.fix_changes_heading_app_versions(
+    new_text, updated_headings = fix_changes_heading_app_versions(
         text,
-        cdb.ResolutionContext(
-            None, cdb.ComponentState(deps, target_values), cdb.ComponentState([], {}), upgrade_docs_baseline=None
-        ),
+        ResolutionContext(None, ComponentState(deps, target_values), BaselineState([], {}), upgrade_docs_baseline=None),
     )
 
     assert updated_headings == ["mi 2.90.0 (new) (chart 1.1.0, unchanged)"]
@@ -525,8 +529,8 @@ def test_fix_changes_heading_app_versions_preserves_deliberately_customized_name
         "### Keycloak Operator (server) 26.7.2 → 26.7.3 (chart 1.12.1 → 1.13.0)\n\n"
         "Real, hand-written prose describing just the server image bump.\n"
     )
-    deps = [{"name": "keycloak-operator", "version": "1.13.0"}]
-    target_values = {
+    deps: list[ChartDependency] = [{"name": "keycloak-operator", "version": "1.13.0"}]
+    target_values: YamlMapping = {
         "keycloak-operator": {
             "operator": {
                 "config": {
@@ -535,8 +539,8 @@ def test_fix_changes_heading_app_versions_preserves_deliberately_customized_name
             }
         }
     }
-    baseline_deps = [{"name": "keycloak-operator", "version": "1.12.1"}]
-    baseline_values = {
+    baseline_deps: list[ChartDependency] = [{"name": "keycloak-operator", "version": "1.12.1"}]
+    baseline_values: YamlMapping = {
         "keycloak-operator": {
             "operator": {
                 "config": {
@@ -546,12 +550,12 @@ def test_fix_changes_heading_app_versions_preserves_deliberately_customized_name
         }
     }
 
-    new_text, updated_headings = cdb.fix_changes_heading_app_versions(
+    new_text, updated_headings = fix_changes_heading_app_versions(
         text,
-        cdb.ResolutionContext(
+        ResolutionContext(
             None,
-            cdb.ComponentState(deps, target_values),
-            cdb.ComponentState(baseline_deps, baseline_values),
+            ComponentState(deps, target_values),
+            BaselineState(baseline_deps, baseline_values),
             upgrade_docs_baseline="4.9.0",
         ),
     )
@@ -571,14 +575,12 @@ def test_fix_changes_heading_app_versions_no_version_marker_never_touched(cdb: M
         "### mi\n\n"
         "Free-form prose with no version claim at all.\n"
     )
-    deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
-    target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+    deps: list[ChartDependency] = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
+    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
-    new_text, updated_headings = cdb.fix_changes_heading_app_versions(
+    new_text, updated_headings = fix_changes_heading_app_versions(
         text,
-        cdb.ResolutionContext(
-            None, cdb.ComponentState(deps, target_values), cdb.ComponentState([], {}), upgrade_docs_baseline=None
-        ),
+        ResolutionContext(None, ComponentState(deps, target_values), BaselineState([], {}), upgrade_docs_baseline=None),
     )
 
     assert updated_headings == []
@@ -595,14 +597,12 @@ def test_fix_changes_heading_app_versions_already_correct_heading_untouched(cdb:
         "### mi 2.90.0 (new) (chart 1.1.0, unchanged)\n\n"
         "PodiumD 4.9.1 introduces **mi** at app version 2.90.0.\n"
     )
-    deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
-    target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+    deps: list[ChartDependency] = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
+    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
-    new_text, updated_headings = cdb.fix_changes_heading_app_versions(
+    new_text, updated_headings = fix_changes_heading_app_versions(
         text,
-        cdb.ResolutionContext(
-            None, cdb.ComponentState(deps, target_values), cdb.ComponentState([], {}), upgrade_docs_baseline=None
-        ),
+        ResolutionContext(None, ComponentState(deps, target_values), BaselineState([], {}), upgrade_docs_baseline=None),
     )
 
     assert updated_headings == []
@@ -620,21 +620,21 @@ def test_fix_changes_heading_app_versions_real_version_bump_still_corrected(cdb:
         "### zac 5.4.0 → 5.4.0 (chart 1.0.297, unchanged)\n\n"
         "Stale prose from a previous, wrong resolution.\n"
     )
-    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    target_values = {
+    deps: list[ChartDependency] = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    target_values: YamlMapping = {
         "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.5.0@sha256:" + "b" * 64}}
     }
-    baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    baseline_values = {
+    baseline_deps: list[ChartDependency] = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    baseline_values: YamlMapping = {
         "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.0@sha256:" + "a" * 64}}
     }
 
-    new_text, updated_headings = cdb.fix_changes_heading_app_versions(
+    new_text, updated_headings = fix_changes_heading_app_versions(
         text,
-        cdb.ResolutionContext(
+        ResolutionContext(
             None,
-            cdb.ComponentState(deps, target_values),
-            cdb.ComponentState(baseline_deps, baseline_values),
+            ComponentState(deps, target_values),
+            BaselineState(baseline_deps, baseline_values),
             upgrade_docs_baseline="4.9.0",
         ),
     )
@@ -654,14 +654,14 @@ def test_fix_changes_heading_app_versions_corrects_stale_bare_sidecar_heading(cd
         "### redis 8.0 → 8.10.1\n\n"
         "Some stale prose here.\n"
     )
-    deps = []
-    target_values = {"global": {"images": {"redis": {"repository": "redis", "tag": "8.10.1@sha256:" + "a" * 64}}}}
+    deps: list[ChartDependency] = []
+    target_values: YamlMapping = {
+        "global": {"images": {"redis": {"repository": "redis", "tag": "8.10.1@sha256:" + "a" * 64}}}
+    }
 
-    new_text, updated_headings = cdb.fix_changes_heading_app_versions(
+    new_text, updated_headings = fix_changes_heading_app_versions(
         text,
-        cdb.ResolutionContext(
-            None, cdb.ComponentState(deps, target_values), cdb.ComponentState([], {}), upgrade_docs_baseline=None
-        ),
+        ResolutionContext(None, ComponentState(deps, target_values), BaselineState([], {}), upgrade_docs_baseline=None),
     )
 
     assert updated_headings == ["redis 8.0 → 8.10.1"]
@@ -684,12 +684,12 @@ def test_fix_changes_heading_app_versions_corrects_stale_real_sidecar_heading(cd
     )
     target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values()
 
-    new_text, updated_headings = cdb.fix_changes_heading_app_versions(
+    new_text, updated_headings = fix_changes_heading_app_versions(
         text,
-        cdb.ResolutionContext(
+        ResolutionContext(
             None,
-            cdb.ComponentState(target_deps, target_values),
-            cdb.ComponentState(baseline_deps, baseline_values),
+            ComponentState(target_deps, target_values),
+            BaselineState(baseline_deps, baseline_values),
             upgrade_docs_baseline="4.8.5",
         ),
     )
@@ -709,14 +709,14 @@ def test_fix_changes_heading_app_versions_already_correct_sidecar_heading_untouc
         "### redis 8.10.1 (new)\n\n"
         "Some prose here.\n"
     )
-    deps = []
-    target_values = {"global": {"images": {"redis": {"repository": "redis", "tag": "8.10.1@sha256:" + "a" * 64}}}}
+    deps: list[ChartDependency] = []
+    target_values: YamlMapping = {
+        "global": {"images": {"redis": {"repository": "redis", "tag": "8.10.1@sha256:" + "a" * 64}}}
+    }
 
-    new_text, updated_headings = cdb.fix_changes_heading_app_versions(
+    new_text, updated_headings = fix_changes_heading_app_versions(
         text,
-        cdb.ResolutionContext(
-            None, cdb.ComponentState(deps, target_values), cdb.ComponentState([], {}), upgrade_docs_baseline=None
-        ),
+        ResolutionContext(None, ComponentState(deps, target_values), BaselineState([], {}), upgrade_docs_baseline=None),
     )
 
     assert updated_headings == []
@@ -735,23 +735,23 @@ def test_fix_changes_heading_app_versions_corrects_moved_repository_sidecar_head
         "### postgres 16.15-alpine (new)\n\n"
         "Some stale prose here.\n"
     )
-    deps = [{"name": "openbao", "version": "2.0.0"}]
-    target_values = {
+    deps: list[ChartDependency] = [{"name": "openbao", "version": "2.0.0"}]
+    target_values: YamlMapping = {
         "global": {"images": {"postgres": {"repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}},
         "openbao": {
             "database": {"schemaJob": {"image": {"repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}}
         },
     }
-    baseline_values = {
+    baseline_values: YamlMapping = {
         "openbao": {"database": {"schemaJob": {"image": {"repository": "postgres", "tag": "16-alpine@sha256:bbbb"}}}},
     }
 
-    new_text, updated_headings = cdb.fix_changes_heading_app_versions(
+    new_text, updated_headings = fix_changes_heading_app_versions(
         text,
-        cdb.ResolutionContext(
+        ResolutionContext(
             tmp_path,
-            cdb.ComponentState(deps, target_values),
-            cdb.ComponentState(deps, baseline_values),
+            ComponentState(deps, target_values),
+            BaselineState(deps, baseline_values),
             upgrade_docs_baseline=None,
         ),
     )
@@ -780,15 +780,13 @@ def test_fix_values_delta_heading_app_versions_corrects_wrong_name_and_new_depen
         "## mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)\n\n"
         "- Key `mi.transfer.noEpsv` (optional) added.\n"
     )
-    deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
-    target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+    deps: list[ChartDependency] = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
+    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
-    new_text, updated_headings = cdb.fix_values_delta_heading_app_versions(
+    new_text, updated_headings = fix_values_delta_heading_app_versions(
         MI_UPGRADE_DOC_TEXT,
         values_deltas_text,
-        cdb.ResolutionContext(
-            None, cdb.ComponentState(deps, target_values), cdb.ComponentState([], {}), upgrade_docs_baseline=None
-        ),
+        ResolutionContext(None, ComponentState(deps, target_values), BaselineState([], {}), upgrade_docs_baseline=None),
     )
 
     assert updated_headings == ["mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)"]
@@ -802,15 +800,13 @@ def test_fix_values_delta_heading_app_versions_already_correct_heading_untouched
         "## mi-data (MI-data exports) 2.90.0 (new) (chart 1.1.0, unchanged)\n\n"
         "- Key `mi.transfer.noEpsv` (optional) added.\n"
     )
-    deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
-    target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+    deps: list[ChartDependency] = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
+    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
-    new_text, updated_headings = cdb.fix_values_delta_heading_app_versions(
+    new_text, updated_headings = fix_values_delta_heading_app_versions(
         MI_UPGRADE_DOC_TEXT,
         values_deltas_text,
-        cdb.ResolutionContext(
-            None, cdb.ComponentState(deps, target_values), cdb.ComponentState([], {}), upgrade_docs_baseline=None
-        ),
+        ResolutionContext(None, ComponentState(deps, target_values), BaselineState([], {}), upgrade_docs_baseline=None),
     )
 
     assert updated_headings == []
@@ -828,15 +824,15 @@ def test_fix_values_delta_heading_app_versions_corrects_stale_sidecar_heading(cd
     values_deltas_text = (
         "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\n## redis 8.0 → 8.10.1\n\n- `global.images.redis` added.\n"
     )
-    deps = []
-    target_values = {"global": {"images": {"redis": {"repository": "redis", "tag": "8.10.1@sha256:" + "a" * 64}}}}
+    deps: list[ChartDependency] = []
+    target_values: YamlMapping = {
+        "global": {"images": {"redis": {"repository": "redis", "tag": "8.10.1@sha256:" + "a" * 64}}}
+    }
 
-    new_text, updated_headings = cdb.fix_values_delta_heading_app_versions(
+    new_text, updated_headings = fix_values_delta_heading_app_versions(
         redis_upgrade_doc_text,
         values_deltas_text,
-        cdb.ResolutionContext(
-            None, cdb.ComponentState(deps, target_values), cdb.ComponentState([], {}), upgrade_docs_baseline=None
-        ),
+        ResolutionContext(None, ComponentState(deps, target_values), BaselineState([], {}), upgrade_docs_baseline=None),
     )
 
     assert updated_headings == ["redis 8.0 → 8.10.1"]
@@ -849,15 +845,13 @@ def test_fix_values_delta_heading_app_versions_bare_hand_written_heading_never_t
     values_deltas_text = (
         "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\n## mi\n\nFree-form prose, no version marker at all.\n"
     )
-    deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
-    target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+    deps: list[ChartDependency] = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
+    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
-    new_text, updated_headings = cdb.fix_values_delta_heading_app_versions(
+    new_text, updated_headings = fix_values_delta_heading_app_versions(
         MI_UPGRADE_DOC_TEXT,
         values_deltas_text,
-        cdb.ResolutionContext(
-            None, cdb.ComponentState(deps, target_values), cdb.ComponentState([], {}), upgrade_docs_baseline=None
-        ),
+        ResolutionContext(None, ComponentState(deps, target_values), BaselineState([], {}), upgrade_docs_baseline=None),
     )
 
     assert updated_headings == []
@@ -871,15 +865,13 @@ def test_fix_values_delta_heading_app_versions_no_upgrade_doc_is_a_noop(cdb: Mod
         "## mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)\n\n"
         "- Key `mi.transfer.noEpsv` (optional) added.\n"
     )
-    deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
-    target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+    deps: list[ChartDependency] = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
+    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
-    new_text, updated_headings = cdb.fix_values_delta_heading_app_versions(
+    new_text, updated_headings = fix_values_delta_heading_app_versions(
         "",
         values_deltas_text,
-        cdb.ResolutionContext(
-            None, cdb.ComponentState(deps, target_values), cdb.ComponentState([], {}), upgrade_docs_baseline=None
-        ),
+        ResolutionContext(None, ComponentState(deps, target_values), BaselineState([], {}), upgrade_docs_baseline=None),
     )
 
     assert updated_headings == []

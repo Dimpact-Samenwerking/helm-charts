@@ -8,6 +8,9 @@ from types import ModuleType
 import pytest
 import yaml
 
+from lib.fix_doc_consistency.manifest_changes_items import dedupe_images_manifest_changes_items
+from lib.fix_doc_consistency.manifest_changes_items import sort_images_manifest_changes_items
+
 
 def git(*args, cwd):
     subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
@@ -23,7 +26,6 @@ def set_argv_and_dir(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch, doc_dir, 
     monkeypatch.setattr(cdb, "DOC_DIR", doc_dir)
     monkeypatch.setattr(cdb, "IMAGES_DIR", doc_dir.parent / "images")
     monkeypatch.setattr(cdb, "CHART_YAML", doc_dir.parents[1] / "Chart.yaml")
-    monkeypatch.setattr(cdb, "VALUES_YAML", doc_dir.parents[1] / "values.yaml")
     monkeypatch.setattr(cdb, "current_chart_version", lambda: target)
 
 
@@ -41,7 +43,7 @@ def test_dedupe_images_manifest_changes_items_removes_exact_repeat_and_renumbers
         "#   4. zac 5.0.2 -> 5.4.4.\n",
         "\n",
     ]
-    removed = cdb.dedupe_images_manifest_changes_items(lines)
+    removed = dedupe_images_manifest_changes_items(lines)
     assert removed == ["ita 3.2.0 -> 3.3.0."]
     assert lines[1] == "#   1. redis-operator 0.25.0 -> 0.26.0.\n"
     assert lines[2] == "#   2. ita 3.2.0 -> 3.3.0.\n"
@@ -58,7 +60,7 @@ def test_dedupe_images_manifest_changes_items_updates_header_count_word(cdb: Mod
         "#   3. kiss-eck 8.19.3 -> 8.19.19.\n",
         "#   4. zac 5.0.2 -> 5.4.4.\n",
     ]
-    removed = cdb.dedupe_images_manifest_changes_items(lines)
+    removed = dedupe_images_manifest_changes_items(lines)
     assert removed == ["kiss-eck 8.19.3 -> 8.19.19."]
     assert lines[0] == "# Three changes:\n"
 
@@ -74,7 +76,7 @@ def test_dedupe_images_manifest_changes_items_continuation_line_travels_with_kep
         "#   3. ita 3.2.0 -> 3.3.0. Web and\n",
         "#      poller, tag bumps only.\n",
     ]
-    removed = cdb.dedupe_images_manifest_changes_items(lines)
+    removed = dedupe_images_manifest_changes_items(lines)
     assert removed == ["ita 3.2.0 -> 3.3.0. Web and"]
     assert lines == [
         "# Changes:\n",
@@ -91,14 +93,14 @@ def test_dedupe_images_manifest_changes_items_no_duplicates_is_a_noop(cdb: Modul
         "#   2. zac 5.0.2 -> 5.4.4.\n",
     ]
     original = list(lines)
-    removed = cdb.dedupe_images_manifest_changes_items(lines)
+    removed = dedupe_images_manifest_changes_items(lines)
     assert removed == []
     assert lines == original
 
 
 def test_dedupe_images_manifest_changes_items_no_header_returns_empty(cdb: ModuleType):
     lines = ["- name: opstree/redis-operator\n", '  version: "0.26.0"\n']
-    assert cdb.dedupe_images_manifest_changes_items(lines) == []
+    assert dedupe_images_manifest_changes_items(lines) == []
 
 
 # --- sort_images_manifest_changes_items ---
@@ -117,7 +119,7 @@ def test_sort_images_manifest_changes_items_reorders_and_renumbers(cdb: ModuleTy
         "#   2. redis-operator 0.25.0 -> 0.26.0.\n",
         "\n",
     ]
-    moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_POSITIONS)
+    moved = sort_images_manifest_changes_items(lines, CHANGES_ITEMS_POSITIONS)
     assert moved == [("redis-operator 0.25.0 -> 0.26.0.", 2, 1), ("zac 5.0.2 -> 5.4.4.", 1, 2)]
     assert lines[3] == "#   1. redis-operator 0.25.0 -> 0.26.0.\n"
     assert lines[4] == "#   2. zac 5.0.2 -> 5.4.4.\n"
@@ -133,7 +135,7 @@ def test_sort_images_manifest_changes_items_matches_the_display_name_not_the_ima
         "#   3. kiss - crawler 1.0.0 -> 1.0.0.\n",
         "\n",
     ]
-    moved = cdb.sort_images_manifest_changes_items(lines, display_name_positions)
+    moved = sort_images_manifest_changes_items(lines, display_name_positions)
     assert moved == [
         ("kiss 2.2.4 -> 3.0.0.", 2, 1),
         ("kiss - crawler 1.0.0 -> 1.0.0.", 3, 2),
@@ -150,7 +152,7 @@ def test_sort_images_manifest_changes_items_display_name_prefers_longest_match(c
         "#   2. keycloak-operator 26.6.4 -> 26.7.2.\n",
         "\n",
     ]
-    cdb.sort_images_manifest_changes_items(lines, display_name_positions)
+    sort_images_manifest_changes_items(lines, display_name_positions)
     assert lines[1] == "#   1. keycloak-operator 26.6.4 -> 26.7.2.\n"
     assert lines[2] == "#   2. keycloak-operator - postgres 16 -> 16.15.\n"
 
@@ -164,7 +166,7 @@ def test_sort_images_manifest_changes_items_continuation_line_travels_with_item(
         "#      nginx sidecar in the chart) 0.25.0 -> 0.26.0.\n",
         "\n",
     ]
-    moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_POSITIONS)
+    moved = sort_images_manifest_changes_items(lines, CHANGES_ITEMS_POSITIONS)
     assert len(moved) == 2
     assert lines[1].startswith("#   1. redis-operator (shared")
     assert lines[2] == "#      nginx sidecar in the chart) 0.25.0 -> 0.26.0.\n"
@@ -180,7 +182,7 @@ def test_sort_images_manifest_changes_items_hand_written_item_sorts_last(cdb: Mo
         "#   3. redis-operator 0.25.0 -> 0.26.0.\n",
         "\n",
     ]
-    cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_POSITIONS)
+    sort_images_manifest_changes_items(lines, CHANGES_ITEMS_POSITIONS)
     assert lines[1] == "#   1. redis-operator 0.25.0 -> 0.26.0.\n"
     assert lines[2] == "#   2. zac 5.0.2 -> 5.4.4.\n"
     assert lines[3].startswith("#   3. Keycloak app image")
@@ -194,14 +196,14 @@ def test_sort_images_manifest_changes_items_already_ordered_reports_nothing(cdb:
         "\n",
     ]
     original = list(lines)
-    moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_POSITIONS)
+    moved = sort_images_manifest_changes_items(lines, CHANGES_ITEMS_POSITIONS)
     assert moved == []
     assert lines == original
 
 
 def test_sort_images_manifest_changes_items_no_header_is_a_noop(cdb: ModuleType):
     lines = ["- name: opstree/redis-operator\n", '  version: "0.26.0"\n']
-    moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_POSITIONS)
+    moved = sort_images_manifest_changes_items(lines, CHANGES_ITEMS_POSITIONS)
     assert moved == []
 
 

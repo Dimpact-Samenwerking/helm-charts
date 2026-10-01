@@ -390,7 +390,6 @@ def writer_then_checker(
         monkeypatch.setattr(cdb, "DOC_DIR", tmp_path / "docs" / "_UPGRADE_PATHS")
         monkeypatch.setattr(cdb, "IMAGES_DIR", tmp_path / "docs" / "images")
         monkeypatch.setattr(cdb, "CHART_YAML", tmp_path / "Chart.yaml")
-        monkeypatch.setattr(cdb, "VALUES_YAML", tmp_path / "values.yaml")
         monkeypatch.setattr(cdb, "current_chart_version", lambda: target["version"])
 
         cdb.main()
