@@ -268,7 +268,7 @@ NEW_DEP_GEMEENTE_DOC = "# Gemeente-specific notes — PodiumD {baseline} → 4.9
 NEW_DEP_VALUES_DELTAS_DOC = (
     "# Values deltas — PodiumD {baseline} → 4.9.0\n\n"
     "## openklant newly added (`openklant.image`)\n\n"
-    "No gemeente podiumd.yml changes are required for this hop.\n"
+    "- Key `openklant.image` was added.\n"
 )
 NEW_DEP_IMAGES_MANIFEST = """\
 # Baseline: podiumd {baseline} (test @ 0000000).

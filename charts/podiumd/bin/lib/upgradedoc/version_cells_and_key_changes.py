@@ -14,9 +14,6 @@ from lib.yaml_types import YamlValue
 VERSION_PAIR_RE = re.compile(r"(?P<source>[A-Za-z0-9][\w.\-]*)\s*(?P<arrow>→|->)\s*(?P<target>[A-Za-z0-9][\w.\-]*)")
 
 
-FENCED_CODE_BLOCK_RE = re.compile(r"```.*?```", re.DOTALL)
-
-
 HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 
 
@@ -137,42 +134,20 @@ def describe_key_changes(values_key: str, baseline_subtree: YamlValue, current_s
     return lines
 
 
-def missing_key_change_lines_by_key(
-    text: str, changed_component_keys: set[str], baseline_values: YamlMapping | None, values: YamlMapping | None
-) -> dict[str, list[str]]:
-    """{values_key: [line, ...]} of describe_key_changes() lines not yet mentioned in text.
-
-    Grouped per key so each goes to its own values-deltas.md section. A line counts as
-    mentioned only if every backtick span in it exactly equals a backtick span in text
-    (both keys of a rename). Never a substring match: prose like "never `tag`" would
-    otherwise cover every key path containing "tag". A bare trailing segment mentioned
-    without its prefix is therefore reported too; an occasional duplicate beats a missed
-    omission. A line already present verbatim is never reported."""
-    backtick_spans = set(re.findall(r"`([^`]+)`", strip_fenced_code_blocks(text)))
-
-    def mentioned(span: str):
-        return span in backtick_spans
-
-    by_key: dict[str, list[str]] = {}
-    for values_key in sorted(changed_component_keys):
-        baseline_subtree = baseline_values.get(values_key, {}) if isinstance(baseline_values, dict) else {}
-        current_subtree = values.get(values_key, {}) if isinstance(values, dict) else {}
-        lines: list[str] = []
-        for line in describe_key_changes(values_key, baseline_subtree, current_subtree):
-            spans_in_line = re.findall(r"`([^`]+)`", line)
-            if line not in text and not all(mentioned(span) for span in spans_in_line):
-                lines.append(line)
-        if lines:
-            by_key[values_key] = lines
-    return by_key
+def key_change_lines(values_key: str, baseline_values: YamlMapping | None, values: YamlMapping | None):
+    """describe_key_changes() for values_key's subtree; a missing subtree counts as empty."""
+    baseline_subtree = baseline_values.get(values_key, {}) if isinstance(baseline_values, dict) else {}
+    current_subtree = values.get(values_key, {}) if isinstance(values, dict) else {}
+    return describe_key_changes(values_key, baseline_subtree, current_subtree)
 
 
-def strip_fenced_code_blocks(text: str):
-    """`text` with every ```...``` fenced code block blanked out.
+def missing_key_change_lines(section_text: str, key_lines: list[str]):
+    """The key_lines not present as a whole line in section_text.
 
-    A lone backtick or "**" in example code desyncs delimiter pairing for the rest of the
-    doc, so span scanners must scan the stripped text."""
-    return FENCED_CODE_BLOCK_RE.sub("", text)
+    Only the exact generated line counts: a key named in user prose still gets its
+    generated line, so every section lists its key changes in one fixed format."""
+    present = {line.strip() for line in section_text.splitlines()}
+    return [line for line in key_lines if line.strip() not in present]
 
 
 def strip_html_comments(text: str):

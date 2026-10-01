@@ -916,6 +916,19 @@ def test_write_values_delta_section_replaces_generated_lines_and_keeps_user_text
     )
 
 
+def test_write_values_delta_section_puts_first_key_lines_above_user_text(libcomponentdocsdeltas: ModuleType):
+    """A hand-written section without generated lines gets them right after its heading."""
+    text = "# Values deltas\n\n## zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)\n\nSet `zac.foo` per gemeente.\n"
+    ordering = libcomponentdocsdeltas.ValuesDeltaOrdering(DEPS, {"zac": {}})
+    new_text = libcomponentdocsdeltas.write_values_delta_section(
+        text, "zac", "## zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)\n", ["- Key `zac.foo` was added.\n"], ordering
+    )
+    assert new_text == (
+        "# Values deltas\n\n## zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)\n\n"
+        "- Key `zac.foo` was added.\n\nSet `zac.foo` per gemeente.\n"
+    )
+
+
 # --- sync_values_delta_sections ---
 
 

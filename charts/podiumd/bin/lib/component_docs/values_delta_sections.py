@@ -32,7 +32,8 @@ from lib.upgradedoc.version_cells_and_key_changes import KEY_REMOVED
 from lib.upgradedoc.version_cells_and_key_changes import KEY_RENAMED
 from lib.upgradedoc.version_cells_and_key_changes import append_to_doc
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
-from lib.upgradedoc.version_cells_and_key_changes import missing_key_change_lines_by_key
+from lib.upgradedoc.version_cells_and_key_changes import key_change_lines
+from lib.upgradedoc.version_cells_and_key_changes import missing_key_change_lines
 from lib.upgradedoc.version_cells_and_key_changes import strip_html_comments
 from lib.yaml_types import YamlMapping
 
@@ -232,6 +233,21 @@ def _component_section(
     return block_for_component(parse_values_delta_sections(text), friendly, deps, canonical_names)
 
 
+def values_delta_section_for(
+    text: str, friendly: str, deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]] | None = None
+) -> HeadingBlock | None:
+    """`friendly`'s own section, else the first section sharing an identity with it, else None.
+
+    The one lookup the writer and the checker both use for a component's key lines."""
+    own = _component_section(text, friendly, deps, canonical_names)
+    return own if own is not None else find_values_delta_section(text, friendly, deps, canonical_names)
+
+
+def section_block_text(text: str, section: HeadingBlock):
+    """The heading line and body of `section`."""
+    return "".join(text.splitlines(keepends=True)[section["start"] : section["end"]])
+
+
 def remove_values_delta_section(
     text: str, friendly: str, deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]] | None = None
 ) -> tuple[str, bool, bool]:
@@ -254,8 +270,25 @@ def write_values_delta_section(
     section = _component_section(text, friendly, ordering.deps, ordering.canonical_names)
     if section is None:
         return insert_values_delta_section(text, friendly, heading_line, key_lines, ordering)
+    text, section = _insert_first_key_lines(text, section, key_lines)
     section_text = heading_line + "\n" + "".join(key_lines)
     return replace_section_owned_parts(text, section, section_text, values_delta_body_kinds, _values_delta_heading_name)
+
+
+def _insert_first_key_lines(text: str, section: HeadingBlock, key_lines: list[str]) -> tuple[str, HeadingBlock]:
+    """(text, section) with key_lines right after the heading, for a section with user lines but no key lines.
+
+    replace_section_owned_parts would put them after the user text instead; key
+    lines lead every section."""
+    lines = text.splitlines(keepends=True)
+    body_start = section["start"] + 1
+    kinds = values_delta_body_kinds(lines[body_start : section["end"]])
+    if not key_lines or "keys" in kinds or None not in kinds:
+        return text, section
+    first_user = body_start + kinds.index(None)
+    inserted = [*([] if first_user > body_start else ["\n"]), *key_lines, "\n"]
+    lines[first_user:first_user] = inserted
+    return "".join(lines), {**section, "end": section["end"] + len(inserted)}
 
 
 def _values_delta_new_section_heading(
@@ -271,6 +304,21 @@ def _values_delta_new_section_heading(
     return values_delta_section_heading(key, old_app, new_app, old_chart, new_chart)
 
 
+def _sync_section_key_lines(
+    text: str, key: str, section: HeadingBlock, key_lines: list[str], ordering: ValuesDeltaOrdering
+) -> str:
+    """`section` with `key`'s generated key lines, user text untouched.
+
+    The component's own section gets its key lines rewritten, right after the
+    heading when it has none yet. A section shared with other components only
+    gets the missing lines appended, since its generated lines can't be told apart."""
+    if section == _component_section(text, key, ordering.deps, ordering.canonical_names):
+        heading_line = text.splitlines(keepends=True)[section["start"]]
+        return write_values_delta_section(text, key, heading_line, key_lines, ordering)
+    missing = missing_key_change_lines(section_block_text(text, section), key_lines)
+    return append_values_delta_section_body(text, section, missing) if missing else text
+
+
 def sync_values_delta_sections(
     text: str,
     chart_dir: Path,
@@ -278,22 +326,22 @@ def sync_values_delta_sections(
     baseline: ValuesDeltaBaseline,
     actual_changed_keys: set[str],
 ) -> tuple[str, list[str], list[str]]:
-    """Give every key in `actual_changed_keys` its describe_key_changes lines not yet in the doc.
+    """Give every key in `actual_changed_keys` its describe_key_changes lines.
 
-    Appends to an existing section for the key's identity, or creates one in
-    values.yaml order. Existing content is never reordered or rewritten. No new
+    Writes them into the section for the key's identity (see
+    _sync_section_key_lines), or creates one in values.yaml order. No new
     section is created for a key without key lines (a pure version bump needs no
     gemeente action) or without a dependency/native entry.
     Returns (new_text, created_names, updated_names)."""
-    by_key = missing_key_change_lines_by_key(text, actual_changed_keys, baseline.values, ordering.values)
     created_names: list[str] = []
     updated_names: list[str] = []
     for key in sorted(actual_changed_keys):
-        key_lines = by_key.get(key, [])
-        section = find_values_delta_section(text, key, ordering.deps, ordering.canonical_names)
+        key_lines = key_change_lines(key, baseline.values, ordering.values)
+        section = values_delta_section_for(text, key, ordering.deps, ordering.canonical_names)
         if section is not None:
-            if key_lines:
-                text = append_values_delta_section_body(text, section, key_lines)
+            new_text = _sync_section_key_lines(text, key, section, key_lines, ordering)
+            if new_text != text:
+                text = new_text
                 updated_names.append(key)
             continue
         if not key_lines:

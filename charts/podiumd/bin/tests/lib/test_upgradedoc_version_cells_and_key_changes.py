@@ -288,88 +288,38 @@ def test_append_to_doc_no_new_lines_returns_unchanged(libupgradedocversioncells:
     assert libupgradedocversioncells.append_to_doc(text, []) == text
 
 
-# --- missing_key_change_lines_by_key ---
+# --- key_change_lines / missing_key_change_lines ---
 
 
-def test_missing_key_change_lines_by_key_reports_unmentioned_addition(libupgradedocversioncells: ModuleType):
-    baseline_values = {"zac": {"brpApi": {}}}
-    values = {"zac": {"brpApi": {"logLevel": "OFF"}}}
-    text = "Nothing relevant mentioned.\n"
-    by_key = libupgradedocversioncells.missing_key_change_lines_by_key(text, {"zac"}, baseline_values, values)
-    assert by_key == {"zac": ["- Key `zac.brpApi.logLevel` was added.\n"]}
+def test_key_change_lines_diffs_the_component_subtree(libupgradedocversioncells: ModuleType):
+    baseline_values = {"zac": {"brpApi": {}}, "unrelated": {"a": 1}}
+    values = {"zac": {"brpApi": {"logLevel": "OFF"}}, "unrelated": {"b": 2}}
+    assert libupgradedocversioncells.key_change_lines("zac", baseline_values, values) == [
+        "- Key `zac.brpApi.logLevel` was added.\n"
+    ]
 
 
-def test_missing_key_change_lines_by_key_skips_already_mentioned_addition(libupgradedocversioncells: ModuleType):
-    baseline_values = {"zac": {"brpApi": {}}}
-    values = {"zac": {"brpApi": {"logLevel": "OFF"}}}
+def test_key_change_lines_missing_baseline_subtree_counts_as_empty(libupgradedocversioncells: ModuleType):
+    values = {"eck-operator": {"image": {"tag": "3.5.0"}}}
+    assert libupgradedocversioncells.key_change_lines("eck-operator", None, values) == [
+        "- Key `eck-operator.image` was added.\n"
+    ]
+
+
+def test_missing_key_change_lines_skips_line_present_verbatim(libupgradedocversioncells: ModuleType):
+    lines = ["- Key `zac.brpApi.logLevel` was added.\n", "- Key `zac.old` was removed.\n"]
+    text = "## zac 1.0 → 1.1\n\n- Key `zac.brpApi.logLevel` was added.\n"
+    assert libupgradedocversioncells.missing_key_change_lines(text, lines) == ["- Key `zac.old` was removed.\n"]
+
+
+def test_missing_key_change_lines_prose_mention_does_not_count(libupgradedocversioncells: ModuleType):
+    """A key named in user prose still needs its generated line, so every section has the same format."""
+    lines = ["- Key `zac.brpApi.logLevel` was added.\n"]
     text = "New field `zac.brpApi.logLevel`, defaults to `OFF`.\n"
-    assert libupgradedocversioncells.missing_key_change_lines_by_key(text, {"zac"}, baseline_values, values) == {}
+    assert libupgradedocversioncells.missing_key_change_lines(text, lines) == lines
 
 
-def test_missing_key_change_lines_by_key_rename_needs_both_sides_mentioned(libupgradedocversioncells: ModuleType):
-    baseline_values = {"mi": {"sftp": {"host": "x", "user": "y", "password": "z"}}}
-    values = {"mi": {"transfer": {"mode": "sftp-password", "host": "x", "user": "y", "password": "z"}}}
-    # only the old side is mentioned, so the rename isn't fully documented
-    text = "Removed `mi.sftp` in favor of something else.\n"
-    by_key = libupgradedocversioncells.missing_key_change_lines_by_key(text, {"mi"}, baseline_values, values)
-    assert by_key == {"mi": ["- Key `mi.sftp` was renamed to `mi.transfer`.\n"]}
-
-
-def test_missing_key_change_lines_by_key_ignores_unrelated_component(libupgradedocversioncells: ModuleType):
-    baseline_values = {"zac": {"a": 1}, "unrelated": {"a": 1}}
-    values = {"zac": {"a": 1}, "unrelated": {"b": 2}}
-    # "unrelated" isn't in changed_component_keys
-    assert (
-        libupgradedocversioncells.missing_key_change_lines_by_key("no mentions", {"zac"}, baseline_values, values) == {}
-    )
-
-
-def test_missing_key_change_lines_by_key_empty_when_nothing_changed(libupgradedocversioncells: ModuleType):
-    values = {"zac": {"a": 1}}
-    assert libupgradedocversioncells.missing_key_change_lines_by_key("", {"zac"}, values, values) == {}
-
-
-def test_missing_key_change_lines_by_key_ignores_mention_inside_fenced_code_block(
-    libupgradedocversioncells: ModuleType,
-):
-    """Mentions inside fenced code blocks don't count; odd backticks there desync pairing."""
-    baseline_values = {"zac": {"brpApi": {}}}
-    values = {"zac": {"brpApi": {"logLevel": "OFF"}}}
-    text = "```yaml\nsome: `unbalanced backtick example\n```\n\nNew field `zac.brpApi.logLevel`, defaults to `OFF`.\n"
-    assert libupgradedocversioncells.missing_key_change_lines_by_key(text, {"zac"}, baseline_values, values) == {}
-
-
-def test_missing_key_change_lines_by_key_never_reports_a_line_already_present_verbatim(
-    libupgradedocversioncells: ModuleType,
-):
-    """A line already present verbatim is never re-added."""
-    baseline_values = {"zac": {"brpApi": {}}}
-    values = {"zac": {"brpApi": {"logLevel": "OFF"}}}
-    text = "- Key `zac.brpApi.logLevel` was added.\n"
-    assert libupgradedocversioncells.missing_key_change_lines_by_key(text, {"zac"}, baseline_values, values) == {}
-
-
-def test_missing_key_change_lines_by_key_generic_backtick_word_elsewhere_is_not_a_match(
-    libupgradedocversioncells: ModuleType,
-):
-    """A generic backticked word (e.g. `repository`) doesn't count as mentioning keys ending in it.
-
-    A substring check here silently dropped real key changes.
-    """
-    baseline_values = {"objecten": {"image": {}}}
-    values = {"objecten": {"image": {"repository": "ghcr.io/maykinmedia/objects-api"}}}
-    text = "Every environment checked overrides `registry`/`repository` for these images but never `tag`.\n"
-    by_key = libupgradedocversioncells.missing_key_change_lines_by_key(text, {"objecten"}, baseline_values, values)
-    assert by_key == {"objecten": ["- Key `objecten.image.repository` was added.\n"]}
-
-
-def test_missing_key_change_lines_by_key_bare_leaf_mention_is_not_enough(libupgradedocversioncells: ModuleType):
-    """A bare trailing segment without its dotted prefix is reported as missing.
-
-    It can't be told apart from the generic-word case; a duplicate bullet beats an omission.
-    """
-    baseline_values = {"ita": {}}
-    values = {"ita": {"verlopenContactverzoekHerinneringNotificatie": {"schedule": "0 7 * * 1-5"}}}
-    text = "The new `verlopenContactverzoekHerinneringNotificatie` CronJob is enabled by default.\n"
-    by_key = libupgradedocversioncells.missing_key_change_lines_by_key(text, {"ita"}, baseline_values, values)
-    assert by_key == {"ita": ["- Key `ita.verlopenContactverzoekHerinneringNotificatie` was added.\n"]}
+def test_missing_key_change_lines_user_extended_line_does_not_count(libupgradedocversioncells: ModuleType):
+    lines = ["- Key `zac.foo` was added.\n"]
+    text = "- Key `zac.foo` was added (`foo.bar`, `foo.baz`).\n"
+    assert libupgradedocversioncells.missing_key_change_lines(text, lines) == lines
