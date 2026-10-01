@@ -317,8 +317,8 @@ def _check_missing_component_rows(ctx: DocsCheckContext, scan: DocScanState):
     for key in sorted(ctx.actual_changed_keys - rowed_keys - set(scan.removed)):
         resolved = resolve_component_own_version_change(
             key,
-            ComponentState(ctx.current.deps, ctx.current.values),
-            BaselineState(ctx.baseline.deps, ctx.baseline.values),
+            ctx.current,
+            ctx.baseline,
             ctx.chart_dir,
             ctx.doc_query.upgrade_docs_baseline,
         )
@@ -521,8 +521,8 @@ def _check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
 
     resolution = ResolutionContext(
         ctx.chart_dir,
-        ComponentState(ctx.current.deps, ctx.current.values),
-        BaselineState(ctx.baseline.deps if ctx.baseline_ref else None, ctx.baseline.values),
+        ctx.current,
+        ctx.baseline if ctx.baseline_ref else BaselineState(None, ctx.baseline.values),
         ctx.doc_query.upgrade_docs_baseline if ctx.baseline_ref else None,
     )
     scan = DocScanState(

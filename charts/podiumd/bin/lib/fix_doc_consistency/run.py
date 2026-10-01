@@ -147,6 +147,23 @@ class RebaseState:
     baseline_deps: list[ChartDependency] | None
     baseline_values: YamlMapping | None
 
+    @property
+    def target_state(self) -> ComponentState:
+        """Chart.yaml and values.yaml of the target."""
+        return ComponentState(self.target_deps, self.target_values)
+
+    @property
+    def baseline_state(self) -> BaselineState:
+        """Chart.yaml and values.yaml at the baseline."""
+        return BaselineState(self.baseline_deps, self.baseline_values)
+
+    @property
+    def resolution(self) -> ResolutionContext:
+        """The resolve_component_row inputs every doc step shares."""
+        return ResolutionContext(
+            self.paths.chart_dir, self.target_state, self.baseline_state, upgrade_docs_baseline=self.new_baseline
+        )
+
 
 def _check_no_collisions(paths: FixDocPaths, target: str) -> dict[str, list[tuple[str, Path]]]:
     """Existing docs by suffix; exits if two would rename to the same file."""
@@ -311,22 +328,20 @@ def _load_rebase_state(paths: FixDocPaths, target: str, new_baseline: str):
     return RebaseState(paths, target, new_baseline, target_deps, target_values, baseline_deps, baseline_values)
 
 
-def _remove_unchanged_component_rows(
-    text: str, upgrade_path: Path, resolution: ResolutionContext, new_baseline: str
-) -> tuple[str, bool]:
+def _remove_unchanged_component_rows(text: str, upgrade_path: Path, state: RebaseState) -> tuple[str, bool]:
     """Remove rows (and Changes sections) unchanged vs baseline. Returns (text, changed)."""
-    text, removed_names = remove_unchanged_component_rows(text, resolution)
+    text, removed_names = remove_unchanged_component_rows(text, state.resolution)
     print_section_items(
         f"Removing unchanged component row(s) + Changes section(s) from {upgrade_path.name}",
-        [f"{name} (same app and chart version as {new_baseline})" for name in removed_names],
+        [f"{name} (same app and chart version as {state.new_baseline})" for name in removed_names],
     )
     return text, bool(removed_names)
 
 
-def _correct_component_table(text: str, upgrade_path: Path, resolution: ResolutionContext, state: RebaseState):
+def _correct_component_table(text: str, upgrade_path: Path, state: RebaseState):
     """Fix wrong app/chart cells in the Component versions table. Returns (text, changed)."""
     new_baseline = state.new_baseline
-    text, changed_rows, unmatched_names, unresolved_names = fix_component_version_table(text, resolution)
+    text, changed_rows, unmatched_names, unresolved_names = fix_component_version_table(text, state.resolution)
     # Removed items' rows are written by _sync_removed_items.
     removed_names = {item.name for item in _removed_items_ordering(state)[0]}
     unmatched_names = [name for name in unmatched_names if name not in removed_names]
@@ -360,10 +375,9 @@ def _add_missing_component_and_sidecar_rows(
 ) -> tuple[str, list[str], list[str]]:
     """Add rows and Changes sections for changed components/sidecars. Returns (text, added, added_sidecars)."""
     doc_ctx = DocContext(state.paths.chart_dir, state.target, upgrade_docs_baseline=state.new_baseline)
-    target_state = ComponentState(state.target_deps, state.target_values)
-    baseline_state = BaselineState(state.baseline_deps, state.baseline_values)
-
-    text, added_names = add_missing_component_rows(text, doc_ctx, target_state, baseline_state, actual_changed_keys)
+    text, added_names = add_missing_component_rows(
+        text, doc_ctx, state.target_state, state.baseline_state, actual_changed_keys
+    )
     print_section_items(
         f"Adding missing component row(s) + Changes section(s) to {upgrade_path.name}",
         [f"{name}" for name in added_names],
@@ -372,7 +386,7 @@ def _add_missing_component_and_sidecar_rows(
     if state.baseline_deps is None:
         return text, added_names, []
 
-    text, added_sidecar_names = add_missing_sidecar_rows(text, doc_ctx, target_state, state.baseline_values)
+    text, added_sidecar_names = add_missing_sidecar_rows(text, doc_ctx, state.target_state, state.baseline_values)
     print_section_items(
         f"Adding missing sidecar/shared-image row(s) + Changes section(s) to {upgrade_path.name}",
         [f"{name}" for name in added_sidecar_names],
@@ -380,9 +394,7 @@ def _add_missing_component_and_sidecar_rows(
     return text, added_names, added_sidecar_names
 
 
-def _fix_upgrade_doc_headings(
-    text: str, state: RebaseState, upgrade_path: Path, resolution: ResolutionContext
-) -> tuple[str, bool]:
+def _fix_upgrade_doc_headings(text: str, state: RebaseState, upgrade_path: Path) -> tuple[str, bool]:
     """Add missing '### ...' sections and fix heading app versions. Returns (text, changed)."""
     canonical_names = ChartImageIndex(state.paths.chart_dir, state.target_deps, state.target_values).canonical_names
 
@@ -401,7 +413,7 @@ def _fix_upgrade_doc_headings(
         f"Rebuilding '### ...' Changes section(s) that contradict their table row in {upgrade_path.name}",
         [f"'### {s.heading}' -> '### {s.expected_heading}'" for s in rebuilt],
     )
-    text, wrong = fix_changes_heading_app_versions(text, resolution)
+    text, wrong = fix_changes_heading_app_versions(text, state.resolution)
     changed |= print_section_items(
         "Correcting '### ...' Changes section heading(s) with the wrong name/app-version transition "
         f"in {upgrade_path.name}",
@@ -466,23 +478,17 @@ def _fix_upgrade_doc(state: RebaseState, upgrade_path: Path, actual_changed_keys
     if not upgrade_path.is_file():
         return
     text = upgrade_path.read_text(encoding="utf-8")
-    resolution = ResolutionContext(
-        state.paths.chart_dir,
-        ComponentState(state.target_deps, state.target_values),
-        BaselineState(state.baseline_deps, state.baseline_values),
-        upgrade_docs_baseline=state.new_baseline,
-    )
 
     changed: list[bool] = []
-    text, step_changed = _remove_unchanged_component_rows(text, upgrade_path, resolution, state.new_baseline)
+    text, step_changed = _remove_unchanged_component_rows(text, upgrade_path, state)
     changed.append(step_changed)
-    text, step_changed = _correct_component_table(text, upgrade_path, resolution, state)
+    text, step_changed = _correct_component_table(text, upgrade_path, state)
     changed.append(step_changed)
     text, added_names, added_sidecar_names = _add_missing_component_and_sidecar_rows(
         text, state, upgrade_path, actual_changed_keys
     )
     changed += [bool(added_names), bool(added_sidecar_names)]
-    text, step_changed = _fix_upgrade_doc_headings(text, state, upgrade_path, resolution)
+    text, step_changed = _fix_upgrade_doc_headings(text, state, upgrade_path)
     changed.append(step_changed)
     text, step_changed = _add_missing_pin_bullets(text, upgrade_path, state.paths.values_yaml)
     changed.append(step_changed)
@@ -643,10 +649,7 @@ def _fix_stale_changes_items(
     images_path: Path, state: RebaseState, upgrade_path: Path, canonical_names: dict[str, ImagePath]
 ) -> None:
     """Rewrite '# Changes:' items that contradict their upgrade-doc table row."""
-    target = ComponentState(state.target_deps, state.target_values)
-    baseline = BaselineState(state.baseline_deps, state.baseline_values)
-    resolution = ResolutionContext(state.paths.chart_dir, target, baseline, upgrade_docs_baseline=state.new_baseline)
-    fixed = correct_stale_changes_items(images_path, upgrade_path, canonical_names, resolution)
+    fixed = correct_stale_changes_items(images_path, upgrade_path, canonical_names, state.resolution)
     print_section_items(
         f"Correcting '# Changes:' item(s) in {images_path.name}", [f"{old}  ->  {new}" for old, new in fixed]
     )
@@ -736,7 +739,7 @@ def _sync_values_delta_sections(
         text,
         state.paths.chart_dir,
         OrderingContext(state.target_deps, state.target_values, canonical_names),
-        BaselineState(state.baseline_deps, state.baseline_values),
+        state.baseline_state,
         changed_keys,
     )
     print_section_items(
@@ -754,12 +757,7 @@ def _fix_values_delta_headings(text: str, state: RebaseState, upgrade_path: Path
     text, updated_delta_headings = fix_values_delta_heading_app_versions(
         upgrade_doc_text,
         text,
-        ResolutionContext(
-            state.paths.chart_dir,
-            ComponentState(state.target_deps, state.target_values),
-            BaselineState(state.baseline_deps, state.baseline_values),
-            upgrade_docs_baseline=state.new_baseline,
-        ),
+        state.resolution,
     )
     if updated_delta_headings:
         print_section(

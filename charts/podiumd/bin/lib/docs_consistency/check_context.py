@@ -47,7 +47,7 @@ class StateImages:
 class DocsCheckContext:
     """Read-only chart/baseline state for every phase helper, built by _build_docs_check_context.
 
-    `current`/`baseline` are ComponentState (see lib.component_docs.changes_section).
+    `current`/`baseline` are the Chart.yaml/values.yaml trees of the target and the baseline.
     """
 
     chart_dir: Path
