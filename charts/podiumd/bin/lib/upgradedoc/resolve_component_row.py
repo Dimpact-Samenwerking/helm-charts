@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Literal
 from typing import TypedDict
 
+from lib.chart.chart_state import BaselineState
+from lib.chart.chart_state import ComponentState
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.historical_baselines import BaselineLookup
 from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
@@ -19,11 +21,8 @@ from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.values_tree_primitives import dep_for_values_key
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
-from lib.component_docs.changes_section import BaselineState
-from lib.component_docs.changes_section import ComponentState
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
-from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
 from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
 from lib.upgradedoc.string_and_parsing_basics import match_native_component
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
@@ -185,15 +184,29 @@ def _sidecar_baseline_app(resolution: ResolutionContext, sidecar_path: tuple[str
     return baseline_app
 
 
-def _dependency_baseline_result(resolution: ResolutionContext, values_key: str):
+def _historical_dependency_app(resolution: ResolutionContext, values_key: str, chart_name: str) -> str | None:
+    """A dependency's or native component's app version from past images-<version>.yaml manifests, or None."""
+    chart_dir, deps, values = resolution.chart_dir, resolution.target.deps, resolution.target.values
+    for path in image_paths_for(chart_name, chart_dir):
+        app = historical_app_version_for_path(
+            chart_dir, deps, values, (values_key, *tuple(path.split("."))), resolution.upgrade_docs_baseline
+        )
+        if app is not None:
+            return app
+    return None
+
+
+def _dependency_baseline_result(resolution: ResolutionContext, values_key: str, dep: ChartDependency):
     """(baseline_resolved, baseline_chart, baseline_app) for a dependency.
 
-    baseline_resolved is whether the Chart.yaml dependency existed at the baseline ref."""
+    baseline_resolved is whether the Chart.yaml dependency existed at the baseline ref.
+    A dependency new since then still gets a baseline_app when its image is in a
+    past images-<version>.yaml manifest: the image may predate the dependency."""
     baseline_dep = dep_for_values_key(resolution.baseline.deps or [], values_key)
     if baseline_dep is None:
-        return False, None, None
+        return False, None, _historical_dependency_app(resolution, values_key, dep["name"])
     baseline_chart = str(baseline_dep["version"])
-    chart_dir, deps, values = resolution.chart_dir, resolution.target.deps, resolution.target.values
+    chart_dir = resolution.chart_dir
     baseline_values = resolution.baseline.values
     # The dependency existed at the baseline but its values.yaml image block may not have
     # (brppersonenmock), so fall back to past images-<version>.yaml manifests too.
@@ -203,27 +216,16 @@ def _dependency_baseline_result(resolution: ResolutionContext, values_key: str):
     # vendored appVersion (openbao's server.image.tag in 4.9.2).
     baseline_app = actual_app_version(baseline_values, values_key, baseline_dep["name"], chart_dir, baseline_dep)
     if baseline_app is None and baseline_values:
-        for path in image_paths_for(baseline_dep["name"], chart_dir):
-            baseline_app = historical_app_version_for_path(
-                chart_dir, deps, values, (values_key, *tuple(path.split("."))), resolution.upgrade_docs_baseline
-            )
-            if baseline_app is not None:
-                break
+        baseline_app = _historical_dependency_app(resolution, values_key, baseline_dep["name"])
     return True, baseline_chart, baseline_app
 
 
 def _native_baseline_app(resolution: ResolutionContext, native_key: str):
     """A native component's baseline app version (no dependency to check existence against)."""
-    chart_dir, deps, values = resolution.chart_dir, resolution.target.deps, resolution.target.values
     baseline_values = resolution.baseline.values
     baseline_app = actual_app_version(baseline_values, native_key, native_key)
     if baseline_app is None and baseline_values:
-        for path in image_paths_for(native_key, chart_dir):
-            baseline_app = historical_app_version_for_path(
-                chart_dir, deps, values, (native_key, *tuple(path.split("."))), resolution.upgrade_docs_baseline
-            )
-            if baseline_app is not None:
-                break
+        baseline_app = _historical_dependency_app(resolution, native_key, native_key)
     return baseline_app
 
 
@@ -234,7 +236,9 @@ def _add_baseline_result(resolution: ResolutionContext, match: RowMatch, result:
         result["baseline_app"] = baseline_app
         result["baseline_resolved"] = result["target_app"] is not None and baseline_app is not None
     elif match.dep is not None:
-        resolved, baseline_chart, baseline_app = _dependency_baseline_result(resolution, result["values_key"])
+        resolved, baseline_chart, baseline_app = _dependency_baseline_result(
+            resolution, result["values_key"], match.dep
+        )
         result["baseline_resolved"] = resolved
         result["baseline_chart"] = baseline_chart
         result["baseline_app"] = baseline_app
@@ -289,25 +293,6 @@ def resolve_component_row(
         _add_baseline_result(resolution, match, result)
 
     return result
-
-
-def compare_component_to_baseline(
-    resolution: ResolutionContext, values_key: str
-) -> tuple[str | None, str | None, bool]:
-    """(old_app, old_chart, reset_to_baseline) of the component with top-level key `values_key`.
-
-    old_app/old_chart are resolved as its "Component versions" row is, so a
-    Changes section written by update-* can't contradict the row; None when
-    unresolvable. reset_to_baseline: the component equals the baseline again.
-    """
-    baseline_deps = resolution.baseline.deps or []
-    changed = compute_changed_components(
-        resolution.target.deps, baseline_deps, resolution.target.values, resolution.baseline.values
-    )
-    resolved = resolve_component_row(values_key, {}, resolution)
-    if resolved["kind"] == "unmatched":
-        return None, None, values_key not in changed
-    return resolved["baseline_app"], resolved["baseline_chart"], values_key not in changed
 
 
 def resolved_row_unchanged(resolved: ResolvedRow) -> bool:

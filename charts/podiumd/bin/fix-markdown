@@ -29,6 +29,7 @@ from lib.chart.paths import CHART_DIR
 from lib.checks.markdown import MARKDOWN_PLUGIN_SETTINGS
 from lib.checks.markdown import find_markdown_files
 from lib.checks.markdown import find_pymarkdown
+from lib.cli import flag_args
 from lib.procutil import run
 from lib.settings import quality_gates_markdown_disabled_rules
 
@@ -73,10 +74,7 @@ def dry_run_fix(pymarkdown: str, files: list[Path], chart_dir: Path, disabled_ru
 
 def main():
     """CLI entry point."""
-    if "-h" in sys.argv[1:] or "--help" in sys.argv[1:]:
-        print(__doc__)
-        sys.exit(0)
-    dry_run = "--dry-run" in sys.argv[1:]
+    dry_run = "--dry-run" in flag_args(__doc__, "--dry-run")
 
     pymarkdown = find_pymarkdown(CHART_DIR)
     if pymarkdown is None:

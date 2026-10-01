@@ -8,9 +8,9 @@ usage() {
     cat <<'EOF'
 Usage: run_python_checks [-h|--help]
 
-Runs ruff check, shellcheck, ruff format --check, pymarkdown, vulture,
-bandit, pylint, basedpyright and pytest on charts/podiumd/bin/, fastest
-first. Stops at the first failure. Run from charts/podiumd/bin/.
+Runs ruff check, shellcheck, ruff format --check, jscpd, pymarkdown,
+vulture, bandit, pylint, basedpyright and pytest on charts/podiumd/bin/,
+fastest first. Stops at the first failure. Run from charts/podiumd/bin/.
 EOF
 }
 
@@ -46,6 +46,15 @@ fi
 
 echo "=== ruff format --check ==="
 ruff format --check . "${python_scripts[@]}"
+
+# Weak mode and low thresholds also catch short copies with renamed
+# identifiers. Import lines, the sys.path setup every script needs and
+# typed parameter lines (same-shaped signatures) are not duplication.
+echo "=== jscpd (duplicate code) ==="
+jscpd --exit-code 1 --format python --mode weak --min-lines 4 --min-tokens 35 --reporters console \
+    --ignore '**/__pycache__/**' \
+    --ignore-pattern 'from .* import .*,import .*,SCRIPT_DIR = .*,sys\.path\.insert.*, +[a-z_]+: [^=\n]+\x2c\n' \
+    lib "${python_scripts[@]}"
 
 # Same rules as verify-podiumd's markdown check, which skips bin/.
 echo "=== pymarkdown (bin/*.md) ==="

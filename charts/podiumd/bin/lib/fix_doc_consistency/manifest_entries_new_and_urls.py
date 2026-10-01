@@ -1,8 +1,6 @@
 """fix-doc-consistency's images-manifest fixes: url/name repair, adding
 missing entries and removing stale ones."""
 
-import re
-
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -12,41 +10,42 @@ from lib.chart.historical_baselines import baseline_lookup
 from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
 from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.nested_subchart_identity import documented_repository_for_path
-from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
 from lib.chart.registered_paths import is_primary_image_path
-from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
 from lib.chart.repo_and_path_resolution import full_repository_for_path
-from lib.chart.repo_and_path_resolution import paths_by_repository
-from lib.chart.repo_and_path_resolution import repo_group_representative
 from lib.chart.repo_and_path_resolution import repository_group_key
 from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.chart.values_tree_primitives import version_of
+from lib.component_docs.images_manifest_changes_header import covered_display_names
 from lib.component_docs.images_manifest_changes_header import ensure_images_manifest_changes_header
 from lib.component_docs.images_manifest_changes_header import find_changes_item
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_items
 from lib.component_docs.images_manifest_changes_header import images_manifest_changes_block
-from lib.component_docs.images_manifest_changes_header import images_manifest_order_key
 from lib.component_docs.images_manifest_changes_header import insert_images_manifest_header_item
 from lib.component_docs.images_manifest_changes_header import remove_changes_item
 from lib.image.repository_check import find_images_without_repository
+from lib.images_manifest import ENTRY_NAME_RE
+from lib.images_manifest import ENTRY_URL_RE
 from lib.images_manifest import ManifestEntry
+from lib.images_manifest import entry_field_line
+from lib.images_manifest import entry_line_indices
+from lib.images_manifest import parse_manifest_lines
 from lib.images_manifest import try_parse_images_manifest
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
 from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
-from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
+from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
+from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.grouped_comments_and_changes_block import path_display_name
 from lib.upgradedoc.images_manifest_list_diff import ManifestDiffContext
 from lib.upgradedoc.images_manifest_list_diff import ManifestDiffInputs
 from lib.upgradedoc.images_manifest_list_diff import find_images_manifest_list_diff
 from lib.upgradedoc.images_manifest_ordering import delete_images_manifest_entry
 from lib.upgradedoc.images_manifest_ordering import images_manifest_block_start
-from lib.upgradedoc.sorting_and_ordering import insertion_index
 from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
 from lib.upgradedoc.string_and_parsing_basics import extract_target_version
@@ -118,20 +117,6 @@ class AddedEntryFields:
     pinned_tag: str
 
 
-def _entry_url_line_index(lines: list[str], line_idx: int) -> int | None:
-    """Index of the entry's "url:" line within its block (up to the next
-    entry or blank line), or None."""
-    block_end = len(lines)
-    for j in range(line_idx + 1, len(lines)):
-        if re.match(r"^-\s*name:", lines[j]) or not lines[j].strip():
-            block_end = j
-            break
-    for j in range(line_idx, block_end):
-        if re.match(r"^\s*url:\s*\S", lines[j]):
-            return j
-    return None
-
-
 def _entry_url_status(
     entry: ManifestEntry, line_idx: int, lines: list[str], current_paths: dict[ImagePath, str], context: UrlFixContext
 ) -> (
@@ -152,11 +137,11 @@ def _entry_url_status(
     if full_repo is None:
         return "unresolved", name
 
-    url_idx = _entry_url_line_index(lines, line_idx)
+    url_idx = entry_field_line(lines, line_idx, "url")
     if url_idx is None:
         return "unresolved", name
 
-    url_m = re.match(r"^\s*url:\s*(\S+)\s*$", lines[url_idx])
+    url_m = ENTRY_URL_RE.match(lines[url_idx])
     if url_m is None:
         return "unresolved", name  # text after the url: no single value to compare
     current_url = url_m.group(1)
@@ -181,18 +166,15 @@ def fix_images_manifest_entry_urls(
     [(name, old_url, new_url), ...]; unresolved_names are entries whose
     path/repository can't be resolved or that lack a "url:" (reported, not
     touched)."""
-    lines = text.splitlines(keepends=True)
-    entries = try_parse_images_manifest(text)
-    if entries is None:
+    parsed = parse_manifest_lines(text)
+    if parsed is None:
         return text, [], []
-
-    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
-    current_paths = dict(find_all_image_and_version_paths(target_values, deps))
-    current_paths.update(global_image_paths(target_values))
+    lines = parsed.lines
+    current_paths = chart_image_paths(target_values, deps)
 
     changed_names: list[tuple[str, str, str]] = []
     unresolved_names: list[str] = []
-    for entry, line_idx in zip(entries, entry_line_indices, strict=False):
+    for entry, line_idx in zip(parsed.entries, parsed.entry_line_indices, strict=True):
         status = _entry_url_status(
             entry, line_idx, lines, current_paths, UrlFixContext(chart_dir, deps, target_values, repo_map)
         )
@@ -212,13 +194,13 @@ def fix_images_manifest_entry_names(text: str, repo_map: dict[str, ImagePath]) -
     fix_images_manifest_entry_urls. Returns (new_text,
     [(old_name, new_name), ...])."""
     lines = text.splitlines(keepends=True)
-    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
-    names = {_unquoted(m.group(1)) for i in entry_line_indices if (m := _ENTRY_NAME_RE.match(lines[i]))}
+    starts = entry_line_indices(lines)
+    names = {_unquoted(m.group(1)) for i in starts if (m := ENTRY_NAME_RE.match(lines[i]))}
     renamed: list[tuple[str, str]] = []
-    for line_idx in entry_line_indices:
-        name_m = _ENTRY_NAME_RE.match(lines[line_idx])
-        url_idx = _entry_url_line_index(lines, line_idx)
-        url_m = re.match(r"^\s*url:\s*(\S+)\s*$", lines[url_idx]) if url_idx is not None else None
+    for line_idx in starts:
+        name_m = ENTRY_NAME_RE.match(lines[line_idx])
+        url_idx = entry_field_line(lines, line_idx, "url")
+        url_m = ENTRY_URL_RE.match(lines[url_idx]) if url_idx is not None else None
         if name_m is None or url_m is None:
             continue
         old_name, new_name = _unquoted(name_m.group(1)), repository_group_key(_unquoted(url_m.group(1)))
@@ -228,9 +210,6 @@ def fix_images_manifest_entry_names(text: str, repo_map: dict[str, ImagePath]) -
         names.add(new_name)
         renamed.append((old_name, new_name))
     return "".join(lines), renamed
-
-
-_ENTRY_NAME_RE = re.compile(r"^-\s*name:\s*(\S+)\s*$")
 
 
 def _unquoted(scalar: str) -> str:
@@ -246,31 +225,6 @@ def _images_manifest_changes_header_text(lines: list[str]):
         return ""
     block_end = images_manifest_changes_block(lines, header_idx)[1]
     return "".join(lines[header_idx:block_end])
-
-
-def _baseline_setup(context: MissingEntriesContext) -> tuple[dict[ImagePath, str], dict[str, list[ImagePath]]]:
-    """(baseline_paths, baseline_repo_groups), grouped against
-    baseline_values (where each repository lived in the baseline)."""
-    baseline_paths = (
-        dict(find_all_image_and_version_paths(context.baseline_values, context.deps)) if context.baseline_values else {}
-    )
-    baseline_paths.update(global_image_paths(context.baseline_values) if context.baseline_values else [])
-    baseline_repo_groups = (
-        paths_by_repository(context.chart_dir, context.deps, context.baseline_values, baseline_paths.keys())
-        if context.baseline_values
-        else {}
-    )
-    return baseline_paths, baseline_repo_groups
-
-
-def _repo_setup(
-    context: MissingEntriesContext, current_paths: dict[ImagePath, str]
-) -> tuple[dict[str, list[ImagePath]], dict[str, ImagePath], dict[ImagePath, str]]:
-    """(repo_groups, repo_map, path_to_repo) for target_values."""
-    repo_groups = paths_by_repository(context.chart_dir, context.deps, context.target_values, current_paths.keys())
-    repo_map = {repo: repo_group_representative(group_paths, context.deps) for repo, group_paths in repo_groups.items()}
-    path_to_repo = {path: repo for repo, group_paths in repo_groups.items() for path in group_paths}
-    return repo_groups, repo_map, path_to_repo
 
 
 def _manifest_list_diff(
@@ -300,25 +254,18 @@ def _manifest_list_diff(
 
 def _entries_resolution(context: MissingEntriesContext) -> MissingEntriesResolution:
     """Shared per-run resolution for adding and removing entries."""
-    current_paths = dict(find_all_image_and_version_paths(context.target_values, context.deps))
-    current_paths.update(global_image_paths(context.target_values))
-    baseline_paths, baseline_repo_groups = _baseline_setup(context)
-    repo_groups, repo_map, path_to_repo = _repo_setup(context, current_paths)
-    unresolvable_paths = set(find_images_without_repository(context.chart_dir))
-    canonical_names = canonical_sidecar_row_names(
-        context.chart_dir, context.deps, context.target_values, current_paths.keys()
-    )
-    key_order = values_key_order(context.target_values)
-    sibling_fields = digest_pinning_exceptions(context.chart_dir)
-
+    target = ChartImageIndex(context.chart_dir, context.deps, context.target_values)
+    # Grouped against baseline_values: where each repository lived in the baseline.
+    baseline = ChartImageIndex(context.chart_dir, context.deps, context.baseline_values)
+    path_to_repo = {path: repo for repo, group_paths in target.repo_groups.items() for path in group_paths}
     return MissingEntriesResolution(
-        current_paths,
-        BaselineResolution(baseline_paths, baseline_repo_groups),
-        RepoResolution(repo_groups, repo_map, path_to_repo),
-        unresolvable_paths,
-        canonical_names,
-        key_order,
-        sibling_fields,
+        target.paths,
+        BaselineResolution(baseline.paths, baseline.repo_groups),
+        RepoResolution(target.repo_groups, target.repo_map, path_to_repo),
+        set(find_images_without_repository(context.chart_dir)),
+        target.canonical_names,
+        values_key_order(context.target_values),
+        digest_pinning_exceptions(context.chart_dir),
     )
 
 
@@ -425,49 +372,10 @@ def _manifest_lines_for_insert(text: str):
     return lines
 
 
-def _entry_insertion_keys(
-    lines: list[str], context: MissingEntriesContext, resolution: MissingEntriesResolution
-) -> tuple[list[int], list[tuple[int, ...]]]:
-    """(entry_line_indices, entry_keys) of existing entries, for finding a
-    new entry's insertion point."""
-    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
-    entry_keys: list[tuple[int, ...]] = []
-    for idx in entry_line_indices:
-        m = re.match(r"^-\s*name:\s*(\S+)\s*$", lines[idx])
-        entry_path = (
-            resolve_entry_image_path(m.group(1), resolution.current_paths.keys(), resolution.repo.repo_map)
-            if m
-            else None
-        )
-        if entry_path is None:
-            entry_keys.append((len(resolution.key_order), 0))
-            continue
-        entry_display = path_display_name(entry_path, context.deps, resolution.canonical_names)
-        entry_keys.append(
-            images_manifest_order_key(
-                resolution.key_order, entry_path, is_sidecar=" - " in entry_display, values=context.target_values
-            )
-        )
-    return entry_line_indices, entry_keys
-
-
-def _splice_added_entry_block(
-    lines: list[str],
-    context: MissingEntriesContext,
-    resolution: MissingEntriesResolution,
-    new_key: tuple[int, ...],
-    block_lines: list[str],
-):
-    """Insert a new entry block in values.yaml component order, or append
-    it when nothing sorts after it."""
-    entry_line_indices, entry_keys = _entry_insertion_keys(lines, context, resolution)
-    body_slot = insertion_index(new_key, entry_keys)
-    if body_slot < len(entry_line_indices):
-        insert_at = images_manifest_block_start(lines, entry_line_indices[body_slot])
-        lines[insert_at:insert_at] = [*block_lines, "\n"]
-    else:
-        lines.append("\n")
-        lines.extend(block_lines)
+def _append_entry_block(lines: list[str], block_lines: list[str]) -> None:
+    """Append a new entry block; sort_images_manifest_entries puts it in place afterwards."""
+    lines.append("\n")
+    lines.extend(block_lines)
 
 
 def _insert_added_entry(
@@ -483,17 +391,13 @@ def _insert_added_entry(
     old_version, digest_only_change = _entry_old_version_and_digest_change(
         path, new_version, fields.pinned_tag, context, resolution
     )
-    new_key = images_manifest_order_key(
-        resolution.key_order, path, is_sidecar=" - " in fields.name, values=context.target_values
-    )
     version_text = image_manifest_version_text(old_version, new_version, digest_only_change=digest_only_change)
     version_text = f"{fields.name} {version_text}"
 
     lines = _manifest_lines_for_insert(text)
     ensure_images_manifest_changes_header(lines)
-    header_text = _images_manifest_changes_header_text(lines)
-    if not re.search(rf"\b{re.escape(fields.name)}\b", header_text, re.IGNORECASE):
-        insert_images_manifest_header_item(lines, context.deps, resolution.key_order, new_key, f"{version_text}.")
+    if fields.name not in covered_display_names(lines, [fields.name]):
+        insert_images_manifest_header_item(lines, f"{version_text}.")
 
     header_prefix = "# " if is_primary_image_path(path, context.deps, context.chart_dir) else "#   sidecar: "
     block_lines = [
@@ -503,30 +407,30 @@ def _insert_added_entry(
         f'  version: "{new_version}"\n',
         f'  digest: "{digest}"\n',
     ]
-    _splice_added_entry_block(lines, context, resolution, new_key, block_lines)
+    _append_entry_block(lines, block_lines)
     return "".join(lines)
 
 
 def _backfilled_header_target(
-    lines: list[str], header_text: str, context: MissingEntriesContext, resolution: MissingEntriesResolution
+    lines: list[str], context: MissingEntriesContext, resolution: MissingEntriesResolution
 ) -> tuple[ImagePath, str, str, str] | None:
-    """(entry_path, entry_name, entry_old, entry_new) of the first entry not
-    named in `header_text`, or None. Entries whose display name is only the
-    raw dotted path are skipped: not prose worth adding."""
-    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
-    for idx in entry_line_indices:
-        m = re.match(r"^-\s*name:\s*(\S+)\s*$", lines[idx])
+    """(entry_path, entry_name, entry_old, entry_new) of the first entry no
+    "# Changes:" item covers (covered_display_names, as the checker uses), or
+    None. Entries whose display name is only the raw dotted path are skipped:
+    not prose worth adding."""
+    entries: list[tuple[int, ImagePath, str]] = []
+    for idx, line in enumerate(lines):
+        m = ENTRY_NAME_RE.match(line)
         entry_path = (
             resolve_entry_image_path(m.group(1), resolution.current_paths.keys(), resolution.repo.repo_map)
             if m
             else None
         )
-        if entry_path is None:
-            continue
-        entry_name = path_display_name(entry_path, context.deps, resolution.canonical_names)
-        if entry_name == ".".join(entry_path):
-            continue
-        if re.search(rf"\b{re.escape(entry_name)}\b", header_text, re.IGNORECASE):
+        if entry_path is not None:
+            entries.append((idx, entry_path, path_display_name(entry_path, context.deps, resolution.canonical_names)))
+    covered = covered_display_names(lines, [name for _idx, _path, name in entries])
+    for idx, entry_path, entry_name in entries:
+        if entry_name == ".".join(entry_path) or entry_name in covered:
             continue
         comment_text = "".join(lines[images_manifest_block_start(lines, idx) : idx])
         entry_new = extract_target_version(comment_text)
@@ -552,17 +456,12 @@ def _backfill_header_items(
             break
         text = "".join(lines)
 
-        target = _backfilled_header_target(lines, header_text, context, resolution)
+        target = _backfilled_header_target(lines, context, resolution)
         if target is None:
             break
 
-        entry_path, entry_name, entry_old, entry_new = target
-        new_key = images_manifest_order_key(
-            resolution.key_order, entry_path, is_sidecar=" - " in entry_name, values=context.target_values
-        )
-        insert_images_manifest_header_item(
-            lines, context.deps, resolution.key_order, new_key, f"{entry_name} {entry_old} -> {entry_new}."
-        )
+        _entry_path, entry_name, entry_old, entry_new = target
+        insert_images_manifest_header_item(lines, f"{entry_name} {entry_old} -> {entry_new}.")
         text = "".join(lines)
         backfilled_names.append(entry_name)
     return text, backfilled_names
@@ -610,9 +509,9 @@ def _remove_stale_entry(
 ):
     """Delete the entry and its comment, and its "# Changes:" item unless
     another entry has the same display name (lockstep component)."""
-    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
     entry_line = next(
-        (i for i in entry_line_indices if re.match(rf"^-\s*name:\s*{re.escape(entry_name)}\s*$", lines[i])), None
+        (i for i in entry_line_indices(lines) if (m := ENTRY_NAME_RE.match(lines[i])) and m.group(1) == entry_name),
+        None,
     )
     if entry_line is None:
         return

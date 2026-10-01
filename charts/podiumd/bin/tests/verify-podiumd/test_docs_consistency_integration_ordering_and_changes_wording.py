@@ -74,30 +74,21 @@ def test_correctly_ordered_table_and_changes_pass(vp: ModuleType, order_chart_di
     assert ok is True, detail
 
 
-def test_out_of_order_table_row_is_caught(vp: ModuleType, order_chart_dir, capsys: pytest.CaptureFixture[str]):
+def test_hand_edited_generated_line_warns_without_failing(
+    vp: ModuleType, order_chart_dir, capsys: pytest.CaptureFixture[str]
+):
     chart_dir, doc_dir = order_chart_dir
-    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        order_doc([INWONER_ROW, ZAAK_ROW], ["Open Zaak bump", "Open Inwoner bump"])
-    )
-    ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
-    assert ok is False
-    assert "mismatch" in detail
-    out = capsys.readouterr().out
-    assert '"Component versions" table lists "Open Zaak" right after "Open Inwoner"' in out
-    assert "should follow values.yaml's own component order" in out
+    doc = order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump 1.27.4 → 1.27.4", "Open Inwoner bump 2.4.2 → 2.4.2"])
+    edited_line = "- Image tag pin `openzaak.image.tag` `1.27.3` → `1.27.4` in values.yaml, see the note"
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(doc.replace("Details.\n", edited_line + "\n", 1))
 
-
-def test_out_of_order_changes_block_is_caught(vp: ModuleType, order_chart_dir, capsys: pytest.CaptureFixture[str]):
-    chart_dir, doc_dir = order_chart_dir
-    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        order_doc([ZAAK_ROW, INWONER_ROW], ["Open Inwoner bump", "Open Zaak bump"])
-    )
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
-    assert ok is False
-    assert "mismatch" in detail
-    out = capsys.readouterr().out
-    assert '"## Changes" section has "### Open Zaak bump" right after "### Open Inwoner bump"' in out
-    assert "Changes blocks should follow values.yaml's own component order" in out
+
+    assert ok is True, detail
+    assert (
+        "WARNING: 4.8.5-to-4.9.0-upgrade.md: '### Open Zaak bump 1.27.4 → 1.27.4' has a hand-edited generated line"
+        in capsys.readouterr().out
+    )
 
 
 def test_unmatched_summary_row_never_flagged_against_real_components(
@@ -122,7 +113,7 @@ def test_table_row_with_no_changes_section_is_caught(
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump"]))
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is False
-    assert "mismatch" in detail
+    assert "to fix by hand" in detail
     out = capsys.readouterr().out
     assert 'table row "Open Inwoner" has no matching "### ..." section under "## Changes"' in out
 
@@ -134,7 +125,7 @@ def test_changes_section_with_no_table_row_is_caught(
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(order_doc([ZAAK_ROW], ["Open Zaak bump", "Open Inwoner bump"]))
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is False
-    assert "mismatch" in detail
+    assert "to fix by hand" in detail
     out = capsys.readouterr().out
     assert '"## Changes" section "### Open Inwoner bump" has no matching row in the "Component versions" table' in out
 
@@ -181,7 +172,7 @@ def test_heading_naming_two_components_is_flagged_and_neither_row_is_credited(
     )
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is False
-    assert "mismatch" in detail
+    assert "to fix by hand" in detail
     out = capsys.readouterr().out
     assert (
         '"## Changes" section "### Open Zaak bump + Open Inwoner bump" has no matching row in the '
@@ -202,7 +193,7 @@ def test_changes_heading_naming_no_real_component_is_caught_as_no_matching_row(
     )
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is False
-    assert "mismatch" in detail
+    assert "to fix by hand" in detail
     out = capsys.readouterr().out
     assert (
         '"## Changes" section "### Unrelated release note" has no matching row in the "Component versions" table' in out
@@ -221,7 +212,7 @@ def test_changes_heading_missing_app_version_is_caught(
     )
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is False
-    assert "mismatch" in detail
+    assert "to fix by hand" in detail
     out = capsys.readouterr().out
     assert (
         '"## Changes" section "### Open Zaak bump" is missing the primary-image app version '
@@ -263,12 +254,23 @@ NEW_DEP_UPGRADE_DOC = """\
 | openklant | 2.15.0 (new) | 2.15.0 (new) | - |
 
 See [`{baseline}-to-4.9.0-values-deltas.md`]({baseline}-to-4.9.0-values-deltas.md).
+
+## Changes
+
+### openklant 2.15.0 (new) (chart 2.15.0, new)
+
+PodiumD 4.9.0 introduces **openklant** at app version 2.15.0.
+
+- Image tag pin `openklant.image.tag` `2.15.0` (new) in
+  `charts/podiumd/values.yaml`.
+
+- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).
 """
 NEW_DEP_GEMEENTE_DOC = "# Gemeente-specific notes — PodiumD {baseline} → 4.9.0\n\nNone.\n"
 NEW_DEP_VALUES_DELTAS_DOC = (
     "# Values deltas — PodiumD {baseline} → 4.9.0\n\n"
     "## openklant newly added (`openklant.image`)\n\n"
-    "No gemeente podiumd.yml changes are required for this hop.\n"
+    "- Key `openklant.image` was added.\n"
 )
 NEW_DEP_IMAGES_MANIFEST = """\
 # Baseline: podiumd {baseline} (test @ 0000000).
@@ -282,7 +284,7 @@ NEW_DEP_IMAGES_MANIFEST = """\
 
 # openklant — 2.15.0
 - name: openklant/open-klant
-  url: openklant/open-klant
+  url: docker.io/openklant/open-klant
   version: "2.15.0"
   digest: "sha256:abc"
 """
@@ -424,7 +426,16 @@ def two_dep_chart_repo(tmp_path: Path):
         "| --- | --- | --- | --- |\n"
         "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | n/a |\n"
         "| openformulieren | 3.4.10 → 3.5.6 | 1.12.0 (unchanged) | n/a |\n\n"
-        "See [`4.8.5-to-4.9.0-values-deltas.md`](4.8.5-to-4.9.0-values-deltas.md).\n"
+        "See [`4.8.5-to-4.9.0-values-deltas.md`](4.8.5-to-4.9.0-values-deltas.md).\n\n"
+        "## Changes\n\n"
+        "### ZAC (Zaakafhandelcomponent) 5.0.2 → 5.4.3 (chart 1.0.297, unchanged)\n\n"
+        "PodiumD 4.9.0 upgrades **ZAC (Zaakafhandelcomponent)** from app version 5.0.2\nto 5.4.3.\n\n"
+        "- Image tag pin `zac.image.tag` `5.0.2` → `5.4.3` in\n  `charts/podiumd/values.yaml`.\n\n"
+        "- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).\n\n"
+        "### openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged)\n\n"
+        "PodiumD 4.9.0 upgrades **openformulieren** from app version 3.4.10\nto 3.5.6.\n\n"
+        "- Image tag pin `openformulieren.image.tag` `3.4.10` → `3.5.6` in\n  `charts/podiumd/values.yaml`.\n\n"
+        "- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).\n"
     )
     (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(
         "# Gemeente-specific notes — PodiumD 4.8.5 → 4.9.0\n\nNone.\n"
@@ -451,7 +462,7 @@ def two_dep_chart_repo(tmp_path: Path):
         '  digest: "sha256:abc"\n\n'
         "# openformulieren — 3.4.10 -> 3.5.6\n"
         "- name: openformulieren/open-forms\n"
-        "  url: openformulieren/open-forms\n"
+        "  url: docker.io/openformulieren/open-forms\n"
         '  version: "3.5.6"\n'
         '  digest: "sha256:def"\n'
     )
@@ -462,16 +473,13 @@ def two_dep_chart_repo(tmp_path: Path):
 
 
 def test_values_deltas_sections_out_of_order_is_caught(
-    vp: ModuleType, two_dep_chart_repo, capsys: pytest.CaptureFixture[str]
+    vp: ModuleType, assert_would_change, two_dep_chart_repo, capsys: pytest.CaptureFixture[str]
 ):
     ok, _detail = vp.check_docs_consistency(two_dep_chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is False
     out = capsys.readouterr().out
-    assert (
-        '4.8.5-to-4.9.0-values-deltas.md: "## ZAC' in out
-        and 'section comes right after "## openformulieren' in out
-        and "sections should follow values.yaml's own component order" in out
-    )
+    assert_would_change(out, "4.8.5-to-4.9.0-values-deltas.md (changed")
+    assert "4.8.5-to-4.9.0-upgrade.md" not in out
 
 
 def test_values_deltas_sections_correctly_ordered_passes(vp: ModuleType, two_dep_chart_repo):
@@ -492,7 +500,7 @@ def test_values_deltas_sections_correctly_ordered_passes(vp: ModuleType, two_dep
 
 
 def test_changes_heading_wrong_transition_wording_is_caught(
-    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
+    vp: ModuleType, assert_would_change, chart_repo, capsys: pytest.CaptureFixture[str]
 ):
     """zac changed 5.0.2 -> 5.4.3 but its heading says "(unchanged)"; the row is correct.
 
@@ -508,15 +516,11 @@ def test_changes_heading_wrong_transition_wording_is_caught(
         "### ZAC (Zaakafhandelcomponent) 5.4.3 (unchanged) (chart 1.0.297, unchanged)\n\n"
         "blah\n"
     )
-    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+    ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is False
-    assert "mismatch" in detail
-    out = capsys.readouterr().out
-    assert (
-        '"## Changes" section "### ZAC (Zaakafhandelcomponent) 5.4.3 (unchanged) (chart 1.0.297, '
-        'unchanged)" shows the wrong app-version transition in its own heading — expected '
-        "\"5.0.2 → 5.4.3\" (values.yaml/podiumd-4.8.5 show '5.0.2' -> '5.4.3')"
-    ) in out
+    assert_would_change(
+        capsys.readouterr().out, "+### ZAC (Zaakafhandelcomponent) 5.0.2 → 5.4.3 (chart 1.0.297, unchanged)"
+    )
 
 
 def test_changes_heading_correct_transition_wording_passes(vp: ModuleType, chart_repo):

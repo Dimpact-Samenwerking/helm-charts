@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# The help text repeats other scripts' argument explanations on purpose;
+# tests/lib/test_script_help_consistency.py keeps them equal.
+# jscpd:ignore-start
 """
 Show the version of one image at both release-baseline.yaml baselines
 (upgrade_docs and release_table).
@@ -24,6 +27,7 @@ Examples:
     show-image-baseline-version keycloak-operator python
     show-image-baseline-version MULTIPLE curl
 """
+# jscpd:ignore-end
 
 import sys
 

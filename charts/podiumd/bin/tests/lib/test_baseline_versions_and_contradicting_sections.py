@@ -1,21 +1,21 @@
-"""compare_component_to_baseline and the checks that sections and manifest items match their row (openbao 4.9.3)."""
+"""resolve_component_row and the checks that sections and manifest items match their row (openbao 4.9.3)."""
 
 from pathlib import Path
 
 import pytest
 
+from lib.chart.chart_state import BaselineState
+from lib.chart.chart_state import ComponentState
 from lib.chart.chart_yaml import parse_chart_dependencies
-from lib.component_docs.changes_section import BaselineState
-from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import DocContext
-from lib.component_docs.changes_section import OrderingContext
 from lib.component_docs.images_manifest_entries import expected_changes_items
 from lib.component_docs.images_manifest_entries import fix_stale_changes_items
 from lib.component_docs.images_manifest_entries import stale_changes_items
 from lib.image.docs import changes_sections_contradicting_rows
 from lib.image.docs import rebuild_changes_sections_contradicting_rows
 from lib.upgradedoc.resolve_component_row import ResolutionContext
-from lib.upgradedoc.resolve_component_row import compare_component_to_baseline
+from lib.upgradedoc.resolve_component_row import resolve_component_row
+from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.yaml_types import parse_yaml_mapping
 
 TARGET_DEPS = parse_chart_dependencies(
@@ -59,7 +59,9 @@ def test_blank_baseline_tag_with_a_changed_chart_resolves_like_the_row(chart_dir
         BaselineState(BASELINE_DEPS, BASELINE_VALUES),
         "4.9.2",
     )
-    assert compare_component_to_baseline(resolution, "openbao") == ("2.5.5", "0.28.4", False)
+    resolved = resolve_component_row("openbao", {}, resolution)
+    assert resolved["kind"] != "unmatched"
+    assert (resolved["baseline_app"], resolved["baseline_chart"]) == ("2.5.5", "0.28.4")
 
 
 DOC = """\
@@ -148,7 +150,7 @@ def _expected_items(chart_dir: Path):
         BaselineState(BASELINE_DEPS, BASELINE_VALUES),
         "4.9.2",
     )
-    return expected_changes_items(["openbao"], {}, resolution)
+    return expected_changes_items(["openbao"], "", {}, resolution)
 
 
 def test_stale_changes_item_is_reported_and_fixed_from_its_row(chart_dir: Path):

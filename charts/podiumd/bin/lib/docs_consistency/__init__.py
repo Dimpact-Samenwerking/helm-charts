@@ -10,34 +10,33 @@ import re
 from collections.abc import Sequence
 from pathlib import Path
 
+from lib.chart.chart_state import BaselineState
+from lib.chart.chart_state import ComponentState
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.release_baseline_basics import chart_version
-from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
-from lib.chart.values_tree_primitives import version_of
-from lib.chart.yaml_alias_groups import alias_groups
-from lib.component_docs.aliased_pin_bullets import find_missing_pin_bullets
-from lib.component_docs.changes_section import BaselineState
-from lib.component_docs.changes_section import ComponentState
+from lib.chart.values_tree_primitives import image_version_changed
 from lib.component_docs.changes_section import DocContext
-from lib.component_docs.changes_section import OrderingContext
+from lib.component_docs.changes_section import edited_changes_lines
 from lib.component_docs.changes_section import pointer_issues
 from lib.component_docs.changes_section import resolve_component_own_version_change
-from lib.component_docs.changes_section import strip_stale_upgrade_placeholders
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
 from lib.component_docs.images_manifest_entries import expected_changes_items
 from lib.component_docs.images_manifest_entries import stale_changes_items
+from lib.component_docs.values_delta_sections import edited_values_delta_lines
 from lib.component_docs.values_delta_sections import has_stale_gemeente_specific_placeholder
-from lib.component_docs.values_delta_sections import strip_stale_values_deltas_todo_stub
 from lib.docs_consistency.check_context import ComponentRowsResult
 from lib.docs_consistency.check_context import DocQuery
 from lib.docs_consistency.check_context import DocScanState
 from lib.docs_consistency.check_context import DocsCheckContext
 from lib.docs_consistency.check_context import Findings
-from lib.docs_consistency.check_context import ImagePaths
 from lib.docs_consistency.check_context import ManifestEntryScan
 from lib.docs_consistency.check_context import RowContext
 from lib.docs_consistency.check_context import RowLookup
+from lib.docs_consistency.check_context import StateImages
+from lib.docs_consistency.dry_run import MAX_DIFF_LINES
+from lib.docs_consistency.dry_run import DocChange
+from lib.docs_consistency.dry_run import fix_docs_dry_run
 from lib.docs_consistency.images_manifest_format import ManifestCheckContext
 from lib.docs_consistency.images_manifest_format import check_images_manifest_format
 from lib.docs_consistency.markdown_format import check_baseline_doc_set
@@ -47,35 +46,40 @@ from lib.docs_consistency.pointer_consistency import check_pointer_consistency
 from lib.docs_consistency.values_diff import ValuesDeltaInputs
 from lib.docs_consistency.values_diff import check_values_deltas_content
 from lib.image.docs import changes_sections_contradicting_rows
-from lib.image.manifest_entry_pins import current_image_paths
 from lib.image.manifest_entry_pins import entry_pin
-from lib.image.manifest_entry_pins import image_repo_map
 from lib.images_manifest import ManifestEntry
 from lib.images_manifest import parse_images_manifest
 from lib.release_baseline import resolve_baseline_chart_state
 from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
+from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.consistency_checks import find_changes_duplicate_identities
 from lib.upgradedoc.consistency_checks import find_changes_row_correspondence_gaps
 from lib.upgradedoc.consistency_checks import find_wrong_or_duplicate_dependency_claims
+from lib.upgradedoc.consistency_checks import rowed_component_keys
+from lib.upgradedoc.consistency_checks import rowed_sidecar_paths
+from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
+from lib.upgradedoc.doc_names import doc_name
+from lib.upgradedoc.doc_names import images_manifest_path
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
+from lib.upgradedoc.removed_items import RemovedItem
+from lib.upgradedoc.removed_items import removed_item_named
+from lib.upgradedoc.removed_items import removed_items
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.resolve_component_row import ResolvedRow
 from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
 from lib.upgradedoc.resolve_component_row import resolve_component_row
 from lib.upgradedoc.resolve_component_row import resolved_row_unchanged
-from lib.upgradedoc.sorting_and_ordering import find_out_of_order_names
+from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
-from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
-from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import TableRow
 from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
-from lib.upgradedoc.string_and_parsing_basics import extract_source_version
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows as _parse_upgrade_doc_rows
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
+from lib.version_numbers import is_bare_version
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import load_yaml_mapping
 
@@ -85,35 +89,28 @@ def parse_upgrade_doc_rows(doc_path: Path) -> list[TableRow]:
     return _parse_upgrade_doc_rows(doc_path.read_text(encoding="utf-8"))
 
 
-def _pointer_consistency_mismatches(chart_dir: Path, doc_dir: Path, upgrade_docs_baseline: str, podiumd_version: str):
+def _pointer_consistency_mismatches(doc_dir: Path, upgrade_docs_baseline: str, podiumd_version: str):
     """Stale sibling-doc/images-manifest reference findings for the caller's `mismatches`.
 
     Returned rather than returning early, so one stale link doesn't hide every other finding.
     """
-    images_dir = chart_dir / "docs" / "images"
-    pointer_docs = [
-        doc_dir / f"{upgrade_docs_baseline}-to-{podiumd_version}-{suffix}.md"
-        for suffix in ("upgrade", "gemeente-specific", "values-deltas")
-    ]
-    images_path_for_pointers = images_dir / f"images-{podiumd_version}.yaml"
+    images_dir = doc_dir.parent / "images"
+    pointer_docs = [doc_dir / doc_name(upgrade_docs_baseline, podiumd_version, suffix) for suffix in STANDARD_SUFFIXES]
+    images_path_for_pointers = images_manifest_path(images_dir, podiumd_version)
     if images_path_for_pointers.is_file():
         pointer_docs.append(images_path_for_pointers)
     return [
-        issue
-        for doc in pointer_docs
-        for issue in check_pointer_consistency(doc, upgrade_docs_baseline, podiumd_version, doc_dir, images_dir)
+        issue for doc in pointer_docs for issue in check_pointer_consistency(doc, podiumd_version, doc_dir, images_dir)
     ]
 
 
-def _check_companion_docs(
-    doc_dir: Path, upgrade_docs_baseline: str, podiumd_version: str, findings: Findings, *, is_bare_version: bool
-):
+def _check_companion_docs(doc_dir: Path, upgrade_docs_baseline: str, podiumd_version: str, findings: Findings):
     """Append gemeente-specific/values-deltas companion-doc findings to `findings`.
 
-    Stale placeholders are reported even where fix-doc-consistency would auto-fix them,
-    since a doc can carry one until that script next runs.
+    Only the gemeente-specific placeholder, which nothing auto-fixes, is
+    checked; fix-doc-consistency clears the values-deltas one.
     """
-    if not is_bare_version:
+    if not is_bare_version(upgrade_docs_baseline):
         print(
             f'WARNING: upgrade_docs_baseline "{upgrade_docs_baseline}" is not a bare version — cannot check '
             f"for matching gemeente-specific / values-deltas docs"
@@ -121,21 +118,16 @@ def _check_companion_docs(
         return
 
     for suffix in ("gemeente-specific", "values-deltas"):
-        doc_name, doc_mismatches = check_companion_doc(doc_dir, upgrade_docs_baseline, podiumd_version, suffix)
-        findings.checked.append(doc_name)
+        companion_name, doc_mismatches = check_companion_doc(doc_dir, upgrade_docs_baseline, podiumd_version, suffix)
+        findings.checked.append(companion_name)
         findings.mismatches.extend(doc_mismatches)
 
-        companion_path = doc_dir / doc_name
+        companion_path = doc_dir / companion_name
         if companion_path.is_file():
             companion_text = companion_path.read_text(encoding="utf-8")
-            if suffix == "values-deltas" and strip_stale_values_deltas_todo_stub(companion_text)[1]:
+            if suffix == "gemeente-specific" and has_stale_gemeente_specific_placeholder(companion_text):
                 findings.mismatches.append(
-                    f"{doc_name}: still has its own stale TODO placeholder stranded alongside a "
-                    f'real "## ..." section — run fix-doc-consistency to clear it'
-                )
-            elif suffix == "gemeente-specific" and has_stale_gemeente_specific_placeholder(companion_text):
-                findings.mismatches.append(
-                    f'{doc_name}: still has its own stale "_None recorded yet._" placeholder '
+                    f'{companion_name}: still has its own stale "_None recorded yet._" placeholder '
                     f'stranded alongside a real "## <gemeente> (<env>)" section — clear it by hand '
                     f"(nothing auto-fixes this one)"
                 )
@@ -157,34 +149,13 @@ def _resolve_baseline(
     return baseline_ref, baseline_deps, baseline_values, mismatch
 
 
-def _resolve_image_paths(
-    chart_dir: Path | None,
-    deps: list[ChartDependency],
-    values: YamlMapping,
-    baseline_ref: str | None,
-    baseline_values: YamlMapping,
-):
-    """Current/baseline image-tag-path maps and the shared-image representative map.
+def _build_docs_check_context(chart_dir: Path, doc_dir: Path, podiumd_version: str, upgrade_docs_baseline: str | None):
+    """Load the chart, resolve the baseline and derived image maps into a DocsCheckContext.
 
-    Baseline maps are empty without a baseline_ref.
+    Returns (ctx, baseline_mismatch); the caller adds baseline_mismatch to `findings`.
     """
-    current_paths = current_image_paths(values)
-    baseline_paths = current_image_paths(baseline_values) if baseline_ref else {}
-    repo_map = image_repo_map(chart_dir, deps, values, current_paths) if chart_dir is not None else {}
-    return current_paths, baseline_paths, repo_map
-
-
-def _build_docs_check_context(
-    chart_dir: Path,
-    deps: list[ChartDependency],
-    values: YamlMapping,
-    podiumd_version: str,
-    upgrade_docs_baseline: str | None,
-):
-    """Resolve the baseline and derived image maps into a DocsCheckContext.
-
-    Returns (ctx, repo_map, baseline_mismatch); the caller adds baseline_mismatch to `findings`.
-    """
+    deps = load_chart_dependencies(chart_dir / "Chart.yaml")
+    values = load_yaml_mapping(chart_dir / "values.yaml")
     baseline_ref, baseline_deps, baseline_values, baseline_mismatch = _resolve_baseline(
         chart_dir, upgrade_docs_baseline
     )
@@ -192,59 +163,43 @@ def _build_docs_check_context(
     actual_changed_keys: set[str] = (
         compute_changed_components(deps, baseline_deps, values, baseline_values) if baseline_ref else set()
     )
-    current_paths, baseline_paths, repo_map = _resolve_image_paths(
-        chart_dir, deps, values, baseline_ref, baseline_values
-    )
-
     ctx = DocsCheckContext(
         chart_dir=chart_dir,
         current=ComponentState(deps, values),
         baseline=BaselineState(baseline_deps, baseline_values),
         baseline_ref=baseline_ref,
         doc_query=DocQuery(
-            chart_dir / "docs" / "_UPGRADE_PATHS",
+            doc_dir,
             podiumd_version,
             upgrade_docs_baseline,
-            bool(upgrade_docs_baseline and re.match(r"^\d+\.\d+\.\d+", upgrade_docs_baseline)),
+            is_bare_version(upgrade_docs_baseline),
         ),
-        image_paths=ImagePaths(current_paths, baseline_paths),
+        images=StateImages(
+            ChartImageIndex(chart_dir, deps, values),
+            ChartImageIndex(chart_dir, baseline_deps or [], baseline_values if baseline_ref else None),
+        ),
         actual_changed_keys=actual_changed_keys,
     )
-    return ctx, repo_map, baseline_mismatch
+    return ctx, baseline_mismatch
 
 
-def _doc_header_mismatches(doc_path: Path, ctx: DocsCheckContext):
-    """Title and stale-TODO-placeholder checks on the selected upgrade doc.
-
-    Reported even where fix-doc-consistency would auto-fix it; reuses
-    strip_stale_upgrade_placeholders unapplied, its `changed` flag being the finding.
-    """
-    mismatches: list[str] = []
+def _doc_header_mismatches(doc_path: Path, ctx: DocsCheckContext) -> list[str]:
+    """Title check on the selected upgrade doc (fix-doc-consistency clears stale TODO placeholders)."""
     if ctx.doc_query.is_bare_version and ctx.doc_query.upgrade_docs_baseline:
-        mismatches.extend(check_doc_title(doc_path, ctx.doc_query.upgrade_docs_baseline, ctx.doc_query.podiumd_version))
-    if strip_stale_upgrade_placeholders(doc_path.read_text(encoding="utf-8"))[1]:
-        mismatches.append(
-            f'{doc_path.name}: still has a stale "TODO" placeholder stranded alongside real content '
-            f"— run fix-doc-consistency to clear it"
-        )
-    return mismatches
+        return check_doc_title(doc_path, ctx.doc_query.upgrade_docs_baseline, ctx.doc_query.podiumd_version)
+    return []
 
 
 def _record_row_identity(resolved: ResolvedRow, result: ComponentRowsResult):
     """Record one resolved row's bookkeeping on `result`; return (values_key, actual_app)."""
-    sidecar_path = resolved["sidecar_path"]
-    values_key, top_level_key = resolved["values_key"], resolved["top_level_key"]
+    values_key = resolved["values_key"]
     actual_app = resolved["target_app"]
 
-    if resolved["kind"] == "sidecar":
-        if sidecar_path is not None:
-            result.matched_sidecar_paths.add(sidecar_path)
-    elif actual_app:
+    if resolved["kind"] != "sidecar" and actual_app:
         # Native components resolve to ("dep", values_key) too, so keys match
         # resolve_component_identity/changes_heading_identities.
         result.resolved_app_by_identity[("dep", values_key)] = actual_app
 
-    result.changed_component_keys.add(top_level_key)
     return values_key, actual_app
 
 
@@ -279,7 +234,8 @@ def _check_row_baseline_versions(
             f"or its version isn't resolvable there; source cells left unchecked"
         )
         if resolved["kind"] != "sidecar" and actual_app:
-            result.baseline_app_by_identity[("dep", values_key)] = None
+            # A past images manifest can still know the image (see _dependency_baseline_result).
+            result.baseline_app_by_identity[("dep", values_key)] = resolved["baseline_app"]
         return
 
     baseline_chart_actual, baseline_app_actual = resolved["baseline_chart"], resolved["baseline_app"]
@@ -300,7 +256,7 @@ def _check_row_baseline_versions(
     elif actual_app:
         # Dependency existed at baseline but its app version didn't: the fixer writes
         # "<target> (new)", so a stale "<old> → <target>" cell is flagged.
-        expected_app_source = extract_source_version(component_version_cell(None, actual_app))
+        expected_app_source = None
         baseline_app_label = "no app version (new)"
     else:
         return
@@ -319,7 +275,7 @@ def _check_component_rows(
     Rows resolve via resolve_component_row, shared with fix-doc-consistency so checker
     and fixer agree on what's correct.
     """
-    result = ComponentRowsResult([], set(), {}, {}, set())
+    result = ComponentRowsResult([], {}, {})
 
     for row in rows:
         if row["name"] in row_lookup.stale_names:
@@ -330,7 +286,7 @@ def _check_component_rows(
             result.mismatches.append(
                 f'{row_ctx.doc_path.name}: doc row "{row["name"]}" does not match a Chart.yaml '
                 f'dependency or a canonical sidecar/shared-image name ("<component> - '
-                f'<image-basename>" or "<image-basename>", the exact form update-image-version writes) '
+                f'<image-basename>" or "<image-basename>", the exact form fix-doc-consistency writes) '
                 f"— wrong phrasing, or a stale row"
             )
             continue
@@ -348,7 +304,7 @@ def _check_component_rows(
     return result
 
 
-def _check_missing_component_rows(ctx: DocsCheckContext, scan: DocScanState, rows_result: ComponentRowsResult):
+def _check_missing_component_rows(ctx: DocsCheckContext, scan: DocScanState):
     """Flag components changed vs baseline that have no row at all.
 
     Covers own primary rows (resolve_component_own_version_change, shared with
@@ -356,11 +312,13 @@ def _check_missing_component_rows(ctx: DocsCheckContext, scan: DocScanState, row
     (e.g. redis-ha under redis-operator). Only called when ctx.baseline_ref is set.
     """
     mismatches: list[str] = []
-    for key in sorted(ctx.actual_changed_keys - rows_result.changed_component_keys):
+    # fix-doc-consistency writes a removed component's row (sync_removed_items).
+    rowed_keys = rowed_component_keys(scan.rows, ctx.current.deps, scan.canonical_names)
+    for key in sorted(ctx.actual_changed_keys - rowed_keys - set(scan.removed)):
         resolved = resolve_component_own_version_change(
             key,
-            ComponentState(ctx.current.deps, ctx.current.values),
-            BaselineState(ctx.baseline.deps, ctx.baseline.values),
+            ctx.current,
+            ctx.baseline,
             ctx.chart_dir,
             ctx.doc_query.upgrade_docs_baseline,
         )
@@ -371,50 +329,17 @@ def _check_missing_component_rows(ctx: DocsCheckContext, scan: DocScanState, row
             f'in the "Component versions" table'
         )
 
+    rowed_paths = rowed_sidecar_paths(scan.rows, ctx.current.deps, scan.canonical_names)
     for name, path in sorted(scan.canonical_names.items()):
-        if path in rows_result.matched_sidecar_paths:
+        if path in rowed_paths:
             continue
-        baseline_tag, current_tag = ctx.image_paths.baseline.get(path), ctx.image_paths.current.get(path)
-        # Compare versions (digest stripped), not raw tags: a digest-only re-pin needs no row.
-        if (version_of(baseline_tag) if baseline_tag is not None else None) != (
-            version_of(current_tag) if current_tag is not None else None
-        ):
+        # A digest-only re-pin needs no row.
+        if image_version_changed(ctx.images.baseline.paths.get(path), ctx.images.current.paths.get(path)):
             mismatches.append(
                 f'{scan.doc_path.name}: sidecar/shared image "{name}" changed vs {ctx.baseline_ref} '
                 f'but has no row in the "Component versions" table'
             )
     return mismatches
-
-
-def _check_row_and_heading_order(ctx: DocsCheckContext, scan: DocScanState):
-    """Check table rows and "## Changes" headings follow values.yaml component order.
-
-    Returns (mismatches, changes_headings, doc_text); the latter two are reused by
-    _check_changes_heading_correspondence.
-    """
-    mismatches: list[str] = []
-    key_order = values_key_order(ctx.current.values)
-    row_names = [row["name"] for row in scan.rows]
-    for name_a, name_b in find_out_of_order_names(
-        row_names, ctx.current.deps, key_order, scan.canonical_names, ctx.current.values
-    ):
-        mismatches.append(
-            f'{scan.doc_path.name}: "Component versions" table lists "{name_b}" right after "{name_a}", '
-            f"but values.yaml lists {name_b} before {name_a} — rows should follow values.yaml's "
-            f"own component order"
-        )
-
-    doc_text = scan.doc_path.read_text(encoding="utf-8")
-    changes_headings = [b["heading"] for b in parse_upgrade_doc_changes_blocks(doc_text)]
-    for name_a, name_b in find_out_of_order_names(
-        changes_headings, ctx.current.deps, key_order, scan.canonical_names, ctx.current.values
-    ):
-        mismatches.append(
-            f'{scan.doc_path.name}: "## Changes" section has "### {name_b}" right after "### {name_a}", '
-            f"but values.yaml lists the {name_b} component before {name_a} — Changes blocks should "
-            f"follow values.yaml's own component order"
-        )
-    return mismatches, changes_headings, doc_text
 
 
 def _duplicate_identity_mismatches(ctx: DocsCheckContext, scan: DocScanState, changes_headings: list[str]):
@@ -459,8 +384,12 @@ def _check_changes_heading_correspondence(
         return []
 
     mismatches: list[str] = []
+    # fix-doc-consistency writes a removed item's row and section (sync_removed_items).
     rows_without_heading, headings_without_row = find_changes_row_correspondence_gaps(
-        scan.rows, changes_headings, ctx.current.deps, scan.canonical_names
+        scan.rows,
+        [heading for heading in changes_headings if removed_item_named(heading, scan.removed) is None],
+        ctx.current.deps,
+        scan.canonical_names,
     )
     mismatches.extend(
         f'{scan.doc_path.name}: table row "{name}" has no matching "### ..." section under "## Changes"'
@@ -504,10 +433,9 @@ def _select_upgrade_doc(ctx: DocsCheckContext, findings: Findings):
 
     Warns (never fails) on zero or multiple matches; None when there is no doc.
     """
-    doc_glob = (
-        f"{ctx.doc_query.upgrade_docs_baseline}-to-{ctx.doc_query.podiumd_version}-upgrade.md"
-        if ctx.doc_query.is_bare_version
-        else f"*-to-{ctx.doc_query.podiumd_version}-upgrade.md"
+    baseline = ctx.doc_query.upgrade_docs_baseline
+    doc_glob = doc_name(
+        baseline if ctx.doc_query.is_bare_version and baseline else "*", ctx.doc_query.podiumd_version, "upgrade"
     )
     doc_matches = sorted(ctx.doc_query.doc_dir.glob(doc_glob))
     if not doc_matches:
@@ -526,24 +454,16 @@ def _select_upgrade_doc(ctx: DocsCheckContext, findings: Findings):
     return doc_path
 
 
-def _missing_pin_bullet_mismatches(ctx: DocsCheckContext, doc_path: Path, doc_text: str) -> list[str]:
-    """A Changes block names a pin but not a path that shares its YAML anchor."""
-    return [
-        f"{doc_path.name}: '### {m.heading}' names `{m.documented_path}` but not `{m.missing_path}`, "
-        "which shares its YAML anchor; run fix-doc-consistency to add it"
-        for m in find_missing_pin_bullets(doc_text, alias_groups(ctx.chart_dir / "values.yaml"))
-    ]
-
-
 def _stale_changes_item_mismatches(
     ctx: DocsCheckContext, scan: DocScanState, resolution: ResolutionContext
 ) -> list[str]:
     """An images-manifest "# Changes:" item contradicts its upgrade-doc table row."""
-    images_path = ctx.chart_dir / "docs" / "images" / f"images-{ctx.doc_query.podiumd_version}.yaml"
+    images_path = images_manifest_path(ctx.doc_query.doc_dir.parent / "images", ctx.doc_query.podiumd_version)
     if not images_path.is_file():
         return []
-    lines = images_path.read_text(encoding="utf-8").splitlines(keepends=True)
-    expected = expected_changes_items([row["name"] for row in scan.rows], scan.canonical_names, resolution)
+    text = images_path.read_text(encoding="utf-8")
+    lines = text.splitlines(keepends=True)
+    expected = expected_changes_items([row["name"] for row in scan.rows], text, scan.canonical_names, resolution)
     return [
         f"{images_path.name}: '# Changes:' item \"{current}\" contradicts the {scan.doc_path.name} table row "
         f'(expected "{wanted}"); run fix-doc-consistency to correct it'
@@ -564,21 +484,30 @@ def _contradicting_section_mismatches(ctx: DocsCheckContext, scan: DocScanState,
     ]
 
 
-_POINTER_FINDINGS = {
-    "missing": 'has no "- Image / digest" pointer; run fix-doc-consistency to add it',
-    "duplicate": 'has {count} "- Image / digest" pointers; keep one',
-    "no-blank-line-before": (
-        'has no blank line before the "- Image / digest" pointer; run fix-doc-consistency to add it'
-    ),
-}
-
-
 def _pointer_mismatches(doc_path: Path, doc_text: str) -> list[str]:
-    """A Changes section's pointer is missing, duplicated or not separated by a blank line."""
+    """A Changes section with more than one pointer; fix-doc-consistency adds a missing one, not removes one."""
     return [
-        f"{doc_path.name}: '### {issue.heading}' " + _POINTER_FINDINGS[issue.kind].format(count=issue.count)
+        f"{doc_path.name}: '### {issue.heading}' has {issue.count} \"- Image / digest\" pointers; keep one"
         for issue in pointer_issues(doc_text)
+        if issue.kind == "duplicate"
     ]
+
+
+def _warn_edited_generated_lines(doc_path: Path, heading_marker: str, edited: list[tuple[str, str]]):
+    """A warning, not a mismatch: the doc is still correct, but the edited line can go stale."""
+    for heading, line in edited:
+        print(
+            f"WARNING: {doc_path.name}: '{heading_marker} {heading}' has a hand-edited generated line, "
+            f'which fix-doc-consistency no longer updates: "{line}"; '
+            f"restore the generated line and put the remark on a line of its own"
+        )
+
+
+def _removed_items_by_name(ctx: DocsCheckContext) -> dict[str, RemovedItem]:
+    """The components and images removed vs the baseline; none without a baseline_ref."""
+    if not ctx.baseline_ref:
+        return {}
+    return {item.name: item for item in removed_items(ctx.images.current, ctx.images.baseline)}
 
 
 def _check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
@@ -590,44 +519,45 @@ def _check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
     if doc_path is None:
         return
 
-    canonical_names = canonical_sidecar_row_names(
-        ctx.chart_dir, ctx.current.deps, ctx.current.values, ctx.image_paths.current.keys()
-    )
     resolution = ResolutionContext(
         ctx.chart_dir,
-        ComponentState(ctx.current.deps, ctx.current.values),
-        BaselineState(ctx.baseline.deps if ctx.baseline_ref else None, ctx.baseline.values),
+        ctx.current,
+        ctx.baseline if ctx.baseline_ref else BaselineState(None, ctx.baseline.values),
         ctx.doc_query.upgrade_docs_baseline if ctx.baseline_ref else None,
     )
-    rows = list(parse_upgrade_doc_rows(doc_path))
+    scan = DocScanState(
+        doc_path,
+        list(parse_upgrade_doc_rows(doc_path)),
+        ctx.images.current.canonical_names,
+        _removed_items_by_name(ctx),
+    )
 
     # Duplicate row names, and free-form rows fuzzy-matching a dependency another row claims.
     duplicate_names, wrong_fuzzy_names = find_wrong_or_duplicate_dependency_claims(
-        [row["name"] for row in rows], ctx.current.deps
+        [row["name"] for row in scan.rows if row["name"] not in scan.removed], ctx.current.deps
     )
     findings.mismatches.extend(
         f'{doc_path.name}: doc row "{name}" is wrong or stale — not found in Chart.yaml or values.yaml'
         for name in sorted(duplicate_names | wrong_fuzzy_names)
     )
 
-    row_lookup = RowLookup(canonical_names, duplicate_names | wrong_fuzzy_names)
-    row_ctx = RowContext(doc_path, ctx.baseline_ref)
-    rows_result = _check_component_rows(rows, row_ctx, row_lookup, resolution)
+    # fix-doc-consistency writes removed items' rows (sync_removed_items).
+    row_lookup = RowLookup(scan.canonical_names, duplicate_names | wrong_fuzzy_names | set(scan.removed))
+    rows_result = _check_component_rows(scan.rows, RowContext(doc_path, ctx.baseline_ref), row_lookup, resolution)
     findings.mismatches.extend(rows_result.mismatches)
 
-    scan = DocScanState(doc_path, rows, canonical_names)
     if ctx.baseline_ref:
-        findings.mismatches.extend(_check_missing_component_rows(ctx, scan, rows_result))
+        findings.mismatches.extend(_check_missing_component_rows(ctx, scan))
 
-    order_mismatches, changes_headings, doc_text = _check_row_and_heading_order(ctx, scan)
-    findings.mismatches.extend(order_mismatches)
+    doc_text = doc_path.read_text(encoding="utf-8")
+    changes_headings = [b["heading"] for b in parse_upgrade_doc_changes_blocks(doc_text)]
     findings.mismatches.extend(
         _check_changes_heading_correspondence(ctx, scan, rows_result, changes_headings, doc_text)
     )
-    findings.mismatches.extend(_missing_pin_bullet_mismatches(ctx, doc_path, doc_text))
     findings.mismatches.extend(_stale_changes_item_mismatches(ctx, scan, resolution))
     findings.mismatches.extend(_contradicting_section_mismatches(ctx, scan, doc_text))
     findings.mismatches.extend(_pointer_mismatches(doc_path, doc_text))
+    _warn_edited_generated_lines(doc_path, "###", edited_changes_lines(doc_text))
 
 
 def _check_images_manifest_entry(
@@ -637,7 +567,9 @@ def _check_images_manifest_entry(
     name = entry.get("name")
     if not name:
         return
-    path, actual_tag = entry_pin(entry, ctx.current.values, ctx.image_paths.current, scan.repo_map, scan.sibling_fields)
+    path, actual_tag = entry_pin(
+        entry, ctx.current.values, ctx.images.current.paths, scan.repo_map, scan.sibling_fields
+    )
     if not path:
         print(f'  ({scan.images_path.name}: entry "{name}" — no matching image in values.yaml, skipped)')
         return
@@ -652,7 +584,7 @@ def _check_images_manifest_entry(
             f'{name}: values.yaml tag is "{actual_tag}", {scan.images_path.name} says "{expected_tag}"'
         )
 
-    if ctx.baseline_ref and ctx.image_paths.baseline.get(path) == expected_tag:
+    if ctx.baseline_ref and ctx.images.baseline.paths.get(path) == expected_tag:
         findings.mismatches.append(
             f"{name}: listed in {scan.images_path.name} as new/changed, but {ctx.baseline_ref} "
             f'already has this exact tag ("{expected_tag}") — did it actually change?'
@@ -661,7 +593,6 @@ def _check_images_manifest_entry(
 
 def _check_images_manifest(
     ctx: DocsCheckContext,
-    repo_map: dict[str, ImagePath],
     sibling_fields: dict[ImagePath, DigestPinningException],
     findings: Findings,
 ):
@@ -670,7 +601,7 @@ def _check_images_manifest(
     Appends onto `findings`. Entry checks are skipped when the format isn't
     interpretable, but earlier findings are kept (no early return on findings).
     """
-    images_path = ctx.chart_dir / "docs" / "images" / f"images-{ctx.doc_query.podiumd_version}.yaml"
+    images_path = images_manifest_path(ctx.doc_query.doc_dir.parent / "images", ctx.doc_query.podiumd_version)
 
     images_format_ok = True
     if ctx.doc_query.is_bare_version:
@@ -707,51 +638,40 @@ def _check_images_manifest(
                 f"at all — every real change is undocumented in the summary list"
             )
 
-    scan = ManifestEntryScan(images_path, repo_map, sibling_fields)
+    scan = ManifestEntryScan(images_path, ctx.images.current.repo_map, sibling_fields)
     for entry in entries_list:
         _check_images_manifest_entry(ctx, scan, entry, findings)
 
 
-def _check_values_deltas(ctx: DocsCheckContext, findings: Findings):
-    """The values-deltas doc's content and section-ordering checks (see caller's guard)."""
-    values_deltas_path = (
-        ctx.doc_query.doc_dir
-        / f"{ctx.doc_query.upgrade_docs_baseline}-to-{ctx.doc_query.podiumd_version}-values-deltas.md"
-    )
-    canonical_names_for_deltas = canonical_sidecar_row_names(
-        ctx.chart_dir, ctx.current.deps, ctx.current.values, ctx.image_paths.current.keys()
+def _check_values_deltas(ctx: DocsCheckContext, upgrade_docs_baseline: str, findings: Findings):
+    """The values-deltas doc's content checks (see caller's guard); fix-doc-consistency orders its sections."""
+    values_deltas_path = ctx.doc_query.doc_dir / doc_name(
+        upgrade_docs_baseline, ctx.doc_query.podiumd_version, "values-deltas"
     )
     findings.mismatches.extend(
         check_values_deltas_content(
             values_deltas_path,
-            ctx.actual_changed_keys,
-            ValuesDeltaInputs(ctx.baseline.values, ctx.current.values, ctx.current.deps, canonical_names_for_deltas),
+            # Removed components are listed in the upgrade doc only.
+            ctx.actual_changed_keys - set(_removed_items_by_name(ctx)),
+            ValuesDeltaInputs(
+                ctx.baseline.values, ctx.current.values, ctx.current.deps, ctx.images.current.canonical_names
+            ),
         )
     )
 
-    deltas_key_order = values_key_order(ctx.current.values)
-    deltas_headings = [
-        s["heading"] for s in parse_values_delta_sections(values_deltas_path.read_text(encoding="utf-8"))
-    ]
-    for name_a, name_b in find_out_of_order_names(
-        deltas_headings, ctx.current.deps, deltas_key_order, canonical_names_for_deltas, ctx.current.values
-    ):
-        findings.mismatches.append(
-            f'{values_deltas_path.name}: "## {name_b}" section comes right after "## {name_a}", '
-            f"but values.yaml lists the {name_b} component before {name_a} — sections should follow "
-            f"values.yaml's own component order"
-        )
+    deltas_text = values_deltas_path.read_text(encoding="utf-8")
+    _warn_edited_generated_lines(values_deltas_path, "##", edited_values_delta_lines(deltas_text))
 
 
 def _check_baseline_doc_set_and_pointers(
-    chart_dir: Path, doc_dir: Path, upgrade_docs_baseline: str | None, podiumd_version: str, findings: Findings
+    doc_dir: Path, upgrade_docs_baseline: str | None, podiumd_version: str, findings: Findings
 ):
     """Baseline doc-set precheck and pointer-consistency checks for a bare-version baseline.
 
     Returns an early-return result the caller must propagate when the doc set is
     malformed; otherwise None (pointer findings go into `findings`).
     """
-    if not upgrade_docs_baseline or not re.match(r"^\d+\.\d+\.\d+", upgrade_docs_baseline):
+    if not is_bare_version(upgrade_docs_baseline):
         return None
     precheck_issues = check_baseline_doc_set(doc_dir, upgrade_docs_baseline, podiumd_version)
     if precheck_issues:
@@ -762,61 +682,86 @@ def _check_baseline_doc_set_and_pointers(
         for issue in sorted(precheck_issues):
             print(" ", issue)
         return False, f"{len(precheck_issues)} upgrade_docs_baseline doc issue(s)"
-    findings.mismatches.extend(
-        _pointer_consistency_mismatches(chart_dir, doc_dir, upgrade_docs_baseline, podiumd_version)
-    )
+    findings.mismatches.extend(_pointer_consistency_mismatches(doc_dir, upgrade_docs_baseline, podiumd_version))
     return None
 
 
-def check_docs_consistency(chart_dir: Path, upgrade_docs_baseline: str | None = None):
-    """Check component versions against the upgrade doc set and images manifest.
-
-    With `upgrade_docs_baseline`, every component changed since it must appear in the
-    docs. None means no change comparison; checks relying on the
-    "<baseline>-to-<target>-<suffix>.md" shape only run for a bare MAJOR.MINOR.PATCH.
-
-    Returns (True, "no matching docs found — skipped") when there's nothing to check,
-    (False, "<n> mismatch(es)") with findings printed, or (True, "matches ...").
-    """
+def _check_docs(chart_dir: Path, doc_dir: Path, upgrade_docs_baseline: str | None) -> Findings | tuple[bool, str]:
+    """Every finding about the docs in doc_dir; an early (ok, detail) result when the doc set itself is malformed."""
     podiumd_version = chart_version(chart_dir / "Chart.yaml")
-    deps = load_chart_dependencies(chart_dir / "Chart.yaml")
-    values = load_yaml_mapping(chart_dir / "values.yaml")
     sibling_fields = digest_pinning_exceptions(chart_dir)
-    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
-    is_bare_version = bool(upgrade_docs_baseline and re.match(r"^\d+\.\d+\.\d+", upgrade_docs_baseline))
-
     findings = Findings([], [])
 
-    precheck_result = _check_baseline_doc_set_and_pointers(
-        chart_dir, doc_dir, upgrade_docs_baseline, podiumd_version, findings
-    )
+    precheck_result = _check_baseline_doc_set_and_pointers(doc_dir, upgrade_docs_baseline, podiumd_version, findings)
     if precheck_result is not None:
         return precheck_result
 
     if upgrade_docs_baseline:
-        _check_companion_docs(
-            doc_dir, upgrade_docs_baseline, podiumd_version, findings, is_bare_version=is_bare_version
-        )
+        _check_companion_docs(doc_dir, upgrade_docs_baseline, podiumd_version, findings)
 
-    ctx, repo_map, baseline_mismatch = _build_docs_check_context(
-        chart_dir, deps, values, podiumd_version, upgrade_docs_baseline
-    )
+    ctx, baseline_mismatch = _build_docs_check_context(chart_dir, doc_dir, podiumd_version, upgrade_docs_baseline)
     if baseline_mismatch:
         findings.mismatches.append(baseline_mismatch)
 
     _check_component_versions_table(ctx, findings)
-    _check_images_manifest(ctx, repo_map, sibling_fields, findings)
+    _check_images_manifest(ctx, sibling_fields, findings)
 
-    if ctx.baseline_ref and is_bare_version and ctx.actual_changed_keys:
-        _check_values_deltas(ctx, findings)
+    if ctx.baseline_ref and is_bare_version(upgrade_docs_baseline) and ctx.actual_changed_keys:
+        _check_values_deltas(ctx, upgrade_docs_baseline, findings)
+    return findings
 
-    if not findings.checked:
+
+def _print_doc_changes(changes: list[DocChange]) -> None:
+    print("fix-doc-consistency would change:")
+    for change in changes:
+        print(f"  {change.name} ({change.status}, {change.changed_lines} line(s)):")
+        for line in change.diff[:MAX_DIFF_LINES]:
+            print(f"    {line}")
+        if len(change.diff) > MAX_DIFF_LINES:
+            print(f"    ... {len(change.diff) - MAX_DIFF_LINES} more diff line(s)")
+    print("  run fix-doc-consistency")
+
+
+def check_docs_consistency(chart_dir: Path, upgrade_docs_baseline: str | None = None):
+    """Check the upgrade doc set and images manifest against Chart.yaml, values.yaml and the baseline.
+
+    With a bare MAJOR.MINOR.PATCH `upgrade_docs_baseline`, fix-doc-consistency
+    first runs on a copy of the docs: what it would change is one list, and
+    every other check runs on the copy, so the second list holds only what
+    must be fixed by hand. Without one, the checks run on the docs as they are
+    and nothing is compared with a baseline.
+
+    Returns (True, "no matching docs found — skipped") when there's nothing to check,
+    (False, "<detail>") with findings printed, or (True, "matches ...").
+    """
+    if not is_bare_version(upgrade_docs_baseline):
+        result = _check_docs(chart_dir, chart_dir / "docs" / "_UPGRADE_PATHS", upgrade_docs_baseline)
+        return result if isinstance(result, tuple) else _report(None, result)
+    with fix_docs_dry_run(chart_dir, chart_version(chart_dir / "Chart.yaml"), upgrade_docs_baseline) as dry:
+        if dry.error is not None:
+            print(f"fix-doc-consistency can't run on these docs:\n{dry.error}")
+            return False, "fix-doc-consistency refused to run"
+        result = _check_docs(chart_dir, dry.docs_dir / "_UPGRADE_PATHS", upgrade_docs_baseline)
+    if isinstance(result, tuple):
+        return result
+    return _report(dry.changes, result)
+
+
+def _report(changes: list[DocChange] | None, findings: Findings):
+    """Print the two lists; (ok, detail) for verify-podiumd. changes is None when no dry-run ran."""
+    if not findings.checked and not changes:
         return True, "no matching docs found — skipped"
-
+    if changes:
+        _print_doc_changes(changes)
     if findings.mismatches:
-        print(f"FOUND {len(findings.mismatches)} mismatch(es) vs {', '.join(findings.checked)}:")
+        header = "fix by hand" + (" (found in the docs as fix-doc-consistency would leave them)" if changes else "")
+        print(f"{header}, {len(findings.mismatches)} issue(s) vs {', '.join(findings.checked)}:")
         for m in sorted(findings.mismatches):
             print(" ", m)
-        return False, f"{len(findings.mismatches)} mismatch(es)"
+    by_hand = f"{len(findings.mismatches)} to fix by hand"
+    if changes:
+        return False, f"{len(changes)} doc(s) fix-doc-consistency would change, {by_hand}"
+    if findings.mismatches:
+        return False, by_hand
     print(f"OK: chart versions match {', '.join(findings.checked)}")
     return True, f"matches {', '.join(findings.checked)}"

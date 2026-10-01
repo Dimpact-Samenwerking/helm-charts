@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from lib.cli import check_output_path
+from lib.cli import flag_args
 from lib.cli import network_errors
 from lib.cli import read_user_file
 
@@ -79,3 +80,25 @@ def test_network_errors_leaves_other_errors_alone():
     error = KeyError("not a network error")
     with pytest.raises(KeyError), network_errors("container registry"):
         raise error
+
+
+@pytest.mark.parametrize("argv", [[], ["--dry-run"]])
+def test_flag_args_returns_the_given_flags(monkeypatch: pytest.MonkeyPatch, argv: list[str]):
+    monkeypatch.setattr("sys.argv", ["script", *argv])
+    assert flag_args("doc", "--dry-run") == set(argv)
+
+
+def test_flag_args_prints_help_for_h_anywhere(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+    monkeypatch.setattr("sys.argv", ["script", "--dry-run", "-h"])
+    with pytest.raises(SystemExit) as exc:
+        flag_args("doc", "--dry-run")
+    assert exc.value.code == 0
+    assert capsys.readouterr().out == "doc\n"
+
+
+def test_flag_args_rejects_an_unknown_argument(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+    monkeypatch.setattr("sys.argv", ["script", "--dry-rn"])
+    with pytest.raises(SystemExit) as exc:
+        flag_args("doc", "--dry-run")
+    assert exc.value.code == 1
+    assert capsys.readouterr().out == "doc\n"

@@ -23,7 +23,6 @@ def set_argv_and_dir(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch, doc_dir, 
     monkeypatch.setattr(cdb, "DOC_DIR", doc_dir)
     monkeypatch.setattr(cdb, "IMAGES_DIR", doc_dir.parent / "images")
     monkeypatch.setattr(cdb, "CHART_YAML", doc_dir.parents[1] / "Chart.yaml")
-    monkeypatch.setattr(cdb, "VALUES_YAML", doc_dir.parents[1] / "values.yaml")
     monkeypatch.setattr(cdb, "current_chart_version", lambda: target)
 
 

@@ -1,4 +1,4 @@
-"""lib.docs_consistency: match_changes_item_to_entry and the "Component versions" source-cell check."""
+"""lib.docs_consistency: the "Component versions" source-cell check."""
 
 from pathlib import Path
 from types import ModuleType
@@ -8,45 +8,10 @@ import pytest
 from lib.docs_consistency.check_context import ComponentRowsResult
 from lib.docs_consistency.check_context import RowContext
 
-# --- match_changes_item_to_entry ---
-
-
-def test_match_changes_item_to_entry_canonical_sidecar_name_matches_own_basename(libimagesmanifest: ModuleType):
-    """A "<key> - <image-basename>" sidecar name matches on its basename only.
-
-    "keycloak-operator - postgres" must match "postgres", not "keycloak".
-    """
-    keycloak_entry = {"name": "keycloak/keycloak", "version": "26.7.2"}
-    postgres_entry = {"name": "postgres", "version": "16.15"}
-
-    match = libimagesmanifest.match_changes_item_to_entry(
-        "keycloak-operator - postgres", [keycloak_entry, postgres_entry]
-    )
-
-    assert match is postgres_entry
-
-
-def test_match_changes_item_to_entry_plain_name_matches_by_basename(libimagesmanifest: ModuleType):
-    """Without " - ", the whole item name is matched against entry basenames."""
-    entry = {"name": "library/python", "version": "3.14.7-slim"}
-
-    match = libimagesmanifest.match_changes_item_to_entry("python", [entry])
-
-    assert match is entry
-
-
-def test_match_changes_item_to_entry_no_match_returns_none(libimagesmanifest: ModuleType):
-    entries = [{"name": "postgres", "version": "16.15"}]
-
-    match = libimagesmanifest.match_changes_item_to_entry("gotenberg", entries)
-
-    assert match is None
-
-
 # --- _check_row_baseline_versions ---
 
 
-def _source_app_mismatches(libdocsconsistency: ModuleType, app_source: str, baseline_app: str | None):
+def _source_app_mismatches(libdocsconsistency: ModuleType, app_source: str | None, baseline_app: str | None):
     """Mismatches for one "mi" row (target app 2.0.0, cell source app_source) with baseline_app at 4.8.5."""
     row = {"name": "mi", "app_source": app_source, "app": "2.0.0", "chart_source": "1.0.0", "chart": "1.0.0"}
     resolved = {
@@ -62,7 +27,7 @@ def _source_app_mismatches(libdocsconsistency: ModuleType, app_source: str, base
         "baseline_app": baseline_app,
     }
     row_ctx = RowContext(Path("4.8.5-to-4.9.0-upgrade.md"), "podiumd-4.8.5")
-    result = ComponentRowsResult([], set(), {}, {}, set())
+    result = ComponentRowsResult([], {}, {})
     libdocsconsistency._check_row_baseline_versions(row, row_ctx, resolved, "mi", result)
     return result.mismatches
 
@@ -76,8 +41,8 @@ def test_check_row_baseline_versions_flags_stale_transition_for_new_app_version(
 
 
 # "2.0.0 (new)" and "1.9.0 → 2.0.0" cells, as parse_upgrade_doc_rows reads them.
-@pytest.mark.parametrize(("app_source", "baseline_app"), [("2.0.0", None), ("1.9.0", "1.9.0")])
+@pytest.mark.parametrize(("app_source", "baseline_app"), [(None, None), ("1.9.0", "1.9.0")])
 def test_check_row_baseline_versions_accepts_the_cell_fix_doc_consistency_writes(
-    libdocsconsistency: ModuleType, app_source: str, baseline_app: str | None
+    libdocsconsistency: ModuleType, app_source: str | None, baseline_app: str | None
 ):
     assert not _source_app_mismatches(libdocsconsistency, app_source, baseline_app)

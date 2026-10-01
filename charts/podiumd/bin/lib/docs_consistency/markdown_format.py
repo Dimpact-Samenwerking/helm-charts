@@ -4,6 +4,9 @@ import re
 
 from pathlib import Path
 
+from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
+from lib.upgradedoc.doc_names import doc_name
+
 
 def check_doc_title(doc_path: Path, upgrade_docs_baseline: str, podiumd_version: str) -> list[str]:
     """Verify a doc's first line states "<upgrade_docs_baseline> → <podiumd_version>"."""
@@ -20,7 +23,7 @@ def check_companion_doc(doc_dir: Path, upgrade_docs_baseline: str, podiumd_versi
     """When a bare-version upgrade_docs_baseline is given, verify the matching
     <upgrade_docs_baseline>-to-<podiumd_version>-<suffix>.md exists and its title line
     states the same "<upgrade_docs_baseline> → <podiumd_version>" pair."""
-    name = f"{upgrade_docs_baseline}-to-{podiumd_version}-{suffix}.md"
+    name = doc_name(upgrade_docs_baseline, podiumd_version, suffix)
     doc_path = doc_dir / name
     if not doc_path.is_file():
         return name, [f'expected "{name}" does not exist']
@@ -52,8 +55,8 @@ def check_markdown_format(doc_path: Path):
 def check_baseline_doc_set(doc_dir: Path, upgrade_docs_baseline: str, podiumd_version: str):
     """Existence and format precheck of all three docs; run before content checks."""
     issues: list[str] = []
-    for suffix in ("upgrade", "gemeente-specific", "values-deltas"):
-        name = f"{upgrade_docs_baseline}-to-{podiumd_version}-{suffix}.md"
+    for suffix in STANDARD_SUFFIXES:
+        name = doc_name(upgrade_docs_baseline, podiumd_version, suffix)
         doc_path = doc_dir / name
         if not doc_path.is_file():
             issues.append(f'expected "{name}" does not exist')

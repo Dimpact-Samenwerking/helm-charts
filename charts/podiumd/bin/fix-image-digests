@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# The help text repeats other scripts' argument explanations on purpose;
+# tests/lib/test_script_help_consistency.py keeps them equal.
+# jscpd:ignore-start
 """
 Refresh stale image digest pins in charts/podiumd/values.yaml.
 
@@ -29,6 +32,7 @@ Examples:
     fix-image-digests MULTIPLE redis
     fix-image-digests --dry-run openklant open-klant
 """
+# jscpd:ignore-end
 
 import sys
 import urllib.error
@@ -43,13 +47,13 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.paths import CHART_DIR
-from lib.chart.repo_and_path_resolution import SubchartValuesCache
-from lib.chart.repo_and_path_resolution import subchart_default_repository
 from lib.chart.repo_and_path_resolution import subchart_needs_vendoring
 from lib.cli import print_section
 from lib.dependencies import check_dependencies as vendor_dependencies
 from lib.dependencies import ensure_repos_configured
 from lib.image.digests import DigestPin
+from lib.image.digests import fill_pin_repositories
+from lib.image.digests import group_pins_by_target
 from lib.image.digests import scan_digest_pins
 from lib.image.version import resolve_scoped_matches
 from lib.procutil import run_script
@@ -74,10 +78,7 @@ def _resolve_pin_repositories(
 
     Vendors dependencies once and retries when a subchart .tgz is missing.
     """
-    subchart_cache: SubchartValuesCache = {}
-    for p in pins:
-        if not p["repository"]:
-            p["repository"] = subchart_default_repository(chart_dir, lines, p["line"], deps, subchart_cache)
+    fill_pin_repositories(chart_dir, lines, pins, deps)
 
     still_unresolved = [p for p in pins if not p["repository"]]
     if any(subchart_needs_vendoring(chart_dir, lines, p["line"], deps) for p in still_unresolved):
@@ -92,9 +93,7 @@ def _resolve_pin_repositories(
             ok, msg = vendor_dependencies(chart_dir)
             if not ok:
                 print(f"WARNING: {msg} — those pin(s) will stay unresolved", file=sys.stderr)
-        subchart_cache.clear()
-        for p in still_unresolved:
-            p["repository"] = subchart_default_repository(chart_dir, lines, p["line"], deps, subchart_cache)
+        fill_pin_repositories(chart_dir, lines, still_unresolved, deps)
 
     return [p for p in pins if not p["repository"]]
 
@@ -133,15 +132,6 @@ def _check_target(
     return None, None
 
 
-def _group_pins_by_target(pins: list[DigestPin]) -> dict[tuple[str, str], list[DigestPin]]:
-    """Pins with a repository, grouped by (repository, version) so each is fetched once."""
-    targets: dict[tuple[str, str], list[DigestPin]] = {}
-    for p in pins:
-        if p["repository"]:
-            targets.setdefault((p["repository"], p["version"]), []).append(p)
-    return targets
-
-
 def find_stale_digests(
     lines: list[str], values_path: Path
 ) -> tuple[list[StaleDigest], list[DigestPin], list[FetchError]]:
@@ -153,7 +143,7 @@ def find_stale_digests(
     deps = load_chart_dependencies(chart_yaml_path) if chart_yaml_path.is_file() else []
 
     unresolved = _resolve_pin_repositories(pins, chart_dir, lines, deps)
-    targets = _group_pins_by_target(pins)
+    targets = group_pins_by_target(pins)
 
     stale: list[StaleDigest] = []
     fetch_errors: list[FetchError] = []

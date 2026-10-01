@@ -1,4 +1,4 @@
-"""Check a component's values.yaml schema changes are mentioned in its values-deltas.md section."""
+"""Check a component's values.yaml schema changes are listed in its values-deltas.md section."""
 
 import re
 
@@ -6,11 +6,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from lib.chart.chart_yaml import ChartDependency
-from lib.component_docs.values_delta_sections import find_values_delta_section
-from lib.upgradedoc.grouped_comments_and_changes_block import diff_keys
-from lib.upgradedoc.grouped_comments_and_changes_block import pair_renames
+from lib.component_docs.values_delta_sections import has_blank_body
+from lib.component_docs.values_delta_sections import section_block_text
+from lib.component_docs.values_delta_sections import values_delta_section_for
 from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
-from lib.upgradedoc.version_cells_and_key_changes import strip_fenced_code_blocks
+from lib.upgradedoc.version_cells_and_key_changes import key_change_lines
+from lib.upgradedoc.version_cells_and_key_changes import missing_key_change_lines
 from lib.yaml_types import YamlMapping
 
 
@@ -24,57 +25,11 @@ class ValuesDeltaInputs:
     canonical_names: dict[str, tuple[str, ...]] | None = None
 
 
-KeyPath = tuple[str, ...]
-# (added, removed, renamed) for one component's values.yaml subtree.
-KeyChanges = tuple[list[KeyPath], list[KeyPath], list[tuple[KeyPath, KeyPath]]]
-
-
-def _diff_component_key(values_key: str, inputs: ValuesDeltaInputs) -> KeyChanges:
-    """(added, removed, renamed) paths in one component's subtree vs baseline."""
-    baseline_subtree = inputs.baseline_values.get(values_key, {}) if isinstance(inputs.baseline_values, dict) else {}
-    current_subtree = inputs.values.get(values_key, {}) if isinstance(inputs.values, dict) else {}
-    diffs: list[tuple[str, KeyPath]] = list(diff_keys(baseline_subtree, current_subtree, (values_key,)))
-    added: list[KeyPath] = [p for kind, p in diffs if kind == "added"]
-    removed: list[KeyPath] = [p for kind, p in diffs if kind == "removed"]
-    renamed, added, removed = pair_renames(added, removed, baseline_subtree, current_subtree)
-    return added, removed, renamed
-
-
-def _added_removed_mentions(doc_path: Path, values_key: str, paths: list[KeyPath], backtick_spans: set[str], verb: str):
-    """One issue per path in `paths` (added or removed keys, per `verb`)
-    that isn't backtick-quoted anywhere in values_key's own section."""
-    issues: list[str] = []
-    for path in paths:
-        dotted = ".".join(path)
-        if dotted not in backtick_spans:
-            issues.append(
-                f'{doc_path.name}: key "{dotted}" was {verb} but is not mentioned '
-                f'(backtick-quoted) in "{values_key}"\'s own section'
-            )
-    return issues
-
-
-def _rename_mentions(doc_path: Path, values_key: str, renamed: list[tuple[KeyPath, KeyPath]], backtick_spans: set[str]):
-    """One issue per (old, new) rename pair not backtick-quoted on BOTH
-    sides within values_key's own section."""
-    issues: list[str] = []
-    for old_path, new_path in renamed:
-        old_dotted, new_dotted = ".".join(old_path), ".".join(new_path)
-        if not (old_dotted in backtick_spans and new_dotted in backtick_spans):
-            issues.append(
-                f'{doc_path.name}: key "{old_dotted}" appears renamed to "{new_dotted}" '
-                f"but this rename is not mentioned (backtick-quoted, both sides) in "
-                f'"{values_key}"\'s own section'
-            )
-    return issues
-
-
-def _check_key_section_mentions(
-    doc_path: Path, text: str, values_key: str, changes: KeyChanges, inputs: ValuesDeltaInputs
+def _check_key_section_lines(
+    doc_path: Path, text: str, values_key: str, key_lines: list[str], inputs: ValuesDeltaInputs
 ):
-    """Issues when values_key has no "## ..." section or a change isn't backtick-quoted in it."""
-    added, removed, renamed = changes
-    section = find_values_delta_section(text, values_key, inputs.deps, inputs.canonical_names)
+    """Issues when values_key has no "## ..." section or the section lacks one of its generated key lines."""
+    section = values_delta_section_for(text, values_key, inputs.deps, inputs.canonical_names)
     if section is None:
         return [
             (
@@ -82,16 +37,10 @@ def _check_key_section_mentions(
                 f'vs upgrade_docs_baseline but has no "## ..." section of its own'
             )
         ]
-
-    lines = text.splitlines(keepends=True)
-    section_text = "".join(lines[section["start"] : section["end"]])
-    backtick_spans = set(re.findall(r"`([^`]+)`", strip_fenced_code_blocks(section_text)))
-
-    issues: list[str] = []
-    issues.extend(_added_removed_mentions(doc_path, values_key, added, backtick_spans, "added"))
-    issues.extend(_added_removed_mentions(doc_path, values_key, removed, backtick_spans, "removed"))
-    issues.extend(_rename_mentions(doc_path, values_key, renamed, backtick_spans))
-    return issues
+    return [
+        f'{doc_path.name}: "{values_key}"\'s own section lacks the generated line "{line.strip()}"'
+        for line in missing_key_change_lines(section_block_text(text, section), key_lines)
+    ]
 
 
 def _check_empty_sections(doc_path: Path, text: str):
@@ -100,15 +49,15 @@ def _check_empty_sections(doc_path: Path, text: str):
     return [
         f'{doc_path.name}: "## {section["heading"]}" section has nothing under its own heading'
         for section in parse_values_delta_sections(text)
-        if not "".join(lines[section["start"] + 1 : section["end"]]).strip()
+        if has_blank_body(lines, section)
     ]
 
 
 def check_values_deltas_content(doc_path: Path, actual_changed_keys: set[str], inputs: ValuesDeltaInputs):
     """Check each component with a values.yaml schema change has its own section mentioning it.
 
-    Each added/removed/renamed key must be backtick-quoted within that component's
-    section; a mention elsewhere doesn't count. Pure version bumps need no section
+    Each added/removed/renamed key needs its generated describe_key_changes line
+    in that component's section; a prose mention doesn't count. Pure version bumps need no section
     (the upgrade doc covers them); `actual_changed_keys` only scopes which subtrees are
     diffed. Empty sections are flagged too.
     """
@@ -119,10 +68,9 @@ def check_values_deltas_content(doc_path: Path, actual_changed_keys: set[str], i
 
     issues: list[str] = []
     for values_key in sorted(actual_changed_keys):
-        changes = _diff_component_key(values_key, inputs)
-        if not any(changes):
-            continue
-        issues.extend(_check_key_section_mentions(doc_path, text, values_key, changes, inputs))
+        key_lines = key_change_lines(values_key, inputs.baseline_values, inputs.values)
+        if key_lines:
+            issues.extend(_check_key_section_lines(doc_path, text, values_key, key_lines, inputs))
 
     issues.extend(_check_empty_sections(doc_path, text))
 

@@ -8,6 +8,7 @@ import importlib.util
 import subprocess
 import sys
 
+from collections.abc import Callable
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from types import ModuleType
@@ -282,6 +283,18 @@ _CHART_REPO_UPGRADE_DOC = """\
 | ZAC (Zaakafhandelcomponent) | {app_source} → {app_target} | 1.0.297 (unchanged) | n/a |
 
 See [`{baseline}-to-4.9.0-values-deltas.md`]({baseline}-to-4.9.0-values-deltas.md).
+
+## Changes
+
+### ZAC (Zaakafhandelcomponent) {app_source} → {app_target} (chart 1.0.297, unchanged)
+
+PodiumD 4.9.0 upgrades **ZAC (Zaakafhandelcomponent)** from app version {app_source}
+to {app_target}.
+
+- Image tag pin `zac.image.tag` `{app_source}` → `{app_target}` in
+  `charts/podiumd/values.yaml`.
+
+- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).
 """
 
 _CHART_REPO_GEMEENTE_DOC = "# Gemeente-specific notes — PodiumD {baseline} → 4.9.0\n\nNone.\n"
@@ -355,3 +368,16 @@ def chart_repo(tmp_path: Path):
 def stub_ensure_vendored_dependencies(vp: ModuleType, monkeypatch: pytest.MonkeyPatch):
     """Stub ensure_vendored_dependencies: fake chart dirs have no vendored sub-charts."""
     monkeypatch.setattr(vp, "ensure_vendored_dependencies", lambda chart_dir: None)
+
+
+def _assert_would_change(out: str, *diff_lines: str) -> None:
+    """The finding is in the "fix-doc-consistency would change:" list, with each of diff_lines in its diff."""
+    assert "fix-doc-consistency would change:" in out, out
+    for line in diff_lines:
+        assert line in out, out
+
+
+@pytest.fixture
+def assert_would_change() -> Callable[..., None]:
+    """check_docs_consistency's output reports a repair: assert_would_change(out, *diff_lines)."""
+    return _assert_would_change

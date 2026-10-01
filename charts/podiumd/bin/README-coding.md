@@ -10,6 +10,7 @@ installing the tools, see
 - [Running the linters](#running-the-linters)
   - [ruff (lint + format)](#ruff-lint--format)
   - [shellcheck (shell scripts)](#shellcheck-shell-scripts)
+  - [jscpd (duplicate code)](#jscpd-duplicate-code)
   - [vulture (dead code)](#vulture-dead-code)
   - [bandit (security)](#bandit-security)
   - [pylint](#pylint)
@@ -83,6 +84,27 @@ shellcheck run_python_checks
 Covers every file under `bin/` with a `sh`/`bash`/`dash`/`ksh` shebang, plus
 any `*.sh` file. No configuration: a deliberate exception gets a
 `# shellcheck disable=SCxxxx` comment on its line, with the reason.
+
+### jscpd (duplicate code)
+
+```bash
+cd charts/podiumd/bin
+jscpd --exit-code 1 --format python --mode weak --min-lines 4 --min-tokens 35 --reporters console \
+    --ignore '**/__pycache__/**' \
+    --ignore-pattern 'from .* import .*,import .*,SCRIPT_DIR = .*,sys\.path\.insert.*, +[a-z_]+: [^=\n]+\x2c\n' \
+    lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
+```
+
+Fails on any copied block of 4+ lines, also with renamed identifiers: merge it
+into one function. Not counted: import lines, the `sys.path` setup at the top
+of every script, and typed parameter lines (two functions with the same
+parameters are not a copy). A near-copy kept on purpose sits between
+`# jscpd:ignore-start` and `# jscpd:ignore-end` with a comment saying why,
+such as help texts that repeat another script's argument explanations;
+`tests/lib/test_script_help_consistency.py` keeps those explanations equal.
+
+jscpd finds copied code, not the same logic written differently; see the
+"One concept, one place" rule in `.claude/memory/reuse-existing-logic.md`.
 
 ### vulture (dead code)
 

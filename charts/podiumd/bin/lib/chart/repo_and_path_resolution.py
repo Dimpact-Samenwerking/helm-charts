@@ -3,6 +3,7 @@
 import tarfile
 
 from collections.abc import Collection
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,6 +17,7 @@ from lib.chart.pull_and_subchart_resolution import resolve_chart_values
 from lib.chart.pull_and_subchart_resolution import subchart_values
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.registered_paths import is_primary_image_path
+from lib.chart.registered_paths import is_primary_rel_path
 from lib.chart.registered_paths import native_component_named
 from lib.chart.registered_paths import native_components
 from lib.chart.values_tree_primitives import dotted_key_path
@@ -284,10 +286,14 @@ def repository_path_map(
     paths exactly where name-word matching fails ("infonl/zaakafhandelcomponent"
     vs "zac"). Use paths_by_repository for every path of a group.
     """
-    return {
-        repo: repo_group_representative(repo_paths, deps)
-        for repo, repo_paths in paths_by_repository(chart_dir, deps, values, paths, allow_pull=allow_pull).items()
-    }
+    return group_representatives(paths_by_repository(chart_dir, deps, values, paths, allow_pull=allow_pull), deps)
+
+
+def group_representatives(
+    repo_groups: Mapping[str, list[tuple[str, ...]]], deps: list[ChartDependency]
+) -> dict[str, tuple[str, ...]]:
+    """{repository: repo_group_representative of its paths} for paths_by_repository's groups."""
+    return {repo: repo_group_representative(repo_paths, deps) for repo, repo_paths in repo_groups.items()}
 
 
 def canonical_sidecar_row_names(
@@ -295,8 +301,6 @@ def canonical_sidecar_row_names(
     deps: list[ChartDependency],
     values: YamlMapping,
     paths: Collection[tuple[str, ...]],
-    *,
-    allow_pull: bool = False,
 ) -> dict[str, tuple[str, ...]]:
     """{canonical doc-row name: values-tree path} for image paths that aren't a dependency's primary image.
 
@@ -310,11 +314,11 @@ def canonical_sidecar_row_names(
     """
     sidecar_paths, global_paths, primary_paths = _classify_image_paths(chart_dir, deps, paths)
     covered_repos = _global_repository_set(values, global_paths) | set(
-        repository_path_map(chart_dir, deps, values, primary_paths, allow_pull=allow_pull)
+        repository_path_map(chart_dir, deps, values, primary_paths)
     )
 
     names: dict[str, tuple[str, ...]] = {}
-    for repo, path in repository_path_map(chart_dir, deps, values, sidecar_paths, allow_pull=allow_pull).items():
+    for repo, path in repository_path_map(chart_dir, deps, values, sidecar_paths).items():
         if repo in covered_repos:
             continue
         row_name = _sidecar_row_name(repo, path)
@@ -325,32 +329,6 @@ def canonical_sidecar_row_names(
         if isinstance(repo, str) and repo:
             names[repository_group_key(repo).rsplit("/", 1)[-1]] = path
     return names
-
-
-def doc_row_name(
-    chart_dir: Path,
-    deps: list[ChartDependency],
-    values: YamlMapping,
-    path: tuple[str, ...],
-    all_paths: list[tuple[str, ...]],
-) -> str | None:
-    """The upgrade-doc row name for the image at `path` (ending in the image key), or None.
-
-    path[0] for a primary image, else its canonical_sidecar_row_names name,
-    or the owner's row name when the repository is also an owner's primary.
-    update-image-version uses this so rows match what the checks resolve.
-    """
-    names = canonical_sidecar_row_names(chart_dir, deps, values, all_paths)
-    _sidecar_paths, _global_paths, primary_paths = _classify_image_paths(chart_dir, deps, [*all_paths, path])
-    if path in primary_paths:
-        return path[0]
-    for group in paths_by_repository(chart_dir, deps, values, all_paths).values():
-        if path in group:
-            primary = next((group_path for group_path in group if group_path in primary_paths), None)
-            if primary is not None:
-                return primary[0]
-            return next((name for name, name_path in names.items() if name_path in group), None)
-    return None
 
 
 def _owner_name(deps: list[ChartDependency], natives: frozenset[str], path: tuple[str, ...]) -> str | None:
@@ -380,7 +358,7 @@ def _classify_image_paths(
         owner_name = _owner_name(deps, natives, path)
         if owner_name is None:
             continue
-        if ".".join(path[1:]) in set(image_paths_for(owner_name, chart_dir)):
+        if is_primary_rel_path(owner_name, ".".join(path[1:]), chart_dir):
             primary_paths.append(path)
         else:
             sidecar_paths.append(path)

@@ -2,6 +2,15 @@
 
 from pathlib import Path
 from types import ModuleType
+from typing import TYPE_CHECKING
+
+from lib.fix_doc_consistency.manifest_entries_core import ManifestEntriesContext
+from lib.fix_doc_consistency.manifest_entries_core import fix_images_manifest_entries
+from lib.fix_doc_consistency.manifest_entries_core import resolve_entry_version
+
+if TYPE_CHECKING:
+    from lib.chart.chart_yaml import ChartDependency
+    from lib.yaml_types import YamlMapping
 
 # --- resolve_entry_version ---
 # (replace_version_spec is tested in tests/lib/test_upgradedoc.py.)
@@ -9,12 +18,12 @@ from types import ModuleType
 
 def test_resolve_entry_version_finds_matching_path(cdb: ModuleType):
     paths = {("zac",): "5.1.0@sha256:aaaa", ("zgw-office-addin", "frontend"): "v0.9.352@sha256:bbbb"}
-    assert cdb.resolve_entry_version({"name": "zac"}, paths) == "5.1.0"
-    assert cdb.resolve_entry_version({"name": "zgw-office-addin-frontend"}, paths) == "v0.9.352"
+    assert resolve_entry_version({"name": "zac"}, paths) == "5.1.0"
+    assert resolve_entry_version({"name": "zgw-office-addin-frontend"}, paths) == "v0.9.352"
 
 
 def test_resolve_entry_version_none_when_unresolvable(cdb: ModuleType):
-    assert cdb.resolve_entry_version({"name": "totally-unknown"}, {}) is None
+    assert resolve_entry_version({"name": "totally-unknown"}, {}) is None
 
 
 def test_resolve_entry_version_uses_repo_map_for_strip_registry_names(cdb: ModuleType):
@@ -22,8 +31,8 @@ def test_resolve_entry_version_uses_repo_map_for_strip_registry_names(cdb: Modul
     repo_map resolves it."""
     paths = {("zac",): "5.4.4@sha256:aaaa"}
     repo_map = {"infonl/zaakafhandelcomponent": ("zac",)}
-    assert cdb.resolve_entry_version({"name": "infonl/zaakafhandelcomponent"}, paths) is None
-    assert cdb.resolve_entry_version({"name": "infonl/zaakafhandelcomponent"}, paths, repo_map) == "5.4.4"
+    assert resolve_entry_version({"name": "infonl/zaakafhandelcomponent"}, paths) is None
+    assert resolve_entry_version({"name": "infonl/zaakafhandelcomponent"}, paths, repo_map) == "5.4.4"
 
 
 # --- fix_images_manifest_entries ---
@@ -37,11 +46,11 @@ def test_fix_images_manifest_entries_corrects_stale_source(cdb: ModuleType):
         '  version: "5.1.0"\n'
         '  digest: "sha256:aaaa"\n'
     )
-    target_values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
-    baseline_values = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
+    target_values: YamlMapping = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
+    baseline_values: YamlMapping = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
 
-    new_text, changed, unresolved = cdb.fix_images_manifest_entries(
-        text, cdb.ManifestEntriesContext(None, [], target_values, baseline_values)
+    new_text, changed, unresolved = fix_images_manifest_entries(
+        text, ManifestEntriesContext(None, [], target_values, baseline_values)
     )
     assert unresolved == []
     assert changed == [("zac", "5.0.2", "5.1.0")]
@@ -51,11 +60,11 @@ def test_fix_images_manifest_entries_corrects_stale_source(cdb: ModuleType):
 
 def test_fix_images_manifest_entries_leaves_correct_entry_untouched(cdb: ModuleType):
     text = '# ZAC — 5.0.2 -> 5.1.0\n- name: zac\n  version: "5.1.0"\n'
-    target_values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
-    baseline_values = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
+    target_values: YamlMapping = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
+    baseline_values: YamlMapping = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
 
-    new_text, changed, _unresolved = cdb.fix_images_manifest_entries(
-        text, cdb.ManifestEntriesContext(None, [], target_values, baseline_values)
+    new_text, changed, _unresolved = fix_images_manifest_entries(
+        text, ManifestEntriesContext(None, [], target_values, baseline_values)
     )
     assert changed == []
     assert new_text == text
@@ -63,9 +72,9 @@ def test_fix_images_manifest_entries_leaves_correct_entry_untouched(cdb: ModuleT
 
 def test_fix_images_manifest_entries_reports_missing_comment(cdb: ModuleType):
     text = '- name: zgw-office-addin-backend\n  version: "v0.9.352"\n'
-    target_values = {"zgw-office-addin": {"backend": {"image": {"tag": "v0.9.352@sha256:aaaa"}}}}
-    new_text, changed, unresolved = cdb.fix_images_manifest_entries(
-        text, cdb.ManifestEntriesContext(None, [], target_values, {})
+    target_values: YamlMapping = {"zgw-office-addin": {"backend": {"image": {"tag": "v0.9.352@sha256:aaaa"}}}}
+    new_text, changed, unresolved = fix_images_manifest_entries(
+        text, ManifestEntriesContext(None, [], target_values, {})
     )
     assert changed == []
     assert unresolved == ["zgw-office-addin-backend"]
@@ -74,9 +83,9 @@ def test_fix_images_manifest_entries_reports_missing_comment(cdb: ModuleType):
 
 def test_fix_images_manifest_entries_reports_unresolvable_baseline(cdb: ModuleType):
     text = '# ZAC — 5.0.1 -> 5.1.0\n- name: zac\n  version: "5.1.0"\n'
-    target_values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
-    new_text, changed, unresolved = cdb.fix_images_manifest_entries(
-        text, cdb.ManifestEntriesContext(None, [], target_values, {})
+    target_values: YamlMapping = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
+    new_text, changed, unresolved = fix_images_manifest_entries(
+        text, ManifestEntriesContext(None, [], target_values, {})
     )
     assert changed == []
     assert unresolved == ["zac"]
@@ -93,20 +102,20 @@ def test_fix_images_manifest_entries_resolves_strip_registry_name_via_repo_map(c
         '  version: "5.1.0"\n'
         '  digest: "sha256:aaaa"\n'
     )
-    target_values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
-    baseline_values = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
+    target_values: YamlMapping = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
+    baseline_values: YamlMapping = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
     repo_map = {"infonl/zaakafhandelcomponent": ("zac", "image")}
 
-    new_text, changed, unresolved = cdb.fix_images_manifest_entries(
-        text, cdb.ManifestEntriesContext(None, [], target_values, baseline_values, repo_map)
+    new_text, changed, unresolved = fix_images_manifest_entries(
+        text, ManifestEntriesContext(None, [], target_values, baseline_values, repo_map)
     )
     assert unresolved == []
     assert changed == [("infonl/zaakafhandelcomponent", "5.0.2", "5.1.0")]
     assert "# ZAC — 5.0.2 -> 5.1.0" in new_text
 
     # Without repo_map the same entry is unresolved.
-    _new_text2, changed2, unresolved2 = cdb.fix_images_manifest_entries(
-        text, cdb.ManifestEntriesContext(None, [], target_values, baseline_values)
+    _new_text2, changed2, unresolved2 = fix_images_manifest_entries(
+        text, ManifestEntriesContext(None, [], target_values, baseline_values)
     )
     assert changed2 == []
     assert unresolved2 == ["infonl/zaakafhandelcomponent"]
@@ -123,21 +132,21 @@ def test_fix_images_manifest_entries_fixes_shared_group_comment_via_either_entry
         "- name: zgw-office-addin-backend\n"
         '  version: "v0.9.352"\n'
     )
-    target_values = {
+    target_values: YamlMapping = {
         "zgw-office-addin": {
             "frontend": {"image": {"tag": "v0.9.352@sha256:aaaa"}},
             "backend": {"image": {"tag": "v0.9.352@sha256:bbbb"}},
         }
     }
-    baseline_values = {
+    baseline_values: YamlMapping = {
         "zgw-office-addin": {
             "frontend": {"image": {"tag": "v0.9.313@sha256:cccc"}},
             "backend": {"image": {"tag": "v0.9.313@sha256:dddd"}},
         }
     }
 
-    new_text, changed, unresolved = cdb.fix_images_manifest_entries(
-        text, cdb.ManifestEntriesContext(None, [], target_values, baseline_values)
+    new_text, changed, unresolved = fix_images_manifest_entries(
+        text, ManifestEntriesContext(None, [], target_values, baseline_values)
     )
     assert unresolved == []
     assert changed == [("zgw-office-addin-frontend", "v0.9.313", "v0.9.352")]
@@ -157,8 +166,8 @@ def test_fix_images_manifest_entries_corrects_stale_arrow_to_new(cdb: ModuleType
         '  version: "0.158.0"\n'
         '  digest: "sha256:aaaa"\n'
     )
-    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    target_values = {
+    deps: list[ChartDependency] = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    target_values: YamlMapping = {
         "zac": {
             "opentelemetry-collector": {
                 "image": {"repository": "otel/opentelemetry-collector-contrib", "tag": "0.158.0@sha256:aaaa"}
@@ -166,13 +175,13 @@ def test_fix_images_manifest_entries_corrects_stale_arrow_to_new(cdb: ModuleType
         }
     }
     # Resolved baseline: zac existed, this sidecar is new.
-    baseline_values = {
+    baseline_values: YamlMapping = {
         "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.2@sha256:eeee"}}
     }
 
     repo_map = {"otel/opentelemetry-collector-contrib": ("zac", "opentelemetry-collector", "image")}
-    new_text, changed, unresolved = cdb.fix_images_manifest_entries(
-        text, cdb.ManifestEntriesContext(None, deps, target_values, baseline_values, repo_map)
+    new_text, changed, unresolved = fix_images_manifest_entries(
+        text, ManifestEntriesContext(None, deps, target_values, baseline_values, repo_map)
     )
     assert unresolved == []
     assert changed == [("otel/opentelemetry-collector-contrib", None, "0.158.0")]
@@ -199,18 +208,16 @@ def test_fix_images_manifest_entries_finds_historical_baseline_for_new_path(cdb:
         '  version: "2.7.0"\n'
         '  digest: "sha256:bbbb"\n'
     )
-    deps = [{"name": "brp-personen-mock", "alias": "brppersonenmock", "version": "1.2.9"}]
-    target_values = {
+    deps: list[ChartDependency] = [{"name": "brp-personen-mock", "alias": "brppersonenmock", "version": "1.2.9"}]
+    target_values: YamlMapping = {
         "brppersonenmock": {"image": {"repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0@sha256:bbbb"}}
     }
-    baseline_values = {"unrelated": {"image": {"repository": "example/other", "tag": "1.0.0@sha256:cccc"}}}
+    baseline_values: YamlMapping = {"unrelated": {"image": {"repository": "example/other", "tag": "1.0.0@sha256:cccc"}}}
 
     repo_map = {"brp-api/personen-mock": ("brppersonenmock", "image")}
-    new_text, changed, unresolved = cdb.fix_images_manifest_entries(
+    new_text, changed, unresolved = fix_images_manifest_entries(
         text,
-        cdb.ManifestEntriesContext(
-            tmp_path, deps, target_values, baseline_values, repo_map, upgrade_docs_baseline="4.8.5"
-        ),
+        ManifestEntriesContext(tmp_path, deps, target_values, baseline_values, repo_map, upgrade_docs_baseline="4.8.5"),
     )
     assert unresolved == []
     assert changed == []  # already correctly reads "2.6.0 -> 2.7.0"
@@ -228,23 +235,21 @@ def test_fix_images_manifest_entries_corrects_moved_repository_comment(cdb: Modu
         '  version: "16.15-alpine"\n'
         '  digest: "sha256:aaaa"\n'
     )
-    deps = [{"name": "openbao", "version": "2.0.0"}]
-    target_values = {
+    deps: list[ChartDependency] = [{"name": "openbao", "version": "2.0.0"}]
+    target_values: YamlMapping = {
         "global": {"images": {"postgres": {"repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}},
         "openbao": {
             "database": {"schemaJob": {"image": {"repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}}
         },
     }
-    baseline_values = {
+    baseline_values: YamlMapping = {
         "openbao": {"database": {"schemaJob": {"image": {"repository": "postgres", "tag": "16-alpine@sha256:bbbb"}}}},
     }
     repo_map = {"postgres": ("global", "images", "postgres")}
 
-    new_text, changed, unresolved = cdb.fix_images_manifest_entries(
+    new_text, changed, unresolved = fix_images_manifest_entries(
         text,
-        cdb.ManifestEntriesContext(
-            tmp_path, deps, target_values, baseline_values, repo_map, upgrade_docs_baseline="4.8.5"
-        ),
+        ManifestEntriesContext(tmp_path, deps, target_values, baseline_values, repo_map, upgrade_docs_baseline="4.8.5"),
     )
 
     assert unresolved == []
@@ -264,8 +269,8 @@ def test_fix_images_manifest_entries_correctly_verified_digest_changed_untouched
         '  version: "3.14.7-slim"\n'
         '  digest: "sha256:' + "b" * 64 + '"\n'
     )
-    deps = [{"name": "keycloak-operator", "version": "1.13.0"}]
-    target_values = {
+    deps: list[ChartDependency] = [{"name": "keycloak-operator", "version": "1.13.0"}]
+    target_values: YamlMapping = {
         "keycloak-operator": {
             "jobs": {
                 "ensurePodiumdAdminUser": {
@@ -274,7 +279,7 @@ def test_fix_images_manifest_entries_correctly_verified_digest_changed_untouched
             }
         }
     }
-    baseline_values = {
+    baseline_values: YamlMapping = {
         "keycloak-operator": {
             "jobs": {
                 "ensurePodiumdAdminUser": {
@@ -285,8 +290,8 @@ def test_fix_images_manifest_entries_correctly_verified_digest_changed_untouched
     }
 
     repo_map = {"python": ("keycloak-operator", "jobs", "ensurePodiumdAdminUser", "initImage")}
-    new_text, changed, unresolved = cdb.fix_images_manifest_entries(
-        text, cdb.ManifestEntriesContext(None, deps, target_values, baseline_values, repo_map)
+    new_text, changed, unresolved = fix_images_manifest_entries(
+        text, ManifestEntriesContext(None, deps, target_values, baseline_values, repo_map)
     )
     assert unresolved == []
     assert changed == []

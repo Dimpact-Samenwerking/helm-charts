@@ -1,12 +1,15 @@
 """State types shared by check_docs_consistency's phase helpers."""
 
 from dataclasses import dataclass
+from dataclasses import field
 from pathlib import Path
 
-from lib.component_docs.changes_section import BaselineState
-from lib.component_docs.changes_section import ComponentState
+from lib.chart.chart_state import BaselineState
+from lib.chart.chart_state import ComponentState
 from lib.settings import DigestPinningException
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
+from lib.upgradedoc.chart_image_index import ChartImageIndex
+from lib.upgradedoc.removed_items import RemovedItem
 from lib.upgradedoc.string_and_parsing_basics import TableRow
 
 # A component as resolve_component_identity names it: ("dep", values_key)
@@ -23,14 +26,6 @@ class Findings:
 
 
 @dataclass
-class ImagePaths:
-    """Current/baseline image-tag-path maps."""
-
-    current: dict[ImagePath, str | None]
-    baseline: dict[ImagePath, str | None]
-
-
-@dataclass
 class DocQuery:
     """Which doc set to look for (podiumd_version, upgrade_docs_baseline, is_bare_version) and where."""
 
@@ -41,10 +36,18 @@ class DocQuery:
 
 
 @dataclass
+class StateImages:
+    """The ChartImageIndex of the current and the baseline state; baseline is empty without a baseline_ref."""
+
+    current: ChartImageIndex
+    baseline: ChartImageIndex
+
+
+@dataclass
 class DocsCheckContext:
     """Read-only chart/baseline state for every phase helper, built by _build_docs_check_context.
 
-    `current`/`baseline` are ComponentState (see lib.component_docs.changes_section).
+    `current`/`baseline` are the Chart.yaml/values.yaml trees of the target and the baseline.
     """
 
     chart_dir: Path
@@ -52,17 +55,18 @@ class DocsCheckContext:
     baseline: BaselineState
     baseline_ref: str | None
     doc_query: DocQuery
-    image_paths: ImagePaths
+    images: StateImages
     actual_changed_keys: set[str]
 
 
 @dataclass
 class DocScanState:
-    """The selected upgrade doc: its path, parsed rows and canonical sidecar/shared-image names."""
+    """The selected upgrade doc: its path, parsed rows, canonical sidecar/shared-image names and removed items."""
 
     doc_path: Path
     rows: list[TableRow]
     canonical_names: dict[str, ImagePath]
+    removed: dict[str, RemovedItem] = field(default_factory=dict[str, RemovedItem])
 
 
 @dataclass
@@ -90,13 +94,11 @@ class ComponentRowsResult:
     """_check_component_rows' outputs, consumed by the later checks of the same section."""
 
     mismatches: list[str]
-    changed_component_keys: set[str]
     # Identity -> resolved app version for "dep" rows; Changes headings must show it.
     resolved_app_by_identity: dict[ComponentIdentity, str]
     # Identity -> baseline app version (None when new); catches headings with the right
     # version but the wrong "(new)"/"(unchanged)"/"X -> Y" wording.
     baseline_app_by_identity: dict[ComponentIdentity, str | None]
-    matched_sidecar_paths: set[ImagePath]
 
 
 @dataclass

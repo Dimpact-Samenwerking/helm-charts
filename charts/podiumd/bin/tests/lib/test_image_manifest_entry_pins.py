@@ -7,6 +7,7 @@ from pathlib import Path
 from lib.chart.chart_yaml import ChartDependency
 from lib.image import manifest_entry_pins
 from lib.images_manifest import ManifestEntry
+from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
 from lib.yaml_types import YamlMapping
 
 OLD = "a" * 64
@@ -50,7 +51,7 @@ def test_sync_entry_pins_leaves_a_matching_entry_alone(tmp_path: Path) -> None:
 
 
 def test_entry_pin_is_the_tag_check_docs_consistency_compares() -> None:
-    paths = manifest_entry_pins.current_image_paths(VALUES)
+    paths = chart_image_paths(VALUES, DEPS)
 
     path, tag = manifest_entry_pins.entry_pin(ENTRY, VALUES, paths, {}, {})
 
