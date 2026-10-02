@@ -11,7 +11,7 @@ aanroepen. Frank!Gateway is daarbij de toegangspoort: alleen een bekende,
 toegestane afnemer komt door.
 
 - **Identiteit**: de TSA meldt zich met een client certificate, uitgegeven door
-  de eigen gemeentelijk CA
+  de eigen gemeentelijke CA
 - **Registratie**: de gemeente registreert dat certificaat voor client
   certificate authenticatie onder een afnemersnaam in OpenBao, via de
   webinterface met inlog voor beheerders via Keycloak.
