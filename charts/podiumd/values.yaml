@@ -3006,11 +3006,11 @@ zac:
     mail: "noreply@example.nl"
   global:
     curlImage: *curlImage
-  # ghcr.io/infonl/zaakafhandelcomponent:5.9.0
+  # ghcr.io/infonl/zaakafhandelcomponent:5.9.1
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 5.9.0@sha256:54ef898609685290358d5a6d04b0e7fefce5dc326e9d245a90cb5629cd73e09d
+    tag: 5.9.1@sha256:d2b43634c21205183ed7ce9591791fa0112501bb2e4b04baff0362da9e001da4
   # Liveness probe uses /health/ready (not /health/live) with a high failureThreshold so
   # Kubernetes automatically restarts ZAC after extended OpenZaak/catalogus unavailability.
   # The ZGW-API-Client has no connectTimeout/readTimeout, causing stale TCP connections
@@ -3060,12 +3060,14 @@ zac:
     url: http://objecttypen.example.nl
     token: objecttypentoken
   office_converter:
-    # ZAC 5.9.0 (chart 1.0.333) enables basic auth on the Gotenberg office
+    # ZAC 5.9.1 (chart 1.0.338) enables basic auth on the Gotenberg office
     # converter (API_ENABLE_BASIC_AUTH). username/password are now required by
     # the ZAC chart; ZAC authenticates to its office-converter sidecar with the
-    # same credentials. Override per environment.
-    username: changeme
-    password: changeme
+    # same credentials. These are internal/self-contained (the zac subchart
+    # renders them into its own Secret, consumed by both ZAC and the sidecar),
+    # so a dummy value is fine; override per environment if desired.
+    username: "dummy"
+    password: "dummy"
     # gotenberg/gotenberg:8.37.0@sha256:f29984bd1e226bf1b93ba90af06000afa8b315853e99d27b9aaa41b93f15c769
     image:
       # repository: gotenberg/gotenberg
@@ -3124,10 +3126,10 @@ zac:
       busyBoxImage: *busyboxImage
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.10.1-slim@sha256:9987e11a90a0b115cc3f52b74d3d87788e3c1fa479deeaece80d33515480204a
+      # library/solr:9.10.1-slim@sha256:ba6beb789c758b198c42603046fb2fb67b42843d2cd4333f12b632c3b811e55a
       image:
         #repository:
-        tag: 9.10.1-slim@sha256:9987e11a90a0b115cc3f52b74d3d87788e3c1fa479deeaece80d33515480204a
+        tag: 9.10.1-slim@sha256:ba6beb789c758b198c42603046fb2fb67b42843d2cd4333f12b632c3b811e55a
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
