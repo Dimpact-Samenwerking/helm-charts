@@ -10,13 +10,10 @@ monitor that outbound traffic, and one place to keep the API keys for those
 external services. It is WeAreFrank's hardened build of the open-source Apache
 APISIX gateway — the same product family as ZaakBrug — and it replaces both
 the earlier experimental APISIX building block and the legacy api-proxy. It is
-optional: the chart ships it disabled. To run, it needs no database — only a
-small disk for its configuration store and, if the management screen is wanted,
-a public hostname protected by the normal PodiumD login (Keycloak) — and the
-management screens are off unless someone turns them on, so most environments
-never need that hostname at all. Every part of it runs at least twice over, so
-no single failure interrupts traffic: nine lightweight pods as it ships,
-twenty-seven with all three management screens switched on.
+optional: the chart ships it disabled. To run, it needs no database and no
+public hostname — only a small disk for its configuration store, which the next
+release removes as well. Every part of it runs at least twice over, so no
+single failure interrupts traffic: nine lightweight pods in all.
 
 Since 4.8.5 it always runs as **three separate gateways**, one per kind of
 traffic — inbound, outbound and between applications — so each can be secured,
@@ -46,9 +43,9 @@ environment. It replaces:
 Runtime components when enabled. Everything except etcd is **per traffic
 class**: enabling Frank!Gateway renders one set of objects for each of
 `inway`, `outway` and `internal`, named `frankgateway-<class>` with their
-`-admin-credentials`, `-config`, `-dashboard`, `-shim`, `-oauth2-proxy`,
-`-routes` companions. There is no unsuffixed `frankgateway` object. `<class>`
-below stands for whichever of the three is meant:
+`-admin-credentials`, `-config` and `-seed` companions. There is no unsuffixed
+`frankgateway` object. `<class>` below stands for whichever of the three is
+meant:
 
 - **frankgateway-\<class\>** (Deployment) — gateway data plane `:9080` + Admin API
   `:9180`, etcd-backed *traditional* mode. Admin/viewer API keys are random,
@@ -63,34 +60,14 @@ below stands for whichever of the three is meant:
   with cert-manager and keeps the SSL object in step with it (see
   [Certificate on the internal hop](#certificate-on-the-internal-hop)).
 - **frankgateway-etcd** (StatefulSet, **3 replicas**, PVC each) — configuration
-  store, upstream `quay.io/coreos/etcd` build (no Bitnami). Three because etcd
-  is raft: quorum of three is two, so one member can be lost. Two would be
-  worse than one. Members find each other through the headless Service
+  store, upstream `quay.io/coreos/etcd` build (no Bitnami), shared by the three
+  classes with one prefix each — see
+  [why one etcd and three prefixes](frankgateway-traffic-classes.md#why-one-etcd-and-three-prefixes).
+  Members find each other through the headless Service
   `frankgateway-etcd-headless`, which publishes not-ready addresses so the
   cluster can form before any member is ready; `frankgateway-etcd` remains as
-  the load-balanced Service for ad-hoc `etcdctl`. Shared by all instances:
-  APISIX in traditional mode loads exactly the objects beneath its configured
-  prefix, so a prefix per instance (`/frankgateway-<instance>`) isolates routes,
-  consumers and SSL objects without running one etcd each.
-- **frankgateway-\<class\>-dashboard** (Deployment, **off by default**) —
-  `apache/apisix-dashboard` GUI. Never exposed directly; its built-in login is
-  bypassed server-side. Switched on per class for an investigation and off
-  again afterwards: with all three on it is 18 of the 27 pods, and each brings
-  a Keycloak client and a public hostname with it.
-- **frankgateway-\<class\>-oauth2-proxy + -shim** (Deployments) — Keycloak
-  SSO chain for the dashboard: oauth2-proxy (OIDC client
-  `frankgateway-dashboard-<class>`, one per class, seeded via the chart realm
-  config; session kept in the chart's redis) forwards to an nginx shim that logs into the dashboard
-  server-side and injects the dashboard JWT, so the dashboard's own
-  `admin/<random>` credential never reaches a browser
-  (`templates/frankgateway-dashboard-auth.yaml`). Authentication is not
-  authorization: the podiumd realm holds every beheer user, so oauth2-proxy
-  additionally requires membership of the `fg-admins` Keycloak group
-  (`dashboard.auth.adminGroup`) in the existing podiumd realm. The realm
-  import creates the group; operators are added via
-  `dashboard.auth.adminGroupMembers` (dedicated accounts — the import fully
-  manages the group memberships of listed users) or by hand in the Keycloak
-  admin console.
+  the load-balanced Service for ad-hoc `etcdctl`. **Retired in the next
+  release** — see [Changing in the next release](#changing-in-the-next-release).
 - **frankgateway-\<class\>-seed** (hook Job, post-install/post-upgrade) —
   seeds that class's routes from **values only**
   (`frankgateway.instances.<class>.routes`, a map of route id → APISIX route
@@ -98,7 +75,7 @@ below stands for whichever of the three is meant:
   certificate. The chart ships no routes: an environment's values are the
   complete list, and `seed.prune` can make etcd match them. Reference bodies
   and the rules are in [`frankgateway-routes.md`](frankgateway-routes.md).
-  External-API keys are fetched from **OpenBao at request
+- **External-API keys** are fetched from **OpenBao at request
   time** by `files/frankgateway/openbao-secret-header.lua` (mounted from the
   `frankgateway-lua` ConfigMap, resolved via `apisix.extra_lua_path`) — a
   configurable function taking the secret path, field and header name, so one
@@ -109,22 +86,46 @@ below stands for whichever of the three is meant:
   (`frankgateway.openbao.failMode: closed`) rather than passing the request on
   to be rejected as a 401, which is indistinguishable from a wrong key.
 
+## Changing in the next release
+
+The next PodiumD release after 4.9.3 ships a new Frank!Gateway version, and
+two things this documentation describes go with it:
+
+- **etcd is retired.** Frank!Gateway no longer uses etcd as its configuration
+  store, so `frankgateway-etcd` — the three-member StatefulSet, its PVCs, the
+  headless Service and its PodDisruptionBudget — and the per-class etcd
+  prefixes disappear. Everything in these docs that depends on etcd (the 2Gi
+  storage requirement, "the certificate must be in etcd before the connection
+  arrives", the shared-store blast radius in
+  [`frankgateway-traffic-classes.md`](frankgateway-traffic-classes.md))
+  describes 4.9.3 and earlier.
+- **The sync workaround stops.** The new Frank!Gateway fully supports OpenBao
+  for both certificates and API keys, and reads them from OpenBao itself. The
+  `client-cert-sync` CronJob that copies client certificates out of OpenBao
+  into the gateway is no longer used, and neither are the Lua bridges the chart
+  ships for 1.1.0 on APISIX 3.16 (`openbao-secret-header.lua`,
+  `openbao-client.lua`, `openbao-consumer-auth.lua`). Why they existed is in
+  [`frankgateway-routes.md`](frankgateway-routes.md#client-certificates-from-openbao-outbound-mtls).
+
+What carries over unchanged is the OpenBao side: the layout under
+`<mount>/frankgateway/`, the scoped reader token and the operator workflow
+(`bao kv put` / `patch`). Credentials already written to OpenBao stay where
+they are.
+
 ## Required resources
 
 ### Database
 
-None — gateway configuration lives in the bundled etcd (see Storage). The
-config-persistence CronJob from jim00 (Postgres snapshot/replay of GUI-created
-APISIX objects) is **not** ported into the chart; it stays a deploy-side
-follow-up.
+None — gateway configuration lives in the bundled etcd (see Storage).
 
 ### Storage
 
 Yes, small: the etcd StatefulSet uses a `volumeClaimTemplate` PVC of **2Gi**
 (`frankgateway.etcd.storage`), default storage class
 (`frankgateway.etcd.storageClassName: ""`). It holds the APISIX
-routes/upstreams/consumers created via Admin API or dashboard. No Azure Files
-share, no chart-rendered PV.
+routes/upstreams/consumers created via the Admin API. No Azure Files
+share, no chart-rendered PV. The PVCs go when etcd is retired in the next
+release.
 
 ### Routing / exposure (NGINX Gateway Fabric)
 
@@ -141,26 +142,10 @@ would poison upstream canonical URLs (ZGW 403s on writes, broken OIDC
 redirects). The per-SNI server certificate is stored as an SSL object in etcd
 rather than mounted as a file — see
 [Certificate on the internal hop](#certificate-on-the-internal-hop) for how it
-gets there and how it is renewed. The
-dashboard's public hostname (`frankgateway.dashboard.auth.hostname`) is routed
-deploy-side (ADO `ExternalsPodiumD` — Gateway API HTTPRoute → service
-`frankgateway-<class>-oauth2-proxy:4180`, one per dashboard), or via the optional in-chart
-Traefik Ingress (`frankgateway.dashboard.ingress.enabled`) for environments
-without Gateway API. The gateway certificate SAN must cover the dashboard
-hostname.
+gets there and how it is renewed.
 
 ### Other dependencies
 
-- **Keycloak** — one OIDC client per class (`frankgateway-dashboard-inway`,
-  `-outway`, `-internal`) in the `podiumd` realm, seeded via the chart realm
-  config (replaces jim00's `setup-keycloak-client.sh`); each secret consumed by
-  that class's oauth2-proxy. The realm import also creates the `fg-admins`
-  group (`frankgateway.dashboard.auth.adminGroup`) in the same podiumd realm —
-  oauth2-proxy only admits its members, so an environment must put its
-  operators in it (`frankgateway.dashboard.auth.adminGroupMembers`, or the
-  Keycloak admin console) before anyone can open a dashboard.
-- **Redis** — the chart's shared `redis-ha` stores oauth2-proxy sessions
-  (cookie-only storage drops chunked cookies behind NGF → login loops).
 - **OpenBao** — **required**, not optional: it is the only source of
   external-API credentials, and `openbao.enabled: false` alongside
   `frankgateway.enabled: true` fails the render. Everything the gateway needs
@@ -169,20 +154,13 @@ hostname.
   certificates at `frankgateway/client-certs/<name>` (fields `cert`, `key`) and
   the inbound consumer list at `frankgateway/consumers` (one field per
   consumer) — see [`frankgateway-routes.md`](frankgateway-routes.md). The
-  gateway reads them with a scoped token supplied out-of-band in the Secret
-  named by `frankgateway.openbao.tokenSecret` (Key-Vault-fed, never minted by
-  this chart — a token the chart could mint is a token the chart would store).
-  That token's policy must cover the path itself and the subtree below it
-  (`<mount>/frankgateway` and `<mount>/frankgateway/*`; on a kv-v2 mount
-  `<mount>/data/frankgateway` and `<mount>/data/frankgateway/*`): the wildcard
-  does not match the API-key path itself, and a policy scoped to one path
-  makes the others read as an opaque failure, which is exactly how jim00's
-  first consumer key failed. OpenBao itself — database, route, Key Vault
-  items, the unseal after every restart — is documented in
+  gateway reads them with a scoped reader token supplied out-of-band in the
+  Secret named by `frankgateway.openbao.tokenSecret` — never minted by this
+  chart, because a token the chart could mint is a token the chart would
+  store. Minting it is
+  [runbook step 5](frankgateway-deploy-runbook.md#step-5--put-the-gateways-secrets-in-openbao);
+  OpenBao itself is documented in
   [`frankgateway-openbao.md`](frankgateway-openbao.md).
-- **CoreDNS** — `frankgateway.dashboard.auth.dnsResolver` must be set to the
-  cluster's CoreDNS ClusterIP (AKS default `10.0.0.10`; jim00 `172.16.0.10`)
-  for the shim's request-time DNS re-resolution.
 
 ## Certificate on the internal hop
 
@@ -258,21 +236,10 @@ on a failed read the literal `$secret://…` string silently becomes the key), i
 an SSL object's **`cert`/`key`** on the handshake path (300 s cache), and in a
 handful of plugins. It is **not** resolved in `client.ca`, not in an upstream's
 `tls.client_cert`/`client_key`, and not through `client_cert_id` — so it cannot
-carry a client certificate the gateway presents to someone else. APISIX 3.17
-and 3.18 fix all of that; until Frank!Gateway ships on them, the chart pulls
-certificates out of OpenBao itself (the `client-cert-sync` CronJob, see
-[`frankgateway-routes.md`](frankgateway-routes.md)) and the consumer list is
-read at request time by the chart's own Lua rather than through a reference.
-
-**Lifetime of these workarounds.** The sync CronJob, `openbao-client.lua`,
-`openbao-consumer-auth.lua` and the request-time API-key header function are
-a bridge for exactly one image generation: Frank!Gateway 1.1.0 on APISIX
-3.16. The next Frank!Gateway release moves to an APISIX where `$secret://`
-resolves for upstream client certificates and is safe for consumer
-credentials, and the chart is expected to drop all of them in favour of
-native references in the same release cycle. The OpenBao layout under
-`<mount>/frankgateway/`, the reader token and the operator workflow (`bao kv
-put` / `patch`) are the durable part and carry over unchanged.
+carry a client certificate the gateway presents to someone else. Until
+Frank!Gateway moves past 3.16, the chart's own sync CronJob and Lua cover that
+gap ([`frankgateway-routes.md`](frankgateway-routes.md)); the next release's
+Frank!Gateway reads certificates and API keys from OpenBao itself.
 
 So a certificate always has to be **in etcd before the connection arrives**.
 Whatever issues it, something must push it there — which is exactly what the
@@ -360,7 +327,8 @@ no Kubernetes Secret exists at all. It was considered and not taken: it removes
 one copy of the key while leaving the copy in APISIX's etcd, and it replaces
 cert-manager's renewal machinery (which is watched, alerted and understood) with
 bespoke logic in a shell script. Worth revisiting only if the Kubernetes Secret
-itself becomes the objection.
+itself becomes the objection. With etcd retired in the next release, the copy
+of the key in APISIX's etcd goes in any case.
 
 One thing that would genuinely change with OpenBao PKI is **short-lived
 certificates** — hours or days rather than 90 days, shrinking the window a
@@ -386,9 +354,6 @@ traffic levels) next to each request so the margin is visible:
 |-----------|-------------|---------------|-------------|---------------|-----------|-----------|
 | frankgateway | 100m | 8m | 384Mi | 375Mi | 1 | 1Gi |
 | frankgateway-etcd | 50m | 20m | 192Mi | 126Mi | 500m | 512Mi |
-| frankgateway-dashboard | 25m | 11m | 128Mi | 90Mi | 500m | 512Mi |
-| oauth2-proxy | 10m | <1m | 64Mi | 44Mi | 250m | 256Mi |
-| shim (nginx) | 10m | 2m | 32Mi | 7Mi | 250m | 128Mi |
 | seed job | 25m | — | 32Mi | — | 250m | 128Mi |
 | client-cert-sync job | 25m | — | 32Mi | — | 250m | 128Mi |
 
@@ -403,25 +368,20 @@ CPU on the gateway is deliberately left at 100m, twelve times the measured
 peak: QA traffic says nothing about what the inway sees in production, and the
 guaranteed share of a request-path proxy is the wrong place to economise.
 
-Each workload also gets a PodDisruptionBudget (`maxUnavailable: 1`,
-`unhealthyPodEvictionPolicy: AlwaysAllow`), rendered only where the workload has
-more than one replica — over a single replica a budget either does nothing or
-blocks node drains forever.
-
 Figures are per container. Multiply by the replica count and the number of
-enabled classes for the real total: gateways, dashboards, oauth2-proxy and shim
-run at 2 each, etcd at 3 — so the floor with all dashboards on is 27 pods, and
-9 with them off (see the footprint table in
-[`frankgateway-traffic-classes.md`](frankgateway-traffic-classes.md)). That
-comes to roughly **1.0 CPU and 4.1Gi of requests** with every dashboard on, and
-**0.75 CPU / 2.8Gi** with them off.
+enabled classes for the real total: gateways run at 2 each, etcd at 3 — so the
+floor is 9 pods. Why those replica counts, and the PodDisruptionBudgets and
+spread rules that go with them, are in
+[the footprint section](frankgateway-traffic-classes.md#footprint). That
+comes to roughly **0.75 CPU and 2.8Gi of requests**. Retiring etcd in the next
+release takes the three etcd members (150m / 576Mi) off that total.
 
 A fresh install on jim00 (2026-08-14, first deploy of this chart) settled at
-95–116Mi per gateway, 3–45Mi per etcd member, and single-digit Mi for the
-dashboard chain — comfortably inside every request above, with no OOMKill and
-no eviction. That is an idle figure and says nothing the 375Mi peak does not
-already say; it is recorded only because it is the first evidence that the
-three-class footprint fits on a node without the kubelet intervening.
+95–116Mi per gateway and 3–45Mi per etcd member — comfortably inside every
+request above, with no OOMKill and no eviction. That is an idle figure and
+says nothing the 375Mi peak does not already say; it is recorded only because
+it is the first evidence that the three-class footprint fits on a node without
+the kubelet intervening.
 
 Sizing this way is what makes a cluster grow on first install: NAP took jim00
 from 2 nodes to 9 to fit the new requests alongside the rest of PodiumD. That
@@ -451,66 +411,46 @@ security assessment without first confirming enforcement on the target cluster.
 
 ## Integrating Frank!Gateway as a new app
 
-1. **Enable** in the gemeente values file: `frankgateway.enabled: true`.
-2. **Set the per-environment must-sets**:
-   `frankgateway.dashboard.auth.hostname` (public dashboard host) and
-   `frankgateway.dashboard.auth.dnsResolver` (cluster CoreDNS ClusterIP).
-   Name the dashboard operators in
-   `frankgateway.dashboard.auth.adminGroupMembers` (dedicated accounts — the
-   realm import fully manages the group memberships of listed users), or plan
-   to add them to the `fg-admins` group in the Keycloak admin console:
-   without membership, nobody gets past oauth2-proxy.
-3. **OpenBao.** Enable it (`openbao.enabled: true` — the render fails
-   otherwise) and bootstrap it once per environment: initialise, store
-   `openbao-unseal-key` and `openbao-root-token` in the environment Key Vault,
-   unseal, mint the config token
-   ([runbook](frankgateway-openbao.md#5-bootstrap-runbook-first-install)).
-   Then write the external-API keys to `<mount>/frankgateway`
-   (`bag_api_key`, `kvk_api_key`), any outbound client certificates to
-   `<mount>/frankgateway/client-certs/<name>` (`cert`, `key`) and the inbound
-   consumer list to `<mount>/frankgateway/consumers` (commands in
-   [`frankgateway-routes.md`](frankgateway-routes.md)). Then mint the scoped
-   reader token, with a policy covering both `<mount>/frankgateway` and
-   `<mount>/frankgateway/*`, and create the Secret named by
-   `frankgateway.openbao.tokenSecret`. Nothing automates this yet
-   ([IN-3047](https://dimpact.atlassian.net/browse/IN-3047)): do it by hand as in
-   [runbook §5 step 7](frankgateway-openbao.md#5-bootstrap-runbook-first-install).
-4. **Route the dashboards.** One per class that has one. Gateway API
-   environments: HTTPRoute → `frankgateway-<class>-oauth2-proxy:4180` in ADO
-   `ExternalsPodiumD` (`infra.yml`), and add each hostname to the gateway
-   certificate SAN. Otherwise set `frankgateway.dashboard.ingress.enabled: true`.
-5. **Write the routes.** The chart ships none. Copy the bodies your
-   environment needs from [`frankgateway-routes.md`](frankgateway-routes.md)
-   into `frankgateway.instances.<class>.routes` — BAG and KVK on the outway,
-   BRP on the internal class, one `inbound-<app>` per public hostname on the
-   inway — and label them `managed-by: iac`.
-6. **Point callers at the right class.** Applications that used `apiproxy` for
-   BAG/KVK egress call `http://frankgateway-outway:9080/...`; BRP and other
-   app-to-app calls go to `http://frankgateway-internal:9080/...` (the route
-   paths mirror the apiproxy paths).
-7. **Verify.** `kubectl -n podiumd get jobs` — every
-   `frankgateway-<class>-seed` must complete (its log names every route it
-   applied); `kubectl -n podiumd get
-   pods -l app.kubernetes.io/component=frankgateway` all Running; each dashboard
-   hostname logs in via Keycloak (no dashboard login form) as an `fg-admins`
-   member — and refuses a realm account that is not one; a test call through
-   a seeded route reaches its upstream.
+The full procedure, with commands, is
+[`frankgateway-deploy-runbook.md`](frankgateway-deploy-runbook.md). In outline:
+
+1. **Infrastructure** for OpenBao: database, Key Vault items, identity, route
+   and certificate.
+2. **Values:** `openbao.enabled: true` (the render fails without it) with the
+   environment's hosts and database, and `frankgateway.enabled: true`.
+3. **Deploy and initialise OpenBao**, storing the unseal (or recovery) key and
+   root token in Key Vault.
+4. **Configure OpenBao:** mint the config token so the `openbao-config` Job can
+   run.
+5. **Secrets:** write the external-API keys, client certificates and consumer
+   list under `<mount>/frankgateway/`, then mint the gateway's reader token.
+6. **Routes:** copy the bodies the environment needs into
+   `frankgateway.instances.<class>.routes` and point callers at the right
+   class.
+7. **Verify** OpenBao, the seed Jobs and a real call through each class, then
+   revoke the root token.
 
 ## Related documents
 
+- [`frankgateway-deploy-runbook.md`](frankgateway-deploy-runbook.md) — the
+  step-by-step procedure for a first deploy, and the checks after every later
+  one. **Start here when deploying.**
 - [`frankgateway-openbao.md`](frankgateway-openbao.md) — OpenBao, the secrets
-  vault the gateway reads its credentials from: requirements, Key Vault items,
-  bootstrap runbook and the unseal after every restart. **Read it before the
-  first deployment.**
+  vault the gateway reads its credentials from: requirements, seal model,
+  Keycloak wiring and security notes.
 - [`frankgateway-traffic-classes.md`](frankgateway-traffic-classes.md) — running
   the gateway as three per-traffic-class instances (inway / outway / internal),
-  with the architecture diagram, the NetworkPolicy model and the migration order.
+  with the architecture diagram, the NetworkPolicy model and the footprint.
+- [`frankgateway-routes.md`](frankgateway-routes.md) — writing routes in
+  values: the shape, the seed hook, prune, the reference bodies, client
+  certificates and consumer identities.
 - [`frankgateway-split-exploration.md`](frankgateway-split-exploration.md) — the
-  feasibility assessment that design came from.
+  feasibility assessment the three-class design came from (historical).
+- [`frankgateway-tsa-setup-and-flow-NL.md`](frankgateway-tsa-setup-and-flow-NL.md)
+  — for municipalities (in Dutch): how a task-specific application is
+  onboarded through the inway.
 - [`../apisix/`](../apisix/) — superseded experimental upstream-APISIX
   building block docs (kept for history; both files carry a superseded
   banner).
 - [`../apiproxy/apiproxy-BASICS.md`](../apiproxy/apiproxy-BASICS.md) — the
   legacy egress proxy whose routes Frank!Gateway reproduces.
-- [`frankgateway-routes.md`](frankgateway-routes.md) — writing routes in
-  values: the shape, the seed hook, prune, and the reference bodies.

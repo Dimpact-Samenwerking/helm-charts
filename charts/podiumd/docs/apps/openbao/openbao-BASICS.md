@@ -20,7 +20,7 @@ OpenBao. Read the
 | DevOps checklist per environment | [DevOps TL;DR](../frankgateway/frankgateway-openbao.md#devops-tldr) |
 | Database, route, TLS, Key Vault, seal model, Keycloak | [§3 Requirements](../frankgateway/frankgateway-openbao.md#3-requirements) |
 | Values to set | [§4 Values reference](../frankgateway/frankgateway-openbao.md#4-values-reference) |
-| First install, and unsealing after every restart | [§5 Bootstrap runbook](../frankgateway/frankgateway-openbao.md#5-bootstrap-runbook-first-install) |
+| First install, and unsealing after every restart | [Deployment runbook](../frankgateway/frankgateway-deploy-runbook.md) |
 | CPU and memory | [§8 Sizing](../frankgateway/frankgateway-openbao.md#8-sizing-defaults) |
 
 ## Related documents
