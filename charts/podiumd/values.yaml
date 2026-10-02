@@ -2883,7 +2883,8 @@ kiss:
       #   schedule: "*/59 * * * *"
       #   token: ""
 
-      medewerkers: null
+      medewerkers:
+        useEmail: true
       #   should be url to adapter
       #   baseUrl: ""
       #   clientId: ""
