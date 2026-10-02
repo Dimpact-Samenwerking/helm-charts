@@ -2872,7 +2872,7 @@ kiss:
       # -- pre-install/pre-upgrade hook die het search-website* index-template
       # in Elasticsearch registreert. Heeft alleen curl nodig.
       indexTemplateImage: *curlImage
-      # kennisbank:
+      kennisbank: null
       #   baseUrl: ""
       #   historyLimit: 1
       #   objectTypeUrl: ""
@@ -2883,7 +2883,7 @@ kiss:
       #   schedule: "*/59 * * * *"
       #   token: ""
 
-      # medewerkers:
+      medewerkers: null
       #   should be url to adapter
       #   baseUrl: ""
       #   clientId: ""
@@ -2896,7 +2896,7 @@ kiss:
       #       memory: 128Mi
       #   schedule: "*/59 * * * *"
 
-      # vac:
+      vac: null
       #   manageFromKiss: false
       #   baseUrl: ""
       #   historyLimit: 1
