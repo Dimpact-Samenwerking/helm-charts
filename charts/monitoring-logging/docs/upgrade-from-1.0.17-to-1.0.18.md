@@ -18,6 +18,16 @@ deployed. See
 | Caused by | podiumd 4.9.1, commit `d2f92fa` ([#441](https://github.com/Dimpact-Samenwerking/helm-charts/pull/441), for [IN-2519](https://dimpact.atlassian.net/browse/IN-2519)) |
 | Affected | Every environment on podiumd ≥ 4.9.1 with monitoring-logging deployed |
 
+
+Routine image bumps carried in from the open Renovate stack (PRs #299, #318,
+#376):
+
+- `kube-prometheus-stack.prometheus-operator.admissionWebhooks.patch.image`
+  (`jkroepke/kube-webhook-certgen`): `1.8.0` → `1.8.8`.
+- `prometheus-pushgateway.image` (`quay.io/prometheus/pushgateway`):
+  `v1.11.1` → `v1.11.3`.
+- `alloy.image` (`docker.io/grafana/alloy`): `v1.14.0` → `v1.19.2`.
+
 ## The problem
 
 podiumd 4.9.1 hardened the Keycloak realm import. `templates/keycloak-podiumd-realm-config.yaml`

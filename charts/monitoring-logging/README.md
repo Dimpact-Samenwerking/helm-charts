@@ -1,6 +1,6 @@
 # monitoring-logging
 
-![Version: 1.0.18](https://img.shields.io/badge/Version-1.0.18-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0.18](https://img.shields.io/badge/AppVersion-1.0.18-informational?style=flat-square)
+![Version: 1.0.19](https://img.shields.io/badge/Version-1.0.19-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0.19](https://img.shields.io/badge/AppVersion-1.0.19-informational?style=flat-square)
 
 A monitoring stack using Loki, Prometheus, Grafana Alloy, OpenTelemetry Collector, and Grafana. Optionally includes Grafana Tempo for distributed tracing.
 
@@ -51,13 +51,13 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 
 | Repository | Name | Version |
 |------------|------|---------|
-| @grafana | alloy | 1.6.2 |
+| @grafana | alloy | 1.12.1 |
 | @grafana | grafana | 10.5.15 |
 | @grafana | loki | 6.55.0 |
 | @grafana | tempo | 1.24.4 |
 | @opentelemetry | opentelemetry-collector | 0.147.1 |
-| @prometheus-community | kube-prometheus-stack | 83.0.0 |
-| @prometheus-community | prometheus-pushgateway | 3.6.0 |
+| @prometheus-community | kube-prometheus-stack | 90.0.0 |
+| @prometheus-community | prometheus-pushgateway | 3.8.0 |
 
 ## Values
 
@@ -75,14 +75,20 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 | alloy.configReloader.image | object | `{"pullPolicy":"IfNotPresent","registry":"quay.io","repository":"prometheus-operator/prometheus-config-reloader","tag":"v0.81.0"}` | config-reloader sidecar image settings (Alloy hot-reload, separate from the operator's config-reloader) quay.io/prometheus-operator/prometheus-config-reloader:v0.81.0 |
 | alloy.controller | object | `{"nodeSelector":{"kubernetes.azure.com/agentpool":"userpool"}}` | DaemonSet scheduling. Pin Alloy to the user pool because the discovery.kubernetes namespaces filter below scopes log capture to podiumd + monitoring, both of which run on the user pool. See docs/upgrade-from-1.0.12-to-1.0.13.md for why this overrides the 1.0.11→1.0.12 guidance to leave Alloy without a nodeSelector. |
 | alloy.enabled | bool | `true` |  |
-| alloy.image | object | `{"pullPolicy":"IfNotPresent","registry":"docker.io","repository":"grafana/alloy","tag":"v1.14.0"}` | alloy image settings docker.io/grafana/alloy:v1.14.0 |
+| alloy.image | object | `{"pullPolicy":"IfNotPresent","registry":"docker.io","repository":"grafana/alloy","tag":"v1.19.2"}` | alloy image settings docker.io/grafana/alloy:v1.19.2 |
 | alloy.logCollectionNamespaces | list | `["podiumd","monitoring"]` | Namespaces Alloy collects pod logs from. This is a server-side namespace filter on the Kubernetes pod discovery (see configMap.content below). Override this if your workloads run in a different namespace, e.g. set to ["default", "monitoring"] when deploying apps to "default". |
 | grafana."grafana.ini"."auth.anonymous".enabled | bool | `false` |  |
 | grafana."grafana.ini"."auth.anonymous".hide_version | bool | `true` |  |
+<<<<<<< HEAD
 | grafana."grafana.ini"."auth.generic_oauth" | object | `{"allow_assign_grafana_admin":true,"allow_sign_up":true,"api_url":"https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/userinfo","auth_url":"https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/auth","client_id":"monitoring","client_secret":"","email_attribute_path":"email","enabled":true,"groups_attribute_path":"groups","login_attribute_path":"username","name":"Keycloak-podiumd","name_attribute_path":"name","org_mapping":"*:Viewer","role_attribute_path":"contains(monitoring_roles[*], 'admin') && 'Admin' || contains(monitoring_roles[*], 'editor') && 'Editor' || 'Viewer'","role_attribute_strict":false,"scopes":"openid email profile roles","skip_org_role_sync":false,"sync_ttl":60,"token_url":"https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/token","use_pkce":true,"use_refresh_token":true}` | Authentication and Authorization with Keycloak |
+=======
+| grafana."grafana.ini"."auth.generic_oauth" | object | `{"allow_assign_grafana_admin":true,"allow_sign_up":true,"api_url":"https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/userinfo","auth_url":"https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/auth","client_id":"monitoring","client_secret":"","email_attribute_path":"email","enabled":true,"groups_attribute_path":"groups","login_attribute_path":"username","name":"Keycloak-podiumd","name_attribute_path":"name","org_mapping":"*:Viewer","role_attribute_path":"contains(monitoring_roles[*], 'admin') && 'Admin' || contains(monitoring_roles[*], 'editor') && 'Editor' || 'Viewer'","role_attribute_strict":false,"scopes":"openid email profile roles","skip_org_role_sync":false,"sync_ttl":60,"token_url":"https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/token","use_pkce":true,"use_refresh_token":false}` | Authentication and Authorization with Keycloak |
+>>>>>>> 15923af9 (fix(monitoring-logging): drop offline_access/use_refresh_token from Grafana OAuth (#451))
 | grafana."grafana.ini".auth.allow_sign_up | bool | `true` |  |
 | grafana."grafana.ini".auth.disable_login_form | bool | `true` |  |
 | grafana."grafana.ini".auth.disable_signout_menu | bool | `false` |  |
+| grafana."grafana.ini".auth.login_maximum_inactive_lifetime_duration | string | `"7d"` |  |
+| grafana."grafana.ini".auth.login_maximum_lifetime_duration | string | `"30d"` |  |
 | grafana."grafana.ini".auth.oauth_auto_login | bool | `true` |  |
 | grafana."grafana.ini".auth.oauth_skip_org_role_update_sync | bool | `false` |  |
 | grafana."grafana.ini".feature_toggles | object | `{"grafanaAdvisor":true}` | Grafana Advisor surfaces recommendations in the Grafana UI |
@@ -232,7 +238,7 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 | kube-prometheus-stack.prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.resources.requests.storage | string | `"20Gi"` |  |
 | kube-prometheus-stack.prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.storageClassName | string | `"managed-csi"` |  |
 | kube-prometheus-stack.prometheusOperator.admissionWebhooks.image | object | `{"pullPolicy":"IfNotPresent","registry":"quay.io","repository":"prometheus-operator/admission-webhook","tag":"v0.90.1"}` | admission-webhook image settings (same release as the operator) quay.io/prometheus-operator/admission-webhook:v0.90.1 |
-| kube-prometheus-stack.prometheusOperator.admissionWebhooks.patch.image | object | `{"pullPolicy":"IfNotPresent","registry":"ghcr.io","repository":"jkroepke/kube-webhook-certgen","tag":"1.8.0"}` | kube-webhook-certgen image for admission webhook TLS certificate provisioning ghcr.io/jkroepke/kube-webhook-certgen:1.8.0 |
+| kube-prometheus-stack.prometheusOperator.admissionWebhooks.patch.image | object | `{"pullPolicy":"IfNotPresent","registry":"ghcr.io","repository":"jkroepke/kube-webhook-certgen","tag":"1.8.8"}` | kube-webhook-certgen image for admission webhook TLS certificate provisioning ghcr.io/jkroepke/kube-webhook-certgen:1.8.8 |
 | kube-prometheus-stack.prometheusOperator.image | object | `{"pullPolicy":"IfNotPresent","registry":"quay.io","repository":"prometheus-operator/prometheus-operator","tag":"v0.90.1"}` | prometheus-operator image settings quay.io/prometheus-operator/prometheus-operator:v0.90.1 |
 | kube-prometheus-stack.prometheusOperator.prometheusConfigReloader | object | `{"image":{"pullPolicy":"IfNotPresent","registry":"quay.io","repository":"prometheus-operator/prometheus-config-reloader","tag":"v0.90.1"},"resources":{"limits":{"cpu":"50m","memory":"32Mi"},"requests":{"cpu":"5m","memory":"16Mi"}}}` | prometheus-config-reloader image settings (injected into Prometheus StatefulSet by the operator) quay.io/prometheus-operator/prometheus-config-reloader:v0.90.1 |
 | kube-prometheus-stack.prometheusOperator.resources.limits.cpu | string | `"200m"` |  |
@@ -378,7 +384,7 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 | otelIngress | object | `{"clusterIssuer":"letsencrypt-prod","enabled":false,"hostname":"","middleware":"{{ .Release.Namespace }}-otel-ip-allowlist@kubernetescrd","tlsSecretName":"otel-tls"}` | Ingress for the OTLP HTTP endpoint (port 4318). Exposes the collector externally via Traefik with an ip-allowlist middleware. Requires cert-manager for TLS. Disabled by default — set hostname to enable. The middleware must be pre-created in the same namespace (e.g. a Traefik Middleware CRD). |
 | otelIngress.hostname | string | `""` | External hostname, e.g. otel.example.nl |
 | otelIngress.middleware | string | `"{{ .Release.Namespace }}-otel-ip-allowlist@kubernetescrd"` | Traefik middleware reference (namespace/name@kubernetescrd). Set to "" to disable. |
-| prometheus-pushgateway | object | `{"enabled":true,"image":{"pullPolicy":"IfNotPresent","repository":"quay.io/prometheus/pushgateway","tag":"v1.11.1"},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}}}` | Pushgateway: separate dependency (not bundled in kube-prometheus-stack). quay.io/prometheus/pushgateway:v1.11.1 |
+| prometheus-pushgateway | object | `{"enabled":true,"image":{"pullPolicy":"IfNotPresent","repository":"quay.io/prometheus/pushgateway","tag":"v1.11.3"},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}}}` | Pushgateway: separate dependency (not bundled in kube-prometheus-stack). quay.io/prometheus/pushgateway:v1.11.3 |
 | tempo | object | `{"enabled":false,"persistence":{"enabled":true,"size":"10Gi","storageClassName":"managed-csi"},"tempo":{"image":{"pullPolicy":"IfNotPresent"},"receivers":{"otlp":{"protocols":{"grpc":{"endpoint":"0.0.0.0:4317"},"http":{"endpoint":"0.0.0.0:4318"}}}},"storage":{"trace":{"backend":"local","local":{"path":"/var/tempo/traces"},"wal":{"path":"/var/tempo/wal"}}}}}` | Grafana Tempo: distributed tracing backend. Disabled by default. Enable with: tempo.enabled=true Requires opentelemetry-collector.enabled=true to receive traces via OTLP. |
 | tempo.tempo.image | object | `{"pullPolicy":"IfNotPresent"}` | tempo image settings docker.io/grafana/tempo:2.9.0 |
 | traefikMonitor | object | `{"enabled":true,"namespace":"","scrapeInterval":"30s"}` | metrics.prometheus=true (default in the standard Traefik Helm chart). |
