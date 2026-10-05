@@ -40,7 +40,6 @@
   (dict "name" "openarchiefbeheer" "enabled" .Values.openarchiefbeheer.enabled "oidcUrl" .Values.openarchiefbeheer.configuration.oidcUrl)
   (dict "name" "opennotificaties"  "enabled" .Values.opennotificaties.enabled  "oidcUrl" .Values.opennotificaties.configuration.oidcUrl)
   (dict "name" "objecten"          "enabled" .Values.objecten.enabled          "oidcUrl" .Values.objecten.configuration.oidcUrl)
-  (dict "name" "objecttypen"       "enabled" .Values.objecttypen.enabled       "oidcUrl" .Values.objecttypen.configuration.oidcUrl)
   (dict "name" "openklant"         "enabled" .Values.openklant.enabled         "oidcUrl" .Values.openklant.configuration.oidcUrl)
   (dict "name" "openformulieren"   "enabled" .Values.openformulieren.enabled   "oidcUrl" .Values.openformulieren.configuration.oidcUrl)
   (dict "name" "openinwoner"       "enabled" .Values.openinwoner.enabled       "oidcUrl" .Values.openinwoner.configuration.oidcUrl)
