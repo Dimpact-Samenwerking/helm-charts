@@ -1173,7 +1173,7 @@ objecten:
     # convention rather than switching to objecttypen's. Required by the chart
     # (render fails without it); override per gemeente to the real public hostname.
     siteDomain: objecten.example.nl
-    allowedHosts: objecten.podiumd.svc.cluster.local
+    allowedHosts: objecten.podiumd.svc.cluster.local,objecttypen.podiumd.svc.cluster.local
     email:
       port: 587
       useTLS: true
@@ -1242,6 +1242,12 @@ objecten:
   # Podiumd-owned key, no subchart equivalent — consumed by
   # templates/create-required-objecttypen.yaml. Moved here from the deleted
   # objecttypen.create_required_objecttypen_job.* block.
+  # -- In-cluster `objecttypen` Service that selects the objecten pods, so URLs on
+  # the retired objecttypen service (http://objecttypen.<namespace>.svc.cluster.local)
+  # keep working after the Open Object 4 merge (IN-2597). Its host must be in
+  # `objecten.settings.allowedHosts`.
+  objecttypenAlias:
+    enabled: true
   create_required_objecttypen_job:
     enabled: true
     # Total wall-clock window in which the job is allowed to keep retrying (seconds). Default: 15 minutes.
