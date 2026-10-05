@@ -97,12 +97,13 @@ flowchart TB
   s1["Stap 1: Aanvraag<br/>gemeente"]
   s2["Stap 2: Client certificate<br/>CA gemeente"]
   s3["Stap 3: Azure Application Gateway<br/>SSC - IN BESPREKING"]
+  s4["Stap 4: Toegang tot OpenBao<br/>Integratie Team"]
   s5["Stap 5: Certificaat registreren<br/>gemeente in OpenBao"]
   s6["Stap 6: Route in Frank!Gateway<br/>Integratie Team"]
   s7["Stap 7: Rechten in register<br/>beheerder register"]
   s8["Stap 8: Samen testen"]
   s9["Stap 9: Beheer: vervangen,<br/>intrekken"]
-  s1 --> s2 --> s3 --> s5 --> s6 --> s7 --> s8 --> s9
+  s1 --> s2 --> s3 --> s4 --> s5 --> s6 --> s7 --> s8 --> s9
   style s3 fill:#fdf2c8,stroke:#b5651d
   style s6 fill:#dcfce7,stroke:#15803d
   style s8 fill:#ede9fe,stroke:#7c3aed
