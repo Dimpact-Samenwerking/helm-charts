@@ -346,3 +346,25 @@ def test_a_native_components_heading_without_its_app_version_is_rewritten(writer
 
     assert "### frankgateway 100 → 104\n" in docs[UPGRADE]
     assert note in docs[UPGRADE]
+
+
+def test_a_stale_intro_baseline_is_rewritten_in_a_doc_already_at_the_baseline(writer_then_checker):
+    earlier_doc = (
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "This is the upgrade guide for environments already on **4.8.4**.\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| zac | 5.4.4 → 5.4.5 | 1.0.297 (unchanged) | - |\n\n"
+        "## Changes\n\n"
+        "### zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)\n\n"
+        "PodiumD 4.9.0 upgrades **zac** from app version 5.4.4\nto 5.4.5.\n\n"
+        "- Image tag pin `zac.image.tag` `5.4.4` → `5.4.5` in\n  `charts/podiumd/values.yaml`.\n\n"
+        "- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).\n"
+    )
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC], "values": {"zac": zac("5.4.4")}},
+        {"version": "4.9.0", "deps": [ZAC], "values": {"zac": zac("5.4.5")}, "files": {f"docs/{UPGRADE}": earlier_doc}},
+    )
+
+    assert "environments already on **4.8.5**." in docs[UPGRADE]

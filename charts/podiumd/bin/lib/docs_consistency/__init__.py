@@ -53,6 +53,7 @@ from lib.release_baseline import resolve_baseline_chart_state
 from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
+from lib.upgradedoc.baseline_intro import baseline_intro_mismatches
 from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.consistency_checks import find_changes_duplicate_identities
 from lib.upgradedoc.consistency_checks import find_changes_row_correspondence_gaps
@@ -184,9 +185,12 @@ def _build_docs_check_context(chart_dir: Path, doc_dir: Path, podiumd_version: s
 
 
 def _doc_header_mismatches(doc_path: Path, ctx: DocsCheckContext) -> list[str]:
-    """Title check on the selected upgrade doc (fix-doc-consistency clears stale TODO placeholders)."""
-    if ctx.doc_query.is_bare_version and ctx.doc_query.upgrade_docs_baseline:
-        return check_doc_title(doc_path, ctx.doc_query.upgrade_docs_baseline, ctx.doc_query.podiumd_version)
+    """Title and intro checks on the selected upgrade doc (fix-doc-consistency clears stale TODO placeholders)."""
+    baseline = ctx.doc_query.upgrade_docs_baseline
+    if ctx.doc_query.is_bare_version and baseline:
+        return check_doc_title(doc_path, baseline, ctx.doc_query.podiumd_version) + baseline_intro_mismatches(
+            doc_path.name, doc_path.read_text(encoding="utf-8"), baseline
+        )
     return []
 
 

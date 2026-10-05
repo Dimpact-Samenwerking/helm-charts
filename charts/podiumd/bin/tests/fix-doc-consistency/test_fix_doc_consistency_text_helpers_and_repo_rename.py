@@ -212,7 +212,7 @@ def set_argv_and_dir(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch, doc_dir, 
     monkeypatch.setattr(cdb, "current_chart_version", lambda: target)
 
 
-def test_main_renames_and_updates_title_and_heading(cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch):
+def test_main_renames_and_updates_title_heading_and_intro(cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch):
     set_argv_and_dir(cdb, monkeypatch, repo, "4.8.3")
     cdb.main()  # success path must not raise
 
@@ -220,7 +220,7 @@ def test_main_renames_and_updates_title_and_heading(cdb: ModuleType, repo, monke
     upgrade = (repo / "4.8.3-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
     assert upgrade.splitlines()[0] == "# Upgrade guide: PodiumD 4.8.3 → 4.9.0"
     assert "## Component versions (4.9.0 vs 4.8.3)" in upgrade
-    assert "already on **4.8.2**" in upgrade  # free-form prose left for manual review
+    assert "already on **4.8.3**" in upgrade
 
     deltas = (repo / "4.8.3-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
     assert deltas.splitlines()[0] == "# Values deltas — PodiumD 4.8.3 → 4.9.0"

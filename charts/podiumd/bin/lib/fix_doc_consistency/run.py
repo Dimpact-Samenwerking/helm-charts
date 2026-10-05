@@ -68,6 +68,7 @@ from lib.image.docs import update_stale_app_version_headings
 from lib.image.manifest_entry_pins import sync_entry_pins
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
+from lib.upgradedoc.baseline_intro import fix_baseline_intro
 from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
 from lib.upgradedoc.doc_names import doc_name
@@ -210,18 +211,26 @@ def _fix_refs_and_stubs(text: str, suffix: str, target: str, new_baseline: str) 
     return text, refs_changed, todo_stripped
 
 
+def _fix_intro(text: str, suffix: str, new_baseline: str) -> tuple[str, bool]:
+    """The upgrade doc's intro sentence pointed at new_baseline; other docs have none."""
+    if suffix != "upgrade":
+        return text, False
+    return fix_baseline_intro(text, new_baseline)
+
+
 def _rebase_already_at_baseline(doc: DocRename, target: str, new_baseline: str, acc: RebaseAccumulator):
-    """Fix stale sibling refs, TODO stubs and double blank lines in a doc already at new_baseline."""
-    text, refs_changed, todo_stripped = _fix_refs_and_stubs(
-        doc.path.read_text(encoding="utf-8"), doc.suffix, target, new_baseline
-    )
+    """Fix a stale intro, sibling refs, TODO stubs and double blank lines in a doc already at new_baseline."""
+    text, intro_changed = _fix_intro(doc.path.read_text(encoding="utf-8"), doc.suffix, new_baseline)
+    text, refs_changed, todo_stripped = _fix_refs_and_stubs(text, doc.suffix, target, new_baseline)
     collapsed_text = collapse_multiple_blank_lines(text)
     blank_lines_fixed = collapsed_text != text
-    if not (refs_changed or blank_lines_fixed or todo_stripped):
+    if not (intro_changed or refs_changed or blank_lines_fixed or todo_stripped):
         print(f"  {doc.path.name}: already baseline {new_baseline} — unchanged")
         return
     doc.path.write_text(collapsed_text, encoding="utf-8")
     parts: list[str] = []
+    if intro_changed:
+        parts.append(f"intro baseline -> {new_baseline}")
     if todo_stripped:
         parts.append("removed stale TODO placeholder")
         acc.todo_stub_docs.append(doc.path.name)
@@ -235,13 +244,14 @@ def _rebase_already_at_baseline(doc: DocRename, target: str, new_baseline: str, 
 def _rebase_doc_to_new_baseline(
     paths: FixDocPaths, doc: DocRename, target: str, new_baseline: str, acc: RebaseAccumulator
 ):
-    """Rename doc onto new_baseline and rewrite its title, heading, refs and stubs."""
+    """Rename doc onto new_baseline and rewrite its title, heading, intro, refs and stubs."""
     new_name = doc_name(new_baseline, target, doc.suffix)
     new_path = paths.doc_dir / new_name
     text = doc.path.read_text(encoding="utf-8")
 
     text, title_changed = update_title_line(text, doc.old_baseline, target, new_baseline)
     text, heading_changed = update_component_versions_heading(text, doc.old_baseline, target, new_baseline)
+    text, intro_changed = _fix_intro(text, doc.suffix, new_baseline)
     text, refs_changed, todo_stripped = _fix_refs_and_stubs(text, doc.suffix, target, new_baseline)
 
     if doc.path != new_path:
@@ -253,6 +263,8 @@ def _rebase_doc_to_new_baseline(
         print(f"    title line: {doc.old_baseline} -> {new_baseline}")
     if heading_changed:
         print(f"    'Component versions' heading: {doc.old_baseline} -> {new_baseline}")
+    if intro_changed:
+        print(f"    intro baseline: -> {new_baseline}")
     if refs_changed:
         print(f"    sibling doc references: -> {new_baseline}-to-{target}-*.md")
     if todo_stripped:

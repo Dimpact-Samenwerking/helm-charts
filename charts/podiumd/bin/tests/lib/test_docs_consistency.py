@@ -1,11 +1,13 @@
-"""lib.docs_consistency: the "Component versions" source-cell check."""
+"""lib.docs_consistency: the "Component versions" source-cell check and the upgrade doc header checks."""
 
 from pathlib import Path
 from types import ModuleType
+from types import SimpleNamespace
 
 import pytest
 
 from lib.docs_consistency.check_context import ComponentRowsResult
+from lib.docs_consistency.check_context import DocQuery
 from lib.docs_consistency.check_context import RowContext
 
 # --- _check_row_baseline_versions ---
@@ -46,3 +48,18 @@ def test_check_row_baseline_versions_accepts_the_cell_fix_doc_consistency_writes
     libdocsconsistency: ModuleType, app_source: str | None, baseline_app: str | None
 ):
     assert not _source_app_mismatches(libdocsconsistency, app_source, baseline_app)
+
+
+# --- _doc_header_mismatches ---
+
+
+def test_doc_header_flags_a_stale_intro_baseline(libdocsconsistency: ModuleType, tmp_path: Path):
+    doc = tmp_path / "4.9.3-to-4.10.0-upgrade.md"
+    doc.write_text(
+        "# Upgrade guide: PodiumD 4.9.3 → 4.10.0\n\nThis is the upgrade guide for environments already on **4.9.1**.\n",
+        encoding="utf-8",
+    )
+    ctx = SimpleNamespace(doc_query=DocQuery(tmp_path, "4.10.0", "4.9.3", is_bare_version=True))
+    assert libdocsconsistency._doc_header_mismatches(doc, ctx) == [
+        "4.9.3-to-4.10.0-upgrade.md intro names baseline **4.9.1**, not **4.9.3**"
+    ]

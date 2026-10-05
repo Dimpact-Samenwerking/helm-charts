@@ -5,7 +5,8 @@ Rebase and repair the upgrade docs of the current target version.
 Reads the target from Chart.yaml "version:" and the baseline from
 etc/release-baseline.yaml "upgrade_docs". Renames every
 docs/_UPGRADE_PATHS/<old>-to-<target>-*.md to the baseline and fixes
-titles, headings and cross-references. Creates missing docs as TODO stubs.
+titles, headings, the intro's baseline and cross-references. Creates
+missing docs as TODO stubs.
 
 Also repairs the content against Chart.yaml and values.yaml:
   - upgrade doc: component version table and "## Changes" sections,
