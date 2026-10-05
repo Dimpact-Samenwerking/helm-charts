@@ -1002,7 +1002,7 @@ PodiumD Helm chart
 | openinwoner.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/12"` |  |
 | openinwoner.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
 | openinwoner.settings.celery.resultBackendl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/12"` |  |
-| openinwoner.settings.cms4MigrationInitContainer | bool | `true` | New in openinwoner 2.3.0 (chart 2.2.0): runs an init container executing `manage.py cms4_migration` for the Django CMS v3 → v4 migration. Keep true for the first rollout to 2.3.0 so the one-time migration runs; flip to false in a follow-up release once every environment has completed it. Re-running is a no-op. |
+| openinwoner.settings.cms4MigrationInitContainer | bool | `false` | New in openinwoner 2.3.0 (chart 2.2.0): runs an init container executing `manage.py cms4_migration` for the one-time Django CMS v3 → v4 migration, which every environment completed when it rolled out 4.8.0. Off since 4.9.4: from openinwoner 2.4.5 (django-cms 5.0.11) the command crashes with `FieldError: Unsupported lookup 'node__site_id'` and blocks the web pod. |
 | openinwoner.settings.digidMock | string | `""` |  |
 | openinwoner.settings.eherkenningMock | string | `""` |  |
 | openinwoner.settings.email.port | int | `587` |  |
