@@ -506,11 +506,21 @@ redirect-URI/client-name churn for existing gemeente realms.
 2. ~~**Which public hostname survives**~~ — **RESOLVED**: the existing
    `<env>-objecten...` hostname survives unchanged (consistent with H.1: the
    merge keeps the `objecten` identity everywhere, including externally);
-   `<env>-objecttypen...` is retired. Per the DNS/CNAME investigation
-   (IN-2597): add a DNS **CNAME record for `<env>-objecttypen.dimpact.nl`
-   pointing at `<env>-objecten.dimpact.nl`** (its replacement host) per
-   environment, so external bookmarks/integrations still hitting the old
-   hostname keep resolving once `objecttypen`'s own HTTPRoute is removed.
+   `<env>-objecttypen...` is retired as a component. Per IN-2597 the old
+   hostname keeps working through the **ingress**, not DNS: the gateway route
+   for `<env>-objecttypen.<domain>` points at the objecten backend instead of
+   objecttypen (on aks-blue: the HTTPRoute `hr-objecttypen-nginx` backend
+   goes from `objecttypen-nginx` to `objecten-nginx`, or the ExternalName
+   Service `ingress-basic/objecttypen-nginx` is repointed to
+   `objecten.<namespace>.svc.cluster.local`). That hostname must then be in
+   `objecten.settings.allowedHosts`. A DNS CNAME alone does not work: the
+   gateway selects routes by Host header, so the objecttypen hostname still
+   needs a route, and with the route in place the existing DNS record can
+   stay. No `objecttypen` Service is needed in the chart; in-cluster
+   `objecttypen.<namespace>.svc.cluster.local` URLs stop resolving and must
+   be repointed to objecten (none found on ontw-dim1). Stored objecttype URLs
+   need no rewrite: Open Object 4 only matches the UUID. Full description,
+   NGF HTTPRoute example and test results: IN-2597.
    `settings.siteDomain` (now required) is set to the surviving `objecten`
    hostname. **Checked upstream for guidance — there is none** (confirmed
    against `docs/manual/migration.rst`, `docs/installation/config.rst`, and
@@ -577,9 +587,10 @@ All H.1–H.7 design decisions are now resolved; nothing left in this category.
 - [x] ~~H.2 — Which public hostname survives~~ — **RESOLVED**: the existing
       `<env>-objecten...` hostname survives; `<env>-objecttypen...` is
       retired. Implemented in `patches/02-values-yaml.patch`
-      (`settings.siteDomain`). **Retired-hostname redirect resolved by
-      IN-2597**: DNS CNAME from `<env>-objecttypen.dimpact.nl` to
-      `<env>-objecten.dimpact.nl` per environment.
+      (`settings.siteDomain`). **Retired hostname resolved by IN-2597**:
+      the ingress route for `<env>-objecttypen` points at objecten, and that
+      hostname is added to `objecten.settings.allowedHosts` (a CNAME alone
+      is not enough).
 - [x] ~~H.3 — Which Redis DB index to keep~~ — **RESOLVED**: keep objecten's
       (DB 1 cache / DB 2 celery), freeing objecttypen's old DB 0. Implemented
       in `patches/02-values-yaml.patch` and `patches/10-docs-redis-ha-databases.patch`.
