@@ -3,10 +3,15 @@
 # Images new or changed in podiumd 4.9.4 vs 4.9.3.
 #
 # Changes:
+#   1. openinwoner 2.4.3 -> 2.4.5 (chart 2.4.0, unchanged).
 #
 # See docs/_UPGRADE_PATHS/4.9.3-to-4.9.4-upgrade.md for the operator upgrade notes.
 #
 # Digests are the OCI image index (multi-arch manifest) digest as returned in
 # the Docker-Content-Digest response header from the source registry.
 
-[]
+# openinwoner 2.4.3 -> 2.4.5
+- name: maykinmedia/open-inwoner
+  url: docker.io/maykinmedia/open-inwoner
+  version: "2.4.5"
+  digest: "sha256:8267c7d49934c142f54a4ef8934425808ecfb1998a34f88f0e4a1d6ea2f577e6"

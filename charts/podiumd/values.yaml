@@ -2187,7 +2187,7 @@ openinwoner:
     volumeAttributeShareName: openinwoner
     storageClassName: podiumd-standard
   image:
-    tag: "2.4.3@sha256:c2ff751143c260874a1ebcdcc7e07dc213cffee70c3ea5a9589948e3f5da43e4"
+    tag: "2.4.5@sha256:8267c7d49934c142f54a4ef8934425808ecfb1998a34f88f0e4a1d6ea2f577e6"
   resources:
     requests:
       cpu: 200m
