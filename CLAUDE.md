@@ -7,7 +7,7 @@ Read [`.github/copilot-instructions.md`](.github/copilot-instructions.md) before
 - Lint/template/deploy commands and their required flags
 - Image reference conventions and ACR mirror behaviour
 - Resource requests/limits requirements
-- AKS-blue cluster rules (read-only; no direct `helm`/`kubectl` mutations)
+- AKS-blue cluster rules (changes via the pipeline first; direct `kubectl` fixes only for what the pipeline can't do)
 - Keycloak migration status (Bitnami → Hostzero Operator, active)
 - Release process (production, snapshot, images manifest, upgrade notes)
 - Dependency management (Renovate + manual `.tgz` workflow)

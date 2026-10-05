@@ -133,8 +133,9 @@ On aks-blue envs, all images pulled from env-specific ACR (set via `global.image
 Every Keycloak client with redirect URIs in `keycloak-podiumd-realm-config.yaml` must have an entry in its `$oidcClients` render check, gated on the component's `.enabled` (and the client's own `keycloak.config.clients.<name>.enabled` flag where it has one). Adding a client means adding that entry and a `ci.podiumd.test` URL in `ci/lint-values.yaml`. NEVER give the URL an `example.nl` default in `values.yaml`: keep it `""` and put the example in the `# --` comment.
 
 ### AKS-Blue Cluster Conventions
-- **Never** `helm install/upgrade/delete` or `kubectl apply/delete` directly against aks-blue. All changes via CI/CD pipeline.
-- Read-only ops OK: `kubectl get`, `logs`, `describe`, `helm status`, `helm template`. Always `--context <cluster-name>` with every `kubectl`.
+- Prefer the CI/CD pipeline for every change on aks-blue: deploy chart and values changes through it, not with `helm install/upgrade` or `kubectl apply` from a workstation.
+- The pipeline cannot fix everything (e.g. deleting dead nodes, restarting a stuck pod, repairing state inside an application's database). A direct `kubectl` change is acceptable for that, after confirming the pipeline can't do it. Record it in the environment's change log, and bring the chart or values in line afterwards where the cause lives there.
+- Read-only ops are always OK: `kubectl get`, `logs`, `describe`, `helm status`, `helm template`. Always `--context <cluster-name>` with every `kubectl`.
 - All workloads on aks-blue require `nodeSelector: kubernetes.azure.com/mode: user` — keycloak-operator, Keycloak CR pod template, all app workloads.
 
 ### Security Documentation
