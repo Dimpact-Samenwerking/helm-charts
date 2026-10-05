@@ -10,13 +10,14 @@ PodiumD Helm chart
 |------------|------|---------|
 | @adfinis | keycloak-operator | 1.13.0 |
 | @dimpact | brppersonenmock(brp-personen-mock) | 1.2.9 |
+| @maykinmedia | objecten | 2.12.1 |
+| @maykinmedia | objecttypen | 1.6.1 |
 | @maykinmedia | openarchiefbeheer | 2.0.0 |
 | @maykinmedia | openbeheer | 0.1.3 |
 | @maykinmedia | openformulieren(openforms) | 1.12.0 |
 | @maykinmedia | openinwoner | 2.4.0 |
 | @maykinmedia | openklant | 1.11.0 |
 | @maykinmedia | opennotificaties | 2.0.0 |
-| @maykinmedia | objecten(openobject) | 1.1.1 |
 | @maykinmedia | openzaak | 1.14.2 |
 | @maykinmedia | referentielijsten(referentielijsten) | 0.2.0 |
 | @opstree | redis-operator | 0.26.1 |
@@ -253,7 +254,7 @@ PodiumD Helm chart
 | global.images.postgres.repository | string | `"library/postgres"` |  |
 | global.images.postgres.tag | string | `"16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea"` |  |
 | global.settings.databaseHost | string | `""` |  |
-| ita.afdeling.type | string | `"https://ontw-objecten.example.nl/api/v2/objecttypes/REP_CONTACT_AFDELING_UUID_REP"` |  |
+| ita.afdeling.type | string | `"https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_AFDELING_UUID_REP"` |  |
 | ita.afdeling.typeVersion | int | `1` |  |
 | ita.afdeling.uuid | string | `"REP_CONTACT_AFDELING_UUID_REP"` |  |
 | ita.affinity | object | `{}` |  |
@@ -271,15 +272,15 @@ PodiumD Helm chart
 | ita.database.username | string | `"ita"` |  |
 | ita.enabled | bool | `true` |  |
 | ita.fullnameOverride | string | `"ita"` |  |
-| ita.groep.type | string | `"https://ontw-objecten.example.nl/api/v2/objecttypes/REP_CONTACT_GROEP_UUID_REP"` |  |
+| ita.groep.type | string | `"https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_GROEP_UUID_REP"` |  |
 | ita.groep.typeVersion | int | `1` |  |
 | ita.groep.uuid | string | `"REP_CONTACT_GROEP_UUID_REP"` |  |
 | ita.imagePullSecrets | list | `[]` |  |
 | ita.ingress.enabled | bool | `false` |  |
 | ita.ita.baseUrl | string | `"https://ita.example.nl"` |  |
-| ita.logboek.type | string | `"https://ontw-objecten.example.nl/api/v2/objecttypes/REP_ITA_ACTIVITEITENLOG_UUID_REP"` |  |
+| ita.logboek.type | string | `"https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_ITA_ACTIVITEITENLOG_UUID_REP"` |  |
 | ita.logboek.typeVersion | int | `1` |  |
-| ita.medewerker.type | string | `"https://ontw-objecten.example.nl/api/v2/objecttypes/REP_CONTACT_MEDEWERKER_UUID_REP"` |  |
+| ita.medewerker.type | string | `"https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_MEDEWERKER_UUID_REP"` |  |
 | ita.medewerker.typeVersion | int | `1` |  |
 | ita.medewerker.uuid | string | `"REP_CONTACT_MEDEWERKER_UUID_REP"` |  |
 | ita.nameOverride | string | `""` |  |
@@ -498,16 +499,17 @@ PodiumD Helm chart
 | kiss.adapter.image.pullPolicy | string | `"IfNotPresent"` |  |
 | kiss.adapter.image.repository | string | `"ghcr.io/icatt-menselijk-digitaal/podiumd-adapter"` |  |
 | kiss.adapter.image.tag | string | `"0.6.7@sha256:089d07a6efdfcab07b61b1a75b4d26c14099cc9b206a56419e36ef6f28a26a68"` |  |
-| kiss.adapter.objecten.afdelingUUID | string | `""` |  |
 | kiss.adapter.objecten.baseUrl | string | `""` |  |
-| kiss.adapter.objecten.baseUrlExtern | string | `""` |  |
-| kiss.adapter.objecten.baseUrlIntern | string | `""` |  |
-| kiss.adapter.objecten.groepUUID | string | `""` |  |
-| kiss.adapter.objecten.interneTaakUUID | string | `""` |  |
-| kiss.adapter.objecten.kennisartikelUUID | string | `""` |  |
-| kiss.adapter.objecten.medewerkerUUID | string | `""` |  |
 | kiss.adapter.objecten.token | string | `""` |  |
-| kiss.adapter.objecten.vacUUID | string | `""` |  |
+| kiss.adapter.objecttypen.afdelingUUID | string | `""` |  |
+| kiss.adapter.objecttypen.baseUrlExtern | string | `""` |  |
+| kiss.adapter.objecttypen.baseUrlIntern | string | `""` |  |
+| kiss.adapter.objecttypen.groepUUID | string | `""` |  |
+| kiss.adapter.objecttypen.interneTaakUUID | string | `""` |  |
+| kiss.adapter.objecttypen.kennisartikelUUID | string | `""` |  |
+| kiss.adapter.objecttypen.medewerkerUUID | string | `""` |  |
+| kiss.adapter.objecttypen.token | string | `""` |  |
+| kiss.adapter.objecttypen.vacUUID | string | `""` |  |
 | kiss.adapter.resources.limits.cpu | string | `"200m"` |  |
 | kiss.adapter.resources.limits.memory | string | `"256Mi"` |  |
 | kiss.adapter.resources.requests.cpu | string | `"10m"` |  |
@@ -617,29 +619,20 @@ PodiumD Helm chart
 | objecten.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://objecten.example.nl`. |
 | objecten.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
 | objecten.configuration.secrets.keycloak_client_secret | string | `""` |  |
-| objecten.create_required_objecttypen_job.activeDeadlineSeconds | int | `900` |  |
-| objecten.create_required_objecttypen_job.backoffLimit | int | `10` |  |
-| objecten.create_required_objecttypen_job.enabled | bool | `true` |  |
-| objecten.create_required_objecttypen_job.resources.limits.cpu | string | `"200m"` |  |
-| objecten.create_required_objecttypen_job.resources.limits.memory | string | `"128Mi"` |  |
-| objecten.create_required_objecttypen_job.resources.requests.cpu | string | `"50m"` |  |
-| objecten.create_required_objecttypen_job.resources.requests.memory | string | `"64Mi"` |  |
 | objecten.flower.enabled | bool | `false` |  |
 | objecten.fullnameOverride | string | `"objecten"` |  |
-| objecten.image.repository | string | `"maykinmedia/open-object"` |  |
-| objecten.image.tag | string | `"4.1.0@sha256:7738cb8161d221d0a286d39d9d270c35024ff78123c296ceb46f3d9dda7208f9"` |  |
+| objecten.image.repository | string | `"maykinmedia/objects-api"` |  |
+| objecten.image.tag | string | `"3.6.2@sha256:6a3a40081016e5072c5355622c0ca3e1ded89228edce7336fc4d8600217344f8"` |  |
 | objecten.nameOverride | string | `"objecten"` |  |
-| objecten.objecttypenAlias | object | `{"enabled":true}` | In-cluster `objecttypen` Service that selects the objecten pods, so URLs on the retired objecttypen service (http://objecttypen.<namespace>.svc.cluster.local) keep working after the Open Object 4 merge (IN-2597). Its host must be in `objecten.settings.allowedHosts`. |
 | objecten.otel.disabled | bool | `true` |  |
 | objecten.persistence.existingClaim | string | `"objecten"` |  |
-| objecten.persistence.mediaMountSubpath | string | `"objecten/media"` |  |
 | objecten.persistence.size | string | `"10Gi"` |  |
 | objecten.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | objecten.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | objecten.persistentVolume.volumeAttributeShareName | string | `"objecten"` |  |
 | objecten.resources.requests.cpu | string | `"100m"` |  |
 | objecten.resources.requests.memory | string | `"256Mi"` |  |
-| objecten.settings.allowedHosts | string | `"objecten.podiumd.svc.cluster.local,objecttypen.podiumd.svc.cluster.local"` |  |
+| objecten.settings.allowedHosts | string | `"objecten.podiumd.svc.cluster.local"` |  |
 | objecten.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/1"` |  |
 | objecten.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/1"` |  |
 | objecten.settings.cache.oidc | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/1"` |  |
@@ -649,14 +642,48 @@ PodiumD Helm chart
 | objecten.settings.disable2fa | bool | `false` |  |
 | objecten.settings.email.port | int | `587` |  |
 | objecten.settings.email.useTLS | bool | `true` |  |
-| objecten.settings.otel.disabled | bool | `true` |  |
-| objecten.settings.siteDomain | string | `"objecten.example.nl"` |  |
 | objecten.tags.redis | bool | `false` |  |
 | objecten.worker.livenessProbe.enabled | bool | `true` |  |
 | objecten.worker.maxWorkerLivenessDelta | string | `"300"` |  |
 | objecten.worker.replicaCount | int | `1` |  |
 | objecten.worker.resources.requests.cpu | string | `"50m"` |  |
 | objecten.worker.resources.requests.memory | string | `"192Mi"` |  |
+| objecttypen.configuration.data | string | `""` |  |
+| objecttypen.configuration.enabled | bool | `true` |  |
+| objecttypen.configuration.initContainer.enabled | bool | `false` |  |
+| objecttypen.configuration.job.backoffLimit | int | `6` |  |
+| objecttypen.configuration.job.enabled | bool | `true` |  |
+| objecttypen.configuration.job.resources | object | `{}` |  |
+| objecttypen.configuration.job.restartPolicy | string | `"OnFailure"` |  |
+| objecttypen.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
+| objecttypen.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://objecttypen.example.nl`. |
+| objecttypen.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
+| objecttypen.configuration.secrets.keycloak_client_secret | string | `""` |  |
+| objecttypen.configuration.token | string | `"<token>"` |  |
+| objecttypen.create_required_objecttypen_job.activeDeadlineSeconds | int | `900` |  |
+| objecttypen.create_required_objecttypen_job.backoffLimit | int | `10` |  |
+| objecttypen.create_required_objecttypen_job.enabled | bool | `true` |  |
+| objecttypen.create_required_objecttypen_job.resources.limits.cpu | string | `"200m"` |  |
+| objecttypen.create_required_objecttypen_job.resources.limits.memory | string | `"128Mi"` |  |
+| objecttypen.create_required_objecttypen_job.resources.requests.cpu | string | `"50m"` |  |
+| objecttypen.create_required_objecttypen_job.resources.requests.memory | string | `"64Mi"` |  |
+| objecttypen.fullnameOverride | string | `"objecttypen"` |  |
+| objecttypen.image.repository | string | `"maykinmedia/objecttypes-api"` |  |
+| objecttypen.image.tag | string | `"3.4.2@sha256:d366e6ede1bb924ea351495f4e88ceba53bb0df02fa5302929daef379131fda1"` |  |
+| objecttypen.nameOverride | string | `"objecttypen"` |  |
+| objecttypen.otel.disabled | bool | `true` |  |
+| objecttypen.resources.requests.cpu | string | `"10m"` |  |
+| objecttypen.resources.requests.memory | string | `"160Mi"` |  |
+| objecttypen.settings.allowedHosts | string | `"objecttypen.podiumd.svc.cluster.local"` |  |
+| objecttypen.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/0"` |  |
+| objecttypen.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/0"` |  |
+| objecttypen.settings.disable2fa | bool | `false` |  |
+| objecttypen.settings.email.port | int | `587` |  |
+| objecttypen.settings.email.useTLS | bool | `true` |  |
+| objecttypen.settings.uwsgi.maxRequests | string | `"1000"` |  |
+| objecttypen.settings.uwsgi.processes | string | `"2"` |  |
+| objecttypen.settings.uwsgi.threads | string | `"2"` |  |
+| objecttypen.tags.redis | bool | `false` |  |
 | omc.enabled | bool | `false` |  |
 | omc.fullnameOverride | string | `"omc"` |  |
 | omc.image.tag | string | `"1.17.19"` |  |
@@ -1184,7 +1211,7 @@ PodiumD Helm chart
 | persistentVolume.volumeAttributeShareName | string | `""` |  |
 | redis-operator.enabled | bool | `true` |  |
 | redis-operator.featureGates.GenerateConfigInInitContainer | bool | `true` |  |
-| redis-operator.redis-ha | object | `{"databases":32,"enabled":true,"image":{"repository":"quay.io/opstree/redis","tag":"v8.6.6@sha256:12724412997e6acc32783f8c3c1ce8a7657029e06f563ffc8cbd81e2e9de7628"},"initContainerImage":{"pullPolicy":"IfNotPresent","repository":"library/busybox","tag":"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"},"initContainerResources":{"limits":{"cpu":"50m","memory":"32Mi"},"requests":{"cpu":"10m","memory":"16Mi"}},"labelMasterCronJob":{"enabled":true,"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"},"nodeSelector":{},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"schedule":"*/2 * * * *"},"podSecurityContext":{"fsGroup":1000},"preDeleteJob":{"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"},"nodeSelector":{}},"redisConfig":{"additionalRedisConfig":""},"redisExporter":{"enabled":false,"image":{"repository":"quay.io/opstree/redis-exporter","tag":"v1.89.0@sha256:00a3628bdd3bb3423a15c5daefa328c471ee609798eed1744fe578c906d20cab"},"podMonitor":{"enabled":false,"interval":"30s","scrapeTimeout":"10s"}},"replicaCount":3,"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"256Mi"}},"serviceName":"redis-ha","storage":{"volumeClaimTemplate":{"spec":{"accessModes":["ReadWriteOnce"],"resources":{"requests":{"storage":"2Gi"}},"storageClassName":"managed-csi-premiumv2"}}}}` | Shared Redis HA cluster using the RedisReplication CRD from the OT Redis Operator. When redis-operator.redis-ha.enabled is true, individual Redis subcharts per service should be disabled:   servicename:     tags:       redis: false   # disables template references to .Subcharts.redis     redis:       enabled: false # prevents subchart installation  Database allocation:   objecten           : db 1  (cache), db 2  (celery) — since the objecten/objecttypen                        merge (H.3), also covers what used to be objecttypen's traffic;                        db 0 is freed.   opennotificaties   : db 3  (cache), db 6  (celery result backend; broker nu ook Redis i.p.v. RabbitMQ vanaf chart 2.0.0)   openzaak           : db 4  (cache), db 5  (celery)   openklant          : db 7  (cache), db 8  (celery)   openformulieren    : db 9  (cache), db 10 (celery)   openinwoner        : db 11 (cache), db 12 (celery)   openarchiefbeheer  : db 13 (cache+axes), db 14 (choices + celery)   referentielijsten  : db 15 (cache), db 16 (reserved — celery not yet used)   openbeheer         : db 17 (cache), db 18 (reserved — celery not yet used)   <future component> : db 19 (cache), db 20 (celery)   db 21–31           : unallocated See docs/apps/redis/redis-ha-databases.md for the full allocation table and guidance. |
+| redis-operator.redis-ha | object | `{"databases":32,"enabled":true,"image":{"repository":"quay.io/opstree/redis","tag":"v8.6.6@sha256:12724412997e6acc32783f8c3c1ce8a7657029e06f563ffc8cbd81e2e9de7628"},"initContainerImage":{"pullPolicy":"IfNotPresent","repository":"library/busybox","tag":"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"},"initContainerResources":{"limits":{"cpu":"50m","memory":"32Mi"},"requests":{"cpu":"10m","memory":"16Mi"}},"labelMasterCronJob":{"enabled":true,"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"},"nodeSelector":{},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"schedule":"*/2 * * * *"},"podSecurityContext":{"fsGroup":1000},"preDeleteJob":{"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"},"nodeSelector":{}},"redisConfig":{"additionalRedisConfig":""},"redisExporter":{"enabled":false,"image":{"repository":"quay.io/opstree/redis-exporter","tag":"v1.89.0@sha256:00a3628bdd3bb3423a15c5daefa328c471ee609798eed1744fe578c906d20cab"},"podMonitor":{"enabled":false,"interval":"30s","scrapeTimeout":"10s"}},"replicaCount":3,"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"256Mi"}},"serviceName":"redis-ha","storage":{"volumeClaimTemplate":{"spec":{"accessModes":["ReadWriteOnce"],"resources":{"requests":{"storage":"2Gi"}},"storageClassName":"managed-csi-premiumv2"}}}}` | Shared Redis HA cluster using the RedisReplication CRD from the OT Redis Operator. When redis-operator.redis-ha.enabled is true, individual Redis subcharts per service should be disabled:   servicename:     tags:       redis: false   # disables template references to .Subcharts.redis     redis:       enabled: false # prevents subchart installation  Database allocation:   objecttypen        : db 0  (cache)   objecten           : db 1  (cache), db 2  (celery)   opennotificaties   : db 3  (cache), db 6  (celery result backend; broker nu ook Redis i.p.v. RabbitMQ vanaf chart 2.0.0)   openzaak           : db 4  (cache), db 5  (celery)   openklant          : db 7  (cache), db 8  (celery)   openformulieren    : db 9  (cache), db 10 (celery)   openinwoner        : db 11 (cache), db 12 (celery)   openarchiefbeheer  : db 13 (cache+axes), db 14 (choices + celery)   referentielijsten  : db 15 (cache), db 16 (reserved — celery not yet used)   openbeheer         : db 17 (cache), db 18 (reserved — celery not yet used)   <future component> : db 19 (cache), db 20 (celery)   db 21–31           : unallocated See docs/apps/redis/redis-ha-databases.md for the full allocation table and guidance. |
 | redis-operator.redis-ha.databases | int | `32` | Number of Redis databases to configure. Applied via an initContainer because `databases` is a startup-only parameter and the OT redis-operator does not include the additionalRedisConfig ConfigMap in the main redis.conf (operator limitation in v0.24.0). |
 | redis-operator.redis-ha.initContainerImage | object | `{"pullPolicy":"IfNotPresent","repository":"library/busybox","tag":"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"}` | Image used by the initContainer that appends `databases N` to redis.conf. Override this in environments that restrict public Docker Hub pulls (e.g. point to an ACR mirror). |
 | redis-operator.redis-ha.initContainerResources | object | `{"limits":{"cpu":"50m","memory":"32Mi"},"requests":{"cpu":"10m","memory":"16Mi"}}` | Resources for the initContainer that configures redis.conf. |
@@ -1319,8 +1346,8 @@ PodiumD Helm chart
 | zac.notificationsSecretKey | string | `"changeme"` |  |
 | zac.objectenApi.token | string | `"objectentoken"` |  |
 | zac.objectenApi.url | string | `"http://objecten.example.nl"` |  |
-| zac.objecttypenApi.token | string | `"objectentoken"` |  |
-| zac.objecttypenApi.url | string | `"http://objecten.example.nl"` |  |
+| zac.objecttypenApi.token | string | `"objecttypentoken"` |  |
+| zac.objecttypenApi.url | string | `"http://objecttypen.example.nl"` |  |
 | zac.office_converter.image.tag | string | `"8.36.0@sha256:87c16b9f364279d321bc9772d31fa58aa6abe036423c270698bd636c3a8e9466"` |  |
 | zac.opa.image.tag | string | `"1.19.1-static@sha256:32bf41d914b1505fea13303f60587cc57bdd2902262177585fb208f5dde76d32"` |  |
 | zac.opa.resources.requests.cpu | string | `"10m"` |  |
