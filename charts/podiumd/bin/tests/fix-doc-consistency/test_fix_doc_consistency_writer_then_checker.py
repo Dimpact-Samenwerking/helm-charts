@@ -368,3 +368,19 @@ def test_a_stale_intro_baseline_is_rewritten_in_a_doc_already_at_the_baseline(wr
     )
 
     assert "environments already on **4.8.5**." in docs[UPGRADE]
+
+
+def test_a_doc_without_a_changes_heading_gets_one_section_per_component(writer_then_checker):
+    earlier_doc = (
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+    )
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC], "values": {"zac": zac("5.4.4")}},
+        {"version": "4.9.0", "deps": [ZAC], "values": {"zac": zac("5.4.5")}, "files": {f"docs/{UPGRADE}": earlier_doc}},
+    )
+
+    assert docs[UPGRADE].count("## Changes\n") == 1
+    assert docs[UPGRADE].count("### zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)") == 1

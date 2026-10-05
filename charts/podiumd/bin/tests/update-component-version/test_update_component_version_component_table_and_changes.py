@@ -323,9 +323,10 @@ def test_insert_changes_section_inserted_in_values_yaml_order(libcomponentdocsch
     assert new_text.index("### openformulieren") < new_text.index("### zac")
 
 
-def test_insert_changes_section_no_changes_heading_appends_at_end(libcomponentdocschanges: ModuleType):
+def test_insert_changes_section_no_changes_heading_adds_it_at_end(libcomponentdocschanges: ModuleType):
+    """Without the heading, a later run would not find the block and add it again."""
     text = "# Doc\n\nno changes section here\n"
     new_text = libcomponentdocschanges.insert_changes_section(
         text, "### new section\n", "openformulieren", libcomponentdocschanges.OrderingContext([], {})
     )
-    assert new_text.endswith("### new section\n")
+    assert new_text == "# Doc\n\nno changes section here\n\n## Changes\n\n### new section\n"

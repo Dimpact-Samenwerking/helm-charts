@@ -140,13 +140,16 @@ def component_insertion_index(new_name: str, existing_names: Sequence[str], orde
     return insertion_index(ordering.key(new_name), [ordering.key(name) for name in existing_names])
 
 
+CHANGES_HEADING = "## Changes"
+
+
 def changes_section_bounds(lines: list[str]) -> tuple[int | None, int]:
     """(changes_idx, section_end) for "## Changes"; (None, len(lines)) if absent.
 
     section_end is the next "## " heading or len(lines)."""
     changes_idx = None
     for i, line in enumerate(lines):
-        if line.strip() == "## Changes":
+        if line.strip() == CHANGES_HEADING:
             changes_idx = i
             break
     if changes_idx is None:

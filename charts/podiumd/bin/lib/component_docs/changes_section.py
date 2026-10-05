@@ -36,6 +36,7 @@ from lib.upgradedoc.consistency_checks import rowed_component_keys
 from lib.upgradedoc.doc_names import images_manifest_name
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.resolve_component_row import resolve_component_row
+from lib.upgradedoc.sorting_and_ordering import CHANGES_HEADING
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.upgradedoc.sorting_and_ordering import block_for_component
@@ -460,14 +461,15 @@ def insert_changes_section(text: str, section_text: str, friendly: str, ordering
     """Insert section_text into "## Changes" in values.yaml component order.
     Appended before the next "## " heading (or EOF) when the section has no
     blocks yet, after stripping both stub TODO placeholders (one event);
-    appended at EOF when the section doesn't exist."""
+    appended at EOF under a new "## Changes" heading when the section
+    doesn't exist, so later runs find the block instead of adding it again."""
     blocks = parse_upgrade_doc_changes_blocks(text)
     lines = text.splitlines(keepends=True)
     changes_idx, section_end = changes_section_bounds(lines)
     if changes_idx is None:
         if text and not text.endswith("\n\n"):
             text = text.rstrip("\n") + "\n\n"
-        return text + section_text
+        return f"{text}{CHANGES_HEADING}\n\n{section_text}"
 
     if not blocks:
         insert_at = _insert_index_for_empty_changes_section(lines, changes_idx, section_end)
