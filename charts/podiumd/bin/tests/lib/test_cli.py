@@ -88,8 +88,11 @@ def test_flag_args_returns_the_given_flags(monkeypatch: pytest.MonkeyPatch, argv
     assert flag_args("doc", "--dry-run") == set(argv)
 
 
-def test_flag_args_prints_help_for_h_anywhere(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
-    monkeypatch.setattr("sys.argv", ["script", "--dry-run", "-h"])
+@pytest.mark.parametrize("argv", [["-h"], ["-h", "--dry-run"], ["--dry-run", "-h"], ["--help"], ["--bogus", "-h"]])
+def test_flag_args_prints_help_for_h_anywhere(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], argv: list[str]
+):
+    monkeypatch.setattr("sys.argv", ["script", *argv])
     with pytest.raises(SystemExit) as exc:
         flag_args("doc", "--dry-run")
     assert exc.value.code == 0

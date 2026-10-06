@@ -150,3 +150,4 @@ def test_a_chart_only_bump(ucv: ModuleType, chart: Path, monkeypatch: pytest.Mon
     written = bump(ucv, chart, monkeypatch, "kiss", "3.0.0", "3.0.1")
 
     assert "| kiss | 3.0.0 (unchanged) | 3.0.0 → 3.0.1 | - |" in written[UPGRADE]
+    assert USER_NOTE in written[UPGRADE]

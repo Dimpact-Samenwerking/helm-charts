@@ -4,7 +4,6 @@ import io
 import tarfile
 
 from pathlib import Path
-from types import ModuleType
 from typing import TYPE_CHECKING
 
 import pytest
@@ -50,7 +49,7 @@ def make_tgz(charts_dir, name, version, values, raw_files=None):
 # --- fix_images_manifest_entry_urls ---
 
 
-def test_fix_images_manifest_entry_urls_restores_stripped_host(cdb: ModuleType, tmp_path: Path):
+def test_fix_images_manifest_entry_urls_restores_stripped_host(tmp_path: Path):
     """An existing entry whose url lost its registry host gets the host restored."""
     write(
         tmp_path / "Chart.yaml",
@@ -105,7 +104,7 @@ def test_fix_images_manifest_entry_urls_restores_stripped_host(cdb: ModuleType, 
     assert "url: otel/opentelemetry-collector-contrib\n" not in new_text
 
 
-def test_fix_images_manifest_entry_urls_leaves_correct_url_untouched(cdb: ModuleType, images_manifest_chart_dir):
+def test_fix_images_manifest_entry_urls_leaves_correct_url_untouched(images_manifest_chart_dir):
     text = (
         "# zac 5.0.2 -> 5.1.0\n"
         "- name: infonl/zaakafhandelcomponent\n"
@@ -127,7 +126,7 @@ def test_fix_images_manifest_entry_urls_leaves_correct_url_untouched(cdb: Module
     assert new_text == text
 
 
-def test_fix_images_manifest_entry_urls_reports_url_line_with_trailing_text(cdb: ModuleType, images_manifest_chart_dir):
+def test_fix_images_manifest_entry_urls_reports_url_line_with_trailing_text(images_manifest_chart_dir):
     """A "url:" line with trailing text (a comment) is reported as unresolved and left as is, not a crash."""
     text = (
         "# zac 5.0.2 -> 5.1.0\n"
@@ -150,7 +149,7 @@ def test_fix_images_manifest_entry_urls_reports_url_line_with_trailing_text(cdb:
     assert new_text == text
 
 
-def test_fix_images_manifest_entry_urls_reports_unresolvable_entry(cdb: ModuleType, tmp_path: Path):
+def test_fix_images_manifest_entry_urls_reports_unresolvable_entry(tmp_path: Path):
     write(tmp_path / "Chart.yaml", yaml.safe_dump({"dependencies": []}))
     write(tmp_path / "values.yaml", yaml.safe_dump({}))
     text = '- name: totally-unknown\n  url: example.com/totally-unknown\n  version: "1.0.0"\n'
@@ -188,7 +187,7 @@ def images_manifest_chart_dir(tmp_path: Path):
     return tmp_path
 
 
-def test_add_missing_images_manifest_entries_appends_new_entry(cdb: ModuleType, images_manifest_chart_dir):
+def test_add_missing_images_manifest_entries_appends_new_entry(images_manifest_chart_dir):
     text = "# Baseline: podiumd 4.8.5.\n"
     deps: list[ChartDependency] = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
     target_values: YamlMapping = {
@@ -217,9 +216,7 @@ def test_add_missing_images_manifest_entries_appends_new_entry(cdb: ModuleType, 
     assert 'digest: "sha256:aaaa"' in new_text
 
 
-def test_add_missing_images_manifest_entries_genuinely_new_image_renders_new(
-    cdb: ModuleType, images_manifest_chart_dir
-):
+def test_add_missing_images_manifest_entries_genuinely_new_image_renders_new(images_manifest_chart_dir):
     """A brand-new image (no baseline, no historical manifest) renders "(new)", not a self-transition."""
     text = "# Baseline: podiumd 4.8.5.\n"
     deps: list[ChartDependency] = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
@@ -249,7 +246,7 @@ def test_add_missing_images_manifest_entries_genuinely_new_image_renders_new(
     assert "(digest changed)" not in new_text
 
 
-def test_add_missing_images_manifest_entries_moved_repository_gets_real_transition(cdb: ModuleType, tmp_path: Path):
+def test_add_missing_images_manifest_entries_moved_repository_gets_real_transition(tmp_path: Path):
     """A repository that moved anchors (postgres into global.images) renders its real transition, not "(new)"."""
     write(
         tmp_path / "Chart.yaml",
@@ -298,9 +295,7 @@ def test_add_missing_images_manifest_entries_moved_repository_gets_real_transiti
     assert "(new)" not in new_text
 
 
-def test_add_missing_images_manifest_entries_catches_same_version_changed_digest(
-    cdb: ModuleType, images_manifest_chart_dir
-):
+def test_add_missing_images_manifest_entries_catches_same_version_changed_digest(images_manifest_chart_dir):
     """A same-version, changed-digest re-pin is added, not only detected.
 
     Guards that the list-diff call here passes both `values=` and `baseline_values=`.
@@ -333,9 +328,7 @@ def test_add_missing_images_manifest_entries_catches_same_version_changed_digest
     assert "clamav 1.5.4 -> 1.5.4" not in new_text
 
 
-def test_add_missing_images_manifest_entries_name_is_stripped_url_is_fully_qualified(
-    cdb: ModuleType, images_manifest_chart_dir
-):
+def test_add_missing_images_manifest_entries_name_is_stripped_url_is_fully_qualified(images_manifest_chart_dir):
     """The "name:" is the stripped repo_map key; the "url:" is the fully host-qualified repository, since a
     hostless url is wrong for Docker Hub images."""
     text = ""
@@ -358,9 +351,7 @@ def test_add_missing_images_manifest_entries_name_is_stripped_url_is_fully_quali
     assert "url: ghcr.io/infonl/zaakafhandelcomponent" in new_text
 
 
-def test_add_missing_images_manifest_entries_real_version_bump_keeps_arrow_wording(
-    cdb: ModuleType, images_manifest_chart_dir
-):
+def test_add_missing_images_manifest_entries_real_version_bump_keeps_arrow_wording(images_manifest_chart_dir):
     """A real version bump keeps "<old> -> <new>"; "(digest changed)" is only for same-version re-pins."""
     text = ""
     deps: list[ChartDependency] = [{"name": "curl", "version": "1.0.0"}]
@@ -387,9 +378,7 @@ def test_add_missing_images_manifest_entries_real_version_bump_keeps_arrow_wordi
     assert "digest changed" not in new_text
 
 
-def test_add_missing_images_manifest_entries_docker_hub_repository_gets_docker_io_host(
-    cdb: ModuleType, images_manifest_chart_dir
-):
+def test_add_missing_images_manifest_entries_docker_hub_repository_gets_docker_io_host(images_manifest_chart_dir):
     """A hostless Docker Hub "repository:" gets a "docker.io/..." url."""
     text = ""
     deps: list[ChartDependency] = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
@@ -409,9 +398,7 @@ def test_add_missing_images_manifest_entries_docker_hub_repository_gets_docker_i
     assert "url: docker.io/curlimages/curl" in new_text
 
 
-def test_add_missing_images_manifest_entries_separate_registry_key_is_used_for_url(
-    cdb: ModuleType, images_manifest_chart_dir
-):
+def test_add_missing_images_manifest_entries_separate_registry_key_is_used_for_url(images_manifest_chart_dir):
     """A sibling "registry:" key is authoritative for the url, not parse_repo's Docker Hub inference."""
     text = ""
     deps: list[ChartDependency] = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
@@ -433,9 +420,7 @@ def test_add_missing_images_manifest_entries_separate_registry_key_is_used_for_u
     assert "url: mcr.microsoft.com/azure-cli" in new_text
 
 
-def test_add_missing_images_manifest_entries_noop_when_entry_already_covers_it(
-    cdb: ModuleType, images_manifest_chart_dir
-):
+def test_add_missing_images_manifest_entries_noop_when_entry_already_covers_it(images_manifest_chart_dir):
     text = (
         "# zac — 5.0.2 -> 5.1.0\n"
         "- name: infonl/zaakafhandelcomponent\n"
@@ -465,7 +450,7 @@ def test_add_missing_images_manifest_entries_noop_when_entry_already_covers_it(
     assert new_text == text
 
 
-def test_add_missing_images_manifest_entries_skips_when_no_digest_pinned(cdb: ModuleType, images_manifest_chart_dir):
+def test_add_missing_images_manifest_entries_skips_when_no_digest_pinned(images_manifest_chart_dir):
     """A tag without "@sha256:" is reported as skipped, not written incomplete (digest is required)."""
     write(
         images_manifest_chart_dir / "values.yaml",
@@ -498,9 +483,7 @@ def test_add_missing_images_manifest_entries_skips_when_no_digest_pinned(cdb: Mo
     assert new_text == text
 
 
-def test_add_missing_images_manifest_entries_eck_operator_split_digest_field_resolves(
-    cdb: ModuleType, images_manifest_chart_dir
-):
+def test_add_missing_images_manifest_entries_eck_operator_split_digest_field_resolves(images_manifest_chart_dir):
     """eck-operator's split "tag:"/"digest:" pin resolves its digest from the "digest:" sibling."""
     text = "# Baseline: podiumd 4.9.1.\n"
     deps: list[ChartDependency] = [{"name": "eck-operator", "version": "3.5.0"}]
@@ -569,7 +552,7 @@ def eck_stack_chart_dir(tmp_path: Path):
 
 
 def test_add_missing_images_manifest_entries_allow_pull_fetches_digest_from_registry(
-    cdb: ModuleType, eck_stack_chart_dir, monkeypatch: pytest.MonkeyPatch
+    eck_stack_chart_dir, monkeypatch: pytest.MonkeyPatch
 ):
     """With allow_pull=True, a digest missing from values.yaml is fetched from the registry."""
     deps: list[ChartDependency] = [{"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}]
@@ -603,7 +586,7 @@ def test_add_missing_images_manifest_entries_allow_pull_fetches_digest_from_regi
 
 
 def test_add_missing_images_manifest_entries_allow_pull_false_never_touches_network(
-    cdb: ModuleType, eck_stack_chart_dir, monkeypatch: pytest.MonkeyPatch
+    eck_stack_chart_dir, monkeypatch: pytest.MonkeyPatch
 ):
     """allow_pull=False never calls the registry: skipped."""
     deps: list[ChartDependency] = [{"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}]
@@ -632,7 +615,7 @@ def test_add_missing_images_manifest_entries_allow_pull_false_never_touches_netw
 
 
 def test_add_missing_images_manifest_entries_allow_pull_registry_miss_still_skips(
-    cdb: ModuleType, eck_stack_chart_dir, monkeypatch: pytest.MonkeyPatch
+    eck_stack_chart_dir, monkeypatch: pytest.MonkeyPatch
 ):
     """A registry miss (exists=False) is still reported as skipped."""
     deps: list[ChartDependency] = [{"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}]
@@ -686,9 +669,7 @@ def keycloak_operator_chart_dir(tmp_path: Path):
     return tmp_path
 
 
-def test_add_missing_images_manifest_entries_split_tag_sha_primary_gets_entry(
-    cdb: ModuleType, keycloak_operator_chart_dir
-):
+def test_add_missing_images_manifest_entries_split_tag_sha_primary_gets_entry(keycloak_operator_chart_dir):
     """A split "tag:"/"sha:" primary image reads its digest from "sha:" instead of being skipped."""
     text = ""
     deps: list[ChartDependency] = [{"name": "keycloak-operator", "version": "1.12.1"}]
@@ -725,9 +706,7 @@ def test_add_missing_images_manifest_entries_split_tag_sha_primary_gets_entry(
     assert 'digest: "sha256:9d1f1b2b"' in new_text
 
 
-def test_add_missing_images_manifest_entries_split_tag_sha_no_sha_override_still_skipped(
-    cdb: ModuleType, keycloak_operator_chart_dir
-):
+def test_add_missing_images_manifest_entries_split_tag_sha_no_sha_override_still_skipped(keycloak_operator_chart_dir):
     """No values.yaml override for "sha:" (subchart default not visible): still skipped."""
     write(
         keycloak_operator_chart_dir / "values.yaml",
@@ -785,9 +764,7 @@ def global_image_chart_dir(tmp_path: Path):
     return tmp_path
 
 
-def test_add_missing_images_manifest_entries_global_image_gets_one_entry_not_per_alias(
-    cdb: ModuleType, global_image_chart_dir
-):
+def test_add_missing_images_manifest_entries_global_image_gets_one_entry_not_per_alias(global_image_chart_dir):
     """A shared global.images.* anchor gets one entry (bare basename, under "global"), none per alias."""
     text = ""
     deps: list[ChartDependency] = []
@@ -817,9 +794,7 @@ def test_add_missing_images_manifest_entries_global_image_gets_one_entry_not_per
     assert "apiproxy" not in new_text
 
 
-def test_add_missing_images_manifest_entries_skips_image_with_no_resolvable_repository(
-    cdb: ModuleType, images_manifest_chart_dir
-):
+def test_add_missing_images_manifest_entries_skips_image_with_no_resolvable_repository(images_manifest_chart_dir):
     """An image with no own override and no subchart default is unresolvable, so never auto-added."""
     write(
         images_manifest_chart_dir / "Chart.yaml",
@@ -872,9 +847,7 @@ def test_add_missing_images_manifest_entries_skips_image_with_no_resolvable_repo
 # --- remove_stale_images_manifest_entries ---
 
 
-def test_remove_stale_images_manifest_entries_removes_entry_back_at_baseline(
-    cdb: ModuleType, images_manifest_chart_dir
-):
+def test_remove_stale_images_manifest_entries_removes_entry_back_at_baseline(images_manifest_chart_dir):
     """zac reverted to its baseline version and digest: the entry, its
     comment and its "# Changes:" item are removed."""
     text = (
@@ -906,7 +879,7 @@ def test_remove_stale_images_manifest_entries_removes_entry_back_at_baseline(
     assert "# Changes:\n" in new_text
 
 
-def test_remove_stale_images_manifest_entries_keeps_changed_digest(cdb: ModuleType, images_manifest_chart_dir):
+def test_remove_stale_images_manifest_entries_keeps_changed_digest(images_manifest_chart_dir):
     """Same version as baseline but a new digest is a real change, so the entry stays."""
     text = (
         "# Changes:\n"
@@ -934,9 +907,7 @@ def test_remove_stale_images_manifest_entries_keeps_changed_digest(cdb: ModuleTy
     assert new_text == text
 
 
-def test_remove_stale_images_manifest_entries_keeps_entry_without_resolvable_repository(
-    cdb: ModuleType, tmp_path: Path
-):
+def test_remove_stale_images_manifest_entries_keeps_entry_without_resolvable_repository(tmp_path: Path):
     """An entry with no resolvable repository can't be judged unchanged: it stays for a human and the
     check still reports it."""
     write(
@@ -959,7 +930,7 @@ def test_remove_stale_images_manifest_entries_keeps_entry_without_resolvable_rep
 # --- fix_images_manifest_entry_names ---
 
 
-def test_fix_images_manifest_entry_names_uses_url_minus_registry_host(cdb: ModuleType):
+def test_fix_images_manifest_entry_names_uses_url_minus_registry_host():
     """An entry named without Docker Hub's implicit "library/" is renamed to its url minus the host."""
     text = '- name: python\n  url: docker.io/library/python\n  version: "3.14.7-slim"\n'
     repo_map = {"library/python": ("keycloak-operator", "initImage")}
@@ -970,7 +941,7 @@ def test_fix_images_manifest_entry_names_uses_url_minus_registry_host(cdb: Modul
     assert new_text == '- name: library/python\n  url: docker.io/library/python\n  version: "3.14.7-slim"\n'
 
 
-def test_fix_images_manifest_entry_names_leaves_known_and_unknown_names(cdb: ModuleType):
+def test_fix_images_manifest_entry_names_leaves_known_and_unknown_names():
     """A known-repository name stays, as does one whose url resolves to nothing known (left for the check)."""
     text = "- name: azure-cli\n  url: mcr.microsoft.com/azure-cli\n- name: mystery\n  url: docker.io/acme/mystery\n"
     repo_map = {"azure-cli": ("mi", "image")}
@@ -981,7 +952,7 @@ def test_fix_images_manifest_entry_names_leaves_known_and_unknown_names(cdb: Mod
     assert new_text == text
 
 
-def test_fix_images_manifest_entry_names_renames_a_known_name_that_is_not_its_url(cdb: ModuleType):
+def test_fix_images_manifest_entry_names_renames_a_known_name_that_is_not_its_url():
     """A known name that isn't its url's key is renamed: after the url correction, the url is what is pulled."""
     text = '- name: "library/postgres"\n  url: docker.io/library/python\n'
     repo_map = {"library/postgres": ("zac", "db", "image"), "library/python": ("keycloak-operator", "initImage")}
@@ -992,7 +963,7 @@ def test_fix_images_manifest_entry_names_renames_a_known_name_that_is_not_its_ur
     assert new_text == '- name: "library/python"\n  url: docker.io/library/python\n'
 
 
-def test_fix_images_manifest_entry_names_skips_a_name_another_entry_has(cdb: ModuleType):
+def test_fix_images_manifest_entry_names_skips_a_name_another_entry_has():
     text = "- name: python\n  url: docker.io/library/python\n- name: library/python\n  url: docker.io/library/python\n"
     repo_map = {"library/python": ("keycloak-operator", "initImage")}
 

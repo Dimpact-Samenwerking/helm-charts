@@ -32,7 +32,7 @@ to 2.5.5.
 """
 
 
-def test_find_reports_each_aliased_path_without_a_bullet():
+def test_add_reports_each_aliased_path_without_a_bullet():
     assert add_missing_pin_bullets(DOC, GROUPS)[1] == [
         MissingPinBullet("redis-operator - k8s 1.37.0 → 1.37.1", K8S[0], K8S[1]),
         MissingPinBullet("openbao 2.5.4 → 2.5.5 (chart 0.28.4, unchanged)", BAO[1], BAO[0]),
@@ -57,7 +57,7 @@ def test_add_copies_the_bullet_for_the_aliased_path():
     ) in text
 
 
-def test_add_is_idempotent_and_the_result_passes_find():
+def test_add_is_idempotent():
     text, _ = add_missing_pin_bullets(DOC, GROUPS)
     assert not add_missing_pin_bullets(text, GROUPS)[1]
     assert add_missing_pin_bullets(text, GROUPS) == (text, [])
