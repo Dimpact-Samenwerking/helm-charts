@@ -164,7 +164,7 @@ def insert_images_manifest_header_item(lines: list[str], item_text: str) -> None
     sorts after it adds. Renumbers
     via renumber_images_manifest_changes_items, which also repairs gaps.
     """
-    header_idx, _header_has_count, _item_indices = find_images_manifest_changes_items(lines)
+    header_idx = find_images_manifest_changes_header(lines)[0]
     if header_idx is None:
         return
     # Placeholder number; renumbered below.

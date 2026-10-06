@@ -163,8 +163,7 @@ def scan_digest_pins(lines: list[str]) -> list[DigestPin]:
 def scan_version_pins(lines: list[str]) -> list[VersionPin]:
     """Every "tag:" pin with its resolved repository, digest None for a bare tag.
 
-    Only for release-table comparisons; everything else needs the
-    digest-required scan.
+    scan_digest_pins keeps the pins that have a digest.
     """
     pins: list[VersionPin] = []
     for i, raw in enumerate(lines):
