@@ -13,6 +13,7 @@ from lib.chart.chart_state import ComponentState
 from lib.chart.chart_yaml import ChartDependency
 from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
 from lib.upgradedoc.doc_names import images_manifest_path
+from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
 
 if TYPE_CHECKING:
@@ -472,7 +473,10 @@ def test_add_missing_component_rows_skips_own_unchanged_component(libcomponentdo
     )
     state = ComponentState(deps, values)
     new_text, added_names = libcomponentdocschanges.add_missing_component_rows(
-        text, libcomponentdocschanges.DocContext(tmp_path, "4.9.1"), state, state, {"zac"}
+        text,
+        libcomponentdocschanges.DocContext(tmp_path, "4.9.1"),
+        ResolutionContext(tmp_path, state, BaselineState(deps, values)),
+        {"zac"},
     )
     assert added_names == []
     assert "zac" not in new_text
@@ -491,8 +495,7 @@ def test_add_missing_component_rows_still_adds_a_real_bump(libcomponentdocschang
     new_text, added_names = libcomponentdocschanges.add_missing_component_rows(
         text,
         libcomponentdocschanges.DocContext(tmp_path, "4.9.1"),
-        ComponentState(deps, current_values),
-        ComponentState(deps, baseline_values),
+        ResolutionContext(tmp_path, ComponentState(deps, current_values), BaselineState(deps, baseline_values)),
         {"zac"},
     )
     assert added_names == ["zac"]

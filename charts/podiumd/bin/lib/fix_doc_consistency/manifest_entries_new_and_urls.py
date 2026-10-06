@@ -42,6 +42,7 @@ from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.chart_image_index import ChartImageIndex
+from lib.upgradedoc.chart_image_index import StateImageIndexes
 from lib.upgradedoc.grouped_comments_and_changes_block import path_display_name
 from lib.upgradedoc.images_manifest_list_diff import ManifestDiffContext
 from lib.upgradedoc.images_manifest_list_diff import ManifestDiffInputs
@@ -70,9 +71,8 @@ class UrlFixContext:
 class MissingEntriesContext:
     """Inputs for adding missing / removing stale manifest entries.
 
-    target_index: the target's ChartImageIndex when the caller already has
-    one. Reuse one context for every pass of a run: its resolution is
-    built once.
+    indexes: the caller's StateImageIndexes, built when None. Reuse one
+    context for every pass of a run: its resolution is built once.
     """
 
     chart_dir: Path
@@ -81,7 +81,7 @@ class MissingEntriesContext:
     baseline_values: YamlMapping | None
     allow_pull: bool = False
     upgrade_docs_baseline: str | None = None
-    target_index: ChartImageIndex | None = None
+    indexes: StateImageIndexes | None = None
 
     @cached_property
     def resolution(self) -> "MissingEntriesResolution":
@@ -267,9 +267,10 @@ def _manifest_list_diff(
 
 def _entries_resolution(context: MissingEntriesContext) -> MissingEntriesResolution:
     """Shared per-run resolution for adding and removing entries."""
-    target = context.target_index or ChartImageIndex(context.chart_dir, context.deps, context.target_values)
-    # Grouped against baseline_values: where each repository lived in the baseline.
-    baseline = ChartImageIndex(context.chart_dir, context.deps, context.baseline_values)
+    indexes = context.indexes or StateImageIndexes.build(
+        context.chart_dir, context.deps, context.target_values, context.baseline_values
+    )
+    target, baseline = indexes.target, indexes.baseline_values
     path_to_repo = {path: repo for repo, group_paths in target.repo_groups.items() for path in group_paths}
     return MissingEntriesResolution(
         target.paths,

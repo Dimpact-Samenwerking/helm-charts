@@ -3,9 +3,7 @@
 import re
 
 from collections.abc import Mapping
-from pathlib import Path
 
-from lib.chart.chart_yaml import ChartDependency
 from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
 from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.images_manifest import ManifestEntry
@@ -46,13 +44,9 @@ def _rewrite_entry_pin(lines: list[str], start: int, tag: str) -> None:
 
 
 def sync_entry_pins(
-    text: str,
-    chart_dir: Path,
-    deps: list[ChartDependency],
-    values: YamlMapping,
-    sibling_fields: dict[tuple[str, ...], DigestPinningException],
+    text: str, index: ChartImageIndex, sibling_fields: dict[tuple[str, ...], DigestPinningException]
 ) -> tuple[str, list[str]]:
-    """Rewrite version:/digest: of entries whose pin differs; digest-less pins are left alone.
+    """Rewrite version:/digest: of entries whose pin differs from `index`'s; digest-less pins are left alone.
 
     Returns (new_text, [entry name, ...]).
     """
@@ -60,10 +54,9 @@ def sync_entry_pins(
     if parsed is None:
         return text, []
     lines = parsed.lines
-    index = ChartImageIndex(chart_dir, deps, values)
     synced: list[str] = []
     for start, entry in zip(parsed.entry_line_indices, parsed.entries, strict=True):
-        _path, tag = entry_pin(entry, values, index.paths, index.repo_map, sibling_fields)
+        _path, tag = entry_pin(entry, index.values, index.paths, index.repo_map, sibling_fields)
         if tag is None or "@" not in tag or tag == f"{entry.get('version')}@{entry.get('digest')}":
             continue
         _rewrite_entry_pin(lines, start, tag)

@@ -73,6 +73,7 @@ from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.baseline_intro import fix_baseline_intro
 from lib.upgradedoc.chart_image_index import ChartImageIndex
+from lib.upgradedoc.chart_image_index import StateImageIndexes
 from lib.upgradedoc.consistency_checks import find_changes_row_correspondence_gaps
 from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
 from lib.upgradedoc.doc_names import doc_name
@@ -191,6 +192,14 @@ class RebaseState:
         return removed_image_paths(self.resolution.target_index, self.baseline_index)
 
     @cached_property
+    def image_indexes(self) -> StateImageIndexes:
+        """The target index and the target deps with the baseline values, shared by the image writers."""
+        return StateImageIndexes(
+            self.resolution.target_index,
+            ChartImageIndex(self.paths.chart_dir, self.target_deps, self.baseline_values),
+        )
+
+    @cached_property
     def missing_entries_context(self) -> MissingEntriesContext:
         """One context for every images-manifest entry pass, so its resolution is built once."""
         return MissingEntriesContext(
@@ -200,7 +209,7 @@ class RebaseState:
             self.baseline_values,
             allow_pull=True,
             upgrade_docs_baseline=self.new_baseline,
-            target_index=self.resolution.target_index,
+            indexes=self.image_indexes,
         )
 
     @cached_property
@@ -465,9 +474,7 @@ def _add_missing_component_and_sidecar_rows(
 ) -> tuple[str, list[str], list[str]]:
     """Add rows and Changes sections for changed components/sidecars. Returns (text, added, added_sidecars)."""
     doc_ctx = DocContext(state.paths.chart_dir, state.target, upgrade_docs_baseline=state.new_baseline)
-    text, added_names = add_missing_component_rows(
-        text, doc_ctx, state.target_state, state.baseline_state, actual_changed_keys
-    )
+    text, added_names = add_missing_component_rows(text, doc_ctx, state.resolution, actual_changed_keys)
     print_section_items(
         f"Adding missing component row(s) + Changes section(s) to {upgrade_path.name}",
         [f"{name}" for name in added_names],
@@ -476,7 +483,9 @@ def _add_missing_component_and_sidecar_rows(
     if state.baseline_deps is None:
         return text, added_names, []
 
-    text, added_sidecar_names = add_missing_sidecar_rows(text, doc_ctx, state.target_state, state.baseline_values)
+    text, added_sidecar_names = add_missing_sidecar_rows(
+        text, doc_ctx, state.target_state, state.baseline_values, state.image_indexes
+    )
     print_section_items(
         f"Adding missing sidecar/shared-image row(s) + Changes section(s) to {upgrade_path.name}",
         [f"{name}" for name in added_sidecar_names],
@@ -618,11 +627,7 @@ def _sync_images_manifest_entry_pins(images_path: Path, state: RebaseState) -> N
     """Sets each entry's version/digest to the tag values.yaml pins."""
     text = images_path.read_text(encoding="utf-8")
     new_text, synced = sync_entry_pins(
-        text,
-        state.paths.chart_dir,
-        state.target_deps,
-        state.target_values,
-        digest_pinning_exceptions(state.paths.chart_dir),
+        text, state.resolution.target_index, digest_pinning_exceptions(state.paths.chart_dir)
     )
     if synced:
         images_path.write_text(new_text, encoding="utf-8")

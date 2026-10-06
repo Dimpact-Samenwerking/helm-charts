@@ -46,7 +46,7 @@ from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
-from lib.upgradedoc.chart_image_index import ChartImageIndex
+from lib.upgradedoc.chart_image_index import StateImageIndexes
 from lib.upgradedoc.consistency_checks import find_changes_row_correspondence_gaps
 from lib.upgradedoc.consistency_checks import resolve_component_identity
 from lib.upgradedoc.consistency_checks import rowed_sidecar_paths
@@ -114,13 +114,9 @@ class _SidecarRowContext:
     doc_context: DocContext
 
 
-def _sidecar_scan_state(
-    text: str, doc_context: DocContext, target_state: ComponentState, baseline_values: YamlMapping | None
-) -> _SidecarScanState:
+def _sidecar_scan_state(text: str, target_state: ComponentState, indexes: StateImageIndexes) -> _SidecarScanState:
     """Build _SidecarScanState (split out to limit local variables)."""
-    target = ChartImageIndex(doc_context.chart_dir, target_state.deps, target_state.values)
-    # Against baseline_values: where the repository lived in the baseline tree.
-    baseline = ChartImageIndex(doc_context.chart_dir, target_state.deps, baseline_values)
+    target, baseline = indexes.target, indexes.baseline_values
     matched_paths = rowed_sidecar_paths(parse_upgrade_doc_rows(text), target_state.deps, target.canonical_names)
     return _SidecarScanState(target.canonical_names, target.paths, baseline.paths, baseline.repo_groups, matched_paths)
 
@@ -176,7 +172,11 @@ def _add_sidecar_row(text: str, name: str, path: tuple[str, ...], ctx: _SidecarR
 
 
 def add_missing_sidecar_rows(
-    text: str, doc_context: DocContext, target_state: ComponentState, baseline_values: YamlMapping | None
+    text: str,
+    doc_context: DocContext,
+    target_state: ComponentState,
+    baseline_values: YamlMapping | None,
+    indexes: StateImageIndexes | None = None,
 ) -> tuple[str, list[str]]:
     """Insert a row and "### ..." section for every canonical sidecar/shared-image name missing one.
 
@@ -187,9 +187,14 @@ def add_missing_sidecar_rows(
     Paths new to the baseline resolve their old version via
     _resolve_sidecar_old_app.
 
+    indexes: the caller's StateImageIndexes, built here when None.
     Returns (new_text, added_names).
     """
-    state = _sidecar_scan_state(text, doc_context, target_state, baseline_values)
+    if indexes is None:
+        indexes = StateImageIndexes.build(
+            doc_context.chart_dir, target_state.deps, target_state.values, baseline_values
+        )
+    state = _sidecar_scan_state(text, target_state, indexes)
     ctx = _SidecarRowContext(state, target_state, baseline_values, doc_context)
     added_names: list[str] = []
     for name, path in sorted(state.canonical_names.items()):

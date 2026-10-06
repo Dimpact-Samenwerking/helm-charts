@@ -1,5 +1,6 @@
 """The image paths of one chart state and the maps derived from them, built in one place."""
 
+from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 
@@ -43,3 +44,27 @@ class ChartImageIndex:
     def canonical_names(self) -> dict[str, ImagePath]:
         """canonical_sidecar_row_names of `paths`: {doc row name: values path}."""
         return canonical_sidecar_row_names(self.chart_dir, self.deps, self.values, self.paths.keys())
+
+
+@dataclass(frozen=True)
+class StateImageIndexes:
+    """The target's ChartImageIndex, and the target's dependencies with the baseline values.
+
+    The second groups each repository where it lived in the baseline tree;
+    the sidecar-row and images-manifest writers compare against it. Built
+    once per run by the caller that has both trees.
+    """
+
+    target: ChartImageIndex
+    baseline_values: ChartImageIndex
+
+    @classmethod
+    def build(
+        cls,
+        chart_dir: Path | None,
+        deps: list[ChartDependency],
+        values: YamlMapping | None,
+        baseline_values: YamlMapping | None,
+    ) -> "StateImageIndexes":
+        """Both indexes from scratch, for a caller without them."""
+        return cls(ChartImageIndex(chart_dir, deps, values), ChartImageIndex(chart_dir, deps, baseline_values))

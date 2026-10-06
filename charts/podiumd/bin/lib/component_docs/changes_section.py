@@ -32,7 +32,6 @@ from lib.component_docs.owned_parts import remove_section_owned_parts
 from lib.component_docs.owned_parts import replace_section_owned_parts
 from lib.component_docs.owned_parts import template_prefix_re
 from lib.component_docs.owned_parts import template_re
-from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.consistency_checks import rowed_component_keys
 from lib.upgradedoc.doc_names import images_manifest_name
 from lib.upgradedoc.resolve_component_row import ResolutionContext
@@ -654,8 +653,7 @@ def _add_missing_row_for_key(
 def add_missing_component_rows(
     text: str,
     doc_context: DocContext,
-    target_state: ComponentState,
-    baseline_state: BaselineState,
+    resolution: ResolutionContext,
     actual_changed_keys: set[str],
 ) -> tuple[str, list[str]]:
     """Add a row and Changes section for every changed key without a row,
@@ -666,7 +664,8 @@ def add_missing_component_rows(
     (add those by hand). Native components get chart "-". An unresolvable
     app version gets "-" and a TODO-stub section. Returns
     (new_text, added_names)."""
-    canonical_names = ChartImageIndex(doc_context.chart_dir, target_state.deps, target_state.values).canonical_names
+    target_state, baseline_state = resolution.target, resolution.baseline
+    canonical_names = resolution.target_index.canonical_names
     matched_keys = rowed_component_keys(parse_upgrade_doc_rows(text), target_state.deps, canonical_names)
     added_names: list[str] = []
     for key in sorted(actual_changed_keys - matched_keys):
