@@ -359,6 +359,7 @@ def _correct_component_table(text: str, upgrade_path: Path, state: RebaseState):
     # Removed items' rows are written by _sync_removed_items.
     removed_names = {item.name for item in _removed_items_ordering(state)[0]}
     unmatched_names = [name for name in unmatched_names if name not in removed_names]
+    unresolved_names = [name for name in unresolved_names if name not in removed_names]
     if changed_rows:
         print_section(f"Correcting component version table in {upgrade_path.name}")
         for name, app_cell, chart_cell in changed_rows:

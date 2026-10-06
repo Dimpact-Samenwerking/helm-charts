@@ -4,6 +4,8 @@ writer_then_checker (conftest.py) also runs the writer a second time and
 requires that it changes nothing.
 """
 
+import pytest
+
 UPGRADE = "_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md"
 DELTAS = "_UPGRADE_PATHS/4.8.5-to-4.9.0-values-deltas.md"
 MANIFEST = "images/images-4.9.0.yaml"
@@ -115,7 +117,7 @@ def test_a_values_key_added_and_one_removed(writer_then_checker):
     assert "- Key `zac.oldFeature` was removed." in docs[DELTAS]
 
 
-def test_a_removed_component_and_image(writer_then_checker):
+def test_a_removed_component_and_image(writer_then_checker, capsys: pytest.CaptureFixture[str]):
     docs = writer_then_checker(
         {
             "version": "4.8.5",
@@ -133,6 +135,7 @@ def test_a_removed_component_and_image(writer_then_checker):
     assert "PodiumD 4.9.0 removes **kiss** (was 3.1.1)." in docs[UPGRADE]
     assert "kiss" not in docs[MANIFEST]
     assert "kiss" not in docs[DELTAS]
+    assert "review by hand" not in capsys.readouterr().out
 
 
 def test_a_shared_image_and_two_sidecars_of_one_parent_follow_values_yaml(writer_then_checker):
