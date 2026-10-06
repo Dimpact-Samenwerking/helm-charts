@@ -87,15 +87,10 @@
   version: "1.16.2"
   digest: "sha256:2988d538b30db30487ed89873877e1d22e12f80dfa42d80ec1a5c97265c7e4cd"
 
-- name: maykinmedia/objects-api
-  url: docker.io/maykinmedia/objects-api
-  version: "3.6.2"
-  digest: "sha256:6a3a40081016e5072c5355622c0ca3e1ded89228edce7336fc4d8600217344f8"
-
-- name: maykinmedia/objecttypes-api
-  url: docker.io/maykinmedia/objecttypes-api
-  version: "3.4.2"
-  digest: "sha256:d366e6ede1bb924ea351495f4e88ceba53bb0df02fa5302929daef379131fda1"
+- name: maykinmedia/open-object
+  url: docker.io/maykinmedia/open-object
+  version: "4.1.0"
+  digest: "sha256:7738cb8161d221d0a286d39d9d270c35024ff78123c296ceb46f3d9dda7208f9"
 
 - name: maykinmedia/open-archiefbeheer
   url: docker.io/maykinmedia/open-archiefbeheer
