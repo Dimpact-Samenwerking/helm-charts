@@ -315,6 +315,14 @@ def test_missing_key_change_lines_skips_line_present_verbatim(libupgradedocversi
     assert libupgradedocversioncells.missing_key_change_lines(text, lines) == ["- Key `zac.old` was removed.\n"]
 
 
+def test_missing_key_change_lines_line_inside_a_fenced_code_block_does_not_count(
+    libupgradedocversioncells: ModuleType,
+):
+    lines = ["- Key `zac.brpApi.logLevel` was added.\n"]
+    text = "## zac 1.0 → 1.1\n\n```markdown\n- Key `zac.brpApi.logLevel` was added.\n```\n"
+    assert libupgradedocversioncells.missing_key_change_lines(text, lines) == lines
+
+
 def test_missing_key_change_lines_prose_mention_does_not_count(libupgradedocversioncells: ModuleType):
     """A key named in user prose still needs its generated line, so every section has the same format."""
     lines = ["- Key `zac.brpApi.logLevel` was added.\n"]

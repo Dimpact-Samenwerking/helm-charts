@@ -4,6 +4,7 @@ import re
 
 from collections.abc import Iterable
 from collections.abc import Mapping
+from collections.abc import Sequence
 from typing import Literal
 from typing import TypedDict
 from typing import TypeVar
@@ -13,6 +14,7 @@ from lib.chart.registered_paths import native_components
 from lib.chart.values_tree_primitives import values_key_of
 
 COMPONENT_VERSIONS_HEADING_RE = re.compile(r"^##\s+Component versions\b")
+FENCE_LINE_RE = re.compile(r"^\s*```")
 
 # A sidecar/shared image by values-tree path, or a dependency/native component by values key.
 ComponentRef = tuple[Literal["sidecar"], tuple[str, ...]] | tuple[Literal["dep"], str]
@@ -333,3 +335,15 @@ def match_located_line(pattern: re.Pattern[str], line: str) -> re.Match[str]:
         msg = f"line does not match {pattern.pattern!r}: {line!r}"
         raise ValueError(msg)
     return m
+
+
+def fenced_line_flags(lines: Sequence[str]) -> list[bool]:
+    """Per line: True for a ``` fence line or a line inside a fenced code block."""
+    flags: list[bool] = []
+    in_fence = False
+    for line in lines:
+        is_fence = bool(FENCE_LINE_RE.match(line))
+        flags.append(in_fence or is_fence)
+        if is_fence:
+            in_fence = not in_fence
+    return flags

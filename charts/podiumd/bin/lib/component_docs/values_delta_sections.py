@@ -27,6 +27,7 @@ from lib.upgradedoc.sorting_and_ordering import block_for_component
 from lib.upgradedoc.sorting_and_ordering import component_insertion_index
 from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
+from lib.upgradedoc.string_and_parsing_basics import fenced_line_flags
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.version_cells_and_key_changes import KEY_ADDED
 from lib.upgradedoc.version_cells_and_key_changes import KEY_REMOVED
@@ -176,11 +177,13 @@ _TODO_HEADING_RE = re.compile(r"^(?P<name>.+?)(?: chart [^—]*)? — TODO: desc
 
 def values_delta_body_kinds(body: Sequence[str]) -> list[str | None]:
     """The owned-part kind of each line after a "## ..." heading: "keys" for a
-    describe_key_changes line, BLANK, or None for a user line."""
+    describe_key_changes line, BLANK, or None for a user line (any line of a fenced code block)."""
     kinds: list[str | None] = []
-    for line in body:
+    for line, fenced in zip(body, fenced_line_flags(body), strict=True):
         text = line.rstrip("\n")
-        if not text.strip():
+        if fenced:
+            kinds.append(None)
+        elif not text.strip():
             kinds.append(BLANK)
         elif any(r.match(text) for r in _KEY_LINE_RES):
             kinds.append("keys")

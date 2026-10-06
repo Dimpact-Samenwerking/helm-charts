@@ -7,6 +7,7 @@ from typing import overload
 from lib.upgradedoc.grouped_comments_and_changes_block import VERSION_SPEC_RE
 from lib.upgradedoc.grouped_comments_and_changes_block import diff_keys
 from lib.upgradedoc.grouped_comments_and_changes_block import pair_renames
+from lib.upgradedoc.string_and_parsing_basics import fenced_line_flags
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import YamlValue
@@ -143,11 +144,13 @@ def key_change_lines(values_key: str, baseline_values: YamlMapping | None, value
 
 
 def missing_key_change_lines(section_text: str, key_lines: list[str]):
-    """The key_lines not present as a whole line in section_text.
+    """The key_lines not present as a whole line in section_text, outside fenced code blocks.
 
-    Only the exact generated line counts: a key named in user prose still gets its
-    generated line, so every section lists its key changes in one fixed format."""
-    present = {line.strip() for line in section_text.splitlines()}
+    Only the exact generated line counts: a key named in user prose or shown as
+    an example still gets its generated line, so every section lists its key
+    changes in one fixed format."""
+    lines = section_text.splitlines()
+    present = {line.strip() for line, fenced in zip(lines, fenced_line_flags(lines), strict=True) if not fenced}
     return [line for line in key_lines if line.strip() not in present]
 
 

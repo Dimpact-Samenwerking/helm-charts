@@ -29,9 +29,7 @@ VERSION_SPEC_RE = re.compile(
 
 
 # "<version> (new)", "(unchanged)" or "(digest changed)": an item without a version pair.
-_SINGLE_VERSION_SPEC_RE = re.compile(
-    r"(?<!\S)(?P<version>[A-Za-z0-9][\w.\-]*)\s*\((?P<kind>new|unchanged|digest changed)\)"
-)
+_SINGLE_VERSION_SPEC_RE = re.compile(r"(?<!\S)(?P<version>v?\d[\w.\-]*)\s*\((?P<kind>new|unchanged|digest changed)\)")
 
 
 def find_preceding_comment(lines: list[str], entry_line_index: int) -> str:

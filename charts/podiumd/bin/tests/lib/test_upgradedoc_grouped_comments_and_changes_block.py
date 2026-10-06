@@ -319,6 +319,11 @@ def test_parse_changes_block_parses_items_without_a_version_pair(libupgradedocco
     ]
 
 
+def test_parse_changes_block_item_without_a_version_keeps_its_text_as_name(libupgradedoccomments: ModuleType):
+    items = libupgradedoccomments.parse_changes_block("# Changes:\n#   1. keycloak-operator (unchanged).\n")
+    assert [(i["name"], i["app_source"], i["app"]) for i in items] == [("keycloak-operator (unchanged).", None, None)]
+
+
 def test_parse_changes_block_no_header_returns_empty(libupgradedoccomments: ModuleType):
     assert libupgradedoccomments.parse_changes_block("# just a header\n# no changes block\n") == []
 

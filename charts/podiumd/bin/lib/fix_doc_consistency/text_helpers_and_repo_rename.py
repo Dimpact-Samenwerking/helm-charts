@@ -5,12 +5,12 @@ import re
 from pathlib import Path
 
 from lib.procutil import run
+from lib.upgradedoc.string_and_parsing_basics import fenced_line_flags
 
 TITLE_ARROW_RE_TMPL = r"(?P<baseline>{baseline})(?P<arrow>\s*(?:→|->)\s*){target}"
 COMPONENT_VERSIONS_RE_TMPL = r"Component versions \({target}\s+vs\s+(?P<baseline>{baseline})\)"
 
 HEADING_LINE_RE = re.compile(r"^#{1,6}\s")
-FENCE_LINE_RE = re.compile(r"^\s*```")
 
 
 def find_collisions(by_suffix: dict[str, list[tuple[str, Path]]]):
@@ -65,18 +65,13 @@ def remaining_mentions(text: str, old_baseline: str):
 def ensure_blank_lines_around_headings(text: str):
     """Insert missing blank lines around "#" headings (MD022).
 
-    Lines inside fenced code blocks are skipped via a per-line toggle
-    (strip_fenced_code_blocks would shift line numbers). No blank line is
-    added at the file's top or bottom."""
+    Lines inside fenced code blocks are skipped (fenced_line_flags). No
+    blank line is added at the file's top or bottom."""
     lines = text.splitlines(keepends=True)
+    fenced = fenced_line_flags(lines)
     result: list[str] = []
-    in_fence = False
     for i, line in enumerate(lines):
-        if FENCE_LINE_RE.match(line):
-            in_fence = not in_fence
-            result.append(line)
-            continue
-        if not in_fence and HEADING_LINE_RE.match(line):
+        if not fenced[i] and HEADING_LINE_RE.match(line):
             if result and result[-1].strip():
                 result.append("\n")
             result.append(line)

@@ -51,6 +51,19 @@ def test_removed_items_lists_a_removed_component_and_a_removed_sidecar(tmp_path:
     ]
 
 
+def test_a_removed_dependency_without_a_values_key_sorts_last(tmp_path: Path):
+    extra: ChartDependency = {"name": "extra-thing", "version": "0.1.0"}
+    target = ChartImageIndex(tmp_path, [ZAC], TARGET_VALUES)
+
+    items = removed_items(target, ChartImageIndex(tmp_path, [ZAC, KISS, extra], BASELINE_VALUES))
+
+    assert [(item.name, item.old_chart) for item in items] == [
+        ("zac - opa", None),
+        ("kiss", "3.1.1"),
+        ("extra-thing", "0.1.0"),
+    ]
+
+
 def test_sync_removed_items_writes_rows_and_sections_in_baseline_order(tmp_path: Path):
     items, ordering = _items_and_ordering(tmp_path)
 

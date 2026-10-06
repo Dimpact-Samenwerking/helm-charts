@@ -430,6 +430,26 @@ def test_main_does_not_duplicate_generated_key_change_line(
     assert "Adding missing key-change mention(s)" not in out
 
 
+def test_main_adds_key_change_line_shown_only_inside_a_fenced_code_block(
+    cdb: ModuleType,
+    repo_with_undocumented_schema_change,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """An example of the line in a ``` fence is user text, not the section's generated line."""
+    key_line = "- Key `zac.brpApi.protocollering.verwerking.extendWithZaaktype` was removed.\n"
+    example = "Example:\n\n```markdown\n" + key_line + "```\n"
+    doc = repo_with_undocumented_schema_change / "4.8.3-to-4.9.0-values-deltas.md"
+    doc.write_text(
+        "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\n## zac 5.0.2 → 5.1.0 (chart 1.0.297, unchanged)\n\n" + example,
+        encoding="utf-8",
+    )
+    set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_schema_change, "4.8.5")
+    cdb.main()
+
+    deltas = (repo_with_undocumented_schema_change / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
+    assert "## zac 5.0.2 → 5.1.0 (chart 1.0.297, unchanged)\n\n" + key_line + "\n" + example in deltas
+
+
 # --- main() integration: renumbering a pre-existing "# Changes:" gap ---
 
 

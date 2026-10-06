@@ -63,12 +63,14 @@ def removed_items(target: ChartImageIndex, baseline: ChartImageIndex) -> list[Re
 
 
 def _order_keys(target: ChartImageIndex, baseline: ChartImageIndex, removed: set[str]) -> dict[str, tuple[int, ...]]:
-    """{removed name: order key}: its nearest kept baseline predecessor's target key, then after it."""
+    """{removed name: order key}: its nearest kept baseline predecessor's target key, then after it.
+
+    A dependency without a top-level values.yaml key sorts after every keyed one.
+    """
     baseline_order = values_key_order(baseline.values)
     sequence = [
-        ((baseline_order.index(key), 0), key)
+        ((baseline_order.index(key) if key in baseline_order else len(baseline_order), 0), key)
         for key in (values_key_of(dep) for dep in baseline.deps)
-        if key in baseline_order
     ]
     sequence += [
         (path_order_key(path, baseline.deps, baseline_order, baseline.values), name)
