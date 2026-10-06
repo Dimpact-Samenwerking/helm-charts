@@ -30,6 +30,7 @@ from lib.component_docs.changes_section import fix_pointer_issues
 from lib.component_docs.changes_section import strip_stale_upgrade_placeholders
 from lib.component_docs.images_manifest_changes_header import renumber_images_manifest_changes_items
 from lib.component_docs.removed_item_docs import sync_removed_items
+from lib.component_docs.values_delta_sections import drop_removed_values_delta_sections
 from lib.component_docs.values_delta_sections import prune_empty_values_delta_sections
 from lib.component_docs.values_delta_sections import strip_stale_values_deltas_todo_stub
 from lib.component_docs.values_delta_sections import sync_values_delta_sections
@@ -49,6 +50,7 @@ from lib.fix_doc_consistency.manifest_entries_new_and_urls import MissingEntries
 from lib.fix_doc_consistency.manifest_entries_new_and_urls import add_missing_images_manifest_entries
 from lib.fix_doc_consistency.manifest_entries_new_and_urls import fix_images_manifest_entry_names
 from lib.fix_doc_consistency.manifest_entries_new_and_urls import fix_images_manifest_entry_urls
+from lib.fix_doc_consistency.manifest_entries_new_and_urls import remove_removed_images_manifest_entries
 from lib.fix_doc_consistency.manifest_entries_new_and_urls import remove_stale_images_manifest_entries
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import collapse_multiple_blank_lines
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import find_collisions
@@ -80,6 +82,7 @@ from lib.upgradedoc.images_manifest_ordering import ManifestSortContext
 from lib.upgradedoc.images_manifest_ordering import images_manifest_display_name_positions
 from lib.upgradedoc.images_manifest_ordering import sort_images_manifest_entries
 from lib.upgradedoc.removed_items import RemovedItem
+from lib.upgradedoc.removed_items import removed_image_paths
 from lib.upgradedoc.removed_items import removed_items
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
@@ -173,14 +176,24 @@ class RebaseState:
         )
 
     @cached_property
+    def baseline_index(self) -> ChartImageIndex | None:
+        """The baseline's ChartImageIndex; None when the baseline doesn't resolve."""
+        if self.baseline_deps is None:
+            return None
+        return ChartImageIndex(self.paths.chart_dir, self.baseline_deps, self.baseline_values)
+
+    @cached_property
+    def removed_image_paths(self) -> dict[ImagePath, str]:
+        """removed_image_paths vs the baseline; empty when it doesn't resolve."""
+        if self.baseline_index is None:
+            return {}
+        return removed_image_paths(self.resolution.target_index, self.baseline_index)
+
+    @cached_property
     def removed_items_ordering(self) -> tuple[list[RemovedItem], OrderingContext]:
         """The removed items vs the baseline, and the OrderingContext that places them."""
         target = self.resolution.target_index
-        items = (
-            removed_items(target, ChartImageIndex(self.paths.chart_dir, self.baseline_deps, self.baseline_values))
-            if self.baseline_deps is not None
-            else []
-        )
+        items = removed_items(target, self.baseline_index) if self.baseline_index is not None else []
         removed_keys = {item.name: item.order_key for item in items}
         return items, OrderingContext(self.target_deps, self.target_values, target.canonical_names, removed_keys)
 
@@ -660,6 +673,21 @@ def _remove_stale_images_manifest_entries(images_path: Path, state: RebaseState)
             print(f"  {name} (same version and digest as {state.new_baseline})")
 
 
+def _remove_removed_images_manifest_entries(images_path: Path, state: RebaseState):
+    """Remove entries (with comment and '# Changes:' item) of images the target no longer has."""
+    if state.baseline_index is None or not state.removed_image_paths:
+        return
+    text = images_path.read_text(encoding="utf-8")
+    new_text, removed_entry_names = remove_removed_images_manifest_entries(
+        text, _missing_entries_context(state), state.baseline_index, state.removed_image_paths
+    )
+    if removed_entry_names:
+        images_path.write_text(new_text, encoding="utf-8")
+        print_section(f"Removing entr(y/ies) of removed images from {images_path.name}")
+        for name in removed_entry_names:
+            print(f"  {name} (not in {state.target})")
+
+
 def _add_missing_images_manifest_entries(images_path: Path, state: RebaseState):
     """Add entries for changed images and backfill missing '# Changes:' items."""
     if not state.baseline_values:
@@ -764,6 +792,7 @@ def _fix_images_manifest_content(state: RebaseState, images_path: Path, upgrade_
     _correct_images_manifest_names(images_path, repo_map)
     _sync_images_manifest_entry_pins(images_path, state)
     _remove_stale_images_manifest_entries(images_path, state)
+    _remove_removed_images_manifest_entries(images_path, state)
     _correct_images_manifest_entries(images_path, state, repo_map)
     _add_missing_images_manifest_entries(images_path, state)
     _dedupe_images_manifest_changes_items(images_path)
@@ -814,6 +843,15 @@ def _fix_values_delta_headings(text: str, state: RebaseState, upgrade_path: Path
     return text, bool(updated_delta_headings)
 
 
+def _drop_removed_values_delta_sections(text: str, state: RebaseState, values_deltas_path: Path):
+    """Remove the generated key lines of removed components and images. Returns (text, changed)."""
+    text, dropped = drop_removed_values_delta_sections(text, state.removed_items_ordering[0])
+    return text, print_section_items(
+        f"Removing key-change mention(s) of removed component(s)/image(s) from {values_deltas_path.name}",
+        [f"'## {heading}'" for heading in dropped],
+    )
+
+
 def _prune_empty_values_delta_sections(text: str, values_deltas_path: Path):
     """Remove empty '## ...' sections. Returns (text, changed)."""
     text, pruned_headings = prune_empty_values_delta_sections(text)
@@ -857,6 +895,7 @@ def _fix_values_deltas(state: RebaseState, upgrade_path: Path, values_deltas_pat
 
     text, sections_changed = _sync_values_delta_sections(text, state, values_deltas_path, changed_keys, canonical_names)
     text, headings_changed = _fix_values_delta_headings(text, state, upgrade_path, values_deltas_path)
+    text, dropped = _drop_removed_values_delta_sections(text, state, values_deltas_path)
     text, pruned = _prune_empty_values_delta_sections(text, values_deltas_path)
     text, reordered = _sort_values_delta_sections(text, state, values_deltas_path, canonical_names)
 
@@ -865,7 +904,7 @@ def _fix_values_deltas(state: RebaseState, upgrade_path: Path, values_deltas_pat
     if blank_lines_fixed:
         print_section(f"Collapsing multiple consecutive blank line(s) in {values_deltas_path.name}")
 
-    if any([sections_changed, headings_changed, pruned, reordered, blank_lines_fixed]):
+    if any([sections_changed, headings_changed, dropped, pruned, reordered, blank_lines_fixed]):
         values_deltas_path.write_text(collapsed_text, encoding="utf-8")
 
 

@@ -1,6 +1,7 @@
 """fix-doc-consistency's images-manifest fixes: url/name repair, adding
 missing entries and removing stale ones."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -504,11 +505,15 @@ def add_missing_images_manifest_entries(
     return text, added_names, skipped_names, backfilled_names
 
 
-def _remove_stale_entry(
-    lines: list[str], entry_name: str, context: MissingEntriesContext, resolution: MissingEntriesResolution
+def _remove_entry(
+    lines: list[str],
+    entry_name: str,
+    display_name: str | None,
+    context: MissingEntriesContext,
+    resolution: MissingEntriesResolution,
 ):
-    """Delete the entry and its comment, and its "# Changes:" item unless
-    another entry has the same display name (lockstep component)."""
+    """Delete the entry and its comment, and the "# Changes:" item naming
+    display_name unless another entry has the same display name (lockstep component)."""
     entry_line = next(
         (i for i in entry_line_indices(lines) if (m := ENTRY_NAME_RE.match(lines[i])) and m.group(1) == entry_name),
         None,
@@ -516,11 +521,8 @@ def _remove_stale_entry(
     if entry_line is None:
         return
     delete_images_manifest_entry(lines, entry_line)
-
-    entry_path = resolve_entry_image_path(entry_name, resolution.current_paths.keys(), resolution.repo.repo_map)
-    if entry_path is None:
+    if display_name is None:
         return
-    display_name = path_display_name(entry_path, context.deps, resolution.canonical_names)
     remaining_display_names = {
         path_display_name(path, context.deps, resolution.canonical_names)
         for entry in try_parse_images_manifest("".join(lines)) or []
@@ -550,5 +552,31 @@ def remove_stale_images_manifest_entries(text: str, context: MissingEntriesConte
     ]
     lines = text.splitlines(keepends=True)
     for entry_name in removable_names:
-        _remove_stale_entry(lines, entry_name, context, resolution)
+        entry_path = resolve_entry_image_path(entry_name, resolution.current_paths.keys(), resolution.repo.repo_map)
+        display_name = (
+            None if entry_path is None else path_display_name(entry_path, context.deps, resolution.canonical_names)
+        )
+        _remove_entry(lines, entry_name, display_name, context, resolution)
     return "".join(lines), removable_names
+
+
+def remove_removed_images_manifest_entries(
+    text: str, context: MissingEntriesContext, baseline: ChartImageIndex, removed_paths: Mapping[ImagePath, str]
+) -> tuple[str, list[str]]:
+    """Delete every entry whose image the target no longer has, with its comment and "# Changes:" item.
+
+    An earlier bump in the cycle may have added it before its component or
+    image was removed. Entries resolve against the baseline, where the image
+    still is; removed_paths (removed_image_paths) names the removed item, the
+    display name its item uses. Returns (new_text, removed entry names).
+    """
+    resolution = _entries_resolution(context)
+    _missing_paths, _stale_entry_names, unmatched_entry_names = _manifest_list_diff(text, context, resolution)
+    lines = text.splitlines(keepends=True)
+    removed_names: list[str] = []
+    for entry_name in unmatched_entry_names:
+        path = resolve_entry_image_path(entry_name, baseline.paths.keys(), baseline.repo_map)
+        if path is not None and (display_name := removed_paths.get(path)) is not None:
+            _remove_entry(lines, entry_name, display_name, context, resolution)
+            removed_names.append(entry_name)
+    return "".join(lines), removed_names

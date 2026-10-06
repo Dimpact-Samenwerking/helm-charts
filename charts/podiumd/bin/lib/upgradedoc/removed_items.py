@@ -1,10 +1,13 @@
 """Components and images in the baseline but no longer in the target, as -upgrade.md lists them."""
 
+from collections.abc import Callable
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.values_tree_primitives import version_of
+from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.sorting_and_ordering import component_order_key
@@ -35,15 +38,12 @@ def removed_items(target: ChartImageIndex, baseline: ChartImageIndex) -> list[Re
     item sorts right after its nearest baseline predecessor that the target
     still has.
     """
-    target_keys = {values_key_of(dep) for dep in target.deps}
-    removed_deps = {values_key_of(dep): dep for dep in baseline.deps if values_key_of(dep) not in target_keys}
-    baseline_repo_of = {path: repo for repo, paths in baseline.repo_groups.items() for path in paths}
+    removed_deps = _removed_deps(target, baseline)
+    gone = _repository_gone(target, baseline)
     removed_images = {
         name: path
         for name, path in baseline.canonical_names.items()
-        if name not in target.canonical_names
-        and path[0] not in removed_deps
-        and baseline_repo_of.get(path) not in target.repo_groups
+        if name not in target.canonical_names and path[0] not in removed_deps and gone(path)
     }
     keys = _order_keys(target, baseline, set(removed_deps) | set(removed_images))
     items = [
@@ -60,6 +60,39 @@ def removed_items(target: ChartImageIndex, baseline: ChartImageIndex) -> list[Re
         for name, path in removed_images.items()
     ]
     return sorted(items, key=lambda item: item.order_key)
+
+
+def removed_image_paths(target: ChartImageIndex, baseline: ChartImageIndex) -> dict[ImagePath, str]:
+    """{baseline image path: name of the removed item it belongs to} for each image the target no longer has.
+
+    The images of a removed component belong to it; any other one to its own
+    baseline row name, as removed_items names them.
+    """
+    removed_deps = _removed_deps(target, baseline)
+    gone = _repository_gone(target, baseline)
+    name_of = {path: name for name, path in baseline.canonical_names.items()}
+    found: dict[ImagePath, str] = {}
+    for path in baseline.paths:
+        name = path[0] if path[0] in removed_deps else name_of.get(path)
+        if name is not None and gone(path):
+            found[path] = name
+    return found
+
+
+def _removed_deps(target: ChartImageIndex, baseline: ChartImageIndex) -> dict[str, ChartDependency]:
+    """{values key: baseline dependency} for each dependency the target no longer has."""
+    target_keys = {values_key_of(dep) for dep in target.deps}
+    return {values_key_of(dep): dep for dep in baseline.deps if values_key_of(dep) not in target_keys}
+
+
+def _repository_gone(target: ChartImageIndex, baseline: ChartImageIndex) -> Callable[[ImagePath], bool]:
+    """Whether a baseline path's repository is in no target repository group.
+
+    An image that merely moved to another path (e.g. now pinned through a
+    global image) keeps its repository, so it is not removed.
+    """
+    baseline_repo_of = {path: repo for repo, paths in baseline.repo_groups.items() for path in paths}
+    return lambda path: baseline_repo_of.get(path) not in target.repo_groups
 
 
 def _order_keys(target: ChartImageIndex, baseline: ChartImageIndex, removed: set[str]) -> dict[str, tuple[int, ...]]:

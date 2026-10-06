@@ -138,6 +138,61 @@ def test_a_removed_component_and_image(writer_then_checker, capsys: pytest.Captu
     assert "review by hand" not in capsys.readouterr().out
 
 
+def test_a_component_bumped_then_removed_leaves_no_manifest_entry_or_key_lines(writer_then_checker):
+    """An earlier bump documented kiss and a renamed key; then kiss was dropped from Chart.yaml."""
+    docs = writer_then_checker(
+        {
+            "version": "4.8.5",
+            "deps": [ZAC, KISS],
+            "values": {"zac": zac("5.4.4"), "kiss": {**kiss("3.1.1"), "feat": 1}},
+        },
+        {"version": "4.9.0", "deps": [ZAC], "values": {"zac": zac("5.4.5")}},
+        earlier={
+            "version": "4.9.0",
+            "deps": [ZAC, {**KISS, "version": "3.2.0"}],
+            "values": {"zac": zac("5.4.4"), "kiss": {**kiss("3.2.0"), "feat2": 1}},
+        },
+    )
+
+    assert "| kiss | 3.1.1 (removed) | 3.1.1 (removed) | - |" in docs[UPGRADE]
+    assert "kiss" not in docs[MANIFEST]
+    assert "kiss" not in docs[DELTAS]
+
+
+def test_a_sidecar_bumped_then_removed_leaves_no_manifest_entry(writer_then_checker):
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC], "values": {"zac": zac("5.4.4", opa=image("openpolicyagent/opa", "1.4.1"))}},
+        {"version": "4.9.0", "deps": [ZAC], "values": {"zac": zac("5.4.5")}},
+        earlier={
+            "version": "4.9.0",
+            "deps": [ZAC],
+            "values": {"zac": zac("5.4.4", opa=image("openpolicyagent/opa", "1.4.2"))},
+        },
+    )
+
+    assert "| zac - opa | 1.4.1 (removed) | - | - |" in docs[UPGRADE]
+    assert "opa" not in docs[MANIFEST]
+
+
+def test_user_text_in_the_values_deltas_section_of_a_removed_component_stays(writer_then_checker):
+    deltas = (
+        "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
+        "## kiss 3.1.1 → 3.2.0 (chart 3.1.1 → 3.2.0)\n\n"
+        "- Key `kiss.feat` was renamed to `kiss.feat2`.\n\n"
+        "Drop `kiss` from podiumd.yml.\n"
+    )
+    docs = writer_then_checker(
+        {
+            "version": "4.8.5",
+            "deps": [ZAC, KISS],
+            "values": {"zac": zac("5.4.4"), "kiss": {**kiss("3.1.1"), "feat": 1}},
+        },
+        {"version": "4.9.0", "deps": [ZAC], "values": {"zac": zac("5.4.5")}, "files": {f"docs/{DELTAS}": deltas}},
+    )
+
+    assert docs[DELTAS].endswith("## kiss 3.1.1 → 3.2.0 (chart 3.1.1 → 3.2.0)\n\nDrop `kiss` from podiumd.yml.\n")
+
+
 def test_removed_items_the_new_baseline_no_longer_has_are_dropped(
     writer_then_checker, capsys: pytest.CaptureFixture[str]
 ):

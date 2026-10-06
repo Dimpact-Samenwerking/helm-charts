@@ -17,10 +17,13 @@ from lib.component_docs.owned_parts import BLANK
 from lib.component_docs.owned_parts import SectionShape
 from lib.component_docs.owned_parts import edited_generated_lines
 from lib.component_docs.owned_parts import generated_heading_name
+from lib.component_docs.owned_parts import remove_section_owned_parts
 from lib.component_docs.owned_parts import replace_section_owned_parts
 from lib.component_docs.owned_parts import template_prefix_re
 from lib.component_docs.owned_parts import template_re
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
+from lib.upgradedoc.removed_items import RemovedItem
+from lib.upgradedoc.removed_items import removed_item_named
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.upgradedoc.sorting_and_ordering import block_for_component
@@ -328,6 +331,24 @@ def _keys_with_own_section(text: str, ordering: OrderingContext) -> set[str]:
         if len(idents) == 1 and (ident := next(iter(idents)))[0] == "dep":
             keys.add(ident[1])
     return keys
+
+
+def drop_removed_values_delta_sections(text: str, items: Sequence[RemovedItem]) -> tuple[str, list[str]]:
+    """Remove the generated key lines of each section naming a removed item, and the section if nothing is left.
+
+    The upgrade doc documents the removal; key lines of an earlier bump in
+    the cycle no longer apply. User text stays. Returns (new_text, headings changed).
+    """
+    by_name = {item.name: item for item in items}
+    changed: list[str] = []
+    for section in reversed(parse_values_delta_sections(text)):
+        if removed_item_named(section["heading"], by_name) is None:
+            continue
+        new_text, _removed, _kept_user_text = remove_section_owned_parts(text, section, _VALUES_DELTA_SHAPE)
+        if new_text != text:
+            text = new_text
+            changed.append(section["heading"])
+    return text, changed
 
 
 def prune_empty_values_delta_sections(text: str) -> tuple[str, list[str]]:
