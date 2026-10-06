@@ -9,6 +9,7 @@ under pylint's too-many-arguments/too-many-locals limits."""
 
 import re
 
+from collections.abc import Collection
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -383,12 +384,20 @@ def pointer_issues(text: str) -> list[PointerIssue]:
     return issues
 
 
-def fix_pointer_issues(text: str, target: str) -> tuple[str, list[PointerIssue]]:
+def fix_pointer_issues(
+    text: str, target: str, rowless_headings: Collection[str] = ()
+) -> tuple[str, list[PointerIssue]]:
     """Append a missing pointer after a blank line and add missing blank lines; duplicates are left.
 
+    A section in rowless_headings gets no pointer: it is what is left of a
+    removed row's section, the user text that must be resolved by hand.
     Returns (text, fixed issues).
     """
-    fixed = [issue for issue in pointer_issues(text) if issue.kind != "duplicate"]
+    fixed = [
+        issue
+        for issue in pointer_issues(text)
+        if issue.kind != "duplicate" and not (issue.kind == "missing" and issue.heading in rowless_headings)
+    ]
     lines = text.splitlines(keepends=True)
     for issue in sorted(fixed, key=lambda i: i.line, reverse=True):
         if issue.kind == "missing":

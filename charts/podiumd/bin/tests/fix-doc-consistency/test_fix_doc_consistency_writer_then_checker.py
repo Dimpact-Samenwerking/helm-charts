@@ -240,6 +240,32 @@ def test_a_component_bumped_and_reset_to_its_baseline_leaves_no_docs(writer_then
     assert "- name:" not in docs[MANIFEST]
 
 
+def test_a_component_reset_to_its_baseline_keeps_its_user_text_without_a_pointer(writer_then_checker):
+    """Only the generated parts of the section go; the user's note is left to resolve by hand."""
+    doc = (
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| zac | 5.4.4 → 5.4.5 | 1.0.297 (unchanged) | - |\n\n"
+        "## Changes\n\n"
+        "### zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)\n\n"
+        "Restart zac after the upgrade.\n\n"
+        "PodiumD 4.9.0 upgrades **zac** from app version 5.4.4\nto 5.4.5.\n\n"
+        "- Image tag pin `zac.image.tag` `5.4.4` → `5.4.5` in\n  `charts/podiumd/values.yaml`.\n\n"
+        "- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).\n"
+    )
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC], "values": {"zac": zac("5.4.4")}},
+        {"version": "4.9.0", "deps": [ZAC], "values": {"zac": zac("5.4.4")}, "files": {f"docs/{UPGRADE}": doc}},
+        by_hand=['"### zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)" has no matching row'],
+    )
+
+    assert docs[UPGRADE].endswith(
+        "### zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)\n\nRestart zac after the upgrade.\n"
+    )
+
+
 def test_a_shared_image_bumped_twice_is_documented_from_its_baseline(writer_then_checker):
     docs = writer_then_checker(
         {"version": "4.8.5", "deps": [ZAC], "values": with_curl({"zac": zac("5.4.4")}, "8.1.0")},

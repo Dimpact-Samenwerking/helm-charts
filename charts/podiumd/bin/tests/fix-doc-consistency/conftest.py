@@ -3,6 +3,7 @@
 import importlib.util
 import subprocess
 
+from collections.abc import Sequence
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from types import ModuleType
@@ -360,7 +361,12 @@ def _doc_snapshot(chart_dir: Path) -> dict[str, str]:
 
 class WriterThenChecker(Protocol):
     def __call__(
-        self, baseline: ChartState, target: ChartState, *, earlier: ChartState | None = None
+        self,
+        baseline: ChartState,
+        target: ChartState,
+        *,
+        earlier: ChartState | None = None,
+        by_hand: Sequence[str] = (),
     ) -> dict[str, str]: ...
 
 
@@ -374,9 +380,18 @@ def writer_then_checker(
     earlier bump in the same release cycle. Fails unless
     check_docs_consistency then reports nothing and a second
     fix-doc-consistency run changes nothing: writers and checker must agree.
+    With `by_hand`, the checker must instead report exactly that many
+    fix-by-hand findings, each containing one of the given texts, and
+    nothing fix-doc-consistency would change.
     """
 
-    def run(baseline: ChartState, target: ChartState, *, earlier: ChartState | None = None) -> dict[str, str]:
+    def run(
+        baseline: ChartState,
+        target: ChartState,
+        *,
+        earlier: ChartState | None = None,
+        by_hand: Sequence[str] = (),
+    ) -> dict[str, str]:
         git("init", "-q", cwd=tmp_path)
         git("config", "user.email", "test@example.com", cwd=tmp_path)
         git("config", "user.name", "Test", cwd=tmp_path)
@@ -403,7 +418,12 @@ def writer_then_checker(
         written = _doc_snapshot(tmp_path)
         capsys.readouterr()
         ok, detail = check_docs_consistency(tmp_path, upgrade_docs_baseline=baseline["version"])
-        assert ok, f"{detail}\n{capsys.readouterr().out}"
+        out = capsys.readouterr().out
+        if by_hand:
+            assert detail == f"{len(by_hand)} to fix by hand", f"{detail}\n{out}"
+            assert all(text in out for text in by_hand), out
+        else:
+            assert ok, f"{detail}\n{out}"
         cdb.main()
         assert _doc_snapshot(tmp_path) == written, "a second fix-doc-consistency run changed the docs"
         return written

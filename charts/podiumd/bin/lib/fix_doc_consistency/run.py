@@ -71,6 +71,7 @@ from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.baseline_intro import fix_baseline_intro
 from lib.upgradedoc.chart_image_index import ChartImageIndex
+from lib.upgradedoc.consistency_checks import find_changes_row_correspondence_gaps
 from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
 from lib.upgradedoc.doc_names import doc_name
 from lib.upgradedoc.doc_names import images_manifest_path
@@ -82,9 +83,11 @@ from lib.upgradedoc.removed_items import RemovedItem
 from lib.upgradedoc.removed_items import removed_items
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
+from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.sorting_and_ordering import sort_changes_blocks
 from lib.upgradedoc.sorting_and_ordering import sort_upgrade_doc_rows
 from lib.upgradedoc.sorting_and_ordering import sort_values_delta_sections
+from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import load_yaml_mapping
 
@@ -480,9 +483,13 @@ def _add_missing_pin_bullets(text: str, upgrade_path: Path, values_yaml: Path) -
     )
 
 
-def _fix_pointer_issues(text: str, upgrade_path: Path, target: str) -> tuple[str, bool]:
+def _fix_pointer_issues(text: str, upgrade_path: Path, state: RebaseState) -> tuple[str, bool]:
     """Add a missing "- Image / digest" pointer and the blank line before it. Returns (text, changed)."""
-    text, fixed = fix_pointer_issues(text, target)
+    headings = [block["heading"] for block in parse_upgrade_doc_changes_blocks(text)]
+    _rows_without_heading, rowless_headings = find_changes_row_correspondence_gaps(
+        parse_upgrade_doc_rows(text), headings, state.target_deps, state.resolution.target_index.canonical_names
+    )
+    text, fixed = fix_pointer_issues(text, state.target, rowless_headings)
     items = [f"'### {issue.heading}': {issue.kind.replace('-', ' ')}" for issue in fixed]
     return text, print_section_items(f"Fixing the image digest pointer in {upgrade_path.name}", items)
 
@@ -529,7 +536,7 @@ def _fix_upgrade_doc(state: RebaseState, upgrade_path: Path, actual_changed_keys
     changed.append(step_changed)
     text, step_changed = _add_missing_pin_bullets(text, upgrade_path, state.paths.values_yaml)
     changed.append(step_changed)
-    text, step_changed = _fix_pointer_issues(text, upgrade_path, state.target)
+    text, step_changed = _fix_pointer_issues(text, upgrade_path, state)
     changed.append(step_changed)
     text, step_changed = _sync_removed_items(text, state, upgrade_path)
     changed.append(step_changed)
