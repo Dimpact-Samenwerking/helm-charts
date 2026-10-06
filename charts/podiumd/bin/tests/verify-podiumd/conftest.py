@@ -371,10 +371,11 @@ def stub_ensure_vendored_dependencies(vp: ModuleType, monkeypatch: pytest.Monkey
 
 
 def _assert_would_change(out: str, *diff_lines: str) -> None:
-    """The finding is in the "fix-doc-consistency would change:" list, with each of diff_lines in its diff."""
+    """Each of diff_lines is in the "fix-doc-consistency would change:" list (_print_doc_changes), not elsewhere in out."""
     assert "fix-doc-consistency would change:" in out, out
+    listed = out.split("fix-doc-consistency would change:\n", 1)[1].split("\n  run fix-doc-consistency", 1)[0]
     for line in diff_lines:
-        assert line in out, out
+        assert line in listed, out
 
 
 @pytest.fixture
