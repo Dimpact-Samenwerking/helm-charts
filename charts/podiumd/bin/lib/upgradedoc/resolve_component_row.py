@@ -4,6 +4,7 @@ import re
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 from typing import Literal
 from typing import TypedDict
@@ -23,6 +24,7 @@ from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
+from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
 from lib.upgradedoc.string_and_parsing_basics import match_native_component
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
@@ -61,6 +63,11 @@ class ResolutionContext:
     target: ComponentState
     baseline: BaselineState
     upgrade_docs_baseline: str | None = None
+
+    @cached_property
+    def target_index(self) -> ChartImageIndex:
+        """The target's ChartImageIndex, built once per context: its maps are costly to build."""
+        return ChartImageIndex(self.chart_dir, self.target.deps, self.target.values)
 
 
 def changes_heading_has_app_version(heading: str):

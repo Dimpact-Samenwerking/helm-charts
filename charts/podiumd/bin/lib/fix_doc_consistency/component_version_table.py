@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from lib.component_docs.changes_section import remove_changes_section
 from lib.component_docs.changes_section import remove_component_row
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
-from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.images_manifest_ordering import header_name_segment
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.resolve_component_row import ResolvedRow
@@ -100,9 +99,7 @@ def fix_component_version_table(
     unmatched_names: list[str] = []
     unresolved_names: list[str] = []
 
-    canonical_names = ChartImageIndex(
-        resolution.chart_dir, resolution.target.deps, resolution.target.values
-    ).canonical_names
+    canonical_names = resolution.target_index.canonical_names
 
     for row in rows:
         # Same resolver as the checker, so fixer and checker can't drift apart.
@@ -251,9 +248,7 @@ def fix_changes_heading_app_versions(text: str, resolution: ResolutionContext):
     version is touched; ambiguous, orphaned, unverifiable or already-correct
     headings are left as-is. Returns (new_text, updated_headings), the latter
     the original heading texts."""
-    canonical_names = ChartImageIndex(
-        resolution.chart_dir, resolution.target.deps, resolution.target.values
-    ).canonical_names
+    canonical_names = resolution.target_index.canonical_names
     resolved_by_values_key = _resolved_rows_by_values_key(text, resolution, canonical_names)
     blocks = parse_upgrade_doc_changes_blocks(text)
     return _fix_heading_app_versions(
@@ -268,9 +263,7 @@ def fix_values_delta_heading_app_versions(
 
     upgrade_doc_text (already corrected) supplies the row data, since the
     values-deltas doc has no table of its own."""
-    canonical_names = ChartImageIndex(
-        resolution.chart_dir, resolution.target.deps, resolution.target.values
-    ).canonical_names
+    canonical_names = resolution.target_index.canonical_names
     resolved_by_values_key = _resolved_rows_by_values_key(upgrade_doc_text, resolution, canonical_names)
     blocks = parse_values_delta_sections(values_deltas_text)
     return _fix_heading_app_versions(
@@ -282,9 +275,7 @@ def remove_unchanged_component_rows(text: str, resolution: ResolutionContext) ->
     """Delete every row whose app and chart versions equal the baseline's, with its Changes section.
 
     A row whose baseline can't be resolved stays. Returns (new_text, removed_names)."""
-    canonical_names = ChartImageIndex(
-        resolution.chart_dir, resolution.target.deps, resolution.target.values
-    ).canonical_names
+    canonical_names = resolution.target_index.canonical_names
     ordering = OrderingContext(resolution.target.deps, resolution.target.values, canonical_names)
 
     removed_names: list[str] = []

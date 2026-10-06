@@ -9,6 +9,7 @@ import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
+from functools import cached_property
 from pathlib import Path
 
 from lib.chart.chart_state import BaselineState
@@ -136,9 +137,12 @@ def load_baseline_state(
     return parse_chart_dependencies(baseline_chart_text, f"{ref}:{rel_chart_dir}/Chart.yaml"), baseline_values
 
 
-@dataclass
+@dataclass(frozen=True)
 class RebaseState:
-    """Target/baseline versions and their dependency/values trees."""
+    """Target/baseline versions and their dependency/values trees.
+
+    Frozen, so the cached maps derived from it stay valid for the whole run.
+    """
 
     paths: FixDocPaths
     target: str
@@ -158,12 +162,24 @@ class RebaseState:
         """Chart.yaml and values.yaml at the baseline."""
         return BaselineState(self.baseline_deps, self.baseline_values)
 
-    @property
+    @cached_property
     def resolution(self) -> ResolutionContext:
         """The resolve_component_row inputs every doc step shares."""
         return ResolutionContext(
             self.paths.chart_dir, self.target_state, self.baseline_state, upgrade_docs_baseline=self.new_baseline
         )
+
+    @cached_property
+    def removed_items_ordering(self) -> tuple[list[RemovedItem], OrderingContext]:
+        """The removed items vs the baseline, and the OrderingContext that places them."""
+        target = self.resolution.target_index
+        items = (
+            removed_items(target, ChartImageIndex(self.paths.chart_dir, self.baseline_deps, self.baseline_values))
+            if self.baseline_deps is not None
+            else []
+        )
+        removed_keys = {item.name: item.order_key for item in items}
+        return items, OrderingContext(self.target_deps, self.target_values, target.canonical_names, removed_keys)
 
 
 def _check_no_collisions(paths: FixDocPaths, target: str) -> dict[str, list[tuple[str, Path]]]:
@@ -357,7 +373,7 @@ def _correct_component_table(text: str, upgrade_path: Path, state: RebaseState):
     new_baseline = state.new_baseline
     text, changed_rows, unmatched_names, unresolved_names = fix_component_version_table(text, state.resolution)
     # Removed items' rows are written by _sync_removed_items.
-    removed_names = {item.name for item in _removed_items_ordering(state)[0]}
+    removed_names = {item.name for item in state.removed_items_ordering[0]}
     unmatched_names = [name for name in unmatched_names if name not in removed_names]
     unresolved_names = [name for name in unresolved_names if name not in removed_names]
     if changed_rows:
@@ -411,7 +427,7 @@ def _add_missing_component_and_sidecar_rows(
 
 def _fix_upgrade_doc_headings(text: str, state: RebaseState, upgrade_path: Path) -> tuple[str, bool]:
     """Add missing '### ...' sections and fix heading app versions. Returns (text, changed)."""
-    canonical_names = ChartImageIndex(state.paths.chart_dir, state.target_deps, state.target_values).canonical_names
+    canonical_names = state.resolution.target_index.canonical_names
 
     doc_context = DocContext(state.paths.chart_dir, state.target)
     ordering = OrderingContext(state.target_deps, state.target_values, canonical_names)
@@ -453,21 +469,9 @@ def _fix_pointer_issues(text: str, upgrade_path: Path, target: str) -> tuple[str
     return text, print_section_items(f"Fixing the image digest pointer in {upgrade_path.name}", items)
 
 
-def _removed_items_ordering(state: RebaseState) -> tuple[list[RemovedItem], OrderingContext]:
-    """The removed items vs the baseline, and the OrderingContext that places them."""
-    target = ChartImageIndex(state.paths.chart_dir, state.target_deps, state.target_values)
-    items = (
-        removed_items(target, ChartImageIndex(state.paths.chart_dir, state.baseline_deps, state.baseline_values))
-        if state.baseline_deps is not None
-        else []
-    )
-    removed_keys = {item.name: item.order_key for item in items}
-    return items, OrderingContext(state.target_deps, state.target_values, target.canonical_names, removed_keys)
-
-
 def _sync_removed_items(text: str, state: RebaseState, upgrade_path: Path) -> tuple[str, bool]:
     """Add or rewrite the rows and Changes sections of removed components/images. Returns (text, changed)."""
-    items, ordering = _removed_items_ordering(state)
+    items, ordering = state.removed_items_ordering
     text, synced = sync_removed_items(text, items, state.target, ordering)
     return text, print_section_items(
         f"Adding or updating removed component/image row(s) + Changes section(s) in {upgrade_path.name}", synced
@@ -476,7 +480,7 @@ def _sync_removed_items(text: str, state: RebaseState, upgrade_path: Path) -> tu
 
 def _reorder_upgrade_doc(text: str, upgrade_path: Path, state: RebaseState):
     """Order table rows and Changes blocks like values.yaml. Returns (text, changed)."""
-    _items, ordering = _removed_items_ordering(state)
+    _items, ordering = state.removed_items_ordering
     text, moved_rows = sort_upgrade_doc_rows(text, ordering)
     text, moved_blocks = sort_changes_blocks(text, ordering)
     if moved_rows or moved_blocks:
@@ -727,7 +731,7 @@ def _fix_images_manifest_content(state: RebaseState, images_path: Path, upgrade_
     """
     if not images_path.is_file():
         return
-    index = ChartImageIndex(state.paths.chart_dir, state.target_deps, state.target_values)
+    index = state.resolution.target_index
     repo_map, canonical_names = index.repo_map, index.canonical_names
 
     _correct_images_manifest_urls(images_path, state, repo_map)
@@ -823,7 +827,7 @@ def _fix_values_deltas(state: RebaseState, upgrade_path: Path, values_deltas_pat
         state.target_deps, state.baseline_deps, state.target_values, state.baseline_values
     )
     text = values_deltas_path.read_text(encoding="utf-8")
-    canonical_names = ChartImageIndex(state.paths.chart_dir, state.target_deps, state.target_values).canonical_names
+    canonical_names = state.resolution.target_index.canonical_names
 
     text, sections_changed = _sync_values_delta_sections(text, state, values_deltas_path, changed_keys, canonical_names)
     text, headings_changed = _fix_values_delta_headings(text, state, upgrade_path, values_deltas_path)
