@@ -93,6 +93,25 @@ def test_fully_consistent_chart_passes_without_baseline(vp: ModuleType, chart_re
     assert ok is True, detail
 
 
+@pytest.mark.parametrize("baseline", [None, "4.8"])
+def test_no_bare_baseline_warns_that_writer_checks_are_skipped(
+    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str], baseline: str | None
+):
+    vp.check_docs_consistency(chart_repo, upgrade_docs_baseline=baseline)
+
+    out = capsys.readouterr().out
+    assert f'WARNING: upgrade_docs_baseline "{baseline}" is missing or not a bare version' in out
+    assert "order, missing pin-bullet and pointer checks skipped" in out
+
+
+def test_bare_baseline_does_not_warn_about_skipped_checks(
+    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
+):
+    vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+
+    assert "checks skipped" not in capsys.readouterr().out
+
+
 # --- stale stub-placeholder findings ---
 
 

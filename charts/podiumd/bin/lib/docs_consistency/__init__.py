@@ -515,7 +515,7 @@ def _removed_items_by_name(ctx: DocsCheckContext) -> dict[str, RemovedItem]:
 
 
 def _check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
-    """The "Component versions" section: per-row, missing-row, ordering and Changes-heading checks.
+    """The "Component versions" section: per-row, missing-row and Changes-heading checks.
 
     Appends onto `findings`; does nothing when no doc matches.
     """
@@ -735,10 +735,21 @@ def check_docs_consistency(chart_dir: Path, upgrade_docs_baseline: str | None = 
     must be fixed by hand. Without one, the checks run on the docs as they are
     and nothing is compared with a baseline.
 
+    The order, missing pin-bullet and pointer checks are then skipped
+    with a WARNING rather than re-implemented here: they exist only as
+    fix-doc-consistency's writer logic, which refuses such a baseline, and a
+    checker-side copy would drift from it. Nothing passes unnoticed, because
+    verify-podiumd's release-baseline step already fails on a missing or
+    unresolvable upgrade_docs baseline.
+
     Returns (True, "no matching docs found — skipped") when there's nothing to check,
     (False, "<detail>") with findings printed, or (True, "matches ...").
     """
     if not is_bare_version(upgrade_docs_baseline):
+        print(
+            f'WARNING: upgrade_docs_baseline "{upgrade_docs_baseline}" is missing or not a bare version — '
+            "order, missing pin-bullet and pointer checks skipped (fix-doc-consistency can't run)"
+        )
         result = _check_docs(chart_dir, chart_dir / "docs" / "_UPGRADE_PATHS", upgrade_docs_baseline)
         return result if isinstance(result, tuple) else _report(None, result)
     with fix_docs_dry_run(chart_dir, chart_version(chart_dir / "Chart.yaml"), upgrade_docs_baseline) as dry:
