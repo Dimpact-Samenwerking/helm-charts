@@ -138,6 +138,59 @@ def test_a_removed_component_and_image(writer_then_checker, capsys: pytest.Captu
     assert "review by hand" not in capsys.readouterr().out
 
 
+def test_removed_items_the_new_baseline_no_longer_has_are_dropped(
+    writer_then_checker, capsys: pytest.CaptureFixture[str]
+):
+    """Docs written against an older baseline that still had kiss and zac - opa; the new one has neither."""
+    doc = (
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| zac | 5.4.4 → 5.4.5 | 1.0.297 (unchanged) | - |\n"
+        "| zac - opa | 1.4.2 (removed) | - | - |\n"
+        "| kiss | 3.1.1 (removed) | 3.1.1 (removed) | - |\n\n"
+        "## Changes\n\n"
+        "### zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)\n\n"
+        "PodiumD 4.9.0 upgrades **zac** from app version 5.4.4\nto 5.4.5.\n\n"
+        "- Image tag pin `zac.image.tag` `5.4.4` → `5.4.5` in\n  `charts/podiumd/values.yaml`.\n\n"
+        "- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).\n\n"
+        "### zac - opa 1.4.2 (removed)\n\nPodiumD 4.9.0 removes **zac - opa** (was 1.4.2).\n\n"
+        "### kiss 3.1.1 (removed)\n\nPodiumD 4.9.0 removes **kiss** (was 3.1.1).\n"
+    )
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC], "values": {"zac": zac("5.4.4")}},
+        {"version": "4.9.0", "deps": [ZAC], "values": {"zac": zac("5.4.5")}, "files": {f"docs/{UPGRADE}": doc}},
+    )
+
+    assert "opa" not in docs[UPGRADE]
+    assert "kiss" not in docs[UPGRADE]
+    out = capsys.readouterr().out
+    assert "Could not match" not in out
+    assert "Could not verify" not in out
+
+
+def test_user_text_of_a_removed_item_the_new_baseline_no_longer_has_stays(writer_then_checker):
+    doc = (
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| kiss | 3.1.1 (removed) | 3.1.1 (removed) | - |\n\n"
+        "## Changes\n\n"
+        "### kiss 3.1.1 (removed)\n\nPodiumD 4.9.0 removes **kiss** (was 3.1.1).\n\n"
+        "Move KISS users to the new portal.\n"
+    )
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC], "values": {"zac": zac("5.4.5")}},
+        {"version": "4.9.0", "deps": [ZAC], "values": {"zac": zac("5.4.5")}, "files": {f"docs/{UPGRADE}": doc}},
+        by_hand=['"### kiss 3.1.1 (removed)" has no matching row'],
+    )
+
+    assert "| kiss |" not in docs[UPGRADE]
+    assert docs[UPGRADE].endswith("### kiss 3.1.1 (removed)\n\nMove KISS users to the new portal.\n")
+
+
 def test_a_shared_image_and_two_sidecars_of_one_parent_follow_values_yaml(writer_then_checker):
     def values(curl: str, solr: str, opa: str) -> dict[str, object]:
         return {

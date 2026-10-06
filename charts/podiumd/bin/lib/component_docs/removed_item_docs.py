@@ -7,8 +7,10 @@ reports what it would change through fix-doc-consistency's dry-run.
 from collections.abc import Sequence
 
 from lib.component_docs.changes_section import INTRO_REMOVED
+from lib.component_docs.changes_section import changes_body_kinds
 from lib.component_docs.changes_section import insert_changes_section
 from lib.component_docs.changes_section import new_row_insert_index
+from lib.component_docs.changes_section import remove_changes_block
 from lib.component_docs.changes_section import replace_changes_block
 from lib.upgradedoc.removed_items import RemovedItem
 from lib.upgradedoc.removed_items import removed_item_named
@@ -16,6 +18,7 @@ from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.string_and_parsing_basics import set_row_cells
+from lib.upgradedoc.string_and_parsing_basics import table_cells
 
 REMOVED = "(removed)"
 
@@ -63,11 +66,49 @@ def _sync_section(text: str, item: RemovedItem, target: str, ordering: OrderingC
     return replace_changes_block(text, block, section)
 
 
+def _is_generated_removed_row(cells: list[str]) -> bool:
+    """A row exactly as _sync_row writes it: "(removed)" or "-" version cells and an empty Notes cell."""
+    versions = cells[1:3]
+    return (
+        len(cells) == 4
+        and cells[3] == "-"
+        and all(cell == "-" or cell.endswith(f" {REMOVED}") for cell in versions)
+        and any(cell.endswith(f" {REMOVED}") for cell in versions)
+    )
+
+
+def _drop_stale_removed_items(text: str, items: Sequence[RemovedItem]) -> tuple[str, list[str]]:
+    """`text` without the generated row and section parts of an item no longer removed vs the baseline.
+
+    After a rebase the new baseline may not have the item either. User text
+    in the section stays, to resolve by hand. Returns (text, row names and
+    section headings dropped).
+    """
+    by_name = {item.name: item for item in items}
+    dropped: list[str] = []
+    lines = text.splitlines(keepends=True)
+    for row in reversed(parse_upgrade_doc_rows(text)):
+        stale = removed_item_named(row["name"], by_name) is None
+        if stale and _is_generated_removed_row(table_cells(lines[row["line_index"]])):
+            del lines[row["line_index"]]
+            dropped.append(row["name"])
+    text = "".join(lines)
+    for block in reversed(parse_upgrade_doc_changes_blocks(text)):
+        body = text.splitlines(keepends=True)[block["start"] + 1 : block["end"]]
+        if removed_item_named(block["heading"], by_name) is None and "removed" in changes_body_kinds(body):
+            text, _removed, _kept_user_text = remove_changes_block(text, block)
+            dropped.append(block["heading"])
+    return text, dropped
+
+
 def sync_removed_items(
     text: str, items: Sequence[RemovedItem], target: str, ordering: OrderingContext
 ) -> tuple[str, list[str]]:
-    """Write each removed item's row and section. Returns (text, names of the items whose parts changed)."""
-    changed: list[str] = []
+    """Write each removed item's row and section, and drop those of items no longer removed.
+
+    Returns (text, names of the items whose parts changed).
+    """
+    text, changed = _drop_stale_removed_items(text, items)
     for item in items:
         new_text = _sync_section(_sync_row(text, item, ordering), item, target, ordering)
         if new_text != text:

@@ -526,6 +526,9 @@ def _fix_upgrade_doc(state: RebaseState, upgrade_path: Path, actual_changed_keys
     changed: list[bool] = []
     text, step_changed = _remove_unchanged_component_rows(text, upgrade_path, state)
     changed.append(step_changed)
+    # Before the table check, so a stale removed row is gone instead of reported as unmatched.
+    text, step_changed = _sync_removed_items(text, state, upgrade_path)
+    changed.append(step_changed)
     text, step_changed = _correct_component_table(text, upgrade_path, state)
     changed.append(step_changed)
     text, added_names, added_sidecar_names = _add_missing_component_and_sidecar_rows(
@@ -537,8 +540,6 @@ def _fix_upgrade_doc(state: RebaseState, upgrade_path: Path, actual_changed_keys
     text, step_changed = _add_missing_pin_bullets(text, upgrade_path, state.paths.values_yaml)
     changed.append(step_changed)
     text, step_changed = _fix_pointer_issues(text, upgrade_path, state)
-    changed.append(step_changed)
-    text, step_changed = _sync_removed_items(text, state, upgrade_path)
     changed.append(step_changed)
     text, step_changed = _reorder_upgrade_doc(text, upgrade_path, state)
     changed.append(step_changed)
