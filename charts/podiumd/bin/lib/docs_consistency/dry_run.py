@@ -52,11 +52,8 @@ def _files(docs_dir: Path) -> dict[str, str]:
 
 
 def _change(name: str, old: str | None, new: str | None) -> DocChange:
-    diff = [
-        line
-        for line in difflib.unified_diff((old or "").splitlines(), (new or "").splitlines(), lineterm="", n=0)
-        if not line.startswith(("--- ", "+++ "))
-    ]
+    """Skips unified_diff's two file-header lines by position: a content line can also start with "--- "."""
+    diff = list(difflib.unified_diff((old or "").splitlines(), (new or "").splitlines(), lineterm="", n=0))[2:]
     status = "created" if old is None else "removed" if new is None else "changed"
     changed_lines = sum(1 for line in diff if line.startswith(("+", "-")))
     return DocChange(name, status, diff, changed_lines)

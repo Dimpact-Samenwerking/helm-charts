@@ -34,3 +34,16 @@ def test_a_rebase_renames_in_the_copy_and_leaves_the_real_docs_alone(chart_repo:
         ["git", "status", "--porcelain"], cwd=chart_repo, check=True, capture_output=True, text=True
     ).stdout
     assert status == ""
+
+
+def test_a_removed_line_starting_with_two_dashes_counts_as_changed(chart_repo: Path):
+    """Its diff line "--- ..." is content, not a file header."""
+    doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
+    doc.write_text(doc.read_text(encoding="utf-8") + "\n-- a removed SQL comment\n", encoding="utf-8")
+    old_lines = doc.read_text(encoding="utf-8").splitlines()
+
+    with fix_docs_dry_run(chart_repo, "4.9.0", "4.8.6") as dry:
+        removed = next(change for change in dry.changes if change.name == "_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md")
+
+    assert "--- a removed SQL comment" in removed.diff
+    assert removed.changed_lines == len(old_lines)
