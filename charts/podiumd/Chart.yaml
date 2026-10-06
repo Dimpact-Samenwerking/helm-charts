@@ -73,7 +73,7 @@ dependencies:
     tags:
       - zaak
   - name: zaakbrug
-    version: 2.3.32
+    version: 2.3.33
     repository: "https://wearefrank.github.io/charts"
     condition: zaakbrug.enabled
     tags:
