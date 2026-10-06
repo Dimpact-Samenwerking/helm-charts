@@ -167,9 +167,12 @@ chart's own docs).
    identifier/slug is visible in the Django admin under
    *Configuration > Services* if not already known from `values.yaml`, (2)
    run `/app/src/manage.py import_objecttypes <that-service-slug>` on the 3.6.x (PodiumD 4.9.x: 3.6.2)
-   `objecten` app per environment, (3) run `check_for_external_objecttypes`
-   and confirm `OK` output, (4) only then proceed to the `openobject` chart
-   swap. Upstream's own example invocation (`docs/manual/migration.rst`):
+   `objecten` app per environment, (3) confirm every objecttype has
+   `is_imported=True` (objecten 3.6.x has no `check_for_external_objecttypes`;
+   that command ships with Open Object 4 — tested on 3.6.2, see
+   `_UPGRADE_PATHS/4.9.3-to-4.10.0-values-deltas.md` for the exact check),
+   (4) only then proceed to the `openobject` chart swap, and run
+   `check_for_external_objecttypes` on Open Object 4 afterwards. Upstream's own example invocation (`docs/manual/migration.rst`):
    `/app/src/manage.py import_objecttypes objecttypes-api` — worth noting the
    example service identifier there, `objecttypes-api`, is the exact same
    identifier already named in PodiumD's own commented `zgw_consumers`
