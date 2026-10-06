@@ -59,7 +59,7 @@ Not done by this script (reported as reminders):
     mirrored there before deploying. Any other override is left alone and
     reported. --objecten-image-repository sets it explicitly.
   - Per environment, before deploying: run `import_objecttypes` in the old
-    objecten (3.6.1) so every objecttype exists locally.
+    objecten (3.6.x; PodiumD 4.9.x ships 3.6.2) so every objecttype exists locally.
 
 Requires: ruamel.yaml (pip install ruamel.yaml)
 
@@ -703,7 +703,7 @@ def main() -> int:
             print(f"    - {n}", file=out)
     out = sys.stderr if args.dry_run else sys.stdout
     print(f"\n{counts['migrated']} migrated, {counts['unchanged']} unchanged, {counts['error']} error(s)", file=out)
-    print("Before deploying an environment: run `import_objecttypes` in its objecten (3.6.1) - see "
+    print("Before deploying an environment: run `import_objecttypes` in its objecten (3.6.x) - see "
           "docs/apps/objecten/openobject-migration.md.", file=out)
     return 1 if counts["error"] else 0
 
