@@ -71,8 +71,12 @@ def join_and(parts: list[str]):
 
 
 def remaining_mentions(text: str, old_baseline: str):
-    """1-indexed line numbers where old_baseline still appears, for manual review."""
-    return [i + 1 for i, line in enumerate(text.splitlines()) if old_baseline in line]
+    """1-indexed line numbers where old_baseline still appears, for manual review.
+
+    Whole versions only: "14.8.4" or "4.8.40" is not 4.8.4, "v4.8.4." is.
+    """
+    pattern = re.compile(rf"(?<![\d.]){re.escape(old_baseline)}(?!\.?\d)")
+    return [i + 1 for i, line in enumerate(text.splitlines()) if pattern.search(line)]
 
 
 def ensure_blank_lines_around_headings(text: str):

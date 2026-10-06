@@ -114,6 +114,11 @@ def test_remaining_mentions_finds_all_lines(cdb: ModuleType):
     assert remaining_mentions(text, "4.8.2") == [1, 3]
 
 
+def test_remaining_mentions_matches_whole_versions_only(cdb: ModuleType):
+    text = "from 14.8.2\nto 4.8.20\nskipped v4.8.2.\n"
+    assert remaining_mentions(text, "4.8.2") == [3]
+
+
 def test_remaining_mentions_empty_when_absent(cdb: ModuleType):
     assert remaining_mentions("nothing here\n", "4.8.2") == []
 
@@ -270,6 +275,26 @@ def test_main_is_tracked_by_git_after_rename(cdb: ModuleType, repo, monkeypatch:
         ["git", "status", "--porcelain"], cwd=repo.parents[1], capture_output=True, text=True
     ).stdout
     assert "R  " in status or "renamed" in status.lower() or "4.8.3-to-4.9.0-upgrade.md" in status
+
+
+def test_main_reports_old_baseline_lines_of_the_docs_as_written(
+    cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    """Counted after blank lines are collapsed and the content fixed, not on the text before."""
+    write(
+        repo / "4.8.2-to-4.9.0-upgrade.md",
+        "# Upgrade guide: PodiumD 4.8.2 → 4.9.0\n\n\n\n"
+        "This is the upgrade guide for environments already on **4.8.2**.\n\n"
+        "## Component versions (4.9.0 vs 4.8.2)\n\n"
+        "## Notes\n\nIf you skipped 4.8.2, read this first.\n",
+    )
+    set_argv_and_dir(cdb, monkeypatch, repo, "4.8.3")
+
+    cdb.main()
+
+    lines = (repo / "4.8.3-to-4.9.0-upgrade.md").read_text(encoding="utf-8").splitlines()
+    expected = lines.index("If you skipped 4.8.2, read this first.") + 1
+    assert f"4.8.3-to-4.9.0-upgrade.md: line(s) {expected}\n" in capsys.readouterr().out
 
 
 def test_main_rebases_an_uncommitted_stub_next_to_tracked_docs(cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch):

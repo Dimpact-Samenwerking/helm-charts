@@ -242,8 +242,9 @@ class RebaseAccumulator:
     """Findings collected across all docs."""
 
     todo_stub_docs: list[str]
-    # (doc name, line numbers still naming the old baseline)
-    review_notes: list[tuple[str, list[int]]]
+    # (rebased doc, the baseline it was rebased from); its leftover mentions are
+    # looked up once every fix has written it, so the line numbers match the file.
+    old_baselines: list[tuple[Path, str]]
 
 
 def _fix_refs_and_stubs(text: str, suffix: str, target: str, new_baseline: str) -> tuple[str, bool, bool]:
@@ -335,16 +336,14 @@ def _rebase_doc_to_new_baseline(
         print("    removed stale TODO placeholder")
         acc.todo_stub_docs.append(new_name)
 
-    leftovers = remaining_mentions(text, doc.old_baseline)
-    if leftovers:
-        acc.review_notes.append((new_name, leftovers))
+    acc.old_baselines.append((new_path, doc.old_baseline))
 
 
 def _rebase_docs(
     paths: FixDocPaths, target: str, new_baseline: str, by_suffix: dict[str, list[tuple[str, Path]]]
-) -> tuple[list[tuple[str, list[int]]], list[str]]:
-    """Rebase every doc onto new_baseline, stubbing missing ones. Returns (review_notes, todo_stub_docs)."""
-    acc = RebaseAccumulator(todo_stub_docs=[], review_notes=[])
+) -> tuple[list[tuple[Path, str]], list[str]]:
+    """Rebase every doc onto new_baseline, stubbing missing ones. Returns (old_baselines, todo_stub_docs)."""
+    acc = RebaseAccumulator(todo_stub_docs=[], old_baselines=[])
     all_suffixes = sorted(set(by_suffix) | set(STANDARD_SUFFIXES))
     for suffix in all_suffixes:
         if suffix not in by_suffix:
@@ -364,11 +363,11 @@ def _rebase_docs(
 
         _rebase_doc_to_new_baseline(paths, doc, target, new_baseline, acc)
 
-    return acc.review_notes, acc.todo_stub_docs
+    return acc.old_baselines, acc.todo_stub_docs
 
 
 def _bump_images_manifest_baseline(
-    paths: FixDocPaths, target: str, new_baseline: str, review_notes: list[tuple[str, list[int]]]
+    paths: FixDocPaths, target: str, new_baseline: str, old_baselines: list[tuple[Path, str]]
 ):
     """Stub images-<target>.yaml if missing, else rebase its baseline header and refs. Returns its path."""
     images_path = images_manifest_path(paths.images_dir, target)
@@ -393,10 +392,22 @@ def _bump_images_manifest_baseline(
     if baseline_changed:
         print(f"    baseline header line(s): -> {new_baseline}")
     if old_images_baseline and old_images_baseline != new_baseline:
-        leftovers = remaining_mentions(text, old_images_baseline)
-        if leftovers:
-            review_notes.append((images_path.name, leftovers))
+        old_baselines.append((images_path, old_images_baseline))
     return images_path
+
+
+def _print_review_notes(old_baselines: list[tuple[Path, str]]):
+    """The lines of each rebased doc, as written, that still name its old baseline."""
+    notes = [
+        (path.name, lines)
+        for path, old_baseline in old_baselines
+        if path.is_file() and (lines := remaining_mentions(path.read_text(encoding="utf-8"), old_baseline))
+    ]
+    if notes:
+        print()
+        print("Review these lines by hand — old baseline text may remain in free-form prose:")
+        for name, lines in notes:
+            print(f"  {name}: line(s) {', '.join(map(str, lines))}")
 
 
 def _load_rebase_state(paths: FixDocPaths, target: str, new_baseline: str):
@@ -931,8 +942,8 @@ def fix_docs(paths: FixDocPaths, target: str, new_baseline: str) -> RebaseState:
     by_suffix = _check_no_collisions(paths, target)
 
     print(f"=== Bumping baseline for target {target} to {new_baseline} ===")
-    review_notes, todo_stub_docs = _rebase_docs(paths, target, new_baseline, by_suffix)
-    images_path = _bump_images_manifest_baseline(paths, target, new_baseline, review_notes)
+    old_baselines, todo_stub_docs = _rebase_docs(paths, target, new_baseline, by_suffix)
+    images_path = _bump_images_manifest_baseline(paths, target, new_baseline, old_baselines)
 
     state = _load_rebase_state(paths, target, new_baseline)
     actual_changed_keys: set[str] = (
@@ -951,9 +962,5 @@ def fix_docs(paths: FixDocPaths, target: str, new_baseline: str) -> RebaseState:
         print()
         print(f"removed stale TODO placeholder from {len(todo_stub_docs)} doc(s): {', '.join(todo_stub_docs)}")
 
-    if review_notes:
-        print()
-        print("Review these lines by hand — old baseline text may remain in free-form prose:")
-        for name, lines in review_notes:
-            print(f"  {name}: line(s) {', '.join(map(str, lines))}")
+    _print_review_notes(old_baselines)
     return state
