@@ -255,6 +255,21 @@ def test_main_is_tracked_by_git_after_rename(cdb: ModuleType, repo, monkeypatch:
     assert "R  " in status or "renamed" in status.lower() or "4.8.3-to-4.9.0-upgrade.md" in status
 
 
+def test_main_rebases_an_uncommitted_stub_next_to_tracked_docs(cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch):
+    """A stub an earlier run created and nobody committed is renamed too, not a git mv failure halfway."""
+    write(repo / "4.8.2-to-4.9.0-gemeente-specific.md", "# Gemeente-specific — PodiumD 4.8.2 → 4.9.0\n")
+    set_argv_and_dir(cdb, monkeypatch, repo, "4.8.3")
+
+    cdb.main()
+
+    assert sorted(p.name for p in repo.iterdir()) == [
+        "4.8.3-to-4.9.0-gemeente-specific.md",
+        "4.8.3-to-4.9.0-upgrade.md",
+        "4.8.3-to-4.9.0-values-deltas.md",
+    ]
+    assert "4.8.3 → 4.9.0" in (repo / "4.8.3-to-4.9.0-gemeente-specific.md").read_text(encoding="utf-8")
+
+
 def test_main_refuses_on_collision(cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch):
     write(repo / "4.8.3-to-4.9.0-upgrade.md", "# Upgrade guide: PodiumD 4.8.3 → 4.9.0\n")
     original = (repo / "4.8.2-to-4.9.0-upgrade.md").read_text(encoding="utf-8")

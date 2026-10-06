@@ -19,7 +19,18 @@ def find_collisions(by_suffix: dict[str, list[tuple[str, Path]]]):
 
 
 def git_mv(src: Path, dst: Path):
-    """`git mv src dst` so history follows the file; SystemExit with git's stderr on failure."""
+    """`git mv src dst` so history follows the file; SystemExit with git's stderr on failure.
+
+    An untracked src (a stub an earlier run created and nobody committed yet)
+    has no history to follow, and git mv would refuse it halfway through a
+    rebase, so it is renamed in place.
+    """
+    tracked = run(
+        ["git", "ls-files", "--error-unmatch", "--", src.name], cwd=src.parent, capture_output=True, text=True
+    )
+    if tracked.returncode != 0:
+        src.rename(dst)
+        return
     result = run(["git", "mv", str(src), str(dst)], cwd=src.parent, capture_output=True, text=True)
     if result.returncode != 0:
         msg = f"error: git mv {src} -> {dst} failed: {result.stderr.strip()}"
