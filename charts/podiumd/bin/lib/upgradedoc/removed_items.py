@@ -39,12 +39,7 @@ def removed_items(target: ChartImageIndex, baseline: ChartImageIndex) -> list[Re
     still has.
     """
     removed_deps = _removed_deps(target, baseline)
-    gone = _repository_gone(target, baseline)
-    removed_images = {
-        name: path
-        for name, path in baseline.canonical_names.items()
-        if name not in target.canonical_names and path[0] not in removed_deps and gone(path)
-    }
+    removed_images = _removed_images(target, baseline, removed_deps)
     keys = _order_keys(target, baseline, set(removed_deps) | set(removed_images))
     items = [
         RemovedItem(
@@ -62,21 +57,35 @@ def removed_items(target: ChartImageIndex, baseline: ChartImageIndex) -> list[Re
     return sorted(items, key=lambda item: item.order_key)
 
 
-def removed_image_paths(target: ChartImageIndex, baseline: ChartImageIndex) -> dict[ImagePath, str]:
-    """{baseline image path: name of the removed item it belongs to} for each image the target no longer has.
-
-    The images of a removed component belong to it; any other one to its own
-    baseline row name, as removed_items names them.
-    """
+def removed_image_paths(target: ChartImageIndex, baseline: ChartImageIndex) -> set[ImagePath]:
+    """The baseline image paths of the items removed_items lists: every image of a
+    removed component whose repository the target no longer has, and each removed image."""
     removed_deps = _removed_deps(target, baseline)
     gone = _repository_gone(target, baseline)
-    name_of = {path: name for name, path in baseline.canonical_names.items()}
-    found: dict[ImagePath, str] = {}
-    for path in baseline.paths:
-        name = path[0] if path[0] in removed_deps else name_of.get(path)
-        if name is not None and gone(path):
-            found[path] = name
-    return found
+    dep_paths = {path for path in baseline.paths if path[0] in removed_deps and gone(path)}
+    return dep_paths | set(_removed_images(target, baseline, removed_deps).values())
+
+
+def removed_component_image_names(target: ChartImageIndex, baseline: ChartImageIndex) -> set[str]:
+    """The baseline row names of the sidecar/shared images under a removed component.
+
+    removed_items lists the component alone, so a row or section an earlier
+    bump gave one of its images is stale.
+    """
+    removed_deps = _removed_deps(target, baseline)
+    return {name for name, path in baseline.canonical_names.items() if path[0] in removed_deps}
+
+
+def _removed_images(
+    target: ChartImageIndex, baseline: ChartImageIndex, removed_deps: Mapping[str, ChartDependency]
+) -> dict[str, ImagePath]:
+    """{baseline row name: path} of each sidecar/shared image outside a removed component whose repository is gone."""
+    gone = _repository_gone(target, baseline)
+    return {
+        name: path
+        for name, path in baseline.canonical_names.items()
+        if name not in target.canonical_names and path[0] not in removed_deps and gone(path)
+    }
 
 
 def _removed_deps(target: ChartImageIndex, baseline: ChartImageIndex) -> dict[str, ChartDependency]:
@@ -124,5 +133,7 @@ def removed_item_named(text: str, items: Mapping[str, RemovedItem]) -> RemovedIt
     """The removed item a row name or "### ..." heading names: an exact name, else the only one text_names finds."""
     if text in items:
         return items[text]
-    found = [item for name, item in items.items() if text_names(text, name)]
-    return found[0] if len(found) == 1 else None
+    found = [name for name in items if text_names(text, name)]
+    # A name inside a longer match is dropped: "foo-bar 1.0" names foo-bar, not foo.
+    longest = [name for name in found if not any(other != name and text_names(other, name) for other in found)]
+    return items[longest[0]] if len(longest) == 1 else None

@@ -6,6 +6,7 @@ from lib.chart.chart_yaml import ChartDependency
 from lib.component_docs.removed_item_docs import sync_removed_items
 from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.removed_items import RemovedItem
+from lib.upgradedoc.removed_items import removed_item_named
 from lib.upgradedoc.removed_items import removed_items
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.yaml_types import YamlMapping
@@ -101,3 +102,12 @@ def test_an_image_that_moved_to_another_row_name_is_not_removed(tmp_path: Path):
     target = ChartImageIndex(tmp_path, [ZAC], target_values)
 
     assert removed_items(target, ChartImageIndex(tmp_path, [ZAC], BASELINE_VALUES)) == []
+
+
+def test_removed_item_named_prefers_the_longest_name():
+    """ "foo-bar 1.0" names foo-bar; "foo" is only part of it, so the match is not ambiguous."""
+    short, long = RemovedItem("foo", "1.0", None, (0,)), RemovedItem("foo-bar", "1.0", None, (1,))
+    items = {"foo": short, "foo-bar": long}
+
+    assert removed_item_named("foo-bar 1.0 (removed)", items) is long
+    assert removed_item_named("foo 1.0 (removed)", items) is short

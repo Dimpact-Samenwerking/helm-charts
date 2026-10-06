@@ -174,6 +174,47 @@ def test_a_sidecar_bumped_then_removed_leaves_no_manifest_entry(writer_then_chec
     assert "opa" not in docs[MANIFEST]
 
 
+def test_a_removed_components_bumped_sidecar_leaves_no_manifest_entry_or_item(writer_then_checker):
+    """The sidecar's "# Changes:" item was written under its own row name, not the component's."""
+    docs = writer_then_checker(
+        {
+            "version": "4.8.5",
+            "deps": [ZAC, KISS],
+            "values": {"zac": zac("5.4.4"), "kiss": {**kiss("3.1.1"), "sync": {"image": image("kiss/sync", "1.0.0")}}},
+        },
+        {"version": "4.9.0", "deps": [ZAC], "values": {"zac": zac("5.4.5")}},
+        earlier={
+            "version": "4.9.0",
+            "deps": [ZAC, KISS],
+            "values": {"zac": zac("5.4.4"), "kiss": {**kiss("3.1.1"), "sync": {"image": image("kiss/sync", "1.1.0")}}},
+        },
+    )
+
+    assert "kiss" not in docs[MANIFEST]
+    assert "sync" not in docs[MANIFEST]
+    assert "kiss - sync" not in docs[UPGRADE]
+
+
+def test_a_values_deltas_section_shared_with_a_removed_component_keeps_its_key_lines(writer_then_checker):
+    deltas = (
+        "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
+        "## zac and kiss\n\n"
+        "- Key `zac.extra` was added.\n\n"
+        "Both read the same realm.\n"
+    )
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC, KISS], "values": {"zac": zac("5.4.4"), "kiss": kiss("3.1.1")}},
+        {
+            "version": "4.9.0",
+            "deps": [ZAC],
+            "values": {"zac": {**zac("5.4.5"), "extra": 1}},
+            "files": {f"docs/{DELTAS}": deltas},
+        },
+    )
+
+    assert "## zac and kiss\n\n- Key `zac.extra` was added.\n\nBoth read the same realm.\n" in docs[DELTAS]
+
+
 def test_user_text_in_the_values_deltas_section_of_a_removed_component_stays(writer_then_checker):
     deltas = (
         "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"

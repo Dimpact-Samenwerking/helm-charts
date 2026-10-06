@@ -333,16 +333,23 @@ def _keys_with_own_section(text: str, ordering: OrderingContext) -> set[str]:
     return keys
 
 
-def drop_removed_values_delta_sections(text: str, items: Sequence[RemovedItem]) -> tuple[str, list[str]]:
-    """Remove the generated key lines of each section naming a removed item, and the section if nothing is left.
+def drop_removed_values_delta_sections(
+    text: str, items: Sequence[RemovedItem], ordering: OrderingContext
+) -> tuple[str, list[str]]:
+    """Remove the generated key lines of each section naming only a removed item, and the section if nothing is left.
 
     The upgrade doc documents the removal; key lines of an earlier bump in
-    the cycle no longer apply. User text stays. Returns (new_text, headings changed).
+    the cycle no longer apply. A section that also names a component the
+    target still has is left: sync_values_delta_sections owns its key lines,
+    and the two can't be told apart. User text stays. Returns (new_text,
+    headings changed).
     """
     by_name = {item.name: item for item in items}
     changed: list[str] = []
     for section in reversed(parse_values_delta_sections(text)):
-        if removed_item_named(section["heading"], by_name) is None:
+        if removed_item_named(section["heading"], by_name) is None or changes_heading_identities(
+            section["heading"], ordering.deps, ordering.canonical_names
+        ):
             continue
         new_text, _removed, _kept_user_text = remove_section_owned_parts(text, section, _VALUES_DELTA_SHAPE)
         if new_text != text:

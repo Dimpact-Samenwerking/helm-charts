@@ -82,6 +82,7 @@ from lib.upgradedoc.images_manifest_ordering import ManifestSortContext
 from lib.upgradedoc.images_manifest_ordering import images_manifest_display_name_positions
 from lib.upgradedoc.images_manifest_ordering import sort_images_manifest_entries
 from lib.upgradedoc.removed_items import RemovedItem
+from lib.upgradedoc.removed_items import removed_component_image_names
 from lib.upgradedoc.removed_items import removed_image_paths
 from lib.upgradedoc.removed_items import removed_items
 from lib.upgradedoc.resolve_component_row import ResolutionContext
@@ -183,10 +184,10 @@ class RebaseState:
         return ChartImageIndex(self.paths.chart_dir, self.baseline_deps, self.baseline_values)
 
     @cached_property
-    def removed_image_paths(self) -> dict[ImagePath, str]:
+    def removed_image_paths(self) -> set[ImagePath]:
         """removed_image_paths vs the baseline; empty when it doesn't resolve."""
         if self.baseline_index is None:
-            return {}
+            return set()
         return removed_image_paths(self.resolution.target_index, self.baseline_index)
 
     @cached_property
@@ -510,7 +511,12 @@ def _fix_pointer_issues(text: str, upgrade_path: Path, state: RebaseState) -> tu
 def _sync_removed_items(text: str, state: RebaseState, upgrade_path: Path) -> tuple[str, bool]:
     """Add or rewrite the rows and Changes sections of removed components/images. Returns (text, changed)."""
     items, ordering = state.removed_items_ordering
-    text, synced = sync_removed_items(text, items, state.target, ordering)
+    gone_row_names = (
+        removed_component_image_names(state.resolution.target_index, state.baseline_index)
+        if state.baseline_index is not None
+        else set[str]()
+    )
+    text, synced = sync_removed_items(text, items, state.target, ordering, gone_row_names)
     return text, print_section_items(
         f"Adding or updating removed component/image row(s) + Changes section(s) in {upgrade_path.name}", synced
     )
@@ -845,7 +851,8 @@ def _fix_values_delta_headings(text: str, state: RebaseState, upgrade_path: Path
 
 def _drop_removed_values_delta_sections(text: str, state: RebaseState, values_deltas_path: Path):
     """Remove the generated key lines of removed components and images. Returns (text, changed)."""
-    text, dropped = drop_removed_values_delta_sections(text, state.removed_items_ordering[0])
+    items, ordering = state.removed_items_ordering
+    text, dropped = drop_removed_values_delta_sections(text, items, ordering)
     return text, print_section_items(
         f"Removing key-change mention(s) of removed component(s)/image(s) from {values_deltas_path.name}",
         [f"'## {heading}'" for heading in dropped],

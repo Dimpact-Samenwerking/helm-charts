@@ -1,7 +1,7 @@
 """fix-doc-consistency's images-manifest fixes: url/name repair, adding
 missing entries and removing stale ones."""
 
-from collections.abc import Mapping
+from collections.abc import Collection
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -561,14 +561,15 @@ def remove_stale_images_manifest_entries(text: str, context: MissingEntriesConte
 
 
 def remove_removed_images_manifest_entries(
-    text: str, context: MissingEntriesContext, baseline: ChartImageIndex, removed_paths: Mapping[ImagePath, str]
+    text: str, context: MissingEntriesContext, baseline: ChartImageIndex, removed_paths: Collection[ImagePath]
 ) -> tuple[str, list[str]]:
     """Delete every entry whose image the target no longer has, with its comment and "# Changes:" item.
 
     An earlier bump in the cycle may have added it before its component or
     image was removed. Entries resolve against the baseline, where the image
-    still is; removed_paths (removed_image_paths) names the removed item, the
-    display name its item uses. Returns (new_text, removed entry names).
+    still is, and the item is named the way it was written there
+    (path_display_name). removed_paths: removed_image_paths. Returns
+    (new_text, removed entry names).
     """
     resolution = _entries_resolution(context)
     _missing_paths, _stale_entry_names, unmatched_entry_names = _manifest_list_diff(text, context, resolution)
@@ -576,7 +577,8 @@ def remove_removed_images_manifest_entries(
     removed_names: list[str] = []
     for entry_name in unmatched_entry_names:
         path = resolve_entry_image_path(entry_name, baseline.paths.keys(), baseline.repo_map)
-        if path is not None and (display_name := removed_paths.get(path)) is not None:
+        if path is not None and path in removed_paths:
+            display_name = path_display_name(path, baseline.deps, baseline.canonical_names)
             _remove_entry(lines, entry_name, display_name, context, resolution)
             removed_names.append(entry_name)
     return "".join(lines), removed_names
