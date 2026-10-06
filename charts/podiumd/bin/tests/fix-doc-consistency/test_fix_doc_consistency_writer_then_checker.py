@@ -229,6 +229,7 @@ def test_user_text_in_the_values_deltas_section_of_a_removed_component_stays(wri
             "values": {"zac": zac("5.4.4"), "kiss": {**kiss("3.1.1"), "feat": 1}},
         },
         {"version": "4.9.0", "deps": [ZAC], "values": {"zac": zac("5.4.5")}, "files": {f"docs/{DELTAS}": deltas}},
+        by_hand=['"## kiss 3.1.1 → 3.2.0 (chart 3.1.1 → 3.2.0)" names no row'],
     )
 
     assert docs[DELTAS].endswith("## kiss 3.1.1 → 3.2.0 (chart 3.1.1 → 3.2.0)\n\nDrop `kiss` from podiumd.yml.\n")
@@ -434,6 +435,25 @@ def test_a_component_reset_to_its_baseline_keeps_its_user_text_without_a_pointer
 
     assert docs[UPGRADE].endswith(
         "### zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)\n\nRestart zac after the upgrade.\n"
+    )
+
+
+def test_a_component_reset_to_its_baseline_flags_its_values_deltas_heading_kept_by_user_text(writer_then_checker):
+    """The key lines go; the user's note keeps the generated heading, which no longer applies."""
+    deltas = (
+        "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
+        "## zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)\n\n"
+        "- Key `zac.extra` was added.\n\n"
+        "Set `zac.extra` per environment.\n"
+    )
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC], "values": {"zac": zac("5.4.4")}},
+        {"version": "4.9.0", "deps": [ZAC], "values": {"zac": zac("5.4.4")}, "files": {f"docs/{DELTAS}": deltas}},
+        by_hand=['"## zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)" names no row'],
+    )
+
+    assert docs[DELTAS].endswith(
+        "## zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)\n\nSet `zac.extra` per environment.\n"
     )
 
 

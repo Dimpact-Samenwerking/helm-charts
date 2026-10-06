@@ -45,6 +45,7 @@ from lib.docs_consistency.markdown_format import check_doc_title
 from lib.docs_consistency.pointer_consistency import check_pointer_consistency
 from lib.docs_consistency.values_diff import ValuesDeltaInputs
 from lib.docs_consistency.values_diff import check_values_deltas_content
+from lib.docs_consistency.values_diff import check_values_deltas_rowless_headings
 from lib.image.docs import changes_sections_contradicting_rows
 from lib.image.manifest_entry_pins import entry_pin
 from lib.images_manifest import ManifestEntry
@@ -651,19 +652,36 @@ def _check_values_deltas(ctx: DocsCheckContext, upgrade_docs_baseline: str, find
     values_deltas_path = ctx.doc_query.doc_dir / doc_name(
         upgrade_docs_baseline, ctx.doc_query.podiumd_version, "values-deltas"
     )
+    # Removed components are listed in the upgrade doc only.
     findings.mismatches.extend(
         check_values_deltas_content(
-            values_deltas_path,
-            # Removed components are listed in the upgrade doc only.
-            ctx.actual_changed_keys - set(_removed_items_by_name(ctx)),
-            ValuesDeltaInputs(
-                ctx.baseline.values, ctx.current.values, ctx.current.deps, ctx.images.current.canonical_names
-            ),
+            values_deltas_path, ctx.actual_changed_keys - set(_removed_items_by_name(ctx)), _values_delta_inputs(ctx)
         )
     )
 
     deltas_text = values_deltas_path.read_text(encoding="utf-8")
     _warn_edited_generated_lines(values_deltas_path, "##", edited_values_delta_lines(deltas_text))
+
+
+def _check_values_deltas_headings(ctx: DocsCheckContext, upgrade_docs_baseline: str, findings: Findings):
+    """Generated values-deltas headings without an upgrade-doc row; also when no key changed at all."""
+    query = ctx.doc_query
+    values_deltas_path = query.doc_dir / doc_name(upgrade_docs_baseline, query.podiumd_version, "values-deltas")
+    if not values_deltas_path.is_file():
+        return
+    findings.mismatches.extend(
+        check_values_deltas_rowless_headings(
+            values_deltas_path,
+            query.doc_dir / doc_name(upgrade_docs_baseline, query.podiumd_version, "upgrade"),
+            _values_delta_inputs(ctx),
+        )
+    )
+
+
+def _values_delta_inputs(ctx: DocsCheckContext) -> ValuesDeltaInputs:
+    return ValuesDeltaInputs(
+        ctx.baseline.values, ctx.current.values, ctx.current.deps, ctx.images.current.canonical_names
+    )
 
 
 def _check_baseline_doc_set_and_pointers(
@@ -711,6 +729,8 @@ def _check_docs(chart_dir: Path, doc_dir: Path, upgrade_docs_baseline: str | Non
 
     if ctx.baseline_ref and is_bare_version(upgrade_docs_baseline) and ctx.actual_changed_keys:
         _check_values_deltas(ctx, upgrade_docs_baseline, findings)
+    if is_bare_version(upgrade_docs_baseline):
+        _check_values_deltas_headings(ctx, upgrade_docs_baseline, findings)
     return findings
 
 
