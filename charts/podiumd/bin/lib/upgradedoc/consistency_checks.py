@@ -8,6 +8,8 @@ from collections.abc import Sequence
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import native_components
 from lib.chart.values_tree_primitives import values_key_of
+from lib.upgradedoc.removed_items import RemovedItem
+from lib.upgradedoc.removed_items import removed_item_named
 from lib.upgradedoc.string_and_parsing_basics import ComponentRef
 from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
@@ -90,13 +92,17 @@ def find_changes_row_correspondence_gaps(
     headings: list[str],
     deps: list[ChartDependency],
     canonical_names: Mapping[str, tuple[str, ...]],
+    removed: Mapping[str, RemovedItem] | None = None,
 ) -> tuple[list[str], list[str]]:
     """Cross-check "Component versions" rows against "## Changes" headings.
 
     Each resolvable row needs a heading naming exactly that component and
     vice versa. A heading naming zero or several components credits no row
-    and is itself reported. Unresolvable rows are skipped. Returns
-    (rows_without_heading, headings_without_row) in original order."""
+    and is itself reported. Unresolvable rows are skipped, and so are the
+    headings of `removed` items, whose row and section sync_removed_items
+    writes. Returns (rows_without_heading, headings_without_row) in original order."""
+    if removed:
+        headings = [heading for heading in headings if removed_item_named(heading, removed) is None]
     heading_idents = _single_heading_identities(headings, deps, canonical_names)
     named_rows = _named_row_identities(rows, deps, canonical_names)
     rows_without_heading = [name for name, ident in named_rows if ident not in heading_idents]

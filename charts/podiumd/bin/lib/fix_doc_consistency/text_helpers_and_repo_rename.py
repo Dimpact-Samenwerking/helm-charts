@@ -5,12 +5,12 @@ import re
 from pathlib import Path
 
 from lib.procutil import run
+from lib.upgradedoc.doc_names import title_arrow_re
 from lib.upgradedoc.string_and_parsing_basics import fenced_line_flags
 from lib.version_numbers import BARE_VERSION_PATTERN
 
-# Any baseline, not only the doc's file name one: a title or heading left on a
-# third version (hand-edited, or a doc already renamed) is rebased too.
-TITLE_ARROW_RE_TMPL = rf"(?P<baseline>{BARE_VERSION_PATTERN})(?P<arrow>\s*(?:→|->)\s*){{target}}"
+# Any baseline, not only the doc's file name one: a heading left on a third
+# version (hand-edited, or a doc already renamed) is rebased too.
 COMPONENT_VERSIONS_RE_TMPL = rf"Component versions \({{target}}\s+vs\s+(?P<baseline>{BARE_VERSION_PATTERN})\)"
 
 HEADING_LINE_RE = re.compile(r"^#{1,6}\s")
@@ -46,8 +46,7 @@ def update_title_line(text: str, target: str, new_baseline: str):
     lines = text.splitlines(keepends=True)
     if not lines:
         return text, False
-    pattern = re.compile(TITLE_ARROW_RE_TMPL.format(target=re.escape(target)))
-    new_first = pattern.sub(lambda m: f"{new_baseline}{m.group('arrow')}{target}", lines[0])
+    new_first = title_arrow_re(target).sub(lambda m: f"{new_baseline}{m.group('arrow')}{target}", lines[0])
     if new_first == lines[0]:
         return text, False
     lines[0] = new_first

@@ -3,6 +3,7 @@ missing entries and removing stale ones."""
 
 from collections.abc import Collection
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 from typing import Literal
 
@@ -67,7 +68,12 @@ class UrlFixContext:
 
 @dataclass
 class MissingEntriesContext:
-    """Inputs for adding missing / removing stale manifest entries."""
+    """Inputs for adding missing / removing stale manifest entries.
+
+    target_index: the target's ChartImageIndex when the caller already has
+    one. Reuse one context for every pass of a run: its resolution is
+    built once.
+    """
 
     chart_dir: Path
     deps: list[ChartDependency]
@@ -75,6 +81,12 @@ class MissingEntriesContext:
     baseline_values: YamlMapping | None
     allow_pull: bool = False
     upgrade_docs_baseline: str | None = None
+    target_index: ChartImageIndex | None = None
+
+    @cached_property
+    def resolution(self) -> "MissingEntriesResolution":
+        """_entries_resolution of this context."""
+        return _entries_resolution(self)
 
 
 @dataclass
@@ -255,7 +267,7 @@ def _manifest_list_diff(
 
 def _entries_resolution(context: MissingEntriesContext) -> MissingEntriesResolution:
     """Shared per-run resolution for adding and removing entries."""
-    target = ChartImageIndex(context.chart_dir, context.deps, context.target_values)
+    target = context.target_index or ChartImageIndex(context.chart_dir, context.deps, context.target_values)
     # Grouped against baseline_values: where each repository lived in the baseline.
     baseline = ChartImageIndex(context.chart_dir, context.deps, context.baseline_values)
     path_to_repo = {path: repo for repo, group_paths in target.repo_groups.items() for path in group_paths}
@@ -488,7 +500,7 @@ def add_missing_images_manifest_entries(
     represent their repository group, so a shared image gets one entry.
 
     Returns (new_text, added_names, skipped_names, backfilled_names)."""
-    resolution = _entries_resolution(context)
+    resolution = context.resolution
     missing_paths, _stale_entry_names, _unmatched_entry_names = _manifest_list_diff(text, context, resolution)
 
     added_names: list[str] = []
@@ -542,7 +554,7 @@ def remove_stale_images_manifest_entries(text: str, context: MissingEntriesConte
     "# Changes:" item; a later pass renumbers the count word. Entries with
     an unresolvable repository are kept for a human. Returns
     (new_text, removed_names)."""
-    resolution = _entries_resolution(context)
+    resolution = context.resolution
     _missing_paths, stale_entry_names, _unmatched_entry_names = _manifest_list_diff(text, context, resolution)
     removable_names = [
         name
@@ -571,7 +583,7 @@ def remove_removed_images_manifest_entries(
     (path_display_name). removed_paths: removed_image_paths. Returns
     (new_text, removed entry names).
     """
-    resolution = _entries_resolution(context)
+    resolution = context.resolution
     _missing_paths, _stale_entry_names, unmatched_entry_names = _manifest_list_diff(text, context, resolution)
     lines = text.splitlines(keepends=True)
     removed_names: list[str] = []

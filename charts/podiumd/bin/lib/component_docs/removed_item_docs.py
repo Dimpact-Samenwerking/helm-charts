@@ -4,6 +4,8 @@ fix-doc-consistency writes them with sync_removed_items; verify-podiumd
 reports what it would change through fix-doc-consistency's dry-run.
 """
 
+import re
+
 from collections.abc import Collection
 from collections.abc import Sequence
 
@@ -25,11 +27,28 @@ from lib.upgradedoc.string_and_parsing_basics import text_names
 REMOVED = "(removed)"
 
 
+def _removed_cell(version: str | None) -> str:
+    return f"{version} {REMOVED}" if version else "-"
+
+
+# _removed_cell's output, for recognising a row _sync_row wrote.
+_REMOVED_CELL_RE = re.compile(rf"\S+ {re.escape(REMOVED)}")
+
+
 def removed_row_cells(item: RemovedItem) -> tuple[str, str]:
     """The App version and Helm chart cells of a removed item's row."""
-    app = f"{item.old_app} {REMOVED}" if item.old_app else "-"
-    chart = f"{item.old_chart} {REMOVED}" if item.old_chart else "-"
-    return app, chart
+    return _removed_cell(item.old_app), _removed_cell(item.old_chart)
+
+
+def _is_generated_removed_row(cells: list[str]) -> bool:
+    """A row as _sync_row writes it: removed_row_cells version cells, at least one removed, and Notes "-"."""
+    versions = cells[1:3]
+    return (
+        len(cells) == 4
+        and cells[3] == "-"
+        and all(cell == "-" or _REMOVED_CELL_RE.fullmatch(cell) for cell in versions)
+        and any(_REMOVED_CELL_RE.fullmatch(cell) for cell in versions)
+    )
 
 
 def removed_section(item: RemovedItem, target: str) -> str:
@@ -44,7 +63,8 @@ def _sync_row(text: str, item: RemovedItem, ordering: OrderingContext) -> str:
     lines = text.splitlines(keepends=True)
     rows = parse_upgrade_doc_rows(text)
     app, chart = removed_row_cells(item)
-    row = next((r for r in rows if r["name"] == item.name), None)
+    # The same name match as _sync_section, so a hand-written "KISS" row is this item's row.
+    row = next((r for r in rows if removed_item_named(r["name"], {item.name: item}) is not None), None)
     if row is None:
         insert_at = new_row_insert_index(lines, rows, item.name, ordering)
         if insert_at is None:
@@ -66,17 +86,6 @@ def _sync_section(text: str, item: RemovedItem, target: str, ordering: OrderingC
         # A section inserted last keeps its trailing blank line, which a rewrite would drop.
         return insert_changes_section(text, section, item.name, ordering).rstrip("\n") + "\n"
     return replace_changes_block(text, block, section)
-
-
-def _is_generated_removed_row(cells: list[str]) -> bool:
-    """A row exactly as _sync_row writes it: "(removed)" or "-" version cells and an empty Notes cell."""
-    versions = cells[1:3]
-    return (
-        len(cells) == 4
-        and cells[3] == "-"
-        and all(cell == "-" or cell.endswith(f" {REMOVED}") for cell in versions)
-        and any(cell.endswith(f" {REMOVED}") for cell in versions)
-    )
 
 
 def _drop_stale_removed_items(

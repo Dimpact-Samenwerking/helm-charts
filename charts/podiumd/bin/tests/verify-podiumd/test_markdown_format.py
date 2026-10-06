@@ -4,6 +4,8 @@ check_baseline_doc_set."""
 from pathlib import Path
 from types import ModuleType
 
+import pytest
+
 
 def test_markdown_format_passes_for_well_formed_doc(libdocsconsistencymarkdown: ModuleType, tmp_path: Path):
     doc = tmp_path / "doc.md"
@@ -76,6 +78,14 @@ def test_doc_title_flags_stale_baseline(libdocsconsistencymarkdown: ModuleType, 
     issues = libdocsconsistencymarkdown.check_doc_title(doc, "4.8.5", "4.9.0")
     assert len(issues) == 1
     assert "does not read" in issues[0]
+
+
+@pytest.mark.parametrize("title", ["# PodiumD 14.8.5 → 4.9.0", "# PodiumD 4.8.5 → 4.9.01"])
+def test_doc_title_compares_whole_versions(libdocsconsistencymarkdown: ModuleType, tmp_path: Path, title: str):
+    """ "14.8.5" contains "4.8.5" but is another version, as for fix-doc-consistency's rewrite."""
+    doc = tmp_path / "doc.md"
+    doc.write_text(title + "\n")
+    assert len(libdocsconsistencymarkdown.check_doc_title(doc, "4.8.5", "4.9.0")) == 1
 
 
 def test_doc_title_handles_empty_file(libdocsconsistencymarkdown: ModuleType, tmp_path: Path):

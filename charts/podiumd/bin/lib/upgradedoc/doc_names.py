@@ -9,6 +9,19 @@ from lib.version_numbers import BARE_VERSION_PATTERN
 
 # The docs check_baseline_doc_set expects for every target.
 STANDARD_SUFFIXES = ("upgrade", "gemeente-specific", "values-deltas")
+
+
+def title_arrow_re(target: str) -> re.Pattern[str]:
+    """ "<baseline> → <target>" (or "->") in a doc's title line, for any baseline.
+
+    Shared by fix-doc-consistency, which rewrites it, and the checker, which
+    compares its baseline; whole versions only, so "14.9.0" is not "4.9.0".
+    """
+    return re.compile(
+        rf"(?<![\w.])(?P<baseline>{BARE_VERSION_PATTERN})(?P<arrow>\s*(?:→|->)\s*){re.escape(target)}(?![\w.])"
+    )
+
+
 IMAGES_MANIFEST_NAME_RE = re.compile(rf"images-(?P<target>{BARE_VERSION_PATTERN})\.yaml")
 
 

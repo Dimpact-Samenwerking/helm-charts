@@ -126,7 +126,7 @@ def test_main_does_not_duplicate_already_mentioned_component_bullet(
     assert deltas.count("zaakbrug.newFeature") == 1
     out = capsys.readouterr().out
     assert "Adding new component section(s)" not in out
-    assert "Adding missing key-change mention(s)" not in out
+    assert "Updating key-change mention(s)" not in out
 
 
 @pytest.fixture
@@ -427,7 +427,7 @@ def test_main_does_not_duplicate_generated_key_change_line(
     deltas = (repo_with_undocumented_schema_change / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
     assert deltas.count("extendWithZaaktype") == 1
     out = capsys.readouterr().out
-    assert "Adding missing key-change mention(s)" not in out
+    assert "Updating key-change mention(s)" not in out
 
 
 def test_main_adds_key_change_line_shown_only_inside_a_fenced_code_block(

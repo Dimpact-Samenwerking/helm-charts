@@ -191,6 +191,19 @@ class RebaseState:
         return removed_image_paths(self.resolution.target_index, self.baseline_index)
 
     @cached_property
+    def missing_entries_context(self) -> MissingEntriesContext:
+        """One context for every images-manifest entry pass, so its resolution is built once."""
+        return MissingEntriesContext(
+            self.paths.chart_dir,
+            self.target_deps,
+            self.target_values,
+            self.baseline_values,
+            allow_pull=True,
+            upgrade_docs_baseline=self.new_baseline,
+            target_index=self.resolution.target_index,
+        )
+
+    @cached_property
     def removed_items_ordering(self) -> tuple[list[RemovedItem], OrderingContext]:
         """The removed items vs the baseline, and the OrderingContext that places them."""
         target = self.resolution.target_index
@@ -500,8 +513,13 @@ def _add_missing_pin_bullets(text: str, upgrade_path: Path, values_yaml: Path) -
 def _fix_pointer_issues(text: str, upgrade_path: Path, state: RebaseState) -> tuple[str, bool]:
     """Add a missing "- Image / digest" pointer and the blank line before it. Returns (text, changed)."""
     headings = [block["heading"] for block in parse_upgrade_doc_changes_blocks(text)]
+    items, _ordering = state.removed_items_ordering
     _rows_without_heading, rowless_headings = find_changes_row_correspondence_gaps(
-        parse_upgrade_doc_rows(text), headings, state.target_deps, state.resolution.target_index.canonical_names
+        parse_upgrade_doc_rows(text),
+        headings,
+        state.target_deps,
+        state.resolution.target_index.canonical_names,
+        {item.name: item for item in items},
     )
     text, fixed = fix_pointer_issues(text, state.target, rowless_headings)
     items = [f"'### {issue.heading}': {issue.kind.replace('-', ' ')}" for issue in fixed]
@@ -655,23 +673,12 @@ def _correct_images_manifest_urls(images_path: Path, state: RebaseState, repo_ma
             print(f"  {name}")
 
 
-def _missing_entries_context(state: RebaseState):
-    return MissingEntriesContext(
-        state.paths.chart_dir,
-        state.target_deps,
-        state.target_values,
-        state.baseline_values,
-        allow_pull=True,
-        upgrade_docs_baseline=state.new_baseline,
-    )
-
-
 def _remove_stale_images_manifest_entries(images_path: Path, state: RebaseState):
     """Remove entries (with comment and '# Changes:' item) unchanged vs baseline."""
     if not state.baseline_values:
         return
     text = images_path.read_text(encoding="utf-8")
-    new_text, removed_entry_names = remove_stale_images_manifest_entries(text, _missing_entries_context(state))
+    new_text, removed_entry_names = remove_stale_images_manifest_entries(text, state.missing_entries_context)
     if removed_entry_names:
         images_path.write_text(new_text, encoding="utf-8")
         print_section(f"Removing unchanged entr(y/ies) from {images_path.name}")
@@ -685,7 +692,7 @@ def _remove_removed_images_manifest_entries(images_path: Path, state: RebaseStat
         return
     text = images_path.read_text(encoding="utf-8")
     new_text, removed_entry_names = remove_removed_images_manifest_entries(
-        text, _missing_entries_context(state), state.baseline_index, state.removed_image_paths
+        text, state.missing_entries_context, state.baseline_index, state.removed_image_paths
     )
     if removed_entry_names:
         images_path.write_text(new_text, encoding="utf-8")
@@ -699,7 +706,7 @@ def _add_missing_images_manifest_entries(images_path: Path, state: RebaseState):
     if not state.baseline_values:
         return
     text = images_path.read_text(encoding="utf-8")
-    ctx = _missing_entries_context(state)
+    ctx = state.missing_entries_context
     new_text, added_entry_names, skipped_entry_names, backfilled_header_names = add_missing_images_manifest_entries(
         text, ctx
     )
@@ -814,7 +821,7 @@ def _sync_values_delta_sections(
     changed_keys: set[str],
     canonical_names: dict[str, ImagePath],
 ):
-    """Add missing sections and key-change mentions. Returns (text, changed)."""
+    """Add missing sections and sync key-change mentions. Returns (text, changed)."""
     text, created_names, updated_names = sync_values_delta_sections(
         text,
         state.paths.chart_dir,
@@ -826,7 +833,7 @@ def _sync_values_delta_sections(
         f"Adding new component section(s) to {values_deltas_path.name}", [f"{name}" for name in created_names]
     )
     print_section_items(
-        f"Adding missing key-change mention(s) to {values_deltas_path.name}", [f"{name}" for name in updated_names]
+        f"Updating key-change mention(s) in {values_deltas_path.name}", [f"{name}" for name in updated_names]
     )
     return text, bool(created_names or updated_names)
 

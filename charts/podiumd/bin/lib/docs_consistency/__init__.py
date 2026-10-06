@@ -390,10 +390,7 @@ def _check_changes_heading_correspondence(
     mismatches: list[str] = []
     # fix-doc-consistency writes a removed item's row and section (sync_removed_items).
     rows_without_heading, headings_without_row = find_changes_row_correspondence_gaps(
-        scan.rows,
-        [heading for heading in changes_headings if removed_item_named(heading, scan.removed) is None],
-        ctx.current.deps,
-        scan.canonical_names,
+        scan.rows, changes_headings, ctx.current.deps, scan.canonical_names, scan.removed
     )
     mismatches.extend(
         f'{scan.doc_path.name}: table row "{name}" has no matching "### ..." section under "## Changes"'
@@ -536,9 +533,11 @@ def _check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
         _removed_items_by_name(ctx),
     )
 
+    # Matched like sync_removed_items matches them, so a hand-written "KISS" row is kiss's.
+    removed_row_names = {row["name"] for row in scan.rows if removed_item_named(row["name"], scan.removed)}
     # Duplicate row names, and free-form rows fuzzy-matching a dependency another row claims.
     duplicate_names, wrong_fuzzy_names = find_wrong_or_duplicate_dependency_claims(
-        [row["name"] for row in scan.rows if row["name"] not in scan.removed], ctx.current.deps
+        [row["name"] for row in scan.rows if row["name"] not in removed_row_names], ctx.current.deps
     )
     findings.mismatches.extend(
         f'{doc_path.name}: doc row "{name}" is wrong or stale — not found in Chart.yaml or values.yaml'
@@ -546,7 +545,7 @@ def _check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
     )
 
     # fix-doc-consistency writes removed items' rows (sync_removed_items).
-    row_lookup = RowLookup(scan.canonical_names, duplicate_names | wrong_fuzzy_names | set(scan.removed))
+    row_lookup = RowLookup(scan.canonical_names, duplicate_names | wrong_fuzzy_names | removed_row_names)
     rows_result = _check_component_rows(scan.rows, RowContext(doc_path, ctx.baseline_ref), row_lookup, resolution)
     findings.mismatches.extend(rows_result.mismatches)
 

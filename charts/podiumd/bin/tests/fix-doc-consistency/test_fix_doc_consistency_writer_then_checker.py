@@ -234,6 +234,28 @@ def test_user_text_in_the_values_deltas_section_of_a_removed_component_stays(wri
     assert docs[DELTAS].endswith("## kiss 3.1.1 → 3.2.0 (chart 3.1.1 → 3.2.0)\n\nDrop `kiss` from podiumd.yml.\n")
 
 
+def test_a_hand_written_row_of_a_removed_component_is_rewritten_not_duplicated(writer_then_checker):
+    """The row is found by the same name match as the section, so "KISS" is kiss's row."""
+    doc = (
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| zac | 5.4.4 → 5.4.5 | 1.0.297 (unchanged) | - |\n"
+        "| KISS | 3.1.1 → 3.2.0 | 3.1.1 → 3.2.0 | my note |\n\n"
+        "## Changes\n\n"
+        "### KISS 3.1.1 → 3.2.0\n\nUSER NOTE KISS.\n"
+    )
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC, KISS], "values": {"zac": zac("5.4.4"), "kiss": kiss("3.1.1")}},
+        {"version": "4.9.0", "deps": [ZAC], "values": {"zac": zac("5.4.5")}, "files": {f"docs/{UPGRADE}": doc}},
+    )
+
+    assert "| KISS | 3.1.1 (removed) | 3.1.1 (removed) | my note |" in docs[UPGRADE]
+    assert "| kiss |" not in docs[UPGRADE]
+    assert "USER NOTE KISS." in docs[UPGRADE]
+
+
 def test_removed_items_the_new_baseline_no_longer_has_are_dropped(
     writer_then_checker, capsys: pytest.CaptureFixture[str]
 ):

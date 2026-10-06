@@ -6,13 +6,15 @@ from pathlib import Path
 
 from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
 from lib.upgradedoc.doc_names import doc_name
+from lib.upgradedoc.doc_names import title_arrow_re
 
 
 def check_doc_title(doc_path: Path, upgrade_docs_baseline: str, podiumd_version: str) -> list[str]:
     """Verify a doc's first line states "<upgrade_docs_baseline> → <podiumd_version>"."""
     lines = doc_path.read_text(encoding="utf-8").splitlines()
     first_line = lines[0] if lines else ""
-    if not re.search(rf"{re.escape(upgrade_docs_baseline)}\s*(?:→|->)\s*{re.escape(podiumd_version)}", first_line):
+    match = title_arrow_re(podiumd_version).search(first_line)
+    if match is None or match["baseline"] != upgrade_docs_baseline:
         return [
             f'{doc_path.name} title line "{first_line}" does not read "{upgrade_docs_baseline} → {podiumd_version}"'
         ]

@@ -72,6 +72,11 @@ def test_update_title_line_replaces_any_stale_baseline(cdb: ModuleType):
     assert new_text == "# Upgrade guide: PodiumD 4.8.3 → 4.9.0\n"
 
 
+def test_update_title_line_replaces_a_whole_version_only(cdb: ModuleType):
+    text = "# Upgrade guide: PodiumD 14.8.1 → 4.9.0\n"
+    assert update_title_line(text, "4.9.0", "4.8.3") == ("# Upgrade guide: PodiumD 4.8.3 → 4.9.0\n", True)
+
+
 def test_update_title_line_already_at_new_baseline_is_unchanged(cdb: ModuleType):
     text = "# Upgrade guide: PodiumD 4.8.3 → 4.9.0\n"
     assert update_title_line(text, "4.9.0", "4.8.3") == (text, False)
