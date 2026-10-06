@@ -53,9 +53,11 @@ exactly the intended values; it refuses to write a file that does not.
 
 Not done by this script (reported as reminders):
   - objecten.image.repository: an override `<registry>/maykinmedia/objects-api`
-    (a mirror of the old image) becomes `<registry>/maykinmedia/open-object`;
-    that image must be mirrored there before deploying. Any other override is
-    left alone and reported. --objecten-image-repository sets it explicitly.
+    (a mirror of the old image), or a mirror under the legacy component name
+    `<registry>/objecten`, becomes `<registry>/maykinmedia/open-object`: the
+    name mirror-strip-registry.py gives the new image. That image must be
+    mirrored there before deploying. Any other override is left alone and
+    reported. --objecten-image-repository sets it explicitly.
   - Per environment, before deploying: run `import_objecttypes` in the old
     objecten (3.6.1) so every objecttype exists locally.
 
@@ -69,7 +71,7 @@ Usage:
     python3 scripts/migrate-objecten-4.1.0.py --dry-run path/to/podiumd.yml ...
 
     # Also set the objecten image repository
-    python3 scripts/migrate-objecten-4.1.0.py --objecten-image-repository acrprodmgmt.azurecr.io/open-object path/to/podiumd.yml
+    python3 scripts/migrate-objecten-4.1.0.py --objecten-image-repository acrprodmgmt.azurecr.io/maykinmedia/open-object path/to/podiumd.yml
 """
 
 from __future__ import annotations
@@ -453,9 +455,11 @@ def migrate_text(text: str, image_repo: str | None) -> tuple[str, list[str]]:
     image_note = None
     current_repo = (doc["objecten"].get("image") or {}).get("repository")
     if not image_repo and current_repo:
-        m = re.match(r"^(.*/)?maykinmedia/objects-api$", str(current_repo))
+        # Same mirror, new image, under the strip-registry name (see
+        # mirror-strip-registry.py): <acr>/maykinmedia/objects-api, or the legacy
+        # component-named <acr>/objecten, -> <acr>/maykinmedia/open-object
+        m = re.match(r"^(.*/)?(?:maykinmedia/objects-api|objecten)$", str(current_repo))
         if m:
-            # Same mirror, new image: <acr>/maykinmedia/objects-api -> <acr>/maykinmedia/open-object
             image_repo = f"{m.group(1) or ''}maykinmedia/open-object"
             image_note = (f"objecten.image.repository {current_repo} -> {image_repo}: "
                           "mirror maykinmedia/open-object there before deploying")
