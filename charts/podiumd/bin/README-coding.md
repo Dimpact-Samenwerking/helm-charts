@@ -89,13 +89,10 @@ any `*.sh` file. No configuration: a deliberate exception gets a
 
 ```bash
 cd charts/podiumd/bin
-jscpd --exit-code 1 --format python --mode weak --min-lines 4 --min-tokens 35 --reporters console \
-    --ignore '**/__pycache__/**' \
-    --ignore-pattern 'from .* import .*,import .*,SCRIPT_DIR = .*,sys\.path\.insert.*, +[a-z_]+: [^=\n]+\x2c\n' \
-    lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
+jscpd lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 ```
 
-Fails on any copied block of 4+ lines, also with renamed identifiers: merge it
+Settings are in `.jscpd.json` (jscpd doesn't read `pyproject.toml`). Fails on any copied block of 4+ lines, also with renamed identifiers: merge it
 into one function. Not counted: import lines, the `sys.path` setup at the top
 of every script, and typed parameter lines (two functions with the same
 parameters are not a copy). A near-copy kept on purpose sits between
@@ -137,16 +134,18 @@ bandit -c pyproject.toml -r lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -ty
 ### pylint
 
 pylint has no per-directory configuration, so it runs twice: `lib` and the
-scripts get the full rule set; `tests/` also disables `TESTS_PYLINT_DISABLE`.
+scripts get the full rule set; `tests/` also disables the rules listed in
+`[tool.podiumd.pylint-tests]` in `pyproject.toml`.
 
 ```bash
 cd charts/podiumd/bin
 pylint lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
-PYTHONPATH=. pylint --disable="$TESTS_PYLINT_DISABLE" $(find tests -name '*.py')
+tests_disable=$(python3 -c 'from pathlib import Path; from lib.python_checks import pylint_disable_for_tests; print(pylint_disable_for_tests(Path("pyproject.toml")))')
+PYTHONPATH=. pylint --disable="$tests_disable" $(find tests -name '*.py')
 ```
 
-Copy `TESTS_PYLINT_DISABLE` from `run_python_checks`. `PYTHONPATH=.` lets
-pylint resolve `lib.*` imports in `tests/` without analyzing `lib`.
+`PYTHONPATH=.` lets pylint resolve `lib.*` imports in `tests/` without
+analyzing `lib`.
 
 ### basedpyright (type checking)
 
@@ -175,12 +174,13 @@ cd charts/podiumd/bin
 ruff check . $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 shellcheck run_python_checks
 ruff format --check . $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
-pymarkdown -d md013,md014 -s 'plugins.md024.siblings_only=$!True' scan ./*.md
+jscpd lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
+pymarkdown $(python3 -c 'from lib.chart.paths import CHART_DIR; from lib.checks.markdown import pymarkdown_rule_args; print(*pymarkdown_rule_args(CHART_DIR))') scan ./*.md
 vulture lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 bandit -c pyproject.toml -r lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)) -q
-pylint lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
-PYTHONPATH=. pylint --disable="$TESTS_PYLINT_DISABLE" $(find tests -name '*.py')
 basedpyright lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)) tests
+pylint lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
+PYTHONPATH=. pylint --disable="$tests_disable" $(find tests -name '*.py')  # tests_disable: see pylint above
 python3 -m pytest -q
 ```
 

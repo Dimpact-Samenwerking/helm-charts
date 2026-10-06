@@ -24,6 +24,15 @@ from lib.upgradedoc.doc_names import doc_name_re
 # Applied on every invocation (scan and fix); see module docstring for md024.
 MARKDOWN_PLUGIN_SETTINGS = ["-s", "plugins.md024.siblings_only=$!True"]
 
+
+def pymarkdown_rule_args(chart_dir: Path) -> list[str]:
+    """pymarkdown's rule options: the disabled rules from settings.yaml and MARKDOWN_PLUGIN_SETTINGS.
+
+    Shared by this check and run_python_checks, which lints bin/*.md that this check skips.
+    """
+    return ["-d", ",".join(quality_gates_markdown_disabled_rules(chart_dir)), *MARKDOWN_PLUGIN_SETTINGS]
+
+
 MARKDOWN_FINDING_RE = re.compile(
     r"^(?P<path>.+?):(?P<line>\d+):(?P<col>\d+):\s+"
     r"(?P<rule>MD\d+):\s+(?P<message>.*?)\s*\((?P<aliases>[a-z0-9,-]+)\)\s*$",
@@ -95,15 +104,12 @@ def check_markdown(chart_dir: Path):
         print("OK: no markdown files found")
         return True, "no markdown files"
 
-    disabled_rules = ",".join(quality_gates_markdown_disabled_rules(chart_dir))
     result = run(
         [
             pymarkdown,
             "--return-code-scheme",
             "explicit",
-            "-d",
-            disabled_rules,
-            *MARKDOWN_PLUGIN_SETTINGS,
+            *pymarkdown_rule_args(chart_dir),
             "scan",
             *[str(f) for f in files],
         ],

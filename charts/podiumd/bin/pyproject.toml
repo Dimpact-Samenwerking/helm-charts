@@ -83,6 +83,8 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 # Mirror [tool.isort] below so ruff and isort agree on import layout.
 force-single-line = true
 lines-between-types = 1
+# No target-version is set, so ruff doesn't know tomllib (3.11+) is stdlib.
+extra-standard-library = ["tomllib"]
 
 [tool.ruff.lint.flake8-bandit]
 check-typed-exception = true  # Enable additional checks for try-except-pass
@@ -140,8 +142,8 @@ line-ending = "auto"
 
 # pylint covers checks ruff lacks; overlapping rules are owned by one tool.
 # Extensionless scripts must be passed explicitly (see run_python_checks).
-# tests/-only disables live in run_python_checks (TESTS_PYLINT_DISABLE):
-# pylint has no per-directory config.
+# tests/ also disables [tool.podiumd.pylint-tests]: pylint has no
+# per-directory config.
 
 [tool.pylint.basic]
 # Allow hyphens for the kebab-case script names (e.g. "verify-podiumd").
@@ -150,6 +152,36 @@ module-rgx = "^(([a-z_][a-z0-9_-]*)|(__.*__))$"
 [tool.pylint.format]
 # Matches [tool.ruff] line-length.
 max-line-length = 120
+
+# Added by run_python_checks to pylint's --disable for tests/ only.
+[tool.podiumd.pylint-tests]
+disable = [
+    # False positives under tests/:
+    "missing-function-docstring",
+    "wrong-import-position",
+    "unused-argument",
+    "protected-access",
+    "unused-variable",
+    "redefined-outer-name",
+    "duplicate-code",
+    # Not enforced for tests:
+    "import-outside-toplevel",
+    "consider-using-from-import",
+    "use-implicit-booleaness-not-comparison",
+    "too-many-positional-arguments",
+    "too-many-arguments",
+    "too-many-locals",
+    "import-error",
+    "superfluous-parens",
+    "too-many-lines",
+    "subprocess-run-check",
+    "missing-class-docstring",
+    "useless-return",
+    "unnecessary-lambda",
+    "too-few-public-methods",
+    "line-too-long",
+    "comparison-of-constants",
+]
 
 [tool.isort]
 # Compatible with 'ruff format'; mirrored by [tool.ruff.lint.isort]. The two
@@ -162,12 +194,15 @@ use_parentheses = true
 include_trailing_comma = true
 force_single_line = true
 default_section = "THIRDPARTY"
+extra_standard_library = ["tomllib"]
 sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
 
 # vulture runs on lib/ + scripts only (see run_python_checks): tests/
 # fixtures and mock params look like dead code. False positives:
 #   - pull_chart_values, find_matches, clear_tag_exists_cache: only called
 #     from tests/.
+#   - typeddict_field_names, pylint_disable_for_tests: only called from
+#     run_python_checks.
 #   - handle_starttag, handle_endtag, handle_data: HTMLParser overrides in
 #     lib/confluence_tables.py, dispatched by HTMLParser.feed().
 [tool.vulture]
@@ -175,6 +210,8 @@ ignore_names = [
     "pull_chart_values",
     "find_matches",
     "clear_tag_exists_cache",
+    "typeddict_field_names",
+    "pylint_disable_for_tests",
     "handle_starttag",
     "handle_endtag",
     "handle_data"
