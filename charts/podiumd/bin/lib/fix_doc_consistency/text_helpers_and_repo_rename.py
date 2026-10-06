@@ -6,9 +6,12 @@ from pathlib import Path
 
 from lib.procutil import run
 from lib.upgradedoc.string_and_parsing_basics import fenced_line_flags
+from lib.version_numbers import BARE_VERSION_PATTERN
 
-TITLE_ARROW_RE_TMPL = r"(?P<baseline>{baseline})(?P<arrow>\s*(?:→|->)\s*){target}"
-COMPONENT_VERSIONS_RE_TMPL = r"Component versions \({target}\s+vs\s+(?P<baseline>{baseline})\)"
+# Any baseline, not only the doc's file name one: a title or heading left on a
+# third version (hand-edited, or a doc already renamed) is rebased too.
+TITLE_ARROW_RE_TMPL = rf"(?P<baseline>{BARE_VERSION_PATTERN})(?P<arrow>\s*(?:→|->)\s*){{target}}"
+COMPONENT_VERSIONS_RE_TMPL = rf"Component versions \({{target}}\s+vs\s+(?P<baseline>{BARE_VERSION_PATTERN})\)"
 
 HEADING_LINE_RE = re.compile(r"^#{1,6}\s")
 
@@ -37,26 +40,26 @@ def git_mv(src: Path, dst: Path):
         raise SystemExit(msg)
 
 
-def update_title_line(text: str, old_baseline: str, target: str, new_baseline: str):
-    """Replace "<old_baseline> → <target>" (or "->") on the title line
-    (line 1) only. Returns (new_text, changed)."""
+def update_title_line(text: str, target: str, new_baseline: str):
+    """Point "<baseline> → <target>" (or "->") on the title line (line 1) at
+    new_baseline. Returns (new_text, changed)."""
     lines = text.splitlines(keepends=True)
     if not lines:
         return text, False
-    pattern = re.compile(TITLE_ARROW_RE_TMPL.format(baseline=re.escape(old_baseline), target=re.escape(target)))
-    new_first, count = pattern.subn(lambda m: f"{new_baseline}{m.group('arrow')}{target}", lines[0])
-    if count == 0:
+    pattern = re.compile(TITLE_ARROW_RE_TMPL.format(target=re.escape(target)))
+    new_first = pattern.sub(lambda m: f"{new_baseline}{m.group('arrow')}{target}", lines[0])
+    if new_first == lines[0]:
         return text, False
     lines[0] = new_first
     return "".join(lines), True
 
 
-def update_component_versions_heading(text: str, old_baseline: str, target: str, new_baseline: str):
-    """Replace a "Component versions (<target> vs <old_baseline>)" heading
-    anywhere in the body, if present. Returns (new_text, changed)."""
-    pattern = re.compile(COMPONENT_VERSIONS_RE_TMPL.format(baseline=re.escape(old_baseline), target=re.escape(target)))
-    new_text, count = pattern.subn(f"Component versions ({target} vs {new_baseline})", text)
-    return new_text, count > 0
+def update_component_versions_heading(text: str, target: str, new_baseline: str):
+    """Point a "Component versions (<target> vs <baseline>)" heading anywhere
+    in the body at new_baseline. Returns (new_text, changed)."""
+    pattern = re.compile(COMPONENT_VERSIONS_RE_TMPL.format(target=re.escape(target)))
+    new_text = pattern.sub(f"Component versions ({target} vs {new_baseline})", text)
+    return new_text, new_text != text
 
 
 def join_and(parts: list[str]):

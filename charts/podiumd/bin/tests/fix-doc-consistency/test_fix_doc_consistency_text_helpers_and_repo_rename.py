@@ -46,28 +46,40 @@ def test_find_collisions_empty_when_all_unique(cdb: ModuleType, tmp_path: Path):
 
 def test_update_title_line_replaces_arrow_form(cdb: ModuleType):
     text = "# Upgrade guide: PodiumD 4.8.2 → 4.9.0\n\nbody\n"
-    new_text, changed = update_title_line(text, "4.8.2", "4.9.0", "4.8.3")
+    new_text, changed = update_title_line(text, "4.9.0", "4.8.3")
     assert changed is True
     assert new_text.splitlines()[0] == "# Upgrade guide: PodiumD 4.8.3 → 4.9.0"
 
 
 def test_update_title_line_replaces_ascii_arrow(cdb: ModuleType):
     text = "# Upgrade guide: PodiumD 4.8.2 -> 4.9.0\nbody\n"
-    new_text, changed = update_title_line(text, "4.8.2", "4.9.0", "4.8.3")
+    new_text, changed = update_title_line(text, "4.9.0", "4.8.3")
     assert changed is True
     assert "4.8.3 -> 4.9.0" in new_text.splitlines()[0]
 
 
 def test_update_title_line_only_touches_first_line(cdb: ModuleType):
     text = "# Title 4.8.2 → 4.9.0\nsome body mentioning 4.8.2 again\n"
-    new_text, changed = update_title_line(text, "4.8.2", "4.9.0", "4.8.3")
+    new_text, changed = update_title_line(text, "4.9.0", "4.8.3")
     assert changed is True
     assert "4.8.2 again" in new_text.splitlines()[1]  # body untouched
 
 
+def test_update_title_line_replaces_any_stale_baseline(cdb: ModuleType):
+    text = "# Upgrade guide: PodiumD 4.8.1 → 4.9.0\n"
+    new_text, changed = update_title_line(text, "4.9.0", "4.8.3")
+    assert changed is True
+    assert new_text == "# Upgrade guide: PodiumD 4.8.3 → 4.9.0\n"
+
+
+def test_update_title_line_already_at_new_baseline_is_unchanged(cdb: ModuleType):
+    text = "# Upgrade guide: PodiumD 4.8.3 → 4.9.0\n"
+    assert update_title_line(text, "4.9.0", "4.8.3") == (text, False)
+
+
 def test_update_title_line_no_match_returns_unchanged(cdb: ModuleType):
     text = "# Something else entirely\n"
-    new_text, changed = update_title_line(text, "4.8.2", "4.9.0", "4.8.3")
+    new_text, changed = update_title_line(text, "4.9.0", "4.8.3")
     assert changed is False
     assert new_text == text
 
@@ -77,14 +89,14 @@ def test_update_title_line_no_match_returns_unchanged(cdb: ModuleType):
 
 def test_update_component_versions_heading_replaces_match(cdb: ModuleType):
     text = "## Component versions (4.9.0 vs 4.8.2)\n\nmore\n"
-    new_text, changed = update_component_versions_heading(text, "4.8.2", "4.9.0", "4.8.3")
+    new_text, changed = update_component_versions_heading(text, "4.9.0", "4.8.3")
     assert changed is True
     assert "## Component versions (4.9.0 vs 4.8.3)" in new_text
 
 
 def test_update_component_versions_heading_no_match(cdb: ModuleType):
     text = "no such heading here\n"
-    new_text, changed = update_component_versions_heading(text, "4.8.2", "4.9.0", "4.8.3")
+    new_text, changed = update_component_versions_heading(text, "4.9.0", "4.8.3")
     assert changed is False
     assert new_text == text
 

@@ -227,25 +227,45 @@ def _fix_refs_and_stubs(text: str, suffix: str, target: str, new_baseline: str) 
     return text, refs_changed, todo_stripped
 
 
-def _fix_intro(text: str, suffix: str, new_baseline: str) -> tuple[str, bool]:
-    """The upgrade doc's intro sentence pointed at new_baseline; other docs have none."""
-    if suffix != "upgrade":
-        return text, False
-    return fix_baseline_intro(text, new_baseline)
+@dataclass
+class HeaderChanges:
+    """Which baseline mentions _rebase_header rewrote."""
+
+    title: bool
+    heading: bool
+    intro: bool
+
+
+def _rebase_header(text: str, suffix: str, target: str, new_baseline: str) -> tuple[str, HeaderChanges]:
+    """The title line, "Component versions" heading and (upgrade doc only) intro pointed at new_baseline.
+
+    Shared by a renamed doc and one already named after new_baseline, which
+    can still carry another baseline in these lines.
+    """
+    text, title = update_title_line(text, target, new_baseline)
+    text, heading = update_component_versions_heading(text, target, new_baseline)
+    intro = False
+    if suffix == "upgrade":
+        text, intro = fix_baseline_intro(text, new_baseline)
+    return text, HeaderChanges(title, heading, intro)
 
 
 def _rebase_already_at_baseline(doc: DocRename, target: str, new_baseline: str, acc: RebaseAccumulator):
-    """Fix a stale intro, sibling refs, TODO stubs and double blank lines in a doc already at new_baseline."""
-    text, intro_changed = _fix_intro(doc.path.read_text(encoding="utf-8"), doc.suffix, new_baseline)
+    """Fix stale header lines, sibling refs, TODO stubs and double blank lines in a doc already at new_baseline."""
+    text, header = _rebase_header(doc.path.read_text(encoding="utf-8"), doc.suffix, target, new_baseline)
     text, refs_changed, todo_stripped = _fix_refs_and_stubs(text, doc.suffix, target, new_baseline)
     collapsed_text = collapse_multiple_blank_lines(text)
     blank_lines_fixed = collapsed_text != text
-    if not (intro_changed or refs_changed or blank_lines_fixed or todo_stripped):
+    if not (header.title or header.heading or header.intro or refs_changed or blank_lines_fixed or todo_stripped):
         print(f"  {doc.path.name}: already baseline {new_baseline} — unchanged")
         return
     doc.path.write_text(collapsed_text, encoding="utf-8")
     parts: list[str] = []
-    if intro_changed:
+    if header.title:
+        parts.append(f"title line -> {new_baseline}")
+    if header.heading:
+        parts.append(f"'Component versions' heading -> {new_baseline}")
+    if header.intro:
         parts.append(f"intro baseline -> {new_baseline}")
     if todo_stripped:
         parts.append("removed stale TODO placeholder")
@@ -265,9 +285,7 @@ def _rebase_doc_to_new_baseline(
     new_path = paths.doc_dir / new_name
     text = doc.path.read_text(encoding="utf-8")
 
-    text, title_changed = update_title_line(text, doc.old_baseline, target, new_baseline)
-    text, heading_changed = update_component_versions_heading(text, doc.old_baseline, target, new_baseline)
-    text, intro_changed = _fix_intro(text, doc.suffix, new_baseline)
+    text, header = _rebase_header(text, doc.suffix, target, new_baseline)
     text, refs_changed, todo_stripped = _fix_refs_and_stubs(text, doc.suffix, target, new_baseline)
 
     if doc.path != new_path:
@@ -275,11 +293,11 @@ def _rebase_doc_to_new_baseline(
     new_path.write_text(collapse_multiple_blank_lines(text), encoding="utf-8")
 
     print(f"  {doc.path.name} -> {new_name}")
-    if title_changed:
-        print(f"    title line: {doc.old_baseline} -> {new_baseline}")
-    if heading_changed:
-        print(f"    'Component versions' heading: {doc.old_baseline} -> {new_baseline}")
-    if intro_changed:
+    if header.title:
+        print(f"    title line: -> {new_baseline}")
+    if header.heading:
+        print(f"    'Component versions' heading: -> {new_baseline}")
+    if header.intro:
         print(f"    intro baseline: -> {new_baseline}")
     if refs_changed:
         print(f"    sibling doc references: -> {new_baseline}-to-{target}-*.md")
