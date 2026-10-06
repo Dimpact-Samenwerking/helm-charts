@@ -124,7 +124,7 @@ chart's own docs).
    fresh database provisioning or export/import is needed. **`objecttypen`
    (the running service, not just its database) must stay live and serving
    requests until the actual `openobject` cutover** — per the official
-   migration guide, `objecten` 3.6.1 still depends on it for live objecttype
+   migration guide, `objecten` 3.6.x still depends on it for live objecttype
    resolution even after the import completes; only decommission it once
    the `openobject` swap itself has happened, not right after A.6's import
    step.
@@ -151,7 +151,7 @@ chart's own docs).
      tables**, matching on `uuid` (`unique_fields=["uuid"]`), marking each
      row `is_imported=True`. Runs inside one `@transaction.atomic` block.
    - **This is an API-driven copy, not a database dump/restore or schema
-     merge.** It runs against the `objecten` app (already upgraded to 3.6.1)
+     merge.** It runs against the `objecten` app (already on 3.6.x; PodiumD 4.9.x ships 3.6.2)
      while `objecttypen` is still live, pulling data in over the
      already-configured `zgw_consumers` service.
 
@@ -166,7 +166,7 @@ chart's own docs).
    `Service` pointing at `objecttypen` exists in `objecten`'s config — its
    identifier/slug is visible in the Django admin under
    *Configuration > Services* if not already known from `values.yaml`, (2)
-   run `/app/src/manage.py import_objecttypes <that-service-slug>` on the upgraded (3.6.1)
+   run `/app/src/manage.py import_objecttypes <that-service-slug>` on the 3.6.x (PodiumD 4.9.x: 3.6.2)
    `objecten` app per environment, (3) run `check_for_external_objecttypes`
    and confirm `OK` output, (4) only then proceed to the `openobject` chart
    swap. Upstream's own example invocation (`docs/manual/migration.rst`):
@@ -196,7 +196,7 @@ chart's own docs).
      back to 3.6.1." So skipping/incompletely running the precondition
      sequence isn't a soft risk caught by a manual check — it's a hard
      startup failure on the `openobject` cutover itself, and recovering
-     means **rolling the release back to `objecten` 3.6.1**, fixing the
+     means **rolling the release back to `objecten` 3.6.2** (the PodiumD 4.9.x version), fixing the
      remaining unimported objecttypes, and retrying the cutover. Add this
      rollback path to the actual rollout runbook, not just the precondition
      checklist.
@@ -217,7 +217,7 @@ chart's own docs).
      database as-is after import" framing below — the `objecttypen`
      *service* (not just its database) must keep running and serving
      requests normally until the moment of the actual `openobject` chart
-     swap, since `objecten` 3.6.1 still depends on it for live objecttype
+     swap, since `objecten` 3.6.x still depends on it for live objecttype
      resolution in the interim. Only decommission it after cutover, not
      right after the import step.
    - Minor, low-priority nuance not applicable to PodiumD: the guide notes
