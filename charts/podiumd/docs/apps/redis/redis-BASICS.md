@@ -6,7 +6,7 @@ Redis is the shared in-memory data store of PodiumD. It is not something a
 citizen or civil servant ever sees: it makes the other applications fast and
 lets them do work in the background. Almost every Django-based PodiumD app
 (Open Zaak, Open Notificaties, Open Inwoner, Open Formulieren, Open Klant,
-Open Archiefbeheer, Objecten, Objecttypen and more) uses it as a page/session
+Open Archiefbeheer, Objecten and more) uses it as a page/session
 cache and as the queue for background tasks such as sending notifications and
 processing documents. If Redis is down, those apps hang at startup and
 background work stops. It needs no database and no public hostname — just
@@ -84,7 +84,7 @@ operator.
 
   | DB | Component | DB | Component |
   |----|-----------|----|-----------|
-  | 0 | objecttypen (cache) | 9–10 | openformulieren (cache / celery) |
+  | 0 | *(free — was objecttypen, merged into objecten)* | 9–10 | openformulieren (cache / celery) |
   | 1–2 | objecten (cache / celery) | 11–12 | openinwoner (cache / celery) |
   | 3, 6 | opennotificaties (cache / celery result backend¹) | 13–14 | openarchiefbeheer (cache+axes / choices+celery) |
   | 4–5 | openzaak (cache / celery) | 15–16 | referentielijsten (cache / reserved) |
