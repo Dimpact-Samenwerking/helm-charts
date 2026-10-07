@@ -566,6 +566,9 @@ and are used by an operator ([runbook](frankgateway-deploy-runbook.md)).
 
 ## 5. Bootstrap runbook (first install)
 
+One script does the whole bootstrap and the after-every-deploy checks:
+[`frankgateway-openbao-activation.md`](frankgateway-openbao-activation.md).
+
 The procedure now lives in
 [`frankgateway-deploy-runbook.md`](frankgateway-deploy-runbook.md), together
 with the rest of a first Frank!Gateway deploy. This section keeps its number

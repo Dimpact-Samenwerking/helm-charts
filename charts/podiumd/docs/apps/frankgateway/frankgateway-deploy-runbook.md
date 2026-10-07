@@ -10,6 +10,12 @@ met the gateway before, and
 [`frankgateway-openbao.md`](frankgateway-openbao.md) for anything about OpenBao
 that this page does not explain.
 
+> **Shortcut for OpenBao.** Steps 3, 4, the gateway token of step 5 and step
+> 8 are automated by `scripts/openbao-activate.sh`, which also does the
+> after-every-deploy checks. The one-sitting flow for SSC is in
+> [`frankgateway-openbao-activation.md`](frankgateway-openbao-activation.md).
+> This page stays the manual reference.
+
 ## Conventions
 
 Every command names its target explicitly; never rely on the current
