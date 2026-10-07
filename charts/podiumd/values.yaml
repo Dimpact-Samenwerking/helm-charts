@@ -4351,7 +4351,7 @@ frankgateway:
       oauth2Proxy:
         image:
           repository: quay.io/oauth2-proxy/oauth2-proxy
-          tag: "v7.7.1@sha256:f6a4aa83a27e316114bf79664302b1ffb2cc8ce697fb479273af4feb3fb16fe3"
+          tag: "v7.15.5@sha256:8498b0d0ef0a7b29686414000a08aee467f02d0299c9ed1e006a8f33fc017916"
         # Measured: under 1m CPU / 44Mi memory peak. It only works during an
         # interactive login; sessions live in redis, not here.
         nodeSelector: {}
