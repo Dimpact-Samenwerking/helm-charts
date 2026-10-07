@@ -126,14 +126,37 @@ fetch_upstream() {
     if ${first}; then first=false; else out+=$'\n---\n'; fi
     out+="${body}"
   done
+  # Only a 404 below 26.7.0 means "not published". From 26.7.0 the operator
+  # needs the client CRDs, so any failure is fatal; a network, TLS or server
+  # error is fatal for every version, so it never passes as "not published".
+  local needs_clients=false
+  if [[ "$(printf '%s\n%s\n' "26.7.0" "${KEYCLOAK_VERSION}" | sort -V | head -n1)" == "26.7.0" ]]; then
+    needs_clients=true
+  fi
   for f in "${OPTIONAL_CRD_FILES[@]}"; do
     local url="${UPSTREAM_BASE}/${KEYCLOAK_VERSION}/kubernetes/${f}"
-    local body
-    if body=$(curl -sfL "${url}") && [[ -n "${body}" ]]; then
+    local tmp code
+    tmp=$(mktemp)
+    if ! code=$(curl -sL -o "${tmp}" -w '%{http_code}' "${url}"); then
+      rm -f "${tmp}"
+      echo "ERROR: Failed to fetch ${url} (network or TLS error)" >&2
+      exit 1
+    fi
+    if [[ "${code}" == "200" && -s "${tmp}" ]]; then
       echo "    Fetched ${url}" >&2
-      out+=$'\n---\n'"${body}"
-    else
+      out+=$'\n---\n'"$(cat "${tmp}")"
+      rm -f "${tmp}"
+    elif [[ "${code}" == "404" ]] && ! ${needs_clients}; then
+      rm -f "${tmp}"
       echo "    Skipping ${f}: not published for Keycloak ${KEYCLOAK_VERSION} (client CRDs start at 26.7.0)" >&2
+    else
+      rm -f "${tmp}"
+      if [[ "${code}" == "404" ]]; then
+        echo "ERROR: ${url} not found (HTTP 404), but Keycloak ${KEYCLOAK_VERSION} needs this CRD" >&2
+      else
+        echo "ERROR: Failed to fetch ${url} (HTTP ${code}); retry later" >&2
+      fi
+      exit 1
     fi
   done
   printf '%s\n' "${out}"
