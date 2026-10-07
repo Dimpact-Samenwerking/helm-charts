@@ -381,11 +381,13 @@ def _owned_lines(body: str, kind: str) -> list[str]:
 def _section_contradicts(heading: str, body: str, expected_heading: str, expected: str, *, bullets: bool) -> bool:
     """Whether a generated part of the section differs from the section its row gives.
 
-    Compared: the heading's "(chart ...)" part, the generated intro, and, with
-    `bullets`, each expected pin bullet. Extra generated bullets (an aliased
-    path's pin) are allowed; hand-written headings, intros and lines are
-    never compared. A sidecar's row names one of its pins, while its section
-    may list them all, so its bullets are not compared.
+    Compared: the heading's "(chart ...)" part, also in a hand-written
+    heading, the generated intro, and, with `bullets`, each expected pin
+    bullet. Extra generated bullets (an aliased path's pin) are allowed;
+    hand-written headings without a chart part, hand-written intros and
+    hand-written lines are not compared. A sidecar's row names one of its
+    pins, while its section may list them all, so its bullets are not
+    compared.
     """
     chart = _CHART_PART_RE.search(heading)
     expected_chart = _CHART_PART_RE.search(expected_heading)
