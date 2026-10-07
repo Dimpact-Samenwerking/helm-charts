@@ -65,9 +65,7 @@ from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
 from lib.upgradedoc.doc_names import doc_name
 from lib.upgradedoc.doc_names import images_manifest_path
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
-from lib.upgradedoc.removed_items import RemovedItem
 from lib.upgradedoc.removed_items import removed_item_named
-from lib.upgradedoc.removed_items import removed_items
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.resolve_component_row import ResolvedRow
 from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
@@ -505,13 +503,6 @@ def _warn_edited_generated_lines(doc_path: Path, heading_marker: str, edited: li
         )
 
 
-def _removed_items_by_name(ctx: DocsCheckContext) -> dict[str, RemovedItem]:
-    """The components and images removed vs the baseline; none without a baseline_ref."""
-    if not ctx.baseline_ref:
-        return {}
-    return {item.name: item for item in removed_items(ctx.images.current, ctx.images.baseline)}
-
-
 def _check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
     """The "Component versions" section: per-row, missing-row and Changes-heading checks.
 
@@ -531,7 +522,7 @@ def _check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
         doc_path,
         list(parse_upgrade_doc_rows(doc_path)),
         ctx.images.current.canonical_names,
-        _removed_items_by_name(ctx),
+        ctx.removed_items_by_name,
     )
 
     # Matched like sync_removed_items matches them, so a hand-written "KISS" row is kiss's.
@@ -655,7 +646,7 @@ def _check_values_deltas(ctx: DocsCheckContext, upgrade_docs_baseline: str, find
     # Removed components are listed in the upgrade doc only.
     findings.mismatches.extend(
         check_values_deltas_content(
-            values_deltas_path, ctx.actual_changed_keys - set(_removed_items_by_name(ctx)), _values_delta_inputs(ctx)
+            values_deltas_path, ctx.actual_changed_keys - set(ctx.removed_items_by_name), _values_delta_inputs(ctx)
         )
     )
 

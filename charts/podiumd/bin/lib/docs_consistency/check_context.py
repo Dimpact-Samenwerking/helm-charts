@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from dataclasses import field
+from functools import cached_property
 from pathlib import Path
 
 from lib.chart.chart_state import BaselineState
@@ -10,6 +11,7 @@ from lib.settings import DigestPinningException
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.removed_items import RemovedItem
+from lib.upgradedoc.removed_items import removed_items
 from lib.upgradedoc.string_and_parsing_basics import TableRow
 
 # A component as resolve_component_identity names it: ("dep", values_key)
@@ -57,6 +59,13 @@ class DocsCheckContext:
     doc_query: DocQuery
     images: StateImages
     actual_changed_keys: set[str]
+
+    @cached_property
+    def removed_items_by_name(self) -> dict[str, RemovedItem]:
+        """The components and images removed vs the baseline; none without a baseline_ref."""
+        if not self.baseline_ref:
+            return {}
+        return {item.name: item for item in removed_items(self.images.current, self.images.baseline)}
 
 
 @dataclass
