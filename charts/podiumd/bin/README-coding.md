@@ -10,6 +10,7 @@ installing the tools, see
 - [Running the linters](#running-the-linters)
   - [ruff (lint + format)](#ruff-lint--format)
   - [shellcheck (shell scripts)](#shellcheck-shell-scripts)
+  - [jscpd (duplicate code)](#jscpd-duplicate-code)
   - [vulture (dead code)](#vulture-dead-code)
   - [bandit (security)](#bandit-security)
   - [pylint](#pylint)
@@ -84,6 +85,24 @@ Covers every file under `bin/` with a `sh`/`bash`/`dash`/`ksh` shebang, plus
 any `*.sh` file. No configuration: a deliberate exception gets a
 `# shellcheck disable=SCxxxx` comment on its line, with the reason.
 
+### jscpd (duplicate code)
+
+```bash
+cd charts/podiumd/bin
+jscpd lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
+```
+
+Settings are in `.jscpd.json` (jscpd doesn't read `pyproject.toml`). Fails on any copied block of 4+ lines, also with renamed identifiers: merge it
+into one function. Not counted: import lines, the `sys.path` setup at the top
+of every script, and typed parameter lines (two functions with the same
+parameters are not a copy). A near-copy kept on purpose sits between
+`# jscpd:ignore-start` and `# jscpd:ignore-end` with a comment saying why,
+such as help texts that repeat another script's argument explanations;
+`tests/lib/test_script_help_consistency.py` keeps those explanations equal.
+
+jscpd finds copied code, not the same logic written differently; see the
+"One concept, one place" rule in `.claude/memory/reuse-existing-logic.md`.
+
 ### vulture (dead code)
 
 ```bash
@@ -115,16 +134,18 @@ bandit -c pyproject.toml -r lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -ty
 ### pylint
 
 pylint has no per-directory configuration, so it runs twice: `lib` and the
-scripts get the full rule set; `tests/` also disables `TESTS_PYLINT_DISABLE`.
+scripts get the full rule set; `tests/` also disables the rules listed in
+`[tool.podiumd.pylint-tests]` in `pyproject.toml`.
 
 ```bash
 cd charts/podiumd/bin
 pylint lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
-PYTHONPATH=. pylint --disable="$TESTS_PYLINT_DISABLE" $(find tests -name '*.py')
+tests_disable=$(python3 -c 'from pathlib import Path; from lib.python_checks import pylint_disable_for_tests; print(pylint_disable_for_tests(Path("pyproject.toml")))')
+PYTHONPATH=. pylint --disable="$tests_disable" $(find tests -name '*.py')
 ```
 
-Copy `TESTS_PYLINT_DISABLE` from `run_python_checks`. `PYTHONPATH=.` lets
-pylint resolve `lib.*` imports in `tests/` without analyzing `lib`.
+`PYTHONPATH=.` lets pylint resolve `lib.*` imports in `tests/` without
+analyzing `lib`.
 
 ### basedpyright (type checking)
 
@@ -153,12 +174,13 @@ cd charts/podiumd/bin
 ruff check . $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 shellcheck run_python_checks
 ruff format --check . $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
-pymarkdown -d md013,md014 -s 'plugins.md024.siblings_only=$!True' scan ./*.md
+jscpd lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
+pymarkdown $(python3 -c 'from lib.chart.paths import CHART_DIR; from lib.checks.markdown import pymarkdown_rule_args; print(*pymarkdown_rule_args(CHART_DIR))') scan ./*.md
 vulture lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 bandit -c pyproject.toml -r lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)) -q
-pylint lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
-PYTHONPATH=. pylint --disable="$TESTS_PYLINT_DISABLE" $(find tests -name '*.py')
 basedpyright lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)) tests
+pylint lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
+PYTHONPATH=. pylint --disable="$tests_disable" $(find tests -name '*.py')  # tests_disable: see pylint above
 python3 -m pytest -q
 ```
 

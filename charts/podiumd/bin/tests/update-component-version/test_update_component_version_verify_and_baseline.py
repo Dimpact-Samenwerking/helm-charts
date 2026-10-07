@@ -1,16 +1,8 @@
-"""verify_component_version, baseline_doc_paths and load_baseline_values."""
+"""verify_component_version and check_chart_version_lockstep."""
 
-import subprocess
-
-from pathlib import Path
 from types import ModuleType
 
 import pytest
-
-
-def git(*args, cwd):
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
-
 
 # --- verify_component_version ---
 
@@ -125,88 +117,6 @@ def test_verify_component_version_checks_podiumd_repository_override(ucv: Module
 def test_verify_component_version_falls_back_to_upstream_repository(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch):
     component_values = {"image": {"tag": "3.5.5"}}
     assert _checked_repositories(ucv, monkeypatch, component_values) == ["maykinmedia/open-forms"]
-
-
-# --- baseline_doc_paths ---
-
-
-def test_baseline_doc_paths_finds_pair(ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(ucv, "DOC_DIR", tmp_path)
-    write(tmp_path / "4.8.5-to-4.9.0-upgrade.md", "x")
-    write(tmp_path / "4.8.5-to-4.9.0-values-deltas.md", "x")
-    upgrade_path, values_deltas_path = ucv.baseline_doc_paths("4.8.5", "4.9.0")
-    assert upgrade_path == tmp_path / "4.8.5-to-4.9.0-upgrade.md"
-    assert values_deltas_path == tmp_path / "4.8.5-to-4.9.0-values-deltas.md"
-
-
-def test_baseline_doc_paths_missing_values_deltas_is_none(
-    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
-    monkeypatch.setattr(ucv, "DOC_DIR", tmp_path)
-    write(tmp_path / "4.8.5-to-4.9.0-upgrade.md", "x")
-    upgrade_path, values_deltas_path = ucv.baseline_doc_paths("4.8.5", "4.9.0")
-    assert upgrade_path == tmp_path / "4.8.5-to-4.9.0-upgrade.md"
-    assert values_deltas_path is None
-
-
-def test_baseline_doc_paths_no_upgrade_doc_returns_none_none(
-    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
-    monkeypatch.setattr(ucv, "DOC_DIR", tmp_path)
-    assert ucv.baseline_doc_paths("4.8.5", "4.9.0") == (None, None)
-
-
-def test_baseline_doc_paths_no_baseline_returns_none_none(
-    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
-    monkeypatch.setattr(ucv, "DOC_DIR", tmp_path)
-    write(tmp_path / "4.8.5-to-4.9.0-upgrade.md", "x")
-    assert ucv.baseline_doc_paths(None, "4.9.0") == (None, None)
-
-
-def write(path, text):
-    path.write_text(text, encoding="utf-8")
-
-
-# --- load_baseline_values ---
-
-
-def init_git_repo(root):
-    git("init", "-q", cwd=root)
-    git("config", "user.email", "test@example.com", cwd=root)
-    git("config", "user.name", "Test", cwd=root)
-
-
-def test_load_baseline_values_resolves_real_baseline(ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    values_yaml = tmp_path / "values.yaml"
-    init_git_repo(tmp_path)
-    values_yaml.write_text('zac:\n  image:\n    tag: "5.0.2@sha256:aaaa"\n', encoding="utf-8")
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "baseline", cwd=tmp_path)
-    git("tag", "podiumd-4.8.5", cwd=tmp_path)
-
-    monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
-    assert ucv.load_baseline_values("4.8.5") == {"zac": {"image": {"tag": "5.0.2@sha256:aaaa"}}}
-
-
-def test_load_baseline_values_none_when_baseline_tag_missing(
-    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
-    values_yaml = tmp_path / "values.yaml"
-    init_git_repo(tmp_path)
-    values_yaml.write_text("zac: {}\n", encoding="utf-8")
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "only commit, no baseline tag", cwd=tmp_path)
-
-    monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
-    assert ucv.load_baseline_values("9.9.9") is None
-
-
-def test_load_baseline_values_none_outside_git_repo(ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    values_yaml = tmp_path / "values.yaml"
-    values_yaml.write_text("zac: {}\n", encoding="utf-8")
-    monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
-    assert ucv.load_baseline_values("4.8.5") is None
 
 
 # --- check_chart_version_lockstep ---

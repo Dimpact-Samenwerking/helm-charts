@@ -79,3 +79,13 @@ def test_multi_component_heading_is_not_counted_as_a_duplicate(libupgradedoccons
         [_row("KISS"), _row("ZAC")], ["KISS 3.1.0", "KISS 3.1.0 + ZAC 2.0.0"], KISS_DEPS, {}
     )
     assert headings == []
+
+
+def test_rowed_component_keys_a_sidecar_row_does_not_count_for_its_parent(libupgradedocconsistency: ModuleType):
+    rows: list[VersionRow] = [
+        {"name": "zac - opa", "app_source": "1.4.1", "app": "1.4.2", "chart_source": None, "chart": None},
+        {"name": "KISS", "app_source": "3.0.0", "app": "3.1.1", "chart_source": "3.0.0", "chart": "3.1.1"},
+    ]
+    canonical_names = {"zac - opa": ("zac", "opa", "image")}
+
+    assert libupgradedocconsistency.rowed_component_keys(rows, KISS_DEPS, canonical_names) == {"kiss"}

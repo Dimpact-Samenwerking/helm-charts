@@ -1,8 +1,8 @@
 """fix_component_version_table sets a sidecar row's chart cell to "-",
 the value check_docs_consistency expects."""
 
-from lib.component_docs.changes_section import BaselineState
-from lib.component_docs.changes_section import ComponentState
+from lib.chart.chart_state import BaselineState
+from lib.chart.chart_state import ComponentState
 from lib.fix_doc_consistency.component_version_table import fix_component_version_table
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.yaml_types import YamlMapping

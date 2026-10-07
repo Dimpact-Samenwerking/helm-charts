@@ -7,14 +7,12 @@ from typing import overload
 from lib.upgradedoc.grouped_comments_and_changes_block import VERSION_SPEC_RE
 from lib.upgradedoc.grouped_comments_and_changes_block import diff_keys
 from lib.upgradedoc.grouped_comments_and_changes_block import pair_renames
+from lib.upgradedoc.string_and_parsing_basics import fenced_line_flags
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import YamlValue
 
 VERSION_PAIR_RE = re.compile(r"(?P<source>[A-Za-z0-9][\w.\-]*)\s*(?P<arrow>→|->)\s*(?P<target>[A-Za-z0-9][\w.\-]*)")
-
-
-FENCED_CODE_BLOCK_RE = re.compile(r"```.*?```", re.DOTALL)
 
 
 HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
@@ -49,6 +47,19 @@ def version_transition(old: str | None, new: str | None) -> str:
     """Upgrade-doc heading version text: "1.2 → 1.3", "1.3 (new)" or "1.3 (unchanged)"."""
     suffix = version_change_suffix(old, new)
     return f"{new} {suffix}" if suffix else f"{old} → {new}"
+
+
+def chart_version_suffix(old_chart: str | None, new_chart: str | None) -> str:
+    """Upgrade-doc heading chart clause: " (chart 1.2 → 1.3)", " (chart 1.3, unchanged)" or " (chart 1.3, new)".
+
+    Empty for a native component (`new_chart == "-"`); "new" when there is no `old_chart`."""
+    if new_chart == "-":
+        return ""
+    if old_chart is None:
+        return f" (chart {new_chart}, new)"
+    if normalize_version(old_chart) != normalize_version(new_chart):
+        return f" (chart {old_chart} → {new_chart})"
+    return f" (chart {new_chart}, unchanged)"
 
 
 def pin_version_text(old: str | None, new: str | None) -> str:
@@ -94,18 +105,6 @@ def component_version_cell(old: str | None, new: str | None) -> str | None:
     return new
 
 
-def replace_version_pair(line: str, new_source: str, new_target: str):
-    """Replace the first "<source> -> <target>" (or "→") pair in line with
-    new_source/new_target, preserving everything else (the "# <Name> — "
-    prefix, arrow style, trailing newline)."""
-
-    def repl(m: re.Match[str]):
-        return f"{new_source} {m.group('arrow')} {new_target}"
-
-    new_line, count = VERSION_PAIR_RE.subn(repl, line, count=1)
-    return new_line if count else line
-
-
 def replace_version_spec(line: str, new_spec: str):
     """Replace the first version spec in `line` with `new_spec`; `line` unchanged if none.
 
@@ -137,42 +136,22 @@ def describe_key_changes(values_key: str, baseline_subtree: YamlValue, current_s
     return lines
 
 
-def missing_key_change_lines_by_key(
-    text: str, changed_component_keys: set[str], baseline_values: YamlMapping | None, values: YamlMapping | None
-) -> dict[str, list[str]]:
-    """{values_key: [line, ...]} of describe_key_changes() lines not yet mentioned in text.
-
-    Grouped per key so each goes to its own values-deltas.md section. A line counts as
-    mentioned only if every backtick span in it exactly equals a backtick span in text
-    (both keys of a rename). Never a substring match: prose like "never `tag`" would
-    otherwise cover every key path containing "tag". A bare trailing segment mentioned
-    without its prefix is therefore reported too; an occasional duplicate beats a missed
-    omission. A line already present verbatim is never reported."""
-    backtick_spans = set(re.findall(r"`([^`]+)`", strip_fenced_code_blocks(text)))
-
-    def mentioned(span: str):
-        return span in backtick_spans
-
-    by_key: dict[str, list[str]] = {}
-    for values_key in sorted(changed_component_keys):
-        baseline_subtree = baseline_values.get(values_key, {}) if isinstance(baseline_values, dict) else {}
-        current_subtree = values.get(values_key, {}) if isinstance(values, dict) else {}
-        lines: list[str] = []
-        for line in describe_key_changes(values_key, baseline_subtree, current_subtree):
-            spans_in_line = re.findall(r"`([^`]+)`", line)
-            if line not in text and not all(mentioned(span) for span in spans_in_line):
-                lines.append(line)
-        if lines:
-            by_key[values_key] = lines
-    return by_key
+def key_change_lines(values_key: str, baseline_values: YamlMapping | None, values: YamlMapping | None):
+    """describe_key_changes() for values_key's subtree; a missing subtree counts as empty."""
+    baseline_subtree = baseline_values.get(values_key, {}) if isinstance(baseline_values, dict) else {}
+    current_subtree = values.get(values_key, {}) if isinstance(values, dict) else {}
+    return describe_key_changes(values_key, baseline_subtree, current_subtree)
 
 
-def strip_fenced_code_blocks(text: str):
-    """`text` with every ```...``` fenced code block blanked out.
+def missing_key_change_lines(section_text: str, key_lines: list[str]):
+    """The key_lines not present as a whole line in section_text, outside fenced code blocks.
 
-    A lone backtick or "**" in example code desyncs delimiter pairing for the rest of the
-    doc, so span scanners must scan the stripped text."""
-    return FENCED_CODE_BLOCK_RE.sub("", text)
+    Only the exact generated line counts: a key named in user prose or shown as
+    an example still gets its generated line, so every section lists its key
+    changes in one fixed format."""
+    lines = section_text.splitlines()
+    present = {line.strip() for line, fenced in zip(lines, fenced_line_flags(lines), strict=True) if not fenced}
+    return [line for line in key_lines if line.strip() not in present]
 
 
 def strip_html_comments(text: str):

@@ -1,8 +1,7 @@
 """Load update-image-version (hyphenated, not importable) as module `uiv`.
 
 An autouse fixture points the module's path constants at a hermetic
-tmp_path, because main() always runs the doc-update step, which would
-otherwise read/write the real chart and docs. Also stubs the final
+tmp_path, because main() would otherwise write the real values.yaml. Also stubs the final
 fix-helm-doc call."""
 
 import importlib.util
@@ -37,16 +36,10 @@ def isolate_paths(uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPat
     )
     values_yaml = tmp_path / "values.yaml"
     values_yaml.write_text("{}\n", encoding="utf-8")
-    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
-    images_dir = tmp_path / "docs" / "images"
-    doc_dir.mkdir(parents=True)
-    images_dir.mkdir(parents=True)
 
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(uiv, "CHART_YAML", chart_yaml)
     monkeypatch.setattr(uiv, "VALUES_YAML", values_yaml)
-    monkeypatch.setattr(uiv, "DOC_DIR", doc_dir)
-    monkeypatch.setattr(uiv, "IMAGES_DIR", images_dir)
 
 
 @pytest.fixture(autouse=True)

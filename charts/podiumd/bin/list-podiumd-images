@@ -58,6 +58,7 @@ from lib.chart.values_tree_primitives import same_name
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.values_tree_primitives import version_of
+from lib.cli import flag_args
 from lib.dependencies import ensure_vendored_dependencies
 from lib.image.version import MULTIPLE_KEY
 from lib.image.version import image_basename
@@ -366,10 +367,7 @@ def _print_dependency_images(
 
 def main():
     """CLI entry point."""
-    if "-h" in sys.argv[1:] or "--help" in sys.argv[1:]:
-        print(__doc__)
-        sys.exit(0)
-    refresh = "--refresh" in sys.argv[1:]
+    refresh = "--refresh" in flag_args(__doc__, "--refresh")
     ensure_vendored_dependencies(VENDORED_DIR.parent)
 
     deps = load_chart_dependencies(CHART_YAML)

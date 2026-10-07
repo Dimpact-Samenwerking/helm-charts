@@ -7,6 +7,11 @@ from types import ModuleType
 import pytest
 import yaml
 
+from lib.chart.chart_yaml import ChartDependency
+from lib.fix_doc_consistency.manifest_entries_new_and_urls import MissingEntriesContext
+from lib.fix_doc_consistency.manifest_entries_new_and_urls import add_missing_images_manifest_entries
+from lib.yaml_types import YamlMapping
+
 
 def write(path, text):
     path.write_text(text, encoding="utf-8")
@@ -43,7 +48,7 @@ def ordered_images_manifest_chart_dir(tmp_path: Path):
     return tmp_path
 
 
-def _ordered_deps():
+def _ordered_deps() -> list[ChartDependency]:
     return [
         {"name": "openzaak", "version": "1.14.2"},
         {"name": "keycloak-operator", "version": "1.12.1"},
@@ -51,7 +56,7 @@ def _ordered_deps():
     ]
 
 
-def _ordered_target_values():
+def _ordered_target_values() -> YamlMapping:
     return {
         "openzaak": {"image": {"repository": "openzaak/open-zaak", "tag": "1.29.3@sha256:aaaa"}},
         "keycloak-operator": {"job": {"postgres": {"image": {"repository": "postgres", "tag": "16.15@sha256:bbbb"}}}},
@@ -59,62 +64,12 @@ def _ordered_target_values():
     }
 
 
-def _ordered_baseline_values():
+def _ordered_baseline_values() -> YamlMapping:
     return {
         "openzaak": {"image": {"repository": "openzaak/open-zaak", "tag": "1.27.4@sha256:aaaa"}},
         "keycloak-operator": {"job": {"postgres": {"image": {"repository": "postgres", "tag": "16.0@sha256:eeee"}}}},
         "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:cccc"}},
     }
-
-
-def test_add_missing_images_manifest_entries_inserts_at_correct_body_and_header_position(
-    cdb: ModuleType, ordered_images_manifest_chart_dir
-):
-    """A missing middle component is inserted between its neighbours in both
-    body and "# Changes:" list, not appended at the end."""
-    text = (
-        "# Two changes:\n"
-        "#   1. openzaak 1.27.4 -> 1.29.3.\n"
-        "#   2. zac 5.0.2 -> 5.1.0.\n"
-        "\n"
-        "# openzaak — 1.27.4 -> 1.29.3\n"
-        "- name: openzaak/open-zaak\n"
-        "  url: openzaak/open-zaak\n"
-        '  version: "1.29.3"\n'
-        '  digest: "sha256:aaaa"\n'
-        "\n"
-        "# zac — 5.0.2 -> 5.1.0\n"
-        "- name: infonl/zaakafhandelcomponent\n"
-        "  url: infonl/zaakafhandelcomponent\n"
-        '  version: "5.1.0"\n'
-        '  digest: "sha256:cccc"\n'
-    )
-
-    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
-        text,
-        cdb.MissingEntriesContext(
-            ordered_images_manifest_chart_dir,
-            _ordered_deps(),
-            _ordered_target_values(),
-            _ordered_baseline_values(),
-        ),
-    )
-
-    assert skipped == []
-    assert added == ["keycloak-operator - postgres"]
-
-    lines = new_text.splitlines()
-    openzaak_idx = next(i for i, line in enumerate(lines) if line.startswith("# openzaak"))
-    kc_idx = next(i for i, line in enumerate(lines) if line.startswith("#   sidecar: keycloak-operator - postgres"))
-    zac_idx = next(i for i, line in enumerate(lines) if line.startswith("# zac"))
-    assert openzaak_idx < kc_idx < zac_idx
-
-    assert "#   2. keycloak-operator - postgres 16.0 -> 16.15." in new_text
-    assert "#   3. zac 5.0.2 -> 5.1.0." in new_text
-    assert "# Three changes:" in new_text
-    assert "#   1. openzaak 1.27.4 -> 1.29.3." in new_text
-    assert "- name: openzaak/open-zaak" in new_text
-    assert "- name: infonl/zaakafhandelcomponent" in new_text
 
 
 def test_add_missing_images_manifest_entries_ignores_wrapped_line_that_looks_like_an_item(
@@ -147,9 +102,9 @@ def test_add_missing_images_manifest_entries_ignores_wrapped_line_that_looks_lik
         '  digest: "sha256:bbbb"\n'
     )
 
-    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+    new_text, added, skipped, backfilled = add_missing_images_manifest_entries(
         text,
-        cdb.MissingEntriesContext(
+        MissingEntriesContext(
             ordered_images_manifest_chart_dir,
             _ordered_deps(),
             _ordered_target_values(),
@@ -166,77 +121,6 @@ def test_add_missing_images_manifest_entries_ignores_wrapped_line_that_looks_lik
         "#      1.19.1-static and 2.3.4-slim, both unrelated to this number.\n"
         "#   2."
     ) in new_text
-
-
-def test_add_missing_images_manifest_entries_valid_yaml_after_middle_insertion(
-    cdb: ModuleType, ordered_images_manifest_chart_dir
-):
-    """The inserted block is blank-line separated and the result is valid YAML."""
-    text = (
-        "# openzaak — 1.27.4 -> 1.29.3\n"
-        "- name: openzaak/open-zaak\n"
-        "  url: openzaak/open-zaak\n"
-        '  version: "1.29.3"\n'
-        '  digest: "sha256:aaaa"\n'
-        "\n"
-        "# zac — 5.0.2 -> 5.1.0\n"
-        "- name: infonl/zaakafhandelcomponent\n"
-        "  url: infonl/zaakafhandelcomponent\n"
-        '  version: "5.1.0"\n'
-        '  digest: "sha256:cccc"\n'
-    )
-
-    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
-        text,
-        cdb.MissingEntriesContext(
-            ordered_images_manifest_chart_dir,
-            _ordered_deps(),
-            _ordered_target_values(),
-            _ordered_baseline_values(),
-        ),
-    )
-
-    assert skipped == []
-    assert added == ["keycloak-operator - postgres"]
-    entries = yaml.safe_load(new_text)
-    assert [e["name"] for e in entries] == ["openzaak/open-zaak", "library/postgres", "infonl/zaakafhandelcomponent"]
-
-
-def test_add_missing_images_manifest_entries_no_header_still_orders_body(
-    cdb: ModuleType, ordered_images_manifest_chart_dir
-):
-    """Without a "# Changes:" header the body is still ordered."""
-    text = (
-        "# openzaak — 1.27.4 -> 1.29.3\n"
-        "- name: openzaak/open-zaak\n"
-        "  url: openzaak/open-zaak\n"
-        '  version: "1.29.3"\n'
-        '  digest: "sha256:aaaa"\n'
-        "\n"
-        "# zac — 5.0.2 -> 5.1.0\n"
-        "- name: infonl/zaakafhandelcomponent\n"
-        "  url: infonl/zaakafhandelcomponent\n"
-        '  version: "5.1.0"\n'
-        '  digest: "sha256:cccc"\n'
-    )
-
-    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
-        text,
-        cdb.MissingEntriesContext(
-            ordered_images_manifest_chart_dir,
-            _ordered_deps(),
-            _ordered_target_values(),
-            _ordered_baseline_values(),
-        ),
-    )
-
-    assert skipped == []
-    assert added == ["keycloak-operator - postgres"]
-    lines = new_text.splitlines()
-    openzaak_idx = next(i for i, line in enumerate(lines) if line.startswith("# openzaak"))
-    kc_idx = next(i for i, line in enumerate(lines) if line.startswith("#   sidecar: keycloak-operator - postgres"))
-    zac_idx = next(i for i, line in enumerate(lines) if line.startswith("# zac"))
-    assert openzaak_idx < kc_idx < zac_idx
 
 
 def test_add_missing_images_manifest_entries_creates_missing_header_from_scratch(
@@ -258,9 +142,9 @@ def test_add_missing_images_manifest_entries_creates_missing_header_from_scratch
         '  digest: "sha256:aaaa"\n'
     )
 
-    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
+    new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
         text,
-        cdb.MissingEntriesContext(
+        MissingEntriesContext(
             ordered_images_manifest_chart_dir,
             _ordered_deps(),
             _ordered_target_values(),
@@ -298,9 +182,9 @@ def test_add_missing_images_manifest_entries_empty_bare_header_gets_first_item(
         "[]\n"
     )
 
-    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
+    new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
         text,
-        cdb.MissingEntriesContext(
+        MissingEntriesContext(
             ordered_images_manifest_chart_dir,
             _ordered_deps(),
             _ordered_target_values(),
@@ -323,9 +207,9 @@ def test_add_missing_images_manifest_entries_stub_placeholder_not_left_alongside
     "[]" followed by "- name:" is invalid YAML."""
     text = "# Baseline: podiumd 4.8.5. Re-verify before release.\n#\n# Changes:\n#\n\n[]\n"
 
-    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
+    new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
         text,
-        cdb.MissingEntriesContext(
+        MissingEntriesContext(
             ordered_images_manifest_chart_dir,
             _ordered_deps(),
             _ordered_target_values(),
@@ -346,9 +230,9 @@ def test_add_missing_images_manifest_entries_second_run_is_a_noop_not_a_duplicat
     no entries and re-add them all. Runs must be idempotent."""
     text = "# Baseline: podiumd 4.8.5. Re-verify before release.\n#\n# Changes:\n#\n\n[]\n"
 
-    first_text, first_added, _skipped, _backfilled = cdb.add_missing_images_manifest_entries(
+    first_text, first_added, _skipped, _backfilled = add_missing_images_manifest_entries(
         text,
-        cdb.MissingEntriesContext(
+        MissingEntriesContext(
             ordered_images_manifest_chart_dir,
             _ordered_deps(),
             _ordered_target_values(),
@@ -357,9 +241,9 @@ def test_add_missing_images_manifest_entries_second_run_is_a_noop_not_a_duplicat
     )
     assert first_added != []
 
-    second_text, second_added, _second_skipped, second_backfilled = cdb.add_missing_images_manifest_entries(
+    second_text, second_added, _second_skipped, second_backfilled = add_missing_images_manifest_entries(
         first_text,
-        cdb.MissingEntriesContext(
+        MissingEntriesContext(
             ordered_images_manifest_chart_dir,
             _ordered_deps(),
             _ordered_target_values(),
@@ -403,9 +287,9 @@ def test_add_missing_images_manifest_entries_backfills_header_item_for_existing_
         '  digest: "sha256:cccc"\n'
     )
 
-    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+    new_text, added, skipped, backfilled = add_missing_images_manifest_entries(
         text,
-        cdb.MissingEntriesContext(
+        MissingEntriesContext(
             ordered_images_manifest_chart_dir,
             _ordered_deps(),
             _ordered_target_values(),
@@ -416,8 +300,9 @@ def test_add_missing_images_manifest_entries_backfills_header_item_for_existing_
     assert added == []
     assert skipped == []
     assert backfilled == ["keycloak-operator - postgres"]
-    assert "#   2. keycloak-operator - postgres 16 -> 16.15." in new_text
-    assert "#   3. zac 5.0.2 -> 5.1.0." in new_text
+    # Appended; fix-doc-consistency's sort puts it in place.
+    assert "#   3. keycloak-operator - postgres 16 -> 16.15." in new_text
+    assert "#   2. zac 5.0.2 -> 5.1.0." in new_text
     assert "# Three changes:" in new_text
     assert new_text.count("- name: postgres") == 1
 
@@ -458,23 +343,23 @@ def test_add_missing_images_manifest_entries_lockstep_component_gets_one_header_
     """A lockstep component's two missing paths share one display name:
     both get entry blocks but only one header item."""
     text = "# Changes:\n"
-    deps = [{"name": "zgw-office-addin", "version": "0.0.89"}]
-    target_values = {
+    deps: list[ChartDependency] = [{"name": "zgw-office-addin", "version": "0.0.89"}]
+    target_values: YamlMapping = {
         "zgw-office-addin": {
             "frontend": {"image": {"repository": "infonl/zgw-office-addin-frontend", "tag": "0.11.0@sha256:aaaa"}},
             "backend": {"image": {"repository": "infonl/zgw-office-addin-backend", "tag": "0.11.0@sha256:bbbb"}},
         }
     }
-    baseline_values = {
+    baseline_values: YamlMapping = {
         "zgw-office-addin": {
             "frontend": {"image": {"repository": "infonl/zgw-office-addin-frontend", "tag": "v0.9.313@sha256:cccc"}},
             "backend": {"image": {"repository": "infonl/zgw-office-addin-backend", "tag": "v0.9.313@sha256:dddd"}},
         }
     }
 
-    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
+    new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
         text,
-        cdb.MissingEntriesContext(
+        MissingEntriesContext(
             zgw_office_addin_chart_dir,
             deps,
             target_values,
@@ -519,9 +404,9 @@ def test_add_missing_images_manifest_entries_does_not_backfill_already_covered_e
         '  digest: "sha256:cccc"\n'
     )
 
-    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+    new_text, added, skipped, backfilled = add_missing_images_manifest_entries(
         text,
-        cdb.MissingEntriesContext(
+        MissingEntriesContext(
             ordered_images_manifest_chart_dir,
             _ordered_deps(),
             _ordered_target_values(),
@@ -531,11 +416,11 @@ def test_add_missing_images_manifest_entries_does_not_backfill_already_covered_e
 
     assert added == []
     assert skipped == []
-    # The dependency-level mention doesn't cover the postgres sidecar; its
-    # item sorts right after keycloak-operator's (sidecar tie-break).
+    # The dependency-level mention doesn't cover the postgres sidecar; its item
+    # is appended (fix-doc-consistency's sort puts it in place).
     assert backfilled == ["keycloak-operator - postgres"]
-    assert "#   3. keycloak-operator - postgres 16 -> 16.15." in new_text
-    assert "#   4. zac 5.0.2 -> 5.1.0." in new_text
+    assert "#   4. keycloak-operator - postgres 16 -> 16.15." in new_text
+    assert "#   3. zac 5.0.2 -> 5.1.0." in new_text
 
 
 def test_add_missing_images_manifest_entries_backfill_is_noop_when_already_covered(
@@ -567,9 +452,9 @@ def test_add_missing_images_manifest_entries_backfill_is_noop_when_already_cover
         '  digest: "sha256:cccc"\n'
     )
 
-    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+    new_text, added, skipped, backfilled = add_missing_images_manifest_entries(
         text,
-        cdb.MissingEntriesContext(
+        MissingEntriesContext(
             ordered_images_manifest_chart_dir,
             _ordered_deps(),
             _ordered_target_values(),
@@ -612,9 +497,9 @@ def test_add_missing_images_manifest_entries_backfill_coverage_check_is_case_ins
         '  digest: "sha256:bbbb"\n'
     )
 
-    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+    new_text, added, skipped, backfilled = add_missing_images_manifest_entries(
         text,
-        cdb.MissingEntriesContext(
+        MissingEntriesContext(
             ordered_images_manifest_chart_dir,
             _ordered_deps(),
             _ordered_target_values(),
@@ -652,12 +537,12 @@ def test_add_missing_images_manifest_entries_skips_dotted_fallback_name_entirely
             }
         ),
     )
-    deps = [{"name": "openzaak", "version": "1.14.2"}]
-    target_values = {
+    deps: list[ChartDependency] = [{"name": "openzaak", "version": "1.14.2"}]
+    target_values: YamlMapping = {
         "openzaak": {"image": {"repository": "openzaak/open-zaak", "tag": "1.29.3@sha256:aaaa"}},
         "keycloak": {"image": {"repository": "keycloak/keycloak", "tag": "26.7.2@sha256:bbbb"}},
     }
-    baseline_values = {
+    baseline_values: YamlMapping = {
         "openzaak": {"image": {"repository": "openzaak/open-zaak", "tag": "1.27.4@sha256:aaaa"}},
         "keycloak": {"image": {"repository": "keycloak/keycloak", "tag": "26.6.4@sha256:eeee"}},
     }
@@ -678,9 +563,9 @@ def test_add_missing_images_manifest_entries_skips_dotted_fallback_name_entirely
         '  digest: "sha256:bbbb"\n'
     )
 
-    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+    new_text, added, skipped, backfilled = add_missing_images_manifest_entries(
         text,
-        cdb.MissingEntriesContext(
+        MissingEntriesContext(
             tmp_path,
             deps,
             target_values,

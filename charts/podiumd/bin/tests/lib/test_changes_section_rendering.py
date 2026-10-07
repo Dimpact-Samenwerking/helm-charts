@@ -7,15 +7,16 @@ section gained before the "- Image / digest" pointer."""
 import pytest
 
 from lib.component_docs.changes_section import ComponentIdentity
-from lib.component_docs.changes_section import OrderingContext
 from lib.component_docs.changes_section import VersionChange
 from lib.component_docs.changes_section import changes_body_kinds
+from lib.component_docs.changes_section import edited_changes_lines
 from lib.component_docs.changes_section import fix_pointer_issues
 from lib.component_docs.changes_section import make_changes_section
 from lib.component_docs.changes_section import pointer_issues
 from lib.component_docs.changes_section import render_changes_section
 from lib.component_docs.changes_section import replace_changes_section
 from lib.image.docs import make_image_changes_section
+from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.upgradedoc.version_cells_and_key_changes import pin_version_text
 from lib.upgradedoc.version_cells_and_key_changes import version_transition
 
@@ -308,3 +309,23 @@ def test_replace_changes_section_keeps_user_text_in_place():
     assert "5.4.5" not in new_doc
     assert user_para in new_doc and user_bullet in new_doc
     assert new_doc.index(user_para) < new_doc.index("- Image / digest") < new_doc.index(user_bullet)
+
+
+def test_edited_changes_lines_finds_hand_edited_generated_lines():
+    section = make_changes_section(ZAC, "4.9.3", VersionChange("5.4.4", "5.4.5", "1.0.297", "1.0.297"), ["image"])
+    edited = section.replace("to 5.4.5.\n", "to 5.4.5 (fixes CVE-X).\n").replace(
+        "`5.4.5` in\n", "`5.4.5` in values.yaml, see below\n"
+    )
+    doc = "# Upgrade\n\n## Changes\n\n" + edited
+
+    assert [line for _heading, line in edited_changes_lines(doc)] == [
+        "to 5.4.5 (fixes CVE-X).",
+        "- Image tag pin `zac.image.tag` `5.4.4` → `5.4.5` in values.yaml, see below",
+    ]
+
+
+def test_edited_changes_lines_ignores_user_lines_and_untouched_sections():
+    section = make_changes_section(ZAC, "4.9.3", VersionChange("5.4.4", "5.4.5", "1.0.297", "1.0.297"), ["image"])
+    doc = "# Upgrade\n\n## Changes\n\n" + section + "\nto be safe, restart the pods.\n\npinned at: see below\n"
+
+    assert edited_changes_lines(doc) == []

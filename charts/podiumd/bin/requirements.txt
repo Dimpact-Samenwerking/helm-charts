@@ -10,3 +10,4 @@ isort
 pytest
 bandit
 basedpyright
+jscpd

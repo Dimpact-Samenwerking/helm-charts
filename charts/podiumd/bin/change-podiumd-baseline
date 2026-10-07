@@ -27,7 +27,6 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 # sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
-from lib.chart.historical_baselines import SEMVER_RE as BASELINE_VERSION_RE
 from lib.chart.paths import CHART_DIR
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.chart.release_baseline_basics import write_release_baselines
@@ -36,6 +35,7 @@ from lib.cli import print_section
 from lib.gitutil import find_repo_root
 from lib.gitutil import resolve_baseline_ref
 from lib.procutil import run_script
+from lib.version_numbers import is_bare_version
 
 FIX_DOC_CONSISTENCY_SCRIPT = SCRIPT_DIR / "fix-doc-consistency"
 FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
@@ -47,7 +47,7 @@ def main():
 
     # resolve_baseline_ref would also accept refs like "main" or "HEAD~2";
     # downstream consumers assume semver.
-    if not BASELINE_VERSION_RE.match(new_baseline):
+    if not is_bare_version(new_baseline):
         print(f"error: '{new_baseline}' is not a valid MAJOR.MINOR.PATCH version")
         sys.exit(1)
 

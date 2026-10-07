@@ -158,6 +158,13 @@ def version_of(tag: str) -> str:
     return tag.split("@", 1)[0]
 
 
+def image_version_changed(old_tag: str | None, new_tag: str | None) -> bool:
+    """Whether an image pin's version (not just its digest) changed; a pin new at this path counts as changed."""
+    if new_tag is None:
+        return False
+    return old_tag is None or version_of(old_tag) != version_of(new_tag)
+
+
 KEY_LINE_RE = re.compile(r"^(?P<indent>\s*)(?P<key>[\w.\-]+):(?:\s|$)")
 
 

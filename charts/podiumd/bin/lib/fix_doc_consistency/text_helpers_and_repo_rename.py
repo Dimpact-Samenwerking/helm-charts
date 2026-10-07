@@ -5,12 +5,15 @@ import re
 from pathlib import Path
 
 from lib.procutil import run
+from lib.upgradedoc.doc_names import title_arrow_re
+from lib.upgradedoc.string_and_parsing_basics import fenced_line_flags
+from lib.version_numbers import BARE_VERSION_PATTERN
 
-TITLE_ARROW_RE_TMPL = r"(?P<baseline>{baseline})(?P<arrow>\s*(?:→|->)\s*){target}"
-COMPONENT_VERSIONS_RE_TMPL = r"Component versions \({target}\s+vs\s+(?P<baseline>{baseline})\)"
+# Any baseline, not only the doc's file name one: a heading left on a third
+# version (hand-edited, or a doc already renamed) is rebased too.
+COMPONENT_VERSIONS_RE_TMPL = rf"Component versions \({{target}}\s+vs\s+(?P<baseline>{BARE_VERSION_PATTERN})\)"
 
 HEADING_LINE_RE = re.compile(r"^#{1,6}\s")
-FENCE_LINE_RE = re.compile(r"^\s*```")
 
 
 def find_collisions(by_suffix: dict[str, list[tuple[str, Path]]]):
@@ -19,33 +22,43 @@ def find_collisions(by_suffix: dict[str, list[tuple[str, Path]]]):
 
 
 def git_mv(src: Path, dst: Path):
-    """`git mv src dst` so history follows the file; SystemExit with git's stderr on failure."""
+    """`git mv src dst` so history follows the file; SystemExit with git's stderr on failure.
+
+    An untracked src (a stub an earlier run created and nobody committed yet)
+    has no history to follow, and git mv would refuse it halfway through a
+    rebase, so it is renamed in place.
+    """
+    tracked = run(
+        ["git", "ls-files", "--error-unmatch", "--", src.name], cwd=src.parent, capture_output=True, text=True
+    )
+    if tracked.returncode != 0:
+        src.rename(dst)
+        return
     result = run(["git", "mv", str(src), str(dst)], cwd=src.parent, capture_output=True, text=True)
     if result.returncode != 0:
         msg = f"error: git mv {src} -> {dst} failed: {result.stderr.strip()}"
         raise SystemExit(msg)
 
 
-def update_title_line(text: str, old_baseline: str, target: str, new_baseline: str):
-    """Replace "<old_baseline> → <target>" (or "->") on the title line
-    (line 1) only. Returns (new_text, changed)."""
+def update_title_line(text: str, target: str, new_baseline: str):
+    """Point "<baseline> → <target>" (or "->") on the title line (line 1) at
+    new_baseline. Returns (new_text, changed)."""
     lines = text.splitlines(keepends=True)
     if not lines:
         return text, False
-    pattern = re.compile(TITLE_ARROW_RE_TMPL.format(baseline=re.escape(old_baseline), target=re.escape(target)))
-    new_first, count = pattern.subn(lambda m: f"{new_baseline}{m.group('arrow')}{target}", lines[0])
-    if count == 0:
+    new_first = title_arrow_re(target).sub(lambda m: f"{new_baseline}{m.group('arrow')}{target}", lines[0])
+    if new_first == lines[0]:
         return text, False
     lines[0] = new_first
     return "".join(lines), True
 
 
-def update_component_versions_heading(text: str, old_baseline: str, target: str, new_baseline: str):
-    """Replace a "Component versions (<target> vs <old_baseline>)" heading
-    anywhere in the body, if present. Returns (new_text, changed)."""
-    pattern = re.compile(COMPONENT_VERSIONS_RE_TMPL.format(baseline=re.escape(old_baseline), target=re.escape(target)))
-    new_text, count = pattern.subn(f"Component versions ({target} vs {new_baseline})", text)
-    return new_text, count > 0
+def update_component_versions_heading(text: str, target: str, new_baseline: str):
+    """Point a "Component versions (<target> vs <baseline>)" heading anywhere
+    in the body at new_baseline. Returns (new_text, changed)."""
+    pattern = re.compile(COMPONENT_VERSIONS_RE_TMPL.format(target=re.escape(target)))
+    new_text = pattern.sub(f"Component versions ({target} vs {new_baseline})", text)
+    return new_text, new_text != text
 
 
 def join_and(parts: list[str]):
@@ -58,25 +71,24 @@ def join_and(parts: list[str]):
 
 
 def remaining_mentions(text: str, old_baseline: str):
-    """1-indexed line numbers where old_baseline still appears, for manual review."""
-    return [i + 1 for i, line in enumerate(text.splitlines()) if old_baseline in line]
+    """1-indexed line numbers where old_baseline still appears, for manual review.
+
+    Whole versions only: "14.8.4" or "4.8.40" is not 4.8.4, "v4.8.4." is.
+    """
+    pattern = re.compile(rf"(?<![\d.]){re.escape(old_baseline)}(?!\.?\d)")
+    return [i + 1 for i, line in enumerate(text.splitlines()) if pattern.search(line)]
 
 
 def ensure_blank_lines_around_headings(text: str):
     """Insert missing blank lines around "#" headings (MD022).
 
-    Lines inside fenced code blocks are skipped via a per-line toggle
-    (strip_fenced_code_blocks would shift line numbers). No blank line is
-    added at the file's top or bottom."""
+    Lines inside fenced code blocks are skipped (fenced_line_flags). No
+    blank line is added at the file's top or bottom."""
     lines = text.splitlines(keepends=True)
+    fenced = fenced_line_flags(lines)
     result: list[str] = []
-    in_fence = False
     for i, line in enumerate(lines):
-        if FENCE_LINE_RE.match(line):
-            in_fence = not in_fence
-            result.append(line)
-            continue
-        if not in_fence and HEADING_LINE_RE.match(line):
+        if not fenced[i] and HEADING_LINE_RE.match(line):
             if result and result[-1].strip():
                 result.append("\n")
             result.append(line)
