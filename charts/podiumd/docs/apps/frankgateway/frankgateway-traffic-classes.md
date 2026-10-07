@@ -23,7 +23,9 @@ one off.
 ## Architecture
 
 Each traffic class gets its own gateway pods (two of them); the three share one
-3-member etcd cluster and are kept apart by prefix.
+3-member etcd cluster and are kept apart by prefix. The next release retires
+etcd and the sync workaround — see
+[Changing in the next release](frankgateway-BASICS.md#changing-in-the-next-release).
 
 ```mermaid
 flowchart TB
@@ -83,9 +85,10 @@ with the `internal` instance is what removes that round trip.
 ## Why one etcd and three prefixes
 
 APISIX in traditional mode loads exactly the objects stored beneath its
-configured etcd prefix. Giving each instance its own prefix (`/frankgateway-inway`,
-`/frankgateway-outway`, `/frankgateway-internal`) isolates routes, consumers and SSL objects
-completely, without the cost of three etcd clusters. The blast-radius concern
+configured etcd prefix. Giving each instance its own prefix
+(`/frankgateway-inway`, `/frankgateway-outway`, `/frankgateway-internal`)
+isolates routes, consumers and SSL objects completely, without the cost of
+three etcd clusters. The blast-radius concern
 is the gateway pods, not the config store.
 
 That store is still shared, so it is made to survive on its own terms: the one
@@ -95,6 +98,10 @@ the load-balanced Service, so a client whose member dies fails over instead of
 erroring. What remains shared is the *blast radius of a bad etcd*, not of a
 dead pod: three classes still depend on one cluster, and a corrupted or full
 etcd affects all of them.
+
+This section describes 4.9.3 and earlier. In the next release Frank!Gateway no
+longer uses etcd, so the shared store, its prefixes and this blast radius go
+away.
 
 ## What the split buys
 
@@ -124,10 +131,10 @@ three. There is no single-instance shape and no `gateway` key — a values file
 still setting `frankgateway.instances.gateway` or `frankgateway.serviceAlias`
 fails the render with a message naming this document.
 
-**OpenBao is required alongside it.** External-API credentials are read from
-OpenBao at request time and there is no second key path, so
-`openbao.enabled: false` with `frankgateway.enabled: true` fails the render
-rather than deploying a gateway that cannot authenticate to anything.
+**OpenBao is required alongside it** — `openbao.enabled: false` with
+`frankgateway.enabled: true` fails the render. A first deploy, OpenBao
+included, follows
+[`frankgateway-deploy-runbook.md`](frankgateway-deploy-runbook.md).
 
 ```yaml
 frankgateway:
@@ -145,90 +152,13 @@ frankgateway:
                              # issuing and renewing it
 ```
 
-That is the whole of it. Dashboards are off, so no hostnames, no Keycloak
-clients and no Ingresses are needed to run the gateway — see below for turning
-one on when an investigation needs it.
+That is the whole of it: no hostnames, no Keycloak clients and no Ingresses are
+needed to run the gateway.
 
 Anything not stated per instance is inherited from the shared `frankgateway`
 block, so an instance only declares what differs. A class an environment has no
 use for is switched off with `enabled: false` — an environment making no calls
 to national registries needs no outway.
-
-### Turning dashboards on and off
-
-**Dashboards are off by default.** They are the largest part of the footprint —
-six of the eight pods per class once everything runs at two replicas — and
-nothing else depends on them: the route-seeding Job talks to the Admin API
-directly, so a class with no dashboard is fully managed and fully observable.
-You simply have no GUI for it.
-
-Switch one on for as long as an investigation needs it, then off again. Every
-hour it runs is an hour a browser-reachable admin surface exists for a component
-that otherwise has none.
-
-**One dashboard on, the rest off** — the per-instance value wins over the
-shared one, in either direction:
-
-```yaml
-frankgateway:
-  instances:
-    inway:
-      dashboard:
-        enabled: true       # off everywhere else, on here
-        auth:
-          hostname: frankgateway-inway-admin.<env>.<domain>
-```
-
-Each dashboard needs its **own** hostname: they are separate Ingresses and
-separate oauth2-proxy redirect URIs. Two instances claiming one hostname fails
-the render rather than producing two Ingresses that fight over it.
-
-**A dashboard for debugging, with no hostname to arrange.** Turning SSO off
-drops the oauth2-proxy and shim as well, so there is no ingress, no certificate
-SAN and no Keycloak client to set up — which is usually what makes enabling a
-dashboard mid-investigation annoying:
-
-```yaml
-frankgateway:
-  instances:
-    outway:
-      dashboard:
-        enabled: true
-        auth:
-          enabled: false
-```
-
-Then reach it locally:
-
-```bash
-kubectl -n <namespace> port-forward deploy/frankgateway-outway-dashboard 9000:9000
-# http://localhost:9000 — log in with the instance's admin key:
-kubectl -n <namespace> get secret frankgateway-outway-admin-credentials \
-  -o jsonpath='{.data.admin}' | base64 -d; echo
-```
-
-**Do not leave `auth.enabled: false` on in a shared environment.** The
-dashboard has no authentication of its own beyond the Admin API key, and
-without oauth2-proxy in front there is nothing else stopping anyone in the
-cluster reaching it. It is a debugging mode, not a configuration.
-
-Turning a dashboard off removes its Deployments, Services, config Secret and its
-Keycloak client, so no orphaned realm client is left behind and toggling it back
-and forth is safe.
-
-One thing it does not remove, and it is not harmful: routing rows, DNS entries
-and certificate SANs created deploy-side for the hostname are outside the
-chart, so they persist until removed there.
-
-The realm Secret carries only per-instance keys
-(`frankgateway-dashboard-<class>-oidc-secret`), and each disappears with its
-client — there is no unsuffixed `frankgateway-dashboard-oidc-secret` key.
-
-| Setting | Renders | Needs a hostname |
-|---|---|---|
-| `dashboard.enabled: false` | nothing | no |
-| `dashboard.enabled: true`, `auth.enabled: false` | dashboard only (port-forward) | no |
-| `dashboard.enabled: true`, `auth.enabled: true` | dashboard + oauth2-proxy + shim + ingress | **yes** |
 
 ### Object names
 
@@ -242,12 +172,11 @@ Deployment — so anything addressing the gateway must name the class it means:
 | Admin API credentials | `frankgateway-<class>-admin-credentials` |
 | Gateway config (`config.yaml`) | `frankgateway-<class>-config` |
 | Seed hook Job + ConfigMap | `frankgateway-<class>-seed`, `-seed` |
-| Dashboard chain | `frankgateway-<class>-dashboard`, `-shim`, `-oauth2-proxy` |
-| Keycloak OIDC client | `frankgateway-dashboard-<class>` |
 | etcd prefix | `/frankgateway-<class>` |
 
 The shared etcd StatefulSet (`frankgateway-etcd`) is the one object that is not
-per class.
+per class. It and the etcd prefixes go when etcd is retired in the next
+release.
 
 **Deploy tooling reading any of these by name must name the class.** This is
 the single most common way a change appears to work and does not — see the
@@ -262,6 +191,9 @@ where the next hour of debugging then goes.
 
 This is why a scripted post-deploy check matters more here than in most
 components: "all pods Running" is true in every row of this table.
+
+The rows that mention etcd or a sync CronJob describe 4.9.3 and earlier; the
+next release retires etcd and the sync workaround.
 
 | Fault | Why it is invisible | What detects it |
 |---|---|---|
@@ -289,15 +221,13 @@ Recorded because each of these cost real debugging time and none is obvious
 from the values file.
 
 **Anything the deploy tooling does "to the gateway" must be done per
-instance.** Four separate scripts assumed one gateway, and every failure
+instance.** Several deploy scripts assumed one gateway, and every failure
 surfaced somewhere other than the change that caused it:
 
 | Assumed one gateway | How it failed |
 |---|---|
 | Restarting `deploy/frankgateway` after a token rotation | other instances kept the old token until something unrelated restarted them |
 | Registering the OpenBao secret backend | a secret backend is an etcd object, so it lives under one prefix; `$secret://` then fails **at request time as an auth rejection**, looking exactly like a wrong key |
-| The OpenBao reader policy scoped to one secret path | a valid key is rejected with 401, indistinguishable from a wrong key |
-| Seeding routes but not consumers | a `key-auth` route whose consumer does not exist yet rejects everything until the next run |
 | Expecting consumers to come from values | there is no `consumers` key: inbound identity is the consumer list in OpenBao, read at request time by `openbao-consumer-auth` — see [`frankgateway-routes.md`](frankgateway-routes.md) |
 
 Select instances by `app.kubernetes.io/component=frankgateway` rather than
@@ -345,8 +275,8 @@ does **not** preserve the **scheme**: an application reached over plain http on
 the internal class emits `http://` URLs where the same application reached
 through the inway emits `https://`.
 
-On `frank-gateway` 104 and 1.1.0 (both APISIX 3.16.0) this could not be fixed with headers —
-`proxy-rewrite`, a function setting `ctx.var.var_x_forwarded_proto` in either
+On `frank-gateway` 104 and 1.1.0 (both APISIX 3.16.0) this could not be fixed
+with headers — `proxy-rewrite`, a function setting `ctx.var.var_x_forwarded_proto` in either
 the `rewrite` or `before_proxy` phase, and a client-supplied
 `X-Forwarded-Proto` were all discarded before reaching the upstream. The last
 of those rules out plugin ordering as the explanation.
@@ -380,14 +310,9 @@ takes anything down. That sets the floor:
 |---|---|
 | Three gateways | 6 |
 | etcd | 3 |
-| **Default total — dashboards off** | **9** |
-| Three dashboards | +6 |
-| Three oauth2-proxy + shim pairs | +12 |
-| **With every dashboard on** | **27** |
+| **Total** | **9** |
 
-Dashboards are two thirds of the maximum and none of the default. They ship
-off; turning all three on triples the footprint, which is the reason to turn
-them off again afterwards.
+Retiring etcd in the next release removes its three members from that total.
 
 etcd is three because it is raft — quorum of three is two, so it survives
 losing one member. **Two would be worse than one**: quorum of two is also two,
@@ -414,6 +339,8 @@ genuinely needs the looser behaviour.
 
 ## Related documents
 
+- [`frankgateway-deploy-runbook.md`](frankgateway-deploy-runbook.md) — deploying
+  the gateway and its OpenBao, step by step.
 - [`frankgateway-BASICS.md`](frankgateway-BASICS.md) — what Frank!Gateway is,
   its runtime components and required resources.
 - [`frankgateway-split-exploration.md`](frankgateway-split-exploration.md) —

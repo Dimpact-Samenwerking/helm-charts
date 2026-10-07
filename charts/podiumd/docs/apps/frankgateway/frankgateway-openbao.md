@@ -7,8 +7,11 @@
 >
 > Section numbers are stable: the chart itself refers to them
 > (`scripts/openbao-mint-config-token.sh`, `templates/openbao-config-job.yaml`,
-> `values.yaml` → `openbao.configuration.bootstrapTokenSecret`). Keep §5 (bootstrap
-> runbook) and §7 (security notes) where they are.
+> `values.yaml` → `openbao.configuration.bootstrapTokenSecret`). Keep §5 (now a
+> pointer to the deployment runbook) and §7 (security notes) where they are.
+>
+> **Deploying?** Follow [`frankgateway-deploy-runbook.md`](frankgateway-deploy-runbook.md).
+> This page is the reference behind it.
 
 ## Management summary
 
@@ -39,27 +42,25 @@ hand, and `openbao-unseal-key` then holds the recovery key.
 
 ## DevOps TL;DR
 
-> First deploy: read the full doc below. Subsequent deploys: this section is all
-> you need.
-
-Infra to provision per environment (one line each):
+What an environment needs, one line each. The order to do it in is the
+[deployment runbook](frankgateway-deploy-runbook.md).
 
 | Piece | What DevOps must provide |
 |---|---|
 | **Database** | Azure PostgreSQL db `openbao` + role `openbao-admin`; password in Key Vault (`REP_OPENBAO_DB_PASSWORD_REP`). Tables auto-created by the schema Job. |
-| **Key Vault items** | `openbao-unseal-key` and `openbao-root-token` in the environment Key Vault. ADO `ExternalsPodiumD` creates both (Terraform `keyvault` block, `passwords` list) with a **placeholder**; the real values are written after `bao operator init` (§5 step 4). |
+| **Key Vault items** | `openbao-unseal-key` and `openbao-root-token` in the environment Key Vault. ADO `ExternalsPodiumD` creates both (Terraform `keyvault` block, `passwords` list) with a **placeholder**; the real values are written after `bao operator init` (runbook step 3). |
 | **Ingress / route** | Gateway/Ingress (`infra.yml`) → service `<release>-openbao-active:8200` over **HTTP** (TLS terminated at gateway), host per environment from `openbao.configuration.oidcUrl` (convention `<env>-openbao-admin.<gemeente>.nl`). |
 | **TLS cert** | Gateway cert **SAN must cover the OpenBao host** (`<env>-openbao-admin.<gemeente>.nl`); pods run no TLS (`tls_disable=1`), so no server cert needed. |
 | **Storage** | **None** — no PVC (PostgreSQL storage backend, `dataStorage.enabled=false`). |
 | **Secrets (cluster)** | `openbao-db` (chart-rendered) · `openbao-bootstrap-token` key `token` (**seeded by `scripts/openbao-mint-config-token.sh`** — a scoped periodic token, NOT the root token) · `openbao-oidc-secret` (auto-generated, kept stable). |
 | **Identity** | User-assigned MI + federated credential for SA `openbao`; set client-id in `server.serviceAccount.annotations`. (The Azure KV *crypto key* for auto-unseal is provisioned but unused — Shamir, §3.6.) |
 | **Images / egress** | Allow `quay.io/openbao/openbao` + `docker.io/library/postgres` at the tags pinned in `values.yaml` (§3.1), or mirror to ACR + override. |
-| **One-time bootstrap** | `bao operator init -key-shares=1 -key-threshold=1` (static seal: `-recovery-shares=1 -recovery-threshold=1`, §5 step 4); store the key and root token in Key Vault; unseal every pod; mint + seed the scoped config token (`scripts/openbao-mint-config-token.sh`); re-run deploy; check `kubectl --context <ctx> -n <ns> logs job/openbao-config`; only then revoke the root token (§5 step 8). |
-| **Every restart / upgrade** | Shamir: unseal every pod with `openbao-unseal-key` from Key Vault (§5.1). Static seal (§3.6.1): nothing — the pods unseal themselves; check `bao status`. ADO `ExternalsPodiumD` environments script the bootstrap and unseal after every deploy automatically (§5.2). |
+| **One-time bootstrap** | Initialise, store the key and root token in Key Vault, mint the config token, revoke the root token — runbook steps 3, 4 and 8. |
+| **Every restart / upgrade** | Shamir: unseal every pod. Static seal (§3.6.1): nothing — the pods unseal themselves. Runbook: [After every deploy](frankgateway-deploy-runbook.md#after-every-deploy). |
 
 Values to set: `openbao.enabled=true`, `openbao.database.host`,
 `openbao.configuration.oidcUrl`, `openbao.configuration.keycloak.url`,
-`server.serviceAccount.annotations` client-id. Full runbook in §5.
+`server.serviceAccount.annotations` client-id (§4).
 
 ---
 
@@ -124,7 +125,7 @@ OpenBao is the only source of Frank!Gateway's external-API credentials.
   `frankgateway` itself, and every API-key route then answers 503.
 - A route whose secret cannot be read answers **503**
   (`frankgateway.openbao.failMode: closed`). A **sealed** OpenBao therefore
-  turns every key-bearing route into a 503 — unsealing after a restart (§5.1)
+  turns every key-bearing route into a 503 — unsealing after a restart
   is on the gateway's critical path, not only the vault's.
 - With `frankgateway.tls.certManager.issuer.create: true`, OpenBao is also the
   CA for the gateway's internal-hop certificate (PKI engine) — see
@@ -294,7 +295,7 @@ them:
 
 | What | Kind | Used? |
 |---|---|---|
-| `openbao-unseal-key`, `openbao-root-token` | Key Vault **secrets** — operator storage for the output of `bao operator init` | **Yes** — read by an operator to unseal (§5.1) and for break-glass |
+| `openbao-unseal-key`, `openbao-root-token` | Key Vault **secrets** — operator storage for the output of `bao operator init` | **Yes** — read by an operator to unseal and for break-glass |
 | Auto-unseal key + MI + federated credential | Key Vault **crypto key** + identity for the `azurekeyvault` seal | **No** — provisioned, kept for a later switch to auto-unseal (§3.6) |
 
 **The two secrets.** Environments deployed from ADO `ExternalsPodiumD` get both
@@ -303,7 +304,7 @@ from Terraform: they are in the `passwords` list of
 (`keyvault` resource) creates them in `kv-<env>-<gemeente>`. Terraform can only
 create the *items*: it fills them with a random placeholder, because the real
 values do not exist until `bao operator init` runs. An operator overwrites them
-once (§5 step 4); `ignore_changes = [value]` keeps later pipeline runs from
+once (runbook step 3); `ignore_changes = [value]` keeps later pipeline runs from
 putting the placeholder back. An environment deployed any other way must create
 both secrets by hand, with the same names.
 
@@ -347,22 +348,19 @@ Consequences (one-time, per fresh cluster):
   (`/v1/sys/health?...&uninitcode=200&sealedcode=200`) so pods report Ready and a
   `helm --wait` deploy does not block forever. **A green deploy is therefore no
   evidence that OpenBao is usable** — check `bao status` (§6).
-- An operator runs `bao operator init` once, then **unseals** each pod with the
-  key. **Store the unseal key in `openbao-unseal-key` and the root token in
-  `openbao-root-token`** in the environment Key Vault, before doing anything
-  else with them.
-- Run `scripts/openbao-mint-config-token.sh`: it writes the scoped
-  `podiumd-config-job` policy, mints an **orphan periodic token** carrying it,
-  and seeds that into `Secret/openbao-bootstrap-token` (key `token`); the
-  `openbao-config` Job reads it as `BAO_TOKEN` and renews it on every run. The
-  root token is then no longer needed — revoke it (§7). Until that Secret
-  exists the Job **self-skips cleanly** (exit 0) so the post-install hook never
-  blocks a release; a present-but-invalid token (revoked/expired) **fails the
-  Job loudly** instead. Re-run the deploy (or the Job) after the bootstrap to
-  apply the config.
+- An operator initialises the vault once and unseals each pod with the key;
+  the unseal key and root token go straight into Key Vault
+  ([runbook step 3](frankgateway-deploy-runbook.md#step-3--deploy-and-initialise-openbao)).
+- The `openbao-config` Job never uses the root token. It authenticates with an
+  **orphan periodic token** carrying the scoped `podiumd-config-job` policy,
+  read from `Secret/openbao-bootstrap-token` (key `token`) and renewed on every
+  run; `scripts/openbao-mint-config-token.sh` mints and seeds it. Until that
+  Secret exists the Job **self-skips cleanly** (exit 0) so the post-install
+  hook never blocks a release; a present-but-invalid token (revoked/expired)
+  **fails the Job loudly** instead.
 - `updateStrategyType: RollingUpdate` (not the sub-chart default `OnDelete`) so a
   `helm upgrade` recreates the server pods to pick up config changes — and
-  every recreated pod comes back **sealed** (§5.1).
+  every recreated pod comes back **sealed**.
 
 ### 3.6.1 Static seal: unseal without an operator (optional)
 
@@ -399,11 +397,11 @@ pipeline substitutes.
 
 Initialising and migrating:
 
-- **Fresh vault:** `bao operator init` under an auto-unseal seal returns
-  **recovery keys** instead of unseal keys (`-recovery-shares=1
-  -recovery-threshold=1`). Store the recovery key and the root token in Key
-  Vault as with Shamir; the recovery key is break-glass material (e.g. `bao
-  operator generate-root`), not needed to start.
+- **Fresh vault:** `bao operator init` under the static seal returns a
+  **recovery key** instead of an unseal key. It is stored as
+  `openbao-unseal-key` all the same, but it is break-glass material (e.g. `bao
+  operator generate-root`), not needed to start
+  ([runbook step 3](frankgateway-deploy-runbook.md#step-3--deploy-and-initialise-openbao)).
 - **Existing Shamir vault:** deploy with the key set. Every pod restarts into
   migration mode (`type: static`, `sealed: true`, `migration: true`). On one
   pod run `bao operator unseal -migrate` with the current unseal key; that pod
@@ -562,281 +560,43 @@ are placeholders and **must** be overridden per environment.
 
 The unseal key and root token are **not** chart values and never pass through
 the Helm deploy: nothing in the chart reads them. They live only in Key Vault
-and are used by an operator (§5).
+and are used by an operator ([runbook](frankgateway-deploy-runbook.md)).
 
 ---
 
 ## 5. Bootstrap runbook (first install)
 
-Throughout: `<kv>` is the environment Key Vault (`kv-<env>-<gemeente>` for
-`ExternalsPodiumD` environments), `<ctx>` the kube-context and `<ns>` the
-namespace. Name them on every command.
+The procedure now lives in
+[`frankgateway-deploy-runbook.md`](frankgateway-deploy-runbook.md), together
+with the rest of a first Frank!Gateway deploy. This section keeps its number
+because the chart's scripts and Job messages refer to it. Where an older
+reference names a step, it maps as follows:
 
-> **Environments deployed from ADO `ExternalsPodiumD`** have scripts for steps
-> 3–4 and for §5.1 — see §5.2. The manual runbook below is what those scripts
-> do, and the procedure for any other deployment.
-
-1. **Infra (base-infra / `infra.yml` / Terraform), out-of-band:**
-   - PostgreSQL: create db `openbao` + role `openbao-admin`; store its password
-     in Azure Key Vault (pipeline reads `REP_OPENBAO_DB_PASSWORD_REP`).
-   - Key Vault items `openbao-unseal-key` and `openbao-root-token` exist
-     (`ExternalsPodiumD`: run the platform pipeline with the `keyvault`
-     resource; otherwise create them by hand). They hold placeholders for now.
-   - Managed Identity + federated credential for SA `openbao`, client-id noted.
-   - Gateway/Ingress route → `<release>-openbao-active:8200` (HTTP), external
-     host `<env>-openbao-admin.<gemeente>.nl`, TLS cert whose **SAN covers that
-     host**.
-2. **Chart values:** set the §4 overrides for the environment.
-3. **Deploy** (`helm dep build` first if the `.tgz` is not vendored). The
-   schema Job creates the tables; the server starts sealed/uninitialised; the
-   `openbao-config` Job self-skips (no bootstrap token yet).
-4. **Initialise, store, unseal (one-time, manual).** Capture the output
-   straight into Key Vault; do not leave it in a terminal scrollback or a file:
-
-   ```bash
-   INIT=$(kubectl --context <ctx> -n <ns> exec <release>-openbao-0 -- \
-     bao operator init -key-shares=1 -key-threshold=1 -format=json)
-
-   az keyvault secret set --vault-name <kv> --name openbao-unseal-key \
-     --file <(jq -j '.unseal_keys_b64[0]' <<<"$INIT") --encoding utf-8 -o none
-   az keyvault secret set --vault-name <kv> --name openbao-root-token \
-     --file <(jq -j '.root_token' <<<"$INIT") --encoding utf-8 -o none
-
-   for item in 'openbao-unseal-key:.unseal_keys_b64[0]' 'openbao-root-token:.root_token'; do
-     [ "$(az keyvault secret show --vault-name <kv> --name "${item%%:*}" --query value -o tsv)" \
-       = "$(jq -j "${item#*:}" <<<"$INIT")" ] && echo "${item%%:*}: stored" \
-       || echo "${item%%:*}: MISMATCH, do not continue"
-   done
-   unset INIT
-   ```
-
-   `--file` with process substitution keeps both values off the `az` command
-   line, where any local process could read them for the duration of the call.
-   The loop compares what Key Vault now holds with the `init` output without
-   printing either, so it also catches an item still holding the Terraform
-   placeholder. Keep `INIT` until both say `stored`. Then unseal every pod as
-   in §5.1.
-
-   **With the static seal (§3.6.1)** the same step differs in three places:
-   initialise with `-recovery-shares=1 -recovery-threshold=1` (the Shamir flags
-   fail with `parameters secret_shares,secret_threshold not applicable to seal
-   type static`); the key is `.recovery_keys_b64[0]`, not `.unseal_keys_b64[0]`
-   (store it as `openbao-unseal-key` all the same); and there is nothing to
-   unseal — the vault is unsealed as soon as it is initialised.
-5. **Mint + seed the config token:**
-
-   ```bash
-   BAO_ROOT_TOKEN_FILE=<(az keyvault secret show --vault-name <kv> \
-     --name openbao-root-token --query value -o tsv) \
-   KUBE_CONTEXT=<ctx> NAMESPACE=<ns> ./charts/podiumd/scripts/openbao-mint-config-token.sh
-   ```
-
-   The root token reaches the script through a file descriptor, not the
-   environment, so neither the script's environment nor its `kubectl` child
-   processes carry it. The script also un-exports `BAO_ROOT_TOKEN` if you set
-   it directly, and prompts silently when neither is set.
-
-   `KUBE_CONTEXT` is required: the script passes it to every `kubectl` call and
-   never uses the current context, because it writes a Secret. It writes the scoped `podiumd-config-job` policy, mints an orphan periodic
-   token (default period `768h` = 32 days; every config-Job run renews it), and
-   seeds it into `Secret/openbao-bootstrap-token` (key `token`). Do **not**
-   seed the root token.
-6. **Re-run the deploy** (or just the `openbao-config` Job): it now enables
-   kv-v2, writes the policy, configures OIDC, and binds the group.
-7. **Frank!Gateway secrets and reader token.** Write the external-API keys,
-   client certificates and consumer list under `<mount>/frankgateway/` — see
-   [`frankgateway-routes.md`](frankgateway-routes.md). Then mint the
-   gateway's reader token and create its Secret. Until both are done every
-   key-bearing route answers 503.
-
-   Nothing creates or renews the reader token yet: not this chart, not the
-   deploy pipeline ([IN-3047](https://dimpact.atlassian.net/browse/IN-3047)).
-   Mint it by hand with the root token, before step 8 revokes that:
-
-   ```bash
-   ROOT=$(az keyvault secret show --vault-name <kv> --name openbao-root-token \
-     --query value -o tsv)
-   READER=$(kubectl --context <ctx> -n <ns> exec -i <release>-openbao-0 -- sh -e <<EOS
-   export BAO_ADDR=http://<release>-openbao-active:8200 BAO_TOKEN=$ROOT
-   bao auth tune -max-lease-ttl=8760h token/ >&2
-   bao policy write frankgateway-reader - >&2 <<'HCL'
-   path "<mount>/data/frankgateway"   { capabilities = ["read"] }
-   path "<mount>/data/frankgateway/*" { capabilities = ["read"] }
-   HCL
-   bao token create -orphan -policy=frankgateway-reader -ttl=8760h \
-     -display-name=frankgateway-reader -field=token
-   EOS
-   )
-   unset ROOT
-
-   az keyvault secret set --vault-name <kv> --name frankgateway-openbao-token \
-     --file <(printf '%s' "$READER") --encoding utf-8 -o none
-   printf '%s' "$READER" | kubectl --context <ctx> -n <ns> create secret generic \
-       frankgateway-openbao-token --from-file=token=/dev/stdin --dry-run=client -o yaml \
-     | kubectl --context <ctx> -n <ns> apply -f -
-   unset READER
-
-   kubectl --context <ctx> -n <ns> rollout restart deployment \
-     -l app.kubernetes.io/component=frankgateway
-   ```
-
-   - `<mount>` is `frankgateway.openbao.mount`, or `openbao.configuration.kvPath`
-     (default `secret`) when that is empty. The policy needs both paths: the
-     wildcard alone does not match `frankgateway` itself, where the API keys
-     live.
-   - **The token expires after one year** (8760h). OpenBao caps a token's TTL
-     at the token auth method's maximum, 768h (32 days) by default, and does
-     so silently; `bao auth tune` raises that maximum so `-ttl=8760h` holds.
-     Other tokens keep their default TTL. Re-mint before it expires: check
-     with `bao token lookup` (as the reader token) and repeat this step, which
-     needs a root token again (`bao operator generate-root`, as in step 8).
-   - The gateway reads the token as an environment variable at start, hence
-     the restart. The client-cert-sync CronJob picks it up on its next run.
-   - The root and reader tokens are streamed over the exec channel and kept in
-     unexported shell variables, so they stay off every command line.
-   - Keep the Secret name and key in step with
-     `frankgateway.openbao.tokenSecret` (default `frankgateway-openbao-token`,
-     key `token`).
-8. **Verify** (§6), then **revoke the root token**: re-run the script with
-   `--revoke-root` (asks for confirmation). The `openbao-root-token` item then
-   holds a dead token; that is expected — leave it, so the item keeps its
-   history. If the config token ever expires (no deploy within its period),
-   re-run step 5 — after root revocation that first needs a new root token from
-   `bao operator generate-root` with the unseal key; write the new token over
-   `openbao-root-token`, and revoke it again when done.
+| Reference | Runbook |
+|---|---|
+| §5 step 1 — infra | [Step 1](frankgateway-deploy-runbook.md#step-1--infrastructure-once-per-environment) |
+| §5 step 2 — values | [Step 2](frankgateway-deploy-runbook.md#step-2--environment-values) |
+| §5 steps 3–4 — deploy, initialise, store, unseal | [Step 3](frankgateway-deploy-runbook.md#step-3--deploy-and-initialise-openbao) |
+| §5 steps 5–6 — config token, config Job | [Step 4](frankgateway-deploy-runbook.md#step-4--configure-openbao) |
+| §5 step 7 — Frank!Gateway secrets, reader token | [Step 5](frankgateway-deploy-runbook.md#step-5--put-the-gateways-secrets-in-openbao) |
+| §5 step 8 — verify, revoke the root token | [Steps 7–8](frankgateway-deploy-runbook.md#step-7--verify) |
 
 ### 5.1 Unseal after every restart or upgrade
 
-Shamir only. With the static seal (§3.6.1) the pods unseal themselves; after a
-restart just check that `bao status` reports `sealed: false`.
-
-Shamir seal means **every** server pod comes back sealed whenever it restarts:
-`helm upgrade` (RollingUpdate), node drain, eviction, OOMKill. A sealed pod
-still reports Ready (§3.6), and while the active node is sealed Frank!Gateway
-answers 503 on every key-bearing route (§1.1). After any deploy, check and
-unseal:
-
-```bash
-KEY=$(az keyvault secret show --vault-name <kv> --name openbao-unseal-key \
-  --query value -o tsv)
-REPLICAS=$(kubectl --context <ctx> -n <ns> get statefulset <release>-openbao \
-  -o jsonpath='{.spec.replicas}')
-for i in $(seq 0 $((REPLICAS - 1))); do
-  kubectl --context <ctx> -n <ns> exec -i <release>-openbao-$i -- \
-    sh -c 'read -r k; bao operator unseal "$k" >/dev/null' <<<"$KEY"
-  printf '<release>-openbao-%s sealed=' "$i"
-  kubectl --context <ctx> -n <ns> exec <release>-openbao-$i -- \
-    bao status -format=json | jq -r .sealed
-done
-unset KEY REPLICAS
-```
-
-The key goes in over stdin rather than as an exec argument, so it is not
-recorded in the Kubernetes audit log (which records exec arguments, not
-streamed input). Every line must end `sealed=false`.
-
-**Then check the config Job.** When a deploy restarts the OpenBao pods, the
-`openbao-config` hook runs while they are still sealed: it waits about 120 s,
-logs `skipping config; reconcile after unseal` and exits 0. It then has
-neither applied configuration changes nor renewed the config token, and a
-token nobody renews expires after its period (32 days by default, §5 step 5).
-If its log says it skipped, run it again now the vault is unsealed:
-
-```bash
-kubectl --context <ctx> -n <ns> logs job/openbao-config
-kubectl --context <ctx> -n <ns> delete job openbao-config --ignore-not-found
-helm template <release> <chart> --version <version> -n <ns> -f <values> \
-    --show-only templates/openbao-config-job.yaml \
-  | kubectl --context <ctx> -n <ns> create -f -
-kubectl --context <ctx> -n <ns> wait --for=condition=complete job/openbao-config --timeout=5m
-kubectl --context <ctx> -n <ns> logs job/openbao-config
-```
-
-Render with the same chart version and values as the deploy. The Job is kept
-for `ttlSecondsAfterFinished` (600 s) after it finishes; once it is gone,
-skip the first `logs` and just run it.
-
-> This is the single biggest operational cost of Shamir, and the reason §9
-> item 4 stays open: KV auto-unseal would remove it.
+See [After every deploy](frankgateway-deploy-runbook.md#after-every-deploy) in
+the runbook: the unseal loop (Shamir) and re-running the `openbao-config` Job
+when it skipped.
 
 ### 5.2 Scripted bootstrap and unseal (ADO `ExternalsPodiumD`)
 
-The `ExternalsPodiumD` deploy configuration scripts the parts of §5 and §5.1
-that have to happen on every environment, in `pipelines/scripts/` (introduced
-with the ontw-dim1 Frank!Gateway rollout on PodiumD 4.9.3, 2026-09). The order
-differs from the manual runbook: the vault is initialised **before** the first
-deploy that enables OpenBao, not after.
-
-**With the static seal (§3.6.1) the order is the other way round**, and steps
-1 and 2 below do not apply:
-
-1. **Deploy.** Before it, `openbao_unseal.py --check` requires only
-   `openbao-seal-key` (present, and a 32-byte key); `openbao-unseal-key` may
-   still hold the Terraform placeholder. After it, `openbao_unseal.py` only
-   verifies, never unseals, and on a fresh vault it **fails the run**: the
-   pods are uninitialised. That red run is expected.
-2. **Bootstrap, by an operator:** `openbao_bootstrap.py --env <env>-<gemeente>`.
-   It refuses to run until the StatefulSet and `Secret/openbao-seal` exist,
-   then initialises the running OpenBao through its API with one recovery key
-   (no temporary pod), waits until every pod has unsealed itself, shows the
-   recovery key and root token once, and checks that `openbao-unseal-key` in
-   Key Vault holds the recovery key after the operator stored both.
-3. **Deploy again.** The check now passes: every pod initialised and unsealed.
-   Then continue with step 3 below (config token, reader token, revoke the
-   root token).
-
-The Shamir order:
-
-1. **Bootstrap, once per environment, by an operator:**
-
-   ```bash
-   python3 pipelines/scripts/openbao_bootstrap.py --env <env>-<gemeente>
-   python3 pipelines/scripts/openbao_bootstrap.py --env <env>-<gemeente> --chart-branch <branch>
-   ```
-
-   The temporary pod runs the same OpenBao and Postgres images as the deploy
-   that follows. The script reads them from the chart that deploy uses, picked
-   the way the Applications pipeline picks it: the published chart version in
-   the environment's `config.yml` (`deploymentType: helm-chart`, the default),
-   or a helm-charts branch (`--chart-branch`, `deploymentType: branch`). The
-   environment's `podiumd.yml` is layered on top, as Helm does. It shows the
-   chart and both images and asks for confirmation before it changes anything:
-   a vault must not be initialised by a newer OpenBao than the one that then
-   runs it.
-
-   It starts a temporary pod (`openbao-bootstrap`) against the environment's
-   `openbao` database, creates the tables (the same DDL as the
-   `openbao-db-schema` Job), initialises the vault with one key share, and
-   proves the key unseals it. It then shows the unseal key and root token once,
-   waits until the operator has stored them as `openbao-unseal-key` and
-   `openbao-root-token`, checks that `openbao-unseal-key` in Key Vault holds
-   exactly that key, and removes the temporary pod. The Terraform placeholder
-   counts as "not bootstrapped yet"; only a real key (base64 of 32 or 33 bytes)
-   makes the script refuse to run again. The database password comes from Key Vault secret `openbao`
-   (SSC-managed, like the other database passwords — not Terraform). Use
-   `--dry-run` to see the plan first. `--reset-existing-vault` empties the
-   tables first and **destroys any vault already in that database**.
-2. **Deploy** with the Applications pipeline. Before the Helm deploy,
-   `openbao_unseal.py --check` stops the run when `podiumd.yml` enables
-   OpenBao but `openbao-unseal-key` is missing or still the Terraform
-   placeholder. After the deploy,
-   `openbao_unseal.py` unseals every sealed OpenBao pod with that key — so
-   §5.1 is automatic for deploys through this pipeline. It talks to OpenBao
-   over `kubectl port-forward` and its HTTP API, so the key never appears on a
-   command line, in a pod's process list or in the audit log.
-3. **Still manual after that first deploy:** mint the config token with the
-   root token (§5 step 5, `scripts/openbao-mint-config-token.sh`), create the
-   Frank!Gateway reader-token Secret (§5 step 7), then revoke the root token
-   (§5 step 8).
-
-What the scripts do not cover:
-
-- Shamir only: a pod that restarts **between** deploys (node drain,
-  eviction, OOMKill) stays sealed until the next deploy or a manual unseal
-  (§5.1). With the static seal it unseals itself.
-- The pipeline unseals **after** the deploy but does not re-run the
-  `openbao-config` Job. After a deploy that restarted the OpenBao pods, check
-  its log and re-run it as in §5.1.
+See runbook step 3, variants
+[3a (static seal)](frankgateway-deploy-runbook.md#3a--externalspodiumd-static-seal)
+and [3b (Shamir)](frankgateway-deploy-runbook.md#3b--externalspodiumd-shamir).
+The scripts are `pipelines/scripts/openbao_bootstrap.py` and
+`openbao_unseal.py` in `ExternalsPodiumD`, introduced with the ontw-dim1
+Frank!Gateway rollout on PodiumD 4.9.3 (2026-09). They do not cover a Shamir
+pod that restarts between deploys, and they do not re-run the
+`openbao-config` Job.
 
 ---
 
@@ -851,7 +611,7 @@ What the scripts do not cover:
   environment Key Vault and hold the `bao operator init` output, not the
   Terraform placeholder.
 - **Sealed/unsealed:** `bao status` inside **each** server pod reports
-  `Initialized true`, `Sealed false` — after step 4 and after every upgrade.
+  `Initialized true`, `Sealed false` — after initialisation and after every upgrade.
 - **Config Job:** `kubectl --context <ctx> -n <ns> logs job/openbao-config` says it
   configured, not skipped (§9 item 2).
 - **Route + cert:** `curl -sSf https://<env>-openbao-admin.<gemeente>.nl/v1/sys/health`
@@ -866,8 +626,9 @@ What the scripts do not cover:
   `localhost:8250` callback.
 - **Upload:** as an uploader, `bao kv put secret/<path> k=v` succeeds; a
   non-member is denied.
-- **Frank!Gateway:** a test call through a key-bearing route (BAG or KVK on the
-  outway) reaches its upstream instead of answering 503.
+
+The gateway-side checks are in
+[runbook step 7](frankgateway-deploy-runbook.md#step-7--verify).
 
 ---
 
@@ -888,11 +649,12 @@ What the scripts do not cover:
   access policy as narrow as the database's. It is never revoked; rotating it
   means `bao operator rekey`, after which the Key Vault item must be updated in
   the same sitting.
-- The **root token** captured at `bao operator init` is needed exactly once: to
-  mint the scoped config token (§5, `scripts/openbao-mint-config-token.sh`).
-  Store it only in Azure Key Vault (`openbao-root-token`) and **revoke it**
-  (`--revoke-root`) once a deploy has succeeded with the scoped token —
-  revocation no longer breaks upgrades. Break-glass: the unseal key can mint a
+- The **root token** captured at `bao operator init` is needed twice: to mint
+  the scoped config token (runbook step 4, `scripts/openbao-mint-config-token.sh`)
+  and the gateway's reader token (runbook step 5). Store it only in Azure Key
+  Vault (`openbao-root-token`) and **revoke it** (`--revoke-root`, runbook
+  step 8) only after both tokens are minted and a deploy has succeeded with the
+  scoped token — revocation no longer breaks upgrades. Break-glass: the unseal key can mint a
   new root token via `bao operator generate-root`.
 - The `openbao-config` Job authenticates with the **`podiumd-config-job`
   token**: orphan (survives root revocation), periodic (renewed by the Job on
@@ -925,24 +687,24 @@ No observed-usage numbers yet — first production-like deployment pending.
    An environment that pulls from its own registry overrides all three
    repositories (§3.1); otherwise egress must reach `quay.io` and `docker.io`.
 2. **Config-Job silent skip.** `openbao-bootstrap-token` is created out-of-band
-   (§5); if it is **missing** the `openbao-config` Job exits 0 and the `helm
+   (runbook step 4); if it is **missing** the `openbao-config` Job exits 0 and the `helm
    upgrade` **succeeds while the vault stays unconfigured**. Check the Job log
    after deploy (`kubectl --context <ctx> -n <ns> logs job/openbao-config`) — a
    green release is not proof the OIDC/policy config was applied. (A
    present-but-invalid token, by contrast, fails the Job loudly.) It skips the
    same way when a deploy restarted the OpenBao pods and they are still sealed;
-   re-run it after the unseal (§5.1). The Job is kept after success precisely so
+   re-run it after the unseal ([runbook](frankgateway-deploy-runbook.md#after-every-deploy)). The Job is kept after success precisely so
    this log stays readable: `ttlSecondsAfterFinished: 600` garbage-collects it
    after ~10 minutes, and the next deploy replaces it (`before-hook-creation`).
 3. **Release/upgrade docs.** OpenBao is not mentioned in `README.md` or the
    upgrade guides; it is opt-in, but release notes that enable Frank!Gateway
    should point operators here.
 4. **No KV auto-unseal.** Shamir requires a manual `bao operator init` +
-   unseal per fresh cluster and after every restart/upgrade (§5.1). The
+   unseal per fresh cluster and after every restart/upgrade. The
    static seal (§3.6.1) removes the unseal after restarts without Azure
    identities; Azure Key Vault auto-unseal would need workload identity and
    is not planned. With the static seal `openbao-unseal-key` holds the
-   recovery key instead; §5 step 4 and §5.1 note where the static seal differs.
+   recovery key instead; the runbook notes where the static seal differs.
 5. **Route lives in `infra.yml`.** The external Gateway/Ingress route and its TLS
    cert (with the required SAN) are defined outside this chart; they must be kept
    in sync with `openbao.configuration.oidcUrl`.
@@ -954,7 +716,7 @@ No observed-usage numbers yet — first production-like deployment pending.
    the Frank!Gateway docs because Frank!Gateway is its reason to exist in
    PodiumD.
 7. **Token lifecycle.** Nothing creates, renews or monitors the Frank!Gateway
-   reader token: it is minted by hand with a one-year TTL (§5 step 7) and
+   reader token: it is minted by hand with a one-year TTL (runbook step 5) and
    routes answer 503 when it expires. The config token is renewed only when
    the `openbao-config` Job actually runs (item 2). Tracked in
    [IN-3047](https://dimpact.atlassian.net/browse/IN-3047).

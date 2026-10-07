@@ -35,9 +35,13 @@ frankgateway:
   rejected: the shared block deep-merges into every class, so a route placed
   there would be seeded into inway, outway and internal alike.
 - Put `labels: { managed-by: iac }` on every route you write. It is what
-  `seed.prune` uses to tell your routes from ones made in the dashboard.
+  `seed.prune` uses to tell your routes from ones made by hand through the
+  Admin API.
 
 ## How a route reaches etcd
+
+This describes 4.9.3 and earlier. The next release retires etcd — see
+[Changing in the next release](frankgateway-BASICS.md#changing-in-the-next-release).
 
 APISIX runs in traditional (etcd) mode and reads no route files; the only way
 in is the Admin API. The chart's **seed hook** does that: one
@@ -209,16 +213,17 @@ frankgateway:
 
 ## Client certificates from OpenBao (outbound mTLS)
 
-> **Temporary by design — obsolete with the next Frank!Gateway release.**
+> **Temporary by design — retired in the next release.**
 > Everything in this section and the next (the `client-cert-sync` CronJob,
 > `openbao-client.lua`, `openbao-consumer-auth.lua`, and the request-time
 > header function for API keys) exists only because Frank!Gateway 1.1.0 runs
 > APISIX 3.16, where a `$secret://` reference cannot carry an upstream client
-> certificate and is unsafe for consumer credentials. The next Frank!Gateway
-> release moves to an APISIX that resolves `$secret://` in those places, and
-> the native reference replaces all of it: the CronJob and the Lua go, the
-> OpenBao layout (`<mount>/frankgateway/…`) and the reader token stay. Do not
-> build on the Lua modules' interfaces; treat them as a bridge.
+> certificate and is unsafe for consumer credentials. The next release ships a
+> Frank!Gateway that fully supports OpenBao for both certificates and API keys,
+> so the sync workaround stops: the CronJob and the Lua go, the OpenBao layout
+> (`<mount>/frankgateway/…`) and the reader token stay. Do not build on the Lua
+> modules' interfaces; treat them as a bridge. See
+> [Changing in the next release](frankgateway-BASICS.md#changing-in-the-next-release).
 
 Some external APIs want the gateway to present a client certificate (BRP / Haal
 Centraal with a PKIoverheid certificate, an ESB, KvK production). The
@@ -269,24 +274,17 @@ frankgateway:
 
 ### Why a sync job and not `$secret://`
 
-On the APISIX 3.16 this image builds on, a `$secret://` reference is resolved
-for consumer credentials and for an SSL object's `cert`/`key` on the handshake
-path — but **not** for `upstream.tls.client_cert`/`client_key`, and not through
-`client_cert_id`, so it cannot carry a certificate the gateway presents to an
-upstream. APISIX 3.18 fixes that (and the consumer-credential caveats below).
-When Frank!Gateway ships on 3.18 — its next release — the sync CronJob is
-replaced by a reference in the SSL object (`"cert": "$secret://vault/<id>/frankgateway/client-certs/brp/cert"`),
-with a KV **v1** mount, which is all APISIX's Vault backend speaks, and one
-APISIX `secret` resource per instance (each class has its own etcd prefix).
-The retirement is a chart change plus a KV mount change; the certificates
-themselves do not move.
+On the APISIX 3.16 this image builds on, a `$secret://` reference cannot carry
+a certificate the gateway presents to an upstream — it is not resolved in
+`upstream.tls.client_cert`/`client_key` or through `client_cert_id`. The exact
+coverage is in
+[`frankgateway-BASICS.md`](frankgateway-BASICS.md#why-the-certificate-is-not-fetched-from-openbao-like-the-api-keys-are).
 
 ## Consumer identities from OpenBao (inbound)
 
 > **Temporary by design** — see the note at the top of the previous section.
-> With the next Frank!Gateway release this becomes a native APISIX consumer
-> whose credential is a `$secret://` reference; `openbao-consumer-auth.lua`
-> is retired then.
+> `openbao-consumer-auth.lua` is retired in the next release, along with the
+> rest of the workaround.
 
 External parties authenticate to the inway with a **client certificate**. The
 certificate is verified by the front door, which forwards the identity in a
