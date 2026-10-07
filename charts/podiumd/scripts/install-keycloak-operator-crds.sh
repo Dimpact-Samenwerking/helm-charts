@@ -22,7 +22,9 @@
 #
 # Options:
 #   --keycloak-version VER   Upstream Keycloak version to fetch CRDs from
-#                            (default: 26.6.1; ignored when --source=chart)
+#                            (default: the chart's Keycloak pin,
+#                            `keycloakImageVersion` in ../values.yaml;
+#                            ignored when --source=chart)
 #   --source upstream|chart  CRD source. Default: upstream
 #                            upstream  -> github.com/keycloak/keycloak-k8s-resources
 #                            chart     -> adfinis helm chart (legacy)
@@ -37,11 +39,12 @@
 #   - curl (for --source=upstream) OR helm 3.x (for --source=chart)
 #
 # Examples:
-#   # Default: install upstream 26.6.1 CRDs on current context
+#   # Default: install the upstream CRDs for the chart's Keycloak pin on the
+#   # current context
 #   ./install-keycloak-operator-crds.sh
 #
 #   # Pin to a specific Keycloak version
-#   ./install-keycloak-operator-crds.sh --keycloak-version 26.6.1
+#   ./install-keycloak-operator-crds.sh --keycloak-version 26.7.3
 #
 #   # Target a specific cluster
 #   ./install-keycloak-operator-crds.sh --context aks-blue-ontw-dim1
@@ -54,7 +57,13 @@
 
 set -euo pipefail
 
-KEYCLOAK_VERSION="26.6.1"
+# Default to the chart's own Keycloak pin, so the CRDs always match the
+# operator this chart deploys (26.7.x needs the client CRDs).
+VALUES_FILE="$(cd "$(dirname "$0")/.." && pwd)/values.yaml"
+KEYCLOAK_VERSION=""
+if [[ -f "${VALUES_FILE}" ]]; then
+  KEYCLOAK_VERSION=$(sed -nE 's/.*&keycloakImageVersion "?([0-9][0-9.]*)"?.*/\1/p' "${VALUES_FILE}" | head -n1)
+fi
 CHART_VERSION="1.11.4"
 SOURCE="upstream"
 DRY_RUN=false
@@ -97,6 +106,11 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ "${SOURCE}" == "upstream" && -z "${KEYCLOAK_VERSION}" ]]; then
+  echo "ERROR: could not read the Keycloak version from ${VALUES_FILE}; pass --keycloak-version" >&2
+  exit 1
+fi
 
 if [[ "${SOURCE}" != "upstream" && "${SOURCE}" != "chart" ]]; then
   echo "ERROR: --source must be 'upstream' or 'chart' (got '${SOURCE}')" >&2
