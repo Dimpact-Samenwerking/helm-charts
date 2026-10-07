@@ -17,7 +17,7 @@
 # (docs/apps/frankgateway/frankgateway-openbao.md §5). Re-run any time to
 # rotate the config token — e.g. when no deploy has renewed it within
 # TOKEN_PERIOD and it has expired. If the root token was already revoked,
-# generate a new one first with the unseal key: `bao operator generate-root`.
+# create a temporary one with openbao-activate.sh --rotate-config-token instead.
 #
 # Usage:
 #   KUBE_CONTEXT=<ctx> NAMESPACE=<ns> ./openbao-mint-config-token.sh [--revoke-root]
@@ -144,7 +144,7 @@ if [[ "${REVOKE_ROOT}" -eq 1 ]]; then
   echo
   echo "WARNING: about to revoke the OpenBao root token. This is irreversible."
   echo "Recovery afterwards requires a quorum of unseal key shares"
-  echo "('bao operator generate-root') — unseal keys are NOT affected."
+  echo "(openbao-activate.sh generates a temporary one) — unseal keys are NOT affected."
   read -r -p "Revoke the root token now? [y/N] " answer
   if [[ "${answer}" == "y" || "${answer}" == "Y" ]]; then
     kc exec -i "${OPENBAO_POD}" -- sh -e >&2 <<EOS
