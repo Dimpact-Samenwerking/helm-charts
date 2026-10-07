@@ -339,19 +339,28 @@ fi
 CFG=""; RD=""
 
 if [[ "${NEED_CONFIG}" -eq 1 || "${NEED_READER}" -eq 1 ]] && [[ -z "${ROOT}" ]]; then
-  # Temporary root token from the key in Key Vault; revoked in step 6.
+  # Temporary root token from the key in Key Vault; revoked in step 6. OpenBao
+  # >= 2.5 only allows unauthenticated generate-root on the loopback listener
+  # (127.0.0.1:8210, server.ha.config), so run it on the active pod.
   [[ -n "${KEY}" ]] || KEY=$(kv_get)
-  GEN=$(kc exec "${STS}-0" -c openbao -- sh -ec \
-    "BAO_ADDR=${BAO_ADDR} bao operator generate-root -cancel >/dev/null 2>&1 || true
-     BAO_ADDR=${BAO_ADDR} bao operator generate-root -init -format=json")
+  ACTIVE=""
+  for i in $(seq 0 $((REPLICAS - 1))); do
+    [[ "$(pod_status "${STS}-${i}" | jq -r '.is_self // false')" == "true" ]] && ACTIVE="${STS}-${i}"
+  done
+  [[ -n "${ACTIVE}" ]] || fail "no active OpenBao pod found"
+  LOCAL_ADDR="http://127.0.0.1:8210"
+  GEN=$(kc exec "${ACTIVE}" -c openbao -- sh -ec \
+    "BAO_ADDR=${LOCAL_ADDR} bao operator generate-root -cancel >/dev/null 2>&1 || true
+     BAO_ADDR=${LOCAL_ADDR} bao operator generate-root -init -format=json") \
+    || fail "generate-root refused on ${ACTIVE}; does server.ha.config still have the 127.0.0.1:8210 listener?"
   NONCE=$(jq -r .nonce <<<"${GEN}"); OTP=$(jq -r .otp <<<"${GEN}"); GEN=""
-  ENCODED=$(bao_sh "${STS}-0" <<EOS | jq -r .encoded_token
-export BAO_ADDR="${BAO_ADDR}"
+  ENCODED=$(bao_sh "${ACTIVE}" <<EOS | jq -r .encoded_token
+export BAO_ADDR="${LOCAL_ADDR}"
 printf '%s' "${KEY}" | bao operator generate-root -nonce="${NONCE}" -format=json -
 EOS
 )
-  ROOT=$(bao_sh "${STS}-0" <<EOS
-export BAO_ADDR="${BAO_ADDR}"
+  ROOT=$(bao_sh "${ACTIVE}" <<EOS
+export BAO_ADDR="${LOCAL_ADDR}"
 bao operator generate-root -decode="${ENCODED}" -otp="${OTP}"
 EOS
 )
@@ -363,7 +372,8 @@ fi
 if [[ "${NEED_CONFIG}" -eq 1 ]]; then
   BAO_ROOT_TOKEN_FILE=<(printf '%s' "${ROOT}") KUBE_CONTEXT="${KUBE_CONTEXT}" NAMESPACE="${NAMESPACE}" \
     RELEASE="${RELEASE}" BOOTSTRAP_SECRET="${BOOTSTRAP_SECRET}" KV_PATH="${KV_PATH}" \
-    TOKEN_PERIOD="${TOKEN_PERIOD}" "${SCRIPT_DIR}/openbao-mint-config-token.sh" | sed 's/^/    /'
+    TOKEN_PERIOD="${TOKEN_PERIOD}" CALLER_REVOKES_ROOT=1 \
+    "${SCRIPT_DIR}/openbao-mint-config-token.sh" 2>&1 | sed 's/^/          /'
   ok "config token minted into Secret/${BOOTSTRAP_SECRET}"
 else
   ok "config token valid"

@@ -4635,6 +4635,8 @@ openbao:
     # -- Pod annotations (string form is rendered with tpl in the subchart). checksum/seal restarts the pods when the static-seal key is set, rotated or removed: the seal config lives in a Secret, so without it the pod template would not change and the pods would keep running with the old seal.
     annotations: |
       checksum/seal: {{ .Values.seal.static | toJson | sha256sum | quote }}
+    # -- Adds a config-checksum pod annotation, so a change to the server HCL (server.ha.config) restarts the pods; the static seal unseals them again.
+    configAnnotation: true
     # Readiness via the health endpoint with sealed/uninitialised mapped to 200,
     # so the pod reports Ready as soon as the process is up — even before the
     # one-time `bao operator init` + unseal. Without this the default `bao status`
@@ -4714,6 +4716,19 @@ openbao:
           tls_disable     = 1
           address         = "[::]:8200"
           cluster_address = "[::]:8201"
+        }
+
+        # Loopback-only listener for break-glass root-token generation from the
+        # recovery/unseal key. OpenBao >= 2.5 disables the unauthenticated
+        # generate-root endpoints by default, and they must stay off on the
+        # listener the Service exposes. This one is reachable only from inside
+        # the pod (kubectl exec); scripts/openbao-activate.sh uses it on the
+        # active pod to mint tokens on an initialised vault.
+        listener "tcp" {
+          tls_disable                              = 1
+          address                                  = "127.0.0.1:8210"
+          cluster_address                          = "127.0.0.1:8211"
+          disable_unauthed_generate_root_endpoints = false
         }
 
         storage "postgresql" {
