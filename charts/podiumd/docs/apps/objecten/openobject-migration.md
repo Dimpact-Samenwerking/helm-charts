@@ -308,6 +308,7 @@ chart's own docs).
 ### B. `Chart.yaml` change
 
 Replace:
+
 ```yaml
   - name: objecten
     version: 2.12.0
@@ -318,8 +319,10 @@ Replace:
     repository: "@maykinmedia"
     condition: objecttypen.enabled
 ```
+
 with a single entry, **aliased per the H.1 resolution** so the values key
 stays `objecten:`:
+
 ```yaml
   - name: openobject
     version: 1.1.1
@@ -327,6 +330,7 @@ stays `objecten:`:
     condition: objecten.enabled
     alias: objecten
 ```
+
 Run `/helm-deps` afterward to refresh `Chart.lock`/`charts/podiumd/charts/`.
 Note the `condition` also moves to `objecten.enabled` — Helm evaluates
 dependency conditions against the aliased key, not the chart's own name.
