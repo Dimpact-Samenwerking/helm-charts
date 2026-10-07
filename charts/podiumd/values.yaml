@@ -4145,7 +4145,7 @@ frankgateway:
   etcd:
     image:
       repository: quay.io/coreos/etcd
-      tag: "v3.5.16@sha256:d967d98a12dc220a1a290794711dba7eba04b8ce465e12b02383d1bfbb33e159"
+      tag: "v3.7.2@sha256:e9afa62b1e914f02db62e5c46a7a140d8cdf026f2ed888cab4e5a142ec4d06fd"
     # THREE members, and do not set this to 2. etcd is raft: quorum of a
     # 3-member cluster is 2, so it survives losing one; quorum of a 2-member
     # cluster is also 2, so it survives losing none — worse than a single
