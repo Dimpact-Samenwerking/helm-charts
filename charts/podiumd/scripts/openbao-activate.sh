@@ -64,7 +64,7 @@
 # placeholder value `pending-init` (create it with the other items from the
 # pipeline). The script refuses to overwrite any other value.
 #
-# Requires: bash 4+, kubectl, helm 3+, az, jq. Exit code 0 means operational.
+# Requires: bash 4+, kubectl, helm 3+, az, jq, python3. Exit code 0 means operational.
 
 set -euo pipefail
 
@@ -91,7 +91,7 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-for cmd in kubectl helm az jq; do
+for cmd in kubectl helm az jq python3; do
   command -v "${cmd}" >/dev/null 2>&1 || { echo "ERROR: ${cmd} not found" >&2; exit 1; }
 done
 
@@ -247,7 +247,7 @@ if [[ "${CHECK_ONLY}" -eq 1 ]]; then
 fi
 
 ROOT=""
-cleanup() { ROOT=""; KEY=""; KV_VALUE=""; }
+cleanup() { ROOT=""; KEY=""; KV_VALUE=""; OLD_CFG=""; OLD_RD=""; }
 trap cleanup EXIT
 
 ###############################################################################
@@ -327,16 +327,36 @@ done
 ###############################################################################
 step "4. Tokens"
 ###############################################################################
+# A valid token that is replaced on request (--rotate-*) is revoked once its
+# successor is in place, so a rotation leaves no second valid token behind.
+OLD_CFG=""; OLD_RD=""
 CFG=$(secret_value "${BOOTSTRAP_SECRET}")
 NEED_CONFIG=${ROTATE_CONFIG}
-[[ -n "${CFG}" && -n "$(token_lookup "${STS}-0" "${CFG}")" ]] || NEED_CONFIG=1
+if [[ -n "${CFG}" && -n "$(token_lookup "${STS}-0" "${CFG}")" ]]; then
+  [[ "${ROTATE_CONFIG}" -eq 1 ]] && OLD_CFG="${CFG}"
+else
+  NEED_CONFIG=1
+fi
 NEED_READER=0
 if [[ "${HAS_GATEWAY}" -eq 1 ]]; then
   NEED_READER=${ROTATE_READER}
   RD=$(secret_value "${READER_SECRET}")
-  [[ -n "${RD}" && -n "$(token_lookup "${STS}-0" "${RD}")" ]] || NEED_READER=1
+  if [[ -n "${RD}" && -n "$(token_lookup "${STS}-0" "${RD}")" ]]; then
+    [[ "${ROTATE_READER}" -eq 1 ]] && OLD_RD="${RD}"
+  else
+    NEED_READER=1
+  fi
 fi
 CFG=""; RD=""
+
+revoke_token() {
+  # revoke_token <label> <token>: revoke a replaced token with the root token.
+  bao_sh "${STS}-0" >/dev/null <<EOS
+export BAO_ADDR="${BAO_ADDR}" BAO_TOKEN="${ROOT}"
+bao token revoke "$2"
+EOS
+  ok "previous $1 revoked"
+}
 
 if [[ "${NEED_CONFIG}" -eq 1 || "${NEED_READER}" -eq 1 ]] && [[ -z "${ROOT}" ]]; then
   # Temporary root token from the key in Key Vault; revoked in step 6. OpenBao
@@ -349,21 +369,28 @@ if [[ "${NEED_CONFIG}" -eq 1 || "${NEED_READER}" -eq 1 ]] && [[ -z "${ROOT}" ]];
   done
   [[ -n "${ACTIVE}" ]] || fail "no active OpenBao pod found"
   LOCAL_ADDR="http://127.0.0.1:8210"
+  # The bao 2.x CLI (`bao operator generate-root`) calls the authenticated
+  # sys/generate-root-token/* endpoints, which need a token; use the legacy
+  # sys/generate-root/* endpoints instead, which the loopback listener allows.
   GEN=$(kc exec "${ACTIVE}" -c openbao -- sh -ec \
-    "BAO_ADDR=${LOCAL_ADDR} bao operator generate-root -cancel >/dev/null 2>&1 || true
-     BAO_ADDR=${LOCAL_ADDR} bao operator generate-root -init -format=json") \
+    "BAO_ADDR=${LOCAL_ADDR} bao delete sys/generate-root/attempt >/dev/null 2>&1 || true
+     BAO_ADDR=${LOCAL_ADDR} bao write -f -format=json sys/generate-root/attempt") \
     || fail "generate-root refused on ${ACTIVE}; does server.ha.config still have the 127.0.0.1:8210 listener?"
-  NONCE=$(jq -r .nonce <<<"${GEN}"); OTP=$(jq -r .otp <<<"${GEN}"); GEN=""
-  ENCODED=$(bao_sh "${ACTIVE}" <<EOS | jq -r .encoded_token
+  NONCE=$(jq -r .data.nonce <<<"${GEN}"); OTP=$(jq -r .data.otp <<<"${GEN}"); GEN=""
+  [[ -n "${NONCE}" && "${NONCE}" != "null" && -n "${OTP}" && "${OTP}" != "null" ]] \
+    || fail "generate-root attempt returned no nonce/OTP"
+  ENCODED=$(bao_sh "${ACTIVE}" <<EOS | jq -r '.data.encoded_token // empty'
 export BAO_ADDR="${LOCAL_ADDR}"
-printf '%s' "${KEY}" | bao operator generate-root -nonce="${NONCE}" -format=json -
+printf '%s' "${KEY}" | bao write -format=json sys/generate-root/update nonce="${NONCE}" key=-
 EOS
 )
-  ROOT=$(bao_sh "${ACTIVE}" <<EOS
-export BAO_ADDR="${LOCAL_ADDR}"
-bao operator generate-root -decode="${ENCODED}" -otp="${OTP}"
-EOS
-)
+  [[ -n "${ENCODED}" ]] || fail "generate-root did not complete with the key from ${KEYVAULT_ITEM}"
+  # encoded_token = base64(token XOR otp); decode locally, nothing leaves this machine.
+  ROOT=$(ENC="${ENCODED}" OTP="${OTP}" python3 -c '
+import base64, os
+enc = os.environ["ENC"]; otp = os.environ["OTP"].encode()
+raw = base64.b64decode(enc + "=" * (-len(enc) % 4))
+print(bytes(a ^ b for a, b in zip(raw, otp)).decode(), end="")')
   ENCODED=""; OTP=""
   [[ -n "${ROOT}" ]] || fail "could not create a temporary root token"
   ok "temporary root token created from ${KEYVAULT_ITEM}"
@@ -375,6 +402,8 @@ if [[ "${NEED_CONFIG}" -eq 1 ]]; then
     TOKEN_PERIOD="${TOKEN_PERIOD}" CALLER_REVOKES_ROOT=1 \
     "${SCRIPT_DIR}/openbao-mint-config-token.sh" 2>&1 | sed 's/^/          /'
   ok "config token minted into Secret/${BOOTSTRAP_SECRET}"
+  [[ -n "${OLD_CFG}" ]] && revoke_token "config token" "${OLD_CFG}"
+  OLD_CFG=""
 else
   ok "config token valid"
 fi
@@ -395,7 +424,13 @@ EOS
     --from-file=token=/dev/stdin --dry-run=client -o yaml | kc apply -f - >/dev/null
   READER=""
   kc rollout restart deployment -l app.kubernetes.io/component=frankgateway >/dev/null
+  # Revoke the old token only once every gateway pod runs with the new one.
+  for d in $(kc get deployment -l app.kubernetes.io/component=frankgateway -o name); do
+    kc rollout status "${d}" --timeout=300s >/dev/null || fail "${d} did not roll out with the new token"
+  done
   ok "gateway token minted into Secret/${READER_SECRET}; gateways restarted"
+  [[ -n "${OLD_RD}" ]] && revoke_token "gateway token" "${OLD_RD}"
+  OLD_RD=""
 elif [[ "${HAS_GATEWAY}" -eq 1 ]]; then
   ok "gateway token valid"
 fi
