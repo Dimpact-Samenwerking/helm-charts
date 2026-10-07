@@ -2,7 +2,8 @@
 # install-keycloak-operator-crds.sh
 #
 # Installs/upgrades the Keycloak Operator CRDs (`keycloaks.k8s.keycloak.org`,
-# `keycloakrealmimports.k8s.keycloak.org`) on the active kubectl context.
+# `keycloakrealmimports.k8s.keycloak.org`, and from Keycloak 26.7.0 also
+# `keycloakoidcclients` and `keycloaksamlclients`) on the active kubectl context.
 #
 # Background:
 #   Helm auto-installs CRDs from a chart's crds/ directory only on the FIRST
@@ -68,6 +69,13 @@ CRD_FILES=(
   "keycloaks.k8s.keycloak.org-v1.yml"
   "keycloakrealmimports.k8s.keycloak.org-v1.yml"
 )
+# Client CRDs exist upstream from Keycloak 26.7.0. The 26.7.x operator watches
+# them at startup and stops ("Informer startup error ... Not Found") when they
+# are missing, so they are installed whenever the requested version has them.
+OPTIONAL_CRD_FILES=(
+  "keycloakoidcclients.k8s.keycloak.org-v1.yml"
+  "keycloaksamlclients.k8s.keycloak.org-v1.yml"
+)
 
 usage() {
   grep '^#' "$0" | grep -v '^#!/' | sed 's/^# \{0,1\}//'
@@ -118,6 +126,16 @@ fetch_upstream() {
     if ${first}; then first=false; else out+=$'\n---\n'; fi
     out+="${body}"
   done
+  for f in "${OPTIONAL_CRD_FILES[@]}"; do
+    local url="${UPSTREAM_BASE}/${KEYCLOAK_VERSION}/kubernetes/${f}"
+    local body
+    if body=$(curl -sfL "${url}") && [[ -n "${body}" ]]; then
+      echo "    Fetched ${url}" >&2
+      out+=$'\n---\n'"${body}"
+    else
+      echo "    Skipping ${f}: not published for Keycloak ${KEYCLOAK_VERSION} (client CRDs start at 26.7.0)" >&2
+    fi
+  done
   printf '%s\n' "${out}"
 }
 
@@ -162,7 +180,7 @@ echo "==> Waiting for CRDs to reach Established condition..."
 CRD_NAMES=$(printf '%s\n' "${CRD_YAML}" | awk '/^kind: *"?CustomResourceDefinition"?$/{flag=1; next} flag && /^metadata:/{getline; if ($1=="name:"){gsub(/"/,"",$2); print $2; flag=0}}')
 if [[ -z "${CRD_NAMES}" ]]; then
   # Fallback parser if metadata block uses different ordering
-  CRD_NAMES=$(printf '%s\n' "${CRD_YAML}" | grep -E '^  name: *"?(keycloaks|keycloakrealmimports)\.' | awk '{gsub(/"/,"",$2); print $2}' | sort -u)
+  CRD_NAMES=$(printf '%s\n' "${CRD_YAML}" | grep -E '^  name: *"?(keycloaks|keycloakrealmimports|keycloakoidcclients|keycloaksamlclients)\.' | awk '{gsub(/"/,"",$2); print $2}' | sort -u)
 fi
 for crd in ${CRD_NAMES}; do
   echo "    Waiting for CRD: ${crd}"
