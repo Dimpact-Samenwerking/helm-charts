@@ -397,7 +397,7 @@ kube-prometheus-stack:
       image:
         registry: quay.io
         repository: prometheus-operator/prometheus-config-reloader
-        tag: v0.90.1
+        tag: v0.94.1
         pullPolicy: IfNotPresent
       resources:
         requests:
@@ -593,7 +593,7 @@ alloy:
     image:
       registry: quay.io
       repository: prometheus-operator/prometheus-config-reloader
-      tag: v0.81.0
+      tag: v0.94.1
       pullPolicy: IfNotPresent
 loki:
   enabled: true
