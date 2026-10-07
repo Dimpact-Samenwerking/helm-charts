@@ -64,7 +64,7 @@ ttlSecondsAfterFinished: 86400
 image:
   registry: "mcr.microsoft.com"
   repository: azure-cli
-  tag: "2.71.0"
+  tag: "2.91.0"
 # ephemeral-storage requests = limits = 20Gi: the dump job assembles all
 # tables of a component into one tarball under /tmp before uploading; the
 # emptyDir backing /tmp also has sizeLimit 20Gi (set on the volume in
