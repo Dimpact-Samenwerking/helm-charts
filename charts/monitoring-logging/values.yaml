@@ -381,7 +381,7 @@ kube-prometheus-stack:
       image:
         registry: quay.io
         repository: prometheus-operator/admission-webhook
-        tag: v0.90.1
+        tag: v0.94.1
         pullPolicy: IfNotPresent
       patch:
         # -- kube-webhook-certgen image for admission webhook TLS certificate provisioning
