@@ -18,7 +18,7 @@ Important context / gotchas (learned the hard way):
 - Run from **WSL**, not Windows directly: Windows Python/curl to registries and some endpoints time out; WSL works. Invoke via PowerShell `wsl -d Ubuntu-24.04 -- bash /mnt/c/.../tmp/<script>.sh` to avoid Git-Bash MSYS path mangling.
 - Pin `AZURE_CONFIG_DIR=$HOME/.azure-aks-blue` (dedicated SSC-Hosting token cache, separate from the default Dimpact session) and `PATH=$HOME/.local/bin:/home/john/bin:...` (helm/kubelogin/az live there).
 - Admin token: client-credentials with the `keycloak-operator-client-secret` Secret against the **master** realm (a master-realm admin token manages all realms cross-realm). Fallback: `admin-cli` password grant with the `keycloak-podiumd-admin` Secret.
-- DB verify is mandatory after a `set` (API masks the value). Connect from an app pod that ships `psycopg` (objecttypen, else objecten). DB host from `keycloak-0` env `KC_DB_URL_HOST`, password from the `keycloak-secrets` Secret (`database_password`), `dbname=keycloak user=keycloak sslmode=require`. Scope the query by realm name (`identity_provider` spans realms; the same alias can exist in two realms).
+- DB verify is mandatory after a `set` (API masks the value). Connect from an app pod that ships `psycopg` (objecten — since the objecten/objecttypen merge, the only Maykin-family pod name this script needs; older not-yet-migrated environments that still run a separate objecttypen pod also work fine via objecten). DB host from `keycloak-0` env `KC_DB_URL_HOST`, password from the `keycloak-secrets` Secret (`database_password`), `dbname=keycloak user=keycloak sslmode=require`. Scope the query by realm name (`identity_provider` spans realms; the same alias can exist in two realms).
 - Never echo the raw secret in output — compare `sha256(value)[:16]` only.
 - `set` is a mutating write on shared infra: only proceed when the user explicitly authorized this specific cluster + realm + alias + value.
 
@@ -66,8 +66,7 @@ HTTP=$(curl -sS -o /tmp/put.txt -w "%{http_code}" -X PUT \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d "$NEW_CONF")
 echo "PUT http=$HTTP"; { [ "$HTTP" = 204 ] || [ "$HTTP" = 200 ]; } || { head -c 300 /tmp/put.txt; exit 1; }
 # === DB verify (authoritative) ===
-POD=$(kubectl --context "$CTX" -n "$NS" get pods -l app.kubernetes.io/name=objecttypen -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
-[ -z "$POD" ] && POD=$(kubectl --context "$CTX" -n "$NS" get pods -l app.kubernetes.io/name=objecten -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+POD=$(kubectl --context "$CTX" -n "$NS" get pods -l app.kubernetes.io/name=objecten -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
 DBH=$(kubectl --context "$CTX" -n "$NS" exec keycloak-0 -- env 2>/dev/null | grep KC_DB_URL_HOST | cut -d= -f2 | tr -d '\r')
 DBP=$(kubectl --context "$CTX" -n "$NS" get secret keycloak-secrets -o jsonpath='{.data.database_password}'|base64 -d)
 kubectl --context "$CTX" -n "$NS" exec "$POD" -- env EXP="$EXP_SHA" DBH="$DBH" DBP="$DBP" ALIAS="$ALIAS" REALM="$REALM" python3 -c "
