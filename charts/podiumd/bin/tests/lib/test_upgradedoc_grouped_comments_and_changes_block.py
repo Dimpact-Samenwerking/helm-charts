@@ -404,6 +404,12 @@ def test_parse_changes_block_strips_trailing_sentence_period_even_on_a_single_li
     assert items[0]["app"] == "8.21.0"
 
 
+def test_parse_changes_block_strips_a_period_after_a_single_version(libupgradedoccomments: ModuleType):
+    """Regression: a period right after a version without an arrow is not part of the version."""
+    items = libupgradedoccomments.parse_changes_block("# Changes:\n#   1. foo 1.2.3. (unchanged)\n")
+    assert [(i["name"], i["app_source"], i["app"]) for i in items] == [("foo", "1.2.3", "1.2.3")]
+
+
 def test_parse_changes_block_trailing_remark_does_not_get_absorbed_into_last_item(libupgradedoccomments: ModuleType):
     """A single-space-indented trailing remark is not a continuation (2+ spaces), so it is not
     absorbed into the last item."""

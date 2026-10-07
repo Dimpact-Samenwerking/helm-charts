@@ -276,7 +276,7 @@ def _app_versions_and_name(rest: str, app_search_text: str) -> tuple[str | None,
     single_m = _SINGLE_VERSION_SPEC_RE.search(app_search_text)
     if single_m is None:
         return None, None, rest
-    app_target = single_m.group("version")
+    app_target = _strip_period(single_m.group("version"))
     app_source = None if single_m.group("kind") == "new" else app_target
     return app_source, app_target, app_search_text[: single_m.start()].strip()
 
