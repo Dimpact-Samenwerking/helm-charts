@@ -27,7 +27,8 @@
 #      the one `bao operator init` returns, or creates a temporary one from the
 #      key in Key Vault (`bao operator generate-root`) when it has to mint a
 #      token on an already initialised vault.
-#   7. Verify, and print when the gateway's token expires.
+#   7. Verify. Both tokens are periodic (32 days); CronJob
+#      openbao-token-renewal renews them weekly, so they don't wait on a deploy.
 #
 # Usage:
 #   KUBE_CONTEXT=<ctx> NAMESPACE=<ns> KEYVAULT=<kv> ./openbao-activate.sh [OPTIONS]
@@ -54,7 +55,7 @@
 #   KV_PATH             openbao.configuration.kvPath (default: secret)
 #   READER_MOUNT        frankgateway.openbao.mount   (default: KV_PATH)
 #   READER_SECRET       frankgateway.openbao.tokenSecret (default: frankgateway-openbao-token)
-#   READER_TTL          lifetime of the gateway token (default: 8760h = 1 year)
+#   READER_PERIOD       renewal period of the gateway token (default: 768h = 32 days)
 #   BOOTSTRAP_SECRET    openbao.configuration.bootstrapTokenSecret
 #                                                    (default: openbao-bootstrap-token)
 #   TOKEN_PERIOD        renewal period of the config token (default: 768h = 32 days)
@@ -105,7 +106,7 @@ RELEASE="${RELEASE:-podiumd}"
 KV_PATH="${KV_PATH:-secret}"
 READER_MOUNT="${READER_MOUNT:-${KV_PATH}}"
 READER_SECRET="${READER_SECRET:-frankgateway-openbao-token}"
-READER_TTL="${READER_TTL:-8760h}"
+READER_PERIOD="${READER_PERIOD:-768h}"
 BOOTSTRAP_SECRET="${BOOTSTRAP_SECRET:-openbao-bootstrap-token}"
 TOKEN_PERIOD="${TOKEN_PERIOD:-768h}"
 PLACEHOLDER="pending-init"
@@ -371,12 +372,11 @@ fi
 if [[ "${NEED_READER}" -eq 1 ]]; then
   READER=$(bao_sh "${STS}-0" <<EOS
 export BAO_ADDR="${BAO_ADDR}" BAO_TOKEN="${ROOT}"
-bao auth tune -max-lease-ttl=${READER_TTL} token/ >&2
 bao policy write frankgateway-reader - >&2 <<'HCL'
 path "${READER_MOUNT}/data/frankgateway"   { capabilities = ["read"] }
 path "${READER_MOUNT}/data/frankgateway/*" { capabilities = ["read"] }
 HCL
-bao token create -orphan -policy=frankgateway-reader -ttl=${READER_TTL} \
+bao token create -orphan -policy=frankgateway-reader -period=${READER_PERIOD} \
   -display-name=frankgateway-reader -field=token
 EOS
 )
@@ -439,7 +439,7 @@ ok "config token valid (renewed by every openbao-config run; period ${TOKEN_PERI
 if [[ "${HAS_GATEWAY}" -eq 1 ]]; then
   LOOKUP=$(token_lookup "${STS}-0" "$(secret_value "${READER_SECRET}")")
   [[ -n "${LOOKUP}" ]] || fail "gateway token invalid"
-  ok "gateway token valid until $(jq -r .data.expire_time <<<"${LOOKUP}") — rotate before then with --rotate-reader-token"
+  ok "gateway token valid until $(jq -r .data.expire_time <<<"${LOOKUP}"); renewed weekly by CronJob openbao-token-renewal"
 fi
 
 echo

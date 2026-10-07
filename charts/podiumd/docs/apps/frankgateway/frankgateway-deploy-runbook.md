@@ -379,8 +379,8 @@ recorded in the Kubernetes audit log.
 
 | Token | Lifetime | Renewed by | When it lapses |
 |---|---|---|---|
-| Config token (`openbao-bootstrap-token`) | 32-day period | every `openbao-config` run that does not skip | the Job fails; re-mint as in step 4, with a new root token |
-| Gateway reader token (`frankgateway-openbao-token`) | one year | nothing ([IN-3047](https://dimpact.atlassian.net/browse/IN-3047)) | every key-bearing route answers 503; re-mint as in step 5 |
+| Config token (`openbao-bootstrap-token`) | 32-day period | CronJob `openbao-token-renewal` (weekly) and every `openbao-config` run that does not skip | the Job fails; re-mint as in step 4, with a new root token, or run `openbao-activate.sh` |
+| Gateway reader token (`frankgateway-openbao-token`) | one year when minted as in step 5; 32-day period, renewed weekly by the CronJob, when minted by `openbao-activate.sh` | nothing for the step-5 token ([IN-3047](https://dimpact.atlassian.net/browse/IN-3047)) | every key-bearing route answers 503; re-mint as in step 5, or run `openbao-activate.sh --rotate-reader-token` |
 
 ## Related documents
 

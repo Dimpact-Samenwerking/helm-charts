@@ -745,6 +745,8 @@ PodiumD Helm chart
 | openbao.configuration.kvPath | string | `"secret"` |  |
 | openbao.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openbao.example.nl`. |
 | openbao.configuration.secrets.keycloak_client_secret | string | `""` |  |
+| openbao.configuration.tokenRenewal.enabled | bool | `true` | Render the openbao-token-renewal CronJob. |
+| openbao.configuration.tokenRenewal.schedule | string | `"17 4 * * 1"` | Cron schedule (cluster time zone). Weekly leaves three retries within the 32-day period. |
 | openbao.configuration.uploadersGroup | string | `"vault-uploaders"` |  |
 | openbao.configuration.uploadersRole | string | `"uploaders"` |  |
 | openbao.csi.image.repository | string | `"quay.io/openbao/openbao-csi-provider"` |  |

@@ -15,7 +15,7 @@ alternative is the [deployment runbook](frankgateway-deploy-runbook.md).
 |---|---|---|---|
 | 1 | Prepare: database, Key Vault items, route, certificate | pipeline / Terraform, once per environment | creates 3 items, no secret typed by hand |
 | 2 | Values | SSCHostingSync, once per environment | none |
-| 3 | Keycloak role and group | chart (or Keycloak admin, once) | none |
+| 3 | Keycloak client, role and group: `openbao-keycloak-setup.py` | pipeline step before the deploy | none |
 | 4 | Deploy | normal deploy pipeline | none |
 | 5 | Activate: `openbao-activate.sh` | pipeline step after the deploy | **one**: the recovery key, on the first run only |
 | 6 | Give uploaders access | Keycloak admin | none |
@@ -90,19 +90,35 @@ openbao:
 
 ## 3. Keycloak
 
-The chart adds the `openbao` client to the `podiumd` realm on every deploy.
-The upload permission needs two more objects:
+OpenBao needs three things in the `podiumd` realm:
 
-- client role `uploaders` on client `openbao`;
-- group `vault-uploaders`, with that client role assigned.
+- client `openbao`, with its redirect URIs and the mapper that puts its client
+  roles in the `groups` claim;
+- client role `uploaders` on that client;
+- group `vault-uploaders`, with that client role.
 
-The realm import creates them only when `keycloak.config.skipRoles` and
-`keycloak.config.skipGroups` are `false`. When the environment keeps the
-defaults (`true`), create them once in the Keycloak admin console: Clients →
-`openbao` → Roles → Create role `uploaders`; Groups → Create group
-`vault-uploaders` → Role mapping → Assign role → filter by clients →
-`openbao uploaders`. Names come from `openbao.configuration.uploadersRole` and
-`uploadersGroup`
+The deploy's realm import adds the client, but the role and the group only
+when `keycloak.config.skipRoles` and `skipGroups` are `false`, which is not
+the default. [`scripts/openbao-keycloak-setup.py`](../../../scripts/openbao-keycloak-setup.py)
+puts all three in place, as a pipeline step before the deploy:
+
+```bash
+KEYCLOAK_URL=https://<keycloak admin host> KUBE_CONTEXT=<ctx> \
+  charts/podiumd/scripts/openbao-keycloak-setup.py \
+    --chart charts/podiumd -n podiumd -f <values files, same order as the deploy>
+```
+
+- It renders the chart's own realm import with the environment's values and
+  takes the definitions from it, so names, redirect URIs and mappers always
+  match what the deploy imports. Nothing is defined twice.
+- Idempotent: it creates what is missing and updates what differs.
+- `--members alice,bob` also adds existing users to the group (step 6).
+- `--check` reports only, and exits 1 when something is missing or differs.
+- The Keycloak admin credentials come from `KEYCLOAK_ADMIN_USER` and
+  `KEYCLOAK_ADMIN_PASSWORD`, or from Secret `keycloak-podiumd-admin` when
+  `KUBE_CONTEXT` is set. Requires python3 with PyYAML, and helm.
+
+Names come from `openbao.configuration.uploadersRole` and `uploadersGroup`
 ([§3.7](frankgateway-openbao.md#37-keycloak--oidc-integration)).
 
 ## 4. Deploy
@@ -141,16 +157,15 @@ What it does, stopping at the first problem:
    It sets up the Keycloak login, the `secret` kv mount, the uploader policy
    and the group binding. A skipped run fails the script.
 6. **Revoke the root token.**
-7. **Verify** every pod and both tokens, and print when the gateway token
-   expires.
+7. **Verify** every pod and both tokens.
 
 Exit code 0 means OpenBao is operational. Secrets are never printed and never
 passed as command arguments.
 
 ## 6. Give uploaders access
 
-Add the people who write secrets to the Keycloak group `vault-uploaders`.
-They log in at the OpenBao host (or `bao login -method=oidc`) and write the
+Add the people who write secrets to the Keycloak group `vault-uploaders`,
+in the admin console or with `openbao-keycloak-setup.py --members`. They log in at the OpenBao host (or `bao login -method=oidc`) and write the
 gateway's keys, as in
 [runbook step 5](frankgateway-deploy-runbook.md#step-5--put-the-gateways-secrets-in-openbao).
 
@@ -163,13 +178,36 @@ re-runs the `openbao-config` Job (which renews the config token) and exits.
 |---|---|---|
 | Pod restart, node drain, upgrade | pods unseal themselves (static seal) | none |
 | Deploy | `openbao-config` runs while pods may be restarting and can skip | the script re-runs it |
-| Config token (32-day period) | renewed by every `openbao-config` run | none while you deploy at least monthly; otherwise the script mints a new one |
-| Gateway token (1 year) | not renewed automatically | `openbao-activate.sh --rotate-reader-token` before the date the script prints |
+| Config token (32-day period) | renewed weekly by CronJob `openbao-token-renewal`, and by every `openbao-config` run | none |
+| Gateway token (32-day period) | renewed weekly by CronJob `openbao-token-renewal` | none |
+| A token expired anyway (OpenBao sealed for weeks, CronJob disabled) | the CronJob fails; the next deploy's `openbao-config` fails on an expired config token | run `openbao-activate.sh`: it mints new tokens |
 | Root token | never stored | the script creates a temporary one from `openbao-unseal-key` when it needs one, and revokes it |
 | Seal key rotation | — | [§3.6.1](frankgateway-openbao.md#361-static-seal-unseal-without-an-operator-optional), rotating the key |
 
 `--check` runs the preflight and shows the seal and token status without
 changing anything. Use it before a deploy or as a periodic check.
+
+**Token renewal without deploys.** Both OpenBao tokens are periodic: they
+expire when nothing renews them for 32 days. CronJob `openbao-token-renewal`
+(rendered by default, `openbao.configuration.tokenRenewal`) renews them every
+Monday, so an environment that goes a month or longer without a deploy keeps
+working. A failed run of the CronJob means OpenBao is sealed or a token is
+already invalid: alert on it.
+
+**Renewal needs no restart; rotation does, and the script handles it.**
+
+- Renewal extends the lifetime of the same token. The token value in the
+  Secret doesn't change, so nothing restarts and no annotation changes.
+- Rotation (`--rotate-config-token`, `--rotate-reader-token`, or a new token
+  because the old one expired) writes a new value into the Secret:
+  - the config token is read only by Jobs (`openbao-config`, the renewal
+    CronJob), which start a new pod each run and read the new value;
+  - the gateway token reaches the Frank!Gateway Deployments as the
+    environment variable `OPENBAO_TOKEN`, read once at pod start. The script
+    restarts them (`kubectl rollout restart`) right after writing the Secret.
+    The seed Job and the client-certificate CronJob are new pods each run.
+- A checksum annotation can't do this: the token is created after the deploy
+  and never passes through Helm, so the render can't see its value.
 
 ## Preflight checks
 

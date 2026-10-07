@@ -4521,6 +4521,18 @@ openbao:
     # scripts/openbao-mint-config-token.sh — NOT the root token, which can (and
     # should) be revoked after minting. See docs/apps/frankgateway/frankgateway-openbao.md §5 and §7.
     bootstrapTokenSecret: openbao-bootstrap-token
+    # Weekly renewal of the periodic OpenBao tokens: the config token above and,
+    # when Frank!Gateway is enabled, its reader token (frankgateway.openbao.tokenSecret).
+    # A periodic token expires when nothing renews it within its period (32
+    # days); without this CronJob only a deploy renews the config token, and the
+    # first deploy after a quiet month would fail on an expired token. The
+    # CronJob fails, and shows in monitoring, when OpenBao is sealed or a token
+    # is already invalid; re-mint with scripts/openbao-activate.sh.
+    tokenRenewal:
+      # -- Render the openbao-token-renewal CronJob.
+      enabled: true
+      # -- Cron schedule (cluster time zone). Weekly leaves three retries within the 32-day period.
+      schedule: "17 4 * * 1"
     job:
       backoffLimit: 6
       # Post-success log window: the Job is not hook-deleted on success, so its
