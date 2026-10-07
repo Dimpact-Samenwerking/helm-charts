@@ -632,33 +632,25 @@ All H.1–H.7 design decisions are now resolved; nothing left in this category.
       `values.yaml`'s `objecten.image.tag` is now
       `4.1.0@sha256:7738cb8161d221d0a286d39d9d270c35024ff78123c296ceb46f3d9dda7208f9`
       (fetched from Docker Hub's manifest API), and the image is recorded in
-      `docs/images/images-4.9.0.yaml` alongside the release's other two
-      image changes.
-- [x] ~~Scaffold `docs/_UPGRADE_PATHS/<from>-to-<to>-upgrade.md`~~ — drafted
-      as `docs/_UPGRADE_PATHS/4.8.X-to-4.9.0-upgrade.md` (new file, written
-      directly rather than as a patch since it doesn't exist in git yet).
-      Marked as a draft: `4.8.X` is a literal placeholder for the exact
-      source patch version, pending team confirmation of which release this
-      ships in.
-- [ ] Audit per-gemeente values overrides for use of the two fields upstream
+      [`images-4.10.0.yaml`](../../images/images-4.10.0.yaml).
+- [x] ~~Scaffold the upgrade guide~~ — the merge ships in PodiumD 4.10.0, not
+      4.9.0. The upgrade steps, values deltas and environment-specific notes
+      are in `docs/_UPGRADE_PATHS/4.9.3-to-4.10.0-*.md`. The earlier
+      `4.8.X-to-4.9.0` drafts are removed.
+- [x] ~~Audit per-gemeente values overrides for use of the two fields upstream
       4.0.0 removes (`objecttypes.items[].service_identifier`,
-      `tokenauth.items[].{fields,use_fields}`) — needs access to
-      per-gemeente values files outside this repo.
+      `tokenauth.items[].{fields,use_fields}`)~~ — `service_identifier` is
+      removed by `scripts/migrate-objecten-4.1.0.py`; a dry-run over all SSC
+      environments found no `fields`/`use_fields` overrides.
 - [ ] Confirm every gemeente's *running* (not just chart-pinned) appVersion
       is ≥3.4.0 before relying on that migration having already happened —
       needs checking live deployments outside this repo.
-- [ ] Inventory per-gemeente overrides for the section-F downstream
+- [x] ~~Inventory per-gemeente overrides for the section-F downstream
       consumers (`zac.objectenApi`/`.objecttypenApi`, `ita.*.type`,
-      `kiss.adapter.*`/`kiss.settings.*.objectTypeUrl`) — F currently says
-      "per-environment value updates" without an actual list of which
-      gemeenten have overridden these; same outside-this-repo access
-      constraint as the two items above, not previously called out as its
-      own item.
+      `kiss.adapter.*`/`kiss.settings.*.objectTypeUrl`)~~ — the values
+      migration script rewrites these per environment; environments that need
+      more than the script are listed in
+      `docs/_UPGRADE_PATHS/4.9.3-to-4.10.0-gemeente-specific.md`.
 - [x] ~~Write an explicit rollback runbook for the `openobject` cutover
-      itself~~ — **done**: section C ("Rollback runbook") of
-      `docs/_UPGRADE_PATHS/4.8.X-to-4.9.0-upgrade.md` now has the full
-      numbered procedure — failure signature, confirm-then-rollback to
-      `objecten` 3.6.1, re-running `check_for_external_objecttypes` to
-      identify offending UUIDs, the still-exists-vs-deleted-upstream branch
-      from A.6, re-verification, and retry — rather than just the one-line
-      summary that lived here before.
+      itself~~ — moved to the "Rollback" section of
+      `docs/_UPGRADE_PATHS/4.9.3-to-4.10.0-upgrade.md`.
