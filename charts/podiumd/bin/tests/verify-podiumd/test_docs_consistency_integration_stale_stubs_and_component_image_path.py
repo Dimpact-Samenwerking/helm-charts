@@ -542,7 +542,7 @@ def test_component_specific_image_path_mismatch_is_flagged_not_silently_skipped(
     ok, _detail = vp.check_docs_consistency(keycloak_chart_repo, upgrade_docs_baseline="4.8.5")
 
     assert ok is False
-    assert_would_change(capsys.readouterr().out, "26.7.2")
+    assert_would_change(capsys.readouterr().out, "+| keycloak-operator | 26.6.4 → 26.7.2 |")
 
 
 # --- a row unchanged vs baseline ---
