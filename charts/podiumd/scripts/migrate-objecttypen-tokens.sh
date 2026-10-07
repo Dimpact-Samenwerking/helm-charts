@@ -22,8 +22,12 @@
 #                       the 4.10.0 config job creates it; copying it here too
 #                       could create the same token under a second identifier
 #   created             new objecten token, same identifier
-#   created-as-renamed  objecten already uses the identifier (for another
-#                       token): created as <identifier>-objecttypen (unique)
+#   objecten-wins       objecten already has this identifier with another
+#                       token. Open Object has one token per identifier for
+#                       both APIs, so the objecten token stays and nothing is
+#                       created. Every client that sends the objecttypen token
+#                       must switch to the objecten token of this identifier
+#                       before the upgrade, or it gets 403 afterwards.
 # A created token gets the identifier, token, contact_person, email,
 # organization, application and administration of the objecttypen token, is
 # NOT a superuser and gets NO object type permissions: in objects-api 3.6 it
@@ -145,7 +149,6 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 
 APPLY = __APPLY__  # set by the shell script
-SUFFIX = "-objecttypen"
 data = None
 for line in sys.stdin:
     if line.startswith("OBJECTTYPEN-TOKENS "):
@@ -156,10 +159,9 @@ models = [m for m in apps.get_models() if m.__name__ == "TokenAuth"]
 if len(models) != 1:
     raise SystemExit("expected one TokenAuth model, found %d" % len(models))
 T = models[0]
-max_len = T._meta.get_field("identifier").max_length
 by_token = dict(T.objects.values_list("token", "identifier"))
 configured = set(data["configured"])
-taken = set(T.objects.values_list("identifier", flat=True)) | configured | {c + SUFFIX for c in configured}
+existing = set(T.objects.values_list("identifier", flat=True))
 counts = {}
 create = []
 print("Mode: %s" % ("apply" if APPLY else "dry-run (nothing written; --apply creates the tokens)"))
@@ -169,14 +171,12 @@ for row in data["tokens"]:
     digest = hashlib.sha256(token.encode()).hexdigest()[:12]
     if token in by_token:
         action, target = "exists-same-token", by_token[token]
+    elif ident in existing:
+        action, target = "objecten-wins", "%s (clients must switch to this objecten token)" % ident
     elif ident in configured:
         action, target = "skipped", "- (in objecttypen configuration: merged by the values migration)"
     else:
-        target, n = ident, 1
-        while target in taken:
-            tail = SUFFIX if n == 1 else "%s-%d" % (SUFFIX, n)
-            target, n = ident[: max_len - len(tail)] + tail, n + 1
-        action = "created" if target == ident else "created-as-renamed"
+        action, target = "created", ident
         new = T(identifier=target, token=token, is_superuser=False,
                 **{f: row[f] or "" for f in ("contact_person", "email", "organization",
                                              "application", "administration")})
@@ -186,7 +186,7 @@ for row in data["tokens"]:
             action, target = "error", "%s (invalid: %s)" % (target, ", ".join(sorted(e.message_dict)))
         else:
             create.append(new)
-            taken.add(target)
+            existing.add(target)
             by_token[token] = target
     counts[action] = counts.get(action, 0) + 1
     print("%-32s %-12s %-19s %s" % (ident, digest, action, target))

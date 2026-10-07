@@ -26,10 +26,23 @@ that change:
   - The zgw_consumers service those items pointed at: removed.
   - sites_config / sites_config_enable: removed (now settings.siteDomain).
   - tokenauth.items[].fields / use_fields: removed (gone in Open Object 4).
-  - objecttypen's tokenauth items are merged in, so every token that used to
-    work against the Objecttypen API keeps working against objecten. Items
-    with the same identifier and token are dropped as duplicates; same
-    identifier with another token is renamed to `<identifier>-objecttypen`.
+  - objecttypen's tokenauth items are merged in. Open Object has one token
+    table for both APIs, so an identifier can have only one token:
+      - same identifier and token: dropped as a duplicate;
+      - same identifier, other token: the objecten token wins. The
+        objecttypen item is dropped, and every consumer value that carried
+        the objecttypen token gets the objecten token instead (see below);
+      - identifier only in objecttypen: copied over, and reported, so you can
+        check whether a client still uses it.
+
+  Token rewrite (every string value outside objecten's own tokenauth)
+  - A consumer that called the Objecttypen API with the objecttypen token of
+    an identifier that also exists in objecten (zgw_consumers header_value
+    `Token ...`, zac.objecttypenApi, omc, ...) now sends the objecten token of
+    that identifier. Without this it gets 403 after the upgrade. A
+    `value_from: {env: ...}` token is resolved through the component's
+    configuration.secrets, so its REP_..._REP placeholder is rewritten; a token
+    that cannot be resolved is reported instead.
 
   Consumers (every string value, including embedded configuration.data)
   - The public objecttypen hostname and `objecttypen.<ns>.svc.cluster.local`
@@ -41,10 +54,21 @@ that change:
     is dropped: the adapter uses the objecten token).
   - mi.targets entries for component objecttypen are removed.
 
+  objecten.image.repository
+  - An override `<registry>/maykinmedia/objects-api` (a mirror of the old
+    image), or a mirror under the legacy component name `<registry>/objecten`,
+    becomes `<registry>/maykinmedia/open-object`: the name
+    mirror-strip-registry.py gives the new image. That image must be mirrored
+    there before deploying. Any other override is left alone and reported.
+    --objecten-image-repository sets it explicitly.
+
   services-gateway.yml (next to podiumd.yml, skip with --no-gateway)
   - The `objecttypen-nginx` ExternalName Service is repointed to
     objecten.<ns>.svc.cluster.local, so the existing HTTPRoute for the old
-    hostname reaches objecten (IN-2597).
+    hostname reaches objecten (IN-2597). Only when podiumd.yml has an objecten
+    block and (after migration) no objecttypen block: a podiumd.yml without
+    objecten (an environment deployed from another repo) leaves the gateway
+    alone, because its objecttypen is still running.
 
 The file is edited in place, line by line: only the lines that change are
 touched, so comments, quoting, indentation and REP_..._REP placeholders stay
@@ -52,14 +76,13 @@ as they are. Before writing, the script checks that the edited file parses to
 exactly the intended values; it refuses to write a file that does not.
 
 Not done by this script (reported as reminders):
-  - objecten.image.repository: an override `<registry>/maykinmedia/objects-api`
-    (a mirror of the old image), or a mirror under the legacy component name
-    `<registry>/objecten`, becomes `<registry>/maykinmedia/open-object`: the
-    name mirror-strip-registry.py gives the new image. That image must be
-    mirrored there before deploying. Any other override is left alone and
-    reported. --objecten-image-repository sets it explicitly.
   - Per environment, before deploying: run `import_objecttypes` in the old
-    objecten (3.6.x; PodiumD 4.9.x ships 3.6.2) so every objecttype exists locally.
+    objecten (3.6.x; PodiumD 4.9.x ships 3.6.2) so every objecttype exists
+    locally, and run migrate-objecttypen-tokens.sh for tokens that exist only
+    in the objecttypen database.
+  - Clients outside these values (external parties, services configured by
+    hand in an admin) that call the Objecttypen API with an objecttypen token
+    must switch to the objecten token of the same identifier.
 
 Requires: ruamel.yaml (pip install ruamel.yaml)
 
@@ -91,8 +114,9 @@ except ImportError:
     print("ERROR: ruamel.yaml is required. Install with: pip install ruamel.yaml", file=sys.stderr)
     sys.exit(1)
 
-GEMEENTEN_DIR = os.path.expanduser("~/projects/dimpact/ssctwente/Applications/applications/gemeenten")
-RENAME_SUFFIX = "-objecttypen"
+# A token value is only rewritten in consumers when it is long enough not to
+# match by accident (REP_..._REP placeholders and real tokens both are).
+MIN_REWRITE_TOKEN_LEN = 12
 
 
 class MigrationError(Exception):
@@ -208,11 +232,16 @@ class Edits:
 class Hosts:
     old_public: str  # acc-objecttypen.example.nl
     new_public: str  # acc-objecten.example.nl
+    # objecttypen token -> objecten token of the same identifier (see token_remap)
+    tokens: dict[str, str] = field(default_factory=dict)
 
     def rewrite(self, text: str) -> str:
         text = re.sub(rf"(?<![\w.-]){re.escape(self.old_public)}(?![\w-])", self.new_public, text)
-        return re.sub(r"(?<![\w.-])objecttypen\.([a-z0-9-]+)\.svc\.cluster\.local(?![\w-])",
+        text = re.sub(r"(?<![\w.-])objecttypen\.([a-z0-9-]+)\.svc\.cluster\.local(?![\w-])",
                       r"objecten.\1.svc.cluster.local", text)
+        for old, new in self.tokens.items():
+            text = re.sub(rf"(?<![\w-]){re.escape(old)}(?![\w-])", new, text)
+        return text
 
 
 def _host_of(url: str | None) -> str | None:
@@ -254,27 +283,78 @@ def _superuser_token(items: list[dict]):
     return None
 
 
-def plan_tokenauth(objecten_items: list[dict], objecttypen_items: list[dict]) -> list[tuple[dict, str | None]]:
-    """objecttypen tokenauth items to add, with their new identifier (None = keep)."""
+def superuser_token_value(item: dict, secrets: dict) -> str:
+    """The superuser token as a plain value: the token itself, or the
+    configuration.secrets entry a `value_from: {env: <name>}` token points at."""
+    token = item["token"]
+    if isinstance(token, dict):
+        env = ((token.get("value_from") or {}).get("env")) if isinstance(token.get("value_from"), dict) else None
+        value = (secrets or {}).get(env) if env else None
+        if not isinstance(value, str):
+            raise MigrationError("objecten superuser token is not a plain value and its value_from env is not "
+                                 "in objecten.configuration.secrets; set "
+                                 "objecten.configuration.secrets.create_required_objecttypen_token by hand")
+        return value
+    return token
+
+
+def _plain_token(token, secrets: dict):
+    """A token as a string: the token itself, or the configuration.secrets
+    value a `value_from: {env: <name>}` token points at (None if unknown)."""
+    if isinstance(token, str):
+        return token
+    if isinstance(token, dict) and isinstance(token.get("value_from"), dict):
+        value = (secrets or {}).get(token["value_from"].get("env"))
+        return value if isinstance(value, str) else None
+    return None
+
+
+def token_remap(objecten_items: list[dict], objecttypen_items: list[dict],
+                objecten_secrets: dict | None = None,
+                objecttypen_secrets: dict | None = None) -> tuple[dict[str, str], list[str]]:
+    """objecttypen token -> objecten token for identifiers in both with another token.
+
+    Tokens given as `value_from: {env: ...}` are resolved through the
+    component's configuration.secrets, so the rewrite applies to the secret
+    values (REP_..._REP placeholders) that consumers use.
+
+    Returns (rewrite map, identifiers that clash but cannot be rewritten
+    automatically because a token cannot be resolved to a string).
+    """
+    by_ident = {i.get("identifier"): i.get("token") for i in objecten_items}
+    remap: dict[str, str] = {}
+    manual: list[str] = []
+    for item in objecttypen_items:
+        ident = item.get("identifier")
+        if ident not in by_ident:
+            continue
+        token = _plain_token(item.get("token"), objecttypen_secrets or {})
+        ob_token = _plain_token(by_ident[ident], objecten_secrets or {})
+        if token is not None and token == ob_token:
+            continue
+        if token is not None and ob_token is not None and len(token) >= MIN_REWRITE_TOKEN_LEN:
+            remap[token] = ob_token
+        else:
+            manual.append(str(ident))
+    return remap, manual
+
+
+def plan_tokenauth(objecten_items: list[dict], objecttypen_items: list[dict]) -> list[dict]:
+    """objecttypen tokenauth items to copy into objecten (identifier only in objecttypen)."""
     existing_ids = {i.get("identifier") for i in objecten_items}
     existing_tokens = {str(i.get("token")): i.get("identifier") for i in objecten_items}
     plan = []
     for item in objecttypen_items:
         ident, token = item.get("identifier"), str(item.get("token"))
-        if token in existing_tokens:
-            if existing_tokens[token] != ident:
-                raise MigrationError(
-                    f"objecttypen tokenauth item {ident!r} uses the same token as objecten item "
-                    f"{existing_tokens[token]!r} - tokens must be unique in Open Object; resolve by hand")
-            continue  # identical item: already there
-        new_ident = None
         if ident in existing_ids:
-            new_ident = f"{ident}{RENAME_SUFFIX}"
-            if new_ident in existing_ids:
-                raise MigrationError(f"cannot rename objecttypen tokenauth item {ident!r}: {new_ident!r} exists")
-        plan.append((item, new_ident))
-        existing_ids.add(new_ident or ident)
-        existing_tokens[token] = new_ident or ident
+            continue  # duplicate, or a clash where the objecten token wins
+        if token in existing_tokens:
+            raise MigrationError(
+                f"objecttypen tokenauth item {ident!r} uses the same token as objecten item "
+                f"{existing_tokens[token]!r} - tokens must be unique in Open Object; resolve by hand")
+        plan.append(item)
+        existing_ids.add(ident)
+        existing_tokens[token] = ident
     return plan
 
 
@@ -293,12 +373,10 @@ def expected_data(objecten_data: dict, objecttypen_data: dict) -> dict:
     for item in items:
         item.pop("fields", None)
         item.pop("use_fields", None)
-    for item, new_ident in plan_tokenauth(items, (objecttypen_data.get("tokenauth") or {}).get("items") or []):
+    for item in plan_tokenauth(items, (objecttypen_data.get("tokenauth") or {}).get("items") or []):
         moved = copy.deepcopy(item)
         moved.pop("fields", None)
         moved.pop("use_fields", None)
-        if new_ident:
-            moved["identifier"] = new_ident
         items.append(moved)
     return data
 
@@ -319,10 +397,11 @@ def expected_values(doc: dict, hosts: Hosts, image_repo: str | None) -> dict:
     settings["allowedHosts"] = ",".join(allowed)
     cfg = ob["configuration"]
     secrets = cfg.get("secrets") or {}
-    for k, v in (ot["configuration"].get("secrets") or {}).items():
+    for k, v in _rewrite_strings(ot["configuration"].get("secrets") or {}, hosts).items():
         secrets.setdefault(k, v)
     su = _superuser_token((od.get("tokenauth") or {}).get("items") or [])
-    secrets["create_required_objecttypen_token"] = su["token"]
+    secrets["create_required_objecttypen_token"] = superuser_token_value(
+        su, (doc["objecten"]["configuration"].get("secrets") or {}))
     cfg["secrets"] = secrets
     cfg["data"] = expected_data(_rewrite_strings(od, hosts), _rewrite_strings(td, hosts))
     if "create_required_objecttypen_job" in ot:
@@ -406,8 +485,7 @@ def edit_data(inner: str, objecttypen_inner: str) -> str:
     t_items = (t_root.get("tokenauth") or {}).get("items") or []
     plain_items = _safe_load(inner)["tokenauth"]["items"]
     plain_t_items = (_safe_load(objecttypen_inner) or {}).get("tokenauth", {}).get("items") or []
-    plan = plan_tokenauth(plain_items, plain_t_items)
-    planned = {id(i): n for i, n in plan}
+    planned = {id(i) for i in plan_tokenauth(plain_items, plain_t_items)}
     moved: list[str] = []
     t_total = len(t_lines)
     if t_items:
@@ -423,11 +501,6 @@ def edit_data(inner: str, objecttypen_inner: str) -> str:
                     k_s, k_e = key_range(t_lines, item, key, i_e)
                     drop.update(range(k_s, k_e))
             block = [t_lines[n] for n in range(i_s, i_e) if n not in drop]
-            new_ident = planned[id(plain)]
-            if new_ident:
-                id_line = item.lc.key("identifier")[0] - i_s
-                if id_line in range(len(block)):
-                    block[id_line] = _scalar_line(block[id_line], new_ident)
             src_dash = t_items.lc.item(idx)[1] - 2
             moved += reindent(block, dash_col - src_dash)
     if moved:
@@ -464,10 +537,20 @@ def migrate_text(text: str, image_repo: str | None) -> tuple[str, list[str]]:
             image_note = (f"objecten.image.repository {current_repo} -> {image_repo}: "
                           "mirror maykinmedia/open-object there before deploying")
     od_plain = _safe_load(doc["objecten"]["configuration"].get("data") or "") or {}
-    su = _superuser_token((od_plain.get("tokenauth") or {}).get("items") or [])
+    td_plain = _safe_load((doc["objecttypen"].get("configuration") or {}).get("data") or "") or {}
+    ob_tokens = (od_plain.get("tokenauth") or {}).get("items") or []
+    ot_tokens = (td_plain.get("tokenauth") or {}).get("items") or []
+    hosts.tokens, manual_clashes = token_remap(
+        ob_tokens, ot_tokens,
+        (doc["objecten"].get("configuration") or {}).get("secrets") or {},
+        (doc["objecttypen"].get("configuration") or {}).get("secrets") or {})
+    su = _superuser_token(ob_tokens)
     if not su:
         raise MigrationError("objecten tokenauth has no is_superuser item to run the "
                              "create-required-objecttypen job with; add one by hand first")
+    if not isinstance(doc["objecten"].get("settings"), dict) or "allowedHosts" not in doc["objecten"]["settings"]:
+        raise MigrationError("objecten.settings.allowedHosts is not set; add it (with the objecten "
+                             "hostname) by hand first")
 
     ed = Edits()
     ob, ot = root["objecten"], root["objecttypen"]
@@ -504,10 +587,7 @@ def migrate_text(text: str, image_repo: str | None) -> tuple[str, list[str]]:
             if k not in (cfg.get("secrets") or {}):
                 k_s, k_e = key_range(lines, ot_cfg["secrets"], k, o_e)
                 secret_lines += lines[k_s:k_e]
-    su_token = su["token"]
-    if isinstance(su_token, dict):
-        raise MigrationError("objecten superuser token is not a plain value; set "
-                             "objecten.configuration.secrets.create_required_objecttypen_token by hand")
+    su_token = superuser_token_value(su, cfg.get("secrets") or {})
     token_quoted = f'"{su_token}"'
     if cfg.get("secrets"):
         se_s, se_e = key_range(lines, cfg, "secrets", cf_e)
@@ -594,6 +674,22 @@ def migrate_text(text: str, image_repo: str | None) -> tuple[str, list[str]]:
         raise MigrationError("self-check failed: the edited file does not match the intended values "
                              f"({_first_difference(want, got)}); nothing written")
 
+    ob_secrets = (doc["objecten"].get("configuration") or {}).get("secrets") or {}
+    ob_by_token = {_plain_token(i.get("token"), ob_secrets): i.get("identifier") for i in ob_tokens}
+    for old_token, new_token in sorted(hosts.tokens.items(), key=lambda kv: str(ob_by_token.get(kv[1]))):
+        ident = ob_by_token.get(new_token)
+        uses = len(re.findall(rf"(?<![\w-]){re.escape(new_token)}(?![\w-])", out)) - \
+            len(re.findall(rf"(?<![\w-]){re.escape(new_token)}(?![\w-])", text))
+        notes.append(f"token {ident!r}: objecten and objecttypen had different tokens; the objecten token "
+                     f"wins. {uses} consumer value(s) that used the objecttypen token now use the objecten "
+                     "token. Clients outside these values must switch too.")
+    for ident in manual_clashes:
+        notes.append(f"token {ident!r}: objecten and objecttypen have different tokens and one cannot be "
+                     "resolved to a value; the objecten token wins - point consumers of the objecttypen token "
+                     "at it by hand")
+    for item in plan_tokenauth(ob_tokens, ot_tokens):
+        notes.append(f"token {item.get('identifier')!r} existed only in objecttypen and is copied; "
+                     "drop it if no client uses it any more")
     own_ids = [i.get("identifier") for i in (od_plain.get("tokenauth") or {}).get("items") or []]
     dupes = sorted({i for i in own_ids if own_ids.count(i) > 1}, key=str)
     if dupes:
@@ -658,7 +754,13 @@ def process(path: str, args) -> tuple[str, list[str]]:
     except Exception as e:  # unexpected file shape: report, never write half a migration
         return "error", [f"unexpected {type(e).__name__}: {str(e).splitlines()[0][:200]}"]
     changes = [(path, text, new)] if new != text else []
-    if not args.no_gateway:
+    migrated_doc = _safe_load(new)
+    has_objecten = isinstance(migrated_doc, dict) and "objecten" in migrated_doc \
+        and "objecttypen" not in migrated_doc
+    if not args.no_gateway and not has_objecten:
+        notes.append("no objecten block in podiumd.yml (deployed from elsewhere?): services-gateway.yml "
+                     "left alone, its objecttypen may still be running")
+    if not args.no_gateway and has_objecten:
         gw = os.path.join(os.path.dirname(path), "services-gateway.yml")
         if os.path.exists(gw):
             with open(gw, encoding="utf-8") as f:
@@ -681,14 +783,16 @@ def process(path: str, args) -> tuple[str, list[str]]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("files", nargs="*", help="podiumd.yml files (default: all under --gemeenten-dir)")
-    parser.add_argument("--gemeenten-dir", default=GEMEENTEN_DIR,
-                        help="directory with <gemeente>/<env>/podiumd.yml (default: %(default)s)")
+    parser.add_argument("--gemeenten-dir",
+                        help="directory with <gemeente>/<env>/podiumd.yml (used when no files are given)")
     parser.add_argument("--dry-run", action="store_true", help="print a unified diff, write nothing")
     parser.add_argument("--no-gateway", action="store_true", help="do not touch services-gateway.yml")
     parser.add_argument("--objecten-image-repository", metavar="REPO",
                         help="set objecten.image.repository (e.g. an ACR mirror of maykinmedia/open-object)")
     args = parser.parse_args()
 
+    if not args.files and not args.gemeenten_dir:
+        parser.error("give podiumd.yml files or --gemeenten-dir")
     files = args.files or sorted(glob.glob(os.path.join(os.path.expanduser(args.gemeenten_dir), "*", "*", "podiumd.yml")))
     if not files:
         print("No podiumd.yml files found.", file=sys.stderr)
