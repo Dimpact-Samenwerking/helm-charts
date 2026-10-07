@@ -83,11 +83,11 @@ Public. Hostname pattern `<env>-openzaak.dimpact.nl` (e.g.
 by the per-gemeente environment deployment (ADO `ExternalsPodiumD`), not by
 this chart. Backend: service `openzaak-nginx`. Keep
 `openzaak.settings.allowedHosts` in sync with the public hostname (chart
-default is only the in-cluster name `openzaak-nginx.podiumd.svc.cluster.local`).
+default is only the namespace-agnostic in-cluster wildcard `.svc.cluster.local`).
 
 ### Other dependencies
 
-- **Redis** — shared `redis-ha` (`redis-ha-master.podiumd.svc.cluster.local:6379`):
+- **Redis** — shared `redis-ha` (`redis-ha-master:6379`, release namespace):
   DB **4** for Django cache and axes (`settings.cache.default` / `cache.axes`),
   DB **5** for the Celery broker and result backend (`settings.celery.brokerUrl`
   / `resultBackendl`). Allocation table: `docs/apps/redis/redis-ha-databases.md`.

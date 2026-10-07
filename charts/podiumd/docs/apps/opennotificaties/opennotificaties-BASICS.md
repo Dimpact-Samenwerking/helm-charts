@@ -72,8 +72,8 @@ per-gemeente environment deployment (ADO `ExternalsPodiumD`), not by this
 chart. The route name contains `-nginx` for historical consistency, but the
 subchart has no nginx component — the backend is the ClusterIP Service
 `opennotificaties` on port 80. `settings.allowedHosts` must include the
-hostnames used (chart default lists the in-cluster name
-`opennotificaties.podiumd.svc.cluster.local`).
+hostnames used (chart default lists the namespace-agnostic in-cluster wildcard
+`.svc.cluster.local`).
 
 ### Other dependencies
 
@@ -121,7 +121,7 @@ CPU is negligible at dev/accp load; treat these as baseline, not peak.
    Leave `opennotificaties.tags.redis: false` and keep the
    `settings.cache.*` / `settings.celery.*` /
    `settings.messageBroker.celeryResultBackend` values pointing at
-   `redis-ha-master.podiumd.svc.cluster.local` (db 3 / db 6).
+   `redis-ha-master` (db 3 / db 6).
 3. **Keycloak client.** Provide
    `opennotificaties.configuration.secrets.keycloak_client_secret` and the
    `oidc_db_config_*` block in `opennotificaties.configuration.data`; the

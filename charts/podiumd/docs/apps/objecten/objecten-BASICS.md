@@ -70,11 +70,12 @@ Public at `<env>-objecten.dimpact.nl` (e.g. `ontw-objecten.dimpact.nl`) via HTTP
 gatewayClass `nginx`). The HTTPRoute is created by the per-gemeente environment
 deployment (ADO `ExternalsPodiumD`), not by this chart, and points at the Objecten
 ClusterIP service. In-cluster the app answers on
-`objecten.podiumd.svc.cluster.local` (`objecten.settings.allowedHosts`).
+`objecten.<namespace>.svc.cluster.local`, allowed via the namespace-agnostic
+`.svc.cluster.local` wildcard (`objecten.settings.allowedHosts`).
 
 ### Other dependencies
 
-- **Redis** (shared `redis-ha-master.podiumd.svc.cluster.local:6379`):
+- **Redis** (shared `redis-ha-master:6379`, resolved in the release namespace):
   - DB **1** — cache (`default`, `axes`, `oidc`) via `objecten.settings.cache.*`.
   - DB **2** — Celery broker + result backend via `objecten.settings.celery.*`.
 - **Objecttypen API** — every object references an object type; connection configured
