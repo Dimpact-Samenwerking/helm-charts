@@ -321,9 +321,12 @@ KUBE_CONTEXT=<ctx> NAMESPACE=<ns> ./charts/podiumd/scripts/openbao-mint-config-t
 It re-mints the config token, then asks for confirmation before revoking the
 root token. Leave the dead token in `openbao-root-token` so the
 item keeps its history. When a root token is needed again — to re-mint the
-config or reader token — create one with `bao operator generate-root` and the
-key in `openbao-unseal-key`, write it over `openbao-root-token`, and revoke it
-again when done.
+config or reader token — run `openbao-activate.sh --rotate-config-token` (or
+`--rotate-reader-token`), which creates a temporary one from the key in
+`openbao-unseal-key` and revokes it again. By hand: `bao operator generate-root`
+with that key, run **on the active pod** with `BAO_ADDR=http://127.0.0.1:8210`.
+OpenBao 2.5 and later refuse unauthenticated generate-root on the listener the
+Service exposes; the chart opens it only on that loopback listener.
 
 ## After every deploy
 

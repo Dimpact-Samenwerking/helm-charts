@@ -35,13 +35,15 @@
 #   TOKEN_PERIOD      renewal period of the minted token (default: 768h = 32 days)
 #   BAO_ROOT_TOKEN_FILE  file holding the root token, e.g. <(az keyvault secret show ...)
 #   BAO_ROOT_TOKEN    root token (prompted silently if neither is set)
+#   CALLER_REVOKES_ROOT  1 when the caller revokes the root token itself
+#                     (openbao-activate.sh): skips the --revoke-root hint
 #
 # Requires: bash 3+, kubectl.
 
 set -euo pipefail
 
 usage() {
-  sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,41p' "$0" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && usage 0
@@ -154,7 +156,7 @@ EOS
   else
     echo "Root token NOT revoked."
   fi
-else
+elif [[ "${CALLER_REVOKES_ROOT:-0}" != "1" ]]; then
   echo
   echo "Root token left untouched. Recommended once a deploy has succeeded with"
   echo "the new token: re-run with --revoke-root (frankgateway-openbao.md §7)."

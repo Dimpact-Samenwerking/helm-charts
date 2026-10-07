@@ -95,7 +95,7 @@ spec:
                       return 0
                     fi
                     if BAO_TOKEN="${token}" bao token renew -format=json >/tmp/renew.json 2>/tmp/renew.err; then
-                      echo "${name}: renewed (ttl $(sed -n 's/.*"lease_duration": *\([0-9]*\).*/\1/p' /tmp/renew.json | head -n1)s)."
+                      echo "${name}: renewed (ttl $(sed -n 's/.*"lease_duration": *\([0-9]*\).*/\1/p' /tmp/renew.json | tail -n1)s)."
                     else
                       echo "ERROR: ${name} could not be renewed (expired or revoked): $(head -c 200 /tmp/renew.err)"
                       echo "Re-mint it with scripts/openbao-activate.sh."
