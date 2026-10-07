@@ -11,11 +11,16 @@ on:
     # firing for a README typo. GitHub skips the run only when *every* changed
     # file matches, so a merge carrying both a chart bump and docs releases as
     # normal. `.github/workflows/**` is ignored too, so this file can be
-    # edited without triggering a run of itself.
+    # edited without triggering a run of itself. The podiumd tooling
+    # (`charts/podiumd/bin/`) and its settings file are in the chart's
+    # .helmignore, so they never change a packaged chart either.
+    # `ya?ml`: `?` makes the preceding character optional (.yaml or .yml).
     paths-ignore:
       - '**/docs/**'
       - '**/*.md'
       - '.github/workflows/**'
+      - 'charts/podiumd/bin/**'
+      - 'charts/podiumd/etc/settings.ya?ml'
 
 jobs:
   release:
