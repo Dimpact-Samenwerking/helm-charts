@@ -1,10 +1,10 @@
 # Namespace-scope override for deploying podiumd to a namespace other than `podiumd`.
 #
 # WHY THIS FILE EXISTS
-# Most cluster-internal references in the chart are namespace-agnostic and follow the
-# release namespace automatically:
+# Most cluster-internal references in the chart work in any namespace without changes:
 #   * Redis         -> bare service name `redis-ha-master` (resolves in the pod's own namespace)
-#   * allowedHosts  -> `.svc.cluster.local` (Django + nginx leading-dot wildcard)
+#   * allowedHosts  -> `.svc.cluster.local` (Django + nginx leading-dot wildcard; matches every
+#                      namespace, not only the release namespace)
 #   * ClamAV        -> bare service name `clamav`
 #   * Kibana (KISS) -> bare service name `kiss-kb-http`
 #
@@ -15,12 +15,13 @@
 # default. They must therefore be set to the namespace you deploy into.
 #
 # HOW TO USE
-#   1. Copy this file and replace every <namespace> with your target namespace.
-#   2. Deploy with it, and make sure -n matches:
+#   1. Copy this file (e.g. to <your-namespace-scope-values>.yaml) and replace every
+#      <namespace> in the copy with your target namespace.
+#   2. Deploy with the copy, and make sure -n matches:
 #
 #        helm upgrade --install podiumd charts/podiumd \
 #          -f <your-env-values>.yaml \
-#          -f charts/podiumd/ci/values-namespace-scope.example.yaml \
+#          -f <your-namespace-scope-values>.yaml \
 #          -n <namespace>
 #
 # For pipelines you can skip the file and pass the same values on the command line:

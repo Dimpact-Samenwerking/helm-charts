@@ -168,7 +168,7 @@ custom resource (the Open Inwoner pattern).
    `podTemplate`, and an explicit `volumeClaimTemplates` (size + storageClass).
    Keep the nodeSet name stable (`default`) — renaming it makes ECK build a
    new StatefulSet and rebalance all data.
-4. **Wire the consumer app** to `<name>-es-http.podiumd.svc.cluster.local:9200`
+4. **Wire the consumer app** to `<name>-es-http:9200` (or `<name>-es-http.<namespace>.svc.cluster.local:9200`)
    with the `elastic` user password from Secret `<name>-es-elastic-user`
    (disable `http.tls.selfSignedCertificate` in the CR if the client cannot
    handle ECK's self-signed cert, as openinwoner does).

@@ -85,7 +85,7 @@ public hostname (chart default only lists the namespace-agnostic wildcard
 ### Other dependencies
 
 - **Redis**: shared `redis-ha` at
-  `redis-ha-master.podiumd.svc.cluster.local:6379`, **DB 0** for both the
+  `redis-ha-master:6379` (release namespace), **DB 0** for both the
   default and axes caches (`objecttypen.settings.cache.default/axes`; see
   `docs/apps/redis/redis-ha-databases.md`).
 - **Keycloak**: client `objecttypen` in the `podiumd` realm is rendered by

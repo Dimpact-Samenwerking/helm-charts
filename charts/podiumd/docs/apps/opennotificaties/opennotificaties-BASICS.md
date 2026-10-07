@@ -121,7 +121,7 @@ CPU is negligible at dev/accp load; treat these as baseline, not peak.
    Leave `opennotificaties.tags.redis: false` and keep the
    `settings.cache.*` / `settings.celery.*` /
    `settings.messageBroker.celeryResultBackend` values pointing at
-   `redis-ha-master.podiumd.svc.cluster.local` (db 3 / db 6).
+   `redis-ha-master` (db 3 / db 6).
 3. **Keycloak client.** Provide
    `opennotificaties.configuration.secrets.keycloak_client_secret` and the
    `oidc_db_config_*` block in `opennotificaties.configuration.data`; the

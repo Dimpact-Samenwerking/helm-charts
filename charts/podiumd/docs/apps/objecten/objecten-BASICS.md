@@ -75,7 +75,7 @@ ClusterIP service. In-cluster the app answers on
 
 ### Other dependencies
 
-- **Redis** (shared `redis-ha-master.podiumd.svc.cluster.local:6379`):
+- **Redis** (shared `redis-ha-master:6379`, resolved in the release namespace):
   - DB **1** — cache (`default`, `axes`, `oidc`) via `objecten.settings.cache.*`.
   - DB **2** — Celery broker + result backend via `objecten.settings.celery.*`.
 - **Objecttypen API** — every object references an object type; connection configured
