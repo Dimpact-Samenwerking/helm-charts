@@ -4,6 +4,7 @@
 #
 # Changes:
 #   1. openinwoner 2.4.3 -> 2.4.5 (chart 2.4.0, unchanged).
+#   2. zac - solr 9.10.1-slim (digest changed).
 #
 # See docs/_UPGRADE_PATHS/4.9.3-to-4.9.4-upgrade.md for the operator upgrade notes.
 #
@@ -15,3 +16,9 @@
   url: docker.io/maykinmedia/open-inwoner
   version: "2.4.5"
   digest: "sha256:8267c7d49934c142f54a4ef8934425808ecfb1998a34f88f0e4a1d6ea2f577e6"
+
+#   sidecar: zac - solr 9.10.1-slim (digest changed)
+- name: library/solr
+  url: docker.io/library/solr
+  version: "9.10.1-slim"
+  digest: "sha256:d25d25a0d0c9e5a917ebad1a1c42f8109f049b628fc7a730027c97b6b98b5386"
