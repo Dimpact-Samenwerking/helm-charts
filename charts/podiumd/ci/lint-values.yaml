@@ -81,12 +81,6 @@ opennotificaties:
       security:
         allowInsecureImages: true
 
-objecttypen:
-  configuration:
-    oidcUrl: https://objecttypen.ci.podiumd.test
-    secrets:
-      keycloak_client_secret: "placeholder"
-
 openarchiefbeheer:
   configuration:
     oidcUrl: https://openarchiefbeheer.ci.podiumd.test
