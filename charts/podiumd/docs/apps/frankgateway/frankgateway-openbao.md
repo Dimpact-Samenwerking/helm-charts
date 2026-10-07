@@ -649,11 +649,12 @@ The gateway-side checks are in
   access policy as narrow as the database's. It is never revoked; rotating it
   means `bao operator rekey`, after which the Key Vault item must be updated in
   the same sitting.
-- The **root token** captured at `bao operator init` is needed exactly once: to
-  mint the scoped config token (runbook step 4, `scripts/openbao-mint-config-token.sh`).
-  Store it only in Azure Key Vault (`openbao-root-token`) and **revoke it**
-  (`--revoke-root`) once a deploy has succeeded with the scoped token —
-  revocation no longer breaks upgrades. Break-glass: the unseal key can mint a
+- The **root token** captured at `bao operator init` is needed twice: to mint
+  the scoped config token (runbook step 4, `scripts/openbao-mint-config-token.sh`)
+  and the gateway's reader token (runbook step 5). Store it only in Azure Key
+  Vault (`openbao-root-token`) and **revoke it** (`--revoke-root`, runbook
+  step 8) only after both tokens are minted and a deploy has succeeded with the
+  scoped token — revocation no longer breaks upgrades. Break-glass: the unseal key can mint a
   new root token via `bao operator generate-root`.
 - The `openbao-config` Job authenticates with the **`podiumd-config-job`
   token**: orphan (survives root revocation), periodic (renewed by the Job on

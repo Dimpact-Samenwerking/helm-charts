@@ -133,7 +133,9 @@ het overleg over de AAG.
 5. **Certificaat registreren in OpenBao** - *gemeente*
    - De beheerder logt in op de OpenBao-webinterface (via Keycloak) en voegt in
      de afnemerslijst `frankgateway/consumers` een regel toe voor client
-     certificate authenticatie: afnemersnaam = certificaat.
+     certificate authenticatie: afnemersnaam = SHA-1-vingerafdruk van het
+     certificaat (bij vervanging van het certificaat tijdelijk twee,
+     komma-gescheiden; zie [routes → consumer identities](frankgateway-routes.md#consumer-identities-from-openbao-inbound)).
    - Actief binnen 5 minuten, zonder deploy.
    - *Let op: via de webinterface is dit nog niet in de praktijk beproefd; tot
      nu toe gebeurde het via de command line.*
