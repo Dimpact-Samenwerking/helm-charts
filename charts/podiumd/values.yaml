@@ -4632,6 +4632,9 @@ openbao:
         azure.workload.identity/client-id: ""
     extraLabels:
       azure.workload.identity/use: "true"
+    # -- Pod annotations (string form is rendered with tpl in the subchart). checksum/seal restarts the pods when the static-seal key is set, rotated or removed: the seal config lives in a Secret, so without it the pod template would not change and the pods would keep running with the old seal.
+    annotations: |
+      checksum/seal: {{ .Values.seal.static | toJson | sha256sum | quote }}
     # Readiness via the health endpoint with sealed/uninitialised mapped to 200,
     # so the pod reports Ready as soon as the process is up — even before the
     # one-time `bao operator init` + unseal. Without this the default `bao status`

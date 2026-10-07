@@ -777,6 +777,7 @@ PodiumD Helm chart
 | openbao.seal.static.previousKey | string | `""` | Previous key during a rotation: set `key`/`keyId` to the new key and these to the old one until OpenBao has re-wrapped its root key, then clear them. |
 | openbao.seal.static.previousKeyId | string | `""` | Identifier of `previousKey`; required when `previousKey` is set. |
 | openbao.seal.static.secretName | string | `"openbao-seal"` | Secret the chart renders; must match `secretName` in both openbao-seal entries of openbao.server.volumes. |
+| openbao.server.annotations | string | `"checksum/seal: {{ .Values.seal.static | toJson | sha256sum | quote }}\n"` | Pod annotations (string form is rendered with tpl in the subchart). checksum/seal restarts the pods when the static-seal key is set, rotated or removed: the seal config lives in a Secret, so without it the pod template would not change and the pods would keep running with the old seal. |
 | openbao.server.dataStorage.enabled | bool | `false` |  |
 | openbao.server.extraArgs | string | `"-config=/openbao/seal"` | Loads the static-seal config directory (see openbao.seal) as a second `-config`; keep it in any override. |
 | openbao.server.extraLabels."azure.workload.identity/use" | string | `"true"` |  |
