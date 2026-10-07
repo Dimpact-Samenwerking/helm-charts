@@ -25,7 +25,7 @@
 #      policy are configured without a second deploy.
 #   6. Revoke the root token. The root token is never stored: the script uses
 #      the one `bao operator init` returns, or creates a temporary one from the
-#      key in Key Vault (`bao operator generate-root`) when it has to mint a
+#      key in Key Vault (legacy sys/generate-root API) when it has to mint a
 #      token on an already initialised vault.
 #   7. Verify. Both tokens are periodic (32 days); CronJob
 #      openbao-token-renewal renews them weekly, so they don't wait on a deploy.
@@ -463,7 +463,7 @@ export BAO_ADDR="${BAO_ADDR}" BAO_TOKEN="${ROOT}"
 bao token revoke -self
 EOS
   ROOT=""
-  ok "root token revoked; a new one needs ${KEYVAULT_ITEM} (bao operator generate-root, or this script)"
+  ok "root token revoked; a new one needs ${KEYVAULT_ITEM} (run this script with --rotate-*)"
 else
   ok "no root token in use"
 fi

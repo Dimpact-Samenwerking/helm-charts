@@ -658,9 +658,11 @@ The gateway-side checks are in
   Vault (`openbao-root-token`) and **revoke it** (`--revoke-root`, runbook
   step 8) only after both tokens are minted and a deploy has succeeded with the
   scoped token — revocation no longer breaks upgrades. Break-glass: the unseal key can mint a
-  new root token via `bao operator generate-root`, on the active pod against
-  the loopback listener `http://127.0.0.1:8210` (OpenBao 2.5 and later refuse
-  it on the exposed listener); `scripts/openbao-activate.sh` does this for you.
+  new root token through the legacy `sys/generate-root/*` endpoints, which the
+  chart allows only on the loopback listener `127.0.0.1:8210` of each pod
+  (OpenBao 2.5 and later refuse them on the exposed listener, and the
+  `bao operator generate-root` CLI needs a token). `scripts/openbao-activate.sh`
+  does this for you, and revokes the token afterwards.
 - The `openbao-config` Job authenticates with the **`podiumd-config-job`
   token**: orphan (survives root revocation), periodic (renewed by the Job on
   every run), and restricted to the exact paths the Job configures — an

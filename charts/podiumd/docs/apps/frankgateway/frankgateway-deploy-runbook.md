@@ -323,10 +323,13 @@ root token. Leave the dead token in `openbao-root-token` so the
 item keeps its history. When a root token is needed again — to re-mint the
 config or reader token — run `openbao-activate.sh --rotate-config-token` (or
 `--rotate-reader-token`), which creates a temporary one from the key in
-`openbao-unseal-key` and revokes it again. By hand: `bao operator generate-root`
-with that key, run **on the active pod** with `BAO_ADDR=http://127.0.0.1:8210`.
-OpenBao 2.5 and later refuse unauthenticated generate-root on the listener the
-Service exposes; the chart opens it only on that loopback listener.
+`openbao-unseal-key` and revokes it again. Doing it by hand is not
+practical: OpenBao 2.5 and later refuse unauthenticated generate-root on the
+listener the Service exposes, and the `bao operator generate-root` CLI uses
+endpoints that need a token. The chart allows the legacy
+`sys/generate-root/*` endpoints only on a loopback listener
+(`127.0.0.1:8210`, reachable through `kubectl exec` on the active pod), which
+is what the script uses.
 
 ## After every deploy
 
