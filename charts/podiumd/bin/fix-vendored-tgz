@@ -25,14 +25,12 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # pylint: disable=wrong-import-position
 from lib.chart.paths import CHART_DIR
 from lib.checks.vendored_tgz import find_extracted_vendored_dirs
+from lib.cli import flag_args
 
 
 def main():
     """CLI entry point; --dry-run exits 1 when directories are found."""
-    if "-h" in sys.argv[1:] or "--help" in sys.argv[1:]:
-        print(__doc__)
-        sys.exit(0)
-    dry_run = "--dry-run" in sys.argv[1:]
+    dry_run = "--dry-run" in flag_args(__doc__, "--dry-run")
 
     extracted = find_extracted_vendored_dirs(CHART_DIR)
     if not extracted:

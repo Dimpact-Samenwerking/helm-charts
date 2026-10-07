@@ -12,6 +12,7 @@ from typing import Literal
 from typing import TypedDict
 from typing import TypeVar
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.repo_and_path_resolution import SubchartValuesCache
 from lib.chart.repo_and_path_resolution import subchart_default_repository
@@ -25,14 +26,9 @@ from lib.repo_access_cache import load_cache as load_repo_access_cache
 from lib.repo_access_cache import save_cache as save_repo_access_cache
 from lib.settings import repo_access_cache_ttl_minutes
 
-# One "tag: <version>@sha256:<digest>" pin, quoted or bare, optionally with an "&anchor".
+# One "tag:" pin, quoted or bare, optionally with an "&anchor"; digest None for a bare
+# tag ("tag: <version>[@sha256:<digest>]"). scan_digest_pins keeps the pins with a digest.
 # An alias ("tag: *anchor") has no value to read and doesn't match.
-DIGEST_PIN_RE = re.compile(
-    r'^(?P<indent>\s*)tag:\s*(?:&\S+\s+)?"?(?P<version>[\w][\w.\-]*)@sha256:(?P<digest>[0-9a-f]{64})"?\s*(?:#.*)?$'
-)
-# DIGEST_PIN_RE with the digest optional (digest None for a bare tag), derived from it so the
-# two can't diverge. Only for release-table comparisons (the CSV has no digests); everything
-# else keeps the strict digest-required scan.
 VERSION_PIN_RE = re.compile(
     r'^(?P<indent>\s*)tag:\s*(?:&\S+\s+)?"?(?P<version>[\w][\w.\-]*)(?:@sha256:(?P<digest>[0-9a-f]{64}))?"?\s*(?:#.*)?$'
 )
@@ -81,8 +77,10 @@ class RepeatedPin(TypedDict):
     pins: list[tuple[tuple[str, str], list[int]]]
 
 
-def find_sibling_registry(lines: list[str], tag_line_index: int, tag_indent: int):
-    """The sibling "registry:" value at the pin's indent (split host style), or None."""
+def _sibling_field(lines: list[str], tag_line_index: int, tag_indent: int, field_re: re.Pattern[str]) -> str | None:
+    """The value (group 2, after the indent) of the nearest line above the pin that `field_re` matches.
+
+    Only lines at the pin's own indent count, and the search stops at the end of its block."""
     for i in range(tag_line_index - 1, max(tag_line_index - 15, -1), -1):
         raw = lines[i]
         if not raw.strip():
@@ -90,10 +88,15 @@ def find_sibling_registry(lines: list[str], tag_line_index: int, tag_indent: int
         indent = len(raw) - len(raw.lstrip(" "))
         if indent < tag_indent:
             break
-        m = ACTIVE_REGISTRY_RE.match(raw)
+        m = field_re.match(raw)
         if m and indent == tag_indent:
-            return m.group("registry")
+            return m.group(2)
     return None
+
+
+def find_sibling_registry(lines: list[str], tag_line_index: int, tag_indent: int):
+    """The sibling "registry:" value at the pin's indent (split host style), or None."""
+    return _sibling_field(lines, tag_line_index, tag_indent, ACTIVE_REGISTRY_RE)
 
 
 def find_inconsistent_version_pins(pins: list[DigestPin]) -> dict[str, RepeatedPin]:
@@ -132,18 +135,10 @@ def resolve_pin_repo(lines: list[str], tag_line_index: int, tag_indent: int) -> 
     fall back to a "# host/repo:tag" comment above "image:" or a
     "#repository:" line. A sibling "registry:" is prefixed when present.
     """
-    for i in range(tag_line_index - 1, max(tag_line_index - 15, -1), -1):
-        raw = lines[i]
-        if not raw.strip():
-            continue
-        indent = len(raw) - len(raw.lstrip(" "))
-        if indent < tag_indent:
-            break
-        m = ACTIVE_REPO_RE.match(raw)
-        if m and indent == tag_indent:
-            repo = m.group("repo")
-            registry = find_sibling_registry(lines, tag_line_index, tag_indent)
-            return f"{registry}/{repo}" if registry else repo
+    repo = _sibling_field(lines, tag_line_index, tag_indent, ACTIVE_REPO_RE)
+    if repo is not None:
+        registry = find_sibling_registry(lines, tag_line_index, tag_indent)
+        return f"{registry}/{repo}" if registry else repo
     for i in range(tag_line_index - 1, max(tag_line_index - 6, -1), -1):
         m = REF_COMMENT_RE.match(lines[i])
         if m:
@@ -158,28 +153,17 @@ def resolve_pin_repo(lines: list[str], tag_line_index: int, tag_indent: int) -> 
 
 def scan_digest_pins(lines: list[str]) -> list[DigestPin]:
     """One record per "tag: <version>@sha256:<digest>" pin, with its resolved repository."""
-    pins: list[DigestPin] = []
-    for i, raw in enumerate(lines):
-        m = DIGEST_PIN_RE.match(raw)
-        if not m:
-            continue
-        indent = len(m.group("indent"))
-        pins.append(
-            {
-                "line": i + 1,
-                "version": m.group("version"),
-                "digest": m.group("digest"),
-                "repository": resolve_pin_repo(lines, i, indent),
-            }
-        )
-    return pins
+    return [
+        {"line": p["line"], "version": p["version"], "digest": digest, "repository": p["repository"]}
+        for p in scan_version_pins(lines)
+        if (digest := p["digest"]) is not None
+    ]
 
 
 def scan_version_pins(lines: list[str]) -> list[VersionPin]:
-    """scan_digest_pins for every "tag:" pin, digest None for a bare tag.
+    """Every "tag:" pin with its resolved repository, digest None for a bare tag.
 
-    Only for release-table comparisons; everything else needs the
-    digest-required scan.
+    scan_digest_pins keeps the pins that have a digest.
     """
     pins: list[VersionPin] = []
     for i, raw in enumerate(lines):
@@ -203,12 +187,29 @@ def unique_digest_pin_targets(values_lines: list[str]) -> dict[tuple[str, str], 
 
     No subchart-default fallback (see resolve_pin_targets for that).
     """
-    pins = scan_digest_pins(values_lines)
-    targets: dict[tuple[str, str], tuple[str, int]] = {}
+    return {
+        target: (pins[0]["digest"], pins[0]["line"])
+        for target, pins in group_pins_by_target(scan_digest_pins(values_lines)).items()
+    }
+
+
+def group_pins_by_target(pins: list[DigestPin]) -> dict[tuple[str, str], list[DigestPin]]:
+    """Pins with a repository, grouped by (repository, version) so each is fetched once."""
+    targets: dict[tuple[str, str], list[DigestPin]] = {}
     for p in pins:
         if p["repository"]:
-            targets.setdefault((p["repository"], p["version"]), (p["digest"], p["line"]))
+            targets.setdefault((p["repository"], p["version"]), []).append(p)
     return targets
+
+
+def fill_pin_repositories(
+    chart_dir: Path, lines: list[str], pins: list[DigestPin], deps: list[ChartDependency]
+) -> None:
+    """Set each pin without a repository to its vendored subchart's default one, when there is one."""
+    subchart_cache: SubchartValuesCache = {}
+    for p in pins:
+        if not p["repository"]:
+            p["repository"] = subchart_default_repository(chart_dir, lines, p["line"], deps, subchart_cache)
 
 
 def resolve_pin_targets(chart_dir: Path) -> tuple[list[DigestPin], dict[tuple[str, str], list[DigestPin]]]:
@@ -219,16 +220,8 @@ def resolve_pin_targets(chart_dir: Path) -> tuple[list[DigestPin], dict[tuple[st
 
     chart_yaml_path = chart_dir / "Chart.yaml"
     deps = load_chart_dependencies(chart_yaml_path) if chart_yaml_path.is_file() else []
-    subchart_cache: SubchartValuesCache = {}
-    for p in pins:
-        if not p["repository"]:
-            p["repository"] = subchart_default_repository(chart_dir, lines, p["line"], deps, subchart_cache)
-
-    targets: dict[tuple[str, str], list[DigestPin]] = {}
-    for p in pins:
-        if p["repository"]:
-            targets.setdefault((p["repository"], p["version"]), []).append(p)
-    return pins, targets
+    fill_pin_repositories(chart_dir, lines, pins, deps)
+    return pins, group_pins_by_target(pins)
 
 
 _tag_exists_cache: dict[tuple[str, str], tuple[bool, str | None]] = {}

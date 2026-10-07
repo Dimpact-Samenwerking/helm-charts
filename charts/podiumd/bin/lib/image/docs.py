@@ -12,22 +12,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from lib.chart.chart_state import ComponentState
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.historical_baselines import baseline_lookup
 from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
 from lib.chart.historical_baselines import historical_app_version_for_path
-from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
-from lib.chart.registered_paths import image_paths_for
-from lib.chart.registered_paths import version_paths_for
-from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
+from lib.chart.registered_paths import component_chart_versions
 from lib.chart.repo_and_path_resolution import full_repository_for_path
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repo_group_representative
-from lib.chart.values_tree_primitives import dep_for_values_key
-from lib.chart.values_tree_primitives import replace_scalar_value
-from lib.chart.values_tree_primitives import text_at
-from lib.chart.values_tree_primitives import version_of
+from lib.chart.values_tree_primitives import image_version_changed
 from lib.checks.digest_pinning import find_unresolved_subchart_images
 from lib.component_docs.changes_section import IMAGE_INTRO_KEPT
 from lib.component_docs.changes_section import IMAGE_INTRO_NEW
@@ -36,49 +31,36 @@ from lib.component_docs.changes_section import IMAGE_PATH_BULLET
 from lib.component_docs.changes_section import PINNED_AT
 from lib.component_docs.changes_section import TODO_STUB
 from lib.component_docs.changes_section import ComponentIdentity
-from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import DocContext
-from lib.component_docs.changes_section import OrderingContext
 from lib.component_docs.changes_section import VersionChange
+from lib.component_docs.changes_section import changes_body_kinds
+from lib.component_docs.changes_section import component_changes_section
 from lib.component_docs.changes_section import insert_changes_section
-from lib.component_docs.changes_section import make_changes_section
 from lib.component_docs.changes_section import render_changes_section
 from lib.component_docs.changes_section import replace_changes_block
 from lib.component_docs.changes_section import replace_changes_section
 from lib.component_docs.changes_section import update_component_table
-from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
-from lib.component_docs.images_manifest_changes_header import find_changes_item
-from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
-from lib.component_docs.images_manifest_changes_header import images_manifest_changes_block
-from lib.component_docs.images_manifest_changes_header import insert_images_manifest_header_item
-from lib.component_docs.images_manifest_changes_header import remove_changes_item
 from lib.image.digests import cached_tag_exists
 from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
-from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
-from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
+from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
+from lib.upgradedoc.chart_image_index import StateImageIndexes
 from lib.upgradedoc.consistency_checks import find_changes_row_correspondence_gaps
 from lib.upgradedoc.consistency_checks import resolve_component_identity
-from lib.upgradedoc.grouped_comments_and_changes_block import find_preceding_comment_line
-from lib.upgradedoc.images_manifest_ordering import delete_images_manifest_entry
-from lib.upgradedoc.images_manifest_ordering import images_manifest_entry_order_key
+from lib.upgradedoc.consistency_checks import rowed_sidecar_paths
 from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
-from lib.upgradedoc.sorting_and_ordering import changes_blocks_with_lines
-from lib.upgradedoc.sorting_and_ordering import component_order_key
+from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
+from lib.upgradedoc.sorting_and_ordering import path_order_key
 from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import ComponentRef
 from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
-from lib.upgradedoc.string_and_parsing_basics import extract_source_version
-from lib.upgradedoc.string_and_parsing_basics import match_located_line
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
-from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text
 from lib.upgradedoc.version_cells_and_key_changes import pin_version_text
-from lib.upgradedoc.version_cells_and_key_changes import replace_version_pair
 from lib.upgradedoc.version_cells_and_key_changes import version_change_suffix
 from lib.upgradedoc.version_cells_and_key_changes import version_transition
 from lib.yaml_types import YamlMapping
@@ -132,27 +114,11 @@ class _SidecarRowContext:
     doc_context: DocContext
 
 
-def _sidecar_scan_state(
-    text: str, doc_context: DocContext, target_state: ComponentState, baseline_values: YamlMapping | None
-) -> _SidecarScanState:
+def _sidecar_scan_state(text: str, target_state: ComponentState, indexes: StateImageIndexes) -> _SidecarScanState:
     """Build _SidecarScanState (split out to limit local variables)."""
-    current_paths = dict(find_image_tag_paths(target_state.values))
-    current_paths.update(global_image_paths(target_state.values))
-    baseline_paths: dict[ImagePath, str] = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
-    baseline_paths.update(global_image_paths(baseline_values) if baseline_values else [])
-    canonical_names = canonical_sidecar_row_names(
-        doc_context.chart_dir, target_state.deps, target_state.values, current_paths.keys()
-    )
-    # Against baseline_values: where the repository lived in the baseline tree.
-    baseline_repo_groups: dict[str, list[ImagePath]] = (
-        paths_by_repository(doc_context.chart_dir, target_state.deps, baseline_values, baseline_paths.keys())
-        if baseline_values
-        else {}
-    )
-    matched_paths = {
-        path for row in parse_upgrade_doc_rows(text) for path in [canonical_names.get(row["name"])] if path is not None
-    }
-    return _SidecarScanState(canonical_names, current_paths, baseline_paths, baseline_repo_groups, matched_paths)
+    target, baseline = indexes.target, indexes.baseline_values
+    matched_paths = rowed_sidecar_paths(parse_upgrade_doc_rows(text), target_state.deps, target.canonical_names)
+    return _SidecarScanState(target.canonical_names, target.paths, baseline.paths, baseline.repo_groups, matched_paths)
 
 
 def _resolve_sidecar_old_app(path: tuple[str, ...], ctx: _SidecarRowContext):
@@ -189,7 +155,7 @@ def _add_sidecar_row(text: str, name: str, path: tuple[str, ...], ctx: _SidecarR
         return text, False
     current_tag = ctx.state.current_paths.get(path)
     baseline_tag = ctx.state.baseline_paths.get(path)
-    if current_tag is None or (baseline_tag is not None and version_of(current_tag) == version_of(baseline_tag)):
+    if current_tag is None or not image_version_changed(baseline_tag, current_tag):
         return text, False
     new_app = current_tag.split("@", 1)[0]
     old_app = _resolve_sidecar_old_app(path, ctx)
@@ -206,7 +172,11 @@ def _add_sidecar_row(text: str, name: str, path: tuple[str, ...], ctx: _SidecarR
 
 
 def add_missing_sidecar_rows(
-    text: str, doc_context: DocContext, target_state: ComponentState, baseline_values: YamlMapping | None
+    text: str,
+    doc_context: DocContext,
+    target_state: ComponentState,
+    baseline_values: YamlMapping | None,
+    indexes: StateImageIndexes | None = None,
 ) -> tuple[str, list[str]]:
     """Insert a row and "### ..." section for every canonical sidecar/shared-image name missing one.
 
@@ -217,9 +187,14 @@ def add_missing_sidecar_rows(
     Paths new to the baseline resolve their old version via
     _resolve_sidecar_old_app.
 
+    indexes: the caller's StateImageIndexes, built here when None.
     Returns (new_text, added_names).
     """
-    state = _sidecar_scan_state(text, doc_context, target_state, baseline_values)
+    if indexes is None:
+        indexes = StateImageIndexes.build(
+            doc_context.chart_dir, target_state.deps, target_state.values, baseline_values
+        )
+    state = _sidecar_scan_state(text, target_state, indexes)
     ctx = _SidecarRowContext(state, target_state, baseline_values, doc_context)
     added_names: list[str] = []
     for name, path in sorted(state.canonical_names.items()):
@@ -230,41 +205,35 @@ def add_missing_sidecar_rows(
 
 
 def build_changes_section_for_row(
-    row: VersionRow, ident: ComponentRef, deps: list[ChartDependency], target: str
+    row: VersionRow, ident: ComponentRef, deps: list[ChartDependency], doc_context: DocContext
 ) -> str | None:
     """The "### ..." Changes section for a table row and its resolved identity.
 
     Built from the row's own cells so the two can't disagree; a row
     without a target app version gets a TODO stub. None if a "dep" identity
-    has no dependency in `deps`.
+    is neither a Chart.yaml dependency nor a native component.
     """
     if row["app"] in (None, "-"):
         chart_bit = row["chart"] or row["chart_source"] or "-"
         return f"### {row['name']} {chart_bit}\n\n{TODO_STUB}\n\n"
     if ident[0] == "dep":
         values_key = ident[1]
-        dep = dep_for_values_key(deps, values_key)
-        if dep is None:
+        chart_versions = component_chart_versions(doc_context.chart_dir, values_key, deps, None)
+        if chart_versions is None:
             return None
-        # Registered bare-version fields (eck-stack) have no image block, so the
-        # generic "<key>.image.tag" default would name a nonexistent path.
-        version_paths = version_paths_for(dep["name"])
-        image_paths = [] if version_paths else image_paths_for(dep["name"])
-        identity = ComponentIdentity(row["name"], dep["name"], values_key)
+        _dep, chart_name, _old_chart, new_chart = chart_versions
+        # A "(new)" cell has no source version: the section then says "new" too.
+        # A native component has no chart ("-").
         change = VersionChange(
-            row["app_source"] or row["app"],
+            row["app_source"],
             row["app"],
-            row["chart_source"] or row["chart"] or str(dep["version"]),
-            row["chart"] or str(dep["version"]),
+            None if new_chart == "-" else (row["chart_source"] if row["chart"] else new_chart),
+            new_chart if new_chart == "-" else (row["chart"] or new_chart),
         )
-        return make_changes_section(identity, target, change, image_paths, version_paths)
+        return component_changes_section(ComponentIdentity(row["name"], chart_name, values_key), change, doc_context)
     dotted_path = ".".join(ident[1]) + ".tag"
     return make_image_changes_section(
-        row["name"],
-        target,
-        row["app_source"] or row["app"],
-        row["app"],
-        [(dotted_path, row["app_source"] or row["app"])],
+        row["name"], doc_context.target, row["app_source"], row["app"], [(dotted_path, row["app_source"])]
     )
 
 
@@ -272,7 +241,7 @@ def add_missing_changes_sections(
     text: str,
     deps: list[ChartDependency],
     target_values: YamlMapping,
-    target: str,
+    doc_context: DocContext,
     canonical_names: dict[str, ImagePath],
 ) -> tuple[str, list[str]]:
     """Insert a "### ..." section for every table row lacking one.
@@ -294,7 +263,7 @@ def add_missing_changes_sections(
         ident = resolve_component_identity(row["name"], deps, canonical_names)
         if ident is None:
             continue
-        section = build_changes_section_for_row(row, ident, deps, target)
+        section = build_changes_section_for_row(row, ident, deps, doc_context)
         if section is None:
             continue
         text = insert_changes_section(text, section, row["name"], OrderingContext(deps, target_values, canonical_names))
@@ -342,6 +311,15 @@ def _stale_app_version_headings(text: str, ctx: _StaleHeadingContext) -> list[tu
     return stale
 
 
+def _current_app_version(values_key: str, ctx: _StaleHeadingContext) -> str | None:
+    """A dependency's or native component's app version in values.yaml, or None."""
+    chart_versions = component_chart_versions(ctx.doc_context.chart_dir, values_key, ctx.ordering.deps, None)
+    if chart_versions is None:
+        return None
+    dep, chart_name, _old_chart, _new_chart = chart_versions
+    return actual_app_version(ctx.ordering.values, values_key, chart_name, chart_dir=ctx.doc_context.chart_dir, dep=dep)
+
+
 def _rewrite_stale_heading(
     text: str,
     heading: str,
@@ -350,26 +328,23 @@ def _rewrite_stale_heading(
     ctx: _StaleHeadingContext,
 ) -> tuple[str, bool]:
     """Rewrite `heading`'s block from its table row; (text, False) if anything is unresolvable."""
-    _, values_key = ident
-    dep = dep_for_values_key(ctx.ordering.deps, values_key)
-    if dep is None:
-        return text, False
-    actual_app = actual_app_version(
-        ctx.ordering.values, values_key, dep["name"], chart_dir=ctx.doc_context.chart_dir, dep=dep
-    )
-    if not actual_app:
+    if not _current_app_version(ident[1], ctx):
         return text, False
     row = rows_by_identity.get(ident)
     if row is None:
         return text, False
-    section = build_changes_section_for_row(row, ident, ctx.ordering.deps, ctx.doc_context.target)
+    section = build_changes_section_for_row(row, ident, ctx.ordering.deps, ctx.doc_context)
     if section is None:
         return text, False
 
     block = _block_by_exact_heading(text, heading)
     if block is None:
         return text, False
-    return replace_changes_block(text, block, section), True
+    # replace_changes_block keeps a heading it can't tell is generated, as
+    # this one, which names the component but lacks its app version.
+    lines = replace_changes_block(text, block, section).splitlines(keepends=True)
+    lines[block["start"]] = section.splitlines(keepends=True)[0]
+    return "".join(lines), True
 
 
 def update_stale_app_version_headings(
@@ -377,10 +352,11 @@ def update_stale_app_version_headings(
 ) -> tuple[str, list[str]]:
     """Regenerate Changes sections whose heading lacks an app version that now resolves.
 
-    E.g. an old chart-only stub "### openbao 0.28.4". Its generated parts are
-    rewritten from the component's table row; text a user added stays. Only
-    headings naming exactly one "dep" component are touched (sidecar
-    headings are written with a known tag). Returns (new_text,
+    E.g. an old chart-only stub "### openbao 0.28.4" or a bare "### frankgateway".
+    The heading and generated parts are rewritten from the component's table
+    row; text a user added stays. Only headings naming exactly one
+    dependency or native component are touched (sidecar headings are
+    written with a known tag). Returns (new_text,
     updated_headings), the latter with the original heading texts.
     """
     ctx = _StaleHeadingContext(doc_context, ordering)
@@ -394,20 +370,37 @@ def update_stale_app_version_headings(
 
 
 _CHART_PART_RE = re.compile(r"\(chart [^)]*\)$")
-_INTRO_VERB_RE = re.compile(r"^PodiumD \S+ (introduces|upgrades) \*\*", re.MULTILINE)
 
 
-def _section_contradicts(heading: str, body: str, expected_heading: str, expected: str) -> bool:
-    """Whether the heading's "(chart ...)" part or the generated intro verb differs from the row's section.
+def _owned_lines(body: str, kind: str) -> list[str]:
+    """The lines of `body` that changes_body_kinds labels `kind`."""
+    lines = body.splitlines(keepends=True)
+    return [line for line, line_kind in zip(lines, changes_body_kinds(lines), strict=True) if line_kind == kind]
 
-    Hand-written headings without a chart part and hand-written intros are not compared.
+
+def _section_contradicts(heading: str, body: str, expected_heading: str, expected: str, *, bullets: bool) -> bool:
+    """Whether a generated part of the section differs from the section its row gives.
+
+    Compared: the heading's "(chart ...)" part, also in a hand-written
+    heading, the generated intro, and, with `bullets`, each expected pin
+    bullet. Extra generated bullets (an aliased path's pin) are allowed;
+    hand-written headings without a chart part, hand-written intros and
+    hand-written lines are not compared. A sidecar's row names one of its
+    pins, while its section may list them all, so its bullets are not
+    compared.
     """
     chart = _CHART_PART_RE.search(heading)
     expected_chart = _CHART_PART_RE.search(expected_heading)
     if chart and expected_chart and chart.group(0) != expected_chart.group(0):
         return True
-    verb, expected_verb = _INTRO_VERB_RE.search(body), _INTRO_VERB_RE.search(expected)
-    return bool(verb) and (expected_verb is None or verb.group(1) != expected_verb.group(1))
+    expected_body = expected.split("\n", 1)[1]
+    intro = _owned_lines(body, "intro")
+    if intro and intro != _owned_lines(expected_body, "intro"):
+        return True
+    if not bullets:
+        return False
+    owned_bullets = _owned_lines(body, "bullet")
+    return bool(owned_bullets) and not set(_owned_lines(expected_body, "bullet")) <= set(owned_bullets)
 
 
 @dataclass(frozen=True)
@@ -424,44 +417,48 @@ class ContradictingSection:
 def changes_sections_contradicting_rows(
     text: str, doc_context: DocContext, ordering: OrderingContext
 ) -> list[ContradictingSection]:
-    """Dependency Changes sections whose heading or "introduces"/"upgrades" intro contradicts the table row.
+    """Changes sections whose heading or "introduces"/"upgrades" intro contradicts the table row.
 
     E.g. row "0.28.4 → 0.29.6" with heading "(chart 0.29.6, new)" and
     "introduces". Compared with the section build_changes_section_for_row
     writes for that row; rows without an app version are skipped.
     """
-    ctx = _StaleHeadingContext(doc_context, ordering)
-    rows_by_identity = _rows_by_identity(text, ctx)
-    lines, blocks = changes_blocks_with_lines(text)
+    rows_by_identity = _rows_by_identity(text, _StaleHeadingContext(doc_context, ordering))
     found: list[ContradictingSection] = []
-    for block in blocks:
+    for block in parse_upgrade_doc_changes_blocks(text):
         idents = changes_heading_identities(block["heading"], ordering.deps, ordering.canonical_names)
         ident = next(iter(idents)) if len(idents) == 1 else None
-        row = rows_by_identity.get(ident) if ident is not None and ident[0] == "dep" else None
+        row = rows_by_identity.get(ident) if ident is not None else None
         if row is None or ident is None or row["app"] in (None, "-"):
             continue
-        expected = build_changes_section_for_row(row, ident, ordering.deps, doc_context.target)
-        if expected is None:
-            continue
-        expected_heading = expected.splitlines()[0].removeprefix("### ")
-        body = "".join(lines[block["start"] + 1 : block["end"]])
-        if not _section_contradicts(block["heading"], body, expected_heading, expected):
-            continue
-        found.append(
-            ContradictingSection(
-                block["heading"], expected_heading, row["name"], expected, _repair_resolves(text, block, expected)
-            )
-        )
+        expected = build_changes_section_for_row(row, ident, ordering.deps, doc_context)
+        if expected is not None:
+            section = _contradicting_section(text, block, row["name"], expected, bullets=ident[0] == "dep")
+            if section is not None:
+                found.append(section)
     return found
 
 
-def _repair_resolves(text: str, block: HeadingBlock, expected: str) -> bool:
+def _contradicting_section(
+    text: str, block: HeadingBlock, row_name: str, expected: str, *, bullets: bool
+) -> ContradictingSection | None:
+    """The ContradictingSection for one block and the section its row gives, or None when they agree."""
+    body = "".join(text.splitlines(keepends=True)[block["start"] + 1 : block["end"]])
+    expected_heading = expected.splitlines()[0].removeprefix("### ")
+    if not _section_contradicts(block["heading"], body, expected_heading, expected, bullets=bullets):
+        return None
+    repairable = _repair_resolves(text, block, expected, bullets=bullets)
+    return ContradictingSection(block["heading"], expected_heading, row_name, expected, repairable)
+
+
+def _repair_resolves(text: str, block: HeadingBlock, expected: str, *, bullets: bool) -> bool:
     """Whether rewriting the block's owned parts removes the contradiction (it may sit in user text)."""
     rewritten = replace_changes_block(text, block, expected)
     new_block = next(b for b in parse_upgrade_doc_changes_blocks(rewritten) if b["start"] == block["start"])
     lines = rewritten.splitlines(keepends=True)
     body = "".join(lines[new_block["start"] + 1 : new_block["end"]])
-    return not _section_contradicts(new_block["heading"], body, expected.splitlines()[0].removeprefix("### "), expected)
+    expected_heading = expected.splitlines()[0].removeprefix("### ")
+    return not _section_contradicts(new_block["heading"], body, expected_heading, expected, bullets=bullets)
 
 
 def rebuild_changes_sections_contradicting_rows(
@@ -479,170 +476,6 @@ def rebuild_changes_sections_contradicting_rows(
             text = replace_changes_block(text, block, section.expected_section)
             rebuilt.append(section)
     return text, rebuilt
-
-
-def resolve_basename_baseline_version(
-    baseline_values: YamlMapping | None, full_paths: list[tuple[str, str | None]]
-) -> str | None:
-    """The baseline version shared by all of a basename's touched pins, or None if they differ or are absent.
-
-    A uniform baseline lets a bump repeated within a release document
-    baseline -> latest instead of each intermediate hop. `full_paths` is
-    [(dotted "...tag" path, old_version), ...].
-    """
-    versions: set[str] = set()
-    for dotted_path, _old_version in full_paths:
-        tag = text_at(baseline_values, dotted_path)
-        if not isinstance(tag, str) or not tag:
-            return None
-        versions.add(tag.split("@", 1)[0])
-    return next(iter(versions)) if len(versions) == 1 else None
-
-
-@dataclass
-class ImageBump:
-    """A shared image basename's version-bump facts, for locating its images-manifest entry."""
-
-    basename: str
-    repository: str
-    old_version: str | None
-    new_version: str
-    digest: str
-
-
-def _find_manifest_entry(lines: list[str], repository: str):
-    """(entry_line, block_end) of the first entry whose host-stripped "url:" is `repository`, or (None, None)."""
-    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
-    url_re = re.compile(r"^\s*url:\s*(\S+)\s*$")
-    for idx in entry_line_indices:
-        block_end = len(lines)
-        for j in range(idx + 1, len(lines)):
-            if re.match(r"^-\s*name:", lines[j]) or not lines[j].strip():
-                block_end = j
-                break
-        for j in range(idx, block_end):
-            m = url_re.match(lines[j])
-            if m and m.group(1).rstrip("/").endswith(repository):
-                return idx, block_end
-    return None, None
-
-
-def _update_manifest_entry_scalars(
-    lines: list[str], entry_line: int | None, block_end: int | None, new_version: str, digest: str
-):
-    """Set the entry's "version:"/"digest:" in place; False (no-op) when entry_line is None."""
-    if entry_line is None or block_end is None:
-        return False
-    entry_updated = False
-    for i in range(entry_line, block_end):
-        m = re.match(r"^\s*(version|digest):", lines[i])
-        if not m:
-            continue
-        new_value = new_version if m.group(1) == "version" else digest
-        lines[i] = replace_scalar_value(lines[i], new_value)
-        entry_updated = True
-    return entry_updated
-
-
-def _update_manifest_changes_header(lines: list[str], bump: ImageBump, ordering: OrderingContext):
-    """Insert or update the basename's "#   N. ..." changes-header item.
-
-    Returns None without a header, else "updated" or "added"; new items go
-    in values.yaml order when `ordering.values` is given, else at the end.
-    """
-    # Not CHANGES_HEADER_RE alone: it doesn't match the plain "# Changes:" header.
-    header_idx, _header_has_count = find_images_manifest_changes_header(lines)
-    if header_idx is None:
-        return None
-
-    item_indices, block_end = images_manifest_changes_block(lines, header_idx)
-    match_idx = find_changes_item(lines, item_indices, bump.basename)
-    item_text = f"{bump.basename} {image_manifest_version_text(bump.old_version, bump.new_version)}."
-
-    if match_idx is not None:
-        m = match_located_line(CHANGES_ITEM_RE, lines[match_idx])
-        lines[match_idx] = f"#   {m.group('num')}. {item_text}\n"
-        return "updated"
-    if ordering.values is not None:
-        # Keeps a bare "# Changes:" header uncounted.
-        key_order = values_key_order(ordering.values)
-        new_key = component_order_key(
-            bump.basename, ordering.deps, key_order, ordering.canonical_names, ordering.values
-        )
-        insert_images_manifest_header_item(lines, ordering.deps, key_order, new_key, item_text)
-        return "added"
-    # No ordering context: append.
-    new_num = len(item_indices) + 1
-    insert_at = block_end if item_indices else header_idx + 1
-    lines.insert(insert_at, f"#   {new_num}. {item_text}\n")
-    return "added"
-
-
-def update_image_manifest(images_path: Path, bump: ImageBump, ordering: OrderingContext | None = None):
-    """Update the changes-header item and images-manifest entry for a shared image basename bump.
-
-    The entry is matched by host-stripped "url:" against `bump.repository`.
-    Returns (changes_action, entry_updated); a missing entry is not created
-    here but by the closing fix-doc-consistency run. `ordering` places a
-    new header item in values.yaml order, like lib.component_docs does, so
-    items from both writers stay ordered; without it, the item is appended.
-    """
-    ordering = ordering or OrderingContext([], None)
-    original_text = images_path.read_text(encoding="utf-8")
-    lines = original_text.splitlines(keepends=True)
-
-    changes_action = _update_manifest_changes_header(lines, bump, ordering)
-
-    entry_line, block_end2 = _find_manifest_entry(lines, bump.repository)
-    entry_updated = _update_manifest_entry_scalars(lines, entry_line, block_end2, bump.new_version, bump.digest)
-    if entry_line is not None:
-        comment_idx = find_preceding_comment_line(lines, entry_line)
-        if comment_idx is not None:
-            current_source = extract_source_version(lines[comment_idx])
-            if current_source:
-                lines[comment_idx] = replace_version_pair(lines[comment_idx], current_source, bump.new_version)
-
-    new_text = "".join(lines)
-    if new_text != original_text:
-        images_path.write_text(new_text, encoding="utf-8")
-    return changes_action, entry_updated
-
-
-def _remove_manifest_changes_header_item(lines: list[str], basename: str):
-    """Delete the basename's changes-header item and renumber; "removed", or None if nothing matched."""
-    header_idx, _header_has_count = find_images_manifest_changes_header(lines)
-    if header_idx is None:
-        return None
-    item_indices, _block_end = images_manifest_changes_block(lines, header_idx)
-    match_idx = find_changes_item(lines, item_indices, basename)
-    if match_idx is None:
-        return None
-
-    remove_changes_item(lines, item_indices, match_idx)
-    return "removed"
-
-
-def remove_image_manifest_entry(images_path: Path, basename: str, repository: str):
-    """Counterpart to update_image_manifest for a shared-image bump that
-    nets out to no change from baseline at all: removes the "changes:"
-    list item and the matching entry with its own comment, since the
-    manifest only lists images that changed. A same-version re-pin with
-    a new digest is added back as "(digest changed)" by the
-    fix-doc-consistency run that follows. Returns (changes_action,
-    entry_removed)."""
-    original_text = images_path.read_text(encoding="utf-8")
-    lines = original_text.splitlines(keepends=True)
-
-    changes_action = _remove_manifest_changes_header_item(lines, basename)
-
-    entry_line, _block_end = _find_manifest_entry(lines, repository)
-    if entry_line is not None:
-        delete_images_manifest_entry(lines, entry_line)
-
-    new_text = "".join(lines)
-    if new_text != original_text:
-        images_path.write_text(new_text, encoding="utf-8")
-    return changes_action, entry_line is not None
 
 
 IMAGES_BASELINE_HEADER = (
@@ -682,8 +515,7 @@ def _current_image_paths(
     chart_dir: Path, deps: list[ChartDependency], values: YamlMapping, rendered_paths: set[str]
 ) -> dict[ImagePath, str]:
     """Every pinned image path, plus live unpinned subchart-default images (find_unresolved_subchart_images)."""
-    current_paths = dict(find_all_image_and_version_paths(values, deps))
-    current_paths.update(global_image_paths(values))
+    current_paths = chart_image_paths(values, deps)
     for scope_key, subpath, tag, _already_pinned in find_unresolved_subchart_images(
         chart_dir, deps, values, rendered_paths
     ):
@@ -714,7 +546,7 @@ def _resolve_baseline_entry(
         if not exists or not digest:
             return None
 
-    sort_key = images_manifest_entry_order_key(representative, ctx.deps, ctx.key_order, ctx.values)
+    sort_key = path_order_key(representative, ctx.deps, ctx.key_order, ctx.values)
     return sort_key, repo, full_repo, new_version, digest
 
 
@@ -759,11 +591,11 @@ def regenerate_images_baseline_manifest(
 ):
     """Rewrite docs/images/images-baseline.yaml as a full snapshot of every image the chart deploys.
 
-    Includes all pinned paths plus live images defined only in a vendored
-    subchart's defaults (e.g. eck-operator's null tag -> appVersion), gated
-    by `rendered_paths` so condition/tag-disabled charts are left out. One
-    entry per repository, in images-<target>.yaml entry order; never
-    incremental.
+    Includes every chart_image_paths path plus live images defined only in a
+    vendored subchart's defaults (a null tag resolving to its appVersion),
+    gated by `rendered_paths` so condition/tag-disabled charts are left out.
+    One entry per repository, in path_order_key order like
+    images-<target>.yaml; never incremental.
 
     `name` is the stripped repository, `url` the host-qualified one;
     the digest comes from the pin or, failing that, a registry lookup.

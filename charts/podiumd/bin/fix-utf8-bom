@@ -22,16 +22,14 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
 from lib.chart.values_tree_primitives import UTF8_BOM as BOM
+from lib.cli import flag_args
 
 VALUES_PATH = SCRIPT_DIR.parents[0] / "values.yaml"
 
 
 def main():
     """CLI entry point; --dry-run exits 1 when a BOM is present."""
-    if "-h" in sys.argv[1:] or "--help" in sys.argv[1:]:
-        print(__doc__)
-        sys.exit(0)
-    dry_run = "--dry-run" in sys.argv[1:]
+    dry_run = "--dry-run" in flag_args(__doc__, "--dry-run")
 
     data = VALUES_PATH.read_bytes()
     if not data.startswith(BOM):

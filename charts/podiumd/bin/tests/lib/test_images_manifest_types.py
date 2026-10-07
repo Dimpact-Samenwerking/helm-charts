@@ -1,10 +1,13 @@
 """lib.images_manifest — parse_images_manifest, try_parse_images_manifest,
-images_manifest_problem."""
+images_manifest_problem and the line-level entry helpers."""
 
 import pytest
 
+from lib.images_manifest import entry_block_end
+from lib.images_manifest import entry_field_line
 from lib.images_manifest import images_manifest_problem
 from lib.images_manifest import parse_images_manifest
+from lib.images_manifest import parse_manifest_lines
 from lib.images_manifest import try_parse_images_manifest
 from lib.yaml_types import YamlShapeError
 
@@ -47,3 +50,20 @@ def test_try_parse_images_manifest_returns_none_for_broken_documents():
 def test_images_manifest_problem_requires_all_four_keys():
     assert images_manifest_problem([{"name": "a/b", "url": "u", "version": "1", "digest": "d"}]) is None
     assert images_manifest_problem([{"name": "a/b", "url": "u"}]) == "entry #1 is missing key(s): version, digest"
+
+
+def test_parse_manifest_lines_pairs_each_entry_with_its_name_line():
+    text = '# c\n- name: a\n  url: x/a\n  version: "1"\n\n- name: b\n  url: x/b\n'
+
+    parsed = parse_manifest_lines(text)
+
+    assert parsed is not None
+    assert parsed.entry_line_indices == [1, 5]
+    assert [entry["name"] for entry in parsed.entries] == ["a", "b"]
+    assert entry_field_line(parsed.lines, 5, "url") == 6
+    assert entry_block_end(parsed.lines, 1) == 4
+
+
+def test_parse_manifest_lines_is_none_when_an_entry_has_no_name_line_of_its_own():
+    """Pairing would shift every later entry onto the wrong lines."""
+    assert parse_manifest_lines("- url: x/a\n  name: a\n- name: b\n") is None

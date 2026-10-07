@@ -7,21 +7,22 @@ import re
 from collections.abc import Iterable
 from collections.abc import Mapping
 from dataclasses import dataclass
-from itertools import pairwise
 
 from lib.chart.chart_yaml import ChartDependency
-from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.registered_paths import is_primary_image_path
+from lib.images_manifest import ENTRY_START_RE
 from lib.images_manifest import ManifestEntry
-from lib.images_manifest import try_parse_images_manifest
+from lib.images_manifest import ParsedManifest
+from lib.images_manifest import entry_line_indices
+from lib.images_manifest import parse_manifest_lines
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
-from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
+from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment_line
 from lib.upgradedoc.grouped_comments_and_changes_block import find_preceding_comment_line
 from lib.upgradedoc.grouped_comments_and_changes_block import path_display_name
+from lib.upgradedoc.sorting_and_ordering import path_order_key
 from lib.upgradedoc.sorting_and_ordering import values_key_order
-from lib.upgradedoc.sorting_and_ordering import values_tree_position
 from lib.upgradedoc.string_and_parsing_basics import changes_item_names
 from lib.upgradedoc.string_and_parsing_basics import normalize_name
 from lib.upgradedoc.version_cells_and_key_changes import VERSION_PAIR_RE
@@ -32,15 +33,6 @@ SIDECAR_HEADER_RE = re.compile(r"^#\s{2,}sidecar:\s*(?P<text>.*)$", re.IGNORECAS
 # One _images_manifest_groups group: (entry indices, the first entry's
 # values-tree path or None, its display name).
 ManifestGroup = tuple[list[int], ImagePath | None, str]
-
-
-@dataclass
-class ParsedManifest:
-    """Parsed manifest entries, their "- name:" line indices and the raw lines, kept in lockstep."""
-
-    entries: list[ManifestEntry]
-    entry_line_indices: list[int]
-    lines: list[str]
 
 
 @dataclass
@@ -130,14 +122,15 @@ def delete_images_manifest_entry(lines: list[str], entry_line_idx: int) -> None:
     comment of its own, since that entry shares it. A blank line left
     doubled by the deletion is dropped too, and so is a blank line left
     right below a kept comment, so a divider stays on top of the next
-    entry."""
+    entry. Deleting the last entry leaves the stub's bare "[]", so the file
+    stays a YAML list."""
     block_end = entry_line_idx + 1
     while block_end < len(lines):
         line = lines[block_end]
-        if not line.strip() or line.lstrip().startswith("#") or re.match(r"^-\s*name:", line):
+        if not line.strip() or line.lstrip().startswith("#") or ENTRY_START_RE.match(line):
             break
         block_end += 1
-    shares_comment = block_end < len(lines) and re.match(r"^-\s*name:", lines[block_end]) is not None
+    shares_comment = block_end < len(lines) and ENTRY_START_RE.match(lines[block_end]) is not None
     comment_idx = None if shares_comment else find_preceding_comment_line(lines, entry_line_idx)
     start = entry_line_idx if comment_idx is None else comment_idx
     del lines[start:block_end]
@@ -147,6 +140,10 @@ def delete_images_manifest_entry(lines: list[str], entry_line_idx: int) -> None:
             del lines[start]
     elif start == len(lines) and start > 0 and not lines[start - 1].strip():
         del lines[start - 1]
+    if not entry_line_indices(lines):
+        if lines and not lines[-1].endswith("\n"):
+            lines[-1] += "\n"
+        lines.append("\n[]\n" if lines and lines[-1].strip() else "[]\n")
 
 
 def header_name_segment(text: str) -> str:
@@ -203,29 +200,6 @@ def find_images_manifest_faulty_headers(
     return problems
 
 
-def images_manifest_entry_order_key(
-    path: tuple[str, ...] | None, deps: list[ChartDependency], key_order: list[str], values: YamlMapping | None = None
-) -> tuple[int, ...]:
-    """Sort key (values_key_index, is_sidecar) of an entry's resolved values-tree path.
-
-    Uses the resolved path, not component_order_key's fuzzy name matching.
-    path=None sorts after every real entry. With values, the full nested
-    position (values_tree_position) is appended so entries tying on
-    (idx, is_sidecar), e.g. global.images.* peers, co-equal primaries or two
-    sidecars of one parent, keep values.yaml order. Primaries still sort
-    before sidecars."""
-    if path is None:
-        return (len(key_order), 1)
-    try:
-        idx = key_order.index(path[0])
-    except ValueError:
-        idx = len(key_order)
-    is_sidecar = 0 if is_primary_image_path(path, deps) else 1
-    if values is not None:
-        return (idx, is_sidecar, *values_tree_position(values, path)[1:])
-    return (idx, is_sidecar)
-
-
 def _images_manifest_groups(manifest: ParsedManifest, resolution: EntryResolution) -> list[ManifestGroup]:
     """[(indices, path, display_name), ...] per group of consecutive entries sharing one comment.
 
@@ -264,21 +238,11 @@ def _images_manifest_groups(manifest: ParsedManifest, resolution: EntryResolutio
     return groups
 
 
-def find_images_manifest_out_of_order_names(
-    manifest: ParsedManifest, resolution: EntryResolution, key_order: list[str], values: YamlMapping | None = None
-) -> list[tuple[str, str]]:
-    """Every adjacent (name_a, name_b) group pair whose images_manifest_entry_order_key order is inverted.
-
-    Without values, non-primary entries under the same top-level key tie and are
-    never flagged."""
-    groups = _images_manifest_groups(manifest, resolution)
-    violations: list[tuple[str, str]] = []
-    for (_, path_a, name_a), (_, path_b, name_b) in pairwise(groups):
-        if images_manifest_entry_order_key(
-            path_b, resolution.deps, key_order, values
-        ) < images_manifest_entry_order_key(path_a, resolution.deps, key_order, values):
-            violations.append((name_a, name_b))
-    return violations
+def _group_order_keys(
+    groups: list[ManifestGroup], deps: list[ChartDependency], key_order: list[str], values: YamlMapping | None
+) -> list[tuple[int, ...]]:
+    """path_order_key of each group's path, the key sort_images_manifest_entries orders by."""
+    return [path_order_key(path, deps, key_order, values) for _indices, path, _name in groups]
 
 
 def _collapse_group_internal_blank_lines(group_text: str) -> str:
@@ -296,38 +260,34 @@ def _images_manifest_sorted_groups(
 ) -> tuple[list[ManifestGroup], list[int]]:
     """(groups, order): the groups and the permutation sort_images_manifest_entries applies.
 
-    current_paths includes global_image_paths(values); without it a shared base
+    current_paths includes the global.images anchors; without them a shared base
     image entry (e.g. "curlimages/curl") can't resolve and sorts last instead of
     under "global"."""
-    current_paths = dict(find_all_image_and_version_paths(context.values, context.deps))
-    current_paths.update(global_image_paths(context.values))
+    current_paths = chart_image_paths(context.values, context.deps)
     resolution = EntryResolution(context.deps, current_paths, context.repo_map, context.canonical_names)
     groups = _images_manifest_groups(manifest, resolution)
-    key_order = values_key_order(context.values)
-    order = (
-        sorted(
-            range(len(groups)),
-            key=lambda gi: images_manifest_entry_order_key(groups[gi][1], context.deps, key_order, context.values),
-        )
-        if len(groups) >= 2
-        else list(range(len(groups)))
-    )
-    return groups, order
+    keys = _group_order_keys(groups, context.deps, values_key_order(context.values), context.values)
+    return groups, sorted(range(len(groups)), key=lambda gi: keys[gi])
 
 
 def _parsed_manifest_from_text(text: str) -> tuple[ParsedManifest | None, bool]:
     """(ParsedManifest, True), or (None, False) if text isn't a valid manifest list or has < 2 entries."""
-    lines = text.splitlines(keepends=True)
-    entries = try_parse_images_manifest(text)
-    if entries is None:
+    parsed = parse_manifest_lines(text)
+    if parsed is None or len(parsed.entries) < 2:
         return None, False
+    return parsed, True
 
-    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
-    n = min(len(entries), len(entry_line_indices))
-    entries, entry_line_indices = entries[:n], entry_line_indices[:n]
-    if n < 2:
-        return None, False
-    return ParsedManifest(entries, entry_line_indices, lines), True
+
+def _positioned_groups(
+    text: str, context: ManifestSortContext
+) -> tuple[ParsedManifest, list[tuple[ManifestGroup, int]]]:
+    """(manifest, [(group, 0-based position after sorting)]) in manifest order; no groups if invalid or < 2 entries."""
+    manifest, ok = _parsed_manifest_from_text(text)
+    if not ok or manifest is None:
+        return ParsedManifest([], [], []), []
+    groups, order = _images_manifest_sorted_groups(manifest, context)
+    position_of_group = {orig_i: slot for slot, orig_i in enumerate(order)}
+    return manifest, [(group, position_of_group[i]) for i, group in enumerate(groups)]
 
 
 def images_manifest_entry_positions(text: str, context: ManifestSortContext) -> dict[str, int]:
@@ -335,17 +295,12 @@ def images_manifest_entry_positions(text: str, context: ManifestSortContext) -> 
 
     Lets callers mirror the entry order instead of fuzzy text matching. Entries
     in one group share its position. {} if invalid or fewer than 2 entries."""
-    manifest, ok = _parsed_manifest_from_text(text)
-    if not ok or manifest is None:
-        return {}
-
-    groups, order = _images_manifest_sorted_groups(manifest, context)
-    position_of_group = {orig_i: slot for slot, orig_i in enumerate(order)}
-    positions: dict[str, int] = {}
-    for group_index, (indices, _path, _name) in enumerate(groups):
-        for entry_index in indices:
-            positions[manifest.entries[entry_index]["name"]] = position_of_group[group_index]
-    return positions
+    manifest, positioned = _positioned_groups(text, context)
+    return {
+        manifest.entries[entry_index]["name"]: position
+        for (indices, _path, _name), position in positioned
+        for entry_index in indices
+    }
 
 
 def images_manifest_display_name_positions(text: str, context: ManifestSortContext) -> dict[str, int]:
@@ -356,32 +311,40 @@ def images_manifest_display_name_positions(text: str, context: ManifestSortConte
     fails where alias and image basename differ (e.g. "kiss" vs "kiss-frontend").
     Groups sharing a display name are adjacent; the lowest position wins.
     {} if invalid or fewer than 2 entries."""
-    manifest, ok = _parsed_manifest_from_text(text)
-    if not ok or manifest is None:
-        return {}
-
-    groups, order = _images_manifest_sorted_groups(manifest, context)
-    position_of_group = {orig_i: slot for slot, orig_i in enumerate(order)}
     positions: dict[str, int] = {}
-    for group_index, (_indices, _path, name) in enumerate(groups):
-        position = position_of_group[group_index]
-        if name not in positions or position < positions[name]:
-            positions[name] = position
+    for (_indices, _path, name), position in _positioned_groups(text, context)[1]:
+        positions[name] = min(position, positions.get(name, position))
     return positions
 
 
 def match_changes_item_display_name(rest: str, names: Iterable[str]) -> str | None:
     """The longest of `names` that rest names (see changes_item_names), or None.
 
-    Exact for tooling-written items; callers fall back to
-    match_changes_item_to_entry for hand-written ones. Longest wins so a sidecar
-    ("keycloak-operator - postgres") beats its primary's shorter prefix. Shared
-    by fixer and checker, for both manifest display names and upgrade-doc row names."""
+    Exact: a hand-written item that names no display name first matches
+    nothing. Longest wins so a sidecar ("keycloak-operator - postgres") beats
+    its primary's shorter prefix. Shared by fixer and checker, for both
+    manifest display names and upgrade-doc row names."""
     best: str | None = None
     for name in names:
         if changes_item_names(rest, name) and (best is None or len(name) > len(best)):
             best = name
     return best
+
+
+def changes_item_order_keys(rests: Iterable[str], display_name_positions: Mapping[str, int]) -> list[int]:
+    """Each "# Changes:" item's sort key: the entry position of the display name it names.
+
+    An item naming no display name (hand-written prose) sorts after every
+    real one; there is no fuzzy fallback, which can misplace an item by a
+    word it merely mentions.
+    """
+    last = max(display_name_positions.values(), default=-1) + 1
+    return [
+        display_name_positions[name]
+        if (name := match_changes_item_display_name(rest, display_name_positions))
+        else last
+        for rest in rests
+    ]
 
 
 def _group_texts_and_components(
@@ -426,10 +389,10 @@ def _merge_ordered_groups(per_group_texts: list[str], components: list[str | Non
 
 
 def _sorted_manifest_text(
-    lines: list[str], entry_line_indices: list[int], groups: list[ManifestGroup], order: list[int]
+    lines: list[str], entry_starts: list[int], groups: list[ManifestGroup], order: list[int]
 ) -> str:
     """The manifest text with order applied to groups, keeping the leading prefix."""
-    starts = [images_manifest_block_start(lines, entry_line_indices[indices[0]]) for indices, _, _ in groups]
+    starts = [images_manifest_block_start(lines, entry_starts[indices[0]]) for indices, _, _ in groups]
     per_group_texts, components = _group_texts_and_components(lines, groups, starts)
     merged_texts = _merge_ordered_groups(per_group_texts, components, order)
     prefix = "".join(lines[: starts[0]])

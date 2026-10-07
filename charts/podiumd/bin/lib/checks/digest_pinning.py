@@ -31,12 +31,12 @@ from lib.render_scope import CHART_NAME
 from lib.render_scope import render_chart
 from lib.render_scope import rendered_chart_paths
 from lib.settings import digest_pinning_exceptions
-from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
+from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
 from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import load_yaml_mapping
 
-# Suffix form of lib.image.digests.DIGEST_PIN_RE.
+# The digest suffix of lib.image.digests.VERSION_PIN_RE.
 DIGEST_SUFFIX_RE = re.compile(r"@sha256:[0-9a-f]{64}$")
 
 # Exempt fields live in etc/settings.yaml "digest_pinning.exceptions".
@@ -60,9 +60,7 @@ def _repository_groups(chart_dir: Path, values: YamlMapping, deps: list[ChartDep
     Static: says nothing about whether the path renders. Never report consumer counts
     from this alone; see _live_repository_groups.
     """
-    all_paths = dict(find_all_image_and_version_paths(values, deps))
-    all_paths.update(global_image_paths(values))
-    return paths_by_repository(chart_dir, deps, values, all_paths.keys())
+    return paths_by_repository(chart_dir, deps, values, chart_image_paths(values, deps).keys())
 
 
 def _path_chart_tree_path(chart_dir: Path, deps: list[ChartDependency], path: tuple[str, ...]):

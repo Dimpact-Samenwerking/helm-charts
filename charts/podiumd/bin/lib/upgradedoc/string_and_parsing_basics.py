@@ -4,6 +4,7 @@ import re
 
 from collections.abc import Iterable
 from collections.abc import Mapping
+from collections.abc import Sequence
 from typing import Literal
 from typing import TypedDict
 from typing import TypeVar
@@ -13,6 +14,7 @@ from lib.chart.registered_paths import native_components
 from lib.chart.values_tree_primitives import values_key_of
 
 COMPONENT_VERSIONS_HEADING_RE = re.compile(r"^##\s+Component versions\b")
+FENCE_LINE_RE = re.compile(r"^\s*```")
 
 # A sidecar/shared image by values-tree path, or a dependency/native component by values key.
 ComponentRef = tuple[Literal["sidecar"], tuple[str, ...]] | tuple[Literal["dep"], str]
@@ -21,7 +23,8 @@ ComponentRef = tuple[Literal["sidecar"], tuple[str, ...]] | tuple[Literal["dep"]
 class VersionRow(TypedDict):
     """One component's version change as a document states it: the
     Component-versions table row (see TableRow) or a "# Changes:" item
-    (parse_changes_block). Each version is None when its cell has none."""
+    (parse_changes_block). Each version is None when its cell has none; a
+    source is also None for a "<version> (new)" table cell."""
 
     name: str
     app_source: str | None
@@ -54,6 +57,9 @@ def words_of(s: str):
     return [w for w in re.split(r"[^a-zA-Z0-9]+", s.lower()) if w]
 
 
+# The two extractors differ in the arrow side their first pattern matches;
+# one function with a side argument would read worse than the pair.
+# jscpd:ignore-start
 def extract_target_version(cell: str) -> str | None:
     """Pull the target (right-hand) version out of a markdown table cell like
     "5.0.2 → 5.4.3" or "1.0.297 (unchanged)" or "`0.0.92`"."""
@@ -74,6 +80,38 @@ def extract_source_version(cell: str) -> str | None:
         return m.group(1)
     m = re.match(r"`?([A-Za-z0-9][\w.\-]*)", cell)
     return m.group(1) if m else None
+
+
+# jscpd:ignore-end
+
+
+def _table_cell_source_version(cell: str) -> str | None:
+    """extract_source_version for a table cell; None for "<version> (new)", which has no source."""
+    return None if cell.strip().endswith("(new)") else extract_source_version(cell)
+
+
+def table_cells(line: str) -> list[str]:
+    """The stripped cells of a Markdown table row."""
+    return [c.strip() for c in line.strip().strip("|").split("|")]
+
+
+def set_row_cells(lines: list[str], row: TableRow, app_cell: str | None, chart_cell: str | None) -> list[str] | None:
+    """Write `row`'s App version and Helm chart cells into `lines`; None leaves a cell as it is.
+
+    Returns the row's new cells when the line changed, else None. The other
+    cells (name, notes) are kept.
+    """
+    line = lines[row["line_index"]]
+    old_cells = table_cells(line)
+    cells = [*old_cells]
+    if app_cell is not None:
+        cells[1] = app_cell
+    if chart_cell is not None:
+        cells[2] = chart_cell
+    if cells == old_cells:
+        return None
+    lines[row["line_index"]] = "| " + " | ".join(cells) + " |" + ("\n" if line.endswith("\n") else "")
+    return cells
 
 
 def parse_upgrade_doc_rows(text: str) -> list[TableRow]:
@@ -101,7 +139,7 @@ def parse_upgrade_doc_rows(text: str) -> list[TableRow]:
         line = lines[i]
         if not line.strip().startswith("|"):
             continue
-        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        cells = table_cells(line)
         if len(cells) < 3 or cells[0].lower() == "component":
             continue
         if all(re.match(r"^:?-+:?$", c) for c in cells):
@@ -110,9 +148,9 @@ def parse_upgrade_doc_rows(text: str) -> list[TableRow]:
             {
                 "line_index": i,
                 "name": cells[0],
-                "app_source": extract_source_version(cells[1]),
+                "app_source": _table_cell_source_version(cells[1]),
                 "app": extract_target_version(cells[1]),
-                "chart_source": extract_source_version(cells[2]),
+                "chart_source": _table_cell_source_version(cells[2]),
                 "chart": extract_target_version(cells[2]),
             }
         )
@@ -297,3 +335,15 @@ def match_located_line(pattern: re.Pattern[str], line: str) -> re.Match[str]:
         msg = f"line does not match {pattern.pattern!r}: {line!r}"
         raise ValueError(msg)
     return m
+
+
+def fenced_line_flags(lines: Sequence[str]) -> list[bool]:
+    """Per line: True for a ``` fence line or a line inside a fenced code block."""
+    flags: list[bool] = []
+    in_fence = False
+    for line in lines:
+        is_fence = bool(FENCE_LINE_RE.match(line))
+        flags.append(in_fence or is_fence)
+        if is_fence:
+            in_fence = not in_fence
+    return flags

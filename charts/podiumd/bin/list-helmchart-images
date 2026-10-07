@@ -9,13 +9,13 @@ argument order update-image-version and verify-image-version take,
 followed by indented "<repo>:<tag>" and "(path: <values path>)" lines.
 
 Usage:
-    list-helmchart-images <component> <chart-version>
+    list-helmchart-images <dependency> <dependency-chart-version>
 
 Arguments:
-    <component>       Chart.yaml dependency name or alias; not a native
-                      component, which has no chart
-    <chart-version>   Helm chart version; for a file:// dependency only
-                      checked against its source
+    <dependency>                Chart.yaml dependency name or alias; not a
+                                native component, which has no chart
+    <dependency-chart-version>  Helm chart version; for a file:// dependency
+                                only checked against its source
 
 Examples:
     list-helmchart-images zac 1.0.297

@@ -4,15 +4,9 @@ import re
 
 from dataclasses import dataclass
 
-from lib.chart.historical_baselines import historical_app_version_for_path
-from lib.chart.pull_and_subchart_resolution import global_image_paths
-from lib.chart.registered_paths import image_paths_for
-from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
-from lib.component_docs.changes_section import OrderingContext
 from lib.component_docs.changes_section import remove_changes_section
 from lib.component_docs.changes_section import remove_component_row
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
-from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
 from lib.upgradedoc.images_manifest_ordering import header_name_segment
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.resolve_component_row import ResolvedRow
@@ -20,11 +14,13 @@ from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
 from lib.upgradedoc.resolve_component_row import resolve_component_row
 from lib.upgradedoc.resolve_component_row import resolved_row_unchanged
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
+from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
 from lib.upgradedoc.string_and_parsing_basics import TableRow
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
+from lib.upgradedoc.string_and_parsing_basics import set_row_cells
 from lib.upgradedoc.version_cells_and_key_changes import canonical_version_cell
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
 
@@ -39,99 +35,48 @@ class HeadingFixInputs:
     heading_marker: str
 
 
-def _dep_old_app_for_new_dependency(resolution: ResolutionContext, resolved: ResolvedRow) -> str | None:
-    """The old app version of a dependency with no baseline value, from past images-<version>.yaml manifests.
-
-    None if not found there either (genuinely new). Shared by the table-row and
-    heading fixes so both agree on a new dependency's old app version."""
-    if resolved["dep"] is None or resolved["target_app"] is None:
-        return None
-    old_app = None
-    for path in image_paths_for(resolved["dep"]["name"], resolution.chart_dir):
-        old_app = historical_app_version_for_path(
-            resolution.chart_dir,
-            resolution.target.deps,
-            resolution.target.values,
-            (resolved["values_key"], *tuple(path.split("."))),
-            resolution.upgrade_docs_baseline,
-        )
-        if old_app is not None:
-            break
-    return old_app
+# Native components and sidecars have no chart: "-" is what the checker expects.
+NO_CHART = "-"
 
 
-def _new_dependency_row_update(
-    lines: list[str], row: TableRow, resolved: ResolvedRow, resolution: ResolutionContext
-) -> tuple[str, str, str] | None:
+def _new_dependency_row_update(lines: list[str], row: TableRow, resolved: ResolvedRow) -> tuple[str, str, str] | None:
     """Rewrite a baseline_resolved=False row to "<target> (new)" cells.
 
-    Returns (row_name, app_cell, chart_cell) if the row changed, else None."""
-    actual_target_chart, actual_target_app = resolved["target_chart"], resolved["target_app"]
-
-    # The chart cell is "(new)" regardless; the app may predate the dependency.
-    old_app_for_cell = _dep_old_app_for_new_dependency(resolution, resolved)
-
-    row_changed = False
-    line = lines[row["line_index"]]
-    cells = [c.strip() for c in line.strip().strip("|").split("|")]
-
-    if actual_target_app is not None:
-        new_app_cell = component_version_cell(old_app_for_cell, actual_target_app)
-        if cells[1] != new_app_cell:
-            cells[1] = new_app_cell
-            row_changed = True
-    if actual_target_chart is not None:
-        new_chart_cell = component_version_cell(None, actual_target_chart)
-        if cells[2] != new_chart_cell:
-            cells[2] = new_chart_cell
-            row_changed = True
-    elif cells[2] != "-":
-        # Native components and sidecars have no chart: "-" is what the checker expects.
-        cells[2] = "-"
-        row_changed = True
-
-    if not row_changed:
-        return None
-    suffix = "\n" if line.endswith("\n") else ""
-    lines[row["line_index"]] = "| " + " | ".join(cells) + " |" + suffix
-    return (row["name"], cells[1], cells[2])
+    The chart cell is "(new)" regardless; the app may predate the dependency
+    (resolved["baseline_app"] from a past manifest). Returns (row_name,
+    app_cell, chart_cell) if the row changed, else None."""
+    target_chart, target_app = resolved["target_chart"], resolved["target_app"]
+    cells = set_row_cells(
+        lines,
+        row,
+        component_version_cell(resolved["baseline_app"], target_app) if target_app is not None else None,
+        component_version_cell(None, target_chart) if target_chart is not None else NO_CHART,
+    )
+    return (row["name"], cells[1], cells[2]) if cells else None
 
 
 def _existing_row_update(lines: list[str], row: TableRow, resolved: ResolvedRow) -> tuple[str, str, str] | None:
     """Rewrite a baseline_resolved=True row to source-to-target cells.
 
-    Returns (row_name, app_cell, chart_cell) if the row changed, else None."""
-    actual_target_chart, actual_target_app = resolved["target_chart"], resolved["target_app"]
-    actual_baseline_chart, actual_baseline_app = resolved["baseline_chart"], resolved["baseline_app"]
-
-    row_changed = False
-    line = lines[row["line_index"]]
-    cells = [c.strip() for c in line.strip().strip("|").split("|")]
-
-    if actual_target_app is not None:
-        # component_version_cell: the baseline app can be None even when the
-        # dependency existed (image pinned only this hop), rendering "(new)".
-        # Compare full cell text so a stale "(new)"/"(unchanged)" gets fixed.
-        new_app_cell = component_version_cell(actual_baseline_app, actual_target_app)
-        if cells[1] != new_app_cell:
-            cells[1] = new_app_cell
-            row_changed = True
-
-    if actual_target_chart is not None and actual_baseline_chart is not None:
-        new_chart_cell = canonical_version_cell(actual_baseline_chart, actual_target_chart)
-        if cells[2] != new_chart_cell:
-            cells[2] = new_chart_cell
-            row_changed = True
-    elif actual_target_chart is None and cells[2] != "-":
-        # See the identical branch in _new_dependency_row_update.
-        cells[2] = "-"
-        row_changed = True
-
-    if not row_changed:
-        return None
-    suffix = "\n" if line.endswith("\n") else ""
-    lines[row["line_index"]] = "| " + " | ".join(cells) + " |" + suffix
-    return (row["name"], cells[1], cells[2])
+    The baseline app can be None even when the dependency existed (image
+    pinned only this hop), rendering "(new)"; full cell text is compared so a
+    stale "(new)"/"(unchanged)" gets fixed. Returns (row_name, app_cell,
+    chart_cell) if the row changed, else None."""
+    target_chart, target_app = resolved["target_chart"], resolved["target_app"]
+    baseline_chart = resolved["baseline_chart"]
+    if target_chart is None:
+        chart_cell = NO_CHART
+    elif baseline_chart is not None:
+        chart_cell = canonical_version_cell(baseline_chart, target_chart)
+    else:
+        chart_cell = None
+    cells = set_row_cells(
+        lines,
+        row,
+        component_version_cell(resolved["baseline_app"], target_app) if target_app is not None else None,
+        chart_cell,
+    )
+    return (row["name"], cells[1], cells[2]) if cells else None
 
 
 def fix_component_version_table(
@@ -154,11 +99,7 @@ def fix_component_version_table(
     unmatched_names: list[str] = []
     unresolved_names: list[str] = []
 
-    current_paths = dict(find_image_tag_paths(resolution.target.values))
-    current_paths.update(global_image_paths(resolution.target.values))
-    canonical_names = canonical_sidecar_row_names(
-        resolution.chart_dir, resolution.target.deps, resolution.target.values, current_paths.keys()
-    )
+    canonical_names = resolution.target_index.canonical_names
 
     for row in rows:
         # Same resolver as the checker, so fixer and checker can't drift apart.
@@ -182,7 +123,7 @@ def fix_component_version_table(
             if resolved["dep"] is None and resolved["target_app"] is None:
                 unresolved_names.append(row["name"])
                 continue
-            changed = _new_dependency_row_update(lines, row, resolved, resolution)
+            changed = _new_dependency_row_update(lines, row, resolved)
         else:
             changed = _existing_row_update(lines, row, resolved)
 
@@ -237,12 +178,9 @@ def _heading_resolved_row(
         return None
     row_name, resolved = inputs.resolved_by_values_key[lookup_key]
 
-    if resolved["baseline_resolved"] is False:
-        old_app = _dep_old_app_for_new_dependency(resolution, resolved)
-    elif resolved["baseline_resolved"] is True:
-        old_app = resolved["baseline_app"]
-    else:
+    if resolved["baseline_resolved"] is None:
         return None
+    old_app = resolved["baseline_app"]
     return row_name, resolved, old_app, expected_bare_name
 
 
@@ -310,11 +248,7 @@ def fix_changes_heading_app_versions(text: str, resolution: ResolutionContext):
     version is touched; ambiguous, orphaned, unverifiable or already-correct
     headings are left as-is. Returns (new_text, updated_headings), the latter
     the original heading texts."""
-    current_paths = dict(find_image_tag_paths(resolution.target.values))
-    current_paths.update(global_image_paths(resolution.target.values))
-    canonical_names = canonical_sidecar_row_names(
-        resolution.chart_dir, resolution.target.deps, resolution.target.values, current_paths.keys()
-    )
+    canonical_names = resolution.target_index.canonical_names
     resolved_by_values_key = _resolved_rows_by_values_key(text, resolution, canonical_names)
     blocks = parse_upgrade_doc_changes_blocks(text)
     return _fix_heading_app_versions(
@@ -329,11 +263,7 @@ def fix_values_delta_heading_app_versions(
 
     upgrade_doc_text (already corrected) supplies the row data, since the
     values-deltas doc has no table of its own."""
-    current_paths = dict(find_image_tag_paths(resolution.target.values))
-    current_paths.update(global_image_paths(resolution.target.values))
-    canonical_names = canonical_sidecar_row_names(
-        resolution.chart_dir, resolution.target.deps, resolution.target.values, current_paths.keys()
-    )
+    canonical_names = resolution.target_index.canonical_names
     resolved_by_values_key = _resolved_rows_by_values_key(upgrade_doc_text, resolution, canonical_names)
     blocks = parse_values_delta_sections(values_deltas_text)
     return _fix_heading_app_versions(
@@ -345,11 +275,7 @@ def remove_unchanged_component_rows(text: str, resolution: ResolutionContext) ->
     """Delete every row whose app and chart versions equal the baseline's, with its Changes section.
 
     A row whose baseline can't be resolved stays. Returns (new_text, removed_names)."""
-    current_paths = dict(find_image_tag_paths(resolution.target.values))
-    current_paths.update(global_image_paths(resolution.target.values))
-    canonical_names = canonical_sidecar_row_names(
-        resolution.chart_dir, resolution.target.deps, resolution.target.values, current_paths.keys()
-    )
+    canonical_names = resolution.target_index.canonical_names
     ordering = OrderingContext(resolution.target.deps, resolution.target.values, canonical_names)
 
     removed_names: list[str] = []

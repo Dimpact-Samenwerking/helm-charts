@@ -1,0 +1,16 @@
+{
+  "format": ["python"],
+  "mode": "weak",
+  "minLines": 4,
+  "minTokens": 35,
+  "reporters": ["console"],
+  "exitCode": 1,
+  "ignore": ["**/__pycache__/**"],
+  "ignorePattern": [
+    "from .* import .*",
+    "import .*",
+    "SCRIPT_DIR = .*",
+    "sys\\.path\\.insert.*",
+    " +[a-z_]+: [^=\\n]+,\\n"
+  ]
+}

@@ -9,45 +9,51 @@ under pylint's too-many-arguments/too-many-locals limits."""
 
 import re
 
+from collections.abc import Collection
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from lib.chart.chart_yaml import ChartDependency
-from lib.chart.historical_baselines import historical_app_version_for_path
+from lib.chart.chart_state import BaselineState
+from lib.chart.chart_state import ComponentState
 from lib.chart.registered_paths import component_chart_versions
 from lib.chart.registered_paths import image_paths_for
-from lib.chart.registered_paths import native_components
 from lib.chart.registered_paths import version_paths_for
-from lib.chart.values_tree_primitives import values_key_of
 from lib.component_docs.baseline_doc_stubs import UPGRADE_CHANGES_STUB_TODO_LINE
 from lib.component_docs.baseline_doc_stubs import UPGRADE_INTRO_STUB_TODO_LINE
+from lib.component_docs.doc_lines import is_bare_placeholder_span
+from lib.component_docs.doc_lines import normalize_blank_line_before_insert
 from lib.component_docs.owned_parts import BLANK
+from lib.component_docs.owned_parts import SectionShape
+from lib.component_docs.owned_parts import edited_generated_lines
 from lib.component_docs.owned_parts import generated_heading_name
 from lib.component_docs.owned_parts import remove_section_owned_parts
 from lib.component_docs.owned_parts import replace_section_owned_parts
+from lib.component_docs.owned_parts import template_prefix_re
 from lib.component_docs.owned_parts import template_re
-from lib.upgradedoc.app_version_and_image_paths import actual_app_version
+from lib.upgradedoc.consistency_checks import rowed_component_keys
+from lib.upgradedoc.doc_names import images_manifest_name
+from lib.upgradedoc.resolve_component_row import ResolutionContext
+from lib.upgradedoc.resolve_component_row import resolve_component_row
+from lib.upgradedoc.sorting_and_ordering import CHANGES_HEADING
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
+from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.upgradedoc.sorting_and_ordering import block_for_component
 from lib.upgradedoc.sorting_and_ordering import changes_blocks_with_lines
 from lib.upgradedoc.sorting_and_ordering import changes_section_bounds
-from lib.upgradedoc.sorting_and_ordering import component_order_key
-from lib.upgradedoc.sorting_and_ordering import insertion_index
+from lib.upgradedoc.sorting_and_ordering import component_insertion_index
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
-from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import COMPONENT_VERSIONS_HEADING_RE
 from lib.upgradedoc.string_and_parsing_basics import TableRow
-from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
-from lib.upgradedoc.string_and_parsing_basics import match_native_component
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
+from lib.upgradedoc.string_and_parsing_basics import set_row_cells
 from lib.upgradedoc.string_and_parsing_basics import text_names
+from lib.upgradedoc.version_cells_and_key_changes import chart_version_suffix
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
 from lib.upgradedoc.version_cells_and_key_changes import pin_version_text
 from lib.upgradedoc.version_cells_and_key_changes import version_transition
-from lib.yaml_types import YamlMapping
 
 
 @dataclass
@@ -65,16 +71,6 @@ class VersionChange:
 
 
 @dataclass
-class OrderingContext:
-    """Inputs for component_order_key/insertion_index. canonical_names lets a
-    bare "global" shared-image entry sort at its values.yaml position."""
-
-    deps: list[ChartDependency]
-    values: YamlMapping | None
-    canonical_names: dict[str, tuple[str, ...]] | None = None
-
-
-@dataclass
 class ComponentIdentity:
     """Display name (heading/prose), Chart.yaml dependency name (chart
     bullet) and values.yaml key (pin bullets) of a component."""
@@ -82,23 +78,6 @@ class ComponentIdentity:
     friendly: str
     chart_name: str
     values_key: str
-
-
-@dataclass
-class ComponentState:
-    """Target or baseline deps/values; never mixed across sides."""
-
-    deps: list[ChartDependency]
-    values: YamlMapping
-
-
-@dataclass
-class BaselineState:
-    """deps/values at upgrade_docs_baseline. deps is None when no baseline
-    was resolved: baseline comparisons are then skipped."""
-
-    deps: list[ChartDependency] | None
-    values: YamlMapping | None
 
 
 @dataclass
@@ -118,19 +97,13 @@ def find_component_row(rows: list[TableRow], friendly: str):
     return next((row for row in rows if text_names(row["name"], friendly)), None)
 
 
-def _new_row_insert_index(lines: list[str], rows: list[TableRow], friendly: str, ordering: OrderingContext):
+def new_row_insert_index(lines: list[str], rows: list[TableRow], friendly: str, ordering: OrderingContext):
     """Line index for a new component row: in values.yaml order among the
     existing rows, or right after the "Component versions" separator when
     the table is empty. Scoped to that section so a later pipe table is
     never hit. None if the doc has no such table."""
     if rows:
-        key_order = values_key_order(ordering.values)
-        new_key = component_order_key(friendly, ordering.deps, key_order, ordering.canonical_names, ordering.values)
-        existing_keys = [
-            component_order_key(r["name"], ordering.deps, key_order, ordering.canonical_names, ordering.values)
-            for r in rows
-        ]
-        idx = insertion_index(new_key, existing_keys)
+        idx = component_insertion_index(friendly, [r["name"] for r in rows], ordering)
         return rows[idx]["line_index"] if idx < len(rows) else rows[-1]["line_index"] + 1
     in_section = False
     for i, line in enumerate(lines):
@@ -157,19 +130,12 @@ def update_component_table(text: str, friendly: str, change: VersionChange, orde
     chart_cell = component_version_cell(change.old_chart, change.new_chart)
 
     if row is not None:
-        old_line = lines[row["line_index"]]
-        cells = [c.strip() for c in old_line.strip().strip("|").split("|")]
         # No new version for a cell: leave what the row already says.
-        if app_cell is not None:
-            cells[1] = app_cell
-        if chart_cell is not None:
-            cells[2] = chart_cell
-        suffix = "\n" if old_line.endswith("\n") else ""
-        lines[row["line_index"]] = "| " + " | ".join(cells) + " |" + suffix
+        set_row_cells(lines, row, app_cell, chart_cell)
         return "".join(lines), "updated"
 
     new_row_line = f"| {friendly} | {app_cell or '-'} | {chart_cell or '-'} | - |\n"
-    insert_at = _new_row_insert_index(lines, rows, friendly, ordering)
+    insert_at = new_row_insert_index(lines, rows, friendly, ordering)
     if insert_at is None:
         return text, None
     lines.insert(insert_at, new_row_line)
@@ -195,6 +161,7 @@ INTRO_NEW = "PodiumD {target} introduces **{name}** at app version {new}."
 INTRO_UNCHANGED = "**{name}**'s own app version ({new}) is unchanged this hop."
 INTRO_UPGRADE = "PodiumD {target} upgrades **{name}** from app version {old}"
 INTRO_UPGRADE_TO = "to {new}."
+INTRO_REMOVED = "PodiumD {target} removes **{name}** (was {old})."
 IMAGE_INTRO_NEW = "PodiumD {target} introduces the {image} image at {new},"
 IMAGE_INTRO_KEPT = "PodiumD {target} keeps the {image} image at {new},"
 IMAGE_INTRO_UPGRADE = "PodiumD {target} upgrades the {image} image to {new},"
@@ -238,6 +205,7 @@ _OWNED_LINES = [
     (_template_re(INTRO_NEW), None, "intro"),
     (_template_re(INTRO_UNCHANGED), None, "intro"),
     (_template_re(INTRO_UPGRADE), _template_re(INTRO_UPGRADE_TO), "intro"),
+    (_template_re(INTRO_REMOVED), None, "removed"),
     (_template_re(IMAGE_INTRO_NEW), _template_re(PINNED_AT), "intro"),
     (_template_re(IMAGE_INTRO_KEPT), _template_re(PINNED_AT), "intro"),
     (_template_re(IMAGE_INTRO_UPGRADE), _template_re(PINNED_AT), "intro"),
@@ -293,6 +261,37 @@ def _heading_name(heading_line: str, body_kinds: Sequence[str | None]) -> str | 
     return None
 
 
+_CHANGES_SHAPE = SectionShape(
+    changes_body_kinds,
+    _heading_name,
+    edited_openers=[
+        template_prefix_re(template, _FIELD_PATTERNS)
+        for template in (
+            INTRO_NEW,
+            INTRO_UNCHANGED,
+            INTRO_UPGRADE,
+            INTRO_REMOVED,
+            IMAGE_INTRO_NEW,
+            IMAGE_INTRO_KEPT,
+            IMAGE_INTRO_UPGRADE,
+            HELM_CHART_BULLET,
+            IMAGE_TAG_PIN_BULLET,
+            VERSION_PIN_BULLET,
+            IMAGE_PATH_BULLET,
+        )
+    ],
+    edited_continuations=[
+        template_prefix_re(template, _FIELD_PATTERNS)
+        for template in (INTRO_UPGRADE_TO, PINNED_AT, CHART_YAML_LINE, VALUES_YAML_LINE)
+    ],
+)
+
+
+def edited_changes_lines(text: str) -> list[tuple[str, str]]:
+    """(heading, line) for each hand-edited generated line in the "## Changes" "### ..." sections."""
+    return edited_generated_lines(text, parse_upgrade_doc_changes_blocks(text), _CHANGES_SHAPE)
+
+
 def make_changes_section(
     identity: ComponentIdentity,
     target: str,
@@ -312,19 +311,12 @@ def make_changes_section(
     "<app> (new)"; old_app == new_app renders "<app> (unchanged)" (the
     component qualifies only through another changed path, e.g. a new
     sidecar)."""
-    if change.new_chart == "-":
-        chart_changed = False
-        chart_suffix = ""
-    elif change.old_chart is None:
-        chart_changed = False
-        chart_suffix = f" (chart {change.new_chart}, new)"
-    else:
-        chart_changed = normalize_version(change.old_chart) != normalize_version(change.new_chart)
-        chart_suffix = (
-            f" (chart {change.old_chart} → {change.new_chart})"
-            if chart_changed
-            else f" (chart {change.new_chart}, unchanged)"
-        )
+    chart_changed = (
+        change.new_chart != "-"
+        and change.old_chart is not None
+        and normalize_version(change.old_chart) != normalize_version(change.new_chart)
+    )
+    chart_suffix = chart_version_suffix(change.old_chart, change.new_chart)
     heading = f"{identity.friendly} {version_transition(change.old_app, change.new_app)}{chart_suffix}"
     name, new = identity.friendly, change.new_app
     if change.old_app is None:
@@ -352,7 +344,8 @@ def make_changes_section(
 
 def image_digest_pointer(target: str) -> str:
     """The "- Image / digest" line that ends every Changes section."""
-    return f"{IMAGE_DIGEST_POINTER_PREFIX}[`images-{target}.yaml`](../images/images-{target}.yaml).\n"
+    name = images_manifest_name(target)
+    return f"{IMAGE_DIGEST_POINTER_PREFIX}[`{name}`](../images/{name}).\n"
 
 
 @dataclass(frozen=True)
@@ -368,14 +361,15 @@ class PointerIssue:
 def pointer_issues(text: str) -> list[PointerIssue]:
     """Each Changes section's missing, duplicate or not blank-separated pointer, from one pass.
 
-    TODO stub sections have no pointer by design and are skipped. A missing
-    pointer's `line` is the section's last non-blank line.
+    TODO stub sections and removed items (their image is in no manifest) have no
+    pointer by design and are skipped. A missing pointer's `line` is the
+    section's last non-blank line.
     """
     lines, blocks = changes_blocks_with_lines(text)
     issues: list[PointerIssue] = []
     for block in blocks:
         body = range(block["start"] + 1, block["end"])
-        if "stub" in changes_body_kinds([lines[i] for i in body]):
+        if {"stub", "removed"} & set(changes_body_kinds([lines[i] for i in body])):
             continue
         pointers = [i for i in body if lines[i].startswith(IMAGE_DIGEST_POINTER_PREFIX)]
         if not pointers:
@@ -389,12 +383,20 @@ def pointer_issues(text: str) -> list[PointerIssue]:
     return issues
 
 
-def fix_pointer_issues(text: str, target: str) -> tuple[str, list[PointerIssue]]:
+def fix_pointer_issues(
+    text: str, target: str, rowless_headings: Collection[str] = ()
+) -> tuple[str, list[PointerIssue]]:
     """Append a missing pointer after a blank line and add missing blank lines; duplicates are left.
 
+    A section in rowless_headings gets no pointer: it is what is left of a
+    removed row's section, the user text that must be resolved by hand.
     Returns (text, fixed issues).
     """
-    fixed = [issue for issue in pointer_issues(text) if issue.kind != "duplicate"]
+    fixed = [
+        issue
+        for issue in pointer_issues(text)
+        if issue.kind != "duplicate" and not (issue.kind == "missing" and issue.heading in rowless_headings)
+    ]
     lines = text.splitlines(keepends=True)
     for issue in sorted(fixed, key=lambda i: i.line, reverse=True):
         if issue.kind == "missing":
@@ -412,14 +414,6 @@ def render_changes_section(heading: str, intro: Sequence[str], bullets: Sequence
     """
     parts = [f"### {heading}\n", "".join(intro), "".join(bullets), image_digest_pointer(target)]
     return "\n".join(part for part in parts if part) + "\n"
-
-
-def _is_bare_placeholder_span(lines: list[str], start: int, end: int, placeholder_text: str):
-    """True if lines[start:end] holds only blank lines and exactly one line
-    equal to placeholder_text (stripped). Exact match on purpose: human
-    prose mentioning the placeholder must never be deleted."""
-    non_blank = [line.strip() for line in lines[start:end] if line.strip()]
-    return non_blank == [placeholder_text.strip()]
 
 
 def _find_standalone_placeholder_line(lines: list[str], end: int, placeholder_text: str):
@@ -453,7 +447,7 @@ def _strip_bare_changes_todo(lines: list[str], changes_idx: int, end_bound: int)
     """Delete "## Changes"' bare TODO stub in place if that is all the span
     holds; returns the new end bound (end_bound unchanged if nothing was
     stripped)."""
-    if not _is_bare_placeholder_span(lines, changes_idx + 1, end_bound, UPGRADE_CHANGES_STUB_TODO_LINE):
+    if not is_bare_placeholder_span(lines, changes_idx + 1, end_bound, UPGRADE_CHANGES_STUB_TODO_LINE):
         return end_bound
     del lines[changes_idx + 1 : end_bound]
     return changes_idx + 1
@@ -471,50 +465,27 @@ def _insert_index_for_empty_changes_section(lines: list[str], changes_idx: int, 
     return _strip_bare_changes_todo(lines, changes_idx, section_end)
 
 
-def _normalize_blank_line_before_insert(lines: list[str], insert_at: int):
-    """Ensure exactly one blank line before insert_at, returning the shifted
-    index. Section text starts with "### " and the preceding trailing blank
-    may already be gone (EOF collapsing), which would break MD022/MD032."""
-    blank_count = 0
-    i = insert_at - 1
-    while i >= 0 and not lines[i].strip():
-        blank_count += 1
-        i -= 1
-    if blank_count == 0:
-        lines[insert_at:insert_at] = ["\n"]
-        insert_at += 1
-    elif blank_count > 1:
-        del lines[insert_at - (blank_count - 1) : insert_at]
-        insert_at -= blank_count - 1
-    return insert_at
-
-
 def insert_changes_section(text: str, section_text: str, friendly: str, ordering: OrderingContext):
     """Insert section_text into "## Changes" in values.yaml component order.
     Appended before the next "## " heading (or EOF) when the section has no
     blocks yet, after stripping both stub TODO placeholders (one event);
-    appended at EOF when the section doesn't exist."""
+    appended at EOF under a new "## Changes" heading when the section
+    doesn't exist, so later runs find the block instead of adding it again."""
     blocks = parse_upgrade_doc_changes_blocks(text)
     lines = text.splitlines(keepends=True)
     changes_idx, section_end = changes_section_bounds(lines)
     if changes_idx is None:
         if text and not text.endswith("\n\n"):
             text = text.rstrip("\n") + "\n\n"
-        return text + section_text
+        return f"{text}{CHANGES_HEADING}\n\n{section_text}"
 
     if not blocks:
         insert_at = _insert_index_for_empty_changes_section(lines, changes_idx, section_end)
     else:
-        key_order = values_key_order(ordering.values)
-        new_key = component_order_key(friendly, ordering.deps, key_order, ordering.canonical_names, ordering.values)
-        existing_keys = [
-            component_order_key(b["heading"], ordering.deps, key_order, ordering.canonical_names, ordering.values)
-            for b in blocks
-        ]
-        idx = insertion_index(new_key, existing_keys)
+        idx = component_insertion_index(friendly, [b["heading"] for b in blocks], ordering)
         insert_at = blocks[idx]["start"] if idx < len(blocks) else section_end
 
-    insert_at = _normalize_blank_line_before_insert(lines, insert_at)
+    insert_at = normalize_blank_line_before_insert(lines, insert_at)
     lines[insert_at:insert_at] = [section_text]
     return "".join(lines)
 
@@ -551,12 +522,12 @@ def strip_stale_upgrade_placeholders(text: str):
 
 def replace_changes_block(text: str, block: HeadingBlock, section_text: str) -> str:
     """`block` with its owned parts replaced by `section_text`'s; user lines stay in place."""
-    return replace_section_owned_parts(text, block, section_text, changes_body_kinds, _heading_name)
+    return replace_section_owned_parts(text, block, section_text, _CHANGES_SHAPE)
 
 
 def remove_changes_block(text: str, block: HeadingBlock | None) -> tuple[str, bool, bool]:
     """Remove `block`'s owned parts: (new_text, removed, kept_user_text); see remove_section_owned_parts."""
-    return remove_section_owned_parts(text, block, changes_body_kinds)
+    return remove_section_owned_parts(text, block, _CHANGES_SHAPE)
 
 
 def component_changes_block(text: str, friendly: str, ordering: OrderingContext) -> HeadingBlock | None:
@@ -603,54 +574,34 @@ def resolve_component_own_version_change(
     chart_unchanged = new_chart == "-" or (
         old_chart is not None and normalize_version(old_chart) == normalize_version(new_chart)
     )
-    old_app = actual_app_version(baseline_state.values, key, chart_name) if baseline_state.values else None
-    new_app = actual_app_version(target_state.values, key, chart_name, chart_dir=chart_dir, dep=dep)
-    if old_app is None and baseline_state.values:
-        # Baseline values lack the path (e.g. image block added this
-        # release): fall back to past images-<version>.yaml manifests.
-        for path in image_paths_for(chart_name, chart_dir):
-            old_app = historical_app_version_for_path(
-                chart_dir, target_state.deps, target_state.values, (key, *tuple(path.split("."))), upgrade_docs_baseline
-            )
-            if old_app is not None:
-                break
-    if old_app is None and baseline_state.values and dep is not None and chart_unchanged:
-        # The vendored-.tgz appVersion fallback is keyed on dep["version"],
-        # so it's normally unavailable for the baseline; with an unchanged
-        # chart the same .tgz backs both sides (e.g. openbao's blank tag).
-        old_app = actual_app_version(baseline_state.values, key, chart_name, chart_dir=chart_dir, dep=dep)
-    app_unchanged = (
-        old_app is not None and new_app is not None and normalize_version(old_app) == normalize_version(new_app)
+    # The same resolver as the key's table row, so a row added here can't contradict it.
+    resolved = resolve_component_row(
+        key, {}, ResolutionContext(chart_dir, target_state, baseline_state, upgrade_docs_baseline)
     )
+    old_app = resolved["baseline_app"] if resolved["kind"] != "unmatched" else None
+    new_app = resolved["target_app"] if resolved["kind"] != "unmatched" else None
+    # No own app version on either side (only sidecar images) is unchanged too:
+    # a sidecar change gets its own row, not one for its parent.
+    app_unchanged = normalize_version(old_app) == normalize_version(new_app)
     return dep, chart_name, old_chart, new_chart, old_app, new_app, (chart_unchanged and app_unchanged)
 
 
-def _matched_component_keys(text: str, target_deps: list[ChartDependency], chart_dir: Path) -> set[str]:
-    """Component keys (dependency alias-or-name or native component) that
-    already have a "Component versions" row in `text`."""
-    matched_keys: set[str] = set()
-    for row in parse_upgrade_doc_rows(text):
-        # A sidecar row like "redis-operator - redis" must not count as
-        # redis-operator's own row.
-        dep = match_dependency_excluding_sidecar_names(row["name"], target_deps)
-        if dep:
-            matched_keys.add(values_key_of(dep))
-            continue
-        native_key = match_native_component(row["name"], native_components(chart_dir))
-        if native_key:
-            matched_keys.add(native_key)
-    return matched_keys
+def component_changes_section(identity: ComponentIdentity, change: VersionChange, doc_context: DocContext) -> str:
+    """make_changes_section for a dependency or native component, with its registered pins.
+
+    version_paths_for wins over image_paths_for: registered bare-version
+    fields (eck-stack) have no image block, so the generic
+    "<key>.image.tag" would name a nonexistent path."""
+    version_paths = version_paths_for(identity.chart_name, doc_context.chart_dir)
+    image_paths = [] if version_paths else image_paths_for(identity.chart_name, doc_context.chart_dir)
+    return make_changes_section(identity, doc_context.target, change, image_paths, version_paths)
 
 
 def _new_component_section(key: str, chart_name: str, change: VersionChange, doc_context: DocContext):
-    """Changes section for an auto-added row: make_changes_section when the
-    app version resolved (version_paths_for wins over image_paths_for), else
-    a TODO stub rather than guessed prose."""
+    """Changes section for an auto-added row: component_changes_section when
+    the app version resolved, else a TODO stub rather than guessed prose."""
     if change.new_app is not None:
-        version_paths = version_paths_for(chart_name, doc_context.chart_dir)
-        image_paths = [] if version_paths else image_paths_for(chart_name, doc_context.chart_dir)
-        identity = ComponentIdentity(key, chart_name, key)
-        return make_changes_section(identity, doc_context.target, change, image_paths, version_paths)
+        return component_changes_section(ComponentIdentity(key, chart_name, key), change, doc_context)
     chart_suffix = (
         f"{change.old_chart} → {change.new_chart}"
         if change.old_chart and normalize_version(change.old_chart) != normalize_version(change.new_chart)
@@ -702,8 +653,7 @@ def _add_missing_row_for_key(
 def add_missing_component_rows(
     text: str,
     doc_context: DocContext,
-    target_state: ComponentState,
-    baseline_state: BaselineState,
+    resolution: ResolutionContext,
     actual_changed_keys: set[str],
 ) -> tuple[str, list[str]]:
     """Add a row and Changes section for every changed key without a row,
@@ -714,7 +664,9 @@ def add_missing_component_rows(
     (add those by hand). Native components get chart "-". An unresolvable
     app version gets "-" and a TODO-stub section. Returns
     (new_text, added_names)."""
-    matched_keys = _matched_component_keys(text, target_state.deps, doc_context.chart_dir)
+    target_state, baseline_state = resolution.target, resolution.baseline
+    canonical_names = resolution.target_index.canonical_names
+    matched_keys = rowed_component_keys(parse_upgrade_doc_rows(text), target_state.deps, canonical_names)
     added_names: list[str] = []
     for key in sorted(actual_changed_keys - matched_keys):
         text, added = _add_missing_row_for_key(text, key, target_state, baseline_state, doc_context)
