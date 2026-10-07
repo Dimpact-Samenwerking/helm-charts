@@ -16,4 +16,7 @@
 /charts/podiumd/rendered-helm.yaml
 
 __pycache__/
+*.pyc
 .pytest_cache/
+.ruff_cache/
+.envrc

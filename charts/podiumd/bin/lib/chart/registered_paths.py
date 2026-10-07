@@ -81,14 +81,15 @@ def chart_version_lockstep_components(chart_dir: Path | None = None):
     return component_resolution_chart_version_lockstep_components(chart_dir)
 
 
-def _is_dependency_primary_rel_path(dep: ChartDependency, rel_path: str, chart_dir: Path | None = None):
-    """Whether rel_path (path[1:], dotted) is one of dep's primary image or bare-version fields.
+def is_primary_rel_path(owner_name: str, rel_path: str, chart_dir: Path | None = None):
+    """Whether rel_path (path[1:], dotted) is one of the owner's primary image or bare-version fields.
 
+    `owner_name` is a dependency's chart name or a native component's name.
     Bare-version fields cover apps without an "image:" block (e.g.
     redis-operator's redisOperator.imageTag, eck-stack's *.version).
     """
-    return rel_path in set(image_paths_for(dep["name"], chart_dir)) or rel_path in set(
-        version_paths_for(dep["name"], chart_dir)
+    return rel_path in set(image_paths_for(owner_name, chart_dir)) or rel_path in set(
+        version_paths_for(owner_name, chart_dir)
     )
 
 
@@ -106,7 +107,7 @@ def is_primary_image_path(path: tuple[str, ...], deps: list[ChartDependency], ch
     dep = by_values_key.get(path[0])
     if dep is None:
         return True
-    return _is_dependency_primary_rel_path(dep, ".".join(path[1:]), chart_dir)
+    return is_primary_rel_path(dep["name"], ".".join(path[1:]), chart_dir)
 
 
 def component_chart_versions(

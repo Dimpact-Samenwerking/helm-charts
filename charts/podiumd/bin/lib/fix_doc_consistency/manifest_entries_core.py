@@ -1,7 +1,5 @@
 """fix-doc-consistency's images-manifest entry-comment version verification/repair."""
 
-import re
-
 from collections.abc import Callable
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -11,15 +9,14 @@ from lib.chart.chart_yaml import ChartDependency
 from lib.chart.historical_baselines import baseline_lookup
 from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
 from lib.chart.historical_baselines import historical_app_version_for_path
-from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.images_manifest import ManifestEntry
-from lib.images_manifest import try_parse_images_manifest
+from lib.images_manifest import parse_manifest_lines
 from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
-from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
+from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment_line
 from lib.upgradedoc.images_manifest_ordering import images_manifest_entries_share_group
@@ -83,17 +80,13 @@ def resolve_entry_version(
 
 def _manifest_entries_setup(text: str, context: ManifestEntriesContext) -> _ManifestEntriesSetup | None:
     """None when text isn't a parsable list (caller returns text unchanged)."""
-    lines = text.splitlines(keepends=True)
-    entries = try_parse_images_manifest(text)
-    if entries is None:
+    parsed = parse_manifest_lines(text)
+    if parsed is None:
         return None
-
-    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
-    current_paths = dict(find_all_image_and_version_paths(context.target_values, context.deps))
-    current_paths.update(global_image_paths(context.target_values))
+    lines, entries, entry_line_indices = parsed.lines, parsed.entries, parsed.entry_line_indices
+    current_paths = chart_image_paths(context.target_values, context.deps)
     baseline_values = context.baseline_values
-    baseline_paths = dict(find_all_image_and_version_paths(baseline_values, context.deps)) if baseline_values else {}
-    baseline_paths.update(global_image_paths(baseline_values) if baseline_values else [])
+    baseline_paths = chart_image_paths(baseline_values, context.deps)
     # Grouped once for the baseline_tag_for_sidecar_path fallback.
     baseline_repo_groups = (
         paths_by_repository(context.chart_dir, context.deps, baseline_values, baseline_paths.keys())
@@ -227,7 +220,7 @@ def fix_images_manifest_entries(
         return text, [], []
 
     state = _ManifestFixState([], [], {})
-    for index, (entry, _line_idx) in enumerate(zip(setup.entries, setup.entry_line_indices, strict=False)):
+    for index, (entry, _line_idx) in enumerate(zip(setup.entries, setup.entry_line_indices, strict=True)):
         _process_manifest_entry(index, entry, context, setup, state)
 
     return "".join(setup.lines), state.changed_entries, state.unresolved_names

@@ -1,16 +1,21 @@
-"""Loads fix-doc-consistency (hyphenated, not importable) as module `cdb`."""
+"""Loads fix-doc-consistency (hyphenated, not importable) as module `cdb`; the writer-then-checker harness."""
 
 import importlib.util
 import subprocess
 
+from collections.abc import Sequence
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from types import ModuleType
 from types import SimpleNamespace
+from typing import Protocol
+from typing import Required
+from typing import TypedDict
 
 import pytest
 import yaml
 
+from lib.docs_consistency import check_docs_consistency
 from lib.image import baseline_refresh
 
 SCRIPT_PATH = Path(__file__).resolve().parents[2] / "fix-doc-consistency"
@@ -316,3 +321,111 @@ def repo_with_undocumented_sidecar_bump(tmp_path: Path):
 def stub_ensure_vendored_dependencies(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch):
     """No-op ensure_vendored_dependencies: main()-level tests use a fake chart with no vendored sub-charts."""
     monkeypatch.setattr(cdb, "ensure_vendored_dependencies", lambda chart_dir: None)
+
+
+class ChartState(TypedDict, total=False):
+    """One podiumd release state for writer_then_checker: Chart.yaml version and dependencies, values.yaml.
+
+    `files` are extra files (path relative to the chart dir: text), e.g. a
+    hand-written doc or a past images manifest.
+    """
+
+    version: Required[str]
+    deps: Required[list[dict[str, str]]]
+    values: Required[dict[str, object]]
+    files: dict[str, str]
+
+
+def _write_state(chart_dir: Path, state: ChartState) -> None:
+    write(
+        chart_dir / "Chart.yaml",
+        yaml.safe_dump(
+            {"apiVersion": "v2", "name": "podiumd", "version": state["version"], "dependencies": state["deps"]},
+            sort_keys=False,
+        ),
+    )
+    write(chart_dir / "values.yaml", yaml.safe_dump(state["values"], sort_keys=False))
+    for rel_path, text in state.get("files", {}).items():
+        (chart_dir / rel_path).parent.mkdir(parents=True, exist_ok=True)
+        write(chart_dir / rel_path, text)
+
+
+def _doc_snapshot(chart_dir: Path) -> dict[str, str]:
+    docs = chart_dir / "docs"
+    return {
+        str(path.relative_to(docs)): path.read_text(encoding="utf-8")
+        for path in sorted(docs.rglob("*"))
+        if path.is_file()
+    }
+
+
+class WriterThenChecker(Protocol):
+    def __call__(
+        self,
+        baseline: ChartState,
+        target: ChartState,
+        *,
+        earlier: ChartState | None = None,
+        by_hand: Sequence[str] = (),
+    ) -> dict[str, str]: ...
+
+
+@pytest.fixture
+def writer_then_checker(
+    cdb: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> WriterThenChecker:
+    """Run fix-doc-consistency from `baseline` (tagged podiumd-<version>) to `target`; return the docs it wrote.
+
+    With `earlier`, the docs of that state are written first, as for an
+    earlier bump in the same release cycle. Fails unless
+    check_docs_consistency then reports nothing and a second
+    fix-doc-consistency run changes nothing: writers and checker must agree.
+    With `by_hand`, the checker must instead report exactly that many
+    fix-by-hand findings, each containing one of the given texts, and
+    nothing fix-doc-consistency would change.
+    """
+
+    def run(
+        baseline: ChartState,
+        target: ChartState,
+        *,
+        earlier: ChartState | None = None,
+        by_hand: Sequence[str] = (),
+    ) -> dict[str, str]:
+        git("init", "-q", cwd=tmp_path)
+        git("config", "user.email", "test@example.com", cwd=tmp_path)
+        git("config", "user.name", "Test", cwd=tmp_path)
+        _write_state(tmp_path, baseline)
+        git("add", "-A", cwd=tmp_path)
+        git("commit", "-q", "-m", "baseline", cwd=tmp_path)
+        git("tag", f"podiumd-{baseline['version']}", cwd=tmp_path)
+        (tmp_path / "docs" / "_UPGRADE_PATHS").mkdir(parents=True, exist_ok=True)
+        (tmp_path / "docs" / "images").mkdir(parents=True, exist_ok=True)
+        monkeypatch.setattr("sys.argv", ["fix-doc-consistency"])
+        monkeypatch.setattr(cdb, "read_upgrade_docs_baseline", lambda chart_dir: baseline["version"])
+        monkeypatch.setattr(cdb, "DOC_DIR", tmp_path / "docs" / "_UPGRADE_PATHS")
+        monkeypatch.setattr(cdb, "IMAGES_DIR", tmp_path / "docs" / "images")
+        monkeypatch.setattr(cdb, "CHART_YAML", tmp_path / "Chart.yaml")
+        monkeypatch.setattr(cdb, "current_chart_version", lambda: target["version"])
+        if earlier is not None:
+            _write_state(tmp_path, earlier)
+            cdb.main()
+        _write_state(tmp_path, target)
+        git("add", "-A", cwd=tmp_path)
+        git("commit", "-q", "-m", "target", cwd=tmp_path)
+
+        cdb.main()
+        written = _doc_snapshot(tmp_path)
+        capsys.readouterr()
+        ok, detail = check_docs_consistency(tmp_path, upgrade_docs_baseline=baseline["version"])
+        out = capsys.readouterr().out
+        if by_hand:
+            assert detail == f"{len(by_hand)} to fix by hand", f"{detail}\n{out}"
+            assert all(text in out for text in by_hand), out
+        else:
+            assert ok, f"{detail}\n{out}"
+        cdb.main()
+        assert _doc_snapshot(tmp_path) == written, "a second fix-doc-consistency run changed the docs"
+        return written
+
+    return run

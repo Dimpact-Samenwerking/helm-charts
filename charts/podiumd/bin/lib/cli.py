@@ -29,6 +29,19 @@ def positional_args(doc: str | None, count: int) -> list[str]:
     return sys.argv[1:]
 
 
+def flag_args(doc: str | None, *flags: str) -> set[str]:
+    """The `flags` given in sys.argv[1:]. Exits 0 for -h/--help anywhere, or
+    prints doc and exits 1 on any other argument."""
+    args = sys.argv[1:]
+    if "-h" in args or "--help" in args:
+        print(doc)
+        sys.exit(0)
+    if any(arg not in flags for arg in args):
+        print(doc)
+        sys.exit(1)
+    return set(args)
+
+
 def read_user_file(path: Path, what: str) -> str:
     """Text of a user-named file (`what`, e.g. "--token-file"). SystemExit
     when it is missing, not a file, unreadable or not UTF-8."""

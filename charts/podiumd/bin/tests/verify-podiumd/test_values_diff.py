@@ -122,11 +122,9 @@ def test_values_deltas_content_no_changes_is_clean(libdocsconsistencyvaluesdiff:
     assert libdocsconsistencyvaluesdiff.check_values_deltas_content(doc, {"mi"}, inputs) == []
 
 
-def test_values_deltas_content_rename_mentioned_both_sides_passes(
-    libdocsconsistencyvaluesdiff: ModuleType, tmp_path: Path
-):
+def test_values_deltas_content_generated_rename_line_passes(libdocsconsistencyvaluesdiff: ModuleType, tmp_path: Path):
     doc = tmp_path / "values-deltas.md"
-    doc.write_text("## mi 1.0.0, unchanged\n\nRename `mi.sftp` to `mi.transfer`, add `mi.transfer.mode`.\n")
+    doc.write_text("## mi 1.0.0, unchanged\n\n- Key `mi.sftp` was renamed to `mi.transfer`.\n\nUser note.\n")
     baseline = {"mi": {"sftp": {"host": "x", "user": "y", "password": "z"}}}
     current = {"mi": {"transfer": {"mode": "sftp-password", "host": "x", "user": "y", "password": "z"}}}
     inputs = libdocsconsistencyvaluesdiff.ValuesDeltaInputs(baseline, current, DEPS)
@@ -142,7 +140,7 @@ def test_values_deltas_content_flags_unmentioned_rename(libdocsconsistencyvalues
     current = {"mi": {"transfer": {"mode": "sftp-password", "host": "x", "user": "y", "password": "z"}}}
     inputs = libdocsconsistencyvaluesdiff.ValuesDeltaInputs(baseline, current, DEPS)
     issues = libdocsconsistencyvaluesdiff.check_values_deltas_content(doc, {"mi"}, inputs)
-    assert any("appears renamed" in i for i in issues)
+    assert any('lacks the generated line "- Key `mi.sftp` was renamed to `mi.transfer`."' in i for i in issues)
     assert any("claims" in i and "No gemeente" in i for i in issues)
 
 
@@ -163,7 +161,7 @@ def test_values_deltas_content_flags_unmentioned_addition(libdocsconsistencyvalu
     current = {"zac": {"brpApi": {"logLevel": "OFF"}}}
     inputs = libdocsconsistencyvaluesdiff.ValuesDeltaInputs(baseline, current, DEPS)
     issues = libdocsconsistencyvaluesdiff.check_values_deltas_content(doc, {"zac"}, inputs)
-    assert any('key "zac.brpApi.logLevel" was added' in i for i in issues)
+    assert any('lacks the generated line "- Key `zac.brpApi.logLevel` was added."' in i for i in issues)
 
 
 def test_values_deltas_content_flags_unmentioned_removal(libdocsconsistencyvaluesdiff: ModuleType, tmp_path: Path):
@@ -173,16 +171,32 @@ def test_values_deltas_content_flags_unmentioned_removal(libdocsconsistencyvalue
     current = {"zac": {"brpApi": {"protocollering": {"verwerking": {}}}}}
     inputs = libdocsconsistencyvaluesdiff.ValuesDeltaInputs(baseline, current, DEPS)
     issues = libdocsconsistencyvaluesdiff.check_values_deltas_content(doc, {"zac"}, inputs)
-    assert any('key "zac.brpApi.protocollering.verwerking.extendWithZaaktype" was removed' in i for i in issues)
+    assert any(
+        'lacks the generated line "- Key `zac.brpApi.protocollering.verwerking.extendWithZaaktype` was removed."' in i
+        for i in issues
+    )
 
 
-def test_values_deltas_content_mentioned_addition_passes(libdocsconsistencyvaluesdiff: ModuleType, tmp_path: Path):
+def test_values_deltas_content_generated_addition_line_passes(libdocsconsistencyvaluesdiff: ModuleType, tmp_path: Path):
+    doc = tmp_path / "values-deltas.md"
+    doc.write_text("## zac 1.0.297, unchanged\n\n- Key `zac.brpApi.logLevel` was added.\n\nDefaults to `OFF`.\n")
+    baseline = {"zac": {"brpApi": {}}}
+    current = {"zac": {"brpApi": {"logLevel": "OFF"}}}
+    inputs = libdocsconsistencyvaluesdiff.ValuesDeltaInputs(baseline, current, DEPS)
+    assert libdocsconsistencyvaluesdiff.check_values_deltas_content(doc, {"zac"}, inputs) == []
+
+
+def test_values_deltas_content_prose_mention_is_not_enough(libdocsconsistencyvaluesdiff: ModuleType, tmp_path: Path):
+    """User prose naming the key doesn't replace the generated line."""
     doc = tmp_path / "values-deltas.md"
     doc.write_text("## zac 1.0.297, unchanged\n\nNew field `zac.brpApi.logLevel`, defaults to `OFF`.\n")
     baseline = {"zac": {"brpApi": {}}}
     current = {"zac": {"brpApi": {"logLevel": "OFF"}}}
     inputs = libdocsconsistencyvaluesdiff.ValuesDeltaInputs(baseline, current, DEPS)
-    assert libdocsconsistencyvaluesdiff.check_values_deltas_content(doc, {"zac"}, inputs) == []
+    issues = libdocsconsistencyvaluesdiff.check_values_deltas_content(doc, {"zac"}, inputs)
+    assert issues == [
+        'values-deltas.md: "zac"\'s own section lacks the generated line "- Key `zac.brpApi.logLevel` was added."'
+    ]
 
 
 def test_values_deltas_content_ignores_untracked_components(libdocsconsistencyvaluesdiff: ModuleType, tmp_path: Path):

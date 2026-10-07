@@ -304,6 +304,26 @@ def test_parse_changes_block_parses_numbered_items(libupgradedoccomments: Module
     assert items[1]["chart"] == "0.0.92"
 
 
+def test_parse_changes_block_parses_items_without_a_version_pair(libupgradedoccomments: ModuleType):
+    text = (
+        "# Changes:\n"
+        "#   1. kiss 3.1.1 (new) (chart 3.1.1, new).\n"
+        "#   2. zac 5.4.4 (digest changed) (chart 1.0.297, unchanged).\n"
+        "#   3. curl 8.1.0 (unchanged).\n"
+    )
+    items = libupgradedoccomments.parse_changes_block(text)
+    assert [(i["name"], i["app_source"], i["app"]) for i in items] == [
+        ("kiss", None, "3.1.1"),
+        ("zac", "5.4.4", "5.4.4"),
+        ("curl", "8.1.0", "8.1.0"),
+    ]
+
+
+def test_parse_changes_block_item_without_a_version_keeps_its_text_as_name(libupgradedoccomments: ModuleType):
+    items = libupgradedoccomments.parse_changes_block("# Changes:\n#   1. keycloak-operator (unchanged).\n")
+    assert [(i["name"], i["app_source"], i["app"]) for i in items] == [("keycloak-operator (unchanged).", None, None)]
+
+
 def test_parse_changes_block_no_header_returns_empty(libupgradedoccomments: ModuleType):
     assert libupgradedoccomments.parse_changes_block("# just a header\n# no changes block\n") == []
 
@@ -382,6 +402,12 @@ def test_parse_changes_block_strips_trailing_sentence_period_even_on_a_single_li
     assert len(items) == 1
     assert items[0]["app_source"] == "8.20.0"
     assert items[0]["app"] == "8.21.0"
+
+
+def test_parse_changes_block_strips_a_period_after_a_single_version(libupgradedoccomments: ModuleType):
+    """Regression: a period right after a version without an arrow is not part of the version."""
+    items = libupgradedoccomments.parse_changes_block("# Changes:\n#   1. foo 1.2.3. (unchanged)\n")
+    assert [(i["name"], i["app_source"], i["app"]) for i in items] == [("foo", "1.2.3", "1.2.3")]
 
 
 def test_parse_changes_block_trailing_remark_does_not_get_absorbed_into_last_item(libupgradedoccomments: ModuleType):

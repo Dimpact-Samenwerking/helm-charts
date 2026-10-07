@@ -43,8 +43,6 @@ def setup_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType)
     monkeypatch.setattr(ucv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)
     monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
-    monkeypatch.setattr(ucv, "DOC_DIR", doc_dir)
-    monkeypatch.setattr(ucv, "IMAGES_DIR", images_dir)
     return chart_yaml, values_yaml
 
 
@@ -131,8 +129,6 @@ def test_main_alias_component_argument_bumps_all_registered_lockstep_paths(
     monkeypatch.setattr(ucv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)
     monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
-    monkeypatch.setattr(ucv, "DOC_DIR", doc_dir)
-    monkeypatch.setattr(ucv, "IMAGES_DIR", images_dir)
     mock_verify_passes(monkeypatch, ucv)
     mock_registry_passes(monkeypatch, ucv, "b")
     monkeypatch.setattr("sys.argv", ["update-component-version", "kiss", "3.1.1", "3.1.1"])
@@ -256,8 +252,6 @@ def setup_native_component_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     monkeypatch.setattr(ucv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)
     monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
-    monkeypatch.setattr(ucv, "DOC_DIR", doc_dir)
-    monkeypatch.setattr(ucv, "IMAGES_DIR", images_dir)
     return chart_yaml, values_yaml
 
 
@@ -350,8 +344,6 @@ def setup_keycloak_operator_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(ucv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)
     monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
-    monkeypatch.setattr(ucv, "DOC_DIR", doc_dir)
-    monkeypatch.setattr(ucv, "IMAGES_DIR", images_dir)
     return chart_yaml, values_yaml
 
 
@@ -448,8 +440,6 @@ def setup_eck_operator_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv
     monkeypatch.setattr(ucv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)
     monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
-    monkeypatch.setattr(ucv, "DOC_DIR", doc_dir)
-    monkeypatch.setattr(ucv, "IMAGES_DIR", images_dir)
     return chart_yaml, values_yaml
 
 
@@ -514,8 +504,6 @@ def setup_keycloak_operator_repo_with_operator_image_tag(
     monkeypatch.setattr(ucv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)
     monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
-    monkeypatch.setattr(ucv, "DOC_DIR", doc_dir)
-    monkeypatch.setattr(ucv, "IMAGES_DIR", images_dir)
     return chart_yaml, values_yaml, operator_old_digest
 
 

@@ -7,6 +7,8 @@ from pathlib import Path
 from lib.chart.chart_yaml import ChartDependency
 from lib.image import manifest_entry_pins
 from lib.images_manifest import ManifestEntry
+from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
+from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.yaml_types import YamlMapping
 
 OLD = "a" * 64
@@ -36,21 +38,21 @@ def manifest(digest: str) -> str:
 
 
 def test_sync_entry_pins_rewrites_a_stale_digest(tmp_path: Path) -> None:
-    new_text, synced = manifest_entry_pins.sync_entry_pins(manifest(OLD), tmp_path, DEPS, VALUES, {})
+    new_text, synced = manifest_entry_pins.sync_entry_pins(manifest(OLD), ChartImageIndex(tmp_path, DEPS, VALUES), {})
 
     assert synced == ["clamav/clamav"]
     assert new_text == manifest(NEW)
 
 
 def test_sync_entry_pins_leaves_a_matching_entry_alone(tmp_path: Path) -> None:
-    new_text, synced = manifest_entry_pins.sync_entry_pins(manifest(NEW), tmp_path, DEPS, VALUES, {})
+    new_text, synced = manifest_entry_pins.sync_entry_pins(manifest(NEW), ChartImageIndex(tmp_path, DEPS, VALUES), {})
 
     assert not synced
     assert new_text == manifest(NEW)
 
 
 def test_entry_pin_is_the_tag_check_docs_consistency_compares() -> None:
-    paths = manifest_entry_pins.current_image_paths(VALUES)
+    paths = chart_image_paths(VALUES, DEPS)
 
     path, tag = manifest_entry_pins.entry_pin(ENTRY, VALUES, paths, {}, {})
 

@@ -82,13 +82,11 @@ def _missing_pin_bullets(text: str, found: list[tuple[_Bullet, list[str]]]) -> l
     return [MissingPinBullet(headings[b.start], b.path, p) for b, missing in found for p in missing]
 
 
-def find_missing_pin_bullets(text: str, alias_groups: dict[str, tuple[str, ...]]) -> list[MissingPinBullet]:
-    """Paths sharing an anchor with a documented pin bullet that have no bullet of their own."""
-    return _missing_pin_bullets(text, _scan(text, alias_groups)[1])
-
-
 def add_missing_pin_bullets(text: str, alias_groups: dict[str, tuple[str, ...]]) -> tuple[str, list[MissingPinBullet]]:
-    """Add the bullets find_missing_pin_bullets reports, each after the bullet it copies."""
+    """Add a bullet for each path sharing an anchor with a documented pin bullet, after the bullet it copies.
+
+    Returns (new_text, the bullets added).
+    """
     lines, found = _scan(text, alias_groups)
     added = _missing_pin_bullets(text, found)
     for bullet, missing in reversed(found):

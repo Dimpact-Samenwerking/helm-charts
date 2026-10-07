@@ -141,7 +141,7 @@ needs.
 
 ### What images (and versions) are in a helm-chart
 
-- run `list-helmchart-images <component> <chart-version>`
+- run `list-helmchart-images <dependency> <dependency-chart-version>`
 - output shows:
   - `<app-version>` for `update-component-version`
   - Per image: the parameters for `update-image-version`

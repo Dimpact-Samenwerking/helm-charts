@@ -31,6 +31,18 @@ UPGRADE_DOC = """\
 | ZAC (Zaakafhandelcomponent) | {app_source} → {app_target} | 1.0.297 (unchanged) | n/a |
 
 See [`{baseline}-to-4.9.0-values-deltas.md`]({baseline}-to-4.9.0-values-deltas.md).
+
+## Changes
+
+### ZAC (Zaakafhandelcomponent) {app_source} → {app_target} (chart 1.0.297, unchanged)
+
+PodiumD 4.9.0 upgrades **ZAC (Zaakafhandelcomponent)** from app version {app_source}
+to {app_target}.
+
+- Image tag pin `zac.image.tag` `{app_source}` → `{app_target}` in
+  `charts/podiumd/values.yaml`.
+
+- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).
 """
 
 GEMEENTE_DOC = "# Gemeente-specific notes — PodiumD {baseline} → 4.9.0\n\nNone.\n"
@@ -57,6 +69,10 @@ IMAGES_MANIFEST = """\
 """
 
 
+# The chart_repo fixture's only row; a test adds rows right after it, inside the table.
+ZAC_ROW = "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | n/a |\n"
+
+
 def git(*args, cwd):
     subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
 
@@ -77,20 +93,38 @@ def test_fully_consistent_chart_passes_without_baseline(vp: ModuleType, chart_re
     assert ok is True, detail
 
 
+@pytest.mark.parametrize("baseline", [None, "4.8"])
+def test_no_bare_baseline_warns_that_writer_checks_are_skipped(
+    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str], baseline: str | None
+):
+    vp.check_docs_consistency(chart_repo, upgrade_docs_baseline=baseline)
+
+    out = capsys.readouterr().out
+    assert f'WARNING: upgrade_docs_baseline "{baseline}" is missing or not a bare version' in out
+    assert "order, missing pin-bullet and pointer checks skipped" in out
+
+
+def test_bare_baseline_does_not_warn_about_skipped_checks(
+    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
+):
+    vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+
+    assert "checks skipped" not in capsys.readouterr().out
+
+
 # --- stale stub-placeholder findings ---
 
 
 def test_stale_upgrade_placeholder_is_reported_as_a_finding(
-    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
+    vp: ModuleType, assert_would_change, chart_repo, capsys: pytest.CaptureFixture[str]
 ):
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
-    doc.write_text(doc.read_text() + "\n## Changes\n\nTODO\n\n### zac 5.0.2 → 5.4.3\n\nSome prose.\n")
+    doc.write_text(doc.read_text().replace("## Changes\n\n", "## Changes\n\nTODO\n\n"))
 
     ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
 
     assert ok is False
-    out = capsys.readouterr().out
-    assert ('4.8.5-to-4.9.0-upgrade.md: still has a stale "TODO" placeholder stranded alongside real content') in out
+    assert_would_change(capsys.readouterr().out, "-TODO")
 
 
 def test_bare_changes_todo_stub_with_no_real_block_is_not_flagged(
@@ -109,7 +143,7 @@ def test_bare_changes_todo_stub_with_no_real_block_is_not_flagged(
 
 
 def test_stale_values_deltas_placeholder_is_reported_as_a_finding(
-    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
+    vp: ModuleType, assert_would_change, chart_repo, capsys: pytest.CaptureFixture[str]
 ):
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-values-deltas.md"
     doc.write_text(
@@ -122,11 +156,7 @@ def test_stale_values_deltas_placeholder_is_reported_as_a_finding(
     ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
 
     assert ok is False
-    out = capsys.readouterr().out
-    assert (
-        "4.8.5-to-4.9.0-values-deltas.md: still has its own stale TODO placeholder "
-        'stranded alongside a real "## ..." section'
-    ) in out
+    assert_would_change(capsys.readouterr().out, "-TODO: describe any gemeente `podiumd.yml` changes")
 
 
 def test_stale_gemeente_specific_placeholder_is_reported_as_a_finding(
@@ -181,7 +211,9 @@ def test_unmatched_row_is_reported_as_a_wrong_phrasing_mismatch(
     "Grafana" is neither a dependency, a native_components entry, nor an
     update-image-version "<component> - <image-basename>"/"<image-basename>" row."""
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
-    doc.write_text(doc.read_text() + "| Grafana | 1.0.0 → 1.0.1 | 1.0.0 (unchanged) | n/a |\n")
+    doc.write_text(
+        doc.read_text().replace(ZAC_ROW, ZAC_ROW + "| Grafana | 1.0.0 → 1.0.1 | 1.0.0 (unchanged) | n/a |\n")
+    )
 
     ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
 
@@ -196,7 +228,11 @@ def test_unmatched_row_is_reported_as_a_wrong_phrasing_mismatch(
 def test_duplicate_row_names_are_reported(vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]):
     """Two rows with the same name are always wrong, whatever they resolve to."""
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
-    doc.write_text(doc.read_text() + "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | dup |\n")
+    doc.write_text(
+        doc.read_text().replace(
+            ZAC_ROW, ZAC_ROW + "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | dup |\n"
+        )
+    )
 
     ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
 
@@ -215,7 +251,9 @@ def test_exact_dependency_match_wins_over_a_fuzzy_duplicate_claim(
 
     This holds even when its cells are correct, so the per-row content check would miss it."""
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
-    doc.write_text(doc.read_text() + "| zac | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | exact match |\n")
+    doc.write_text(
+        doc.read_text().replace(ZAC_ROW, ZAC_ROW + "| zac | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | exact match |\n")
+    )
 
     ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
 
@@ -229,20 +267,28 @@ def test_exact_dependency_match_wins_over_a_fuzzy_duplicate_claim(
     assert 'doc row "zac" ' not in out
 
 
-def test_wrong_target_version_in_doc_is_caught(vp: ModuleType, chart_repo):
+def test_wrong_target_version_in_doc_is_caught(
+    vp: ModuleType, assert_would_change, chart_repo, capsys: pytest.CaptureFixture[str]
+):
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(UPGRADE_DOC.format(baseline="4.8.5", app_source="5.0.2", app_target="5.9.9"))
-    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+    ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is False
-    assert "mismatch" in detail
+    assert_would_change(
+        capsys.readouterr().out,
+        "-| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.9.9 |",
+        "+| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 |",
+    )
 
 
-def test_wrong_source_version_vs_baseline_is_caught(vp: ModuleType, chart_repo):
+def test_wrong_source_version_vs_baseline_is_caught(
+    vp: ModuleType, assert_would_change, chart_repo, capsys: pytest.CaptureFixture[str]
+):
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(UPGRADE_DOC.format(baseline="4.8.5", app_source="9.9.9", app_target="5.4.3"))
-    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+    ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is False
-    assert "mismatch" in detail
+    assert_would_change(capsys.readouterr().out, "+| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 |")
 
 
 def test_unresolvable_baseline_is_caught(vp: ModuleType, chart_repo):
@@ -251,9 +297,9 @@ def test_unresolvable_baseline_is_caught(vp: ModuleType, chart_repo):
 
 
 def test_undocumented_new_component_is_caught_everywhere(
-    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
+    vp: ModuleType, assert_would_change, chart_repo, capsys: pytest.CaptureFixture[str]
 ):
-    """An undocumented new component is flagged in the upgrade.md table, values-deltas.md and manifest."""
+    """An undocumented new component gets its upgrade.md row, values-deltas.md section and manifest item."""
     (chart_repo / "Chart.yaml").write_text(
         CHART_YAML + '  - name: openformulieren\n    version: "1.12.0"\n    repository: "@openformulieren"\n'
     )
@@ -262,15 +308,15 @@ def test_undocumented_new_component_is_caught_everywhere(
         + 'openformulieren:\n  image:\n    repository: openformulieren/open-forms\n    tag: "3.5.6@sha256:cccc"\n'
     )
 
-    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
-    assert ok is False
-    assert "mismatch" in detail
+    ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
 
-    out = capsys.readouterr().out
-    assert 'component "openformulieren" changed vs' in out
-    assert 'has no row in the "Component versions" table' in out
-    assert 'has no "## ..." section of its own' in out
-    assert "openformulieren" in out and "changed vs 4.8.5 but has no entry" in out
+    assert ok is False
+    assert_would_change(
+        capsys.readouterr().out,
+        "+| openformulieren | 3.5.6 (new) | 1.12.0 (new) | - |",
+        "+## openformulieren 3.5.6 (new) (chart 1.12.0, new)",
+        "+#   2. openformulieren 3.5.6 (new).",
+    )
 
 
 def test_component_with_only_a_new_sidecar_of_its_own_is_not_flagged_missing_a_row(
@@ -373,9 +419,9 @@ def test_images_manifest_entry_missing_version_or_digest_is_reported_not_crashed
 
 
 def test_images_manifest_missing_changes_header_entirely_is_caught(
-    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
+    vp: ModuleType, assert_would_change, chart_repo, capsys: pytest.CaptureFixture[str]
 ):
-    """Regression: a manifest with entries but no "# Changes:" header is flagged directly."""
+    """Regression: a manifest with entries but no "# Changes:" header gets one."""
     images_path = chart_repo / "docs" / "images" / "images-4.9.0.yaml"
     text = images_path.read_text(encoding="utf-8")
     assert "# Changes:" in text
@@ -383,19 +429,15 @@ def test_images_manifest_missing_changes_header_entirely_is_caught(
     images_path.write_text(stripped, encoding="utf-8")
 
     ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
-    assert ok is False
 
-    out = capsys.readouterr().out
-    assert (
-        'images-4.9.0.yaml: has 1 entry but no "# Changes:" header at all — every real change is '
-        "undocumented in the summary list"
-    ) in out
+    assert ok is False
+    assert_would_change(capsys.readouterr().out, "+# Changes:")
 
 
 def test_images_manifest_format_issue_does_not_swallow_other_mismatches(
-    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
+    vp: ModuleType, assert_would_change, chart_repo, capsys: pytest.CaptureFixture[str]
 ):
-    """A manifest format problem must not hide earlier, unrelated mismatches; both are reported."""
+    """A manifest format problem must not hide unrelated findings; the repairable and the by-hand ones are both reported."""
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(doc.read_text().replace("ZAC (Zaakafhandelcomponent)", "Some Unrelated Name"))
 
@@ -406,17 +448,16 @@ def test_images_manifest_format_issue_does_not_swallow_other_mismatches(
     out = capsys.readouterr().out
 
     assert ok is False
-    assert 'component "zac" changed vs' in out
-    assert 'has no row in the "Component versions" table' in out
-    assert 'upgrade_docs_baseline line says "9.9.9", expected "4.8.5"' in out
+    assert_would_change(out, "+| zac | 5.0.2 → 5.4.3 |", "+# Baseline: podiumd 4.8.5")
+    assert 'doc row "Some Unrelated Name" does not match a Chart.yaml dependency' in out
 
 
 def test_stale_pointer_reference_does_not_block_every_other_check(
-    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
+    vp: ModuleType, assert_would_change, chart_repo, capsys: pytest.CaptureFixture[str]
 ):
     """A stale sibling-doc link must not short-circuit check_docs_consistency.
 
-    Both the pointer issue and an unrelated mismatch are reported in one run."""
+    The link is repaired and an unrelated by-hand finding is still reported in the same run."""
     gemeente = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-gemeente-specific.md"
     gemeente.write_text(gemeente.read_text() + "\nSee [4.8.3-to-4.9.0-upgrade.md](4.8.3-to-4.9.0-upgrade.md).\n")
 
@@ -427,12 +468,8 @@ def test_stale_pointer_reference_does_not_block_every_other_check(
     out = capsys.readouterr().out
 
     assert ok is False
-    assert (
-        'reference "4.8.3-to-4.9.0-upgrade.md" targets podiumd 4.9.0 but its upgrade_docs_baseline '
-        'is "4.8.3", expected "4.8.5"'
-    ) in out
-    assert 'component "zac" changed vs' in out
-    assert 'has no row in the "Component versions" table' in out
+    assert_would_change(out, "+See [4.8.5-to-4.9.0-upgrade.md](4.8.5-to-4.9.0-upgrade.md).")
+    assert 'doc row "Some Unrelated Name" does not match a Chart.yaml dependency' in out
 
 
 # --- component-specific image path (lib.chart.COMPONENT_IMAGE_PATHS via image_paths_for) ---
@@ -499,24 +536,22 @@ def keycloak_chart_repo(tmp_path: Path):
 
 
 def test_component_specific_image_path_mismatch_is_flagged_not_silently_skipped(
-    vp: ModuleType, keycloak_chart_repo, capsys: pytest.CaptureFixture[str]
+    vp: ModuleType, assert_would_change, keycloak_chart_repo, capsys: pytest.CaptureFixture[str]
 ):
-    """The doc row's "-" vs values.yaml "26.7.2" at the registered path is a target-app mismatch."""
+    """The doc row's "-" vs values.yaml "26.7.2" at the registered path gets the real app version."""
     ok, _detail = vp.check_docs_consistency(keycloak_chart_repo, upgrade_docs_baseline="4.8.5")
-    out = capsys.readouterr().out
 
     assert ok is False
-    assert (
-        'keycloak-operator ("keycloak-operator") target app: values.yaml image tag is "26.7.2", '
-        '4.8.5-to-4.9.0-upgrade.md says "-"'
-    ) in out
+    assert_would_change(capsys.readouterr().out, "+| keycloak-operator | 26.6.4 → 26.7.2 |")
 
 
 # --- a row unchanged vs baseline ---
 
 
-def test_row_unchanged_vs_baseline_is_reported(vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]):
-    """ZAC reset to baseline 5.0.2 (chart 1.0.297) but still in the doc: the row must go."""
+def test_row_unchanged_vs_baseline_is_reported(
+    vp: ModuleType, assert_would_change, chart_repo, capsys: pytest.CaptureFixture[str]
+):
+    """ZAC reset to baseline 5.0.2 (chart 1.0.297) but still in the doc: the row goes."""
     (chart_repo / "values.yaml").write_text(values_yaml("5.0.2"))
     upgrade_path = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     upgrade_path.write_text(
@@ -526,8 +561,7 @@ def test_row_unchanged_vs_baseline_is_reported(vp: ModuleType, chart_repo, capsy
     )
     ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is False
-    out = capsys.readouterr().out
-    assert 'doc row "ZAC (Zaakafhandelcomponent)" is unchanged vs podiumd-4.8.5' in out
+    assert_would_change(capsys.readouterr().out, "-| ZAC (Zaakafhandelcomponent) | 5.0.2 (unchanged) |")
 
 
 def test_row_with_changed_app_is_not_reported_as_unchanged(

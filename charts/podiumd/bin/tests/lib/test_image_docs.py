@@ -9,6 +9,8 @@ from types import ModuleType
 import pytest
 import yaml
 
+from lib.component_docs.changes_section import DocContext
+
 # --- add_missing_sidecar_rows ---
 
 
@@ -190,7 +192,9 @@ def test_build_changes_section_for_row_without_app_version_is_a_todo_stub(libima
     gets the TODO stub, never a section built from "-"."""
     row = {"name": "curl", "app_source": None, "app": app, "chart_source": None, "chart": "-"}
 
-    section = libimagedocs.build_changes_section_for_row(row, ("sidecar", ("global", "images", "curl")), [], "4.9.2")
+    section = libimagedocs.build_changes_section_for_row(
+        row, ("sidecar", ("global", "images", "curl")), [], DocContext(Path(), "4.9.2")
+    )
 
     assert section == (
         "### curl -\n\nTODO: describe this component's changes — its app version could not be "
@@ -251,237 +255,6 @@ def test_make_image_changes_section_global_image_is_called_shared(libimagedocs: 
     pinned = [("global.images.curl.tag", "8.21.0")]
     section = libimagedocs.make_image_changes_section("curl", "4.9.3", "8.21.0", "8.22.0", pinned)
     assert "upgrades the shared **curl** image to 8.22.0" in section
-
-
-# --- update_image_manifest ---
-
-
-def write_manifest(path, text):
-    path.write_text(text, encoding="utf-8")
-
-
-def test_update_image_manifest_updates_existing_entry_and_comment(libimagedocs: ModuleType, tmp_path: Path):
-    path = tmp_path / "images-4.9.0.yaml"
-    write_manifest(
-        path,
-        (
-            "# Baseline: podiumd 4.8.5.\n"
-            "#\n"
-            "# One change:\n"
-            "#   1. curl 8.20.0 -> 8.20.0.\n"
-            "#\n\n"
-            "# curl — 8.20.0 -> 8.20.0\n"
-            "- name: curlimages/curl\n"
-            "  url: docker.io/curlimages/curl\n"
-            '  version: "8.20.0"\n'
-            '  digest: "sha256:aaaa"\n'
-        ),
-    )
-    changes_action, entry_updated = libimagedocs.update_image_manifest(
-        path, libimagedocs.ImageBump("curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb")
-    )
-    assert changes_action == "updated"
-    assert entry_updated is True
-    text = path.read_text(encoding="utf-8")
-    assert "#   1. curl 8.20.0 -> 8.21.0." in text
-    assert "# curl — 8.20.0 -> 8.21.0" in text
-    assert '"8.21.0"' in text
-    assert '"sha256:bbbb"' in text
-
-
-def test_update_image_manifest_adds_new_changes_item_when_absent(libimagedocs: ModuleType, tmp_path: Path):
-    path = tmp_path / "images-4.9.0.yaml"
-    write_manifest(
-        path,
-        (
-            "# Baseline: podiumd 4.8.5.\n"
-            "#\n"
-            "# One change:\n"
-            "#   1. ZAC 5.0.2 -> 5.4.3 (chart 1.0.297, unchanged).\n"
-            "#\n\n"
-            "- name: zac\n"
-            "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
-            '  version: "5.4.3"\n'
-            '  digest: "sha256:aaaa"\n'
-        ),
-    )
-    changes_action, entry_updated = libimagedocs.update_image_manifest(
-        path, libimagedocs.ImageBump("curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb")
-    )
-    assert changes_action == "added"
-    assert entry_updated is False
-    text = path.read_text(encoding="utf-8")
-    # The header's wording is never rewritten into a counted form.
-    assert "# One change:" in text
-    assert "#   2. curl 8.20.0 -> 8.21.0." in text
-
-
-def test_update_image_manifest_new_item_no_baseline_renders_new(libimagedocs: ModuleType, tmp_path: Path):
-    """A new item with no baseline version renders "<new> (new)", not "<new> -> <new>"."""
-    path = tmp_path / "images-4.9.1.yaml"
-    write_manifest(
-        path,
-        (
-            "# Baseline: podiumd 4.9.0.\n"
-            "#\n"
-            "# One change:\n"
-            "#   1. curl 8.20.0 -> 8.21.0.\n"
-            "#\n\n"
-            "- name: curlimages/curl\n"
-            "  url: curlimages/curl\n"
-            '  version: "8.21.0"\n'
-            '  digest: "sha256:bbbb"\n'
-        ),
-    )
-    changes_action, entry_updated = libimagedocs.update_image_manifest(
-        path, libimagedocs.ImageBump("redis", "redis", None, "8.10.1", "sha256:cccc")
-    )
-    assert changes_action == "added"
-    assert entry_updated is False
-    text = path.read_text(encoding="utf-8")
-    assert "redis 8.10.1 (new)." in text
-    assert "8.10.1 -> 8.10.1" not in text
-
-
-def test_update_image_manifest_new_item_uses_values_yaml_order_not_append(libimagedocs: ModuleType, tmp_path: Path):
-    """A new header item is positioned by values.yaml order, not appended.
-
-    Uses lib.upgradedoc.component_order_key, like the upgrade doc's table and
-    Changes sections, so both docs agree on order.
-    """
-    path = tmp_path / "images-4.9.1.yaml"
-    write_manifest(
-        path,
-        (
-            "# One change:\n"
-            "#   1. mi 2.90.0 (new) (chart 1.1.0, new).\n"
-            "#\n\n"
-            "- name: mi-data\n"
-            "  url: example/mi-data\n"
-            '  version: "2.90.0"\n'
-            '  digest: "sha256:aaaa"\n'
-        ),
-    )
-    deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
-    values = {
-        "global": {"images": {"redis": {"repository": "bitnami/redis", "tag": "8.0@sha256:bbbb"}}},
-        "mi": {"enabled": False, "image": {"repository": "example/mi-data", "tag": "2.90.0@sha256:aaaa"}},
-    }
-    canonical_names = {"redis": ("global", "images", "redis")}
-
-    changes_action, entry_updated = libimagedocs.update_image_manifest(
-        path,
-        libimagedocs.ImageBump("redis", "bitnami/redis", "7.4", "8.0", "sha256:bbbb"),
-        libimagedocs.OrderingContext(deps, values, canonical_names),
-    )
-
-    assert changes_action == "added"
-    assert entry_updated is False
-    text = path.read_text(encoding="utf-8")
-    # redis ("global:", values.yaml's first key) lands before mi.
-    assert "#   1. redis 7.4 -> 8.0.\n" in text
-    assert "#   2. mi 2.90.0 (new) (chart 1.1.0, new).\n" in text
-    assert text.index("1. redis") < text.index("2. mi")
-
-
-def test_update_image_manifest_recognizes_bare_changes_header(libimagedocs: ModuleType, tmp_path: Path):
-    """The bare "# Changes:" header (no count word) is found via find_images_manifest_changes_header.
-
-    CHANGES_HEADER_RE requires a count word, so the item was silently skipped.
-    """
-    path = tmp_path / "images-4.9.1.yaml"
-    write_manifest(
-        path,
-        (
-            "# Baseline: podiumd 4.9.0.\n"
-            "#\n"
-            "# Changes:\n"
-            "#\n\n"
-            "- name: zac\n"
-            "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
-            '  version: "5.4.3"\n'
-            '  digest: "sha256:aaaa"\n'
-        ),
-    )
-    changes_action, entry_updated = libimagedocs.update_image_manifest(
-        path,
-        libimagedocs.ImageBump("nginx-unprivileged", "nginxinc/nginx-unprivileged", "1.31.3", "1.31.4", "sha256:bbbb"),
-    )
-    assert changes_action == "added"
-    assert entry_updated is False
-    text = path.read_text(encoding="utf-8")
-    assert "#   1. nginx-unprivileged 1.31.3 -> 1.31.4." in text
-
-
-def test_remove_image_manifest_entry_recognizes_bare_changes_header(libimagedocs: ModuleType, tmp_path: Path):
-    """remove_image_manifest_entry also finds the bare "# Changes:" header."""
-    path = tmp_path / "images-4.9.1.yaml"
-    write_manifest(
-        path,
-        (
-            "# Baseline: podiumd 4.9.0.\n"
-            "#\n"
-            "# Changes:\n"
-            "#   1. nginx-unprivileged 1.31.3 -> 1.31.4.\n"
-            "#\n\n"
-            "# nginx-unprivileged — 1.31.3 -> 1.31.4\n"
-            "- name: nginx-unprivileged\n"
-            "  url: docker.io/nginxinc/nginx-unprivileged\n"
-            '  version: "1.31.4"\n'
-            '  digest: "sha256:bbbb"\n'
-        ),
-    )
-    changes_action, entry_removed = libimagedocs.remove_image_manifest_entry(
-        path, "nginx-unprivileged", "nginxinc/nginx-unprivileged"
-    )
-    assert changes_action == "removed"
-    assert entry_removed is True
-    text = path.read_text(encoding="utf-8")
-    assert "nginx-unprivileged 1.31.3 -> 1.31.4." not in text
-    # the entry and its comment are gone, not reset to the baseline version
-    assert "- name:" not in text
-    assert "# nginx-unprivileged — 1.31.3 -> 1.31.4" not in text
-
-
-def test_update_image_manifest_no_matching_entry_reports_not_updated(libimagedocs: ModuleType, tmp_path: Path):
-    path = tmp_path / "images-4.9.0.yaml"
-    write_manifest(
-        path,
-        (
-            "# One change:\n"
-            "#   1. ZAC 5.0.2 -> 5.4.3.\n\n"
-            "- name: zac\n"
-            "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
-            '  version: "5.4.3"\n'
-            '  digest: "sha256:aaaa"\n'
-        ),
-    )
-    _changes_action, entry_updated = libimagedocs.update_image_manifest(
-        path, libimagedocs.ImageBump("curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb")
-    )
-    assert entry_updated is False
-
-
-def test_update_image_manifest_matches_entry_by_url_repository(libimagedocs: ModuleType, tmp_path: Path):
-    """The entry is matched by its "url:", not "name:" (may be a short ACR-mirror slug)."""
-    path = tmp_path / "images-4.9.0.yaml"
-    write_manifest(
-        path,
-        (
-            "# One change:\n"
-            "#   1. curl 8.20.0 -> 8.20.0.\n\n"
-            "# curl — 8.20.0 -> 8.20.0\n"
-            "- name: curl\n"
-            "  url: docker.io/curlimages/curl\n"
-            '  version: "8.20.0"\n'
-            '  digest: "sha256:aaaa"\n'
-        ),
-    )
-    _changes_action, entry_updated = libimagedocs.update_image_manifest(
-        path, libimagedocs.ImageBump("curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb")
-    )
-    assert entry_updated is True
-    assert '"8.21.0"' in path.read_text(encoding="utf-8")
 
 
 # --- regenerate_images_baseline_manifest ---

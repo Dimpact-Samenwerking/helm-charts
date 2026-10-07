@@ -9,6 +9,7 @@ from typing import overload
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.nested_subchart_identity import nested_subchart_registered_paths
+from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.pull_and_subchart_resolution import subchart_app_version
 from lib.chart.registered_paths import component_image_paths
 from lib.chart.registered_paths import image_paths_for
@@ -125,6 +126,17 @@ def find_all_image_and_version_paths(values: YamlMapping, deps: list[ChartDepend
 
     Use this wherever the complete set matters, e.g. detecting image changes vs baseline."""
     return list(find_image_tag_paths(values)) + list(find_component_version_tags(values, deps))
+
+
+def chart_image_paths(values: YamlMapping | None, deps: list[ChartDependency]) -> dict[ImagePath, str]:
+    """{path: tag} for every pinned image tag, bare version field and global.images anchor; {} without values.
+
+    The one complete path set: every writer, the checker and the name/repository
+    maps derived from them must start from it.
+    """
+    if not values:
+        return {}
+    return {**dict(find_all_image_and_version_paths(values, deps)), **dict(global_image_paths(values))}
 
 
 def resolve_entry_path(entry_name: str, paths: Collection[tuple[str, ...]]):

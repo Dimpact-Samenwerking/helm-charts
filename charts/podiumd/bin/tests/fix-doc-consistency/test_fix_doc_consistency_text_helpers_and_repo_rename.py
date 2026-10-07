@@ -8,6 +8,14 @@ from types import ModuleType
 
 import pytest
 
+from lib.fix_doc_consistency.text_helpers_and_repo_rename import collapse_multiple_blank_lines
+from lib.fix_doc_consistency.text_helpers_and_repo_rename import ensure_blank_lines_around_headings
+from lib.fix_doc_consistency.text_helpers_and_repo_rename import find_collisions
+from lib.fix_doc_consistency.text_helpers_and_repo_rename import remaining_mentions
+from lib.fix_doc_consistency.text_helpers_and_repo_rename import update_component_versions_heading
+from lib.fix_doc_consistency.text_helpers_and_repo_rename import update_title_line
+from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
+
 
 def write(path, text):
     path.write_text(text, encoding="utf-8")
@@ -21,7 +29,7 @@ def test_find_collisions_detects_multiple_sources_for_same_suffix(cdb: ModuleTyp
         "upgrade": [("4.8.2", tmp_path / "a.md"), ("4.8.3", tmp_path / "b.md")],
         "values-deltas": [("4.8.2", tmp_path / "c.md")],
     }
-    collisions = cdb.find_collisions(by_suffix)
+    collisions = find_collisions(by_suffix)
     assert set(collisions.keys()) == {"upgrade"}
 
 
@@ -30,7 +38,7 @@ def test_find_collisions_empty_when_all_unique(cdb: ModuleType, tmp_path: Path):
         "upgrade": [("4.8.2", tmp_path / "a.md")],
         "values-deltas": [("4.8.2", tmp_path / "c.md")],
     }
-    assert cdb.find_collisions(by_suffix) == {}
+    assert find_collisions(by_suffix) == {}
 
 
 # --- update_title_line ---
@@ -38,28 +46,45 @@ def test_find_collisions_empty_when_all_unique(cdb: ModuleType, tmp_path: Path):
 
 def test_update_title_line_replaces_arrow_form(cdb: ModuleType):
     text = "# Upgrade guide: PodiumD 4.8.2 → 4.9.0\n\nbody\n"
-    new_text, changed = cdb.update_title_line(text, "4.8.2", "4.9.0", "4.8.3")
+    new_text, changed = update_title_line(text, "4.9.0", "4.8.3")
     assert changed is True
     assert new_text.splitlines()[0] == "# Upgrade guide: PodiumD 4.8.3 → 4.9.0"
 
 
 def test_update_title_line_replaces_ascii_arrow(cdb: ModuleType):
     text = "# Upgrade guide: PodiumD 4.8.2 -> 4.9.0\nbody\n"
-    new_text, changed = cdb.update_title_line(text, "4.8.2", "4.9.0", "4.8.3")
+    new_text, changed = update_title_line(text, "4.9.0", "4.8.3")
     assert changed is True
     assert "4.8.3 -> 4.9.0" in new_text.splitlines()[0]
 
 
 def test_update_title_line_only_touches_first_line(cdb: ModuleType):
     text = "# Title 4.8.2 → 4.9.0\nsome body mentioning 4.8.2 again\n"
-    new_text, changed = cdb.update_title_line(text, "4.8.2", "4.9.0", "4.8.3")
+    new_text, changed = update_title_line(text, "4.9.0", "4.8.3")
     assert changed is True
     assert "4.8.2 again" in new_text.splitlines()[1]  # body untouched
 
 
+def test_update_title_line_replaces_any_stale_baseline(cdb: ModuleType):
+    text = "# Upgrade guide: PodiumD 4.8.1 → 4.9.0\n"
+    new_text, changed = update_title_line(text, "4.9.0", "4.8.3")
+    assert changed is True
+    assert new_text == "# Upgrade guide: PodiumD 4.8.3 → 4.9.0\n"
+
+
+def test_update_title_line_replaces_a_whole_version_only(cdb: ModuleType):
+    text = "# Upgrade guide: PodiumD 14.8.1 → 4.9.0\n"
+    assert update_title_line(text, "4.9.0", "4.8.3") == ("# Upgrade guide: PodiumD 4.8.3 → 4.9.0\n", True)
+
+
+def test_update_title_line_already_at_new_baseline_is_unchanged(cdb: ModuleType):
+    text = "# Upgrade guide: PodiumD 4.8.3 → 4.9.0\n"
+    assert update_title_line(text, "4.9.0", "4.8.3") == (text, False)
+
+
 def test_update_title_line_no_match_returns_unchanged(cdb: ModuleType):
     text = "# Something else entirely\n"
-    new_text, changed = cdb.update_title_line(text, "4.8.2", "4.9.0", "4.8.3")
+    new_text, changed = update_title_line(text, "4.9.0", "4.8.3")
     assert changed is False
     assert new_text == text
 
@@ -69,14 +94,14 @@ def test_update_title_line_no_match_returns_unchanged(cdb: ModuleType):
 
 def test_update_component_versions_heading_replaces_match(cdb: ModuleType):
     text = "## Component versions (4.9.0 vs 4.8.2)\n\nmore\n"
-    new_text, changed = cdb.update_component_versions_heading(text, "4.8.2", "4.9.0", "4.8.3")
+    new_text, changed = update_component_versions_heading(text, "4.9.0", "4.8.3")
     assert changed is True
     assert "## Component versions (4.9.0 vs 4.8.3)" in new_text
 
 
 def test_update_component_versions_heading_no_match(cdb: ModuleType):
     text = "no such heading here\n"
-    new_text, changed = cdb.update_component_versions_heading(text, "4.8.2", "4.9.0", "4.8.3")
+    new_text, changed = update_component_versions_heading(text, "4.9.0", "4.8.3")
     assert changed is False
     assert new_text == text
 
@@ -86,11 +111,16 @@ def test_update_component_versions_heading_no_match(cdb: ModuleType):
 
 def test_remaining_mentions_finds_all_lines(cdb: ModuleType):
     text = "line one 4.8.2\nline two\nline three 4.8.2 again\n"
-    assert cdb.remaining_mentions(text, "4.8.2") == [1, 3]
+    assert remaining_mentions(text, "4.8.2") == [1, 3]
+
+
+def test_remaining_mentions_matches_whole_versions_only(cdb: ModuleType):
+    text = "from 14.8.2\nto 4.8.20\nskipped v4.8.2.\n"
+    assert remaining_mentions(text, "4.8.2") == [3]
 
 
 def test_remaining_mentions_empty_when_absent(cdb: ModuleType):
-    assert cdb.remaining_mentions("nothing here\n", "4.8.2") == []
+    assert remaining_mentions("nothing here\n", "4.8.2") == []
 
 
 # --- collapse_multiple_blank_lines ---
@@ -98,27 +128,27 @@ def test_remaining_mentions_empty_when_absent(cdb: ModuleType):
 
 def test_collapse_multiple_blank_lines_two_blanks_becomes_one(cdb: ModuleType):
     text = "line one\n\n\nline two\n"
-    assert cdb.collapse_multiple_blank_lines(text) == "line one\n\nline two\n"
+    assert collapse_multiple_blank_lines(text) == "line one\n\nline two\n"
 
 
 def test_collapse_multiple_blank_lines_many_blanks_becomes_one(cdb: ModuleType):
     text = "line one\n\n\n\n\n\nline two\n"
-    assert cdb.collapse_multiple_blank_lines(text) == "line one\n\nline two\n"
+    assert collapse_multiple_blank_lines(text) == "line one\n\nline two\n"
 
 
 def test_collapse_multiple_blank_lines_single_blank_untouched(cdb: ModuleType):
     text = "line one\n\nline two\n"
-    assert cdb.collapse_multiple_blank_lines(text) == text
+    assert collapse_multiple_blank_lines(text) == text
 
 
 def test_collapse_multiple_blank_lines_no_blank_untouched(cdb: ModuleType):
     text = "line one\nline two\n"
-    assert cdb.collapse_multiple_blank_lines(text) == text
+    assert collapse_multiple_blank_lines(text) == text
 
 
 def test_collapse_multiple_blank_lines_handles_multiple_separate_runs(cdb: ModuleType):
     text = "a\n\n\nb\n\n\n\nc\n"
-    assert cdb.collapse_multiple_blank_lines(text) == "a\n\nb\n\nc\n"
+    assert collapse_multiple_blank_lines(text) == "a\n\nb\n\nc\n"
 
 
 def test_collapse_multiple_blank_lines_strips_single_trailing_blank_line_before_eof(cdb: ModuleType):
@@ -126,17 +156,17 @@ def test_collapse_multiple_blank_lines_strips_single_trailing_blank_line_before_
     single trailing blank line ("content\n\n") is MD012 too, which the
     3+-newline collapse doesn't catch."""
     text = "line one\n\n"
-    assert cdb.collapse_multiple_blank_lines(text) == "line one\n"
+    assert collapse_multiple_blank_lines(text) == "line one\n"
 
 
 def test_collapse_multiple_blank_lines_strips_many_trailing_blank_lines_before_eof(cdb: ModuleType):
     text = "line one\n\n\n\n"
-    assert cdb.collapse_multiple_blank_lines(text) == "line one\n"
+    assert collapse_multiple_blank_lines(text) == "line one\n"
 
 
 def test_collapse_multiple_blank_lines_single_trailing_newline_untouched(cdb: ModuleType):
     text = "line one\nline two\n"
-    assert cdb.collapse_multiple_blank_lines(text) == text
+    assert collapse_multiple_blank_lines(text) == text
 
 
 # --- ensure_blank_lines_around_headings ---
@@ -146,40 +176,40 @@ def test_ensure_blank_lines_around_headings_adds_missing_blank_above(cdb: Module
     """Regression: a "### ..." heading directly after content (as
     insert_changes_section can produce) violates MD022/MD032."""
     text = "- Image / digest: see foo.\n### curl 8.21.0 → 8.22.0\n\nSome prose.\n"
-    assert cdb.ensure_blank_lines_around_headings(text) == (
+    assert ensure_blank_lines_around_headings(text) == (
         "- Image / digest: see foo.\n\n### curl 8.21.0 → 8.22.0\n\nSome prose.\n"
     )
 
 
 def test_ensure_blank_lines_around_headings_adds_missing_blank_below(cdb: ModuleType):
     text = "### curl 8.21.0 → 8.22.0\nSome prose.\n"
-    assert cdb.ensure_blank_lines_around_headings(text) == "### curl 8.21.0 → 8.22.0\n\nSome prose.\n"
+    assert ensure_blank_lines_around_headings(text) == "### curl 8.21.0 → 8.22.0\n\nSome prose.\n"
 
 
 def test_ensure_blank_lines_around_headings_already_correct_untouched(cdb: ModuleType):
     text = "line one.\n\n### curl 8.21.0 → 8.22.0\n\nSome prose.\n"
-    assert cdb.ensure_blank_lines_around_headings(text) == text
+    assert ensure_blank_lines_around_headings(text) == text
 
 
 def test_ensure_blank_lines_around_headings_never_adds_at_start_of_file(cdb: ModuleType):
     text = "### curl 8.21.0 → 8.22.0\n\nSome prose.\n"
-    assert cdb.ensure_blank_lines_around_headings(text) == text
+    assert ensure_blank_lines_around_headings(text) == text
 
 
 def test_ensure_blank_lines_around_headings_never_adds_at_end_of_file(cdb: ModuleType):
     text = "Some prose.\n\n### curl 8.21.0 → 8.22.0\n"
-    assert cdb.ensure_blank_lines_around_headings(text) == text
+    assert ensure_blank_lines_around_headings(text) == text
 
 
 def test_ensure_blank_lines_around_headings_ignores_hash_inside_fenced_code_block(cdb: ModuleType):
     """A "#" line inside a fenced block is not a heading."""
     text = "line one.\n```\n# not a heading\n```\nline two.\n"
-    assert cdb.ensure_blank_lines_around_headings(text) == text
+    assert ensure_blank_lines_around_headings(text) == text
 
 
 def test_ensure_blank_lines_around_headings_multiple_missing_in_one_doc(cdb: ModuleType):
     text = "line one.\n## Section A\nline two.\n## Section B\nline three.\n"
-    assert cdb.ensure_blank_lines_around_headings(text) == (
+    assert ensure_blank_lines_around_headings(text) == (
         "line one.\n\n## Section A\n\nline two.\n\n## Section B\n\nline three.\n"
     )
 
@@ -187,7 +217,7 @@ def test_ensure_blank_lines_around_headings_multiple_missing_in_one_doc(cdb: Mod
 def test_collapse_multiple_blank_lines_also_fixes_missing_blank_around_heading(cdb: ModuleType):
     """collapse_multiple_blank_lines applies this too; its call sites rely on it alone."""
     text = "- Image / digest: see foo.\n### curl 8.21.0 → 8.22.0\n\nSome prose.\n"
-    assert cdb.collapse_multiple_blank_lines(text) == (
+    assert collapse_multiple_blank_lines(text) == (
         "- Image / digest: see foo.\n\n### curl 8.21.0 → 8.22.0\n\nSome prose.\n"
     )
 
@@ -201,11 +231,10 @@ def set_argv_and_dir(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch, doc_dir, 
     monkeypatch.setattr(cdb, "DOC_DIR", doc_dir)
     monkeypatch.setattr(cdb, "IMAGES_DIR", doc_dir.parent / "images")
     monkeypatch.setattr(cdb, "CHART_YAML", doc_dir.parents[1] / "Chart.yaml")
-    monkeypatch.setattr(cdb, "VALUES_YAML", doc_dir.parents[1] / "values.yaml")
     monkeypatch.setattr(cdb, "current_chart_version", lambda: target)
 
 
-def test_main_renames_and_updates_title_and_heading(cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch):
+def test_main_renames_and_updates_title_heading_and_intro(cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch):
     set_argv_and_dir(cdb, monkeypatch, repo, "4.8.3")
     cdb.main()  # success path must not raise
 
@@ -213,7 +242,7 @@ def test_main_renames_and_updates_title_and_heading(cdb: ModuleType, repo, monke
     upgrade = (repo / "4.8.3-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
     assert upgrade.splitlines()[0] == "# Upgrade guide: PodiumD 4.8.3 → 4.9.0"
     assert "## Component versions (4.9.0 vs 4.8.3)" in upgrade
-    assert "already on **4.8.2**" in upgrade  # free-form prose left for manual review
+    assert "already on **4.8.3**" in upgrade
 
     deltas = (repo / "4.8.3-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
     assert deltas.splitlines()[0] == "# Values deltas — PodiumD 4.8.3 → 4.9.0"
@@ -248,6 +277,41 @@ def test_main_is_tracked_by_git_after_rename(cdb: ModuleType, repo, monkeypatch:
     assert "R  " in status or "renamed" in status.lower() or "4.8.3-to-4.9.0-upgrade.md" in status
 
 
+def test_main_reports_old_baseline_lines_of_the_docs_as_written(
+    cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    """Counted after blank lines are collapsed and the content fixed, not on the text before."""
+    write(
+        repo / "4.8.2-to-4.9.0-upgrade.md",
+        "# Upgrade guide: PodiumD 4.8.2 → 4.9.0\n\n\n\n"
+        "This is the upgrade guide for environments already on **4.8.2**.\n\n"
+        "## Component versions (4.9.0 vs 4.8.2)\n\n"
+        "## Notes\n\nIf you skipped 4.8.2, read this first.\n",
+    )
+    set_argv_and_dir(cdb, monkeypatch, repo, "4.8.3")
+
+    cdb.main()
+
+    lines = (repo / "4.8.3-to-4.9.0-upgrade.md").read_text(encoding="utf-8").splitlines()
+    expected = lines.index("If you skipped 4.8.2, read this first.") + 1
+    assert f"4.8.3-to-4.9.0-upgrade.md: line(s) {expected}\n" in capsys.readouterr().out
+
+
+def test_main_rebases_an_uncommitted_stub_next_to_tracked_docs(cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch):
+    """A stub an earlier run created and nobody committed is renamed too, not a git mv failure halfway."""
+    write(repo / "4.8.2-to-4.9.0-gemeente-specific.md", "# Gemeente-specific — PodiumD 4.8.2 → 4.9.0\n")
+    set_argv_and_dir(cdb, monkeypatch, repo, "4.8.3")
+
+    cdb.main()
+
+    assert sorted(p.name for p in repo.iterdir()) == [
+        "4.8.3-to-4.9.0-gemeente-specific.md",
+        "4.8.3-to-4.9.0-upgrade.md",
+        "4.8.3-to-4.9.0-values-deltas.md",
+    ]
+    assert "4.8.3 → 4.9.0" in (repo / "4.8.3-to-4.9.0-gemeente-specific.md").read_text(encoding="utf-8")
+
+
 def test_main_refuses_on_collision(cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch):
     write(repo / "4.8.3-to-4.9.0-upgrade.md", "# Upgrade guide: PodiumD 4.8.3 → 4.9.0\n")
     original = (repo / "4.8.2-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
@@ -267,7 +331,7 @@ def test_main_creates_all_three_stubs_when_target_has_no_docs(
     set_argv_and_dir(cdb, monkeypatch, repo, "1.0.0", target="9.9.9")
     cdb.main()  # must not raise — creating stubs is success, not an error
 
-    for suffix in cdb.STANDARD_SUFFIXES:
+    for suffix in STANDARD_SUFFIXES:
         stub = repo / f"1.0.0-to-9.9.9-{suffix}.md"
         assert stub.is_file()
         assert "1.0.0" in stub.read_text(encoding="utf-8")
@@ -432,19 +496,17 @@ def test_main_already_at_new_baseline_strips_stale_values_deltas_todo_stub(
 
 
 def test_stale_placeholder_functions_are_reused_not_reimplemented(cdb: ModuleType):
-    """Writer, fixer and checker share the same stranded-stub-placeholder
-    function objects, so they can't diverge."""
+    """The writers and the checker share the same stranded-stub-placeholder function objects.
+
+    fix-doc-consistency clears the TODO stubs (verify-podiumd reports that through its
+    dry-run); only the gemeente-specific placeholder, which nothing clears, is checked."""
     import lib.component_docs.changes_section as changes_section
     import lib.component_docs.values_delta_sections as values_delta_sections
     import lib.docs_consistency as docs_consistency
+    import lib.fix_doc_consistency.run as run
 
-    assert cdb.strip_stale_upgrade_placeholders is changes_section.strip_stale_upgrade_placeholders
-    assert cdb.strip_stale_values_deltas_todo_stub is values_delta_sections.strip_stale_values_deltas_todo_stub
-    assert docs_consistency.strip_stale_upgrade_placeholders is changes_section.strip_stale_upgrade_placeholders
-    assert (
-        docs_consistency.strip_stale_values_deltas_todo_stub
-        is values_delta_sections.strip_stale_values_deltas_todo_stub
-    )
+    assert run.strip_stale_upgrade_placeholders is changes_section.strip_stale_upgrade_placeholders
+    assert run.strip_stale_values_deltas_todo_stub is values_delta_sections.strip_stale_values_deltas_todo_stub
     assert (
         docs_consistency.has_stale_gemeente_specific_placeholder
         is values_delta_sections.has_stale_gemeente_specific_placeholder
@@ -501,8 +563,3 @@ def test_main_rejects_non_semver_baseline_from_release_baseline_yaml(
     assert exc_info.value.code == 1
     assert "not a valid MAJOR.MINOR.PATCH version" in capsys.readouterr().out
     assert sorted(p.name for p in repo.iterdir()) == before
-
-
-def test_main_accepts_valid_semver_baseline(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    assert cdb.BASELINE_VERSION_RE.match("4.8.2")
-    assert cdb.BASELINE_VERSION_RE.match("10.20.300")

@@ -389,8 +389,8 @@ def test_changes_block_must_name_every_path_sharing_the_pins_anchor(
     vp.check_docs_consistency(chart_dir, upgrade_docs_baseline="4.8.5")
 
     out = capsys.readouterr().out
-    finding = "but not `redis-operator.redis-ha.preDeleteJob.image.tag`, which shares its YAML anchor"
-    assert (finding in out) == (alias_bullet == "missing")
+    repair = "+- `redis-operator.redis-ha.preDeleteJob.image.tag` `1.37.0` → `1.37.1`"
+    assert (repair in out) == (alias_bullet == "missing"), out
 
 
 @pytest.mark.parametrize("blank_line", ["missing", "present"])
@@ -424,8 +424,8 @@ def test_changes_block_needs_a_blank_line_before_the_image_digest_pointer(
 
     vp.check_docs_consistency(chart_dir, upgrade_docs_baseline="4.8.5")
 
-    finding = 'has no blank line before the "- Image / digest" pointer'
-    assert (finding in capsys.readouterr().out) == (blank_line == "missing")
+    out = capsys.readouterr().out
+    assert ("4.8.5-to-4.9.0-upgrade.md (changed" in out) == (blank_line == "missing"), out
 
 
 @pytest.mark.parametrize("pointer", ["missing", "present"])
@@ -458,5 +458,5 @@ def test_changes_block_needs_its_image_digest_pointer(
 
     vp.check_docs_consistency(chart_dir, upgrade_docs_baseline="4.8.5")
 
-    finding = 'has no "- Image / digest" pointer'
-    assert (finding in capsys.readouterr().out) == (pointer == "missing")
+    out = capsys.readouterr().out
+    assert ("+- Image / digest: see [`images-4.9.0.yaml`]" in out) == (pointer == "missing"), out

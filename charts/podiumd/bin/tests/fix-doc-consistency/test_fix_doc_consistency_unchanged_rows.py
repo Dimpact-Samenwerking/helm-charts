@@ -1,9 +1,9 @@
 """remove_unchanged_component_rows: a "Component versions" row whose app and
 chart both equal the baseline's is removed with the generated parts of its "### ..." section."""
 
+from lib.chart.chart_state import BaselineState
+from lib.chart.chart_state import ComponentState
 from lib.chart.chart_yaml import ChartDependency
-from lib.component_docs.changes_section import BaselineState
-from lib.component_docs.changes_section import ComponentState
 from lib.fix_doc_consistency.component_version_table import remove_unchanged_component_rows
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.yaml_types import YamlMapping

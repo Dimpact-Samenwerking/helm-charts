@@ -68,18 +68,6 @@ def test_chart_version_reads_top_level_version(libchartreleasebaselinebasics: Mo
     assert libchartreleasebaselinebasics.chart_version(chart_yaml) == "4.9.0"
 
 
-def test_semver_re_matches_bare_version(libcharthistoricalbaselines: ModuleType):
-    assert libcharthistoricalbaselines.SEMVER_RE.match("4.8.2")
-    assert libcharthistoricalbaselines.SEMVER_RE.match("10.20.300")
-
-
-def test_semver_re_rejects_anything_else(libcharthistoricalbaselines: ModuleType):
-    assert not libcharthistoricalbaselines.SEMVER_RE.match("4.8")
-    assert not libcharthistoricalbaselines.SEMVER_RE.match("v4.8.2")
-    assert not libcharthistoricalbaselines.SEMVER_RE.match("--help")
-    assert not libcharthistoricalbaselines.SEMVER_RE.match("4.8.2-rc1")
-
-
 # --- upgrade_docs_baseline / release_table_baseline ---
 # Two baselines: incremental (upgrade docs/images manifest) vs cumulative (release-table.csv).
 

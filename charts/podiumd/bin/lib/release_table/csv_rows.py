@@ -69,12 +69,17 @@ def _row(values: list[str], where: str) -> ReleaseTableRow:
     }
 
 
-def read_release_table(path: Path) -> list[ReleaseTableRow]:
-    """The rows of the release-table.csv at `path`; exits on a bad header or column count."""
+def release_table_records(path: Path) -> list[tuple[int, list[str]]]:
+    """(line number, values) of each data row of the release-table.csv at `path`; exits on a bad header."""
     with path.open(newline="", encoding="utf-8") as f:
         reader = csv.reader(f)
         header = next(reader, None)
         if header != CSV_HEADER:
             msg = f"error: {path}'s header doesn't match the release-table.csv columns ({', '.join(CSV_HEADER)})"
             raise SystemExit(msg)
-        return [_row(values, f"{path} line {reader.line_num}") for values in reader]
+        return [(reader.line_num, values) for values in reader]
+
+
+def read_release_table(path: Path) -> list[ReleaseTableRow]:
+    """The rows of the release-table.csv at `path`; exits on a bad header or column count."""
+    return [_row(values, f"{path} line {line_num}") for line_num, values in release_table_records(path)]
