@@ -7,12 +7,12 @@ document explains what adapts automatically and the one thing you still have to 
 
 ## What adapts automatically (namespace-agnostic)
 
-These no longer contain a hard-coded `podiumd` and follow the release namespace on their own:
+These no longer contain a hard-coded `podiumd`, so they work in any namespace without changes:
 
 | Reference | Old value (hard-coded) | New value | How it resolves |
 |-----------|------------------------|-----------|-----------------|
 | Redis connection strings (all apps) | `redis-ha-master.podiumd.svc.cluster.local:6379/N` | `redis-ha-master:6379/N` | Bare service name resolves via the pod's DNS search path to the app's own namespace. |
-| Django `allowedHosts` (all apps) | `<svc>.podiumd.svc.cluster.local` | `.svc.cluster.local` | Leading-dot wildcard — accepted by both nginx `server_name` and Django `ALLOWED_HOSTS`; matches the service FQDN in any namespace. |
+| Django `allowedHosts` (all apps) | `<svc>.podiumd.svc.cluster.local` | `.svc.cluster.local` | Leading-dot wildcard — accepted by both nginx `server_name` and Django `ALLOWED_HOSTS`; matches the service FQDN in any namespace. Trade-off: it matches *every* `*.svc.cluster.local` host, so the host-header check no longer pins the app's own service (e.g. `x.othernamespace.svc.cluster.local` is accepted too). Exposure is in-cluster only; set an explicit `<svc>.<namespace>.svc.cluster.local` list in your environment values if you need the stricter check. |
 | `clamavHost` (openformulieren, openinwoner) | `clamav.podiumd.svc.cluster.local` | `clamav` | Bare service name, resolved in-namespace. |
 | KISS Kibana host / `publicBaseUrl` | `kiss-kb-http.podiumd.svc.cluster.local:5601` | `kiss-kb-http:5601` | Bare service name; the ECK-generated cert SAN includes the short name. |
 
@@ -38,13 +38,14 @@ If you deploy into `podiumd`, no action is needed.
 
 ### Option A — override values file
 
-Copy [`ci/values-namespace-scope.example.yaml`](../../ci/values-namespace-scope.example.yaml),
-replace `<namespace>`, and pass it alongside your environment values:
+Copy [`ci/values-namespace-scope.example.yaml`](../../ci/values-namespace-scope.example.yaml)
+to your own file (e.g. `<your-namespace-scope-values>.yaml`), replace `<namespace>` in the
+copy, and pass the copy alongside your environment values:
 
 ```bash
 helm upgrade --install podiumd charts/podiumd \
   -f <your-env-values>.yaml \
-  -f charts/podiumd/ci/values-namespace-scope.example.yaml \
+  -f <your-namespace-scope-values>.yaml \
   -n <namespace>
 ```
 

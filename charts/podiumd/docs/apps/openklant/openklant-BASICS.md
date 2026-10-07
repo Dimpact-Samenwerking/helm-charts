@@ -64,7 +64,7 @@ worker and an nginx sidecar.
 
 ### Other dependencies
 
-- **Redis** (shared `redis-ha`, `redis-ha-master.podiumd.svc.cluster.local:6379`):
+- **Redis** (shared `redis-ha`, `redis-ha-master:6379` in the release namespace):
   - DB `7` — Django cache + axes (`openklant.settings.cache`)
   - DB `8` — Celery broker and result backend (`openklant.settings.celery`)
   - Allocation table: `docs/apps/redis/redis-ha-databases.md`.

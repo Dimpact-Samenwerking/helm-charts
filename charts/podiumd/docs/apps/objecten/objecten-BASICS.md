@@ -85,7 +85,7 @@ ClusterIP service. In-cluster the app answers on
 
 ### Other dependencies
 
-- **Redis** (shared `redis-ha-master:6379`):
+- **Redis** (shared `redis-ha-master:6379`, resolved in the release namespace):
   - DB **1** — cache (`default`, `axes`, `oidc`) via `objecten.settings.cache.*`.
   - DB **2** — Celery broker + result backend via `objecten.settings.celery.*`.
 - **Objecttypes** — every object references an object type; since the merge
