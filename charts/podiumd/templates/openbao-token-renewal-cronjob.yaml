@@ -1,0 +1,120 @@
+{{- /*
+  Weekly renewal of the periodic OpenBao tokens, so they don't depend on a
+  deploy happening within their 32-day period:
+
+    - the config token (Secret openbao.configuration.bootstrapTokenSecret),
+      which the openbao-config Job authenticates with;
+    - Frank!Gateway's reader token (Secret frankgateway.openbao.tokenSecret),
+      when Frank!Gateway is enabled. scripts/openbao-activate.sh mints it as
+      a periodic token, so renewing it keeps it valid indefinitely.
+
+  Each token renews itself (`bao token renew`, allowed by the default
+  policy), so this CronJob holds no extra rights. A missing Secret is
+  skipped: OpenBao not activated yet, or the gateway token is supplied
+  another way. Sealed OpenBao or an invalid token fails the Job, so it shows
+  up in monitoring well before the period runs out.
+*/}}
+{{- if and .Values.openbao.enabled .Values.openbao.configuration.enabled .Values.openbao.configuration.tokenRenewal.enabled }}
+{{- $cfg := .Values.openbao.configuration }}
+{{- $job := $cfg.job }}
+{{- $fg := .Values.frankgateway }}
+{{- $withReader := and $fg.enabled $fg.openbao.tokenSecret.name }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: openbao-token-renewal
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: openbao
+spec:
+  schedule: {{ $cfg.tokenRenewal.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      template:
+        metadata:
+          labels:
+            {{- include "podiumd.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: openbao-token-renewal
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 100
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: renew
+              image: {{ include "podiumd.image" $job.image | quote }}
+              imagePullPolicy: IfNotPresent
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              env:
+                - name: BAO_ADDR
+                  value: "http://{{ .Release.Name }}-openbao-active:8200"
+                - name: CONFIG_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $cfg.bootstrapTokenSecret | quote }}
+                      key: token
+                      optional: true
+                {{- if $withReader }}
+                - name: READER_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $fg.openbao.tokenSecret.name | quote }}
+                      key: {{ $fg.openbao.tokenSecret.key | quote }}
+                      optional: true
+                {{- end }}
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  if [ -z "${CONFIG_TOKEN:-}" ] && [ -z "${READER_TOKEN:-}" ]; then
+                    echo "No OpenBao tokens yet (not activated) — nothing to renew."
+                    exit 0
+                  fi
+                  if ! bao status >/dev/null 2>&1; then
+                    echo "ERROR: OpenBao is sealed or unreachable at ${BAO_ADDR}; tokens not renewed."
+                    exit 1
+                  fi
+                  rc=0
+                  renew() {
+                    name="$1"; token="$2"
+                    if [ -z "${token}" ]; then
+                      echo "${name}: no Secret — skipped."
+                      return 0
+                    fi
+                    if BAO_TOKEN="${token}" bao token renew -format=json >/tmp/renew.json 2>/tmp/renew.err; then
+                      echo "${name}: renewed (ttl $(sed -n 's/.*"lease_duration": *\([0-9]*\).*/\1/p' /tmp/renew.json | tail -n1)s)."
+                    else
+                      echo "ERROR: ${name} could not be renewed (expired or revoked): $(head -c 200 /tmp/renew.err)"
+                      echo "Re-mint it with scripts/openbao-activate.sh."
+                      rc=1
+                    fi
+                  }
+                  renew "config token" "${CONFIG_TOKEN:-}"
+                  renew "gateway reader token" "${READER_TOKEN:-}"
+                  exit "${rc}"
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+              resources:
+                {{- toYaml $job.resources | nindent 16 }}
+          volumes:
+            - name: tmp
+              emptyDir: {}
+          {{- with $job.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

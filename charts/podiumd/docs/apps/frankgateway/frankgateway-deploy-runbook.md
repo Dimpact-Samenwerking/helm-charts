@@ -10,6 +10,12 @@ met the gateway before, and
 [`frankgateway-openbao.md`](frankgateway-openbao.md) for anything about OpenBao
 that this page does not explain.
 
+> **Shortcut for OpenBao.** Steps 3, 4, the gateway token of step 5 and step
+> 8 are automated by `scripts/openbao-activate.sh`, which also does the
+> after-every-deploy checks. The one-sitting flow for SSC is in
+> [`frankgateway-openbao-activation.md`](frankgateway-openbao-activation.md).
+> This page stays the manual reference.
+
 ## Conventions
 
 Every command names its target explicitly; never rely on the current
@@ -315,9 +321,15 @@ KUBE_CONTEXT=<ctx> NAMESPACE=<ns> ./charts/podiumd/scripts/openbao-mint-config-t
 It re-mints the config token, then asks for confirmation before revoking the
 root token. Leave the dead token in `openbao-root-token` so the
 item keeps its history. When a root token is needed again — to re-mint the
-config or reader token — create one with `bao operator generate-root` and the
-key in `openbao-unseal-key`, write it over `openbao-root-token`, and revoke it
-again when done.
+config or reader token — run `openbao-activate.sh --rotate-config-token` (or
+`--rotate-reader-token`), which creates a temporary one from the key in
+`openbao-unseal-key` and revokes it again. Doing it by hand is not
+practical: OpenBao 2.5 and later refuse unauthenticated generate-root on the
+listener the Service exposes, and the `bao operator generate-root` CLI uses
+endpoints that need a token. The chart allows the legacy
+`sys/generate-root/*` endpoints only on a loopback listener
+(`127.0.0.1:8210`, reachable through `kubectl exec` on the active pod), which
+is what the script uses.
 
 ## After every deploy
 
@@ -373,8 +385,8 @@ recorded in the Kubernetes audit log.
 
 | Token | Lifetime | Renewed by | When it lapses |
 |---|---|---|---|
-| Config token (`openbao-bootstrap-token`) | 32-day period | every `openbao-config` run that does not skip | the Job fails; re-mint as in step 4, with a new root token |
-| Gateway reader token (`frankgateway-openbao-token`) | one year | nothing ([IN-3047](https://dimpact.atlassian.net/browse/IN-3047)) | every key-bearing route answers 503; re-mint as in step 5 |
+| Config token (`openbao-bootstrap-token`) | 32-day period | CronJob `openbao-token-renewal` (weekly) and every `openbao-config` run that does not skip | the Job fails; re-mint as in step 4, with a new root token, or run `openbao-activate.sh` |
+| Gateway reader token (`frankgateway-openbao-token`) | one year when minted as in step 5; 32-day period, renewed weekly by the CronJob, when minted by `openbao-activate.sh` | nothing for the step-5 token ([IN-3047](https://dimpact.atlassian.net/browse/IN-3047)) | every key-bearing route answers 503; re-mint as in step 5, or run `openbao-activate.sh --rotate-reader-token` |
 
 ## Related documents
 
