@@ -114,8 +114,8 @@
 
 - name: maykinmedia/open-inwoner
   url: docker.io/maykinmedia/open-inwoner
-  version: "2.4.3"
-  digest: "sha256:c2ff751143c260874a1ebcdcc7e07dc213cffee70c3ea5a9589948e3f5da43e4"
+  version: "2.4.5"
+  digest: "sha256:8267c7d49934c142f54a4ef8934425808ecfb1998a34f88f0e4a1d6ea2f577e6"
 
 - name: maykinmedia/referentielijsten-api
   url: docker.io/maykinmedia/referentielijsten-api
@@ -234,13 +234,13 @@
 
 - name: interne-taak-afhandeling/internetaakafhandeling.web
   url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web
-  version: "3.3.2"
-  digest: "sha256:1a720a54f7de4aaec08abf28562cf2488128916274717e1edc6965b6ef31144a"
+  version: "3.3.4"
+  digest: "sha256:0befd039cf7027e7781cdff8ef6ea122df9ae808fb5a7703fc5713b63cd26a8c"
 
 - name: interne-taak-afhandeling/internetaakafhandeling.poller
   url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller
-  version: "3.3.2"
-  digest: "sha256:29b714c5efbe5e301e76ab07983751555737226a8823df711cc8f1b501145643"
+  version: "3.3.4"
+  digest: "sha256:7528b83e02da84259136f3385ce03a59912592437912f5a8e8d882ca60bdc9e3"
 
 - name: platform-autorisatie-beheer-component/pabc-api
   url: ghcr.io/platform-autorisatie-beheer-component/pabc-api

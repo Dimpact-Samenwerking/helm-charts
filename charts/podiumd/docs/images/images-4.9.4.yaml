@@ -1,0 +1,30 @@
+# Baseline: podiumd 4.9.3. Re-verify before release.
+#
+# Images new or changed in podiumd 4.9.4 vs 4.9.3.
+#
+# Changes:
+#   1. openinwoner 2.4.3 -> 2.4.5 (chart 2.4.0, unchanged).
+#   2. ita 3.3.2 -> 3.3.4 (chart 3.3.2 -> 3.3.4).
+#
+# See docs/_UPGRADE_PATHS/4.9.3-to-4.9.4-upgrade.md for the operator upgrade notes.
+#
+# Digests are the OCI image index (multi-arch manifest) digest as returned in
+# the Docker-Content-Digest response header from the source registry.
+
+# openinwoner 2.4.3 -> 2.4.5
+- name: maykinmedia/open-inwoner
+  url: docker.io/maykinmedia/open-inwoner
+  version: "2.4.5"
+  digest: "sha256:8267c7d49934c142f54a4ef8934425808ecfb1998a34f88f0e4a1d6ea2f577e6"
+
+# ita 3.3.2 -> 3.3.4
+- name: interne-taak-afhandeling/internetaakafhandeling.web
+  url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web
+  version: "3.3.4"
+  digest: "sha256:0befd039cf7027e7781cdff8ef6ea122df9ae808fb5a7703fc5713b63cd26a8c"
+# ita 3.3.2 -> 3.3.4
+- name: interne-taak-afhandeling/internetaakafhandeling.poller
+  url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller
+  version: "3.3.4"
+  digest: "sha256:7528b83e02da84259136f3385ce03a59912592437912f5a8e8d882ca60bdc9e3"
+
