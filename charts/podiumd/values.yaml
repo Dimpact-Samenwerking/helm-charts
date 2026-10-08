@@ -3594,8 +3594,8 @@ pabc:
   fullnameOverride: "pabc"
   postgresql:
     enabled: false
-  # Chart default points at the public upstream repos. The pabc subchart 1.1.1
-  # templates images literally (no global.imageRegistry support), so any
+  # Chart default points at the public upstream repos. The pabc subchart (up to
+  # at least 2.1.0) templates images literally (no global.imageRegistry support), so any
   # environment behind AKS Gatekeeper (which only allows acrprodmgmt.azurecr.io/*)
   # MUST override image.repository / migrations.image.repository /
   # initContainers.waitFor.image.repository to their ACR mirror path in that
@@ -3603,12 +3603,12 @@ pabc:
   # its own.
   image:
     repository: ghcr.io/platform-autorisatie-beheer-component/pabc-api
-    tag: "1.1.1@sha256:09a902e43f6cdb214afc369d04005c7b6108fd24b15709f1debbcfb1b446ef42"
+    tag: "2.1.0@sha256:7e4f906ea46ba4eace1997a074099a5a54038e38901890d486d117583861a61d"
   nodeSelector: {}
   migrations:
     image:
       repository: ghcr.io/platform-autorisatie-beheer-component/pabc-migrations
-      tag: "1.1.1@sha256:a3841a2eb78cddd34ebb0de1bfede1db1ae9713921c0d77e4366baceffa86e05"
+      tag: "2.1.0@sha256:75640f1ee9dc6a155800a31457574b9c36eb0cd41827c45333b9f39d05c94abb"
     nodeSelector: {}
     # The migrations image can also seed data from a JSON dataset via
     # dataSetPath (JSON_DATASET_PATH) + extraVolumes/extraVolumeMounts.
@@ -3692,6 +3692,11 @@ pabc:
     keycloakAdmin:
       clientId: "pabc-keycloak-admin"
       clientSecret: ""
+      # -- Realm roles the PABC UI's "import functional roles from Keycloak" never imports (exact name match): the podiumd realm's technical roles.
+      excludedRoles:
+        - "default-roles-podiumd"
+        - "offline_access"
+        - "uma_authorization"
 
   resources:
     requests:
