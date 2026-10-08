@@ -299,7 +299,7 @@ kube-prometheus-stack:
       image:
         registry: quay.io
         repository: prometheus/prometheus
-        tag: v3.6.0
+        tag: v3.15.0
       # -- Enable remote-write receiver so the OTel Collector can push metrics
       additionalArgs:
         - name: web.enable-remote-write-receiver
