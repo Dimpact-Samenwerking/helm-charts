@@ -1,0 +1,18 @@
+# Baseline: podiumd 4.9.4. Re-verify before release.
+#
+# Images new or changed in podiumd 4.10.0 vs 4.9.4.
+#
+# Changes:
+#   1. objecten 3.6.2 -> 4.1.0 (image maykinmedia/open-object; objecttypen
+#      3.4.2 is merged into it).
+#
+# See docs/_UPGRADE_PATHS/4.9.4-to-4.10.0-upgrade.md for the operator upgrade notes.
+#
+# Digests are the OCI image index (multi-arch manifest) digest as returned in
+# the Docker-Content-Digest response header from the source registry.
+
+# objecten 3.6.2 -> 4.1.0 (open-object, replaces objects-api and objecttypes-api)
+- name: maykinmedia/open-object
+  url: docker.io/maykinmedia/open-object
+  version: "4.1.0"
+  digest: "sha256:7738cb8161d221d0a286d39d9d270c35024ff78123c296ceb46f3d9dda7208f9"
