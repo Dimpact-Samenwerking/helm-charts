@@ -2188,7 +2188,7 @@ openinwoner:
     volumeAttributeShareName: openinwoner
     storageClassName: podiumd-standard
   image:
-    tag: "2.4.5@sha256:8267c7d49934c142f54a4ef8934425808ecfb1998a34f88f0e4a1d6ea2f577e6"
+    tag: "2.4.6@sha256:ef686923eb1d046343288a26fae654a0333545c331cf8bedd2e809009acb0b3c"
   resources:
     requests:
       cpu: 200m
@@ -3553,7 +3553,7 @@ ita:
   web:
     image:
       # repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
-      tag: "3.3.2@sha256:1a720a54f7de4aaec08abf28562cf2488128916274717e1edc6965b6ef31144a"
+      tag: "3.3.4@sha256:0befd039cf7027e7781cdff8ef6ea122df9ae808fb5a7703fc5713b63cd26a8c"
       pullPolicy: IfNotPresent
 
     service:
@@ -3592,7 +3592,7 @@ ita:
   poller:
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
-      tag: "3.3.2@sha256:29b714c5efbe5e301e76ab07983751555737226a8823df711cc8f1b501145643"
+      tag: "3.3.4@sha256:7528b83e02da84259136f3385ce03a59912592437912f5a8e8d882ca60bdc9e3"
       pullPolicy: IfNotPresent
 
     resources:
