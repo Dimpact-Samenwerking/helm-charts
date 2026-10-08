@@ -623,6 +623,17 @@ openzaak:
     #       - openbeheer
     #       label: Open Beheer
     #       heeft_alle_autorisaties: true
+    #     # Only with pabc.settings.zgwZaakregister.enabled: PABC reads zaaktypes
+    #     # from the Catalogi API. client_ids must equal
+    #     # pabc.settings.zgwZaakregister.clientId. setup-configuration cannot
+    #     # set individual autorisaties; for least privilege set
+    #     # heeft_alle_autorisaties to false and give the application only
+    #     # `catalogi.lezen` (component ztc) in the Open Zaak admin.
+    #     - uuid: 5f0c6a1e-2b7d-4c1a-9e3f-8d2b6a4c7e10
+    #       client_ids:
+    #       - pabc
+    #       label: PABC
+    #       heeft_alle_autorisaties: true
     #   vng_api_common_credentials_config_enable: true
     #   vng_api_common_credentials:
     #     items:
@@ -630,6 +641,8 @@ openzaak:
     #       secret: {value_from: {env: openzaak_openforms_secret}}
     #     - identifier: openbeheer
     #       secret: {value_from: {env: openzaak_openbeheer_secret}}
+    #     - identifier: pabc
+    #       secret: {value_from: {env: openzaak_pabc_secret}}
     #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
     #     providers:
@@ -679,6 +692,7 @@ openzaak:
       # opennotificaties_autorisatie_api_secret: "<opennotificaties_autorisatie_api_secret>"
       # openzaak_opennotificaties_secret: "<openzaak_opennotificaties_secret>"
       # openzaak_openbeheer_secret: "<openzaak_openbeheer_secret>"
+      # openzaak_pabc_secret: "<pabc.settings.zgwZaakregister.clientSecret>"
     # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openzaak.example.nl`.
     oidcUrl: ""
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
@@ -3697,6 +3711,18 @@ pabc:
         - "default-roles-podiumd"
         - "offline_access"
         - "uma_authorization"
+
+    # -- Import zaaktypes from Open Zaak as PABC entity types (a button in the PABC UI). PABC authenticates as its own Open Zaak application (see the commented `pabc` entry under openzaak's vng_api_common_applicaties) and needs read access to the Catalogi API. When enabled, the render fails while catalogiBaseUrl, clientId, clientSecret or catalogusDomein is empty.
+    zgwZaakregister:
+      enabled: false
+      # -- Full base URL of the Open Zaak Catalogi API, with trailing slash. E.g. `https://openzaak.example.nl/catalogi/api/v1/`.
+      catalogiBaseUrl: ""
+      # -- Client ID of PABC's application in Open Zaak.
+      clientId: "pabc"
+      # -- Secret of PABC's application in Open Zaak; PABC signs its ZGW JWTs with it.
+      clientSecret: ""
+      # -- `domein` of the zaaktype catalogus to import from, e.g. `ALG`. PABC imports from one catalogus only.
+      catalogusDomein: ""
 
   resources:
     requests:

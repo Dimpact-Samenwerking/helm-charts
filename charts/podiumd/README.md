@@ -1178,6 +1178,11 @@ PodiumD Helm chart
 | pabc.settings.oidc.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://pabc.example.nl`. |
 | pabc.settings.oidc.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. PABC is a .NET app; enable when OpenIdConnect PKCE is configured in the application. |
 | pabc.settings.oidc.roleClaimType | string | `"roles"` |  |
+| pabc.settings.zgwZaakregister | object | `{"catalogiBaseUrl":"","catalogusDomein":"","clientId":"pabc","clientSecret":"","enabled":false}` | Import zaaktypes from Open Zaak as PABC entity types (a button in the PABC UI). PABC authenticates as its own Open Zaak application (see the commented `pabc` entry under openzaak's vng_api_common_applicaties) and needs read access to the Catalogi API. When enabled, the render fails while catalogiBaseUrl, clientId, clientSecret or catalogusDomein is empty. |
+| pabc.settings.zgwZaakregister.catalogiBaseUrl | string | `""` | Full base URL of the Open Zaak Catalogi API, with trailing slash. E.g. `https://openzaak.example.nl/catalogi/api/v1/`. |
+| pabc.settings.zgwZaakregister.catalogusDomein | string | `""` | `domein` of the zaaktype catalogus to import from, e.g. `ALG`. PABC imports from one catalogus only. |
+| pabc.settings.zgwZaakregister.clientId | string | `"pabc"` | Client ID of PABC's application in Open Zaak. |
+| pabc.settings.zgwZaakregister.clientSecret | string | `""` | Secret of PABC's application in Open Zaak; PABC signs its ZGW JWTs with it. |
 | persistentVolume.nodeStageSecretRefName | string | `""` |  |
 | persistentVolume.nodeStageSecretRefNamespace | string | `""` |  |
 | persistentVolume.volumeAttributeResourceGroup | string | `""` |  |
