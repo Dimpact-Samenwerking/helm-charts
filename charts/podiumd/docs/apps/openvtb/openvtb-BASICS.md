@@ -81,7 +81,7 @@ No observed usage yet. Set requests and limits per environment before enabling.
 3. **Provision secrets**: Django `SECRET_KEY` (`openssl rand -base64 50`), database password,
    Keycloak client secret (`openssl rand -hex 32`).
 4. **Enable and configure** in the environment values file (mandatory values: see
-   `_UPGRADE_PATHS/4.9.3-to-4.10.0-values-deltas.md`):
+   `_UPGRADE_PATHS/4.9.4-to-4.10.0-values-deltas.md`):
 
    ```yaml
    openvtb:
