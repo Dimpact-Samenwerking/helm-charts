@@ -453,8 +453,9 @@ redis-operator:
   #   openarchiefbeheer  : db 13 (cache+axes), db 14 (choices + celery)
   #   referentielijsten  : db 15 (cache), db 16 (reserved — celery not yet used)
   #   openbeheer         : db 17 (cache), db 18 (reserved — celery not yet used)
-  #   <future component> : db 19 (cache), db 20 (celery)
-  #   db 21–31           : unallocated
+  #   openvtb            : db 19 (cache+axes), db 20 (celery broker/result; no worker deployed)
+  #   <future component> : db 21 (cache), db 22 (celery)
+  #   db 23–31           : unallocated
   # See docs/apps/redis/redis-ha-databases.md for the full allocation table and guidance.
   redis-ha:
     enabled: true
@@ -2526,6 +2527,138 @@ openbeheer:
       requests:
         cpu: 10m
         memory: 16Mi
+  tags:
+    redis: false
+
+openvtb:
+  enabled: false
+  configuration:
+    enabled: true
+    overwrite: false
+    job:
+      enabled: true
+      backoffLimit: 6
+      ttlSecondsAfterFinished: 600
+      restartPolicy: Never
+      resources: {}
+    # Secret substitution inside configuration.data uses django-setup-configuration's
+    # `value_from: {env: VAR}` pattern. Shell-style `${VAR}` references are NOT resolved.
+    secrets:
+      keycloak_client_secret: ""
+    data: ""
+    # data: |-
+    #   oidc_db_config_enable: true
+    #   oidc_db_config_admin_auth:
+    #     providers:
+    #     - identifier: keycloak-provider
+    #       oidc_use_nonce: true
+    #       oidc_nonce_size: 32
+    #       oidc_state_size: 32
+    #       endpoint_config:
+    #         oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/podiumd/
+    #     items:
+    #     - identifier: admin-oidc
+    #       enabled: true
+    #       oidc_rp_client_id: openvtb
+    #       oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
+    #       oidc_rp_scopes_list:
+    #       - openid
+    #       - email
+    #       - profile
+    #       - roles
+    #       oidc_rp_sign_algo: RS256
+    #       oidc_provider_identifier: keycloak-provider
+    #       userinfo_claims_source: id_token
+    #       options:
+    #         user_settings:
+    #           claim_mappings:
+    #             username:
+    #               - preferred_username
+    #             first_name:
+    #               - given_name
+    #             last_name:
+    #               - family_name
+    #             email:
+    #               - email
+    #         groups_settings:
+    #           claim_mapping:
+    #             - groups
+    #           sync: true
+    #           sync_pattern: '*'
+    #           default_groups: []
+    #           make_users_staff: true
+    #           superuser_group_names:
+    #             - administrators
+    # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openvtb.example.nl`.
+    oidcUrl: ""
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
+  replicaCount: 2
+  image:
+    repository: maykinmedia/open-vtb
+    pullPolicy: IfNotPresent
+    tag: "0.2.0@sha256:b382b2fdeb052994d6a785864f1277bffb2490e61de2a0222ad74379dede2f01"
+  nameOverride: openvtb
+  fullnameOverride: openvtb
+  securityContext:
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: false
+    runAsNonRoot: true
+    runAsUser: 1000
+  resources: {}
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClassName: podiumd-standard
+    existingClaim: openvtb
+    mediaMountSubpath: openvtb/media
+  persistentVolume:
+    volumeAttributeShareName: openvtb
+    storageClassName: podiumd-standard
+  settings:
+    allowedHosts: "openvtb.podiumd.svc.cluster.local"
+    djangoSettingsModule: openvtb.conf.docker
+    useXForwardedHost: false
+    secretKey: ""
+    environment: ""
+    elasticapm:
+      url: ""
+      token: ""
+      serviceName: ""
+    database:
+      host: ""
+      port: 5432
+      username: ""
+      password: ""
+      name: ""
+      sslmode: prefer
+    email:
+      host: localhost
+      port: 25
+      username: ""
+      password: ""
+      useTLS: false
+      defaultFrom: ""
+    sentry:
+      dsn: ""
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/19
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/19
+    # No Celery worker is deployed, but the openvtb chart templates CELERY_BROKER_URL / CELERY_RESULT_BACKEND
+    # unconditionally, so they must be set (db 20).
+    celery:
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/20
+      resultBackend: redis://redis-ha-master.podiumd.svc.cluster.local:6379/20
+    isHttps: true
+    debug: false
+    uwsgi:
+      processes: "2"
+      threads: "2"
+      maxRequests: "1000"
+    otel:
+      disabled: true
   tags:
     redis: false
 

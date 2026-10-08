@@ -5,6 +5,8 @@
 # Changes:
 #   1. objecten 3.6.2 -> 4.1.0 (image maykinmedia/open-object; objecttypen
 #      3.4.2 is merged into it).
+#   2. openvtb 0.2.0 (new optional component, image maykinmedia/open-vtb,
+#      disabled by default).
 #
 # See docs/_UPGRADE_PATHS/4.9.4-to-4.10.0-upgrade.md for the operator upgrade notes.
 #
@@ -16,3 +18,9 @@
   url: docker.io/maykinmedia/open-object
   version: "4.1.0"
   digest: "sha256:7738cb8161d221d0a286d39d9d270c35024ff78123c296ceb46f3d9dda7208f9"
+
+# openvtb 0.2.0 (new optional component, Open VTB)
+- name: maykinmedia/open-vtb
+  url: docker.io/maykinmedia/open-vtb
+  version: "0.2.0"
+  digest: "sha256:b382b2fdeb052994d6a785864f1277bffb2490e61de2a0222ad74379dede2f01"

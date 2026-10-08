@@ -15,6 +15,7 @@
   (dict "name" "openinwoner"       "pkce" .Values.openinwoner.configuration.pkceEnabled       "data" .Values.openinwoner.configuration.data)
   (dict "name" "referentielijsten" "pkce" .Values.referentielijsten.configuration.pkceEnabled "data" .Values.referentielijsten.configuration.data)
   (dict "name" "openbeheer"        "pkce" .Values.openbeheer.configuration.pkceEnabled        "data" .Values.openbeheer.configuration.data)
+  (dict "name" "openvtb"           "pkce" .Values.openvtb.configuration.pkceEnabled           "data" .Values.openvtb.configuration.data)
 -}}
 {{- range $djangoApps }}
 {{- if .pkce }}
@@ -45,6 +46,7 @@
   (dict "name" "openinwoner"       "enabled" .Values.openinwoner.enabled       "oidcUrl" .Values.openinwoner.configuration.oidcUrl)
   (dict "name" "referentielijsten" "enabled" .Values.referentielijsten.enabled "oidcUrl" .Values.referentielijsten.configuration.oidcUrl)
   (dict "name" "openbeheer"        "enabled" .Values.openbeheer.enabled        "oidcUrl" .Values.openbeheer.configuration.oidcUrl)
+  (dict "name" "openvtb"           "enabled" .Values.openvtb.enabled           "oidcUrl" .Values.openvtb.configuration.oidcUrl)
   (dict "name" "openbao"           "enabled" .Values.openbao.enabled           "oidcUrl" .Values.openbao.configuration.oidcUrl)
   (dict "name" "kiss"              "enabled" .Values.kiss.enabled              "oidcUrl" .Values.kiss.configuration.oidcUrl "field" "kiss.configuration.oidcUrl")
   (dict "name" "zac"               "enabled" .Values.zac.enabled               "oidcUrl" .Values.zac.contextUrl "field" "zac.contextUrl")
@@ -717,6 +719,50 @@ data:
               claim.name: "groups"
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openbeheer"
+{{- if .Values.openvtb.enabled }}
+      - clientId: openvtb
+        optionalClientScopes: *defaultOptionalClientScopes
+        name: Open VTB
+        enabled: true
+        clientAuthenticatorType: client-secret
+{{- if .Values.openvtb.configuration.pkceEnabled }}
+        attributes:
+          pkce.code.challenge.method: S256
+{{- end }}
+        redirectUris:
+          - "{{ .Values.openvtb.configuration.oidcUrl | trimSuffix "/" }}/*"
+        webOrigins:
+          - "{{ .Values.openvtb.configuration.oidcUrl | trimSuffix "/" }}/*"
+        secret: $(KC_SECRET_OPENVTB)
+        protocolMappers:
+          - name: "username"
+            protocol: "openid-connect"
+            protocolMapper: oidc-usermodel-property-mapper
+            config:
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              user.attribute: "username"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "preferred_username"
+              jsonType.label: "String"
+          - name: "client roles"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-usermodel-client-role-mapper"
+            consentRequired: false
+            config:
+              introspection.token.claim: "true"
+              multivalued: "true"
+              userinfo.token.claim: "false"
+              user.attribute: "foo"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "groups"
+              jsonType.label: "String"
+              usermodel.clientRoleMapping.clientId: "openvtb"
+{{- end }}
       - clientId: openbao
         optionalClientScopes: *defaultOptionalClientScopes
         name: OpenBao
@@ -1161,6 +1207,10 @@ data:
           - name: administrators
         openbeheer:
           - name: administrators
+{{- if .Values.openvtb.enabled }}
+        openvtb:
+          - name: administrators
+{{- end }}
         openbao:
           - name: {{ .Values.openbao.configuration.uploadersRole | quote }}
         kiss:
@@ -1247,6 +1297,10 @@ data:
             - "administrators"
           openbeheer:
             - "administrators"
+{{- if .Values.openvtb.enabled }}
+          openvtb:
+            - "administrators"
+{{- end }}
           pabc:
             - "administrator"
 {{- if .Values.zaakbrug.enabled }}

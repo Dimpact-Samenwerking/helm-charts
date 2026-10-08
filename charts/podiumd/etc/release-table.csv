@@ -13,6 +13,7 @@ Common Ground,Maykin Media,,Objecttypen (Objecttypes API),objecttypen,,objecttyp
 Common Ground,Maykin Media,,Open Notificaties,opennotificaties,,,1.16.1,2.0.0,1.16.2,2.0.0
 Common Ground,ICATT,,Platform Autorisatie Beheer Component (PABC),pabc,pabc,"pabc-api,pabc-migrations",1.1.0,1.1.1,1.1.1,1.1.1
 Common Ground,Maykin Media,,Open Beheer (LBI),openbeheer,,open-beheer,0.9.1,0.1.3,0.9.1,0.1.3
+Common Ground,Maykin Media,,Open VTB,openvtb,,open-vtb,,,0.2.0,0.2.0
 Common Ground,Maykin Media,,Referentielijsten,referentielijsten,referentielijsten,referentielijsten-api,0.7.3,0.1.1,0.7.4,0.2.0
 Common Ground,Worth,,OMC (NotifyNL),notifynl-omc-nodep,omc,notifynl-omc,1.17.19,0.14.1,1.17.19,0.14.1
 Common Ground,WeAreFrank,,Zaak Brug,zaakbrug,,zaakbrug,1.26.15,2.3.28,1.26.19,2.3.32
