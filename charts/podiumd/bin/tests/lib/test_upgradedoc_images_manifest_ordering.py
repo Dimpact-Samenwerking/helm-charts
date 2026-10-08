@@ -469,6 +469,39 @@ def test_sort_images_manifest_entries_inserts_missing_blank_line_between_groups(
     assert '"5.4.4"\n# redis-operator' not in new_text  # the original, separator-less join is gone
 
 
+def test_sort_images_manifest_entries_group_moved_to_end_leaves_no_trailing_blank_line(
+    libupgradedocmanifestordering: ModuleType,
+):
+    """Regression: a group moved to the end drops the separator that followed it.
+
+    fix-doc-consistency appended ita's poller before its web image; the swap left
+    images-4.9.4.yaml ending in a blank line."""
+    text = (
+        "# ita 3.3.2 -> 3.3.4\n"
+        "- name: interne-taak-afhandeling/internetaakafhandeling.poller\n"
+        '  version: "3.3.4"\n'
+        "\n"
+        "# ita 3.3.2 -> 3.3.4\n"
+        "- name: interne-taak-afhandeling/internetaakafhandeling.web\n"
+        '  version: "3.3.4"\n'
+    )
+    deps = [{"name": "internetaakafhandeling", "alias": "ita", "version": "3.3.4"}]
+    values = {"ita": {"web": {"image": {"tag": "3.3.4"}}, "poller": {"image": {"tag": "3.3.4"}}}}
+    repo_map = {
+        "interne-taak-afhandeling/internetaakafhandeling.web": ("ita", "web", "image"),
+        "interne-taak-afhandeling/internetaakafhandeling.poller": ("ita", "poller", "image"),
+    }
+
+    new_text, moved = libupgradedocmanifestordering.sort_images_manifest_entries(
+        text, libupgradedocmanifestordering.ManifestSortContext(deps, values, repo_map, {})
+    )
+
+    assert [name for name, _old, _new in moved] == ["ita", "ita"]
+    assert new_text.index("internetaakafhandeling.web") < new_text.index("internetaakafhandeling.poller")
+    assert new_text.endswith('  version: "3.3.4"\n')
+    assert not new_text.endswith("\n\n")
+
+
 def test_sort_images_manifest_entries_moves_shared_group_as_one_unit(libupgradedocmanifestordering: ModuleType):
     """Entries sharing one header move together with it."""
     text = (
