@@ -164,23 +164,23 @@
 
 - name: infonl/zaakafhandelcomponent
   url: ghcr.io/infonl/zaakafhandelcomponent
-  version: "5.4.5"
-  digest: "sha256:9d14affb67d7bb7fce01af220e4b28c190188c5f1355d787735bd7e669fa57e3"
+  version: "5.9.1"
+  digest: "sha256:d2b43634c21205183ed7ce9591791fa0112501bb2e4b04baff0362da9e001da4"
 
 - name: gotenberg/gotenberg
   url: docker.io/gotenberg/gotenberg
-  version: "8.36.0"
-  digest: "sha256:87c16b9f364279d321bc9772d31fa58aa6abe036423c270698bd636c3a8e9466"
+  version: "8.37.0"
+  digest: "sha256:f29984bd1e226bf1b93ba90af06000afa8b315853e99d27b9aaa41b93f15c769"
 
 - name: openpolicyagent/opa
   url: docker.io/openpolicyagent/opa
-  version: "1.19.1-static"
-  digest: "sha256:32bf41d914b1505fea13303f60587cc57bdd2902262177585fb208f5dde76d32"
+  version: "1.21.1-static"
+  digest: "sha256:4675ab04ad1627f74741d2d9c5142698c79e18b7b09f192587d31d6dba20838e"
 
 - name: otel/opentelemetry-collector-contrib
   url: docker.io/otel/opentelemetry-collector-contrib
-  version: "0.158.0"
-  digest: "sha256:c5918f78992ee73b0d6f0e599423ac5ec52dd5d9726733114d6eca53d5a32ed5"
+  version: "0.161.0"
+  digest: "sha256:fd328de2552466ad78385e1b1289c3f2402b1c45f265b252aab1955b42845ac1"
 
 - name: apache/solr-operator
   url: docker.io/apache/solr-operator
@@ -190,7 +190,7 @@
 - name: library/solr
   url: docker.io/library/solr
   version: "9.10.1-slim"
-  digest: "sha256:9987e11a90a0b115cc3f52b74d3d87788e3c1fa479deeaece80d33515480204a"
+  digest: "sha256:ba6beb789c758b198c42603046fb2fb67b42843d2cd4333f12b632c3b811e55a"
 
 - name: lachlanevenson/k8s-kubectl
   url: docker.io/lachlanevenson/k8s-kubectl
@@ -239,13 +239,13 @@
 
 - name: platform-autorisatie-beheer-component/pabc-api
   url: ghcr.io/platform-autorisatie-beheer-component/pabc-api
-  version: "1.1.1"
-  digest: "sha256:09a902e43f6cdb214afc369d04005c7b6108fd24b15709f1debbcfb1b446ef42"
+  version: "2.1.0"
+  digest: "sha256:7e4f906ea46ba4eace1997a074099a5a54038e38901890d486d117583861a61d"
 
 - name: platform-autorisatie-beheer-component/pabc-migrations
   url: ghcr.io/platform-autorisatie-beheer-component/pabc-migrations
-  version: "1.1.1"
-  digest: "sha256:a3841a2eb78cddd34ebb0de1bfede1db1ae9713921c0d77e4366baceffa86e05"
+  version: "2.1.0"
+  digest: "sha256:75640f1ee9dc6a155800a31457574b9c36eb0cd41827c45333b9f39d05c94abb"
 
 - name: groundnuty/k8s-wait-for
   url: ghcr.io/groundnuty/k8s-wait-for

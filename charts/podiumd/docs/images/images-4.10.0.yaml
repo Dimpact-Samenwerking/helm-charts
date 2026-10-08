@@ -5,6 +5,12 @@
 # Changes:
 #   1. objecten 3.6.2 -> 4.1.0 (image maykinmedia/open-object; objecttypen
 #      3.4.2 is merged into it).
+#   2. zac 5.4.5 -> 5.9.1 (chart 1.0.297 -> 1.0.338).
+#   3. zac - gotenberg 8.36.0 -> 8.37.0.
+#   4. zac - opa 1.19.1-static -> 1.21.1-static.
+#   5. zac - opentelemetry-collector-contrib 0.158.0 -> 0.161.0.
+#   6. zac - solr 9.10.1-slim (digest changed).
+#   7. pabc 1.1.1 -> 2.1.0 (chart 1.1.1 -> 2.1.0).
 #
 # See docs/_UPGRADE_PATHS/4.9.4-to-4.10.0-upgrade.md for the operator upgrade notes.
 #
@@ -16,3 +22,41 @@
   url: docker.io/maykinmedia/open-object
   version: "4.1.0"
   digest: "sha256:7738cb8161d221d0a286d39d9d270c35024ff78123c296ceb46f3d9dda7208f9"
+
+# zac 5.4.5 -> 5.9.1
+- name: infonl/zaakafhandelcomponent
+  url: ghcr.io/infonl/zaakafhandelcomponent
+  version: "5.9.1"
+  digest: "sha256:d2b43634c21205183ed7ce9591791fa0112501bb2e4b04baff0362da9e001da4"
+#   sidecar: zac - gotenberg 8.36.0 -> 8.37.0
+- name: gotenberg/gotenberg
+  url: docker.io/gotenberg/gotenberg
+  version: "8.37.0"
+  digest: "sha256:f29984bd1e226bf1b93ba90af06000afa8b315853e99d27b9aaa41b93f15c769"
+#   sidecar: zac - opa 1.19.1-static -> 1.21.1-static
+- name: openpolicyagent/opa
+  url: docker.io/openpolicyagent/opa
+  version: "1.21.1-static"
+  digest: "sha256:4675ab04ad1627f74741d2d9c5142698c79e18b7b09f192587d31d6dba20838e"
+#   sidecar: zac - opentelemetry-collector-contrib 0.158.0 -> 0.161.0
+- name: otel/opentelemetry-collector-contrib
+  url: docker.io/otel/opentelemetry-collector-contrib
+  version: "0.161.0"
+  digest: "sha256:fd328de2552466ad78385e1b1289c3f2402b1c45f265b252aab1955b42845ac1"
+#   sidecar: zac - solr 9.10.1-slim (digest changed)
+- name: library/solr
+  url: docker.io/library/solr
+  version: "9.10.1-slim"
+  digest: "sha256:ba6beb789c758b198c42603046fb2fb67b42843d2cd4333f12b632c3b811e55a"
+
+# pabc 1.1.1 -> 2.1.0
+- name: platform-autorisatie-beheer-component/pabc-api
+  url: ghcr.io/platform-autorisatie-beheer-component/pabc-api
+  version: "2.1.0"
+  digest: "sha256:7e4f906ea46ba4eace1997a074099a5a54038e38901890d486d117583861a61d"
+# pabc 1.1.1 -> 2.1.0
+- name: platform-autorisatie-beheer-component/pabc-migrations
+  url: ghcr.io/platform-autorisatie-beheer-component/pabc-migrations
+  version: "2.1.0"
+  digest: "sha256:75640f1ee9dc6a155800a31457574b9c36eb0cd41827c45333b9f39d05c94abb"
+
