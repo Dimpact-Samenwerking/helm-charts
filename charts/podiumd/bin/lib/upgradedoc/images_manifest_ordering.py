@@ -379,10 +379,10 @@ def _merge_ordered_groups(per_group_texts: list[str], components: list[str | Non
         if at_end or ordered_components[i] is None or ordered_components[i] != ordered_components[run_start]:
             run_text = "".join(ordered_texts[run_start:i])
             run_text = _collapse_group_internal_blank_lines(run_text) if i - run_start > 1 else run_text
-            if not at_end:
-                # Exactly one blank line: spans never include a leading one,
-                # so a missing separator must be added here.
-                run_text = run_text.rstrip("\n") + "\n\n"
+            # Exactly one blank line between runs: spans never include a leading
+            # one, so a missing separator must be added here. The last run ends
+            # the file: a group moved there keeps the separator that followed it.
+            run_text = run_text.rstrip("\n") + ("\n" if at_end else "\n\n")
             merged_texts.append(run_text)
             run_start = i
     return merged_texts
@@ -406,7 +406,8 @@ def sort_images_manifest_entries(text: str, context: ManifestSortContext) -> tup
     the same top-level component are collapsed (a component and its sidecars
     read as one block), and exactly one blank line separates different
     components. A group's span never includes a leading blank line, so a missing
-    separator must be inserted, not just excess collapsed.
+    separator must be inserted, not just excess collapsed. The file ends right
+    after the last entry, with no trailing blank line.
 
     Returns (new_text, moved), moved being [(display_name, old_pos, new_pos)]
     (1-based) for groups that moved; new_text may differ with moved empty when

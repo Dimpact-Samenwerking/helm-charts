@@ -2,8 +2,8 @@ apiVersion: v2
 name: podiumd
 description: PodiumD Helm chart
 type: application
-version: 4.9.3
-appVersion: "4.9.3"
+version: 4.9.4
+appVersion: "4.9.4"
 dependencies:
   - name: keycloak-operator
     version: 1.13.0
@@ -85,7 +85,7 @@ dependencies:
   - name: internetaakafhandeling
     alias: ita
     repository: "oci://ghcr.io/interne-taak-afhandeling"
-    version: 3.3.2
+    version: 3.3.4
     condition: ita.enabled
   - name: kiss-chart
     alias: kiss
