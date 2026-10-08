@@ -13,6 +13,8 @@
 #   7. zac - solr 9.10.1-slim (digest changed).
 #   8. zgw-office-addin 0.11.0 -> 0.12.0 (chart 0.0.89 -> 0.0.93).
 #   9. pabc 1.1.1 -> 2.1.0 (chart 1.1.1 -> 2.1.0).
+#  10. openvtb 0.2.0 (new optional component, image maykinmedia/open-vtb,
+#      disabled by default).
 #
 # See docs/_UPGRADE_PATHS/4.9.4-to-4.10.0-upgrade.md for the operator upgrade notes.
 #
@@ -78,3 +80,9 @@
   url: ghcr.io/platform-autorisatie-beheer-component/pabc-migrations
   version: "2.1.0"
   digest: "sha256:75640f1ee9dc6a155800a31457574b9c36eb0cd41827c45333b9f39d05c94abb"
+
+# openvtb 0.2.0 (new optional component, Open VTB)
+- name: maykinmedia/open-vtb
+  url: docker.io/maykinmedia/open-vtb
+  version: "0.2.0"
+  digest: "sha256:b382b2fdeb052994d6a785864f1277bffb2490e61de2a0222ad74379dede2f01"
