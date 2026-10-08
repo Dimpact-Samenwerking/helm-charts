@@ -1367,6 +1367,9 @@ PodiumD Helm chart
 | zac.solr-operator.zookeeper-operator | object | `{"crd":{"create":false},"hooks":{"image":{"tag":"v1.25.4@sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc"}},"image":{"tag":"0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e"},"resources":{"limits":{"cpu":"200m","memory":"128Mi"},"requests":{"cpu":"50m","memory":"64Mi"}},"watchNamespace":"podiumd","zookeeper":{"image":{"tag":"0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8"},"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"256Mi"}},"storage":{"reclaimPolicy":"Retain"}}}` | install crds using https://github.com/pravega/zookeeper-operator/blob/master/charts/zookeeper-operator/templates/zookeeper.pravega.io_zookeeperclusters_crd.yaml |
 | zac.solr-operator.zookeeper-operator.watchNamespace | string | `"podiumd"` | namespaces to watch for zookeeper-operator |
 | zac.solr-operator.zookeeper-operator.zookeeper.storage.reclaimPolicy | string | `"Retain"` | Retain PVCs when the operator scales down ZooKeeper (e.g. during node rotation). The default "Delete" causes the operator to destroy PVC data on scale-down, which prevents the cluster from recovering quorum after a node replacement event. |
+| zac.solr.password | string | `""` | Basic auth password of the external Solr; required when url is set. |
+| zac.solr.url | string | `""` | URL of an external Solr, instead of the solr-operator managed one. |
+| zac.solr.username | string | `""` | Basic auth user of the external Solr; required when url is set. Configure the matching user in that Solr's security.json. |
 | zac.zacInternalEndpointsApiKey | string | `"dummy"` |  |
 | zac.zgwApis.clientId | string | `"zac"` |  |
 | zac.zgwApis.secret | string | `"changeme"` |  |

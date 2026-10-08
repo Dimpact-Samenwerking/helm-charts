@@ -3126,6 +3126,17 @@ zac:
     url: ""
     authentication: ""
     fixedUserName: ""
+  # Since ZAC chart 1.0.338 Solr runs with basic auth. The solr-operator managed
+  # Solr (below) needs nothing here: the operator generates the credentials into
+  # the zac-solr-solrcloud-security-bootstrap Secret and ZAC uses its `admin`
+  # account. Only an external Solr (url set) needs username and password.
+  solr:
+    # -- URL of an external Solr, instead of the solr-operator managed one.
+    url: ""
+    # -- Basic auth user of the external Solr; required when url is set. Configure the matching user in that Solr's security.json.
+    username: ""
+    # -- Basic auth password of the external Solr; required when url is set.
+    password: ""
   # solr operator settings
   solr-operator:
     # -- install crds using https://solr.apache.org/operator/downloads/crds/v0.10.0-prerelease/all-with-dependencies.yaml
