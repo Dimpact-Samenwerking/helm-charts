@@ -17,6 +17,7 @@ PodiumD Helm chart
 | @maykinmedia | openklant | 1.11.0 |
 | @maykinmedia | opennotificaties | 2.0.0 |
 | @maykinmedia | objecten(openobject) | 1.1.1 |
+| @maykinmedia | openvtb | 0.2.0 |
 | @maykinmedia | openzaak | 1.14.2 |
 | @maykinmedia | referentielijsten(referentielijsten) | 0.2.0 |
 | @opstree | redis-operator | 0.26.1 |
@@ -1081,6 +1082,68 @@ PodiumD Helm chart
 | opennotificaties.worker.replicaCount | int | `1` |  |
 | opennotificaties.worker.resources.requests.cpu | string | `"50m"` |  |
 | opennotificaties.worker.resources.requests.memory | string | `"386Mi"` |  |
+| openvtb.configuration.data | string | `""` |  |
+| openvtb.configuration.enabled | bool | `true` |  |
+| openvtb.configuration.job.backoffLimit | int | `6` |  |
+| openvtb.configuration.job.enabled | bool | `true` |  |
+| openvtb.configuration.job.resources | object | `{}` |  |
+| openvtb.configuration.job.restartPolicy | string | `"Never"` |  |
+| openvtb.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
+| openvtb.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openvtb.example.nl`. |
+| openvtb.configuration.overwrite | bool | `false` |  |
+| openvtb.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
+| openvtb.configuration.secrets.keycloak_client_secret | string | `""` |  |
+| openvtb.enabled | bool | `false` |  |
+| openvtb.fullnameOverride | string | `"openvtb"` |  |
+| openvtb.image.pullPolicy | string | `"IfNotPresent"` |  |
+| openvtb.image.repository | string | `"maykinmedia/open-vtb"` |  |
+| openvtb.image.tag | string | `"0.2.0@sha256:b382b2fdeb052994d6a785864f1277bffb2490e61de2a0222ad74379dede2f01"` |  |
+| openvtb.nameOverride | string | `"openvtb"` |  |
+| openvtb.persistence.enabled | bool | `true` |  |
+| openvtb.persistence.existingClaim | string | `"openvtb"` |  |
+| openvtb.persistence.mediaMountSubpath | string | `"openvtb/media"` |  |
+| openvtb.persistence.size | string | `"1Gi"` |  |
+| openvtb.persistence.storageClassName | string | `"podiumd-standard"` |  |
+| openvtb.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
+| openvtb.persistentVolume.volumeAttributeShareName | string | `"openvtb"` |  |
+| openvtb.replicaCount | int | `2` |  |
+| openvtb.resources | object | `{}` |  |
+| openvtb.securityContext.capabilities.drop[0] | string | `"ALL"` |  |
+| openvtb.securityContext.readOnlyRootFilesystem | bool | `false` |  |
+| openvtb.securityContext.runAsNonRoot | bool | `true` |  |
+| openvtb.securityContext.runAsUser | int | `1000` |  |
+| openvtb.settings.allowedHosts | string | `"openvtb.podiumd.svc.cluster.local"` |  |
+| openvtb.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/19"` |  |
+| openvtb.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/19"` |  |
+| openvtb.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/20"` |  |
+| openvtb.settings.celery.resultBackend | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/20"` |  |
+| openvtb.settings.database.host | string | `""` |  |
+| openvtb.settings.database.name | string | `""` |  |
+| openvtb.settings.database.password | string | `""` |  |
+| openvtb.settings.database.port | int | `5432` |  |
+| openvtb.settings.database.sslmode | string | `"prefer"` |  |
+| openvtb.settings.database.username | string | `""` |  |
+| openvtb.settings.debug | bool | `false` |  |
+| openvtb.settings.djangoSettingsModule | string | `"openvtb.conf.docker"` |  |
+| openvtb.settings.elasticapm.serviceName | string | `""` |  |
+| openvtb.settings.elasticapm.token | string | `""` |  |
+| openvtb.settings.elasticapm.url | string | `""` |  |
+| openvtb.settings.email.defaultFrom | string | `""` |  |
+| openvtb.settings.email.host | string | `"localhost"` |  |
+| openvtb.settings.email.password | string | `""` |  |
+| openvtb.settings.email.port | int | `25` |  |
+| openvtb.settings.email.useTLS | bool | `false` |  |
+| openvtb.settings.email.username | string | `""` |  |
+| openvtb.settings.environment | string | `""` |  |
+| openvtb.settings.isHttps | bool | `true` |  |
+| openvtb.settings.otel.disabled | bool | `true` |  |
+| openvtb.settings.secretKey | string | `""` |  |
+| openvtb.settings.sentry.dsn | string | `""` |  |
+| openvtb.settings.useXForwardedHost | bool | `false` |  |
+| openvtb.settings.uwsgi.maxRequests | string | `"1000"` |  |
+| openvtb.settings.uwsgi.processes | string | `"2"` |  |
+| openvtb.settings.uwsgi.threads | string | `"2"` |  |
+| openvtb.tags.redis | bool | `false` |  |
 | openzaak.beat.resources.requests.cpu | string | `"10m"` |  |
 | openzaak.beat.resources.requests.memory | string | `"160Mi"` |  |
 | openzaak.configuration.data | string | `""` |  |
@@ -1183,7 +1246,7 @@ PodiumD Helm chart
 | persistentVolume.volumeAttributeShareName | string | `""` |  |
 | redis-operator.enabled | bool | `true` |  |
 | redis-operator.featureGates.GenerateConfigInInitContainer | bool | `true` |  |
-| redis-operator.redis-ha | object | `{"databases":32,"enabled":true,"image":{"repository":"quay.io/opstree/redis","tag":"v8.6.6@sha256:12724412997e6acc32783f8c3c1ce8a7657029e06f563ffc8cbd81e2e9de7628"},"initContainerImage":{"pullPolicy":"IfNotPresent","repository":"library/busybox","tag":"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"},"initContainerResources":{"limits":{"cpu":"50m","memory":"32Mi"},"requests":{"cpu":"10m","memory":"16Mi"}},"labelMasterCronJob":{"enabled":true,"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"},"nodeSelector":{},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"schedule":"*/2 * * * *"},"podSecurityContext":{"fsGroup":1000},"preDeleteJob":{"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"},"nodeSelector":{}},"redisConfig":{"additionalRedisConfig":""},"redisExporter":{"enabled":false,"image":{"repository":"quay.io/opstree/redis-exporter","tag":"v1.89.0@sha256:00a3628bdd3bb3423a15c5daefa328c471ee609798eed1744fe578c906d20cab"},"podMonitor":{"enabled":false,"interval":"30s","scrapeTimeout":"10s"}},"replicaCount":3,"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"256Mi"}},"serviceName":"redis-ha","storage":{"volumeClaimTemplate":{"spec":{"accessModes":["ReadWriteOnce"],"resources":{"requests":{"storage":"2Gi"}},"storageClassName":"managed-csi-premiumv2"}}}}` | Shared Redis HA cluster using the RedisReplication CRD from the OT Redis Operator. When redis-operator.redis-ha.enabled is true, individual Redis subcharts per service should be disabled:   servicename:     tags:       redis: false   # disables template references to .Subcharts.redis     redis:       enabled: false # prevents subchart installation  Database allocation:   objecten           : db 1  (cache), db 2  (celery) — since the objecten/objecttypen                        merge (H.3), also covers what used to be objecttypen's traffic;                        db 0 is freed.   opennotificaties   : db 3  (cache), db 6  (celery result backend; broker nu ook Redis i.p.v. RabbitMQ vanaf chart 2.0.0)   openzaak           : db 4  (cache), db 5  (celery)   openklant          : db 7  (cache), db 8  (celery)   openformulieren    : db 9  (cache), db 10 (celery)   openinwoner        : db 11 (cache), db 12 (celery)   openarchiefbeheer  : db 13 (cache+axes), db 14 (choices + celery)   referentielijsten  : db 15 (cache), db 16 (reserved — celery not yet used)   openbeheer         : db 17 (cache), db 18 (reserved — celery not yet used)   <future component> : db 19 (cache), db 20 (celery)   db 21–31           : unallocated See docs/apps/redis/redis-ha-databases.md for the full allocation table and guidance. |
+| redis-operator.redis-ha | object | `{"databases":32,"enabled":true,"image":{"repository":"quay.io/opstree/redis","tag":"v8.6.6@sha256:12724412997e6acc32783f8c3c1ce8a7657029e06f563ffc8cbd81e2e9de7628"},"initContainerImage":{"pullPolicy":"IfNotPresent","repository":"library/busybox","tag":"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"},"initContainerResources":{"limits":{"cpu":"50m","memory":"32Mi"},"requests":{"cpu":"10m","memory":"16Mi"}},"labelMasterCronJob":{"enabled":true,"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"},"nodeSelector":{},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"schedule":"*/2 * * * *"},"podSecurityContext":{"fsGroup":1000},"preDeleteJob":{"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"},"nodeSelector":{}},"redisConfig":{"additionalRedisConfig":""},"redisExporter":{"enabled":false,"image":{"repository":"quay.io/opstree/redis-exporter","tag":"v1.89.0@sha256:00a3628bdd3bb3423a15c5daefa328c471ee609798eed1744fe578c906d20cab"},"podMonitor":{"enabled":false,"interval":"30s","scrapeTimeout":"10s"}},"replicaCount":3,"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"256Mi"}},"serviceName":"redis-ha","storage":{"volumeClaimTemplate":{"spec":{"accessModes":["ReadWriteOnce"],"resources":{"requests":{"storage":"2Gi"}},"storageClassName":"managed-csi-premiumv2"}}}}` | Shared Redis HA cluster using the RedisReplication CRD from the OT Redis Operator. When redis-operator.redis-ha.enabled is true, individual Redis subcharts per service should be disabled:   servicename:     tags:       redis: false   # disables template references to .Subcharts.redis     redis:       enabled: false # prevents subchart installation  Database allocation:   objecten           : db 1  (cache), db 2  (celery) — since the objecten/objecttypen                        merge (H.3), also covers what used to be objecttypen's traffic;                        db 0 is freed.   opennotificaties   : db 3  (cache), db 6  (celery result backend; broker nu ook Redis i.p.v. RabbitMQ vanaf chart 2.0.0)   openzaak           : db 4  (cache), db 5  (celery)   openklant          : db 7  (cache), db 8  (celery)   openformulieren    : db 9  (cache), db 10 (celery)   openinwoner        : db 11 (cache), db 12 (celery)   openarchiefbeheer  : db 13 (cache+axes), db 14 (choices + celery)   referentielijsten  : db 15 (cache), db 16 (reserved — celery not yet used)   openbeheer         : db 17 (cache), db 18 (reserved — celery not yet used)   openvtb            : db 19 (cache+axes), db 20 (celery broker/result; no worker deployed)   <future component> : db 21 (cache), db 22 (celery)   db 23–31           : unallocated See docs/apps/redis/redis-ha-databases.md for the full allocation table and guidance. |
 | redis-operator.redis-ha.databases | int | `32` | Number of Redis databases to configure. Applied via an initContainer because `databases` is a startup-only parameter and the OT redis-operator does not include the additionalRedisConfig ConfigMap in the main redis.conf (operator limitation in v0.24.0). |
 | redis-operator.redis-ha.initContainerImage | object | `{"pullPolicy":"IfNotPresent","repository":"library/busybox","tag":"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"}` | Image used by the initContainer that appends `databases N` to redis.conf. Override this in environments that restrict public Docker Hub pulls (e.g. point to an ACR mirror). |
 | redis-operator.redis-ha.initContainerResources | object | `{"limits":{"cpu":"50m","memory":"32Mi"},"requests":{"cpu":"10m","memory":"16Mi"}}` | Resources for the initContainer that configures redis.conf. |
