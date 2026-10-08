@@ -132,6 +132,13 @@ openbeheer:
     secrets:
       keycloak_client_secret: "placeholder"
 
+# openvtb is disabled by default; when enabled the render-time guard needs a real oidcUrl.
+openvtb:
+  configuration:
+    oidcUrl: https://openvtb.ci.podiumd.test
+    secrets:
+      keycloak_client_secret: "placeholder"
+
 kiss:
   configuration:
     oidcUrl: https://kiss.ci.podiumd.test
