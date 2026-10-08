@@ -170,7 +170,7 @@ chart's own docs).
    `objecten` app per environment, (3) confirm every objecttype has
    `is_imported=True` (objecten 3.6.x has no `check_for_external_objecttypes`;
    that command ships with Open Object 4 — tested on 3.6.2, see
-   `_UPGRADE_PATHS/4.9.3-to-4.10.0-values-deltas.md` for the exact check),
+   `_UPGRADE_PATHS/4.9.4-to-4.10.0-values-deltas.md` for the exact check),
    (4) only then proceed to the `openobject` chart swap, and run
    `check_for_external_objecttypes` on Open Object 4 afterwards. Upstream's own example invocation (`docs/manual/migration.rst`):
    `/app/src/manage.py import_objecttypes objecttypes-api` — worth noting the
@@ -639,7 +639,7 @@ All H.1–H.7 design decisions are now resolved; nothing left in this category.
       [`images-4.10.0.yaml`](../../images/images-4.10.0.yaml).
 - [x] ~~Scaffold the upgrade guide~~ — the merge ships in PodiumD 4.10.0, not
       4.9.0. The upgrade steps, values deltas and environment-specific notes
-      are in `docs/_UPGRADE_PATHS/4.9.3-to-4.10.0-*.md`. The earlier
+      are in `docs/_UPGRADE_PATHS/4.9.4-to-4.10.0-*.md`. The earlier
       `4.8.X-to-4.9.0` drafts are removed.
 - [x] ~~Audit per-gemeente values overrides for use of the two fields upstream
       4.0.0 removes (`objecttypes.items[].service_identifier`,
@@ -654,7 +654,7 @@ All H.1–H.7 design decisions are now resolved; nothing left in this category.
       `kiss.adapter.*`/`kiss.settings.*.objectTypeUrl`)~~ — the values
       migration script rewrites these per environment; environments that need
       more than the script are listed in
-      `docs/_UPGRADE_PATHS/4.9.3-to-4.10.0-gemeente-specific.md`.
+      `docs/_UPGRADE_PATHS/4.9.4-to-4.10.0-gemeente-specific.md`.
 - [x] ~~Write an explicit rollback runbook for the `openobject` cutover
       itself~~ — moved to the "Rollback" section of
-      `docs/_UPGRADE_PATHS/4.9.3-to-4.10.0-upgrade.md`.
+      `docs/_UPGRADE_PATHS/4.9.4-to-4.10.0-upgrade.md`.
