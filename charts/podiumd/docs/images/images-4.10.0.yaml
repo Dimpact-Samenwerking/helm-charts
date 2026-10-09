@@ -5,6 +5,7 @@
 # Changes:
 #   1. objecten 3.6.2 -> 4.1.0 (image maykinmedia/open-object; objecttypen
 #      3.4.2 is merged into it).
+#   2. openformulieren 3.5.8 -> 4.0.2 (chart 1.12.0 -> 1.13.0).
 #
 # See docs/_UPGRADE_PATHS/4.9.4-to-4.10.0-upgrade.md for the operator upgrade notes.
 #
@@ -16,3 +17,9 @@
   url: docker.io/maykinmedia/open-object
   version: "4.1.0"
   digest: "sha256:7738cb8161d221d0a286d39d9d270c35024ff78123c296ceb46f3d9dda7208f9"
+
+# openformulieren 3.5.8 -> 4.0.2
+- name: openformulieren/open-forms
+  url: docker.io/openformulieren/open-forms
+  version: "4.0.2"
+  digest: "sha256:e1cad4bcf2319a3eb106e51156bf69c6be83da9dd070e977f52ec1079455b8e3"
