@@ -1865,6 +1865,12 @@ openformulieren:
         memory: 256Mi
   settings:
     allowedHosts: openformulieren-nginx.podiumd.svc.cluster.local
+    # -- New in 4.10.0: SameSite for the session, CSRF and language cookies
+    # (SESSION_/CSRF_/LANGUAGE_COOKIE_SAMESITE). Strict keeps the cookies off
+    # every cross-site request, including the return from DigiD/eHerkenning
+    # and forms embedded on another site; set Lax per environment if that
+    # breaks a login or an embed.
+    cookieSamesite: Strict
     email:
       port: 587
       useTLS: true
