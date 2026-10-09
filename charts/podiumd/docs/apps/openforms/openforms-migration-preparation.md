@@ -56,7 +56,7 @@ kubectl exec -n <ns> <openformulieren-pod> -- \
 
 # Apply (note: cannot be easily reverted for large forms; copy first):
 kubectl exec -n <ns> <openformulieren-pod> -- \
-  python /app/src/manage.py enable_new_logic_evaluation_for_all_forms --commit
+  python /app/src/manage.py enable_new_logic_evaluation_for_all_forms --no-dry-run
 ```
 
 #### 4. Catalogi API direct URL references (removed in 4.0) - migration script
