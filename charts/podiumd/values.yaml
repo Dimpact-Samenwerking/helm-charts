@@ -1866,11 +1866,10 @@ openformulieren:
   settings:
     allowedHosts: openformulieren-nginx.podiumd.svc.cluster.local
     # -- New in 4.10.0: SameSite for the session, CSRF and language cookies
-    # (SESSION_/CSRF_/LANGUAGE_COOKIE_SAMESITE). Strict keeps the cookies off
-    # every cross-site request, including the return from DigiD/eHerkenning
-    # and forms embedded on another site; set Lax per environment if that
-    # breaks a login or an embed.
-    cookieSamesite: Strict
+    # (SESSION_/CSRF_/LANGUAGE_COOKIE_SAMESITE). Lax is Django's default, now
+    # set explicitly. Strict would keep the cookies off the return from
+    # DigiD/eHerkenning and off forms embedded on another site.
+    cookieSamesite: Lax
     email:
       port: 587
       useTLS: true

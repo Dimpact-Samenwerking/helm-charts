@@ -917,7 +917,7 @@ PodiumD Helm chart
 | openformulieren.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/10"` |  |
 | openformulieren.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
 | openformulieren.settings.celery.resultBackendl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/10"` |  |
-| openformulieren.settings.cookieSamesite | string | `"Strict"` | New in 4.10.0: SameSite for the session, CSRF and language cookies (SESSION_/CSRF_/LANGUAGE_COOKIE_SAMESITE). Strict keeps the cookies off every cross-site request, including the return from DigiD/eHerkenning and forms embedded on another site; set Lax per environment if that breaks a login or an embed. |
+| openformulieren.settings.cookieSamesite | string | `"Lax"` | New in 4.10.0: SameSite for the session, CSRF and language cookies (SESSION_/CSRF_/LANGUAGE_COOKIE_SAMESITE). Lax is Django's default, now set explicitly. Strict would keep the cookies off the return from DigiD/eHerkenning and off forms embedded on another site. |
 | openformulieren.settings.email.port | int | `587` |  |
 | openformulieren.settings.email.useTLS | bool | `true` |  |
 | openformulieren.tags.redis | bool | `false` |  |
