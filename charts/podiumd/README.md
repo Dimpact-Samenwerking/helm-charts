@@ -12,7 +12,7 @@ PodiumD Helm chart
 | @dimpact | brppersonenmock(brp-personen-mock) | 1.2.9 |
 | @maykinmedia | openarchiefbeheer | 2.0.0 |
 | @maykinmedia | openbeheer | 0.1.3 |
-| @maykinmedia | openformulieren(openforms) | 1.12.0 |
+| @maykinmedia | openformulieren(openforms) | 1.13.0 |
 | @maykinmedia | openinwoner | 2.4.0 |
 | @maykinmedia | openklant | 1.11.0 |
 | @maykinmedia | opennotificaties | 2.0.0 |
@@ -885,7 +885,6 @@ PodiumD Helm chart
 | openformulieren.configuration.job.backoffLimit | int | `6` |  |
 | openformulieren.configuration.job.enabled | bool | `true` |  |
 | openformulieren.configuration.job.restartPolicy | string | `"OnFailure"` |  |
-| openformulieren.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
 | openformulieren.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openformulieren.example.nl`. |
 | openformulieren.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
 | openformulieren.configuration.secrets.keycloak_client_secret | string | `""` |  |
@@ -894,7 +893,7 @@ PodiumD Helm chart
 | openformulieren.customerInteractionsConfigJob.serviceIdentifier | string | `"openklant-api"` | zgw_consumers service identifier (Service.slug) of the Open Klant klantinteracties service; must have api_type `kc`. |
 | openformulieren.flower.enabled | bool | `false` |  |
 | openformulieren.fullnameOverride | string | `"openformulieren"` |  |
-| openformulieren.image.tag | string | `"3.5.8@sha256:1050b6dd1554ff6f620390870fbb2056157d792e75b9fe6e965371a2ae84f41a"` |  |
+| openformulieren.image.tag | string | `"4.0.2@sha256:e1cad4bcf2319a3eb106e51156bf69c6be83da9dd070e977f52ec1079455b8e3"` |  |
 | openformulieren.nameOverride | string | `"openformulieren"` |  |
 | openformulieren.nginx.config.clientMaxBodySize | string | `"100M"` |  |
 | openformulieren.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
@@ -916,8 +915,8 @@ PodiumD Helm chart
 | openformulieren.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/9"` |  |
 | openformulieren.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/10"` |  |
 | openformulieren.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
-| openformulieren.settings.celery.resultBackendl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/10"` |  |
-| openformulieren.settings.cookieSamesite | string | `"Lax"` | New in 4.10.0: SameSite for the session, CSRF and language cookies (SESSION_/CSRF_/LANGUAGE_COOKIE_SAMESITE). Lax is Django's default, now set explicitly. Strict would keep the cookies off the return from DigiD/eHerkenning and off forms embedded on another site. |
+| openformulieren.settings.celery.resultBackend | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/10"` |  |
+| openformulieren.settings.cookieSamesite | string | `"Lax"` | New in 4.10.0: SameSite for the session, CSRF and language cookies (SESSION_/CSRF_/LANGUAGE_COOKIE_SAMESITE). Unset, Open Forms uses None on HTTPS so the SDK can be embedded on another site. Lax still allows embedding on the gemeente's own domain and the return from DigiD/eHerkenning; set None per environment that embeds forms elsewhere. |
 | openformulieren.settings.email.port | int | `587` |  |
 | openformulieren.settings.email.useTLS | bool | `true` |  |
 | openformulieren.tags.redis | bool | `false` |  |
