@@ -1016,14 +1016,26 @@ opentelemetry-collector:
         # Apply values-enable-tempo.yaml to enable traces → Tempo.
 
 # -- PodMonitor for Traefik. Scrapes the Traefik metrics endpoint (port 9100)
-# from pods in the configured namespace. Requires Traefik to be deployed with
-# --metrics.prometheus=true (default in the standard Traefik Helm chart).
+# from pods in the configured namespace. Requires Traefik's Prometheus metrics
+# (`metrics.prometheus`, on by default in the standard Traefik Helm chart).
+# Keep this the only monitor on Traefik: a second ServiceMonitor or PodMonitor on
+# the same pods (such as the Traefik chart's own `metrics.prometheus.serviceMonitor`)
+# stores every Traefik series twice. Add labels with `metricRelabelings` instead.
 traefikMonitor:
   enabled: true
   # -- Namespace where Traefik pods run. Leave empty to search all namespaces.
   namespace: ""
   # -- Prometheus scrape interval.
   scrapeInterval: 30s
+  # -- Relabelings applied to the target before it is scraped (PodMonitor
+  # `podMetricsEndpoints[].relabelings`), e.g. to add a static `cluster` label.
+  relabelings: []
+  # -- Relabelings applied to every scraped sample (PodMonitor
+  # `podMetricsEndpoints[].metricRelabelings`). Traefik names the backend in its
+  # `service` and `router` labels as `<namespace>-<name>-<port>@<provider>`, so a
+  # rule can lift the namespace into a label of its own, for dashboards per
+  # namespace or tenant. See docs/prometheus-scraping.md for an example.
+  metricRelabelings: []
 
 # -- ServiceMonitor for the OpenTelemetry Collector internal metrics endpoint
 # (port 8888). Allows Prometheus to scrape otelcol_* health/pipeline metrics.

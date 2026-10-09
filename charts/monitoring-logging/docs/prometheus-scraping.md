@@ -65,8 +65,30 @@ Traefik is deployed with `--metrics.prometheus=true` and exposes metrics on a de
 | Path | `/metrics` |
 | Monitor | `PodMonitor/monitoring-traefik` (created by `monitoring-logging` chart) |
 | Config key | `traefikMonitor.enabled` (default: `true`) |
+| Relabeling | `traefikMonitor.relabelings` / `traefikMonitor.metricRelabelings` (default: none) |
 
 No action needed in `podiumd/values-enable-observability.yaml` — the PodMonitor is owned by the monitoring chart.
+
+**Keep it the only monitor on Traefik.** A second ServiceMonitor or PodMonitor on the same pods, such as the Traefik chart's own `metrics.prometheus.serviceMonitor`, makes Prometheus store every Traefik series twice. Any query that sums `traefik_*` without selecting on `job` then counts all traffic double. To add labels, relabel this PodMonitor instead.
+
+Traefik names the backend in its `service` and `router` labels as `<namespace>-<name>-<port>@<provider>`. To split traffic per namespace (for example one namespace per tenant), lift the namespace into a label of its own. This regex assumes namespace names without a hyphen:
+
+```yaml
+traefikMonitor:
+  metricRelabelings:
+    - sourceLabels: [service]
+      regex: "([^-]+)-.*"
+      targetLabel: backend_namespace
+      replacement: "$1"
+      action: replace
+    - sourceLabels: [router]
+      regex: "([^-]+)-.*"
+      targetLabel: backend_namespace
+      replacement: "$1"
+      action: replace
+```
+
+Do not use `namespace` as the target label: the PodMonitor already sets it to the namespace of the Traefik pod.
 
 ---
 
