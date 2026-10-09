@@ -23,7 +23,7 @@ PodiumD Helm chart
 | @wiremind | clamav | 3.7.2 |
 | @worth-nl | omc(notifynl-omc-nodep) | 0.14.1 |
 | @zac | zac(zaakafhandelcomponent) | 1.0.338 |
-| @zgw-office-addin | zgw-office-addin | 0.0.89 |
+| @zgw-office-addin | zgw-office-addin | 0.0.93 |
 | file://../mi-data | mi(mi-data) | 1.1.0 |
 | https://helm.elastic.co | eck-operator | 3.5.0 |
 | https://helm.elastic.co | kiss-eck(eck-stack) | 0.20.0 |
@@ -1375,7 +1375,7 @@ PodiumD Helm chart
 | zac.zgwApis.secret | string | `"changeme"` |  |
 | zac.zgwApis.url | string | `"http://open-zaak.internal"` |  |
 | zac.zgwApis.urlExtern | string | `"http://open-zaak.example.nl"` |  |
-| zgw-office-addin.backend.image.tag | string | `"0.11.0@sha256:5b188e853531986e31709ed6cae130a891e0014cb267c43ac338b792c84a29ab"` |  |
+| zgw-office-addin.backend.image.tag | string | `"0.12.0@sha256:886c4616c7cb88769013c8b96d72fbde8b6db6c8947e49e83cd2d2d538175bca"` |  |
 | zgw-office-addin.backend.msalSecret | string | `""` |  |
 | zgw-office-addin.backend.resources.requests.cpu | string | `"100m"` |  |
 | zgw-office-addin.backend.resources.requests.memory | string | `"256Mi"` |  |
@@ -1386,7 +1386,7 @@ PodiumD Helm chart
 | zgw-office-addin.common.msalTenantId | string | `""` | MS Azure Tenant ID of the Office Add-in application |
 | zgw-office-addin.common.podLabels | object | `{"app":"office-addin","service_name":"office-addin"}` | IN-2060: Grafana/Loki app + service_name labels on the office-addin pods. Without these the pods are attributed to the Helm release name ("podiumd"). Requires zgw-office-addin chart >= 0.0.89 (adds podLabels support). |
 | zgw-office-addin.enabled | bool | `true` |  |
-| zgw-office-addin.frontend.image.tag | string | `"0.11.0@sha256:9a6b3e9023b8cfba152a84dd7477e079490fc7d35562d32e0dc094be81a7f7a2"` |  |
+| zgw-office-addin.frontend.image.tag | string | `"0.12.0@sha256:11fa2df3546def1fcfec0704d6ed55009ea0c8dcca49a7b6e848936ed9d93584"` |  |
 | zgw-office-addin.frontend.resources.requests.cpu | string | `"50m"` |  |
 | zgw-office-addin.frontend.resources.requests.memory | string | `"64Mi"` |  |
 | zgw-office-addin.fullnameOverride | string | `"zgw-office-addin"` |  |
