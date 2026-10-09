@@ -3,10 +3,15 @@
 # Images new or changed in podiumd 4.9.5 vs 4.9.4.
 #
 # Changes:
+#   1. openformulieren 3.5.8 -> 3.5.10.
 #
 # See docs/_UPGRADE_PATHS/4.9.4-to-4.9.5-upgrade.md for the operator upgrade notes.
 #
 # Digests are the OCI image index (multi-arch manifest) digest as returned in
 # the Docker-Content-Digest response header from the source registry.
 
-[]
+# openformulieren 3.5.8 -> 3.5.10
+- name: openformulieren/open-forms
+  url: docker.io/openformulieren/open-forms
+  version: "3.5.10"
+  digest: "sha256:a71bb4a76bfa0886391b9dcf87a9c4857a7b76076c084b61d38db820fd09d6dc"
