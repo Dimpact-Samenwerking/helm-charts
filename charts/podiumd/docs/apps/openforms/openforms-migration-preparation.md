@@ -45,7 +45,10 @@ This script has been available since version 3.5.0.
 ### 3. Migration script to remove  Legacy logic evaluation (removed in 4.0)
 
 The old logic evaluation engine will be removed in Open Forms 4.0. A bulk
-migration tool is available since 3.5.2.
+migration tool is available since 3.5.2. **Use it on 3.5.10 or later
+(PodiumD 4.9.5):** up to 3.5.9 it can give logic rules the wrong order. Forms
+converted with it on an older version get the correct order back when saved
+once in the admin on 3.5.10.
 
 **NOTE: this cannot be easily reverted for large forms, these should be copied first!**
 
@@ -56,7 +59,7 @@ kubectl exec -n <ns> <openformulieren-pod> -- \
 
 # Apply (note: cannot be easily reverted for large forms; copy first):
 kubectl exec -n <ns> <openformulieren-pod> -- \
-  python /app/src/manage.py enable_new_logic_evaluation_for_all_forms --commit
+  python /app/src/manage.py enable_new_logic_evaluation_for_all_forms --no-dry-run
 ```
 
 #### 4. Catalogi API direct URL references (removed in 4.0) - migration script
