@@ -209,13 +209,13 @@
 
 - name: infonl/zgw-office-addin-frontend
   url: ghcr.io/infonl/zgw-office-addin-frontend
-  version: "0.11.0"
-  digest: "sha256:9a6b3e9023b8cfba152a84dd7477e079490fc7d35562d32e0dc094be81a7f7a2"
+  version: "0.12.0"
+  digest: "sha256:11fa2df3546def1fcfec0704d6ed55009ea0c8dcca49a7b6e848936ed9d93584"
 
 - name: infonl/zgw-office-addin-backend
   url: ghcr.io/infonl/zgw-office-addin-backend
-  version: "0.11.0"
-  digest: "sha256:5b188e853531986e31709ed6cae130a891e0014cb267c43ac338b792c84a29ab"
+  version: "0.12.0"
+  digest: "sha256:886c4616c7cb88769013c8b96d72fbde8b6db6c8947e49e83cd2d2d538175bca"
 
 - name: clamav/clamav
   url: docker.io/clamav/clamav
