@@ -55,6 +55,17 @@ after `helm dependency update`, or pull the same files from
 No other action required — `alloy` and `prometheus-pushgateway` bumps are
 drop-in.
 
+## Traefik PodMonitor: optional relabeling
+
+`traefikMonitor` gains `relabelings` and `metricRelabelings`, passed through to the
+PodMonitor's `podMetricsEndpoints`. Use them to add labels to the Traefik metrics,
+for example the backend namespace taken from Traefik's `service` label, instead of
+deploying a second monitor on Traefik (which stores every series twice). See
+`docs/prometheus-scraping.md` § Traefik.
+
+No action required: both default to `[]`, which renders the PodMonitor exactly as
+before.
+
 ## Deferred (tracked as backlog items, not folded in here)
 
 - **`loki` 6.55.0 → 7.3.0**: the chart's default MinIO images silently
