@@ -20,6 +20,19 @@
 {{- end -}}
 {{- end -}}
 
+{{- /* PABC 2.1.0 zaaktype import: with any of these empty PABC starts fine and
+     only fails when someone presses the import button. */ -}}
+{{- if .Values.pabc.enabled -}}
+{{- $zgw := .Values.pabc.settings.zgwZaakregister | default dict -}}
+{{- if $zgw.enabled -}}
+{{- range $field := list "catalogiBaseUrl" "clientId" "clientSecret" "catalogusDomein" -}}
+{{- if not (index $zgw $field) -}}
+{{- fail (printf "pabc.settings.zgwZaakregister.%s must be set when pabc.settings.zgwZaakregister.enabled is true" $field) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{- /* Frank!Gateway: `gateway` was the reserved single-instance key before the
      traffic-class split became the only shape. It no longer resolves to
      anything — the bare `frankgateway` object names and the `/apisix` etcd
