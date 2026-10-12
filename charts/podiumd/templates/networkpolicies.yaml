@@ -480,6 +480,11 @@ spec:
       {{- if get $on "etcd" }}{{ $components = append $components "frankgateway-etcd" }}{{ end }}
       {{- /* The gateway class pods have their own, stricter policies. */ -}}
       {{- if and $fg.enabled $fgNp.enabled }}{{ $components = append $components "frankgateway" }}{{ end }}
+      {{- /* So do the dashboard and its shim (NW-03); including them here would let the whole namespace reach them again. */ -}}
+      {{- $fgDash := $fg.dashboard | default dict }}
+      {{- if and $fg.enabled $fgDash.enabled ($fgDash.networkPolicy | default dict).enabled }}
+      {{- $components = concat $components (list "frankgateway-dashboard" "frankgateway-shim") }}
+      {{- end }}
       {{- with $components }}
       - key: app.kubernetes.io/component
         operator: NotIn
