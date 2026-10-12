@@ -1031,10 +1031,11 @@ traefikMonitor:
   # `podMetricsEndpoints[].relabelings`), e.g. to add a static `cluster` label.
   relabelings: []
   # -- Relabelings applied to every scraped sample (PodMonitor
-  # `podMetricsEndpoints[].metricRelabelings`). Traefik names the backend in its
-  # `service` and `router` labels as `<namespace>-<name>-<port>@<provider>`, so a
-  # rule can lift the namespace into a label of its own, for dashboards per
-  # namespace or tenant. See docs/prometheus-scraping.md for an example.
+  # `podMetricsEndpoints[].metricRelabelings`). Traefik's `service` label is
+  # `<namespace>-<name>-<port>@<provider>` and its `router` label (only with
+  # Traefik's `metrics.prometheus.addRoutersLabels`) starts with `<namespace>-`
+  # too, so a rule can lift the namespace into a label of its own, for dashboards
+  # per namespace or tenant. See docs/prometheus-scraping.md for an example.
   metricRelabelings: []
 
 # -- ServiceMonitor for the OpenTelemetry Collector internal metrics endpoint

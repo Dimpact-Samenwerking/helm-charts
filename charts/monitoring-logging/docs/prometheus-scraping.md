@@ -71,7 +71,7 @@ No action needed in `podiumd/values-enable-observability.yaml` — the PodMonito
 
 **Keep it the only monitor on Traefik.** A second ServiceMonitor or PodMonitor on the same pods, such as the Traefik chart's own `metrics.prometheus.serviceMonitor`, makes Prometheus store every Traefik series twice. Any query that sums `traefik_*` without selecting on `job` then counts all traffic double. To add labels, relabel this PodMonitor instead.
 
-Traefik names the backend in its `service` and `router` labels as `<namespace>-<name>-<port>@<provider>`. To split traffic per namespace (for example one namespace per tenant), lift the namespace into a label of its own. This regex assumes namespace names without a hyphen:
+Traefik's `service` label is `<namespace>-<name>-<port>@<provider>`. Its `router` label has no port (`<namespace>-<ingress>-<host><path>@kubernetes` for an Ingress, `<namespace>-<ingressroute>-<hash>@kubernetescrd` for an IngressRoute), and Traefik only adds it with `metrics.prometheus.addRoutersLabels: true`. Both start with the namespace. To split traffic per namespace (for example one namespace per tenant), lift the namespace into a label of its own. This regex assumes namespace names without a hyphen:
 
 ```yaml
 traefikMonitor:
