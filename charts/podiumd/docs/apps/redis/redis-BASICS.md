@@ -89,7 +89,8 @@ operator.
   | 3, 6 | opennotificaties (cache / celery result backend¹) | 13–14 | openarchiefbeheer (cache+axes / choices+celery) |
   | 4–5 | openzaak (cache / celery) | 15–16 | referentielijsten (cache / reserved) |
   | 7–8 | openklant (cache / celery) | 17–18 | openbeheer (cache / reserved) |
-  | | | 19–20 | reserved for next component; 21–31 unallocated |
+  | | | 19–20 | openvtb (cache+axes / celery, no worker) |
+  | | | 21–22 | reserved for next component; 23–31 unallocated |
 
   ¹ Per the `values.yaml` allocation comment, the opennotificaties Celery
   broker is also Redis (instead of RabbitMQ) since opennotificaties chart
@@ -128,8 +129,8 @@ Redis itself ships with the umbrella chart (`redis-operator.enabled: true`,
 
 1. **Pick the next free DB indexes** from the allocation table in
    [redis-ha-databases.md](redis-ha-databases.md). Convention: one DB for
-   cache (+axes), one for Celery. At time of writing db 19 (cache) and
-   db 20 (celery) are reserved for the next component; db 21–31 are
+   cache (+axes), one for Celery. At time of writing db 21 (cache) and
+   db 22 (celery) are reserved for the next component; db 23–31 are
    unallocated.
 2. **Set the app's Redis URLs** in its `settings` block in `values.yaml`.
    Cache URLs take **no** scheme prefix; Celery URLs **must** have
@@ -139,11 +140,11 @@ Redis itself ships with the umbrella chart (`redis-operator.enabled: true`,
    newcomponent:
      settings:
        cache:
-         default: redis-ha-master.podiumd.svc.cluster.local:6379/19
-         axes: redis-ha-master.podiumd.svc.cluster.local:6379/19
+         default: redis-ha-master.podiumd.svc.cluster.local:6379/21
+         axes: redis-ha-master.podiumd.svc.cluster.local:6379/21
        celery:
-         brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/20
-         resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/20
+         brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/22
+         resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/22
    ```
 
    (The `resultBackendl` spelling — trailing `l` — is intentional; it matches
@@ -156,8 +157,8 @@ Redis itself ships with the umbrella chart (`redis-operator.enabled: true`,
    the component's values block.
 5. **Verify**: after deploying the app, check its keyspace is live —
    `kubectl exec -n podiumd redis-ha-0 -c redis-ha -- redis-cli INFO keyspace`
-   should list `db19`/`db20` with keys, and the app's worker log should show
-   Celery connected to `redis://redis-ha-master...:6379/20`.
+   should list `db21`/`db22` with keys, and the app's worker log should show
+   Celery connected to `redis://redis-ha-master...:6379/22`.
 
 ## Related documents
 
