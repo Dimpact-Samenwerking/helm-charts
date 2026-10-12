@@ -4,8 +4,9 @@
 # in one run: check, initialise, unseal, mint the tokens, configure, verify.
 #
 # Run it after the `helm upgrade` that deployed OpenBao, from a pipeline step
-# or an operator machine. It is idempotent: on an operational vault it only
-# checks, so it can run after every deploy.
+# or an operator machine. It is idempotent: on an operational vault it mints
+# nothing and only re-runs the openbao-config Job (step 5), so it can run after
+# every deploy. --check changes nothing at all.
 #
 # What one run does:
 #   1. Preflight (read-only, stops on the first problem): cluster, release,
@@ -162,7 +163,10 @@ kc get namespace "${NAMESPACE}" >/dev/null 2>&1 \
 ok "cluster reachable (context ${KUBE_CONTEXT}, namespace ${NAMESPACE})"
 
 hc status "${RELEASE}" >/dev/null 2>&1 || fail "Helm release ${RELEASE} not found"
-hc get hooks "${RELEASE}" | grep -q 'name: openbao-config' \
+# Captured first: `grep -q` exits on the first match, and under pipefail the
+# SIGPIPE that gives helm would fail this check on a large hooks output.
+HOOKS=$(hc get hooks "${RELEASE}") || fail "helm get hooks ${RELEASE} failed"
+grep -q 'name: openbao-config' <<<"${HOOKS}" \
   || fail "release ${RELEASE} has no openbao-config Job: set openbao.enabled=true and openbao.configuration.enabled=true, and deploy"
 ok "release ${RELEASE} deploys OpenBao and the openbao-config Job"
 
@@ -247,7 +251,22 @@ if [[ "${CHECK_ONLY}" -eq 1 ]]; then
 fi
 
 ROOT=""
-cleanup() { ROOT=""; KEY=""; KV_VALUE=""; OLD_CFG=""; OLD_RD=""; }
+# On any exit, also a failed step: revoke a root token that is still live
+# (init and generate-root tokens never expire), then clear the secrets.
+cleanup() {
+  if [[ -n "${ROOT}" ]]; then
+    if bao_sh "${STS}-0" >/dev/null 2>&1 <<EOS
+export BAO_ADDR="${BAO_ADDR}" BAO_TOKEN="${ROOT}"
+bao token revoke -self
+EOS
+    then
+      echo "    ..    root token revoked on exit" >&2
+    else
+      echo "    WARN  could not revoke the root token; revoke it by accessor (bao list auth/token/accessors)" >&2
+    fi
+  fi
+  ROOT=""; KEY=""; KV_VALUE=""; OLD_CFG=""; OLD_RD=""
+}
 trap cleanup EXIT
 
 ###############################################################################
@@ -301,8 +320,9 @@ for i in $(seq 0 $((REPLICAS - 1))); do
   pod="${STS}-${i}"
   if [[ "$(pod_status "${pod}" | jq -r .sealed)" == "true" && "${SEAL_TYPE}" == "shamir" ]]; then
     [[ -n "${KEY}" ]] || KEY=$(kv_get)
-    bao_sh "${pod}" >/dev/null <<EOS
-bao operator unseal "${KEY}" >/dev/null
+    # Key on stdin (key=-), not as an argument of a process in the pod.
+    bao_sh "${pod}" >/dev/null <<EOS || fail "unseal of ${pod} failed with the key from ${KEYVAULT_ITEM}"
+printf '%s' "${KEY}" | bao write -format=json sys/unseal key=- >/dev/null
 EOS
   fi
   for _ in $(seq 1 24); do
@@ -353,7 +373,7 @@ revoke_token() {
   # revoke_token <label> <token>: revoke a replaced token with the root token.
   bao_sh "${STS}-0" >/dev/null <<EOS
 export BAO_ADDR="${BAO_ADDR}" BAO_TOKEN="${ROOT}"
-bao token revoke "$2"
+printf '%s' "$2" | bao write auth/token/revoke token=- >/dev/null
 EOS
   ok "previous $1 revoked"
 }
