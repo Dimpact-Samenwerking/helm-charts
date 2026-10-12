@@ -148,7 +148,7 @@ the relevant government CA certificates.
 ### Known limitation — `TCPAddr` cannot be restricted to localhost
 
 ClamAV exposes its scan socket on TCP port 3310 via the `clamav` ClusterIP service. Other pods in the
-cluster (e.g., Open Formulieren) connect to `clamav.podiumd.svc.cluster.local:3310`. Setting
+cluster (e.g., Open Formulieren) connect to `clamav:3310` (`clamav.<namespace>.svc.cluster.local:3310`). Setting
 `TCPAddr localhost` causes clamd to bind only to the loopback interface, which makes the ClusterIP service
 unreachable and breaks all network-based scanning. The socket is therefore bound to all interfaces
 (`INADDR_ANY`) by default, which is required for in-cluster use. Access control should be enforced at
