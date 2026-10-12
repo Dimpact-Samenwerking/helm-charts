@@ -4023,11 +4023,12 @@ frankgateway:
   # internal. It defaults to the instance key when that key is one of the three,
   # so a custom-named instance must set `class` explicitly or get no policy.
   networkPolicies:
-    # NOT ENFORCED ON aks-blue. The CNI on the aks-blue-* clusters does not
-    # support NetworkPolicy: the API server accepts every object here and
-    # silently ignores it, so `enabled: true` there documents intent and
-    # restricts nothing. Confirm enforcement on the target cluster before
-    # treating this as isolation. See frankgateway-BASICS.md.
+    # Enforced only where the cluster runs a policy engine. Of the aks-blue
+    # clusters, ontw-dim1/2/3, ontw-dimp and test-dimp run Cilium and enforce
+    # these; accp-dimp, ontw-icat and ontw-info (azure-cns, kube-proxy) accept
+    # every object and silently ignore it, so there `enabled: true` restricts
+    # nothing. Confirm enforcement on the target cluster before treating this
+    # as isolation (security review NW-01). See frankgateway-BASICS.md.
     enabled: false
     # Namespace selector label used to match the ingress gateway namespace for
     # `inway` instances.

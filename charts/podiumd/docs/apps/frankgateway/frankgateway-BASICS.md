@@ -438,11 +438,18 @@ denied`).
 NetworkPolicies. Whether anything acts on them is a property of the cluster's
 CNI, not of the chart.
 
-**The CNI on the `aks-blue-*` clusters does not support NetworkPolicy.** There
-the API server accepts every policy object and silently never enforces it:
-`kubectl get networkpolicy` shows them, `kubectl describe` shows the rules, and
-all traffic still flows. A policy that is not enforced reads exactly like a
-policy that is.
+**Not every `aks-blue-*` cluster enforces NetworkPolicy** (security review
+NW-01, checked on the `cilium-config` ConfigMap and the AKS network profile):
+
+| Cluster | Policy engine | Enforced |
+| --- | --- | --- |
+| aks-blue-ontw-dim1, -dim2, -dim3, aks-blue-ontw-dimp, aks-blue-test-dimp | Cilium | yes |
+| aks-blue-accp-dimp, aks-blue-ontw-icat, aks-blue-ontw-info | none (azure-cns, kube-proxy) | no |
+
+Where nothing enforces them, the API server accepts every policy object and
+silently never applies it: `kubectl get networkpolicy` shows them, `kubectl
+describe` shows the rules, and all traffic still flows. A policy that is not
+enforced reads exactly like a policy that is.
 
 So on those clusters, turning this on buys documentation of intent and nothing
 else. Do not treat it as isolation, and do not use it as a control in a
