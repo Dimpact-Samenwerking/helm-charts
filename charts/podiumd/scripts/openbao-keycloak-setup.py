@@ -174,7 +174,10 @@ class Keycloak:
 
 
 def ensure_client(kc, want, secret, check):
-    """Returns (internal id, number of differences)."""
+    """Returns (internal id, number of differences).
+
+    The secret is compared through /client-secret, because the client
+    representation may mask it."""
     diffs = 0
     found = kc.api("GET", f"/clients?clientId={CLIENT_ID}") or []
     body = {k: v for k, v in want.items()
@@ -190,10 +193,14 @@ def ensure_client(kc, want, secret, check):
                                     "optionalClientScopes": want.get("optionalClientScopes", [])})
         change(f"client {CLIENT_ID} created")
         found = kc.api("GET", f"/clients?clientId={CLIENT_ID}")
+        if not found:
+            die(f"client {CLIENT_ID} not found right after creating it")
         return found[0]["id"], diffs
     current = found[0]
     cid = current["id"]
     stale = [k for k, v in body.items() if k != "secret" and current.get(k) != v]
+    if secret and (kc.api("GET", f"/clients/{cid}/client-secret") or {}).get("value") != secret:
+        stale.append("secret")
     if stale:
         diffs += 1
         if check:
@@ -266,6 +273,8 @@ def ensure_group(kc, cid, group, check):
         kc.api("POST", "/groups", {"name": name, "attributes": group.get("attributes", {})})
         change(f"group {name} created")
         g = find_group(kc, name)
+        if not g:
+            die(f"group {name} not found right after creating it")
     else:
         ok(f"group {name}")
     have = set()
