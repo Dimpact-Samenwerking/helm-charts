@@ -56,14 +56,14 @@ commands below only behave as described from 3.5.10 on.
 
 **NOTE: this cannot be easily reverted for large forms, these should be copied first!**
 
-```bash
-# Dry run — lists forms with cyclic rules that cannot be auto-converted:
-kubectl exec -n <ns> <openformulieren-pod> -- \
-  python /app/src/manage.py enable_new_logic_evaluation_for_all_forms
+The command has no dry-run mode: it converts every form straight away and
+lists the forms with cyclic rules that it cannot convert. It rejects
+`--no-dry-run`.
 
+```bash
 # Apply (note: cannot be easily reverted for large forms; copy first):
-kubectl exec -n <ns> <openformulieren-pod> -- \
-  python /app/src/manage.py enable_new_logic_evaluation_for_all_forms --no-dry-run
+kubectl --context <kube-context> exec -n <ns> <openformulieren-pod> -- \
+  python /app/src/manage.py enable_new_logic_evaluation_for_all_forms
 ```
 
 #### 4. Catalogi API direct URL references (removed in 4.0) - migration script
@@ -84,6 +84,12 @@ kubectl exec -n <ns> <openformulieren-pod> -- \
 kubectl exec -n <ns> <openformulieren-pod> -- \
   python /app/src/manage.py migrate_catalogi_api_urls --no-dry-run
 ```
+
+If the dry run reports `Resolving the case/document types didn't converge to a
+single catalogue`, the case type and document type sit in one catalogue, but
+the ZGW API group's default catalogue (`catalogue_domain`/`catalogue_rsin`) is
+another one. Set the catalogue of the case type on that form's registration
+backend (in the form's registration settings), then run the dry run again.
 
 Also check `file` component registration options for inconsistent catalogue
 references (available since 3.5.5):
