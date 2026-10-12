@@ -3160,6 +3160,8 @@ kiss:
       isDefault: true
 
 zac:
+  # Every "changeme"/"dummy" credential below is a placeholder: the render fails
+  # (templates/validations.yaml) until each one is set per environment.
   auth:
     server: http://keycloak.example.nl
     realm: podiumd

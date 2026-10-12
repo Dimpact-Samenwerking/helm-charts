@@ -24,6 +24,31 @@ zac:
   contextUrl: https://zac.ci.podiumd.test
   auth:
     secret: "placeholder"
+  # values.yaml ships "changeme"/"dummy" for these, which validations.yaml
+  # rejects so no environment deploys with them.
+  bagApi:
+    apiKey: "placeholder"
+  brpApi:
+    apiKey:
+      value: "placeholder"
+  db:
+    password: "placeholder"
+  keycloak:
+    adminClient:
+      secret: "placeholder"
+  kvkApi:
+    apiKey: "placeholder"
+  mail:
+    smtp:
+      username: "placeholder"
+      password: "placeholder"
+  notificationsSecretKey: "placeholder"
+  office_converter:
+    username: "placeholder"
+    password: "placeholder"
+  zacInternalEndpointsApiKey: "placeholder"
+  zgwApis:
+    secret: "placeholder"
 
 # zgw-office-addin: the chart values.yaml provides the URL fields
 # (common.frontendUrl, backend.zgwApis.url); only the MSAL/secret placeholders
