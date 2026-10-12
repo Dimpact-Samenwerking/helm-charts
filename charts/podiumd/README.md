@@ -920,7 +920,7 @@ PodiumD Helm chart
 | openformulieren.settings.cache.default | string | `"redis-ha-master:6379/9"` |  |
 | openformulieren.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/10"` |  |
 | openformulieren.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
-| openformulieren.settings.celery.resultBackend | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/10"` |  |
+| openformulieren.settings.celery.resultBackend | string | `"redis://redis-ha-master:6379/10"` |  |
 | openformulieren.settings.cookieSamesite | string | `"Lax"` | New in 4.10.0: SameSite for the session, CSRF and language cookies (SESSION_/CSRF_/LANGUAGE_COOKIE_SAMESITE). Unset, Open Forms uses None on HTTPS so the SDK can be embedded on another site. Lax still allows embedding on the gemeente's own domain and the return from DigiD/eHerkenning; set None per environment that embeds forms elsewhere. |
 | openformulieren.settings.email.port | int | `587` |  |
 | openformulieren.settings.email.useTLS | bool | `true` |  |
@@ -978,7 +978,7 @@ PodiumD Helm chart
 | openinwoner.settings.cacheZgwZakenTimeout | string | `""` | New in openinwoner 2.3.0: per-request timeout (seconds) for cached ZGW zaken. Empty uses the application default (300s, raised from 60s upstream). |
 | openinwoner.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/12"` |  |
 | openinwoner.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
-| openinwoner.settings.celery.resultBackendl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/12"` |  |
+| openinwoner.settings.celery.resultBackendl | string | `"redis://redis-ha-master:6379/12"` |  |
 | openinwoner.settings.cms4MigrationInitContainer | bool | `false` | New in openinwoner 2.3.0 (chart 2.2.0): runs an init container executing `manage.py cms4_migration` for the one-time Django CMS v3 → v4 migration, which every environment completed when it rolled out 4.8.0. Off since 4.9.4: from openinwoner 2.4.5 (django-cms 5.0.11) the command crashes with `FieldError: Unsupported lookup 'node__site_id'` and blocks the web pod. |
 | openinwoner.settings.digidMock | string | `""` |  |
 | openinwoner.settings.eherkenningMock | string | `""` |  |
@@ -1116,11 +1116,11 @@ PodiumD Helm chart
 | openvtb.securityContext.readOnlyRootFilesystem | bool | `false` |  |
 | openvtb.securityContext.runAsNonRoot | bool | `true` |  |
 | openvtb.securityContext.runAsUser | int | `1000` |  |
-| openvtb.settings.allowedHosts | string | `"openvtb.podiumd.svc.cluster.local"` |  |
-| openvtb.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/19"` |  |
-| openvtb.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/19"` |  |
-| openvtb.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/20"` |  |
-| openvtb.settings.celery.resultBackend | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/20"` |  |
+| openvtb.settings.allowedHosts | string | `".svc.cluster.local"` |  |
+| openvtb.settings.cache.axes | string | `"redis-ha-master:6379/19"` |  |
+| openvtb.settings.cache.default | string | `"redis-ha-master:6379/19"` |  |
+| openvtb.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/20"` |  |
+| openvtb.settings.celery.resultBackend | string | `"redis://redis-ha-master:6379/20"` |  |
 | openvtb.settings.database.host | string | `""` |  |
 | openvtb.settings.database.name | string | `""` |  |
 | openvtb.settings.database.password | string | `""` |  |
