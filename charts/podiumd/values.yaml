@@ -5115,3 +5115,53 @@ openbao:
       limits:
         cpu: 500m
         memory: 512Mi
+
+# NetworkPolicies for the PodiumD backends (security review 4.10.0, NW-01).
+# See docs/misc/network-policy-analysis.md for the access matrix behind the
+# rules. The Frank!Gateway policies are separate: frankgateway.networkPolicies.
+#
+# OFF by default. A cluster without a policy engine (no Cilium, Calico or
+# Azure NPM) accepts these objects and silently ignores them, so enabling
+# this is not proof that traffic is restricted. Check enforcement first.
+#
+# Each policy renders only when its component is enabled, and a policy whose
+# pod selector matches no pods has no effect, so a disabled component never
+# breaks the others. An allow rule that names a client which is not
+# deployed simply matches nothing.
+networkPolicies:
+  enabled: false
+  # Label used to select namespaces by name.
+  namespaceLabel: kubernetes.io/metadata.name
+  # Namespace of the ingress controller pods (e.g. traefik, ingress-basic).
+  # Required when enabled: OpenBao and every pod under namespaceIsolation
+  # receive their public traffic from it.
+  ingressControllerNamespace: ""
+  # Namespace of the metrics scraper (Prometheus, Alloy). Empty => no
+  # scrape exception.
+  monitoringNamespace: monitoring
+  # Phase 1: ingress policies on the sensitive backends only (Redis,
+  # OpenBao, Frank!Gateway etcd, Elasticsearch, Solr, ZooKeeper, ClamAV,
+  # office-converter). Only the listed clients may connect; everything else
+  # in the namespace keeps working as before.
+  protectBackends:
+    enabled: true
+    # Extra NetworkPolicyPeer entries per backend, for environment-specific
+    # callers, e.g.
+    #   redis: [{podSelector: {matchLabels: {app.kubernetes.io/name: my-app}}}]
+    extraFrom:
+      redis: []
+      openbao: []
+      etcd: []
+      elasticsearch: []
+      solr: []
+      zookeeper: []
+      clamav: []
+      officeConverter: []
+  # Phase 2: every other pod in the namespace accepts traffic only from this
+  # namespace, the ingress controller and the monitoring namespace. Pods
+  # from other namespaces are blocked. Opt-in.
+  namespaceIsolation:
+    enabled: false
+    # Extra namespaces allowed to reach every pod (e.g. a cert-manager
+    # solver or a test runner namespace).
+    extraNamespaces: []
