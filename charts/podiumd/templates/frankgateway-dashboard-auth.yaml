@@ -111,12 +111,14 @@ spec:
       annotations:
         checksum/shim-conf: {{ include "podiumd.frankgateway.shimConf" (dict "root" $root "instance" $fg "name" $name "adminPassword" $creds.adminPassword) | sha256sum }}
     spec:
+      {{- include "podiumd.frankgateway.podSecurity" (dict "instance" $fg "user" "shim") | nindent 6 }}
       topologySpreadConstraints:
         {{- include "podiumd.frankgateway.spread" (dict "name" (printf "%s-shim" $name) "override" $fg.topologySpreadConstraints) | nindent 8 }}
       containers:
         - name: nginx
           image: {{ include "podiumd.image" $auth.shim.image }}
           imagePullPolicy: IfNotPresent
+          {{- include "podiumd.frankgateway.containerSecurity" (dict "instance" $fg "user" "shim") | nindent 10 }}
           ports:
             - name: http
               containerPort: 8080
@@ -131,10 +133,22 @@ spec:
             - name: conf
               mountPath: /etc/nginx/nginx.conf
               subPath: nginx.conf
+            # nginx-unprivileged writes its pid to /tmp and temp files to
+            # /var/cache/nginx; both are emptyDirs under readOnlyRootFilesystem.
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /var/cache/nginx
       volumes:
         - name: conf
           secret:
             secretName: {{ $name }}-shim
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi
+        - name: cache
+          emptyDir:
+            sizeLimit: 64Mi
       {{- with $auth.shim.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -175,12 +189,14 @@ spec:
         {{- include "podiumd.labelsNamed" (dict "context" $root "name" (printf "%s-oauth2-proxy" $name)) | nindent 8 }}
         app.kubernetes.io/component: frankgateway-oauth2-proxy
     spec:
+      {{- include "podiumd.frankgateway.podSecurity" (dict "instance" $fg "user" "oauth2Proxy") | nindent 6 }}
       topologySpreadConstraints:
         {{- include "podiumd.frankgateway.spread" (dict "name" (printf "%s-oauth2-proxy" $name) "override" $fg.topologySpreadConstraints) | nindent 8 }}
       containers:
         - name: oauth2-proxy
           image: {{ include "podiumd.image" $auth.oauth2Proxy.image }}
           imagePullPolicy: IfNotPresent
+          {{- include "podiumd.frankgateway.containerSecurity" (dict "instance" $fg "user" "oauth2Proxy") | nindent 10 }}
           args:
             - --provider=oidc
             - --oidc-issuer-url={{ $issuer }}

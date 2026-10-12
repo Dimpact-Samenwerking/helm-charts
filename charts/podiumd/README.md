@@ -121,12 +121,14 @@ PodiumD Helm chart
 | eck-operator.webhook.enabled | bool | `false` |  |
 | frankgateway.accessLog.jsonFormat | bool | `false` |  |
 | frankgateway.admin.adminKey | string | `""` |  |
+| frankgateway.admin.allowFrom | list | `["10.0.0.0/8","172.16.0.0/12","192.168.0.0/16","127.0.0.1/32"]` | Source CIDRs APISIX accepts on the Admin API (9180), checked before the key. Private ranges by default; narrow to the cluster's pod CIDR per environment. |
 | frankgateway.admin.viewerKey | string | `""` |  |
 | frankgateway.clientCertSync.failedJobsHistoryLimit | int | `3` | Failed runs are kept so a sync that has stopped working is visible. |
 | frankgateway.clientCertSync.nodeSelector | object | `{}` |  |
 | frankgateway.clientCertSync.schedule | string | `"*/5 * * * *"` | Cron schedule of the per-instance sync — also the upper bound on how long a rotation in OpenBao takes to reach the gateway. |
 | frankgateway.clientCertSync.successfulJobsHistoryLimit | int | `1` |  |
 | frankgateway.dashboard.adminPassword | string | `""` |  |
+| frankgateway.dashboard.allowFrom | list | `["10.0.0.0/8","172.16.0.0/12","192.168.0.0/16","127.0.0.1/32"]` | Source CIDRs the dashboard accepts (its own allow_list). Private ranges by default. |
 | frankgateway.dashboard.auth.adminGroup | string | `"fg-admins"` |  |
 | frankgateway.dashboard.auth.adminGroupMembers | list | `[]` |  |
 | frankgateway.dashboard.auth.dnsResolver | string | `"10.0.0.10"` |  |
@@ -154,6 +156,7 @@ PodiumD Helm chart
 | frankgateway.dashboard.image.tag | string | `"3.0.1-alpine@sha256:b5fafc11b76f998269375192ac33efc992d72aa69bfd7f3eb2ca377906cdbb6d"` |  |
 | frankgateway.dashboard.ingress.clusterIssuer | string | `"letsencrypt-prod"` |  |
 | frankgateway.dashboard.ingress.enabled | bool | `false` |  |
+| frankgateway.dashboard.networkPolicy.enabled | bool | `true` | NetworkPolicies that let only the oauth2-proxy reach the shim and only the shim reach the dashboard (NW-03). |
 | frankgateway.dashboard.nodeSelector | object | `{}` |  |
 | frankgateway.dashboard.replicas | int | `2` |  |
 | frankgateway.dashboard.resources.limits.cpu | string | `"500m"` |  |
@@ -204,6 +207,10 @@ PodiumD Helm chart
 | frankgateway.resources.limits.memory | string | `"1Gi"` |  |
 | frankgateway.resources.requests.cpu | string | `"100m"` |  |
 | frankgateway.resources.requests.memory | string | `"384Mi"` |  |
+| frankgateway.securityContext.container | object | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true}` | Container securityContext; each container also gets runAsUser/runAsGroup from users. |
+| frankgateway.securityContext.enabled | bool | `true` | Render the pod and container securityContext below into every Frank!Gateway workload. false: none (the pre-4.10.0 behaviour). |
+| frankgateway.securityContext.pod | object | `{"fsGroupChangePolicy":"OnRootMismatch","runAsNonRoot":true,"seccompProfile":{"type":"RuntimeDefault"}}` | Pod securityContext; each pod also gets fsGroup = its user's gid. |
+| frankgateway.securityContext.users | object | `{"dashboard":{"gid":65534,"uid":65534},"etcd":{"gid":1001,"uid":1001},"gateway":{"gid":636,"uid":636},"jobs":{"gid":101,"uid":100},"oauth2Proxy":{"gid":65532,"uid":65532},"shim":{"gid":101,"uid":101}}` | Numeric user per image. gateway: `apisix` in frank-gateway; etcd: any (the image runs as root); dashboard: `nobody`; shim: nginx-unprivileged; oauth2Proxy: `nonroot`; jobs: `curl_user` in curlimages/curl. |
 | frankgateway.seed.enabled | bool | `true` | Run the seed Job. Off means the chart writes nothing to etcd for this instance; whatever is there stays. |
 | frankgateway.seed.job.backoffLimit | int | `3` |  |
 | frankgateway.seed.job.image.pullPolicy | string | `"IfNotPresent"` |  |

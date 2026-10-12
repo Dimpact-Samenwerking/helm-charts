@@ -4125,6 +4125,46 @@ frankgateway:
       cpu: "1"
       memory: 1Gi
 
+  # Hardening for every Frank!Gateway workload (WH-01): gateway, etcd,
+  # dashboard, shim, oauth2-proxy and the seed/sync jobs. The ServiceAccount
+  # token is never mounted, independent of `enabled`.
+  securityContext:
+    # -- Render the pod and container securityContext below into every Frank!Gateway workload. false: none (the pre-4.10.0 behaviour).
+    enabled: true
+    # -- Pod securityContext; each pod also gets fsGroup = its user's gid.
+    pod:
+      runAsNonRoot: true
+      seccompProfile:
+        type: RuntimeDefault
+      fsGroupChangePolicy: OnRootMismatch
+    # -- Container securityContext; each container also gets runAsUser/runAsGroup from users.
+    container:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
+    # -- Numeric user per image. gateway: `apisix` in frank-gateway; etcd: any (the image runs as root); dashboard: `nobody`; shim: nginx-unprivileged; oauth2Proxy: `nonroot`; jobs: `curl_user` in curlimages/curl.
+    users:
+      gateway:
+        uid: 636
+        gid: 636
+      etcd:
+        uid: 1001
+        gid: 1001
+      dashboard:
+        uid: 65534
+        gid: 65534
+      shim:
+        uid: 101
+        gid: 101
+      oauth2Proxy:
+        uid: 65532
+        gid: 65532
+      jobs:
+        uid: 100
+        gid: 101
+
   # Admin API keys (X-API-KEY). Empty => random 32-char values auto-generated
   # on first install and kept stable across upgrades via lookup (Secret
   # frankgateway-admin-credentials) — the upstream public default keys are
@@ -4133,6 +4173,12 @@ frankgateway:
   admin:
     adminKey: ""
     viewerKey: ""
+    # -- Source CIDRs APISIX accepts on the Admin API (9180), checked before the key. Private ranges by default; narrow to the cluster's pod CIDR per environment.
+    allowFrom:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+      - 127.0.0.1/32
 
   # Optional TLS listener on the data plane, so callers behind a re-encrypting
   # front door (e.g. Gateway API BackendTLSPolicy) reach the gateway over
@@ -4435,6 +4481,21 @@ frankgateway:
     # again afterwards. Every hour it is on is an hour a browser-reachable
     # admin surface exists for a component that does not otherwise have one.
     enabled: false
+    # The shim logs anyone who reaches it in as dashboard admin, and the
+    # dashboard trusts the shim (NW-03). These policies keep both reachable
+    # only through their own chain: the dashboard from its shim, the shim from
+    # its oauth2-proxy. kubectl port-forward still works (it does not pass the
+    # pod network). Independent of frankgateway.networkPolicies.enabled; like
+    # every NetworkPolicy, only effective on a CNI that enforces them.
+    networkPolicy:
+      # -- NetworkPolicies that let only the oauth2-proxy reach the shim and only the shim reach the dashboard (NW-03).
+      enabled: true
+    # -- Source CIDRs the dashboard accepts (its own allow_list). Private ranges by default.
+    allowFrom:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+      - 127.0.0.1/32
     image:
       repository: apache/apisix-dashboard
       tag: "3.0.1-alpine@sha256:b5fafc11b76f998269375192ac33efc992d72aa69bfd7f3eb2ca377906cdbb6d"
