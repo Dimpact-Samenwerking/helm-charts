@@ -566,6 +566,9 @@ and are used by an operator ([runbook](frankgateway-deploy-runbook.md)).
 
 ## 5. Bootstrap runbook (first install)
 
+One script does the whole bootstrap and the after-every-deploy checks:
+[`frankgateway-openbao-activation.md`](frankgateway-openbao-activation.md).
+
 The procedure now lives in
 [`frankgateway-deploy-runbook.md`](frankgateway-deploy-runbook.md), together
 with the rest of a first Frank!Gateway deploy. This section keeps its number
@@ -655,7 +658,11 @@ The gateway-side checks are in
   Vault (`openbao-root-token`) and **revoke it** (`--revoke-root`, runbook
   step 8) only after both tokens are minted and a deploy has succeeded with the
   scoped token — revocation no longer breaks upgrades. Break-glass: the unseal key can mint a
-  new root token via `bao operator generate-root`.
+  new root token through the legacy `sys/generate-root/*` endpoints, which the
+  chart allows only on the loopback listener `127.0.0.1:8210` of each pod
+  (OpenBao 2.5 and later refuse them on the exposed listener, and the
+  `bao operator generate-root` CLI needs a token). `scripts/openbao-activate.sh`
+  does this for you, and revokes the token afterwards.
 - The `openbao-config` Job authenticates with the **`podiumd-config-job`
   token**: orphan (survives root revocation), periodic (renewed by the Job on
   every run), and restricted to the exact paths the Job configures — an
