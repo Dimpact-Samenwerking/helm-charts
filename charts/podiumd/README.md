@@ -22,8 +22,8 @@ PodiumD Helm chart
 | @opstree | redis-operator | 0.26.1 |
 | @wiremind | clamav | 3.7.2 |
 | @worth-nl | omc(notifynl-omc-nodep) | 0.14.1 |
-| @zac | zac(zaakafhandelcomponent) | 1.0.297 |
-| @zgw-office-addin | zgw-office-addin | 0.0.89 |
+| @zac | zac(zaakafhandelcomponent) | 1.0.338 |
+| @zgw-office-addin | zgw-office-addin | 0.0.93 |
 | file://../mi-data | mi(mi-data) | 1.1.0 |
 | https://helm.elastic.co | eck-operator | 3.5.0 |
 | https://helm.elastic.co | kiss-eck(eck-stack) | 0.20.0 |
@@ -31,7 +31,7 @@ PodiumD Helm chart
 | https://wearefrank.github.io/charts | zaakbrug | 2.3.32 |
 | oci://ghcr.io/interne-taak-afhandeling | ita(internetaakafhandeling) | 3.3.4 |
 | oci://ghcr.io/klantinteractie-servicesysteem | kiss(kiss-chart) | 3.1.3 |
-| oci://ghcr.io/platform-autorisatie-beheer-component | pabc(pabc) | 1.1.1 |
+| oci://ghcr.io/platform-autorisatie-beheer-component | pabc(pabc) | 2.1.0 |
 
 ## Values
 
@@ -1147,12 +1147,12 @@ PodiumD Helm chart
 | pabc.enabled | bool | `true` |  |
 | pabc.fullnameOverride | string | `"pabc"` |  |
 | pabc.image.repository | string | `"ghcr.io/platform-autorisatie-beheer-component/pabc-api"` |  |
-| pabc.image.tag | string | `"1.1.1@sha256:09a902e43f6cdb214afc369d04005c7b6108fd24b15709f1debbcfb1b446ef42"` |  |
+| pabc.image.tag | string | `"2.1.0@sha256:7e4f906ea46ba4eace1997a074099a5a54038e38901890d486d117583861a61d"` |  |
 | pabc.initContainers.waitFor.image.pullPolicy | string | `"IfNotPresent"` |  |
 | pabc.initContainers.waitFor.image.repository | string | `"ghcr.io/groundnuty/k8s-wait-for"` |  |
 | pabc.initContainers.waitFor.image.tag | string | `"v2.0@sha256:c14d7271e4013b24b34ef0d7144c4610577d0e9110ccc26b163fa28089fa1f4e"` |  |
 | pabc.migrations.image.repository | string | `"ghcr.io/platform-autorisatie-beheer-component/pabc-migrations"` |  |
-| pabc.migrations.image.tag | string | `"1.1.1@sha256:a3841a2eb78cddd34ebb0de1bfede1db1ae9713921c0d77e4366baceffa86e05"` |  |
+| pabc.migrations.image.tag | string | `"2.1.0@sha256:75640f1ee9dc6a155800a31457574b9c36eb0cd41827c45333b9f39d05c94abb"` |  |
 | pabc.migrations.nodeSelector | object | `{}` |  |
 | pabc.nodeSelector | object | `{}` |  |
 | pabc.postgresql.enabled | bool | `false` |  |
@@ -1168,6 +1168,7 @@ PodiumD Helm chart
 | pabc.settings.database.username | string | `"pabc"` |  |
 | pabc.settings.keycloakAdmin.clientId | string | `"pabc-keycloak-admin"` |  |
 | pabc.settings.keycloakAdmin.clientSecret | string | `""` |  |
+| pabc.settings.keycloakAdmin.excludedRoles | list | `["default-roles-podiumd","offline_access","uma_authorization"]` | Realm roles the PABC UI's "import functional roles from Keycloak" never imports (exact name match): the podiumd realm's technical roles. |
 | pabc.settings.oidc.authority | string | `""` |  |
 | pabc.settings.oidc.clientId | string | `"pabc"` |  |
 | pabc.settings.oidc.clientSecret | string | `""` |  |
@@ -1177,6 +1178,11 @@ PodiumD Helm chart
 | pabc.settings.oidc.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://pabc.example.nl`. |
 | pabc.settings.oidc.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. PABC is a .NET app; enable when OpenIdConnect PKCE is configured in the application. |
 | pabc.settings.oidc.roleClaimType | string | `"roles"` |  |
+| pabc.settings.zgwZaakregister | object | `{"catalogiBaseUrl":"","catalogusDomein":"","clientId":"pabc","clientSecret":"","enabled":false}` | Import zaaktypes from Open Zaak as PABC entity types (a button in the PABC UI). PABC authenticates as its own Open Zaak application (see the commented `pabc` entry under openzaak's vng_api_common_applicaties) and needs read access to the Catalogi API. When enabled, the render fails while catalogiBaseUrl, clientId, clientSecret or catalogusDomein is empty. |
+| pabc.settings.zgwZaakregister.catalogiBaseUrl | string | `""` | Full base URL of the Open Zaak Catalogi API, with trailing slash. E.g. `https://openzaak.example.nl/catalogi/api/v1/`. |
+| pabc.settings.zgwZaakregister.catalogusDomein | string | `""` | `domein` of the zaaktype catalogus to import from, e.g. `ALG`. PABC imports from one catalogus only. |
+| pabc.settings.zgwZaakregister.clientId | string | `"pabc"` | Client ID of PABC's application in Open Zaak. |
+| pabc.settings.zgwZaakregister.clientSecret | string | `""` | Secret of PABC's application in Open Zaak; PABC signs its ZGW JWTs with it. |
 | persistentVolume.nodeStageSecretRefName | string | `""` |  |
 | persistentVolume.nodeStageSecretRefNamespace | string | `""` |  |
 | persistentVolume.volumeAttributeResourceGroup | string | `""` |  |
@@ -1288,7 +1294,7 @@ PodiumD Helm chart
 | zac.global.curlImage.repository | string | `"curlimages/curl"` |  |
 | zac.global.curlImage.tag | string | `"8.22.0@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777"` |  |
 | zac.image.pullPolicy | string | `"IfNotPresent"` |  |
-| zac.image.tag | string | `"5.4.5@sha256:9d14affb67d7bb7fce01af220e4b28c190188c5f1355d787735bd7e669fa57e3"` |  |
+| zac.image.tag | string | `"5.9.1@sha256:d2b43634c21205183ed7ce9591791fa0112501bb2e4b04baff0362da9e001da4"` |  |
 | zac.initContainer.enabled | bool | `true` |  |
 | zac.initContainer.resources.requests.cpu | string | `"50m"` |  |
 | zac.initContainer.resources.requests.memory | string | `"256Mi"` |  |
@@ -1320,14 +1326,16 @@ PodiumD Helm chart
 | zac.objectenApi.url | string | `"http://objecten.example.nl"` |  |
 | zac.objecttypenApi.token | string | `"objectentoken"` |  |
 | zac.objecttypenApi.url | string | `"http://objecten.example.nl"` |  |
-| zac.office_converter.image.tag | string | `"8.36.0@sha256:87c16b9f364279d321bc9772d31fa58aa6abe036423c270698bd636c3a8e9466"` |  |
-| zac.opa.image.tag | string | `"1.19.1-static@sha256:32bf41d914b1505fea13303f60587cc57bdd2902262177585fb208f5dde76d32"` |  |
+| zac.office_converter.image.tag | string | `"8.37.0@sha256:f29984bd1e226bf1b93ba90af06000afa8b315853e99d27b9aaa41b93f15c769"` |  |
+| zac.office_converter.password | string | `"dummy"` |  |
+| zac.office_converter.username | string | `"dummy"` |  |
+| zac.opa.image.tag | string | `"1.21.1-static@sha256:4675ab04ad1627f74741d2d9c5142698c79e18b7b09f192587d31d6dba20838e"` |  |
 | zac.opa.resources.requests.cpu | string | `"10m"` |  |
 | zac.opa.resources.requests.memory | string | `"20Mi"` |  |
 | zac.opa.sidecar | bool | `true` |  |
 | zac.openForms.url | string | `"http://open-forms.example.nl"` |  |
 | zac.opentelemetry-collector.image.repository | string | `"otel/opentelemetry-collector-contrib"` |  |
-| zac.opentelemetry-collector.image.tag | string | `"0.158.0@sha256:c5918f78992ee73b0d6f0e599423ac5ec52dd5d9726733114d6eca53d5a32ed5"` |  |
+| zac.opentelemetry-collector.image.tag | string | `"0.161.0@sha256:fd328de2552466ad78385e1b1289c3f2402b1c45f265b252aab1955b42845ac1"` |  |
 | zac.organizations.bron.rsin | string | `"000000000"` |  |
 | zac.organizations.verantwoordelijke.rsin | string | `"000000000"` |  |
 | zac.pabcApi.apiKey | string | `""` |  |
@@ -1348,7 +1356,7 @@ PodiumD Helm chart
 | zac.solr-operator.solr.busyBoxImage.tag | string | `"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"` |  |
 | zac.solr-operator.solr.dataStorage.persistent.reclaimPolicy | string | `"Retain"` | Retain PVCs when the operator scales down Solr (e.g. during node rotation). The default "Delete" causes the operator to destroy PVC data on scale-down, which requires a full index resync from another replica. |
 | zac.solr-operator.solr.enabled | bool | `true` | set enabled to provision solrcloud as well |
-| zac.solr-operator.solr.image.tag | string | `"9.10.1-slim@sha256:9987e11a90a0b115cc3f52b74d3d87788e3c1fa479deeaece80d33515480204a"` |  |
+| zac.solr-operator.solr.image.tag | string | `"9.10.1-slim@sha256:ba6beb789c758b198c42603046fb2fb67b42843d2cd4333f12b632c3b811e55a"` |  |
 | zac.solr-operator.solr.javaMem | string | `"-Xms512m -Xmx768m"` | define memory settings for solr in the solrcloud |
 | zac.solr-operator.solr.jobs.createZacCore | bool | `true` |  |
 | zac.solr-operator.solr.resources.limits.cpu | string | `"2000m"` |  |
@@ -1359,12 +1367,15 @@ PodiumD Helm chart
 | zac.solr-operator.zookeeper-operator | object | `{"crd":{"create":false},"hooks":{"image":{"tag":"v1.25.4@sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc"}},"image":{"tag":"0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e"},"resources":{"limits":{"cpu":"200m","memory":"128Mi"},"requests":{"cpu":"50m","memory":"64Mi"}},"watchNamespace":"podiumd","zookeeper":{"image":{"tag":"0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8"},"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"256Mi"}},"storage":{"reclaimPolicy":"Retain"}}}` | install crds using https://github.com/pravega/zookeeper-operator/blob/master/charts/zookeeper-operator/templates/zookeeper.pravega.io_zookeeperclusters_crd.yaml |
 | zac.solr-operator.zookeeper-operator.watchNamespace | string | `"podiumd"` | namespaces to watch for zookeeper-operator |
 | zac.solr-operator.zookeeper-operator.zookeeper.storage.reclaimPolicy | string | `"Retain"` | Retain PVCs when the operator scales down ZooKeeper (e.g. during node rotation). The default "Delete" causes the operator to destroy PVC data on scale-down, which prevents the cluster from recovering quorum after a node replacement event. |
+| zac.solr.password | string | `""` | Basic auth password of the external Solr; required when url is set. |
+| zac.solr.url | string | `""` | URL of an external Solr, instead of the solr-operator managed one. |
+| zac.solr.username | string | `""` | Basic auth user of the external Solr; required when url is set. Configure the matching user in that Solr's security.json. |
 | zac.zacInternalEndpointsApiKey | string | `"dummy"` |  |
 | zac.zgwApis.clientId | string | `"zac"` |  |
 | zac.zgwApis.secret | string | `"changeme"` |  |
 | zac.zgwApis.url | string | `"http://open-zaak.internal"` |  |
 | zac.zgwApis.urlExtern | string | `"http://open-zaak.example.nl"` |  |
-| zgw-office-addin.backend.image.tag | string | `"0.11.0@sha256:5b188e853531986e31709ed6cae130a891e0014cb267c43ac338b792c84a29ab"` |  |
+| zgw-office-addin.backend.image.tag | string | `"0.12.0@sha256:886c4616c7cb88769013c8b96d72fbde8b6db6c8947e49e83cd2d2d538175bca"` |  |
 | zgw-office-addin.backend.msalSecret | string | `""` |  |
 | zgw-office-addin.backend.resources.requests.cpu | string | `"100m"` |  |
 | zgw-office-addin.backend.resources.requests.memory | string | `"256Mi"` |  |
@@ -1375,7 +1386,7 @@ PodiumD Helm chart
 | zgw-office-addin.common.msalTenantId | string | `""` | MS Azure Tenant ID of the Office Add-in application |
 | zgw-office-addin.common.podLabels | object | `{"app":"office-addin","service_name":"office-addin"}` | IN-2060: Grafana/Loki app + service_name labels on the office-addin pods. Without these the pods are attributed to the Helm release name ("podiumd"). Requires zgw-office-addin chart >= 0.0.89 (adds podLabels support). |
 | zgw-office-addin.enabled | bool | `true` |  |
-| zgw-office-addin.frontend.image.tag | string | `"0.11.0@sha256:9a6b3e9023b8cfba152a84dd7477e079490fc7d35562d32e0dc094be81a7f7a2"` |  |
+| zgw-office-addin.frontend.image.tag | string | `"0.12.0@sha256:11fa2df3546def1fcfec0704d6ed55009ea0c8dcca49a7b6e848936ed9d93584"` |  |
 | zgw-office-addin.frontend.resources.requests.cpu | string | `"50m"` |  |
 | zgw-office-addin.frontend.resources.requests.memory | string | `"64Mi"` |  |
 | zgw-office-addin.fullnameOverride | string | `"zgw-office-addin"` |  |
