@@ -14,6 +14,7 @@
 #   8. pabc 1.1.1 -> 2.1.0 (chart 1.1.1 -> 2.1.0).
 #   2. openvtb 0.2.0 (new optional component, image maykinmedia/open-vtb,
 #      disabled by default).
+#   2. openformulieren 3.5.8 -> 4.0.2 (chart 1.12.0 -> 1.13.0).
 #
 # See docs/_UPGRADE_PATHS/4.9.4-to-4.10.0-upgrade.md for the operator upgrade notes.
 #
@@ -78,3 +79,8 @@
   url: docker.io/maykinmedia/open-vtb
   version: "0.2.0"
   digest: "sha256:b382b2fdeb052994d6a785864f1277bffb2490e61de2a0222ad74379dede2f01"
+# openformulieren 3.5.8 -> 4.0.2
+- name: openformulieren/open-forms
+  url: docker.io/openformulieren/open-forms
+  version: "4.0.2"
+  digest: "sha256:e1cad4bcf2319a3eb106e51156bf69c6be83da9dd070e977f52ec1079455b8e3"
