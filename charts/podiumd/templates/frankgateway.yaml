@@ -93,7 +93,9 @@ spec:
         - name: copy-conf
           image: {{ include "podiumd.image" $fg.image }}
           imagePullPolicy: IfNotPresent
-          command: ["sh", "-c", "cp -a /usr/local/apisix/conf/. /conf-rw/"]
+          # cp -R, not -a: the emptyDir root belongs to root, so a non-root
+          # user may not set its timestamps and `cp -a` fails on it.
+          command: ["sh", "-c", "cp -R /usr/local/apisix/conf/. /conf-rw/"]
           {{- include "podiumd.frankgateway.containerSecurity" (dict "instance" $fg "user" "gateway") | nindent 10 }}
           resources:
             requests:
