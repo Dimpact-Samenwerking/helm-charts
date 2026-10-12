@@ -1,264 +1,258 @@
 # NetworkPolicy Analysis — podiumd chart
 
-> Status: open — preliminary analysis, policies not yet implemented
-> Last updated: 2026-04-10
-
-## Open Items (from security-review.md)
-
-- **[Medium]** There are no `NetworkPolicy` resources anywhere in the chart. All pods in the namespace can communicate freely with each other, including with the Keycloak admin API and database endpoints. A single compromised pod can reach any other service. _Files: `templates/` (no NetworkPolicy templates found)._ Remediation: Add default-deny ingress/egress NetworkPolicies and explicit allow rules per component (see analysis below).
-
-- **[Low]** All Keycloak jobs communicate with Keycloak over unencrypted HTTP (`http://keycloak-service:8080`). Admin credentials (`ADMIN_PASS`, `CLIENT_SECRET`) are transmitted in plaintext within the cluster. _Files: `templates/keycloak-ensure-operator-sa.yaml`, `templates/keycloak-ensure-podiumd-admin-user.yaml`, `templates/keycloak-import-master-realm-job.yaml`, `templates/keycloak-import-podiumd-realm-job.yaml`._ Remediation: If mTLS (e.g. via a service mesh) is not in use, consider enabling Keycloak's HTTPS port for internal service-to-service calls and mounting a cluster CA cert in job containers.
-
----
-
-## Preliminary Access Matrix
-
-This analysis covers **internal cluster communication only** — i.e., pod-to-pod traffic via Kubernetes Service DNS names. Traffic to public URLs (ingress from the internet, egress to government APIs) is noted separately.
-
-All Maykin-family apps (OpenZaak, OpenNotificaties, Objecten [merged with the former Objecttypen — see `docs/apps/objecten/openobject-migration.md`], OpenArchiefBeheer, OpenKlant, OpenFormulieren, OpenInwoner) are assumed to listen on port **8000** (nginx sidecar on **80**). Service DNS names follow `<fullnameOverride>.<namespace>.svc.cluster.local`.
-
-### Ingress-controller → apps (user-facing traffic)
-
-All components with an ingress are reached via the ingress controller. This is a shared allow rule: the ingress controller pod(s) may reach any pod on its configured ports.
-
-| Target | Port |
-|--------|------|
-| keycloak (HTTP) | 8080 |
-| openzaak | 80 |
-| opennotificaties | 80 |
-| objecten | 80 |
-| openarchiefbeheer | 80 |
-| openklant | 80 |
-| openformulieren | 80 |
-| openinwoner | 80 |
-| referentielijsten | 80 |
-| kiss (frontend) | 80 |
-| kiss-adapter | 80 |
-| zac | 80 |
-| ita | 80 |
-| pabc | 80 |
-| zgw-office-addin (frontend + backend) | 80 |
-
----
-
-### Component-to-component access
-
-#### Keycloak
-
-| From | To | Port | Reason |
-|------|----|------|--------|
-| keycloak Jobs (all four) | keycloak | 8080 | realm import, operator SA provisioning, admin user setup |
-| keycloak ensure-operator-sa Job | postgres (external) | 5432 | psql bootstrap query |
-| keycloak | postgres (external) | 5432 | Keycloak database |
-| all app pods (OIDC discovery/token) | keycloak | 8080 | OIDC authentication via public URL — typically hits ingress, **not** direct pod-to-pod unless `oidcUrl` is set to an internal service name |
-
-> **Note:** Most apps resolve Keycloak via the public `oidcUrl` (goes through ingress). If cluster-internal OIDC URLs are used in values (e.g., `http://keycloak.podiumd.svc.cluster.local:8080`), the relevant app pods also need a direct allow rule.
-
-#### Redis HA (`redis-ha-master.podiumd.svc.cluster.local:6379`)
-
-The shared Redis HA instance is used by all Maykin-family apps for Django cache, Django axes, and Celery. Each app uses a distinct DB number.
-
-| From | DB(s) | Purpose |
-|------|-------|---------|
-| openzaak | 4 (cache/axes), 5 (celery) | cache, rate limiting, task queue |
-| opennotificaties | 3 (cache/axes), 6 (celery result) | cache, rate limiting, celery |
-| objecten | 1 (cache/axes/oidc), 2 (celery) | cache, OIDC session, task queue |
-| openarchiefbeheer | 13 (cache/axes/choices), 14 (celery) | cache, task queue |
-| openklant | 7 (cache/axes), 8 (celery) | cache, task queue |
-| openformulieren | 9 (cache/axes), 10 (celery) | cache, task queue |
-| openinwoner | 11 (cache/axes), 12 (celery) | cache, task queue |
-
-> **Note:** `referentielijsten` and `openbeheer` use their own Redis subcharts (`referentielijsten-redis`, `openbeheer-redis`) — not the shared Redis HA.
-
-**NetworkPolicy rule:** All of the above pods → `redis-ha-master` / `redis-ha-replica` on port **6379**.
-
-#### OpenNotificaties (notification broker)
-
-Apps send notifications to OpenNotificaties on its internal service. OpenNotificaties in turn calls back to OpenZaak for authorization checks.
-
-| From | To | Port | Reason |
-|------|----|------|--------|
-| openzaak | opennotificaties | 80 | send notifications |
-| objecten | opennotificaties | 80 | send notifications |
-| openklant | opennotificaties | 80 | send notifications |
-| openinwoner | opennotificaties | 80 | send notifications |
-| opennotificaties | openzaak | 80 | authorization API check |
-
-> OpenNotificaties also receives webhook callbacks from external subscribers — those come via ingress.
-
-#### OpenNotificaties → RabbitMQ
-
-OpenNotificaties uses an internal RabbitMQ subchart for Celery task brokering.
-
-| From | To | Port | Reason |
-|------|----|------|--------|
-| opennotificaties (all pods) | opennotificaties-rabbitmq | 5672 | Celery broker |
-
-#### OpenZaak (zaak & document APIs)
-
-| From | To | Port | Reason |
-|------|----|------|--------|
-| kiss-adapter | openzaak | 80 | ZGW APIs (zaak, ztc, drc) |
-| zac | openzaak | 80 | ZGW APIs |
-| ita | openzaak | 80 | ZAC/zaak access |
-| zgw-office-addin (backend) | openzaak | 80 | ZGW APIs |
-| openformulieren | openzaak | 80 | document/zaak creation on form submit |
-| openinwoner | openzaak | 80 | zaak status display |
-| create-required-catalogi Job | openzaak | 80 | seed catalogus/zaaktypen data |
-
-#### Objecten (merged with the former Objecttypen)
-
-Objecten and Objecttypen were previously two separate services; since the
-merge (`docs/apps/objecten/openobject-migration.md`) there is one merged `objecten` target for
-all of the traffic below.
-
-| From | To | Port | Reason |
-|------|----|------|--------|
-| kiss-adapter | objecten | 80 | smoelenboek / interne taken objects, objecttype URL resolution |
-| zac | objecten | 80 | object registration, objecttype resolution |
-| ita | objecten | 80 | log/afdeling/groep objects |
-| create-required-objecttypen Job | objecten | 80 | seed object + objecttype data |
-
-#### OpenKlant (klantinteracties API)
-
-| From | To | Port | Reason |
-|------|----|------|--------|
-| kiss-adapter | openklant | 80 | klanten / contactmomenten |
-| zac | openklant | 80 | klantinteracties |
-| ita | openklant | 80 | klantinteracties polling |
-
-#### OpenFormulieren
-
-| From | To | Port | Reason |
-|------|----|------|--------|
-| openformulieren | clamav | 3310 | virus scan on file uploads |
-
-#### OpenInwoner → Elasticsearch (ECK)
-
-| From | To | Port | Reason |
-|------|----|------|--------|
-| openinwoner | openinwoner-elasticsearch-es-http | 9200 | search index |
-| kiss (elastic-sync) | kisselastic (ECK) | 9200 | sync KISS search index |
-| kiss (frontend) | kisselastic (ECK) | 9200 | KISS search queries |
-
-#### KISS Adapter
-
-KISS Adapter is the internal backend that mediates between the KISS frontend and ZGW APIs. The adapter service is referenced by its internal DNS name `kiss-adapter.<namespace>.svc.cluster.local`.
-
-| From | To | Port | Reason |
-|------|----|------|--------|
-| kiss (frontend) | kiss-adapter | 80 | all ZGW proxy requests from KISS UI |
-| kiss-adapter | openzaak | 80 | zaak/ztc/drc APIs |
-| kiss-adapter | objecten | 80 | smoelenboek objects, objecttype URLs (merged) |
-| kiss-adapter | openklant | 80 | klantinteracties API |
-
-#### ZAC
-
-ZAC communicates with most ZGW components and with the API proxy for government data.
-
-| From | To | Port | Reason |
-|------|----|------|--------|
-| zac | openzaak | 80 | zaak/ztc/drc APIs |
-| zac | objecten | 80 | object registration, objecttype resolution (merged) |
-| zac | openklant | 80 | klantinteracties |
-| zac | opennotificaties | 80 | notification subscriptions |
-| zac | api-proxy | 80 | BAG, BRP, KVK lookups |
-| zac | pabc | 80 | autorisatie beheer (if `pabcIntegration: true`) |
-
-#### ITA (Interne Taak Afhandeling)
-
-| From | To | Port | Reason |
-|------|----|------|--------|
-| ita (poller) | openklant | 80 | klantinteracties polling |
-| ita | objecten | 80 | log/afdeling/groep object access |
-| ita | openzaak | 80 | zaak access |
-
-#### API Proxy (nginx)
-
-| From | To | Port | Reason |
-|------|----|------|--------|
-| zac | api-proxy | 80 | BAG/BRP/KVK lookups |
-| kiss | api-proxy | 80 | Haal Centraal / KVK lookups (if configured) |
-| api-proxy | external BAG API | 443 | upstream government API |
-| api-proxy | external BRP API | 443 | upstream government API |
-| api-proxy | external KVK API | 443 | upstream government API |
-
-#### PABC (Platform Autorisatie Beheer Component)
-
-| From | To | Port | Reason |
-|------|----|------|--------|
-| zac | pabc | 80 | autorisatie checks |
-
-#### Redis-ha-label-master Job
-
-| From | To | Port | Reason |
-|------|----|------|--------|
-| redis-ha-label-master Job | Kubernetes API server | 443 | kubectl label command |
-
-#### Monitoring / Observability
-
-Prometheus (via kube-prometheus-stack or Alloy) scrapes metrics from PodMonitors/ServiceMonitors. This is namespace-local pod scraping traffic.
-
-| From | To | Port | Reason |
-|------|----|------|--------|
-| prometheus / alloy | redis-ha pods | 9121 | redis_exporter metrics |
-| prometheus / alloy | keycloak | 8080 | Keycloak metrics endpoint |
-| prometheus / alloy | clamav | metrics port | ClamAV exporter |
-| prometheus / alloy | all app pods | metrics port | Django/app metrics |
-
----
-
-## AKS / Azure CNI Considerations
-
-NetworkPolicy enforcement on AKS is **not automatic** — it depends on which network policy engine was selected at cluster creation time.
-
-| Engine | Flag at cluster creation | Notes |
-|--------|--------------------------|-------|
-| Azure Network Policy Manager (NPM) | `--network-policy azure` | iptables/ipset based; fully enforces standard `NetworkPolicy` |
-| Calico | `--network-policy calico` | DaemonSet based; enforces standard `NetworkPolicy` plus Calico CRDs |
-| Cilium | `--network-dataplane cilium` | eBPF based; enforces standard `NetworkPolicy` |
-| **None (default)** | _(flag omitted)_ | `NetworkPolicy` objects are accepted by the API server but **silently not enforced** |
-
-If the cluster was created without a `--network-policy` flag, any policies added will be stored in etcd but have no effect. Verify enforcement is active before relying on policies for security.
-
-### Azure CNI pod-to-node address overlap
-
-With Azure CNI, pods receive IPs from the **same subnet as the AKS nodes** (unlike kubenet, where pods have a separate overlay network). This has one important consequence for egress NetworkPolicies:
-
-**Kubelet health probes originate from the node IP, not from a pod IP.** When you apply a default-deny egress policy to a pod, you are restricting outbound traffic from that pod — but kubelet liveness/readiness probes are _inbound_ from the node IP. However, if you apply a default-deny _ingress_ policy, you must explicitly allow ingress from the node CIDR, or liveness/readiness probes will be blocked and pods will be restarted.
-
-Concrete mitigation options:
-
-1. **Allow ingress from node CIDR**: add an ingress rule permitting traffic from the node subnet IP range (e.g. `10.240.0.0/16`) on the container's probe port. This is the simplest approach.
-
-2. **Use a pod-level `hostNetwork: false` policy with node CIDR exception**: same as above, scoped to just the probe port rather than all ports.
-
-3. **Switch to exec-based probes**: replace `httpGet` probes with `exec` probes (e.g. `curl localhost:8080/_health`). These run inside the container and are not subject to NetworkPolicy.
-
-The api-proxy deployment uses `httpGet` probes on port 8080; the same applies to any app pod with `httpGet` or `tcpSocket` probes. All probe ports must be reachable from the node CIDR under a default-deny ingress policy.
-
-### kube-dns CIDR
-
-On AKS, `kube-dns` runs in the `kube-system` namespace. The DNS service ClusterIP is typically `10.0.0.10` (the `resolverIp` already hardcoded in `values.yaml`). Egress NetworkPolicies must allow UDP/TCP port 53 to this IP, or to the `kube-system` namespace by label selector, on every pod.
-
----
-
-## Recommended NetworkPolicy Strategy
-
-1. **Default deny all ingress+egress** per pod (or per namespace): start with a `NetworkPolicy` that selects all pods and allows nothing.
-
-2. **Ingress controller allow**: allow ingress from the ingress controller namespace (or by pod label) to all service ports listed in the ingress-controller table above.
-
-3. **Node CIDR ingress allow for probes**: allow ingress from the AKS node subnet on each container's probe port to prevent kubelet health probes from being blocked (see AKS/Azure CNI section above).
-
-4. **Per-component egress policies**: each component gets an egress policy limited to its required destinations (see matrix above).
-
-5. **Shared Redis HA**: a single ingress policy on the Redis HA pods allowing port 6379 from the set of app pod selectors.
-
-6. **Keycloak jobs**: narrow egress to Keycloak port 8080 only (+ port 5432 for the psql init job). These are one-shot Jobs — the policy can be tied to the Job pod label.
-
-7. **DNS egress**: all pods need egress to `kube-dns` on port 53 UDP/TCP (ClusterIP `10.0.0.10` on AKS) — easy to forget and blocks all name resolution if omitted.
-
-8. **External egress**: the API proxy needs egress to `0.0.0.0/0:443` (or specific IP ranges for government APIs). All other pods should have no egress to the internet except via the API proxy or through the ingress controller's public path.
-
-> **Ambiguity to resolve before implementing:** Most apps use public Keycloak `oidcUrl` values (through the ingress), so OIDC traffic from app pods goes through the ingress controller, not directly to the Keycloak service. If direct internal OIDC URLs are ever used, additional pod→keycloak allow rules would be needed per app.
+> Status: phase 1 and 2 implemented as opt-in (`networkPolicies.*`, off by
+> default); egress (phase 3) is still analysis only. First test environment:
+> johnb00, after its switch to the Cilium dataplane.
+> Last updated: 2026-10-12. Source finding: NW-01 in
+> [security-review-4.10.0.md](security-review-4.10.0.md).
+
+The matrix below was derived from the rendered chart (johnb00 values plus
+openarchiefbeheer, openvtb, clamav and openbao switched on): the hosts and
+URLs in every container's environment, ConfigMaps and Secrets, and the
+container ports of every workload. Rows marked _(not observed)_ still need
+confirmation from live traffic (Hubble flow logs or a test run with the
+policies enforced).
+
+## What exists today
+
+| Object | Source | Selects | Enforced where |
+|---|---|---|---|
+| `frankgateway-{inway,outway,internal}` | `templates/frankgateway-networkpolicy.yaml`, opt-in `frankgateway.networkPolicies.enabled` | the gateway class pods | clusters with a policy engine |
+| Frank!Gateway dashboard/shim policies | `frankgateway.dashboard.networkPolicy`, only with the dashboard on | dashboard and shim pods | same |
+| `keycloak-network-policy` | created by the Keycloak operator for the Keycloak CR | Keycloak pods: 8080 and 9000 open to all, 7800/57800 between Keycloak pods | same |
+| `opennotificaties-rabbitmq` | Bitnami RabbitMQ subchart, where RabbitMQ is enabled | RabbitMQ pods | same |
+| `podiumd-*` (this analysis) | `templates/networkpolicies.yaml`, opt-in `networkPolicies.enabled` | see below | same |
+
+## Policy engine per cluster
+
+A NetworkPolicy only has an effect when the cluster runs a policy engine.
+Without one, the API server accepts the object and nothing enforces it.
+
+| Cluster | Engine | Enforced |
+|---|---|---|
+| aks-blue-ontw-dim1, -dim2, -dim3, -dimp, aks-blue-test-dimp | Cilium (`enable-policy=default`) | yes |
+| aks-blue-accp-dimp, aks-blue-ontw-icat, -info, -mayk | none | no |
+| podiumd-johnb00-aks | none (Azure CNI overlay, dataplane `azure`), switch to Cilium planned | not yet |
+| production | not checked | unknown |
+
+With `enable-policy=default`, Cilium enforces policies only on pods that a
+policy selects. Unselected pods stay open.
+
+On Cilium, traffic from the local node (kubelet health probes) is always
+allowed, so the policies need no node-CIDR exception for probes. Azure NPM and
+Calico may need one; check before using them.
+
+## Ports: always the pod port
+
+A NetworkPolicy matches the port on the destination **pod**, after the Service
+has translated it. A rule on Service port 80 blocks everything. The pod ports
+in this chart:
+
+| Workload | Pod port | Service port |
+|---|---|---|
+| Maykin Django apps (openzaak, opennotificaties, objecten, openklant, openformulieren, openinwoner, openbeheer, openarchiefbeheer, referentielijsten, openvtb) | 8000 | 80 |
+| Their nginx sidecar Deployments (`*-nginx`) | 8080 (openklant-nginx: 8000) | 80 |
+| keycloak | 8080 (HTTP), 9000 (management), 7800/57800 (cluster) | 8080 |
+| zac | 8080, 9990 (management); OPA sidecar 8181 on localhost | 80 |
+| zac-nginx, api-proxy, pabc, ita-web, podiumd-adapter, contact (KISS) | 8080 | 80 |
+| zaakbrug | 8080, 8443 | 80 |
+| zac-office-converter (Gotenberg) | 3000 | 80 |
+| brp-personen-mock | 5010 | 5010 |
+| redis-ha | 6379, exporter 9121 | 6379 |
+| OpenBao | 8200 (API), 8201 (cluster) | 8200/8201 |
+| Frank!Gateway | 9080 (proxy), 9180 (Admin API), 9091 (metrics) | same |
+| Frank!Gateway etcd | 2379 (client), 2380 (peer) | same |
+| Elasticsearch (ECK) | 9200 (HTTP), 9300 (transport) | 9200 |
+| ZAC Solr | 8983 | 80 |
+| ZooKeeper | 2181 (client), 2888/3888 (quorum), 7000 (metrics) | 2181 |
+| ClamAV | 3310, exporter 9906 | same |
+| RabbitMQ (Open Notificaties, where enabled) | 5672 | 5672 |
+
+## Access matrix
+
+### Ingress controller → apps
+
+All public hosts go through the ingress controller (Traefik on johnb00), which
+reaches the pod port of the Service behind each Ingress: the nginx sidecars,
+keycloak 8080, zac-nginx, contact, ita-web, pabc, zaakbrug, OpenBao 8200,
+Kibana, mailpit and the others. A policy on any of these pods must allow the
+ingress controller namespace.
+
+### Shared Redis HA
+
+One `RedisReplication/redis-ha` (pods `app=redis-ha`) holds the Celery
+brokers, caches, axes and OIDC state of the Django apps, each on its own
+database index (see the `redis://` URLs in `values.yaml`). Security review
+NW-04: no authentication, no TLS.
+
+| From (pod `app.kubernetes.io/name`) | Port |
+|---|---|
+| openzaak, -worker, -beat, -config | 6379 |
+| opennotificaties, -worker, -beat, -config | 6379 |
+| objecten, -worker, -config | 6379 |
+| openklant, -worker, -config | 6379 |
+| openformulieren, -worker, -beat, -config | 6379 |
+| openinwoner, -worker, -beat, -low-latency-worker, -celery-monitor, -config | 6379 |
+| openbeheer, -config | 6379 |
+| openarchiefbeheer, -worker, -beat, -config | 6379 |
+| referentielijsten, -config | 6379 |
+| openvtb, -config | 6379 |
+| Frank!Gateway dashboard oauth2-proxy (sessions, only with the dashboard on) | 6379 |
+| redis-ha pods (replication) | 6379 |
+| redis-operator (`name=redis-operator`) | 6379 |
+| monitoring namespace | 9121 |
+
+The `redis-ha-label-master` CronJob talks only to the Kubernetes API.
+
+### OpenBao
+
+| From | Port |
+|---|---|
+| Frank!Gateway pods and jobs (`app.kubernetes.io/component` frankgateway, frankgateway-seed, frankgateway-client-cert-sync, frankgateway-ssl-sync) | 8200 |
+| openbao-config job, openbao-token-renewal CronJob | 8200 |
+| Keycloak realm import job (component `keycloak`) | 8200 |
+| ingress controller (UI/API on the public host) | 8200 |
+| OpenBao pods | 8200, 8201 |
+| monitoring namespace | 8200 |
+| cert-manager, when an Issuer uses OpenBao _(not observed)_ | 8200 |
+
+The activation script (`scripts/openbao-activate.sh`) uses
+`kubectl port-forward`, which does not pass through NetworkPolicy.
+
+### Frank!Gateway etcd
+
+Security review NW-02: no TLS, no authentication.
+
+| From | Port |
+|---|---|
+| gateway pods (component `frankgateway`, also their wait-for-etcd init container) | 2379 |
+| dashboards (component `frankgateway-dashboard`) | 2379 |
+| etcd members | 2379, 2380 |
+
+The seed, ssl-sync and client-cert-sync jobs only use the Admin API (9180)
+and OpenBao, not etcd.
+
+### Elasticsearch (ECK): KISS and Open Inwoner
+
+| From | Port |
+|---|---|
+| KISS frontend and the kennisbank/smoelenboek/vac sync CronJobs (`app.kubernetes.io/name=contact`) | 9200 |
+| openinwoner, -worker, -beat, -low-latency-worker, -celery-monitor, -config | 9200 |
+| Kibana (`common.k8s.elastic.co/type=kibana`) | 9200 |
+| ECK operator (`app.kubernetes.io/name=elastic-operator`, any namespace) | 9200 |
+| Elasticsearch nodes | 9200, 9300 |
+
+### ZAC: Solr, ZooKeeper, office-converter, OPA
+
+| From | To | Port |
+|---|---|---|
+| zac | Solr (`technology=solr-cloud`) | 8983 |
+| solr-operator (`control-plane=solr-operator`) | Solr | 8983 |
+| Solr pods | Solr | 8983 |
+| Solr pods, ZooKeeper members | ZooKeeper (`technology=zookeeper`) | 2181 |
+| zookeeper-operator, solr-operator | ZooKeeper | 2181 |
+| ZooKeeper members | ZooKeeper | 2888, 3888 |
+| zac | office-converter | 3000 |
+| zac | OPA | 8181 on localhost, same pod: no policy needed |
+
+### Component-to-component (application APIs)
+
+All targets on their nginx or Django pod port (8080/8000), unless stated.
+
+| From | To | Reason |
+|---|---|---|
+| zac | openzaak, objecten, openklant, opennotificaties | ZGW APIs, notification subscriptions |
+| zac | pabc (8080) | authorisation |
+| zac | frankgateway-outway (9080) or api-proxy (8080) | BAG, BRP, KvK |
+| contact (KISS), podiumd-adapter | openzaak, objecten, openklant | ZGW and klantinteracties |
+| contact (KISS), its sync jobs | api-proxy | Haal Centraal, KvK |
+| ita-web, ita poller | openklant, objecten, openzaak | klantinteracties, taken |
+| openformulieren, its config job | openzaak, objecten, openklant, opennotificaties, api-proxy | registration backends, prefill |
+| openformulieren, -worker | clamav (3310) | virus scan of uploads |
+| openinwoner | openzaak, openklant, objecten, openformulieren, opennotificaties | portal data |
+| openinwoner-config | api-proxy | prefill configuration |
+| opennotificaties | openzaak | authorisation checks |
+| **opennotificaties-worker** | **every subscriber** (zac, openinwoner, objecten, openklant, openbeheer, ...) | **notification delivery: easy to forget** |
+| pabc (2.x) | openzaak | zaaktype import |
+| zgw-office-addin backend | openzaak | ZGW APIs |
+| zaakbrug | openzaak, Frank!Gateway | StUF-ZGW bridge _(not observed)_ |
+| create-required-catalogi job | openzaak | seed data |
+| create-required-objecttypen job | objecten | seed data |
+| Keycloak jobs (4), pabc-keycloak-groups job | keycloak (8080) | realm import, admin user, groups |
+| keycloak-operator | keycloak (8080, 9000) | reconcile |
+| api-proxy, Frank!Gateway outway seed | brp-personen-mock (5010) | test BRP |
+| monitoring namespace | metrics ports of every component | scraping |
+
+Most apps reach Keycloak through the **public** `oidcUrl`. That traffic leaves
+the pod towards the ingress IP and comes back in through the ingress
+controller, so for ingress policies it counts as "from the ingress controller
+namespace". For egress policies (phase 3) it needs an egress rule to the
+ingress load balancer IP.
+
+### Egress outside the cluster (phase 3, not implemented)
+
+| From | To | Port |
+|---|---|---|
+| every Django app, keycloak, pabc, zac, ita, openbao, kiss | Azure PostgreSQL flexible server | 5432 |
+| api-proxy, frankgateway-outway | BAG, BRP, KvK (internet) | 443 |
+| openformulieren, openinwoner | DigiD/eHerkenning IdPs, KvK, StUF endpoints | 443 |
+| zac, openformulieren, openinwoner, ita | SMTP (mailpit on test) | 25/587/1025 |
+| clamav (freshclam) | `database.clamav.net` | 443 |
+| every pod | kube-dns | 53 UDP/TCP |
+| every OIDC client | Keycloak public URL (ingress load balancer) | 443 |
+| operators | Kubernetes API server | 443 |
+
+## Implementation (templates/networkpolicies.yaml)
+
+Values: `networkPolicies.*`, off by default. `ingressControllerNamespace` is
+required once enabled (the render fails without it).
+
+**Phase 1, `protectBackends`** (on by default once `networkPolicies.enabled`):
+ingress-only policies, one per sensitive backend, with exactly the clients
+above.
+
+| Policy | Selects | Rendered when |
+|---|---|---|
+| `podiumd-redis-ha` | `app=redis-ha` | `redis-operator.enabled` and `redis-operator.redis-ha.enabled` |
+| `podiumd-openbao` | `app.kubernetes.io/name=openbao` | `openbao.enabled` |
+| `podiumd-frankgateway-etcd` | `app.kubernetes.io/component=frankgateway-etcd` | `frankgateway.enabled` |
+| `podiumd-elasticsearch` | `common.k8s.elastic.co/type=elasticsearch` | `kiss-eck`, `kiss` or `openinwoner` enabled |
+| `podiumd-zac-solr`, `podiumd-zac-zookeeper`, `podiumd-zac-office-converter` | Solr, ZooKeeper, Gotenberg | `zac.enabled` |
+| `podiumd-clamav` | `app.kubernetes.io/name=clamav` | `clamav.enabled` |
+
+`protectBackends.extraFrom.<backend>` adds environment-specific callers.
+
+**Phase 2, `namespaceIsolation`** (opt-in): one policy for every other pod in
+the namespace. It allows traffic from the own namespace, the ingress
+controller, monitoring and `extraNamespaces`, and blocks other namespaces.
+
+**Why a disabled component does not break anything.** NetworkPolicies are
+selectors, not references. A policy whose `podSelector` matches no pods does
+nothing, and an allow rule that names a client which is not deployed matches
+nothing. On top of that, each backend policy is only rendered when its
+component is enabled.
+
+**Why phase 2 excludes the phase-1 backends.** Policies are additive: a pod is
+reachable when any policy that selects it allows the traffic. If the
+namespace-wide policy also selected Redis, it would allow every pod in the
+namespace to reach Redis again. The namespace policy therefore uses `NotIn`
+selectors for exactly the backends that phase 1 rendered, and for the
+Frank!Gateway class pods when their own policies are enabled.
+
+**Phase 3, egress**: not implemented. It breaks most easily (DNS, PostgreSQL,
+OIDC through the public URL, external APIs). Start from the egress table
+above and from observed flows.
+
+## Test plan (johnb00)
+
+1. Switch johnb00 to the Cilium dataplane; confirm `keycloak-network-policy`
+   still lets everything work (it is enforced from that moment).
+2. Deploy with `networkPolicies.enabled=true`,
+   `ingressControllerNamespace=traefik` (phase 1 only).
+3. Run `tests/` in podiumd-infra, plus negative checks: from a pod in another
+   namespace and from an unlisted pod in `podiumd`, connections to Redis
+   6379, etcd 2379 and OpenBao 8200 must time out.
+4. Check the Cilium drop counters for unexpected denies, add missing clients
+   to the template or `extraFrom`, update this matrix.
+5. Repeat with `namespaceIsolation.enabled=true`.
+6. Rollback at any point: `networkPolicies.enabled=false` and redeploy.
