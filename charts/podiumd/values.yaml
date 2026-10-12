@@ -14,7 +14,7 @@ global:
   images:
     nginx: &nginxImage
       repository: nginxinc/nginx-unprivileged
-      tag: "1.31.6@sha256:929e1d5e610e8aa89a1715ba44dce5edb4d42c172a208c171233292f472560c5"
+      tag: "1.31.6@sha256:1d26a516fb93b18f9c0214dc9c645054486e516f13ff09ef63d5bd5c622278a2"
       pullPolicy: IfNotPresent
     curl: &curlImage
       repository: curlimages/curl
