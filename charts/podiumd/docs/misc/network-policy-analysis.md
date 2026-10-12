@@ -236,8 +236,11 @@ component is enabled.
 reachable when any policy that selects it allows the traffic. If the
 namespace-wide policy also selected Redis, it would allow every pod in the
 namespace to reach Redis again. The namespace policy therefore uses `NotIn`
-selectors for exactly the backends that phase 1 rendered, and for the
-Frank!Gateway class pods when their own policies are enabled.
+selectors for exactly the backends that phase 1 rendered, for the
+Frank!Gateway class pods when their own policies are enabled, and for the
+Frank!Gateway dashboard and shim when `frankgateway.dashboard.networkPolicy`
+renders. The dashboard's oauth2-proxy has no policy of its own and stays
+under namespace isolation, which admits the ingress controller (port 4180).
 
 **Phase 3, egress**: not implemented. It breaks most easily (DNS, PostgreSQL,
 OIDC through the public URL, external APIs). Start from the egress table
