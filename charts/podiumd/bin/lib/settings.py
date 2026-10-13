@@ -393,7 +393,7 @@ def component_resolution_version_paths(chart_dir: Path):
             "version_paths",
             {
                 "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"],
-                "redis-operator": ["redisOperator.imageTag"],
+                "redis-operator": ["redisOperator.imageTag", "redisOperator.initContainerImageTag"],
             },
         )
     )

@@ -494,7 +494,7 @@ def test_component_version_paths_self_resolves_against_real_chart_dir(libchartre
     """Self-resolving default for the bare-version-field registry."""
     assert libchartregisteredpaths.component_version_paths() == {
         "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"],
-        "redis-operator": ["redisOperator.imageTag"],
+        "redis-operator": ["redisOperator.imageTag", "redisOperator.initContainerImageTag"],
     }
 
 
@@ -520,3 +520,10 @@ def test_version_paths_for_explicit_override(libchartregisteredpaths: ModuleType
     )
     assert libchartregisteredpaths.version_paths_for("only-this-one", tmp_path) == ["some.version"]
     assert libchartregisteredpaths.version_paths_for("redis-operator", tmp_path) == []
+
+
+def test_split_version_fields_maps_redis_operator_tags_to_image_name(libchartregisteredpaths: ModuleType):
+    assert libchartregisteredpaths.split_version_fields() == {
+        "imageTag": "imageName",
+        "initContainerImageTag": "imageName",
+    }

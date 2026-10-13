@@ -14,6 +14,7 @@ from typing import TypeVar
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import load_chart_dependencies
+from lib.chart.registered_paths import split_version_fields
 from lib.chart.repo_and_path_resolution import SubchartValuesCache
 from lib.chart.repo_and_path_resolution import subchart_default_repository
 from lib.registry import UNVERIFIABLE_HOSTS
@@ -31,6 +32,11 @@ from lib.settings import repo_access_cache_ttl_minutes
 # An alias ("tag: *anchor") has no value to read and doesn't match.
 VERSION_PIN_RE = re.compile(
     r'^(?P<indent>\s*)tag:\s*(?:&\S+\s+)?"?(?P<version>[\w][\w.\-]*)(?:@sha256:(?P<digest>[0-9a-f]{64}))?"?\s*(?:#.*)?$'
+)
+# The same pin under any key, for the registered split fields (see split_version_fields).
+KEYED_VERSION_PIN_RE = re.compile(
+    r'^(?P<indent>\s*)(?P<key>\w+):\s*(?:&\S+\s+)?"?'
+    r'(?P<version>[\w][\w.\-]*)(?:@sha256:(?P<digest>[0-9a-f]{64}))?"?\s*(?:#.*)?$'
 )
 # An active sibling "repository:" key, "&anchor" tolerated.
 ACTIVE_REPO_RE = re.compile(
@@ -161,25 +167,39 @@ def scan_digest_pins(lines: list[str]) -> list[DigestPin]:
 
 
 def scan_version_pins(lines: list[str]) -> list[VersionPin]:
-    """Every "tag:" pin with its resolved repository, digest None for a bare tag.
+    """Every "tag:" pin, and every registered split-field pin (redis-operator's
+    "imageTag:" next to "imageName:"), with its resolved repository; digest None for a bare tag.
 
     scan_digest_pins keeps the pins that have a digest.
     """
+    split_fields = split_version_fields()
     pins: list[VersionPin] = []
     for i, raw in enumerate(lines):
         m = VERSION_PIN_RE.match(raw)
-        if not m:
-            continue
-        indent = len(m.group("indent"))
+        if m:
+            repository = resolve_pin_repo(lines, i, len(m.group("indent")))
+        else:
+            m = KEYED_VERSION_PIN_RE.match(raw)
+            repository_field = split_fields.get(m.group("key")) if m else None
+            if m is None or repository_field is None:
+                continue
+            repository = _sibling_field(lines, i, len(m.group("indent")), _active_field_re(repository_field))
+            if repository is None:
+                continue
         pins.append(
             {
                 "line": i + 1,
                 "version": m.group("version"),
                 "digest": m.group("digest"),
-                "repository": resolve_pin_repo(lines, i, indent),
+                "repository": repository,
             }
         )
     return pins
+
+
+def _active_field_re(field: str) -> re.Pattern[str]:
+    """ACTIVE_REPO_RE for a repository held under another key, e.g. redis-operator's "imageName:"."""
+    return re.compile(ACTIVE_REPO_RE.pattern.replace("repository:", f"{re.escape(field)}:", 1))
 
 
 def unique_digest_pin_targets(values_lines: list[str]) -> dict[tuple[str, str], tuple[str, int]]:

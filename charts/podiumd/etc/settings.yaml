@@ -154,7 +154,9 @@ component_resolution:
   # image_paths finds no tag; first that resolves wins.
   # - eck-stack: per-resource CRD "version:" (enterprise-search is disabled
   #   by default, so not listed).
-  # - redis-operator: split "imageName:"/"imageTag:" fields.
+  # - redis-operator: split "imageName:"/"imageTag:" fields. The init-config
+  #   init container runs the operator image too; its tag defaults to
+  #   v<appVersion> in every chart release, so the two form a lockstep group.
   version_paths:
     "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"]
-    "redis-operator": ["redisOperator.imageTag"]
+    "redis-operator": ["redisOperator.imageTag", "redisOperator.initContainerImageTag"]

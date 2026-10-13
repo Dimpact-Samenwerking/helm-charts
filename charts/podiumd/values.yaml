@@ -422,10 +422,11 @@ redis-operator:
     GenerateConfigInInitContainer: true
   redisOperator:
     imageName: quay.io/opstree/redis-operator
-    imageTag: "v0.26.0@sha256:1c6818e5e50553f9f3c1b91a8824ae5c1999a0c9416c794ca51431b7f0cb48c3"
+    imageTag: &redisOperatorImageTag "v0.26.0@sha256:1c6818e5e50553f9f3c1b91a8824ae5c1999a0c9416c794ca51431b7f0cb48c3"
     # -- Chart default for initContainerImageTag is a plain (non-digest-pinned) "v0.26.0";
     # override explicitly so the init container is digest-pinned like every other image here.
-    initContainerImageTag: "v0.26.0@sha256:1c6818e5e50553f9f3c1b91a8824ae5c1999a0c9416c794ca51431b7f0cb48c3"
+    # It runs the operator image, so it aliases imageTag (a lockstep pair).
+    initContainerImageTag: *redisOperatorImageTag
   resources:
     requests:
       cpu: 100m
