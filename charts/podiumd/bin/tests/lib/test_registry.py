@@ -468,6 +468,11 @@ def test_parse_bearer_challenge_none_without_realm(libregistry: ModuleType):
 # --- _is_more_specific_tag ---
 
 
+def test_is_more_specific_tag_keeps_the_v_prefix_apart(libregistry: ModuleType):
+    assert libregistry._is_more_specific_tag("v0.26.1", "v0.26") is True
+    assert libregistry._is_more_specific_tag("0.26.1", "v0.26") is False
+
+
 def test_is_more_specific_tag_patch_refinement(libregistry: ModuleType):
     assert libregistry._is_more_specific_tag("3.14.7-slim", "3.14-slim") is True
 
@@ -553,6 +558,13 @@ def test_find_newer_same_variant_tags_lists_the_newest_per_major(
     ]
 
 
+def test_find_newer_same_variant_tags_reads_v_prefixed_tags(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    """opstree publishes "v8.6.6"; an unprefixed "9.0.0" is another tag series."""
+    monkeypatch.setattr(libregistry, "list_tags", lambda host, repo: ["v8.6.6", "v8.8.2", "v9.0.1", "9.0.0", "latest"])
+    assert libregistry.find_newer_same_variant_tags("quay.io", "opstree/redis", "v8.6.6") == ["v8.8.2", "v9.0.1"]
+    assert libregistry.find_newer_same_variant_tags("quay.io", "opstree/redis", "8.6.6") == ["9.0.0"]
+
+
 def test_find_newer_same_variant_tags_empty_when_already_newest(
     libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
@@ -620,6 +632,33 @@ def test_find_newer_same_variant_tags_still_finds_newer_release_among_ci_run_id_
         ],
     )
     assert libregistry.find_newer_same_variant_tags("ghcr.io", "wearefrank/frank-gateway", "1.1.0") == ["1.2.0"]
+
+
+# --- chart_app_version ---
+
+
+def test_chart_app_version_reads_the_chart_config_blob(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    responses: dict[str, object] = {
+        "manifests/2.1.0": {"config": {"digest": "sha256:cfg"}},
+        "blobs/sha256:cfg": {"name": "ita", "version": "2.1.0", "appVersion": "3.4.0"},
+    }
+    monkeypatch.setattr(libregistry, "_registry_json", lambda host, repo, path, accept, timeout: responses[path])
+    assert libregistry.chart_app_version("ghcr.io", "org/ita", "2.1.0") == "3.4.0"
+
+
+def test_chart_app_version_none_when_the_chart_sets_none(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    responses: dict[str, object] = {
+        "manifests/2.1.0": {"config": {"digest": "sha256:cfg"}},
+        "blobs/sha256:cfg": {"name": "ita", "version": "2.1.0"},
+    }
+    monkeypatch.setattr(libregistry, "_registry_json", lambda host, repo, path, accept, timeout: responses[path])
+    assert libregistry.chart_app_version("ghcr.io", "org/ita", "2.1.0") is None
+
+
+def test_chart_app_version_without_config_is_a_url_error(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(libregistry, "_registry_json", lambda host, repo, path, accept, timeout: {})
+    with pytest.raises(urllib.error.URLError):
+        libregistry.chart_app_version("ghcr.io", "org/ita", "2.1.0")
 
 
 # --- is_sliding_tag ---
