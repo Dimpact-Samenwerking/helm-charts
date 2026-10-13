@@ -15,7 +15,9 @@ from typing import TypedDict
 from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import text_at
 from lib.procutil import run
+from lib.version_numbers import NUMERIC_PREFIX_RE
 from lib.version_numbers import dotted_numbers
+from lib.version_numbers import newest_per_major
 from lib.yaml_types import YamlValue
 from lib.yaml_types import is_yaml_value
 
@@ -305,9 +307,6 @@ def list_tags(registry_host: str, repo: str):
     return [tag for tag in tags if isinstance(tag, str)]
 
 
-NUMERIC_PREFIX_RE = re.compile(r"^(\d+(?:\.\d+)*)")
-
-
 def _numeric_prefix_and_suffix(tag: str):
     """("3.14", "-slim") for "3.14-slim" — the leading dotted-digits run and
     everything after. (None, tag) if it doesn't start with a digit."""
@@ -332,26 +331,24 @@ def _is_more_specific_tag(candidate: str, version: str):
     return cand_suffix == ver_suffix or cand_suffix.startswith(ver_suffix)
 
 
-def find_newest_same_variant_tag(registry_host: str, repo: str, version: str) -> str:
-    """The numerically highest published tag with version's suffix, else version itself.
+def find_newer_same_variant_tags(registry_host: str, repo: str, version: str) -> list[str]:
+    """The highest published tag with version's suffix above version, one per major
+    (see newest_per_major); [] if none or version isn't numeric.
 
     Unlike _is_more_specific_tag, any newer same-variant release counts. Candidates must
     have as many dot components as version: frank-gateway publishes bare CI run-ID tags
     ("12294937630"), and (12294937630,) > (1, 1, 0) in tuple comparison."""
     ver_num, ver_suffix = _numeric_prefix_and_suffix(version)
     if ver_num is None:
-        return version
+        return []
 
-    ver_parts = ver_num.split(".")
-    best, best_key = version, dotted_numbers(ver_num)
+    arity = len(ver_num.split("."))
+    candidates: list[tuple[str, tuple[int, ...]]] = []
     for tag in list_tags(registry_host, repo):
         num, suffix = _numeric_prefix_and_suffix(tag)
-        if num is None or suffix != ver_suffix or len(num.split(".")) != len(ver_parts):
-            continue
-        key = dotted_numbers(num)
-        if key > best_key:
-            best, best_key = tag, key
-    return best
+        if num is not None and suffix == ver_suffix and len(num.split(".")) == arity:
+            candidates.append((tag, dotted_numbers(num)))
+    return newest_per_major(dotted_numbers(ver_num), candidates)
 
 
 def find_more_specific_tag_at_same_digest(registry_host: str, repo: str, version: str, live_digest: str):

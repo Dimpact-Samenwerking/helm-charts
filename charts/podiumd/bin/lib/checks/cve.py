@@ -10,8 +10,9 @@ every finding grouped per package (one bundled binary can carry hundreds of CVEs
 summarized past cve_scan.max_cves_per_package_before_summarizing. FixedVersion is
 never shown: only the image tag is pinned here, not packages inside it.
 
-An "upgradable to X" marker comes from the image-upgrade cache, read-only; verify-podiumd
-runs "Image upgrades" first as a prerequisite so it is fresh.
+An "upgradable to X" marker (the newest tag in the pin's major) comes from the
+image-upgrade cache, read-only; verify-podiumd runs "Image upgrades" first as a
+prerequisite so it is fresh.
 
 Results are cached per (repository, digest) in <repo-root>/.cache/cve-scan-cache.json,
 capped by cve_scan.scan_cache_ttl_days because trivy's DB changes even when the image doesn't.
@@ -35,9 +36,8 @@ from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.values_tree_primitives import values_key_of
 from lib.image.digests import unique_digest_pin_targets
 from lib.image.upgrade_cache import UpgradeEntry
-from lib.image.upgrade_cache import cache_entry_is_fresh as upgrade_entry_is_fresh
-from lib.image.upgrade_cache import cache_key as upgrade_cache_key
 from lib.image.upgrade_cache import load_cache as load_upgrade_cache
+from lib.image.upgrade_cache import same_major_upgrade
 from lib.json_cache import cache_file
 from lib.json_cache import checked_within
 from lib.json_cache import load_json_cache
@@ -442,18 +442,6 @@ def _target_label(repository: str, version: str, digest: str, line: int, context
     return classify_by_key(top_key, context.classification.dep_names, context.classification.vendor_map)
 
 
-def _upgradable_to(repository: str, version: str, context: ScanContext) -> str | None:
-    """The newer tag from a fresh upgrade-cache entry, or None."""
-    upgrade_entry = context.upgrade_cache.get(upgrade_cache_key(repository, version))
-    if (
-        upgrade_entry
-        and upgrade_entry_is_fresh(upgrade_entry, context.settings.upgrade_cache_ttl_days)
-        and upgrade_entry["newest"] != version
-    ):
-        return upgrade_entry["newest"]
-    return None
-
-
 def _scan_one_target(
     repo_version: tuple[str, str], digest_line: tuple[str, int], index: int, total: int, context: ScanContext
 ):
@@ -482,7 +470,9 @@ def _scan_one_target(
         "bucket": bucket_of(label),
         "vendor_label": label if bucket_of(label) == "partner" else None,
         "vulns": vulns,
-        "upgradable_to": _upgradable_to(repository, version, context),
+        "upgradable_to": same_major_upgrade(
+            context.upgrade_cache, repository, version, context.settings.upgrade_cache_ttl_days
+        ),
     }
     return image_ref, entry, was_cached
 

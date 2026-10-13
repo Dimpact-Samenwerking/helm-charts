@@ -1,9 +1,9 @@
 """Report-only CVE diff between the pinned image and its proposed replacement.
 
-Candidates: images with a newer tag in the image-upgrade cache ("upgrade") and pins
-whose tag's digest moved upstream ("sliding digest"). Both sides are scanned with trivy
-and the exact CVE set difference (closed/introduced) is reported. Never fails: a new
-CRITICAL is a triage signal, not a chart-correctness fact.
+Candidates: images with a newer tag in their major in the image-upgrade cache
+("upgrade") and pins whose tag's digest moved upstream ("sliding digest"). Both sides
+are scanned with trivy and the exact CVE set difference (closed/introduced) is
+reported. Never fails: a new CRITICAL is a triage signal, not a chart-correctness fact.
 
 A separate step so the cheap upgrade/digest checks don't carry docker+trivy cost;
 only flagged candidates get scanned. verify-podiumd runs "Image upgrades" first as a
@@ -49,9 +49,8 @@ from lib.checks.cve import severity_label
 from lib.checks.cve import top_level_key_for_line
 from lib.image.digests import find_sliding_pins
 from lib.image.digests import unique_digest_pin_targets
-from lib.image.upgrade_cache import cache_entry_is_fresh as upgrade_entry_is_fresh
-from lib.image.upgrade_cache import cache_key as upgrade_cache_key
 from lib.image.upgrade_cache import load_cache as load_upgrade_cache
+from lib.image.upgrade_cache import same_major_upgrade
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
 from lib.render_scope import friendly_vendor_charts
@@ -125,8 +124,8 @@ def gather_candidates(chart_dir: Path) -> list[DiffCandidate]:
     upgrade_ttl_days = image_upgrade_tag_check_cache_ttl_days(chart_dir)
     candidates: list[DiffCandidate] = []
     for (repository, version), (digest, line) in sorted(targets.items()):
-        entry = upgrade_cache.get(upgrade_cache_key(repository, version))
-        if entry and upgrade_entry_is_fresh(entry, upgrade_ttl_days) and entry["newest"] != version:
+        proposed = same_major_upgrade(upgrade_cache, repository, version, upgrade_ttl_days)
+        if proposed:
             host, repo_path = parse_repo(repository)
             candidates.append(
                 {
@@ -135,8 +134,8 @@ def gather_candidates(chart_dir: Path) -> list[DiffCandidate]:
                     "version": version,
                     "current_ref": f"{host}/{repo_path}:{version}",
                     "current_digest": digest,
-                    "proposed_label": entry["newest"],
-                    "proposed_ref": f"{host}/{repo_path}:{entry['newest']}",
+                    "proposed_label": proposed,
+                    "proposed_ref": f"{host}/{repo_path}:{proposed}",
                     "proposed_digest": None,
                     "line": line,
                 }

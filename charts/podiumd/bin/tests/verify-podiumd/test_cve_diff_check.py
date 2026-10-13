@@ -57,12 +57,12 @@ def vuln(severity, cve, pkg):
     return {"VulnerabilityID": cve, "PkgName": pkg, "Severity": severity}
 
 
-def fresh_upgrade_entry(newest):
-    return {"checked_at": datetime.now(timezone.utc).isoformat(), "newest": newest}
+def fresh_upgrade_entry(*newer):
+    return {"checked_at": datetime.now(timezone.utc).isoformat(), "newer": list(newer)}
 
 
-def stale_upgrade_entry(newest):
-    return {"checked_at": (datetime.now(timezone.utc) - timedelta(days=30)).isoformat(), "newest": newest}
+def stale_upgrade_entry(*newer):
+    return {"checked_at": (datetime.now(timezone.utc) - timedelta(days=30)).isoformat(), "newer": list(newer)}
 
 
 def make_run_trivy(vulns_by_ref, calls=None):
@@ -455,7 +455,7 @@ zac:
     monkeypatch.setattr(
         libcvediffcheck,
         "load_upgrade_cache",
-        lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.0.0")},
+        lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry()},
     )
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
 
@@ -893,7 +893,7 @@ def test_check_cve_diff_bucket_with_no_candidates_prints_no_header(
         lambda chart_dir: {
             "ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0"),
             "maykinmedia/objects-api:1.0.0": fresh_upgrade_entry("1.1.0"),
-            "docker.io/alpine/k8s:1.36.2": fresh_upgrade_entry("1.36.2"),  # no newer tag -- not a candidate
+            "docker.io/alpine/k8s:1.36.2": fresh_upgrade_entry(),  # no newer tag -- not a candidate
         },
     )
 

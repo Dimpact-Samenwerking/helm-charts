@@ -10,7 +10,7 @@ from lib.chart.upgrade_check import ChartSource
 from lib.chart.upgrade_check import chart_sources
 from lib.chart.upgrade_check import check_chart_upgrades
 from lib.chart.upgrade_check import index_chart_versions
-from lib.chart.upgrade_check import newest_stable_version
+from lib.chart.upgrade_check import newer_stable_versions
 
 INDEX = """\
 apiVersion: v1
@@ -25,11 +25,16 @@ entries:
 """
 
 
-def test_newest_stable_version_compares_numerically_and_skips_prereleases():
-    assert newest_stable_version("1.0.9", ["1.0.10", "1.0.2", "2.0.0-beta.1"]) == "1.0.10"
-    assert newest_stable_version("1.0.9", ["1.0.8"]) == "1.0.9"
+def test_newer_stable_versions_compares_numerically_and_skips_prereleases():
+    assert newer_stable_versions("1.0.9", ["1.0.10", "1.0.2", "2.0.0-beta.1"]) == ["1.0.10"]
+    assert newer_stable_versions("1.0.9", ["1.0.8"]) == []
     # A pin that isn't stable semver is never reported as upgradable.
-    assert newest_stable_version("0.0.1-dev", ["1.0.0"]) == "0.0.1-dev"
+    assert newer_stable_versions("0.0.1-dev", ["1.0.0"]) == []
+
+
+def test_newer_stable_versions_lists_the_newest_per_major():
+    published = ["1.1.1", "1.1.4", "1.2.0", "2.0.3", "2.1.0", "3.0.0-rc.1"]
+    assert newer_stable_versions("1.1.1", published) == ["1.2.0", "2.1.0"]
 
 
 def test_index_chart_versions_reads_only_the_named_chart():
@@ -86,7 +91,7 @@ def test_check_reports_newer_charts_caches_them_and_never_fails(
 
     assert check_chart_upgrades(tmp_path) == (True, "upgradable: 1/2 chart(s); 0 fetch error(s)")
     out = capsys.readouterr().out
-    assert "zac (zaakafhandelcomponent 1.0.297): newer chart version available: 1.0.310" in out
+    assert "zac (zaakafhandelcomponent 1.0.297): newest chart version per major: 1.0.310" in out
     assert "ita (ita 2.0.0): newer" not in out
 
     # A second run within the TTL is served from the cache.
