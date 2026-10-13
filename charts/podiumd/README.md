@@ -1156,6 +1156,7 @@ PodiumD Helm chart
 | pabc.migrations.image.repository | string | `"ghcr.io/platform-autorisatie-beheer-component/pabc-migrations"` |  |
 | pabc.migrations.image.tag | string | `"2.1.0@sha256:75640f1ee9dc6a155800a31457574b9c36eb0cd41827c45333b9f39d05c94abb"` |  |
 | pabc.migrations.nodeSelector | object | `{}` |  |
+| pabc.migrations.prefill | object | `{"applications":[{"name":"zaakafhandelcomponent","roles":["administrator","behandelaar","beheerder","coordinator","raadpleger","recordmanager"]}]}` | Applications and application roles the migrations job creates when they do not exist yet (PABC 2.1.0 prefill, PREFILL_PATH). Non-destructive: an existing application is skipped as a whole, with its roles, and nothing is ever changed or removed, so it is safe on curated environments. The default is the zaakafhandelcomponent set from files/pabc-dataset.json; functional roles, domains and mappings are not part of prefill. Set to [] per environment to turn it off. |
 | pabc.nodeSelector | object | `{}` |  |
 | pabc.postgresql.enabled | bool | `false` |  |
 | pabc.resources.limits.cpu | string | `"200m"` |  |
