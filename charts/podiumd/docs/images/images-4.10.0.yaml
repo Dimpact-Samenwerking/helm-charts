@@ -7,6 +7,7 @@
 #      3.4.2 is merged into it).
 #   2. openvtb 0.2.0 (new optional component, image maykinmedia/open-vtb,
 #      disabled by default).
+#   3. kiss - crawler 1.0.0 -> 1.1.0 (Elastic Open Crawler, CVE fixes).
 #
 # See docs/_UPGRADE_PATHS/4.9.4-to-4.10.0-upgrade.md for the operator upgrade notes.
 #
@@ -24,3 +25,9 @@
   url: docker.io/maykinmedia/open-vtb
   version: "0.2.0"
   digest: "sha256:b382b2fdeb052994d6a785864f1277bffb2490e61de2a0222ad74379dede2f01"
+
+# kiss - crawler 1.0.0 -> 1.1.0 (Elastic Open Crawler)
+- name: integrations/crawler
+  url: docker.elastic.co/integrations/crawler
+  version: "1.1.0"
+  digest: "sha256:7e87a0571129681cfd3053e9bd7998926633e69fbd8da7c29a384f0d7e9ef26e"
