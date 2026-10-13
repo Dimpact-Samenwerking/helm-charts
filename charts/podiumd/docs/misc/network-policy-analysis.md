@@ -169,6 +169,8 @@ All targets on their nginx or Django pod port (8080/8000), unless stated.
 | ita-web, ita poller | openklant, objecten, openzaak | klantinteracties, taken |
 | openformulieren, its config job | openzaak, objecten, openklant, opennotificaties, api-proxy | registration backends, prefill |
 | openformulieren, -worker | clamav (3310) | virus scan of uploads |
+| openinwoner, -worker | clamav (3310) | virus scan of uploads |
+| openformulieren/openinwoner-configure-clamav jobs (`app.kubernetes.io/name=podiumd`, component = the app) | clamav (3310) | clamd ping before writing the ClamAV settings |
 | openinwoner | openzaak, openklant, objecten, openformulieren, opennotificaties | portal data |
 | openinwoner-config | api-proxy | prefill configuration |
 | opennotificaties | openzaak | authorisation checks |

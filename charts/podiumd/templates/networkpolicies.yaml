@@ -431,6 +431,17 @@ spec:
                   - openformulieren-worker
                   - openinwoner
                   - openinwoner-worker
+        # The openformulieren/openinwoner-configure-clamav Jobs ping clamd;
+        # their pods carry this chart's own name plus the app as component.
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ include "podiumd.name" $root }}
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - openformulieren
+                  - openinwoner
       ports:
         - protocol: TCP
           port: 3310
