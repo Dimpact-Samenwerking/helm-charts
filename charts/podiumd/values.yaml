@@ -570,6 +570,19 @@ redis-operator:
       nodeSelector: {}
 
 openzaak:
+  # Security review 4.10.0 WH-02: merged into the chart defaults (drop ALL,
+  # runAsNonRoot, runAsUser 1000, fsGroup 1000).
+  securityContext:
+    allowPrivilegeEscalation: false
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  # WH-10: maxUnavailable, not the chart default minAvailable 1, so a
+  # single-replica environment can still drain its nodes.
+  pdb:
+    create: true
+    minAvailable: ""
+    maxUnavailable: 1
   configuration:
     enabled: true
     notificatiesAuthorization:
@@ -665,7 +678,7 @@ openzaak:
     #       oidc_nonce_size: 32
     #       oidc_state_size: 32
     #       endpoint_config:
-    #         oidc_op_discovery_endpoint: http://keycloak.example.nl/realms/test/
+    #         oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/test/
     #     items:
     #     - identifier: admin-oidc
     #       enabled: true
@@ -730,6 +743,9 @@ openzaak:
       # set to false to disable automatic creation and publishing of the e2e-test zaaktype if it does not exist yet
       create: true
   settings:
+    database:
+      # NW-09: never fall back to plaintext (the chart default is prefer).
+      sslmode: require
     allowedHosts: ".svc.cluster.local"
     email:
       port: 587
@@ -799,6 +815,8 @@ openzaak:
         cpu: 10m
         memory: 160Mi
   nginx:
+    securityContext:
+      allowPrivilegeEscalation: false
     image: *nginxImage
     config:
       # -- Same as ZAC's nginx proxy_timeout: ZAC uploads large documents to Open Zaak in parts (bestandsdelen) through this nginx; the chart default is 300.
@@ -816,6 +834,19 @@ openzaak:
     disabled: true
 
 opennotificaties:
+  # Security review 4.10.0 WH-02: merged into the chart defaults (drop ALL,
+  # runAsNonRoot, runAsUser 1000, fsGroup 1000).
+  securityContext:
+    allowPrivilegeEscalation: false
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  # WH-10: maxUnavailable, not the chart default minAvailable 1, so a
+  # single-replica environment can still drain its nodes.
+  pdb:
+    create: true
+    minAvailable: ""
+    maxUnavailable: 1
   # -- Override OPENNOTIFICATIES_PORT to prevent Kubernetes service-discovery
   # injection (tcp://<ip>:80) from being passed to uwsgi as the port number.
   # Since Open Notificaties 1.16.2 the app reads OPENNOTIFICATIES_PORT for
@@ -860,7 +891,7 @@ opennotificaties:
     #       oidc_nonce_size: 32
     #       oidc_state_size: 32
     #       endpoint_config:
-    #         oidc_op_discovery_endpoint: http://keycloak.example.nl/realms/test/
+    #         oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/test/
     #     items:
     #     - identifier: admin-oidc
     #       enabled: true
@@ -982,6 +1013,9 @@ opennotificaties:
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   settings:
+    database:
+      # NW-09: never fall back to plaintext (the chart default is prefer).
+      sslmode: require
     allowedHosts: ".svc.cluster.local"
     maxRetries: 5
     retryBackoff: 3
@@ -1066,6 +1100,19 @@ opennotificaties:
 # used to be objecttypen's functionality (local objecttypes), per the upstream
 # Open Object 4.0 Objects+Objecttypes API merge.
 objecten:
+  # Security review 4.10.0 WH-02: merged into the chart defaults (drop ALL,
+  # runAsNonRoot, runAsUser 1000, fsGroup 1000).
+  securityContext:
+    allowPrivilegeEscalation: false
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  # WH-10: maxUnavailable, not the chart default minAvailable 1, so a
+  # single-replica environment can still drain its nodes.
+  pdb:
+    create: true
+    minAvailable: ""
+    maxUnavailable: 1
   configuration:
     enabled: true
     demo:
@@ -1161,7 +1208,7 @@ objecten:
     #       oidc_nonce_size: 32
     #       oidc_state_size: 32
     #       endpoint_config:
-    #         oidc_op_discovery_endpoint: http://keycloak.example.nl/realms/test/
+    #         oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/test/
     #     items:
     #     - identifier: admin-oidc
     #       enabled: true
@@ -1203,6 +1250,9 @@ objecten:
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   settings:
+    database:
+      # NW-09: never fall back to plaintext (the chart default is prefer).
+      sslmode: require
     # H.2: public hostname unchanged — keeps the existing <env>-objecten.dimpact.nl
     # convention rather than switching to objecttypen's. Required by the chart
     # (render fails without it); override per gemeente to the real public hostname.
@@ -1526,6 +1576,19 @@ openarchiefbeheer:
     storageClassName: podiumd-standard
 
 openklant:
+  # Security review 4.10.0 WH-02: merged into the chart defaults (drop ALL,
+  # runAsNonRoot, runAsUser 1000, fsGroup 1000).
+  securityContext:
+    allowPrivilegeEscalation: false
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  # WH-10: maxUnavailable, not the chart default minAvailable 1, so a
+  # single-replica environment can still drain its nodes.
+  pdb:
+    create: true
+    minAvailable: ""
+    maxUnavailable: 1
   configuration:
     enabled: true
     initContainer:
@@ -1613,6 +1676,9 @@ openklant:
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   settings:
+    database:
+      # NW-09: never fall back to plaintext (the chart default is prefer).
+      sslmode: require
     allowedHosts: ".svc.cluster.local"
     email:
       port: 587
@@ -1655,6 +1721,8 @@ openklant:
   nameOverride: openklant
   fullnameOverride: openklant
   nginx:
+    securityContext:
+      allowPrivilegeEscalation: false
     image: *nginxImage
     resources:
       requests:
@@ -1667,6 +1735,19 @@ openklant:
     disabled: true
 
 openformulieren:
+  # Security review 4.10.0 WH-02: merged into the chart defaults (drop ALL,
+  # runAsNonRoot, runAsUser 1000, fsGroup 1000).
+  securityContext:
+    allowPrivilegeEscalation: false
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  # WH-10: maxUnavailable, not the chart default minAvailable 1, so a
+  # single-replica environment can still drain its nodes.
+  pdb:
+    create: true
+    minAvailable: ""
+    maxUnavailable: 1
   # revert: verwijder LOG_OUTGOING_REQUESTS override (defaults True)
   # NAV verdere analyse is request logging wel gewenst !
   configuration:
@@ -1905,6 +1986,9 @@ openformulieren:
         cpu: 200m
         memory: 256Mi
   settings:
+    database:
+      # NW-09: never fall back to plaintext (the chart default is prefer).
+      sslmode: require
     allowedHosts: ".svc.cluster.local"
     # -- New in 4.10.0: SameSite for the session, CSRF and language cookies
     # (SESSION_/CSRF_/LANGUAGE_COOKIE_SAMESITE). Unset, Open Forms uses None
@@ -1959,6 +2043,8 @@ openformulieren:
         cpu: 10m
         memory: 160Mi
   nginx:
+    securityContext:
+      allowPrivilegeEscalation: false
     image: *nginxImage
     resources:
       requests:
@@ -1970,6 +2056,19 @@ openformulieren:
     redis: false
 
 openinwoner:
+  # Security review 4.10.0 WH-02: merged into the chart defaults (drop ALL,
+  # runAsNonRoot, runAsUser 1000, fsGroup 1000).
+  securityContext:
+    allowPrivilegeEscalation: false
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  # WH-10: maxUnavailable, not the chart default minAvailable 1, so a
+  # single-replica environment can still drain its nodes.
+  pdb:
+    create: true
+    minAvailable: ""
+    maxUnavailable: 1
   configuration:
     enabled: true
     initContainer:
@@ -2137,6 +2236,9 @@ openinwoner:
         cpu: 200m
         memory: 256Mi
   settings:
+    database:
+      # NW-09: never fall back to plaintext (the chart default is prefer).
+      sslmode: require
     allowedHosts: ".svc.cluster.local"
     brpVersion: ""
     digidMock: ""
@@ -2214,15 +2316,18 @@ openinwoner:
   nameOverride: openinwoner
   fullnameOverride: openinwoner
   nginx:
+    securityContext:
+      allowPrivilegeEscalation: false
     image: *nginxImage
     config:
       basicAuth:
         # Enable this when digid mock is set to digidMock: "true"
         enabled: false
-        # You need to generate the encrypted basic auth password yourself with htpasswd or openssl.
-        # This is an example user
-        users: |-
-          dimpact:$apr1$E03dZmYK$npjTaXfI05tMJ63gB8dxm.
+        # Generate the htpasswd lines yourself (htpasswd or openssl), e.g.
+        #   users: |-
+        #     <user>:$apr1$<salt>$<hash>
+        # Security review 4.10.0 SD-19: no example credential ships by default.
+        users: ""
       clientMaxBodySize: 100M
     resources:
       requests:
@@ -2540,7 +2645,7 @@ openbeheer:
       username: ""
       password: ""
       name: ""
-      sslmode: prefer
+      sslmode: require  # NW-09
     email:
       host: localhost
       port: 25
@@ -2703,7 +2808,7 @@ openvtb:
       username: ""
       password: ""
       name: ""
-      sslmode: prefer
+      sslmode: require  # NW-09
     email:
       host: localhost
       port: 25
@@ -2737,6 +2842,10 @@ openvtb:
 # OIP only provide their own Elasticsearch; the operator no longer comes from a
 # subchart. See docs/apps/elastic/migrating-to-eck-stack.md.
 eck-operator:
+  # Security review 4.10.0 WH-06.
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
   enabled: true
   # -- the chart installs and upgrades the 12 *.k8s.elastic.co CRDs, in lock-step
   # with the operator version. The CRDs carry helm.sh/resource-policy: keep, so
@@ -2842,6 +2951,16 @@ kiss-eck:
         nodeSelector: {}
 
 kiss:
+  # Security review 4.10.0 WH-10: contact-web runs 2 replicas. The kiss schema
+  # wants an integer minAvailable (0 is left out) and a string maxUnavailable.
+  pdb:
+    create: true
+    minAvailable: 0
+    maxUnavailable: "1"
+  # Security review 4.10.0 WH-06.
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
   image:
     #   repository: "ghcr.io/klantinteractie-servicesysteem/kiss-frontend"
     pullPolicy: IfNotPresent
@@ -3160,10 +3279,15 @@ kiss:
       isDefault: true
 
 zac:
+  # Security review 4.10.0 WH-05: UIDs checked on the running images
+  # (ZAC 1001, OPA 1000, gotenberg 1001, curl init 100).
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
   # Every "changeme"/"dummy" credential below is a placeholder: the render fails
   # (templates/validations.yaml) until each one is set per environment.
   auth:
-    server: http://keycloak.example.nl
+    server: https://keycloak.example.nl
     realm: podiumd
     clientId: zac
     secret: changeme
@@ -3171,10 +3295,10 @@ zac:
     # this switch is reserved for when PKCE support is added to the ZAC OIDC client.
     pkceEnabled: false
   bagApi:
-    url: http://bag.example.nl
+    url: https://bag.example.nl
     apiKey: "dummy"
   brpApi:
-    url: http://brp.example.nl
+    url: https://brp.example.nl
     apiKey:
       header: "x-api-key"
       value: "dummy"
@@ -3206,7 +3330,7 @@ zac:
         header: ""            # iConnect: "x-toepassing" | eServices: "x-request-application" | 2Secure: "x-applicatie"
         value: ""
   catalogusDomein: ALG
-  # -- Public URL of ZAC; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `http://zac.example.nl`.
+  # -- Public URL of ZAC; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://zac.example.nl`.
   contextUrl: ""
   db:
     host: postgres
@@ -3238,6 +3362,9 @@ zac:
     periodSeconds: 30
     timeoutSeconds: 1
   initContainer:
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 100
     enabled: true
     resources:
       requests:
@@ -3248,10 +3375,10 @@ zac:
       id: zac-admin-client
       secret: changeme
   klantinteractiesApi:
-    url: http://open-klant.example.nl
+    url: https://open-klant.example.nl
     token: openklanttoken
   kvkApi:
-    url: http://kvk.example.nl
+    url: https://kvk.example.nl
     apiKey: "dummy"
   mail:
     smtp:
@@ -3265,6 +3392,8 @@ zac:
   # documents also need the gateway route in front of zac-nginx and
   # openzaak-nginx to allow them; see 4.9.4-to-4.10.0-upgrade.md.
   nginx:
+    securityContext:
+      allowPrivilegeEscalation: false
     enabled: true
     image: *nginxImage
     resources:
@@ -3277,12 +3406,15 @@ zac:
   # even though there's only one app and likely one tokenauth item behind
   # them now.
   objectenApi:
-    url: http://objecten.example.nl
+    url: https://objecten.example.nl
     token: objectentoken
   objecttypenApi:
-    url: http://objecten.example.nl
+    url: https://objecten.example.nl
     token: objectentoken
   office_converter:
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1001
     # -- Basic auth user shared by ZAC and its office converter (Gotenberg). Override per environment: the converter Service is reachable from any pod in the cluster.
     username: "dummy"
     # -- Basic auth password for the office converter; see username.
@@ -3292,6 +3424,9 @@ zac:
       # repository: gotenberg/gotenberg
       tag: "8.37.0@sha256:f29984bd1e226bf1b93ba90af06000afa8b315853e99d27b9aaa41b93f15c769"
   opa:
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
     sidecar: true
     # openpolicyagent/opa:1.21.1-static@sha256:4675ab04ad1627f74741d2d9c5142698c79e18b7b09f192587d31d6dba20838e
     image:
@@ -3302,7 +3437,7 @@ zac:
         cpu: 10m
         memory: 20Mi
   openForms:
-    url: http://open-forms.example.nl
+    url: https://open-forms.example.nl
   opentelemetry-collector:
     # Already digest-pinned in the zac subchart's own default — mirrored here
     # explicitly so a future chart bump can't silently drop that pin without
@@ -3430,7 +3565,7 @@ zac:
           reclaimPolicy: Retain
   zgwApis:
     url: http://open-zaak.internal
-    urlExtern: http://open-zaak.example.nl
+    urlExtern: https://open-zaak.example.nl
     clientId: zac
     secret: changeme
 
@@ -3453,6 +3588,10 @@ zgw-office-addin:
       app: office-addin
       service_name: office-addin
   frontend:
+    # Security review 4.10.0 WH-06.
+    podSecurityContext:
+      seccompProfile:
+        type: RuntimeDefault
     # ghcr.io/infonl/zgw-office-addin-frontend:0.12.0@sha256:11fa2df3546def1fcfec0704d6ed55009ea0c8dcca49a7b6e848936ed9d93584
     image:
       tag: "0.12.0@sha256:11fa2df3546def1fcfec0704d6ed55009ea0c8dcca49a7b6e848936ed9d93584"
@@ -3461,6 +3600,10 @@ zgw-office-addin:
         cpu: 50m
         memory: 64Mi
   backend:
+    # Security review 4.10.0 WH-06.
+    podSecurityContext:
+      seccompProfile:
+        type: RuntimeDefault
     msalSecret: ""
     # ghcr.io/infonl/zgw-office-addin-backend:0.12.0@sha256:886c4616c7cb88769013c8b96d72fbde8b6db6c8947e49e83cd2d2d538175bca
     image:
@@ -3471,10 +3614,14 @@ zgw-office-addin:
         memory: 256Mi
     # -- ZGW API configuration for integration with the ZGW APIs provider (OpenZaak)
     zgwApis:
-      url: "http://open-zaak.example.nl"
+      url: "https://open-zaak.example.nl"
       secret: ""
 
 clamav:
+  # Security review 4.10.0 WH-06.
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
   # override: values-enable-observability.yaml enables metrics exporter sidecar (metrics.enabled: true)
   # and ServiceMonitor (metrics.serviceMonitor.enabled: true). Supported since clamav chart v3.7.1.
   # serviceMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 ServiceMonitor).
@@ -3823,6 +3970,13 @@ serviceAccount:
   name: ""
 
 pabc:
+  # Security review 4.10.0 WH-04: the init and migration containers need a
+  # vendor fix; these merge into the main container defaults.
+  securityContext:
+    allowPrivilegeEscalation: false
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
   enabled: true
   fullnameOverride: "pabc"
   postgresql:
@@ -4959,6 +5113,16 @@ openbao:
     # a crashing/old pod is never replaced automatically, and a `helm --wait` deploy
     # would block on it forever.
     updateStrategyType: RollingUpdate
+    # Security review 4.10.0 WH-07: replaces the chart default (only
+    # allowPrivilegeEscalation: false). OpenBao runs without capabilities
+    # (SKIP_SETCAP, CapEff 0), so dropping ALL is safe.
+    statefulSet:
+      securityContext:
+        container:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
     image:
       registry: quay.io
       repository: openbao/openbao
