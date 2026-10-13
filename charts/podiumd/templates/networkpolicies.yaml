@@ -129,6 +129,18 @@ spec:
                   - openzaak-worker
                   - referentielijsten
                   - referentielijsten-config
+        # This chart's own Django shell Jobs (configure-clamav,
+        # configure-customer-interactions) load the app settings, cache
+        # included; their pods carry the chart's name plus the app as component.
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ include "podiumd.name" $root }}
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - openformulieren
+                  - openinwoner
         # Frank!Gateway dashboard login sessions (database 3).
         - podSelector:
             matchLabels:
