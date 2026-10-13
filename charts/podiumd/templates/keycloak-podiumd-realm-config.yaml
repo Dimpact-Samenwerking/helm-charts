@@ -107,10 +107,11 @@ data:
     # Disable offline_access (persistent refresh-token) grants realm-wide. This
     # realm serves browser-based admin/beheer sessions and service accounts only
     # — no client needs a refresh token that keeps working after the user is no
-    # longer logged in. The per-client `optionalClientScopes` also strips
-    # offline_access from clients that already exist. See
+    # longer logged in. Clients the import creates get these realm defaults.
+    # Client entries list no scopes, so the import leaves the scopes of existing
+    # clients to the environment (as before 4.9.1). See
     # docs/apps/keycloak/keycloak-security-updates.md § "Offline Access Disabled".
-    defaultOptionalClientScopes: &defaultOptionalClientScopes
+    defaultOptionalClientScopes:
       - address
       - phone
       - microprofile-jwt
@@ -224,37 +225,18 @@ data:
     clients:
       # Disable built-in self-service portal — all accounts are admin-provisioned.
       - clientId: account-console
-        # Every client lists both `defaultClientScopes` (this anchor) and
-        # `optionalClientScopes`. Keycloak treats the two lists together as a
-        # client's complete scope set as soon as either one is given, so a
-        # client with only `optionalClientScopes` gets no default scopes. The
-        # realm-level defaults stay Keycloak's own.
-        defaultClientScopes: &defaultDefaultClientScopes
-          - web-origins
-          - acr
-          - profile
-          - roles
-          - basic
-          - email
-        optionalClientScopes: *defaultOptionalClientScopes
         enabled: false
       - clientId: account
-        defaultClientScopes: *defaultDefaultClientScopes
-        optionalClientScopes: *defaultOptionalClientScopes
         enabled: false
       # admin-cli is unused in this realm (no bootstrap/ROPC flow relies on it here,
       # unlike the master realm — see keycloak-master-realm-config.yaml). Disable the
       # browser-redirect flows for the same reason: close off the unused
       # authorization-code-interception surface on this public client.
       - clientId: admin-cli
-        defaultClientScopes: *defaultDefaultClientScopes
-        optionalClientScopes: *defaultOptionalClientScopes
         standardFlowEnabled: false
         implicitFlowEnabled: false
         directAccessGrantsEnabled: true
       - clientId: openzaak
-        defaultClientScopes: *defaultDefaultClientScopes
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Open Zaak
         enabled: true
         clientAuthenticatorType: client-secret
@@ -296,8 +278,6 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openzaak"
       - clientId: abc
-        defaultClientScopes: *defaultDefaultClientScopes
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Open Archiefbeheer
         enabled: true
         clientAuthenticatorType: client-secret
@@ -339,18 +319,6 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "abc"
       - clientId: monitoring
-        # Service-account clients also keep the service_account scope (client_id,
-        # clientHost, clientAddress claims) that Keycloak adds when the service
-        # account is enabled; config-cli would otherwise remove it on the next run.
-        defaultClientScopes: &serviceAccountClientScopes
-          - web-origins
-          - acr
-          - profile
-          - roles
-          - basic
-          - email
-          - service_account
-        optionalClientScopes: *defaultOptionalClientScopes
         name: {{ .Values.keycloak.config.clients.monitoring.name|quote }}
         enabled: {{ .Values.keycloak.config.clients.monitoring.enabled }}
         standardFlowEnabled: true
@@ -386,8 +354,6 @@ data:
             config:
               role: "monitoring.viewer"
       - clientId: datamigratie
-        defaultClientScopes: *serviceAccountClientScopes
-        optionalClientScopes: *defaultOptionalClientScopes
         name: {{ .Values.keycloak.config.clients.datamigratie.name|quote }}
         enabled: {{ .Values.keycloak.config.clients.datamigratie.enabled }}
         secret: $(KC_SECRET_DATAMIGRATIE)
@@ -420,8 +386,6 @@ data:
               role: "DMT-Functioneel-Beheerder"
 {{- if .Values.zaakbrug.enabled }}
       - clientId: zaakbrug
-        defaultClientScopes: *defaultDefaultClientScopes
-        optionalClientScopes: *defaultOptionalClientScopes
         name: {{ .Values.keycloak.config.clients.zaakbrug.name | quote }}
         enabled: {{ .Values.keycloak.config.clients.zaakbrug.enabled }}
         secret: $(KC_SECRET_ZAAKBRUG)
@@ -453,8 +417,6 @@ data:
               usermodel.clientRoleMapping.clientId: "zaakbrug"
 {{- end }}
       - clientId: opennotificaties
-        defaultClientScopes: *defaultDefaultClientScopes
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Open Notificaties
         enabled: true
         clientAuthenticatorType: client-secret
@@ -496,8 +458,6 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "opennotificaties"
       - clientId: objecten
-        defaultClientScopes: *defaultDefaultClientScopes
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Objecten
         enabled: true
         clientAuthenticatorType: client-secret
@@ -582,8 +542,6 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "objecttypen"
       - clientId: openklant
-        defaultClientScopes: *defaultDefaultClientScopes
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Open Klant
         enabled: true
         clientAuthenticatorType: client-secret
@@ -625,8 +583,6 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openklant"
       - clientId: openformulieren
-        defaultClientScopes: *defaultDefaultClientScopes
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Open Formulieren
         enabled: true
         clientAuthenticatorType: client-secret
@@ -668,8 +624,6 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openformulieren"
       - clientId: openinwoner
-        defaultClientScopes: *defaultDefaultClientScopes
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Open Inwoner
         enabled: true
         clientAuthenticatorType: client-secret
@@ -711,8 +665,6 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openinwoner"
       - clientId: referentielijsten
-        defaultClientScopes: *defaultDefaultClientScopes
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Referentielijsten
         enabled: true
         clientAuthenticatorType: client-secret
@@ -754,8 +706,6 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "referentielijsten"
       - clientId: openbeheer
-        defaultClientScopes: *defaultDefaultClientScopes
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Open Beheer
         enabled: true
         clientAuthenticatorType: client-secret
@@ -797,8 +747,6 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openbeheer"
       - clientId: openbao
-        defaultClientScopes: *defaultDefaultClientScopes
-        optionalClientScopes: *defaultOptionalClientScopes
         name: OpenBao
         enabled: true
         clientAuthenticatorType: client-secret
@@ -838,8 +786,6 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openbao"
       - clientId: kiss
-        defaultClientScopes: *defaultDefaultClientScopes
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Kiss
         enabled: true
         clientAuthenticatorType: client-secret
@@ -878,8 +824,6 @@ data:
               claim.name: samaccountname
               jsonType.label: String
       - clientId: {{ .Values.zac.auth.clientId }}
-        defaultClientScopes: *defaultDefaultClientScopes
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Zaakafhandelcomponent
         enabled: true
         clientAuthenticatorType: client-secret
@@ -919,8 +863,6 @@ data:
               access.token.claim: "true"
               claim.name: "group_membership"
       - clientId: {{ .Values.zac.keycloak.adminClient.id }}
-        defaultClientScopes: *serviceAccountClientScopes
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Zaakafhandelcomponent Admin Client
         enabled: true
         clientAuthenticatorType: client-secret
@@ -964,8 +906,6 @@ data:
               claim.name: "client_id"
               jsonType.label: "String"
       - clientId: ita
-        defaultClientScopes: *defaultDefaultClientScopes
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Interne Taak Afhandeling
         enabled: true
         clientAuthenticatorType: client-secret
@@ -1007,8 +947,6 @@ data:
               claim.name: "samaccountname"
               jsonType.label: "String"
       - clientId: {{ .Values.pabc.settings.oidc.clientId }}
-        defaultClientScopes: *defaultDefaultClientScopes
-        optionalClientScopes: *defaultOptionalClientScopes
         name: PABC OIDC Client
         enabled: true
         clientAuthenticatorType: client-secret
@@ -1038,8 +976,6 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "pabc"
       - clientId: {{ .Values.pabc.settings.keycloakAdmin.clientId }}
-        defaultClientScopes: *serviceAccountClientScopes
-        optionalClientScopes: *defaultOptionalClientScopes
         name: PABC Keycloak Admin REST API client
         enabled: true
         clientAuthenticatorType: client-secret
@@ -1059,8 +995,6 @@ data:
 {{- $fgInst := include "podiumd.frankgateway.instanceValues" (dict "root" $ "key" $fgKey "override" $fgOverride) | fromYaml }}
 {{- if and $fgInst.enabled $fgInst.dashboard.enabled $fgInst.dashboard.auth.enabled }}
       - clientId: {{ include "podiumd.frankgateway.oidcClientId" (dict "key" $fgKey) }}
-        defaultClientScopes: *defaultDefaultClientScopes
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Frank!Gateway Dashboard ({{ $fgKey }})
         description: OIDC client used by oauth2-proxy in front of the Frank!Gateway (APISIX) dashboard to authenticate operator browser sessions.
         enabled: true

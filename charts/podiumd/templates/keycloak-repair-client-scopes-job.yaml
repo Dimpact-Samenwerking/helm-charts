@@ -1,0 +1,126 @@
+{{- $operatorJobs := (index .Values "keycloak-operator").jobs }}
+{{- if and (index .Values "keycloak-operator").enabled $operatorJobs.importPodiumdRealm.enabled $operatorJobs.repairClientScopes.enabled $operatorJobs.ensureOperatorSa.enabled $operatorJobs.ensureOperatorSa.clientSecret }}
+---
+# Job: repairs client scopes in the podiumd realm without managing them. The
+# realm import lists no scopes on clients, so scopes that environments and
+# Keycloak updates add (bsn, eherkenning, ...) stay. This Job only:
+# - gives a client with no default scopes (or only service_account) the realm's default
+#   openid-connect scopes (plus service_account for a service-account client).
+#   4.9.1-4.9.4 imports created clients like that; a curated client always has
+#   at least one default scope and is left alone.
+# - removes offline_access from every client (see keycloak-security-updates.md).
+# The name carries the release revision, so it runs on every deploy.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-repair-client-scopes-{{ .Release.Revision }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak
+spec:
+  backoffLimit: 10
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        {{- include "podiumd.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: keycloak
+    spec:
+      {{- if .Values.keycloak.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.keycloak.nodeSelector | nindent 8 }}
+      {{- else if .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
+      restartPolicy: Never
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      containers:
+      - name: repair-client-scopes
+        image: {{ include "podiumd.image" .Values.keycloak.image }}
+        resources:
+          {{- toYaml $operatorJobs.repairClientScopes.resources | nindent 10 }}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          {{- include "podiumd.keycloakRepairClientScopes.script" . | nindent 10 }}
+        env:
+        - name: HOME
+          value: /tmp
+        - name: KEYCLOAK_URL
+          value: {{ $operatorJobs.keycloakUrl | default "http://keycloak-service:8080" | quote }}
+        - name: REALM
+          value: {{ .Values.keycloak.config.realm | quote }}
+        - name: CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-operator-client-secret
+              key: client-secret
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+{{- end }}
+
+{{- define "podiumd.keycloakRepairClientScopes.script" -}}
+set -euo pipefail
+{{ include "podiumd.kcadmLogin" . }}
+
+# Plain bash only: the Keycloak image has no awk or grep.
+scope_id() {
+  local id name
+  while IFS=, read -r id name; do
+    if [ "$name" = "$1" ]; then echo "$id"; fi
+  done < <(kc get client-scopes -r "$REALM" --fields id,name --format csv --noquotes)
+}
+has_scope() {  # has_scope <client id> <default|optional> <scope name>
+  local name
+  while read -r name; do
+    if [ "$name" = "$3" ]; then return 0; fi
+  done < <(kc get "clients/$1/$2-client-scopes" -r "$REALM" --fields name --format csv --noquotes)
+  return 1
+}
+realm_defaults=()
+while IFS=, read -r id name protocol; do
+  if [ "$protocol" = "openid-connect" ]; then realm_defaults+=("$id,$name"); fi
+done < <(kc get "realms/$REALM/default-default-client-scopes" -r "$REALM" --fields id,name,protocol --format csv --noquotes)
+service_account_id=$(scope_id service_account)
+offline_access_id=$(scope_id offline_access)
+
+while IFS=, read -r id client protocol bearer sa; do
+  # Bearer-only clients get no tokens (and realm-management refuses changes).
+  if [ "$protocol" != "openid-connect" ] || [ "$bearer" = "true" ]; then continue; fi
+  defaults=$(kc get "clients/$id/default-client-scopes" -r "$REALM" --fields name --format csv --noquotes)
+  # Keycloak adds service_account itself when a service account is enabled.
+  if [ -z "$defaults" ] || [ "$defaults" = "service_account" ]; then
+    for row in "${realm_defaults[@]}"; do
+      kc update "clients/$id/default-client-scopes/${row%%,*}" -r "$REALM"
+      echo "$client: added default scope ${row#*,}"
+    done
+    if [ "$sa" = "true" ] && [ -n "$service_account_id" ] && [ -z "$defaults" ]; then
+      kc update "clients/$id/default-client-scopes/$service_account_id" -r "$REALM"
+      echo "$client: added default scope service_account"
+    fi
+  fi
+  if [ -n "$offline_access_id" ]; then
+    for kind in default optional; do
+      if has_scope "$id" "$kind" offline_access; then
+        kc delete "clients/$id/$kind-client-scopes/$offline_access_id" -r "$REALM"
+        echo "$client: removed $kind scope offline_access"
+      fi
+    done
+  fi
+done < <(kc get clients -r "$REALM" --fields id,clientId,protocol,bearerOnly,serviceAccountsEnabled --format csv --noquotes)
+
+echo "Done."
+{{- end -}}

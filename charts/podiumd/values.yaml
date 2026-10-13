@@ -399,6 +399,16 @@ keycloak-operator:
       enabled: true
     importMasterRealm:
       enabled: true
+    repairClientScopes:
+      # -- Run the keycloak-repair-client-scopes Job on every deploy; see docs/apps/keycloak/keycloak-default-client-scopes.md.
+      enabled: true
+      # -- Resources for the kcadm.sh (JVM) container of that Job.
+      resources:
+        requests:
+          cpu: 50m
+          memory: 256Mi
+        limits:
+          memory: 512Mi
     # -- Resources applied to lightweight keycloak job containers (curl, python, psql): ensure-operator-sa, ensure-podiumd-admin-user.
     resources:
       requests:
