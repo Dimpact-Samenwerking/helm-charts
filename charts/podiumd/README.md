@@ -572,7 +572,7 @@ PodiumD Helm chart
 | kiss.settings.oidc.redacteurRole | string | `"Redacteur"` |  |
 | kiss.settings.organisatieIds | list | `[]` |  |
 | kiss.settings.registers | list | `[]` |  |
-| kiss.settings.syncJobs.crawlerImage | object | `{"pullPolicy":"IfNotPresent","repository":"docker.elastic.co/integrations/crawler","tag":"1.0.0@sha256:6f3c02f6c783711b8d9e133cf10934b137d6547dc1eb10a0d2ccf99ffe2e2d07"}` | Elastic Open Crawler, vervangt de Enterprise Search web crawler. Draait als CronJob per site uit syncJobs.website en schrijft rechtstreeks naar Elasticsearch. |
+| kiss.settings.syncJobs.crawlerImage | object | `{"pullPolicy":"IfNotPresent","repository":"docker.elastic.co/integrations/crawler","tag":"1.1.0@sha256:7e87a0571129681cfd3053e9bd7998926633e69fbd8da7c29a384f0d7e9ef26e"}` | Elastic Open Crawler, vervangt de Enterprise Search web crawler. Draait als CronJob per site uit syncJobs.website en schrijft rechtstreeks naar Elasticsearch. |
 | kiss.settings.syncJobs.image.pullPolicy | string | `"IfNotPresent"` |  |
 | kiss.settings.syncJobs.image.tag | string | `"3.1.3@sha256:a695ecfe738643a18ab6bb411e8a042ac09dd64c27f5dc98a469920a4a8ddcbd"` |  |
 | kiss.settings.syncJobs.indexTemplateImage | object | `{"pullPolicy":"IfNotPresent","repository":"curlimages/curl","tag":"8.22.0@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777"}` | pre-install/pre-upgrade hook die het search-website* index-template in Elasticsearch registreert. Heeft alleen curl nodig. |
