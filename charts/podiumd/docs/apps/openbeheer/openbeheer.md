@@ -1,6 +1,6 @@
 # Open Beheer — admin/management UI for the ZGW ecosystem
 
-PodiumD 4.8.0 ships the `openbeheer` component (IN-2157) — a Django-based admin/management UI
+Since 4.6.1 PodiumD ships the `openbeheer` component (IN-2157) — a Django-based admin/management UI
 (Maykin Media [`open-beheer`](https://github.com/maykinmedia/open-beheer)) for configuring the
 typologies that drive Zaakgericht Werken. From a single console an administrator manages
 case-types (`zaaktype`) and document-types (`informatieobjecttype`) through the Open Zaak
