@@ -1,0 +1,110 @@
+---
+name: release-notes
+description: Write the release notes and slide deck for a PodiumD chart release (minor or patch). They report our integration work - which component versions changed, how big each change is, the impact on helm-charts and SSC, and what we checked, tested and validated. Use before publishing a podiumd release, e.g. "/release-notes 4.10.0".
+---
+
+# Release notes for a PodiumD release
+
+Arguments: `<target version>` (for example `4.10.0` or `4.9.4`), optionally
+`<baseline version>`. Without a baseline, read it from
+`charts/podiumd/etc/release-baseline.yaml` (`upgrade_docs`).
+
+## What the notes are, and are not
+
+The notes report **our integration work** for this release. They are not a
+changelog of the components.
+
+- **In:**
+  - which component versions changed;
+  - how big we judge each change (Klein, Middel or Groot);
+  - the impact on helm-charts and on SSC (the hoster);
+  - what we checked, tested and validated.
+- **Out:**
+  - **Upstream feature lists:** the suppliers publish those in their own repos.
+  - **Actions for municipalities:** those are on the wiki release page. Link it, never repeat it:
+    <https://dimpact.atlassian.net/wiki/spaces/PCP/pages/7602191/Releases+PodiumD>.
+  - **Upgrade steps for the hoster:** those are in the upgrade guide,
+    values-deltas and gemeente-specific docs. Summarise the impact in one line
+    per component and link the docs.
+
+Audience: stakeholders and municipalities. Language: **Dutch**, plain and short.
+
+## Sources, in this order
+
+1. **The release PR** into `main` (`Feature PodiumD <version>`). Its
+   "Updated components", "Configuration changes", "Upgrade notes" and
+   "Verification" sections are the primary source. Find it with
+   `gh pr list --state merged --base main --search "PodiumD <version> in:title"`.
+2. **The PRs merged into `feature/podiumd-<version>`**, listed in the release PR
+   or with `git log podiumd-<baseline>..podiumd-<version>`. From each, take the
+   "Verification", "Test plan" or "Validation" section. That is the evidence
+   for "Wat wij hebben gecontroleerd".
+3. **The component table** in
+   `charts/podiumd/docs/_UPGRADE_PATHS/<baseline>-to-<version>-upgrade.md`
+   (the versions and the "action required" notes).
+4. **Upstream hints**, only for the size and impact assessment: run
+   `python3 -I .claude/skills/release-notes/collect.py <baseline> <version> <out.json>`.
+   - The collector reads the component table and the images manifest at tag
+     `podiumd-<version>`.
+   - It finds each source repo (OCI label `org.opencontainers.image.source`,
+     a ghcr path, or `APP_OVERRIDES` in the script).
+   - It fetches the releases in each version range: GitHub release, else the
+     changelog at the release tag, else the PR titles of the compare range.
+   - Read it for security fixes, breaking changes, migrations and deployment
+     steps. Do not copy it into the notes.
+   - Add a new component's repo to `APP_OVERRIDES` when the collector reports
+     `source repo unknown`.
+
+   For a release that is not tagged yet, the target tag does not exist: run
+   it against the release branch head instead (adapt `tag` in `main()`), or
+   rely on sources 1–3.
+
+## Size
+
+Start from semver, then raise it for integration impact. Never lower it.
+
+| Size | When |
+| --- | --- |
+| **Klein** | Patch, or a rebuild of the same version. Image or chart bump only, no configuration change, no SSC action beyond mirroring the image. |
+| **Middel** | Minor version; or a patch that brings a security fix, a new major version of a dependency (e.g. django-cms 4 → 5), a changed default, or an SSC action (backup, command, values change). |
+| **Groot** | Major version, a data or values migration, a merged or replaced component (e.g. objecten + objecttypen → Open Object), or changes most environments must act on. |
+
+State the reason in a few words next to the size.
+
+## Files
+
+Write both files to `release-notes/podiumd/` at the repository root (outside the
+chart, so they are not linted as chart docs and not packaged):
+
+- `<version>.md` from [`template.md`](template.md): the release notes. Replace
+  every `{placeholder}`.
+- `<version>-slides.md` from [`slides-template.md`](slides-template.md): a
+  Marp deck with about 6 slides, built from the notes and never containing
+  more than they do.
+
+Rules:
+
+- **Facts only.** Every claim about testing names the environment or check and
+  comes from a PR or a recorded result. If something was only checked with
+  `verify-podiumd`, say so, and say what was not tested.
+- **Components:** one row per component or sub-image from the component
+  table. Sub-images and rebuilds can share a row in the deck.
+- **Configuration changes** that are not version bumps go in their own table.
+- **Links:** to the PRs and Jira issues as given in the PRs, and at the end
+  to the SSC docs and the images manifest.
+
+## Check and hand over
+
+1. Lint `<version>.md` with the verify settings (`/markdown-lint`). The slides
+   file is Marp, not documentation: skip it.
+2. Build the deck once:
+   `npx -y @marp-team/marp-cli@4.1.2 <version>-slides.md --html -o /tmp/slides.html`.
+   PDF and PPTX need a browser; the release workflow builds those.
+3. Show the user:
+   - the size per component;
+   - any claim you could not back with a source;
+   - components the collector could not resolve.
+4. Commit both files on the release branch through a PR. The release workflow
+   puts `release-notes/podiumd/<version>.md` into the GitHub release text and
+   attaches the deck as PDF and PPTX. That workflow step is not built yet: ask before changing
+   `.github/workflows/release.yaml`.
