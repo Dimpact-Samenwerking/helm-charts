@@ -1196,7 +1196,7 @@ PodiumD Helm chart
 | redis-operator.redis-ha.storage.volumeClaimTemplate.spec.resources.requests.storage | string | `"2Gi"` | Default storage per Redis replica. To increase, override in your environment values file. Note: managed-csi-premiumv2 supports online volume expansion — patch the PVC directly after resizing:   kubectl patch pvc <pvc-name> -n <namespace> -p '{"spec":{"resources":{"requests":{"storage":"8Gi"}}}}' |
 | redis-operator.redisOperator.imageName | string | `"quay.io/opstree/redis-operator"` |  |
 | redis-operator.redisOperator.imageTag | string | `"v0.26.0@sha256:1c6818e5e50553f9f3c1b91a8824ae5c1999a0c9416c794ca51431b7f0cb48c3"` |  |
-| redis-operator.redisOperator.initContainerImageTag | string | `"v0.26.0@sha256:1c6818e5e50553f9f3c1b91a8824ae5c1999a0c9416c794ca51431b7f0cb48c3"` | Chart default for initContainerImageTag is a plain (non-digest-pinned) "v0.26.0"; override explicitly so the init container is digest-pinned like every other image here. |
+| redis-operator.redisOperator.initContainerImageTag | string | `"v0.26.0@sha256:1c6818e5e50553f9f3c1b91a8824ae5c1999a0c9416c794ca51431b7f0cb48c3"` | Chart default for initContainerImageTag is a plain (non-digest-pinned) "v0.26.0"; override explicitly so the init container is digest-pinned like every other image here. It runs the operator image, so it aliases imageTag (a lockstep pair). |
 | redis-operator.resources.limits.cpu | string | `"500m"` |  |
 | redis-operator.resources.limits.memory | string | `"256Mi"` |  |
 | redis-operator.resources.requests.cpu | string | `"100m"` |  |
