@@ -1183,6 +1183,7 @@ PodiumD Helm chart
 | pabc.settings.zgwZaakregister.catalogusDomein | string | `""` | `domein` of the zaaktype catalogus to import from, e.g. `ALG`. PABC imports from one catalogus only. |
 | pabc.settings.zgwZaakregister.clientId | string | `"pabc"` | Client ID of PABC's application in Open Zaak. |
 | pabc.settings.zgwZaakregister.clientSecret | string | `""` | Secret of PABC's application in Open Zaak; PABC signs its ZGW JWTs with it. |
+| pabc.settings.zgwZaakregister.enabled | bool | `false` | Turn on the zaaktype import. The render fails while catalogiBaseUrl, clientId, clientSecret or catalogusDomein is empty. |
 | persistentVolume.nodeStageSecretRefName | string | `""` |  |
 | persistentVolume.nodeStageSecretRefNamespace | string | `""` |  |
 | persistentVolume.volumeAttributeResourceGroup | string | `""` |  |
@@ -1327,8 +1328,8 @@ PodiumD Helm chart
 | zac.objecttypenApi.token | string | `"objectentoken"` |  |
 | zac.objecttypenApi.url | string | `"http://objecten.example.nl"` |  |
 | zac.office_converter.image.tag | string | `"8.37.0@sha256:f29984bd1e226bf1b93ba90af06000afa8b315853e99d27b9aaa41b93f15c769"` |  |
-| zac.office_converter.password | string | `"dummy"` |  |
-| zac.office_converter.username | string | `"dummy"` |  |
+| zac.office_converter.password | string | `"dummy"` | Basic auth password for the office converter; see username. |
+| zac.office_converter.username | string | `"dummy"` | Basic auth user shared by ZAC and its office converter (Gotenberg). Override per environment: the converter Service is reachable from any pod in the cluster. |
 | zac.opa.image.tag | string | `"1.21.1-static@sha256:4675ab04ad1627f74741d2d9c5142698c79e18b7b09f192587d31d6dba20838e"` |  |
 | zac.opa.resources.requests.cpu | string | `"10m"` |  |
 | zac.opa.resources.requests.memory | string | `"20Mi"` |  |

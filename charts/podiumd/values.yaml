@@ -3091,11 +3091,13 @@ zac:
     token: objectentoken
   office_converter:
     # ZAC 5.9.1 (chart 1.0.338) enables basic auth on the Gotenberg office
-    # converter (API_ENABLE_BASIC_AUTH). username/password are now required by
-    # the ZAC chart; ZAC authenticates to its office-converter sidecar with the
-    # same credentials. These are internal/self-contained (the zac subchart
-    # renders them into its own Secret, consumed by both ZAC and the sidecar).
+    # converter (GOTENBERG_API_BASIC_AUTH_*). username/password are now required
+    # by the ZAC chart. The zac subchart renders them into its own Secret, read
+    # by ZAC and by the office-converter Deployment (a separate Deployment and
+    # Service, not a sidecar), so set real values per environment.
+    # -- Basic auth user shared by ZAC and its office converter (Gotenberg). Override per environment: the converter Service is reachable from any pod in the cluster.
     username: "dummy"
+    # -- Basic auth password for the office converter; see username.
     password: "dummy"
     # gotenberg/gotenberg:8.37.0@sha256:f29984bd1e226bf1b93ba90af06000afa8b315853e99d27b9aaa41b93f15c769
     image:
@@ -3743,6 +3745,7 @@ pabc:
 
     # -- Import zaaktypes from Open Zaak as PABC entity types (a button in the PABC UI). PABC authenticates as its own Open Zaak application (see the commented `pabc` entry under openzaak's vng_api_common_applicaties) and needs read access to the Catalogi API. When enabled, the render fails while catalogiBaseUrl, clientId, clientSecret or catalogusDomein is empty.
     zgwZaakregister:
+      # -- Turn on the zaaktype import. The render fails while catalogiBaseUrl, clientId, clientSecret or catalogusDomein is empty.
       enabled: false
       # -- Full base URL of the Open Zaak Catalogi API, with trailing slash. E.g. `https://openzaak.example.nl/catalogi/api/v1/`.
       catalogiBaseUrl: ""
