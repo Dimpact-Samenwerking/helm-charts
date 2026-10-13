@@ -76,26 +76,33 @@ spec:
 set -euo pipefail
 {{ include "podiumd.kcadmLogin" . }}
 
-# Plain bash only: the Keycloak image has no awk or grep.
+# Plain bash only: the Keycloak image has no awk or grep. Every kc get is
+# captured in a variable first, so a failing call fails the Job (set -e does
+# not see failures inside a process substitution).
+all_scopes=$(kc get client-scopes -r "$REALM" --fields id,name --format csv --noquotes)
 scope_id() {
   local id name
   while IFS=, read -r id name; do
     if [ "$name" = "$1" ]; then echo "$id"; fi
-  done < <(kc get client-scopes -r "$REALM" --fields id,name --format csv --noquotes)
+  done <<< "$all_scopes"
 }
 has_scope() {  # has_scope <client id> <default|optional> <scope name>
-  local name
+  local names name
+  # Called inside `if`, where set -e is off: exit explicitly on failure.
+  names=$(kc get "clients/$1/$2-client-scopes" -r "$REALM" --fields name --format csv --noquotes) || exit 1
   while read -r name; do
     if [ "$name" = "$3" ]; then return 0; fi
-  done < <(kc get "clients/$1/$2-client-scopes" -r "$REALM" --fields name --format csv --noquotes)
+  done <<< "$names"
   return 1
 }
 realm_defaults=()
+rows=$(kc get "realms/$REALM/default-default-client-scopes" -r "$REALM" --fields id,name,protocol --format csv --noquotes)
 while IFS=, read -r id name protocol; do
   if [ "$protocol" = "openid-connect" ]; then realm_defaults+=("$id,$name"); fi
-done < <(kc get "realms/$REALM/default-default-client-scopes" -r "$REALM" --fields id,name,protocol --format csv --noquotes)
+done <<< "$rows"
 service_account_id=$(scope_id service_account)
 offline_access_id=$(scope_id offline_access)
+clients=$(kc get clients -r "$REALM" --fields id,clientId,protocol,bearerOnly,serviceAccountsEnabled --format csv --noquotes)
 
 while IFS=, read -r id client protocol bearer sa; do
   # Bearer-only clients get no tokens (and realm-management refuses changes).
@@ -120,7 +127,7 @@ while IFS=, read -r id client protocol bearer sa; do
       fi
     done
   fi
-done < <(kc get clients -r "$REALM" --fields id,clientId,protocol,bearerOnly,serviceAccountsEnabled --format csv --noquotes)
+done <<< "$clients"
 
 echo "Done."
 {{- end -}}
