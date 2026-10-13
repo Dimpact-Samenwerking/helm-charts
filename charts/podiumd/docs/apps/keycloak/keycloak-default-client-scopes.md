@@ -5,8 +5,9 @@ roles in the token when the client has the `roles` client scope as a
 **default** scope.
 
 Since 4.10.0 the realm config sets `defaultClientScopes` on every client
-(`*defaultDefaultClientScopes`, plus `service_account` for service-account
-clients). Before that, from 4.9.1 on, it set only `optionalClientScopes`.
+(`web-origins`, `acr`, `profile`, `roles`, `basic` and `email`, plus
+`service_account` for service-account clients). The realm-level default
+scopes stay Keycloak's own. Before that, from 4.9.1 on, it set only `optionalClientScopes`.
 Keycloak treats a client's default and optional scopes as one complete set as
 soon as either list is given, so every client the realm import created got
 **no** default scopes at all. Clients that already existed before 4.9.1 kept

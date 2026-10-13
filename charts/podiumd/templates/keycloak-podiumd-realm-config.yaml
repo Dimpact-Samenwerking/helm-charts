@@ -104,18 +104,6 @@ data:
     eventsExpiration: 2592000
     offlineSessionMaxLifespanEnabled: true
     offlineSessionMaxLifespan: 7776000
-    # Every client below lists both `defaultClientScopes` and
-    # `optionalClientScopes` from these anchors. Keycloak treats the two lists
-    # together as a client's complete scope set as soon as either one is given,
-    # so a client with only `optionalClientScopes` is created without any default
-    # scopes (no roles/basic/profile/email claims in its tokens).
-    defaultDefaultClientScopes: &defaultDefaultClientScopes
-      - web-origins
-      - acr
-      - profile
-      - roles
-      - basic
-      - email
     # Disable offline_access (persistent refresh-token) grants realm-wide. This
     # realm serves browser-based admin/beheer sessions and service accounts only
     # — no client needs a refresh token that keeps working after the user is no
@@ -236,7 +224,18 @@ data:
     clients:
       # Disable built-in self-service portal — all accounts are admin-provisioned.
       - clientId: account-console
-        defaultClientScopes: *defaultDefaultClientScopes
+        # Every client lists both `defaultClientScopes` (this anchor) and
+        # `optionalClientScopes`. Keycloak treats the two lists together as a
+        # client's complete scope set as soon as either one is given, so a
+        # client with only `optionalClientScopes` gets no default scopes. The
+        # realm-level defaults stay Keycloak's own.
+        defaultClientScopes: &defaultDefaultClientScopes
+          - web-origins
+          - acr
+          - profile
+          - roles
+          - basic
+          - email
         optionalClientScopes: *defaultOptionalClientScopes
         enabled: false
       - clientId: account
