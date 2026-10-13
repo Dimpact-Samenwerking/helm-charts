@@ -532,45 +532,58 @@ def test_find_more_specific_tag_at_same_digest_ignores_non_prefix_tags(
     assert found is None
 
 
-# --- find_newest_same_variant_tag ---
+# --- find_newer_same_variant_tags ---
 
 
-def test_find_newest_same_variant_tag_finds_newer_release(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
+def test_find_newer_same_variant_tags_finds_newer_release(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(libregistry, "list_tags", lambda host, repo: ["3.14-slim", "3.15-slim", "3.13-slim"])
-    assert libregistry.find_newest_same_variant_tag("docker.io", "library/python", "3.14-slim") == "3.15-slim"
+    assert libregistry.find_newer_same_variant_tags("docker.io", "library/python", "3.14-slim") == ["3.15-slim"]
 
 
-def test_find_newest_same_variant_tag_returns_version_when_already_newest(
+def test_find_newer_same_variant_tags_lists_the_newest_per_major(
+    libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch
+):
+    """The newest 16.x shows next to 17 and 18, so staying on a major is visible."""
+    tags = ["16.15-alpine", "16.16-alpine", "16.17-alpine", "17.0-alpine", "17.9-alpine", "18.3-alpine", "15.9-alpine"]
+    monkeypatch.setattr(libregistry, "list_tags", lambda host, repo: tags)
+    assert libregistry.find_newer_same_variant_tags("docker.io", "library/postgres", "16.15-alpine") == [
+        "16.17-alpine",
+        "17.9-alpine",
+        "18.3-alpine",
+    ]
+
+
+def test_find_newer_same_variant_tags_empty_when_already_newest(
     libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.setattr(libregistry, "list_tags", lambda host, repo: ["1.0.0", "1.1.0", "1.2.0"])
-    assert libregistry.find_newest_same_variant_tag("docker.io", "org/repo", "1.2.0") == "1.2.0"
+    assert libregistry.find_newer_same_variant_tags("docker.io", "org/repo", "1.2.0") == []
 
 
-def test_find_newest_same_variant_tag_ignores_different_variant(
+def test_find_newer_same_variant_tags_ignores_different_variant(
     libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
     """A newer tag with a different suffix ("-alpine" vs "-slim") is a different image."""
     monkeypatch.setattr(libregistry, "list_tags", lambda host, repo: ["3.99-alpine"])
-    assert libregistry.find_newest_same_variant_tag("docker.io", "library/python", "3.14-slim") == "3.14-slim"
+    assert libregistry.find_newer_same_variant_tags("docker.io", "library/python", "3.14-slim") == []
 
 
-def test_find_newest_same_variant_tag_compares_numeric_not_lexicographic(
+def test_find_newer_same_variant_tags_compares_numeric_not_lexicographic(
     libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
     """ "1.9.0" sorts before "1.10.0" (numeric, not string, comparison)."""
     monkeypatch.setattr(libregistry, "list_tags", lambda host, repo: ["1.9.0", "1.10.0"])
-    assert libregistry.find_newest_same_variant_tag("docker.io", "org/repo", "1.9.0") == "1.10.0"
+    assert libregistry.find_newer_same_variant_tags("docker.io", "org/repo", "1.9.0") == ["1.10.0"]
 
 
-def test_find_newest_same_variant_tag_non_numeric_version_returns_itself(
+def test_find_newer_same_variant_tags_non_numeric_version_has_none(
     libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.setattr(libregistry, "list_tags", lambda host, repo: ["latest", "stable"])
-    assert libregistry.find_newest_same_variant_tag("docker.io", "org/repo", "latest") == "latest"
+    assert libregistry.find_newer_same_variant_tags("docker.io", "org/repo", "latest") == []
 
 
-def test_find_newest_same_variant_tag_ignores_bare_ci_run_id_tags(
+def test_find_newer_same_variant_tags_ignores_bare_ci_run_id_tags(
     libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
     """Tags with a different component count (bare CI run IDs) must not win on tuple comparison."""
@@ -586,10 +599,10 @@ def test_find_newest_same_variant_tag_ignores_bare_ci_run_id_tags(
             "12294937630",  # bare CI run-ID tags (1 component, no suffix)
         ],
     )
-    assert libregistry.find_newest_same_variant_tag("ghcr.io", "wearefrank/frank-gateway", "1.1.0") == "1.1.0"
+    assert libregistry.find_newer_same_variant_tags("ghcr.io", "wearefrank/frank-gateway", "1.1.0") == []
 
 
-def test_find_newest_same_variant_tag_still_finds_newer_release_among_ci_run_id_tags(
+def test_find_newer_same_variant_tags_still_finds_newer_release_among_ci_run_id_tags(
     libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
     """A newer same-arity release is still found among bare CI run-ID tags."""
@@ -606,7 +619,7 @@ def test_find_newest_same_variant_tag_still_finds_newer_release_among_ci_run_id_
             "12294937630",
         ],
     )
-    assert libregistry.find_newest_same_variant_tag("ghcr.io", "wearefrank/frank-gateway", "1.1.0") == "1.2.0"
+    assert libregistry.find_newer_same_variant_tags("ghcr.io", "wearefrank/frank-gateway", "1.1.0") == ["1.2.0"]
 
 
 # --- is_sliding_tag ---
