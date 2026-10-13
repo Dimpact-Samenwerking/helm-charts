@@ -24,12 +24,9 @@ production.
 - It is its own chart in this repo, `charts/brp-personen-mock/` (chart version
   1.2.9, appVersion 2.7.0), but is now vendored as a **dependency of the
   podiumd umbrella chart** (`Chart.yaml`, alias `brppersonenmock`, condition
-  `brppersonenmock.enabled`). Since the umbrella `values.yaml` has no
-  top-level `brppersonenmock:` override, the Helm dependency condition
-  defaults to **enabled** — `helm template` on the umbrella chart renders it
-  by default, with no separate `helm install` step needed. Set
-  `brppersonenmock.enabled: false` per environment to turn it off (e.g. in
-  production).
+  `brppersonenmock.enabled`). The umbrella `values.yaml` sets
+  `brppersonenmock.enabled: false`, so it ships **disabled**; set it to `true`
+  per test environment. Never enable it in production.
 - Runtime components: a single Deployment `brp-personen-mock` (1 replica,
   hard-coded in the template), a ClusterIP Service `brp-personen-mock` on port
   5010, a ConfigMap and a ServiceAccount. No probes, no PDB, no ingress
@@ -86,12 +83,10 @@ production sizing applies because the mock is never deployed to production.
 
 ## Integrating BRP Personen Mock as a new app
 
-1. **Nothing to enable.** It renders as part of the podiumd umbrella chart by
-   default (`brppersonenmock.enabled` has no override, so the Helm dependency
-   condition defaults to true) in the same namespace as the rest of podiumd,
-   so consuming apps can use the short service name `brp-personen-mock`. Set
-   `brppersonenmock.enabled: false` for environments that must not run it
-   (e.g. production). Pin a different image via `brppersonenmock.image.tag`
+1. **Enable it** with `brppersonenmock.enabled: true` in the test
+   environment's values. It renders in the same namespace as the rest of
+   podiumd, so consuming apps can use the short service name
+   `brp-personen-mock`. Pin a different image via `brppersonenmock.image.tag`
    only if a newer mock build is required.
 2. **Point the consuming apps at the mock** in the environment's podiumd
    values, e.g.:
@@ -105,7 +100,7 @@ production sizing applies because the mock is never deployed to production.
    query returns a fictitious person:
 
    ```bash
-   kubectl -n podiumd run brp-mock-test --rm -it --restart=Never \
+   kubectl --context <aks-context> -n podiumd run brp-mock-test --rm -it --restart=Never \
      --image=curlimages/curl -- \
      curl -s -X POST http://brp-personen-mock:5010/haalcentraal/api/brp/personen \
        -H 'Content-Type: application/json' \
