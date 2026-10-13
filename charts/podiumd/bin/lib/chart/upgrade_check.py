@@ -1,4 +1,7 @@
-"""Report-only check for a newer stable version of every Chart.yaml dependency chart.
+"""Report-only check for newer stable versions of every Chart.yaml dependency chart.
+
+Per chart it lists the newest newer version in each major, so a same-major upgrade
+shows next to the newest release.
 
 Versions come from a classic repository's index.yaml or an OCI registry's
 tag list; "file://" dependencies are skipped. Pre-releases ("-rc.1") never
@@ -29,6 +32,7 @@ from lib.render_scope import resolve_dependency_repo
 from lib.settings import chart_upgrade_check_cache_ttl_days
 from lib.settings import helm_repos_urls_by_alias
 from lib.settings import repo_access_request_timeout_seconds
+from lib.version_numbers import newest_per_major
 from lib.version_numbers import stable_semver_key
 from lib.yaml_types import YamlShapeError
 from lib.yaml_types import parse_yaml
@@ -36,16 +40,13 @@ from lib.yaml_types import parse_yaml
 CACHE_FILENAME = "chart-upgrade-cache.json"
 
 
-def newest_stable_version(current: str, published: list[str]) -> str:
-    """The highest stable version in `published` above `current`, else `current`."""
-    best, best_key = current, stable_semver_key(current)
-    if best_key is None:
-        return current
-    for version in published:
-        key = stable_semver_key(version)
-        if key is not None and key > best_key:
-            best, best_key = version, key
-    return best
+def newer_stable_versions(current: str, published: list[str]) -> list[str]:
+    """The highest stable version in `published` above `current`, one per major; [] if none."""
+    current_key = stable_semver_key(current)
+    if current_key is None:
+        return []
+    keyed = ((version, stable_semver_key(version)) for version in published)
+    return newest_per_major(current_key, [(version, key) for version, key in keyed if key is not None])
 
 
 def index_chart_versions(index_text: str, chart_name: str, source: str) -> list[str]:
@@ -111,9 +112,9 @@ class _Fetcher:
 
 @dataclass
 class ChartUpgradeScan:
-    """newest version per checked source, sources that could not be checked, and cache hits."""
+    """Newer versions per checked source, sources that could not be checked, and cache hits."""
 
-    newest: dict[ChartSource, str] = field(default_factory=dict)
+    newer: dict[ChartSource, list[str]] = field(default_factory=dict)
     fetch_errors: list[ChartSource] = field(default_factory=list)
     cache_hits: int = 0
 
@@ -133,23 +134,23 @@ def _scan(chart_dir: Path, sources: list[ChartSource], ttl_days: int) -> ChartUp
         else:
             print(f"  [{i}/{len(sources)}] checking {source.name} ({source.chart} {source.version})...", flush=True)
             try:
-                newest = newest_stable_version(source.version, fetcher.versions(source))
+                newer = newer_stable_versions(source.version, fetcher.versions(source))
             except (urllib.error.URLError, OSError, UnicodeDecodeError, YamlShapeError) as e:
                 print(f"  [FETCH-ERR] {source.name}  {e}")
                 scan.fetch_errors.append(source)
                 continue
-            entry: UpgradeEntry = {"checked_at": datetime.now(timezone.utc).isoformat(), "newest": newest}
+            entry: UpgradeEntry = {"checked_at": datetime.now(timezone.utc).isoformat(), "newer": newer}
         new_cache[source.cache_key] = entry
-        scan.newest[source] = entry["newest"]
+        scan.newer[source] = entry["newer"]
     save_json_cache(cache_path, new_cache)
     return scan
 
 
 def _print_findings(scan: ChartUpgradeScan, total: int, ttl_days: int) -> None:
     """Print upgradable charts, then OK/INCOMPLETE and the cache summary."""
-    upgradable = [(s, n) for s, n in scan.newest.items() if n != s.version]
-    for source, newest in upgradable:
-        print(f"{source.name} ({source.chart} {source.version}): newer chart version available: {newest}")
+    upgradable = [(s, n) for s, n in scan.newer.items() if n]
+    for source, newer in upgradable:
+        print(f"{source.name} ({source.chart} {source.version}): newest chart version per major: {', '.join(newer)}")
     if scan.fetch_errors:
         print(f"INCOMPLETE: {len(scan.fetch_errors)}/{total} chart(s) could not be checked for a newer version:")
         for source in scan.fetch_errors:
@@ -169,5 +170,5 @@ def check_chart_upgrades(chart_dir: Path) -> tuple[bool, str]:
     print(f"Checking {len(sources)} dependency chart(s) for a newer published version...")
     scan = _scan(chart_dir, sources, ttl_days)
     _print_findings(scan, len(sources), ttl_days)
-    upgradable = sum(1 for s, n in scan.newest.items() if n != s.version)
+    upgradable = sum(1 for n in scan.newer.values() if n)
     return True, f"upgradable: {upgradable}/{len(sources)} chart(s); {len(scan.fetch_errors)} fetch error(s)"

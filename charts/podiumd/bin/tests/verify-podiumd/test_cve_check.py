@@ -569,7 +569,7 @@ def test_check_cves_marks_upgradable_from_image_upgrade_cache(
         {
             libimageupgradecache.cache_key("ghcr.io/wearefrank/frank-gateway", "104"): {
                 "checked_at": datetime.now(timezone.utc).isoformat(),
-                "newest": "105",
+                "newer": ["105"],
             },
         },
     )
@@ -610,7 +610,7 @@ def test_check_cves_stale_upgrade_cache_entry_not_marked_upgradable(
         {
             libimageupgradecache.cache_key("ghcr.io/wearefrank/frank-gateway", "104"): {
                 "checked_at": stale.isoformat(),
-                "newest": "105",
+                "newer": ["105"],
             },
         },
     )
