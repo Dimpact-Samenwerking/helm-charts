@@ -3090,11 +3090,6 @@ zac:
     url: http://objecten.example.nl
     token: objectentoken
   office_converter:
-    # ZAC 5.9.1 (chart 1.0.338) enables basic auth on the Gotenberg office
-    # converter (GOTENBERG_API_BASIC_AUTH_*). username/password are now required
-    # by the ZAC chart. The zac subchart renders them into its own Secret, read
-    # by ZAC and by the office-converter Deployment (a separate Deployment and
-    # Service, not a sidecar), so set real values per environment.
     # -- Basic auth user shared by ZAC and its office converter (Gotenberg). Override per environment: the converter Service is reachable from any pod in the cluster.
     username: "dummy"
     # -- Basic auth password for the office converter; see username.
