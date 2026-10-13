@@ -1111,6 +1111,8 @@ PodiumD Helm chart
 | openzaak.fullnameOverride | string | `"openzaak"` |  |
 | openzaak.image.tag | string | `"1.29.3@sha256:7ac22da287ac190a0e1c14849a370c433d3511678dcc8f3897007fd6de6dd4ac"` |  |
 | openzaak.nameOverride | string | `"openzaak"` |  |
+| openzaak.nginx.config.proxyConnectTimeoutSeconds | int | `1800` | Same as ZAC's nginx proxy_timeout: ZAC uploads large documents to Open Zaak in parts (bestandsdelen) through this nginx; the chart default is 300. |
+| openzaak.nginx.config.proxyReadTimeoutSeconds | int | `1800` | See proxyConnectTimeoutSeconds. |
 | openzaak.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openzaak.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
 | openzaak.nginx.image.tag | string | `"1.31.6@sha256:929e1d5e610e8aa89a1715ba44dce5edb4d42c172a208c171233292f472560c5"` |  |
@@ -1313,9 +1315,7 @@ PodiumD Helm chart
 | zac.mail.smtp.port | string | `"587"` |  |
 | zac.mail.smtp.server | string | `"mail.example.nl"` |  |
 | zac.mail.smtp.username | string | `"dummy"` |  |
-| zac.maxFileSizeMB | int | `150` |  |
 | zac.nameOverride | string | `"zac"` |  |
-| zac.nginx.client_max_body_size | string | `"150M"` |  |
 | zac.nginx.enabled | bool | `true` |  |
 | zac.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | zac.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |

@@ -786,6 +786,11 @@ openzaak:
         memory: 160Mi
   nginx:
     image: *nginxImage
+    config:
+      # -- Same as ZAC's nginx proxy_timeout: ZAC uploads large documents to Open Zaak in parts (bestandsdelen) through this nginx; the chart default is 300.
+      proxyConnectTimeoutSeconds: 1800
+      # -- See proxyConnectTimeoutSeconds.
+      proxyReadTimeoutSeconds: 1800
     resources:
       requests:
         cpu: 10m
@@ -3069,10 +3074,13 @@ zac:
       port: "587"
       username: "dummy"
       password: "dummy"
-  maxFileSizeMB: 150
+  # Document sizes follow the ZAC chart (1.0.338) defaults: maxFileSizeMB 500
+  # (streamed upload/download), maxInMemoryFileSizeMB 80 (preview, mail,
+  # WebDAV), nginx client_max_body_size 600M and proxy_timeout 1800s. Larger
+  # documents also need the gateway route in front of zac-nginx and
+  # openzaak-nginx to allow them; see 4.9.4-to-4.10.0-upgrade.md.
   nginx:
     enabled: true
-    client_max_body_size: 150M
     image: *nginxImage
     resources:
       requests:
