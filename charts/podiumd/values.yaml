@@ -2951,12 +2951,11 @@ kiss-eck:
         nodeSelector: {}
 
 kiss:
-  # Security review 4.10.0 WH-10: contact-web runs 2 replicas. The kiss schema
-  # wants an integer minAvailable (0 is left out) and a string maxUnavailable.
-  pdb:
-    create: true
-    minAvailable: 0
-    maxUnavailable: "1"
+  # Security review 4.10.0 WH-10: no PDB for kiss. Its selector
+  # (app.kubernetes.io/name=contact) also matches the contact-*-sync CronJob
+  # pods, so the disruption controller fails ("jobs.batch does not implement
+  # the scale subresource") and allows 0 disruptions, which blocks node drains.
+  # Needs a vendor fix (component=web in the PDB selector).
   # Security review 4.10.0 WH-06.
   podSecurityContext:
     seccompProfile:

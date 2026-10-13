@@ -537,6 +537,7 @@ PodiumD Helm chart
 | kiss.imagePullSecrets | list | `[]` |  |
 | kiss.nameOverride | string | `"contact"` |  |
 | kiss.nodeSelector | object | `{}` |  |
+| kiss.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | kiss.resources.requests.cpu | string | `"100m"` |  |
 | kiss.resources.requests.memory | string | `"256Mi"` |  |
 | kiss.settings.afdelingen.baseUrl | string | `""` |  |
