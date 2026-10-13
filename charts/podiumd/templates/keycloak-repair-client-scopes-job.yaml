@@ -9,7 +9,12 @@
 #   4.9.1-4.9.4 imports created clients like that; a curated client always has
 #   at least one default scope and is left alone.
 # - removes offline_access from every client (see keycloak-security-updates.md).
-# The name carries the release revision, so it runs on every deploy.
+# The name carries the release revision, so it runs on every deploy. It
+# tolerates Keycloak restarting mid-run (Keycloak operator upgrade): the login
+# waits for Keycloak, a failed call fails the pod, backoffLimit retries it, and
+# every step checks before it changes anything. A client is marked with the
+# attribute podiumd.repair-client-scopes=pending while its defaults are added,
+# so a retry finishes a half-repaired client.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -100,6 +105,7 @@ rows=$(kc get "realms/$REALM/default-default-client-scopes" -r "$REALM" --fields
 while IFS=, read -r id name protocol; do
   if [ "$protocol" = "openid-connect" ]; then realm_defaults+=("$id,$name"); fi
 done <<< "$rows"
+MARKER=podiumd.repair-client-scopes
 service_account_id=$(scope_id service_account)
 offline_access_id=$(scope_id offline_access)
 clients=$(kc get clients -r "$REALM" --fields id,clientId,protocol,bearerOnly,serviceAccountsEnabled --format csv --noquotes)
@@ -108,21 +114,29 @@ while IFS=, read -r id client protocol bearer sa; do
   # Bearer-only clients get no tokens (and realm-management refuses changes).
   if [ "$protocol" != "openid-connect" ] || [ "$bearer" = "true" ]; then continue; fi
   defaults=$(kc get "clients/$id/default-client-scopes" -r "$REALM" --fields name --format csv --noquotes)
-  # Keycloak adds service_account itself when a service account is enabled.
-  if [ -z "$defaults" ] || [ "$defaults" = "service_account" ]; then
+  # Full representation: kcadm --fields attributes returns an empty object.
+  attrs=$(kc get "clients/$id" -r "$REALM")
+  # Keycloak adds service_account itself when a service account is enabled. A
+  # client marked pending was being repaired when an earlier run stopped (for
+  # example because the Keycloak operator restarted Keycloak); finish it.
+  if [ -z "$defaults" ] || [ "$defaults" = "service_account" ] || [[ "$attrs" == *"\"$MARKER\" : \"pending\""* ]]; then
+    kc update "clients/$id" -r "$REALM" -s "attributes.\"$MARKER\"=pending" >/dev/null
     for row in "${realm_defaults[@]}"; do
-      kc update "clients/$id/default-client-scopes/${row%%,*}" -r "$REALM"
-      echo "$client: added default scope ${row#*,}"
+      if ! has_scope "$id" default "${row#*,}"; then
+        kc update "clients/$id/default-client-scopes/${row%%,*}" -r "$REALM" >/dev/null
+        echo "$client: added default scope ${row#*,}"
+      fi
     done
-    if [ "$sa" = "true" ] && [ -n "$service_account_id" ] && [ -z "$defaults" ]; then
-      kc update "clients/$id/default-client-scopes/$service_account_id" -r "$REALM"
+    if [ "$sa" = "true" ] && [ -n "$service_account_id" ] && ! has_scope "$id" default service_account; then
+      kc update "clients/$id/default-client-scopes/$service_account_id" -r "$REALM" >/dev/null
       echo "$client: added default scope service_account"
     fi
+    kc update "clients/$id" -r "$REALM" -s "attributes.\"$MARKER\"=done" >/dev/null
   fi
   if [ -n "$offline_access_id" ]; then
     for kind in default optional; do
       if has_scope "$id" "$kind" offline_access; then
-        kc delete "clients/$id/$kind-client-scopes/$offline_access_id" -r "$REALM"
+        kc delete "clients/$id/$kind-client-scopes/$offline_access_id" -r "$REALM" >/dev/null
         echo "$client: removed $kind scope offline_access"
       fi
     done
