@@ -3665,14 +3665,14 @@ pabc:
     # mappings with the dataset contents each run, so PABC UI edits are lost.
     # Prefer a one-shot seed Job that mounts the pabc-dataset ConfigMap
     # (see datasetConfigMap below) and runs this same image once.
-    # -- Applications and application roles the migrations job creates when they do not exist yet (PABC 2.1.0 prefill, PREFILL_PATH). Non-destructive: an existing application is skipped as a whole, with its roles, and nothing is ever changed or removed, so it is safe on curated environments. The default is the zaakafhandelcomponent set from files/pabc-dataset.json; functional roles, domains and mappings are not part of prefill. Set to [] per environment to turn it off.
+    # -- Applications and application roles the migrations job creates when they do not exist yet (PABC 2.1.0 prefill, PREFILL_PATH). Non-destructive: an existing application is skipped as a whole, with its roles, and nothing is ever changed or removed, so it is safe on curated environments. The default is the application roles ZAC 5.9.1 checks (policies/rollen.rego); functional roles, domains and mappings are not part of prefill. Set to [] per environment to turn it off.
     prefill:
       applications:
         - name: zaakafhandelcomponent
           roles:
-            - administrator
             - behandelaar
             - beheerder
+            - brp_zoeken
             - coordinator
             - raadpleger
             - recordmanager
