@@ -113,6 +113,37 @@ def test_scan_version_pins_tolerates_anchor_tag(libimagedigests: ModuleType):
     ]
 
 
+def test_scan_version_pins_finds_registered_split_field_pins(libimagedigests: ModuleType):
+    """redis-operator pins "imageTag:"/"initContainerImageTag:" next to "imageName:"; both are pins."""
+    digest = "a" * 64
+    lines = [
+        "  redisOperator:",
+        "    imageName: quay.io/opstree/redis-operator",
+        f'    imageTag: "v0.26.0@sha256:{digest}"',
+        f'    initContainerImageTag: "v0.26.0@sha256:{digest}"',
+        '    otherTag: "v1.0.0"',
+    ]
+    pins = libimagedigests.scan_version_pins(lines)
+    assert [(p["line"], p["repository"], p["version"]) for p in pins] == [
+        (3, "quay.io/opstree/redis-operator", "v0.26.0"),
+        (4, "quay.io/opstree/redis-operator", "v0.26.0"),
+    ]
+
+
+def test_scan_version_pins_reads_an_anchored_split_field_and_skips_its_alias(libimagedigests: ModuleType):
+    lines = [
+        "  redisOperator:",
+        "    imageName: quay.io/opstree/redis-operator",
+        f'    imageTag: &redisOperatorImageTag "v0.26.0@sha256:{"a" * 64}"',
+        "    initContainerImageTag: *redisOperatorImageTag",
+    ]
+    assert [p["line"] for p in libimagedigests.scan_digest_pins(lines)] == [3]
+
+
+def test_scan_version_pins_skips_a_split_field_without_its_repository_field(libimagedigests: ModuleType):
+    assert libimagedigests.scan_version_pins(["  redisOperator:", '    imageTag: "v0.26.0"']) == []
+
+
 def test_scan_version_pins_ignores_non_tag_lines(libimagedigests: ModuleType):
     assert libimagedigests.scan_version_pins(["  repository: org/repo", "  enabled: true"]) == []
 
