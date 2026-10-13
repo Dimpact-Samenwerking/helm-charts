@@ -57,7 +57,7 @@ its enablement doc **before** setting `enabled: true`
 
 | Component | Values key | Enablement doc |
 |---|---|---|
-| Open Beheer | `openbeheer` | [`openbeheer.md`](apps/openbeheer/openbeheer.md) and [`openbeheer-BASICS.md`](apps/openbeheer/openbeheer-BASICS.md); only the latter covers the Objecten token (`REP_OBJECTEN_OPENBEHEER_TOKEN_REP`) |
+| Open Beheer | `openbeheer` | [`openbeheer.md`](apps/openbeheer/openbeheer.md); [`openbeheer-BASICS.md`](apps/openbeheer/openbeheer-BASICS.md) for the summary |
 | Open Archiefbeheer | `openarchiefbeheer` | [`openarchiefbeheer-BASICS.md`](apps/openarchiefbeheer/openarchiefbeheer-BASICS.md) |
 | Referentielijsten | `referentielijsten` | [`referentielijsten-BASICS.md`](apps/referentielijsten/referentielijsten-BASICS.md) |
 | API-proxy | `apiproxy` | [`apiproxy-BASICS.md`](apps/apiproxy/apiproxy-BASICS.md) |

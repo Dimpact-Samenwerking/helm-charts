@@ -35,7 +35,7 @@ The detailed sections below expand on any row.
 | KV: Open Zaak ZGW secret | **infra** | _(env KV convention)_ | `configuration.secrets.openzaak_openbeheer_secret` | `openssl rand -hex 32`. |
 | KV: Objecttypen API token | **infra** | _(env KV convention)_ | `configuration.secrets.objecttypen_openbeheer_token` | `openssl rand -hex 32`; inline header token `REP_OBJECTTYPEN_OPENBEHEER_TOKEN_REP`. |
 | Open Zaak ZGW consumer | **infra** | client `openbeheer` | _(uses the ZGW secret)_ | Register in Open Zaak admin; `auth_type: zgw`. |
-| Objecttypen token holder | **infra** | token | _(uses the API token)_ | Register in Objecttypen admin; `auth_type: api_key`. |
+| Objecttypen token holder | **infra** | `tokenauth` item `openbeheer-token` | `objecten.configuration.data` | Same token value; no permissions or `is_superuser` needed. See [§ Objecttypen API on Open Object](#objecttypen-api-on-open-object). |
 | PersistentVolume + PVC | **helm** | PV `<ns>-openbeheer`, PVC `openbeheer` | `persistence.*` | `templates/openbeheer-storage.yaml`; RWX, Retain, `resource-policy: keep`. |
 | Ingress (opt-in) | **helm** | host `oidcUrl` → svc `openbeheer-nginx:80` | `openbeheer.ingress.*` | Sub-chart `ingress.yaml`; **opt-in per env** (Traefik / `extraIngress` for App Gateway). |
 | HTTPRoute | **infra** | `hr-openbeheer-nginx`, `backendRefs` → `openbeheer-nginx:80` | — | Created by ADO `ExternalsPodiumD` on `public-gateway`, not by this chart. |
@@ -137,8 +137,8 @@ by the chart / shared pattern):
   secret you would then have to reconcile.
 - **Open Zaak**: register an application/credential for client id `openbeheer` with the ZGW JWT
   secret (the `openzaak_openbeheer_secret` value) so the Catalogi API accepts Open Beheer.
-- **Objecttypen**: create a token-authorised user/permission holding the Objecttypen API token
-  (the `objecttypen_openbeheer_token` value).
+- **Objecttypen API** (served by `objecten`): add a `tokenauth` item `openbeheer-token` holding
+  the `objecttypen_openbeheer_token` value to `objecten.configuration.data`.
 
 ## Quick reference
 
@@ -169,10 +169,24 @@ service registry in Postgres, but the data it manages lives in the ZGW APIs:
 |------------|------|----------------------------|------|
 | Keycloak | OIDC login / SSO for admin users | — | OIDC client `openbeheer` |
 | Open Zaak (Catalogi) | zaaktypes, informatieobjecttypes | `catalogi-service` | `zgw` (client + secret) |
-| Objecttypen | object type schemas | `objecttypen-service` | `api_key` |
+| Objecten (Open Object), Objecttypen API | object type schemas | `objecttypen-service` | `api_key` |
 | Selectielijst (public) | retention schedules | `selectielijst-service` | `no_auth` |
 | PostgreSQL | admin users, service registry | — | username/password |
 | Redis HA | session cache + rate-limit counters | — | db 17 |
+
+### Objecttypen API on Open Object
+
+Since 4.10.0 the Objecttypen API is part of `objecten` (Open Object, see
+[`openobject-migration.md`](../objecten/openobject-migration.md)):
+
+- Set the `objecttypen-service` `api_root` to `https://objecten.<env-domain>/api/v2/`.
+- Open Beheer only calls `objecttypes` (list, detail and, in its dev data helper, create). It
+  never calls the Objects API, so it needs no Objecten token.
+- Open Object 4.1.0 accepts any valid token on `objecttypes`, for read and write.
+  `is_superuser` and per-object-type permissions only apply to `objects`; leave them off.
+
+Verified on johnb00 on 2026-10-13 (open-beheer 0.9.1, Open Object 4.1.0). The checks in
+[§ Validation](#validation) passed.
 
 ### Declarative configuration (django-setup-configuration)
 
@@ -286,7 +300,7 @@ Disabled by default. First provision everything in the [§ Resources](#resources
            services:
            - identifier: objecttypen-service
              label: Objecttypen API
-             api_root: https://objecttypen.<env>.example.nl/api/v2/
+             api_root: https://objecten.<env>.example.nl/api/v2/
              api_type: orc
              auth_type: api_key
              header_key: Authorization
@@ -345,6 +359,14 @@ kubectl --context "$CTX" -n "$NS" get cm openbeheer -o jsonpath='{.data.UWSGI_MA
 # 3. Admin login reaches the OIDC flow
 #    Browse to https://openbeheer.<env>.example.nl/admin/ — expect a redirect to Keycloak,
 #    and after login a Django admin session (superuser if in the administrators group).
+```
+
+Check the Objecttypen API from Open Beheer's own client (lists every object type; an error names the
+broken service):
+
+```bash
+kubectl --context "$CTX" -n "$NS" exec deploy/openbeheer -- python src/manage.py shell -c \
+  "from openbeheer.helpers import retrieve_objecttypen; print(len(retrieve_objecttypen()))"
 ```
 
 In the Open Beheer UI, confirm the three `zgw_consumers` services (Catalogi, Objecttypen,
