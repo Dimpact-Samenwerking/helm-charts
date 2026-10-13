@@ -8,8 +8,8 @@ from typing import TypeGuard
 # A bare MAJOR.MINOR.PATCH, as in Chart.yaml's version and release-baseline.yaml's upgrade_docs.
 BARE_VERSION_PATTERN = r"\d+\.\d+\.\d+"
 _STABLE_SEMVER_RE = re.compile(rf"^v?({BARE_VERSION_PATTERN})$")
-# The leading dotted-digits run of an image tag: "3.14" of "3.14-slim".
-NUMERIC_PREFIX_RE = re.compile(r"^(\d+(?:\.\d+)*)")
+# The leading dotted-digits run of an image tag, after an optional "v": "3.14" of "3.14-slim" or "v3.14".
+NUMERIC_PREFIX_RE = re.compile(r"^(v?)(\d+(?:\.\d+)*)")
 
 
 def is_bare_version(version: str | None) -> TypeGuard[str]:
@@ -34,10 +34,10 @@ def _major_line_of_key(key: tuple[int, ...]) -> tuple[int, ...]:
 
 
 def major_line(version: str) -> tuple[int, ...] | None:
-    """The major line of an image tag: (16,) for "16.15-alpine", () for "104"
+    """The major line of an image tag: (16,) for "16.15-alpine" or "v16.1", () for "104"
     (see _major_line_of_key); None if `version` doesn't start with a number."""
     m = NUMERIC_PREFIX_RE.match(version)
-    return _major_line_of_key(dotted_numbers(m.group(1))) if m else None
+    return _major_line_of_key(dotted_numbers(m.group(2))) if m else None
 
 
 def newest_per_major(current: tuple[int, ...], candidates: Iterable[tuple[str, tuple[int, ...]]]) -> list[str]:

@@ -27,6 +27,7 @@ def test_is_bare_version_accepts_only_major_minor_patch():
 
 def test_major_line_of_an_image_tag():
     assert major_line("16.15-alpine") == (16,)
+    assert major_line("v8.6.6") == (8,)
     assert major_line("104") == ()  # a single build number is one line
     assert major_line("latest") is None
 
