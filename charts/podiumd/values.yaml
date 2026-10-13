@@ -3856,13 +3856,11 @@ ita:
 
   afdeling:
     # Aanname: uuid van objecttype wordt gemeentespecifiek vervangen door Replacementscripts
-    uuid: "REP_CONTACT_AFDELING_UUID_REP"
     type: "https://ontw-objecten.example.nl/api/v2/objecttypes/REP_CONTACT_AFDELING_UUID_REP"
     typeVersion: 1
 
   groep:
     # Aanname: uuid van objecttype wordt gemeentespecifiek vervangen door Replacementscripts
-    uuid: "REP_CONTACT_GROEP_UUID_REP"
     type: "https://ontw-objecten.example.nl/api/v2/objecttypes/REP_CONTACT_GROEP_UUID_REP"
     typeVersion: 1
 
@@ -3871,7 +3869,6 @@ ita:
   # in templates/validations.yaml fails the render if it is left blank.
   medewerker:
     # Aanname: uuid van objecttype wordt gemeentespecifiek vervangen door Replacementscripts
-    uuid: "REP_CONTACT_MEDEWERKER_UUID_REP"
     type: "https://ontw-objecten.example.nl/api/v2/objecttypes/REP_CONTACT_MEDEWERKER_UUID_REP"
     typeVersion: 1
 
@@ -4571,6 +4568,15 @@ frankgateway:
     clientMaxBodySize: 1g
     # -- sizeLimit of the gateway's /tmp emptyDir (request-body temp files).
     tmpSizeLimit: 2Gi
+
+  # -- Verify the certificate of every https upstream against the image's
+  # system CA bundle (nginx proxy_ssl_verify; APISIX's own upstream.tls.verify
+  # only applies to Kafka upstreams). Without it the API keys an outway route
+  # adds go to whatever answers on the upstream address (security review
+  # 4.10.0 NW-07). Set false per instance only for an https upstream with a
+  # private CA, and prefer adding that CA to the trust bundle instead.
+  upstreamTls:
+    verify: true
 
   # etcd cluster backing every instance (quay.io/coreos upstream build — no
   # Bitnami). PVC-backed so gateway config survives pod restarts.

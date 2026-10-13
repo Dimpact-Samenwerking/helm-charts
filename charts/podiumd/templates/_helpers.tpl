@@ -467,6 +467,14 @@ nginx_config:
     # Stream upstream responses instead of spooling up to 1 GiB per response
     # into the size-limited /tmp emptyDir.
     proxy_max_temp_file_size 0;
+  {{- if (dig "upstreamTls" "verify" true $fg) }}
+  # Check https upstream certificates (frankgateway.upstreamTls.verify). The
+  # image already sets proxy_ssl_trusted_certificate to the system CA bundle
+  # and sends the upstream host as SNI.
+  http_server_configuration_snippet: |
+    proxy_ssl_verify on;
+    proxy_ssl_verify_depth 5;
+  {{- end }}
   main_configuration_snippet: |
     env OPENBAO_TOKEN;
     env OPENBAO_ADDR;

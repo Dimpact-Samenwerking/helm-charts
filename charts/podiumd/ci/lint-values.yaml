@@ -49,6 +49,13 @@ zac:
   zacInternalEndpointsApiKey: "placeholder"
   zgwApis:
     secret: "placeholder"
+  # "openklanttoken"/"objectentoken" defaults, also rejected.
+  klantinteractiesApi:
+    token: "placeholder"
+  objectenApi:
+    token: "placeholder"
+  objecttypenApi:
+    token: "placeholder"
 
 # zgw-office-addin: the chart values.yaml provides the URL fields
 # (common.frontendUrl, backend.zgwApis.url); only the MSAL/secret placeholders
@@ -72,6 +79,7 @@ keycloak:
         secret: "placeholder"
         oidcUrl: https://monitoring.ci.podiumd.test
       datamigratie:
+        secret: "placeholder"
         oidcUrl: https://datamigratie.ci.podiumd.test
 
 keycloak-operator:
@@ -169,6 +177,11 @@ openvtb:
 kiss:
   configuration:
     oidcUrl: https://kiss.ci.podiumd.test
+    # "<kiss>" defaults, rejected by validations.yaml.
+    oidcSecret: "placeholder"
+  adapter:
+    esuite:
+      clientId: "placeholder"
   settings:
     afdelingen:
       baseUrl: "http://placeholder"
@@ -397,8 +410,33 @@ pabc:
   settings:
     oidc:
       oidcUrl: https://pabc.ci.podiumd.test
+      clientSecret: "placeholder"
+    keycloakAdmin:
+      clientSecret: "placeholder"
 
 ita:
+  # values.yaml ships REP_..._REP markers for these, which validations.yaml
+  # rejects.
+  logboek:
+    type: "https://objecten.ci.podiumd.test/api/v2/objecttypes/00000000-0000-0000-0000-000000000001"
+  afdeling:
+    type: "https://objecten.ci.podiumd.test/api/v2/objecttypes/00000000-0000-0000-0000-000000000002"
+  groep:
+    type: "https://objecten.ci.podiumd.test/api/v2/objecttypes/00000000-0000-0000-0000-000000000003"
+  medewerker:
+    type: "https://objecten.ci.podiumd.test/api/v2/objecttypes/00000000-0000-0000-0000-000000000004"
+  apiConnections:
+    object:
+      apiKey: "placeholder"
+    openKlant:
+      apiKey: "placeholder"
+    zaakSysteem:
+      key: "placeholder"
+  database:
+    host: "postgres.ci.podiumd.test"
+    password: "placeholder"
   web:
     oidc:
       frontendUrl: https://ita.ci.podiumd.test
+      authority: https://keycloak.ci.podiumd.test/realms/podiumd
+      clientSecret: "placeholder"

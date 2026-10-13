@@ -246,6 +246,7 @@ PodiumD Helm chart
 | frankgateway.tls.sslSync.snis | list | `[]` |  |
 | frankgateway.tls.sslSync.successfulJobsHistoryLimit | int | `1` |  |
 | frankgateway.topologySpreadConstraints | list | `[]` |  |
+| frankgateway.upstreamTls | object | `{"verify":true}` | Verify the certificate of every https upstream against the image's system CA bundle (nginx proxy_ssl_verify; APISIX's own upstream.tls.verify only applies to Kafka upstreams). Without it the API keys an outway route adds go to whatever answers on the upstream address (security review 4.10.0 NW-07). Set false per instance only for an https upstream with a private CA, and prefer adding that CA to the trust bundle instead. |
 | global.configuration.enabled | bool | `true` |  |
 | global.configuration.organization | string | `"Example gemeente"` |  |
 | global.configuration.overwrite | bool | `true` |  |
@@ -265,7 +266,6 @@ PodiumD Helm chart
 | global.settings.databaseHost | string | `""` |  |
 | ita.afdeling.type | string | `"https://ontw-objecten.example.nl/api/v2/objecttypes/REP_CONTACT_AFDELING_UUID_REP"` |  |
 | ita.afdeling.typeVersion | int | `1` |  |
-| ita.afdeling.uuid | string | `"REP_CONTACT_AFDELING_UUID_REP"` |  |
 | ita.affinity | object | `{}` |  |
 | ita.apiConnections.object.apiKey | string | `"REP_OBJECTEN_CREDENTIALS_ITA_TOKEN_REP"` |  |
 | ita.apiConnections.object.baseUrl | string | `"https://objecten.example.nl/api/v2/"` |  |
@@ -283,7 +283,6 @@ PodiumD Helm chart
 | ita.fullnameOverride | string | `"ita"` |  |
 | ita.groep.type | string | `"https://ontw-objecten.example.nl/api/v2/objecttypes/REP_CONTACT_GROEP_UUID_REP"` |  |
 | ita.groep.typeVersion | int | `1` |  |
-| ita.groep.uuid | string | `"REP_CONTACT_GROEP_UUID_REP"` |  |
 | ita.imagePullSecrets | list | `[]` |  |
 | ita.ingress.enabled | bool | `false` |  |
 | ita.ita.baseUrl | string | `"https://ita.example.nl"` |  |
@@ -291,7 +290,6 @@ PodiumD Helm chart
 | ita.logboek.typeVersion | int | `1` |  |
 | ita.medewerker.type | string | `"https://ontw-objecten.example.nl/api/v2/objecttypes/REP_CONTACT_MEDEWERKER_UUID_REP"` |  |
 | ita.medewerker.typeVersion | int | `1` |  |
-| ita.medewerker.uuid | string | `"REP_CONTACT_MEDEWERKER_UUID_REP"` |  |
 | ita.nameOverride | string | `""` |  |
 | ita.nieuweInternetaakNotificatie | object | `{"notification":{"pollerMessage":"Poller uitgevoerd om:"},"schedule":"*/15 * * * *"}` | CronJob die behandelaars waarschuwt bij een nieuwe internetaak. Was tot 3.2.0 de enige poller; schedule en notification stonden toen onder ita.poller. Omgevingen die die sleutels overschrijven moeten ze hierheen verplaatsen, anders vallen ze stil terug op de chart-defaults. poller.notification.hourThreshold is niet meer aanwezig in subchart, dus verwijderd. |
 | ita.nodeSelector | object | `{}` |  |
