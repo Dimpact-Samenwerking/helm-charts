@@ -15,7 +15,9 @@ from typing import TypedDict
 from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import text_at
 from lib.procutil import run
+from lib.version_numbers import NUMERIC_PREFIX_RE
 from lib.version_numbers import dotted_numbers
+from lib.version_numbers import newest_per_major
 from lib.yaml_types import YamlValue
 from lib.yaml_types import is_yaml_value
 
@@ -252,6 +254,15 @@ def _platform_manifest_digest(index: YamlValue) -> str:
     raise urllib.error.URLError(msg)
 
 
+def _config_blob_path(registry_host: str, repo: str, manifest: YamlValue, reference: str) -> str:
+    """The "blobs/<digest>" path of `manifest`'s config; URLError if it has none."""
+    config_digest = text_at(manifest, "config.digest")
+    if not config_digest:
+        msg = f"manifest of {registry_host}/{repo}:{reference} has no config"
+        raise urllib.error.URLError(msg)
+    return f"blobs/{config_digest}"
+
+
 def image_config_user(registry_host: str, repo: str, reference: str, timeout: float | None = None) -> str:
     """The image's default user (its config "User"; "" means root), for a tag or digest `reference`.
 
@@ -263,12 +274,24 @@ def image_config_user(registry_host: str, repo: str, reference: str, timeout: fl
     if get_path(manifest, "manifests") is not None:
         digest = _platform_manifest_digest(manifest)
         manifest = _registry_json(registry_host, repo, f"manifests/{digest}", MANIFEST_ACCEPT, timeout)
-    config_digest = text_at(manifest, "config.digest")
-    if not config_digest:
-        msg = f"manifest of {registry_host}/{repo}:{reference} has no config"
-        raise urllib.error.URLError(msg)
-    config = _registry_json(registry_host, repo, f"blobs/{config_digest}", IMAGE_CONFIG_ACCEPT, timeout)
+    blob = _config_blob_path(registry_host, repo, manifest, reference)
+    config = _registry_json(registry_host, repo, blob, IMAGE_CONFIG_ACCEPT, timeout)
     return text_at(config, "config.User") or ""
+
+
+HELM_CHART_CONFIG_ACCEPT = "application/vnd.cncf.helm.config.v1+json"
+
+
+def chart_app_version(registry_host: str, repo: str, version: str, timeout: float | None = None) -> str | None:
+    """An OCI Helm chart's appVersion, from its config blob (the chart's Chart.yaml metadata); None if unset.
+
+    Raises URLError when the registry answers without a usable manifest or config.
+    """
+    manifest = _registry_json(registry_host, repo, f"manifests/{version}", MANIFEST_ACCEPT, timeout)
+    blob = _config_blob_path(registry_host, repo, manifest, version)
+    config = _registry_json(registry_host, repo, blob, HELM_CHART_CONFIG_ACCEPT, timeout)
+    app_version = get_path(config, "appVersion")
+    return None if app_version is None else str(app_version)
 
 
 HISTORICAL_DIGEST_RE_TMPL = r'tag:\s*"?{version}@sha256:([0-9a-f]{{64}})'
@@ -305,16 +328,15 @@ def list_tags(registry_host: str, repo: str):
     return [tag for tag in tags if isinstance(tag, str)]
 
 
-NUMERIC_PREFIX_RE = re.compile(r"^(\d+(?:\.\d+)*)")
+def _split_tag(tag: str) -> tuple[str, str | None, str]:
+    """("v", "3.14", "-slim") for "v3.14-slim": an optional "v", the leading dotted-digits
+    run and everything after. ("", None, tag) if it doesn't start with a digit after the "v".
 
-
-def _numeric_prefix_and_suffix(tag: str):
-    """("3.14", "-slim") for "3.14-slim" — the leading dotted-digits run and
-    everything after. (None, tag) if it doesn't start with a digit."""
+    The "v" is part of the variant: "v1.2" and "1.2" are different tag series."""
     m = NUMERIC_PREFIX_RE.match(tag)
     if not m:
-        return None, tag
-    return m.group(1), tag[m.end() :]
+        return "", None, tag
+    return m.group(1), m.group(2), tag[m.end() :]
 
 
 def _is_more_specific_tag(candidate: str, version: str):
@@ -322,9 +344,9 @@ def _is_more_specific_tag(candidate: str, version: str):
 
     Not a string-prefix check: the numeric parts must match as whole dot components
     ("3.13" never refines "3.14"), and candidate's suffix must equal or extend version's."""
-    cand_num, cand_suffix = _numeric_prefix_and_suffix(candidate)
-    ver_num, ver_suffix = _numeric_prefix_and_suffix(version)
-    if cand_num is None or ver_num is None:
+    cand_v, cand_num, cand_suffix = _split_tag(candidate)
+    ver_v, ver_num, ver_suffix = _split_tag(version)
+    if cand_num is None or ver_num is None or cand_v != ver_v:
         return False
     cand_parts, ver_parts = cand_num.split("."), ver_num.split(".")
     if cand_parts[: len(ver_parts)] != ver_parts:
@@ -332,26 +354,24 @@ def _is_more_specific_tag(candidate: str, version: str):
     return cand_suffix == ver_suffix or cand_suffix.startswith(ver_suffix)
 
 
-def find_newest_same_variant_tag(registry_host: str, repo: str, version: str) -> str:
-    """The numerically highest published tag with version's suffix, else version itself.
+def find_newer_same_variant_tags(registry_host: str, repo: str, version: str) -> list[str]:
+    """The highest published tag with version's "v" and suffix above version, one per major
+    (see newest_per_major); [] if none or version isn't numeric.
 
     Unlike _is_more_specific_tag, any newer same-variant release counts. Candidates must
     have as many dot components as version: frank-gateway publishes bare CI run-ID tags
     ("12294937630"), and (12294937630,) > (1, 1, 0) in tuple comparison."""
-    ver_num, ver_suffix = _numeric_prefix_and_suffix(version)
+    ver_v, ver_num, ver_suffix = _split_tag(version)
     if ver_num is None:
-        return version
+        return []
 
-    ver_parts = ver_num.split(".")
-    best, best_key = version, dotted_numbers(ver_num)
+    arity = len(ver_num.split("."))
+    candidates: list[tuple[str, tuple[int, ...]]] = []
     for tag in list_tags(registry_host, repo):
-        num, suffix = _numeric_prefix_and_suffix(tag)
-        if num is None or suffix != ver_suffix or len(num.split(".")) != len(ver_parts):
-            continue
-        key = dotted_numbers(num)
-        if key > best_key:
-            best, best_key = tag, key
-    return best
+        v, num, suffix = _split_tag(tag)
+        if num is not None and (v, suffix) == (ver_v, ver_suffix) and len(num.split(".")) == arity:
+            candidates.append((tag, dotted_numbers(num)))
+    return newest_per_major(dotted_numbers(ver_num), candidates)
 
 
 def find_more_specific_tag_at_same_digest(registry_host: str, repo: str, version: str, live_digest: str):

@@ -39,14 +39,12 @@ jobs:
           OPENKLANT_IMAGE_TAG_LATEST=$(git show -q HEAD:charts/podiumd/values.yaml | yq -r .openklant.image.tag)
           OPENNOTIFICATIES_IMAGE_TAG_LATEST=$(git show -q HEAD:charts/podiumd/values.yaml | yq -r .opennotificaties.image.tag)
           OBJECTEN_IMAGE_TAG_LATEST=$(git show -q HEAD:charts/podiumd/values.yaml | yq -r .objecten.image.tag)
-          OBJECTTYPEN_IMAGE_TAG_LATEST=$(git show -q HEAD:charts/podiumd/values.yaml | yq -r .objecttypen.image.tag)
           OPENINWONER_IMAGE_TAG_LATEST=$(git show -q HEAD:charts/podiumd/values.yaml | yq -r .openinwoner.image.tag)
           echo "OPENFORMS_IMAGE_TAG_LATEST=$OPENFORMS_IMAGE_TAG_LATEST" >> $GITHUB_ENV
           echo "OPENZAAK_IMAGE_TAG_LATEST=$OPENZAAK_IMAGE_TAG_LATEST" >> $GITHUB_ENV
           echo "OPENKLANT_IMAGE_TAG_LATEST=$OPENKLANT_IMAGE_TAG_LATEST" >> $GITHUB_ENV
           echo "OPENNOTIFICATIES_IMAGE_TAG_LATEST=$OPENNOTIFICATIES_IMAGE_TAG_LATEST" >> $GITHUB_ENV
           echo "OBJECTEN_IMAGE_TAG_LATEST=$OBJECTEN_IMAGE_TAG_LATEST" >> $GITHUB_ENV
-          echo "OBJECTTYPEN_IMAGE_TAG_LATEST=$OBJECTTYPEN_IMAGE_TAG_LATEST" >> $GITHUB_ENV
           echo "OPENINWONER_IMAGE_TAG_LATEST=$OPENINWONER_IMAGE_TAG_LATEST" >> $GITHUB_ENV
 
       - name: Fetch changelog of Open Formulieren
@@ -89,25 +87,19 @@ jobs:
           echo "$OPENNOTIFICATIES_CHANGELOG" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-      - name: Fetch changelogs of Objecten
+      - name: Fetch changelogs of Objecten (Open Object)
         id: fetch_changelogs_objecten
         run: |
-           OBJECTEN_CHANGELOG=$(curl -s https://raw.githubusercontent.com/maykinmedia/objects-api/refs/heads/stable/2.4.x/CHANGELOG.rst | awk "/^${OBJECTEN_IMAGE_TAG_LATEST}/ {flag=1} /^[0-9]+\\.[0-9]+\\.[0-9]+/  && !/^${OBJECTEN_IMAGE_TAG_LATEST}/ {flag=0} flag")
+           # Since the objecten/objecttypen merge, .objecten.image.tag tracks maykinmedia/open-object
+           # (the merged Objects+Objecttypes API), not the old objects-api/objecttypes-api repos —
+           # see charts/podiumd/docs/apps/objecten/openobject-migration.md. There is no longer a separate
+           # Objecttypen changelog fetch; that step is removed.
+           OBJECTEN_CHANGELOG=$(curl -s https://raw.githubusercontent.com/maykinmedia/open-object/refs/heads/main/CHANGELOG.rst | awk "/^${OBJECTEN_IMAGE_TAG_LATEST}/ {flag=1} /^[0-9]+\\.[0-9]+\\.[0-9]+/  && !/^${OBJECTEN_IMAGE_TAG_LATEST}/ {flag=0} flag")
            echo "$OBJECTEN_CHANGELOG"
            echo "OBJECTEN_CHANGELOG<<EOF" >> $GITHUB_ENV
-           echo "## Objecten" >> $GITHUB_ENV
+           echo "## Objecten (Open Object)" >> $GITHUB_ENV
            echo "$OBJECTEN_CHANGELOG" >> $GITHUB_ENV
            echo "EOF" >> $GITHUB_ENV
-
-      - name: Fetch changelogs of Objecttypen
-        id: fetch_changelogs_objecttypen
-        run: |
-          OBJECTTYPEN_CHANGELOG=$(curl -s https://raw.githubusercontent.com/maykinmedia/objecttypes-api/refs/heads/master/CHANGELOG.rst | awk "/^${OBJECTTYPEN_IMAGE_TAG_LATEST}/ {flag=1} /^[0-9]+\\.[0-9]+\\.[0-9]+/  && !/^${OBJECTTYPEN_IMAGE_TAG_LATEST}/ {flag=0} flag")
-          echo "$OBJECTTYPEN_CHANGELOG"
-          echo "OBJECTTYPEN_CHANGELOG<<EOF" >> $GITHUB_ENV
-          echo "## Objecttypen" >> $GITHUB_ENV
-          echo "$OBJECTTYPEN_CHANGELOG" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
 
       - name: Fetch changelogs of Open Inwoner
         id: fetch_changelogs_openinwoner
@@ -153,7 +145,6 @@ jobs:
             ${{ env.OPENKLANT_CHANGELOG }}
             ${{ env.OPENNOTIFICATIES_CHANGELOG }}
             ${{ env.OBJECTEN_CHANGELOG }}
-            ${{ env.OBJECTTYPEN_CHANGELOG }}
             ${{ env.OPENINWONER_CHANGELOG }}
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"

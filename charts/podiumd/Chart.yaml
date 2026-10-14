@@ -2,8 +2,8 @@ apiVersion: v2
 name: podiumd
 description: PodiumD Helm chart
 type: application
-version: 4.9.4
-appVersion: "4.9.4"
+version: 4.10.0
+appVersion: "4.10.0"
 dependencies:
   - name: keycloak-operator
     version: 1.13.0
@@ -31,14 +31,11 @@ dependencies:
     version: 2.0.0
     repository: "@maykinmedia"
     condition: opennotificaties.enabled
-  - name: objecten
-    version: 2.12.1
+  - name: openobject
+    version: 1.1.1
     repository: "@maykinmedia"
     condition: objecten.enabled
-  - name: objecttypen
-    version: 1.6.1
-    repository: "@maykinmedia"
-    condition: objecttypen.enabled
+    alias: objecten
   - name: openarchiefbeheer
     version: 2.0.0
     repository: "@maykinmedia"
@@ -49,7 +46,7 @@ dependencies:
     condition: openklant.enabled
   - name: openforms
     alias: openformulieren
-    version: 1.12.0
+    version: 1.13.0
     repository: "@maykinmedia"
     condition: openformulieren.enabled
   - name: openinwoner
@@ -67,7 +64,7 @@ dependencies:
     condition: openbeheer.enabled
   - name: zaakafhandelcomponent
     alias: zac
-    version: 1.0.297 # ZAC 5.4.5 helm release
+    version: 1.0.347 # ZAC 5.10.0 helm release
     repository: "@zac"
     condition: zac.enabled
     tags:
@@ -80,7 +77,7 @@ dependencies:
       - zaak
   - name: zgw-office-addin
     repository: "@zgw-office-addin"
-    version: 0.0.89
+    version: 0.0.93
     condition: zgw-office-addin.enabled
   - name: internetaakafhandeling
     alias: ita
@@ -95,7 +92,7 @@ dependencies:
   - name: pabc
     alias: pabc
     repository: "oci://ghcr.io/platform-autorisatie-beheer-component"
-    version: 1.1.1
+    version: 2.1.0
     condition: pabc.enabled
   - name: notifynl-omc-nodep
     alias: omc

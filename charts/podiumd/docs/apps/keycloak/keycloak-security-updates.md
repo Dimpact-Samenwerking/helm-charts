@@ -475,7 +475,7 @@ The podiumd realm exclusively serves beheer (management) users and municipality 
 - **Current implementation:** Each Keycloak client now has an individual `pkceEnabled` switch in `values.yaml` (default: `false`). Setting it to `true` adds `pkceCodeChallengeMethod: S256` to the client in the realm ConfigMap.
 - **Enabling PKCE per component requires two aligned steps:**
   1. Set `<component>.configuration.pkceEnabled: true` (or `<component>.settings.oidc.pkceEnabled: true` for KISS/PABC/ZAC/ITA) in your env values file — this configures the Keycloak client.
-  2. For Django apps: add `oidc_use_pkce: true` to the `oidc_db_config_admin_auth.items` entry in `configuration.data` — this tells the application to send `code_challenge` with each authorization request. Requires `mozilla_django_oidc >= 4.0.0`. Note: the upstream Maykin Media Helm charts (openzaak, openklant, openformulieren, openinwoner, opennotificaties, objecten, objecttypen) do **not** expose `oidc_use_pkce` as a chart value — `configuration.data` is the correct and only mechanism.
+  2. For Django apps: add `oidc_use_pkce: true` to the `oidc_db_config_admin_auth.items` entry in `configuration.data` — this tells the application to send `code_challenge` with each authorization request. Requires `mozilla_django_oidc >= 4.0.0`. Note: the upstream Maykin Media Helm charts (openzaak, openklant, openformulieren, openinwoner, opennotificaties, objecten [merged with the former objecttypen]) do **not** expose `oidc_use_pkce` as a chart value — `configuration.data` is the correct and only mechanism.
 - **openarchiefbeheer exception:** openarchiefbeheer v1.1.1 does not yet support OIDC; the `pkceEnabled` switch is reserved for future use once OIDC is added.
 - **ZAC exception:** ZAC does not currently support PKCE; the `pkceEnabled` switch is reserved for future use.
 - **Non-Django apps (KISS, ITA, PABC):** These are frontend/ASP.NET Core apps. Their upstream charts do **not** expose an app-side PKCE toggle — there is no equivalent of `oidc_use_pkce`. Whether PKCE works transparently depends entirely on the OIDC client library version used by the application:
@@ -503,21 +503,20 @@ The podiumd realm exclusively serves beheer (management) users and municipality 
 | Setting | Current value | Keycloak default | Status |
 |---------|--------------|-----------------|--------|
 | `defaultOptionalClientScopes` | `[address, phone, microprofile-jwt]` | `[address, phone, offline_access, microprofile-jwt]` | ✅ Configured (`offline_access` removed) |
-| `<every client>.optionalClientScopes` | `[address, phone, microprofile-jwt]` | inherited realm default | ✅ Configured (`offline_access` removed) |
 
-**`offline_access` removed from realm defaults and from every client** ← changed from Keycloak's built-in default
+**`offline_access` removed from the realm defaults** ← changed from Keycloak's built-in default
 
 - **Standard:** RFC 9700 (OAuth 2.0 Security BCP) — grant only the scopes a client actually needs; BIO 2.0 / ISO 27002:2022 maatregel **8.5**; **OWASP ASVS 4.0 V1.2.1** (economy of privilege)
-- **Why:** `offline_access` lets a client obtain a refresh token that keeps working after the user's browser session ends, bounded only by the offline-session lifespan/idle-timeout above rather than by an active login. Every client in this realm is either a browser-redirect app for internal beheer users or a service account — none legitimately needs a refresh token that outlives the user's session or the service account's own client-credentials flow. `defaultOptionalClientScopes` stops new clients from getting the scope; the same list is referenced as `optionalClientScopes: *defaultOptionalClientScopes` (a YAML anchor/alias, resolved by keycloak-config-cli's YAML parser) on every existing client (`account-console`, `account`, `admin-cli`, and each application client) to strip it from clients that already had it via Keycloak's built-in realm default.
-- **Implementation:** `keycloak-podiumd-realm-config.yaml` → realm-level `defaultOptionalClientScopes: &defaultOptionalClientScopes`; `optionalClientScopes: *defaultOptionalClientScopes` on every entry under `clients`
-- **Client-side impact — a client must not ask for the scope either.** keycloak-config-cli
-  applies `optionalClientScopes` to clients that already exist, so an upgrade
-  *removes* `offline_access` from clients that had it. Keycloak then rejects any
+- **Why:** `offline_access` lets a client obtain a refresh token that keeps working after the user's browser session ends, bounded only by the offline-session lifespan/idle-timeout above rather than by an active login. Every client in this realm is either a browser-redirect app for internal beheer users or a service account — none legitimately needs a refresh token that outlives the user's session or the service account's own client-credentials flow. `defaultOptionalClientScopes` stops clients the realm import creates from getting the scope. 4.9.1–4.9.4 also listed it as `optionalClientScopes` on every client, which stripped `offline_access` from existing clients. Since 4.10.0 client entries list no scopes, because environments and Keycloak updates add scopes to clients (for example `bsn` and `eherkenning` for DigiD/eHerkenning). Since 4.10.0 the `keycloak-repair-client-scopes` Job removes `offline_access` from every client on every deploy.
+- **Implementation:** `keycloak-podiumd-realm-config.yaml` → realm-level `defaultOptionalClientScopes`; `keycloak-repair-client-scopes-job.yaml` for existing clients
+- **Client-side impact — a client must not ask for the scope either.** On 4.9.1–4.9.4
+  keycloak-config-cli applied `optionalClientScopes` to clients that already
+  existed, so that upgrade *removed* `offline_access` from clients that had it. Keycloak then rejects any
   authorization request that still asks for it with `invalid_scope` — it does not
   silently drop the scope. In 4.9.1 this locked every user out of Grafana, whose
   values in the sibling `monitoring-logging` chart still listed
   `offline_access` ([IN-2882](https://dimpact.atlassian.net/browse/IN-2882),
-  fixed in monitoring-logging 1.0.18). **Before adding a scope to this list, check
+  fixed in monitoring-logging 1.0.18). **Before adding a scope to the realm defaults, check
   what the clients actually request** — `monitoring` (Grafana) is configured in
   `charts/monitoring-logging/values.yaml`, not here. A client that needs a
   refresh token across page loads does not need `offline_access` for it: the

@@ -32,7 +32,6 @@ PDBs prevent all pods of a workload from being evicted simultaneously during nod
 | openinwoner | `minAvailable: 1` |
 | opennotificaties | `minAvailable: 1` |
 | objecten | `minAvailable: 1` |
-| objecttypen | `minAvailable: 1` |
 | keycloak | `minAvailable: 1` |
 | contact-web (KISS) | `minAvailable: 1` |
 
@@ -125,6 +124,10 @@ Default replicas: **2** (web), **1** (worker, beat), **1** (RabbitMQ)
 
 ## Objecten
 
+Deployed via the `openobject` chart (aliased to `objecten`), merging the former
+separate Objecten + Objecttypen deployments into one — see
+`docs/apps/objecten/objecten-BASICS.md` / `docs/apps/objecten/openobject-migration.md`.
+
 Default replicas: **2** (web), **1** (worker)
 
 | Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
@@ -133,18 +136,6 @@ Default replicas: **2** (web), **1** (worker)
 | objecten-worker | 50m | 192Mi | — | — |
 
 **PDB**: Add `minAvailable: 1` for the web deployment.
-
----
-
-## Objecttypen
-
-Default replicas: **2**
-
-| Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
-|-----------|-------------|-------------|-----------|-----------|
-| objecttypen | 10m | 160Mi | — | — |
-
-**PDB**: Add `minAvailable: 1`.
 
 ---
 
@@ -271,7 +262,7 @@ Default replicas: **1** (all components)
 
 | Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
 |-----------|-------------|-------------|-----------|-----------|
-| zac | 100m | 1Gi | — | — |
+| zac | 100m | 2Gi | — | 2Gi |
 | opa (sidecar) | 10m | 20Mi | — | — |
 | init-solr-zac-core (init) | 50m | 256Mi | — | — |
 | nginx | 50m | 64Mi | — | — |
@@ -280,7 +271,7 @@ Default replicas: **1** (all components)
 
 *signaleren (CronJob) has no resource settings — needs settings.* Suggested: `100m / 256Mi`.
 
-> ⚠️ **Increase for production**: ZAC is a Quarkus JVM application. Under production load with many concurrent zaakafhandeling flows, 1Gi may be insufficient. Suggested: `500m / 2Gi` request, no CPU limit. Office converter is CPU-intensive for large DOCX/PDF; consider `500m / 1Gi` on production.
+> ZAC chart 1.0.338 defaults: memory request and limit 2Gi, `ephemeral-storage` request and limit 4Gi; the heap is 75% of the memory limit. Raise the limit, not `-Xmx`, for more heap. Suggested for production: `500m` CPU request, no CPU limit. Office converter is CPU-intensive for large DOCX/PDF; consider `500m / 1Gi` on production.
 
 ### ZAC — Solr (Operator managed)
 

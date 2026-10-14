@@ -15,7 +15,7 @@
 
 This analysis covers **internal cluster communication only** — i.e., pod-to-pod traffic via Kubernetes Service DNS names. Traffic to public URLs (ingress from the internet, egress to government APIs) is noted separately.
 
-All Maykin-family apps (OpenZaak, OpenNotificaties, Objecten, Objecttypen, OpenArchiefBeheer, OpenKlant, OpenFormulieren, OpenInwoner) are assumed to listen on port **8000** (nginx sidecar on **80**). Service DNS names follow `<fullnameOverride>.<namespace>.svc.cluster.local`.
+All Maykin-family apps (OpenZaak, OpenNotificaties, Objecten [merged with the former Objecttypen — see `docs/apps/objecten/openobject-migration.md`], OpenArchiefBeheer, OpenKlant, OpenFormulieren, OpenInwoner) are assumed to listen on port **8000** (nginx sidecar on **80**). Service DNS names follow `<fullnameOverride>.<namespace>.svc.cluster.local`.
 
 ### Ingress-controller → apps (user-facing traffic)
 
@@ -27,7 +27,6 @@ All components with an ingress are reached via the ingress controller. This is a
 | openzaak | 80 |
 | opennotificaties | 80 |
 | objecten | 80 |
-| objecttypen | 80 |
 | openarchiefbeheer | 80 |
 | openklant | 80 |
 | openformulieren | 80 |
@@ -64,7 +63,6 @@ The shared Redis HA instance is used by all Maykin-family apps for Django cache,
 | openzaak | 4 (cache/axes), 5 (celery) | cache, rate limiting, task queue |
 | opennotificaties | 3 (cache/axes), 6 (celery result) | cache, rate limiting, celery |
 | objecten | 1 (cache/axes/oidc), 2 (celery) | cache, OIDC session, task queue |
-| objecttypen | 0 (cache/axes) | cache, rate limiting |
 | openarchiefbeheer | 13 (cache/axes/choices), 14 (celery) | cache, task queue |
 | openklant | 7 (cache/axes), 8 (celery) | cache, task queue |
 | openformulieren | 9 (cache/axes), 10 (celery) | cache, task queue |
@@ -108,16 +106,18 @@ OpenNotificaties uses an internal RabbitMQ subchart for Celery task brokering.
 | openinwoner | openzaak | 80 | zaak status display |
 | create-required-catalogi Job | openzaak | 80 | seed catalogus/zaaktypen data |
 
-#### Objecten / Objecttypen
+#### Objecten (merged with the former Objecttypen)
+
+Objecten and Objecttypen were previously two separate services; since the
+merge (`docs/apps/objecten/openobject-migration.md`) there is one merged `objecten` target for
+all of the traffic below.
 
 | From | To | Port | Reason |
 |------|----|------|--------|
-| kiss-adapter | objecten | 80 | smoelenboek / interne taken objects |
-| kiss-adapter | objecttypen | 80 | objecttype URL resolution (internal) |
-| zac | objecten | 80 | object registration |
+| kiss-adapter | objecten | 80 | smoelenboek / interne taken objects, objecttype URL resolution |
+| zac | objecten | 80 | object registration, objecttype resolution |
 | ita | objecten | 80 | log/afdeling/groep objects |
-| create-required-objecttypen Job | objecttypen | 80 | seed objecttype data |
-| create-required-objecttypen Job | objecten | 80 | seed object data |
+| create-required-objecttypen Job | objecten | 80 | seed object + objecttype data |
 
 #### OpenKlant (klantinteracties API)
 
@@ -149,8 +149,7 @@ KISS Adapter is the internal backend that mediates between the KISS frontend and
 |------|----|------|--------|
 | kiss (frontend) | kiss-adapter | 80 | all ZGW proxy requests from KISS UI |
 | kiss-adapter | openzaak | 80 | zaak/ztc/drc APIs |
-| kiss-adapter | objecten | 80 | smoelenboek objects |
-| kiss-adapter | objecttypen | 80 | objecttype URLs |
+| kiss-adapter | objecten | 80 | smoelenboek objects, objecttype URLs (merged) |
 | kiss-adapter | openklant | 80 | klantinteracties API |
 
 #### ZAC
@@ -160,8 +159,7 @@ ZAC communicates with most ZGW components and with the API proxy for government 
 | From | To | Port | Reason |
 |------|----|------|--------|
 | zac | openzaak | 80 | zaak/ztc/drc APIs |
-| zac | objecten | 80 | object registration |
-| zac | objecttypen | 80 | objecttype resolution |
+| zac | objecten | 80 | object registration, objecttype resolution (merged) |
 | zac | openklant | 80 | klantinteracties |
 | zac | opennotificaties | 80 | notification subscriptions |
 | zac | api-proxy | 80 | BAG, BRP, KVK lookups |

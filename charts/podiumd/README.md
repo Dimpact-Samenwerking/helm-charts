@@ -1,6 +1,6 @@
 # podiumd
 
-![Version: 4.9.4](https://img.shields.io/badge/Version-4.9.4-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 4.9.4](https://img.shields.io/badge/AppVersion-4.9.4-informational?style=flat-square)
+![Version: 4.10.0](https://img.shields.io/badge/Version-4.10.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 4.10.0](https://img.shields.io/badge/AppVersion-4.10.0-informational?style=flat-square)
 
 PodiumD Helm chart
 
@@ -10,21 +10,20 @@ PodiumD Helm chart
 |------------|------|---------|
 | @adfinis | keycloak-operator | 1.13.0 |
 | @dimpact | brppersonenmock(brp-personen-mock) | 1.2.9 |
-| @maykinmedia | objecten | 2.12.1 |
-| @maykinmedia | objecttypen | 1.6.1 |
 | @maykinmedia | openarchiefbeheer | 2.0.0 |
 | @maykinmedia | openbeheer | 0.1.3 |
-| @maykinmedia | openformulieren(openforms) | 1.12.0 |
+| @maykinmedia | openformulieren(openforms) | 1.13.0 |
 | @maykinmedia | openinwoner | 2.4.0 |
 | @maykinmedia | openklant | 1.11.0 |
 | @maykinmedia | opennotificaties | 2.0.0 |
+| @maykinmedia | objecten(openobject) | 1.1.1 |
 | @maykinmedia | openzaak | 1.14.2 |
 | @maykinmedia | referentielijsten(referentielijsten) | 0.2.0 |
 | @opstree | redis-operator | 0.26.1 |
 | @wiremind | clamav | 3.7.2 |
 | @worth-nl | omc(notifynl-omc-nodep) | 0.14.1 |
-| @zac | zac(zaakafhandelcomponent) | 1.0.297 |
-| @zgw-office-addin | zgw-office-addin | 0.0.89 |
+| @zac | zac(zaakafhandelcomponent) | 1.0.347 |
+| @zgw-office-addin | zgw-office-addin | 0.0.93 |
 | file://../mi-data | mi(mi-data) | 1.1.0 |
 | https://helm.elastic.co | eck-operator | 3.5.0 |
 | https://helm.elastic.co | kiss-eck(eck-stack) | 0.20.0 |
@@ -32,7 +31,7 @@ PodiumD Helm chart
 | https://wearefrank.github.io/charts | zaakbrug | 2.3.32 |
 | oci://ghcr.io/interne-taak-afhandeling | ita(internetaakafhandeling) | 3.3.4 |
 | oci://ghcr.io/klantinteractie-servicesysteem | kiss(kiss-chart) | 3.1.3 |
-| oci://ghcr.io/platform-autorisatie-beheer-component | pabc(pabc) | 1.1.1 |
+| oci://ghcr.io/platform-autorisatie-beheer-component | pabc(pabc) | 2.1.0 |
 
 ## Values
 
@@ -116,7 +115,7 @@ PodiumD Helm chart
 | eck-operator.image.digest | string | `"sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314"` |  |
 | eck-operator.image.tag | string | `"3.5.0"` |  |
 | eck-operator.installCRDs | bool | `true` | the chart installs and upgrades the 12 *.k8s.elastic.co CRDs, in lock-step with the operator version. The CRDs carry helm.sh/resource-policy: keep, so `helm uninstall` never removes them (the Elastic CRs and their data survive). Requires cluster-scope RBAC on the deploying identity. Clusters whose CRDs predate helm ownership (kisselastic era / manual apply) need a one-time adoption: deploy with `--take-ownership` (helm >= 3.17) or annotate the CRDs once — see docs/apps/elastic/migrating-to-eck-stack.md section 4b. Installers without cluster-scope RBAC: set false and apply the CRDs manually (same doc). override: values-enable-observability.yaml sets config.metricsPort and enables podMonitor |
-| eck-operator.managedNamespaces[0] | string | `"podiumd"` |  |
+| eck-operator.managedNamespaces | list | `["podiumd"]` | Namespaces the ECK operator manages. This MUST equal the namespace the chart is deployed into. Because Helm does not template values.yaml, `.Release.Namespace` cannot be referenced here; the default assumes deployment to `podiumd`. When deploying to a different namespace, override this (e.g. `--set eck-operator.managedNamespaces={<namespace>}` or via ci/values-namespace-scope.example.yaml). Setting it empty makes ECK watch ALL namespaces, which requires cluster-scoped RBAC and is intentionally avoided (createClusterScopedResources: false). See docs/misc/deploying-to-a-custom-namespace.md. |
 | eck-operator.podMonitor.enabled | bool | `false` |  |
 | eck-operator.webhook.enabled | bool | `false` |  |
 | frankgateway.accessLog.jsonFormat | bool | `false` |  |
@@ -254,7 +253,7 @@ PodiumD Helm chart
 | global.images.postgres.repository | string | `"library/postgres"` |  |
 | global.images.postgres.tag | string | `"16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea"` |  |
 | global.settings.databaseHost | string | `""` |  |
-| ita.afdeling.type | string | `"https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_AFDELING_UUID_REP"` |  |
+| ita.afdeling.type | string | `"https://ontw-objecten.example.nl/api/v2/objecttypes/REP_CONTACT_AFDELING_UUID_REP"` |  |
 | ita.afdeling.typeVersion | int | `1` |  |
 | ita.afdeling.uuid | string | `"REP_CONTACT_AFDELING_UUID_REP"` |  |
 | ita.affinity | object | `{}` |  |
@@ -272,15 +271,15 @@ PodiumD Helm chart
 | ita.database.username | string | `"ita"` |  |
 | ita.enabled | bool | `true` |  |
 | ita.fullnameOverride | string | `"ita"` |  |
-| ita.groep.type | string | `"https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_GROEP_UUID_REP"` |  |
+| ita.groep.type | string | `"https://ontw-objecten.example.nl/api/v2/objecttypes/REP_CONTACT_GROEP_UUID_REP"` |  |
 | ita.groep.typeVersion | int | `1` |  |
 | ita.groep.uuid | string | `"REP_CONTACT_GROEP_UUID_REP"` |  |
 | ita.imagePullSecrets | list | `[]` |  |
 | ita.ingress.enabled | bool | `false` |  |
 | ita.ita.baseUrl | string | `"https://ita.example.nl"` |  |
-| ita.logboek.type | string | `"https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_ITA_ACTIVITEITENLOG_UUID_REP"` |  |
+| ita.logboek.type | string | `"https://ontw-objecten.example.nl/api/v2/objecttypes/REP_ITA_ACTIVITEITENLOG_UUID_REP"` |  |
 | ita.logboek.typeVersion | int | `1` |  |
-| ita.medewerker.type | string | `"https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_MEDEWERKER_UUID_REP"` |  |
+| ita.medewerker.type | string | `"https://ontw-objecten.example.nl/api/v2/objecttypes/REP_CONTACT_MEDEWERKER_UUID_REP"` |  |
 | ita.medewerker.typeVersion | int | `1` |  |
 | ita.medewerker.uuid | string | `"REP_CONTACT_MEDEWERKER_UUID_REP"` |  |
 | ita.nameOverride | string | `""` |  |
@@ -335,6 +334,8 @@ PodiumD Helm chart
 | keycloak-operator.jobs.importMasterRealm.enabled | bool | `true` |  |
 | keycloak-operator.jobs.importPodiumdRealm.enabled | bool | `true` |  |
 | keycloak-operator.jobs.keycloakUrl | string | `""` | Keycloak URL used by the realm-import jobs (keycloak-config-cli). Empty = in-cluster service (http://keycloak-service:8080). Set only when the jobs must reach Keycloak via another URL; note the public admin host can sit behind a gateway IP-allowlist that blocks cluster egress (403). |
+| keycloak-operator.jobs.repairClientScopes.enabled | bool | `true` | Run the keycloak-repair-client-scopes Job on every deploy; see docs/apps/keycloak/keycloak-default-client-scopes.md. |
+| keycloak-operator.jobs.repairClientScopes.resources | object | `{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources for the kcadm.sh (JVM) container of that Job. |
 | keycloak-operator.jobs.resources | object | `{"limits":{"cpu":"200m","memory":"128Mi"},"requests":{"cpu":"50m","memory":"64Mi"}}` | Resources applied to lightweight keycloak job containers (curl, python, psql): ensure-operator-sa, ensure-podiumd-admin-user. |
 | keycloak-operator.operator.config.keycloakImage.repository | string | `"quay.io/keycloak/keycloak"` |  |
 | keycloak-operator.operator.config.keycloakImage.sha | string | `"ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54"` |  |
@@ -478,8 +479,8 @@ PodiumD Helm chart
 | kiss-eck.eck-elasticsearch.fullnameOverride | string | `"kiss"` |  |
 | kiss-eck.eck-elasticsearch.nodeSets | list | `[{"config":{"node.roles":["data","ingest","master"],"node.store.allow_mmap":false},"count":3,"name":"default","podTemplate":{"spec":{"nodeSelector":{}}}}]` | default sizing, kept equal to the previous release (kiss-elastic used elasticsearchCount: 3). Environments can override nodeSets (e.g. nodeSelector, count, storage), the same way openinwoner.eck-elasticsearch.nodeSets is set. Note: volumeClaimTemplates is immutable — during a migration keep it equal to the existing PVCs; changing the size needs a manual recreate (see docs/apps/elastic/migrating-to-eck-stack.md). |
 | kiss-eck.eck-elasticsearch.version | string | `"8.19.19"` |  |
-| kiss-eck.eck-enterprise-search | object | `{"config":{"app_search.engine.total_fields.limit":1000,"connector.crawler.crawl.threads.limit":1,"connector.crawler.http.user_agent":"PodiumD-Contact-Elastic-Crawler","connector.crawler.workers.pool_size.limit":1,"kibana.host":"https://kiss-kb-http.podiumd.svc.cluster.local:5601"},"count":1,"elasticsearchRef":{"name":"kiss"},"enabled":false,"fullnameOverride":"kiss","podTemplate":{"spec":{"nodeSelector":{}}},"version":"8.19.19"}` | Uit sinds KISS 3.0.0. KISS bevraagt de Elasticsearch-indices rechtstreeks en crawlt met de Elastic Open Crawler, dus Enterprise Search wordt nergens meer voor gebruikt. De connector.crawler-instellingen hieronder waren voor de oude crawler; die zitten nu per site onder kiss.settings.syncJobs.website. Relevance- en precision-tuning gebeurde in Kibana en werd in Enterprise Search opgeslagen; dat had al geen effect meer, KISS 3.0.0 gebruikt vast precision 6. Aanzetten kan nog, maar levert alleen een ongebruikte pod op. |
-| kiss-eck.eck-kibana.config."server.publicBaseUrl" | string | `"https://kiss-kb-http.podiumd.svc.cluster.local:5601"` |  |
+| kiss-eck.eck-enterprise-search | object | `{"config":{"app_search.engine.total_fields.limit":1000,"connector.crawler.crawl.threads.limit":1,"connector.crawler.http.user_agent":"PodiumD-Contact-Elastic-Crawler","connector.crawler.workers.pool_size.limit":1,"kibana.host":"https://kiss-kb-http:5601"},"count":1,"elasticsearchRef":{"name":"kiss"},"enabled":false,"fullnameOverride":"kiss","podTemplate":{"spec":{"nodeSelector":{}}},"version":"8.19.19"}` | Uit sinds KISS 3.0.0. KISS bevraagt de Elasticsearch-indices rechtstreeks en crawlt met de Elastic Open Crawler, dus Enterprise Search wordt nergens meer voor gebruikt. De connector.crawler-instellingen hieronder waren voor de oude crawler; die zitten nu per site onder kiss.settings.syncJobs.website. Relevance- en precision-tuning gebeurde in Kibana en werd in Enterprise Search opgeslagen; dat had al geen effect meer, KISS 3.0.0 gebruikt vast precision 6. Aanzetten kan nog, maar levert alleen een ongebruikte pod op. |
+| kiss-eck.eck-kibana.config."server.publicBaseUrl" | string | `"https://kiss-kb-http:5601"` |  |
 | kiss-eck.eck-kibana.elasticsearchRef.name | string | `"kiss"` |  |
 | kiss-eck.eck-kibana.enabled | bool | `true` |  |
 | kiss-eck.eck-kibana.fullnameOverride | string | `"kiss"` |  |
@@ -499,17 +500,16 @@ PodiumD Helm chart
 | kiss.adapter.image.pullPolicy | string | `"IfNotPresent"` |  |
 | kiss.adapter.image.repository | string | `"ghcr.io/icatt-menselijk-digitaal/podiumd-adapter"` |  |
 | kiss.adapter.image.tag | string | `"0.6.7@sha256:089d07a6efdfcab07b61b1a75b4d26c14099cc9b206a56419e36ef6f28a26a68"` |  |
+| kiss.adapter.objecten.afdelingUUID | string | `""` |  |
 | kiss.adapter.objecten.baseUrl | string | `""` |  |
+| kiss.adapter.objecten.baseUrlExtern | string | `""` |  |
+| kiss.adapter.objecten.baseUrlIntern | string | `""` |  |
+| kiss.adapter.objecten.groepUUID | string | `""` |  |
+| kiss.adapter.objecten.interneTaakUUID | string | `""` |  |
+| kiss.adapter.objecten.kennisartikelUUID | string | `""` |  |
+| kiss.adapter.objecten.medewerkerUUID | string | `""` |  |
 | kiss.adapter.objecten.token | string | `""` |  |
-| kiss.adapter.objecttypen.afdelingUUID | string | `""` |  |
-| kiss.adapter.objecttypen.baseUrlExtern | string | `""` |  |
-| kiss.adapter.objecttypen.baseUrlIntern | string | `""` |  |
-| kiss.adapter.objecttypen.groepUUID | string | `""` |  |
-| kiss.adapter.objecttypen.interneTaakUUID | string | `""` |  |
-| kiss.adapter.objecttypen.kennisartikelUUID | string | `""` |  |
-| kiss.adapter.objecttypen.medewerkerUUID | string | `""` |  |
-| kiss.adapter.objecttypen.token | string | `""` |  |
-| kiss.adapter.objecttypen.vacUUID | string | `""` |  |
+| kiss.adapter.objecten.vacUUID | string | `""` |  |
 | kiss.adapter.resources.limits.cpu | string | `"200m"` |  |
 | kiss.adapter.resources.limits.memory | string | `"256Mi"` |  |
 | kiss.adapter.resources.requests.cpu | string | `"10m"` |  |
@@ -619,71 +619,45 @@ PodiumD Helm chart
 | objecten.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://objecten.example.nl`. |
 | objecten.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
 | objecten.configuration.secrets.keycloak_client_secret | string | `""` |  |
+| objecten.create_required_objecttypen_job.activeDeadlineSeconds | int | `900` |  |
+| objecten.create_required_objecttypen_job.backoffLimit | int | `10` |  |
+| objecten.create_required_objecttypen_job.enabled | bool | `true` |  |
+| objecten.create_required_objecttypen_job.resources.limits.cpu | string | `"200m"` |  |
+| objecten.create_required_objecttypen_job.resources.limits.memory | string | `"128Mi"` |  |
+| objecten.create_required_objecttypen_job.resources.requests.cpu | string | `"50m"` |  |
+| objecten.create_required_objecttypen_job.resources.requests.memory | string | `"64Mi"` |  |
 | objecten.flower.enabled | bool | `false` |  |
 | objecten.fullnameOverride | string | `"objecten"` |  |
-| objecten.image.repository | string | `"maykinmedia/objects-api"` |  |
-| objecten.image.tag | string | `"3.6.2@sha256:6a3a40081016e5072c5355622c0ca3e1ded89228edce7336fc4d8600217344f8"` |  |
+| objecten.image.repository | string | `"maykinmedia/open-object"` |  |
+| objecten.image.tag | string | `"4.1.0@sha256:7738cb8161d221d0a286d39d9d270c35024ff78123c296ceb46f3d9dda7208f9"` |  |
 | objecten.nameOverride | string | `"objecten"` |  |
 | objecten.otel.disabled | bool | `true` |  |
 | objecten.persistence.existingClaim | string | `"objecten"` |  |
+| objecten.persistence.mediaMountSubpath | string | `"objecten/media"` |  |
 | objecten.persistence.size | string | `"10Gi"` |  |
 | objecten.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | objecten.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | objecten.persistentVolume.volumeAttributeShareName | string | `"objecten"` |  |
 | objecten.resources.requests.cpu | string | `"100m"` |  |
 | objecten.resources.requests.memory | string | `"256Mi"` |  |
-| objecten.settings.allowedHosts | string | `"objecten.podiumd.svc.cluster.local"` |  |
-| objecten.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/1"` |  |
-| objecten.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/1"` |  |
-| objecten.settings.cache.oidc | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/1"` |  |
-| objecten.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/2"` |  |
+| objecten.settings.allowedHosts | string | `".svc.cluster.local"` |  |
+| objecten.settings.cache.axes | string | `"redis-ha-master:6379/1"` |  |
+| objecten.settings.cache.default | string | `"redis-ha-master:6379/1"` |  |
+| objecten.settings.cache.oidc | string | `"redis-ha-master:6379/1"` |  |
+| objecten.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/2"` |  |
 | objecten.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
-| objecten.settings.celery.resultBackend | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/2"` |  |
+| objecten.settings.celery.resultBackend | string | `"redis://redis-ha-master:6379/2"` |  |
 | objecten.settings.disable2fa | bool | `false` |  |
 | objecten.settings.email.port | int | `587` |  |
 | objecten.settings.email.useTLS | bool | `true` |  |
+| objecten.settings.otel.disabled | bool | `true` |  |
+| objecten.settings.siteDomain | string | `"objecten.example.nl"` |  |
 | objecten.tags.redis | bool | `false` |  |
 | objecten.worker.livenessProbe.enabled | bool | `true` |  |
 | objecten.worker.maxWorkerLivenessDelta | string | `"300"` |  |
 | objecten.worker.replicaCount | int | `1` |  |
 | objecten.worker.resources.requests.cpu | string | `"50m"` |  |
 | objecten.worker.resources.requests.memory | string | `"192Mi"` |  |
-| objecttypen.configuration.data | string | `""` |  |
-| objecttypen.configuration.enabled | bool | `true` |  |
-| objecttypen.configuration.initContainer.enabled | bool | `false` |  |
-| objecttypen.configuration.job.backoffLimit | int | `6` |  |
-| objecttypen.configuration.job.enabled | bool | `true` |  |
-| objecttypen.configuration.job.resources | object | `{}` |  |
-| objecttypen.configuration.job.restartPolicy | string | `"OnFailure"` |  |
-| objecttypen.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
-| objecttypen.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://objecttypen.example.nl`. |
-| objecttypen.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
-| objecttypen.configuration.secrets.keycloak_client_secret | string | `""` |  |
-| objecttypen.configuration.token | string | `"<token>"` |  |
-| objecttypen.create_required_objecttypen_job.activeDeadlineSeconds | int | `900` |  |
-| objecttypen.create_required_objecttypen_job.backoffLimit | int | `10` |  |
-| objecttypen.create_required_objecttypen_job.enabled | bool | `true` |  |
-| objecttypen.create_required_objecttypen_job.resources.limits.cpu | string | `"200m"` |  |
-| objecttypen.create_required_objecttypen_job.resources.limits.memory | string | `"128Mi"` |  |
-| objecttypen.create_required_objecttypen_job.resources.requests.cpu | string | `"50m"` |  |
-| objecttypen.create_required_objecttypen_job.resources.requests.memory | string | `"64Mi"` |  |
-| objecttypen.fullnameOverride | string | `"objecttypen"` |  |
-| objecttypen.image.repository | string | `"maykinmedia/objecttypes-api"` |  |
-| objecttypen.image.tag | string | `"3.4.2@sha256:d366e6ede1bb924ea351495f4e88ceba53bb0df02fa5302929daef379131fda1"` |  |
-| objecttypen.nameOverride | string | `"objecttypen"` |  |
-| objecttypen.otel.disabled | bool | `true` |  |
-| objecttypen.resources.requests.cpu | string | `"10m"` |  |
-| objecttypen.resources.requests.memory | string | `"160Mi"` |  |
-| objecttypen.settings.allowedHosts | string | `"objecttypen.podiumd.svc.cluster.local"` |  |
-| objecttypen.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/0"` |  |
-| objecttypen.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/0"` |  |
-| objecttypen.settings.disable2fa | bool | `false` |  |
-| objecttypen.settings.email.port | int | `587` |  |
-| objecttypen.settings.email.useTLS | bool | `true` |  |
-| objecttypen.settings.uwsgi.maxRequests | string | `"1000"` |  |
-| objecttypen.settings.uwsgi.processes | string | `"2"` |  |
-| objecttypen.settings.uwsgi.threads | string | `"2"` |  |
-| objecttypen.tags.redis | bool | `false` |  |
 | omc.enabled | bool | `false` |  |
 | omc.fullnameOverride | string | `"omc"` |  |
 | omc.image.tag | string | `"1.17.19"` |  |
@@ -733,13 +707,13 @@ PodiumD Helm chart
 | openarchiefbeheer.resources.limits | object | `{}` |  |
 | openarchiefbeheer.resources.requests.cpu | string | `"250m"` |  |
 | openarchiefbeheer.resources.requests.memory | string | `"256Mi"` |  |
-| openarchiefbeheer.settings.allowedHosts | string | `"openarchiefbeheer.podiumd.svc.cluster.local"` |  |
-| openarchiefbeheer.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/13"` |  |
-| openarchiefbeheer.settings.cache.choices | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/14"` |  |
-| openarchiefbeheer.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/13"` |  |
-| openarchiefbeheer.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/14"` |  |
+| openarchiefbeheer.settings.allowedHosts | string | `".svc.cluster.local"` |  |
+| openarchiefbeheer.settings.cache.axes | string | `"redis-ha-master:6379/13"` |  |
+| openarchiefbeheer.settings.cache.choices | string | `"redis-ha-master:6379/14"` |  |
+| openarchiefbeheer.settings.cache.default | string | `"redis-ha-master:6379/13"` |  |
+| openarchiefbeheer.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/14"` |  |
 | openarchiefbeheer.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
-| openarchiefbeheer.settings.celery.resultBackendl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/14"` |  |
+| openarchiefbeheer.settings.celery.resultBackendl | string | `"redis://redis-ha-master:6379/14"` |  |
 | openarchiefbeheer.settings.environment | string | `""` | Name of the environment (used for displaying purposes) |
 | openarchiefbeheer.settings.frontend | object | `{"apiPath":"/api/v1","apiUrl":"","zaakUrlTemplate":""}` | Controls the log levels of project code and of the OIDC library. Possible values: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL.   level: INFO |
 | openarchiefbeheer.settings.frontendUrl | string | `""` |  |
@@ -868,11 +842,11 @@ PodiumD Helm chart
 | openbeheer.securityContext.readOnlyRootFilesystem | bool | `false` |  |
 | openbeheer.securityContext.runAsNonRoot | bool | `true` |  |
 | openbeheer.securityContext.runAsUser | int | `1000` |  |
-| openbeheer.settings.allowedHosts | string | `"openbeheer-nginx.podiumd.svc.cluster.local"` |  |
+| openbeheer.settings.allowedHosts | string | `".svc.cluster.local"` |  |
 | openbeheer.settings.apiDomain | string | `""` |  |
 | openbeheer.settings.apiPath | string | `"/api/v1"` |  |
-| openbeheer.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/17"` |  |
-| openbeheer.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/17"` |  |
+| openbeheer.settings.cache.axes | string | `"redis-ha-master:6379/17"` |  |
+| openbeheer.settings.cache.default | string | `"redis-ha-master:6379/17"` |  |
 | openbeheer.settings.database.host | string | `""` |  |
 | openbeheer.settings.database.name | string | `""` |  |
 | openbeheer.settings.database.password | string | `""` |  |
@@ -906,14 +880,13 @@ PodiumD Helm chart
 | openbeheer.tags.redis | bool | `false` |  |
 | openformulieren.beat.resources.requests.cpu | string | `"10m"` |  |
 | openformulieren.beat.resources.requests.memory | string | `"160Mi"` |  |
-| openformulieren.clamavConfigJob | object | `{"activeDeadlineSeconds":1200,"backoffLimit":15,"clamavHost":"clamav.podiumd.svc.cluster.local","clamavPort":3310,"clamavTimeout":30,"enabled":false,"resources":{"limits":{"cpu":"200m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"128Mi"}},"ttlSecondsAfterFinished":600}` | Seeds Open Forms' GlobalConfiguration singleton (enable_virus_scan, clamav_host/port/timeout) via `manage.py shell`. Open Forms has no declarative setup-configuration step for this — upstream only exposes it through the admin UI (docs/configuration/general/virus_scan.rst) — so this Job writes the same fields directly, verifying the ClamAV connection first the same way GlobalConfiguration.clean() does. Off by default: opt-in per gemeente. See templates/openformulieren-configure-clamav.yaml and docs/apps/openforms/openforms-BASICS.md. |
+| openformulieren.clamavConfigJob | object | `{"activeDeadlineSeconds":1200,"backoffLimit":15,"clamavHost":"clamav","clamavPort":3310,"clamavTimeout":30,"enabled":false,"resources":{"limits":{"cpu":"200m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"128Mi"}},"ttlSecondsAfterFinished":600}` | Seeds Open Forms' GlobalConfiguration singleton (enable_virus_scan, clamav_host/port/timeout) via `manage.py shell`. Open Forms has no declarative setup-configuration step for this — upstream only exposes it through the admin UI (docs/configuration/general/virus_scan.rst) — so this Job writes the same fields directly, verifying the ClamAV connection first the same way GlobalConfiguration.clean() does. Off by default: opt-in per gemeente. See templates/openformulieren-configure-clamav.yaml and docs/apps/openforms/openforms-BASICS.md. |
 | openformulieren.clamavConfigJob.backoffLimit | int | `15` | Retries generously: on first deploy this Job can race both the openformulieren DB migration (image entrypoint) and ClamAV's own cold-start (up to ~5 minutes to load its signature database, see docs/apps/clamav/clamav-BASICS.md) — it fails fast and lets Kubernetes' Job backoff retry until both are ready, rather than needing a wait container or Helm hook ordering. |
 | openformulieren.configuration.data | string | `""` |  |
 | openformulieren.configuration.enabled | bool | `true` |  |
 | openformulieren.configuration.job.backoffLimit | int | `6` |  |
 | openformulieren.configuration.job.enabled | bool | `true` |  |
 | openformulieren.configuration.job.restartPolicy | string | `"OnFailure"` |  |
-| openformulieren.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
 | openformulieren.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openformulieren.example.nl`. |
 | openformulieren.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
 | openformulieren.configuration.secrets.keycloak_client_secret | string | `""` |  |
@@ -922,7 +895,7 @@ PodiumD Helm chart
 | openformulieren.customerInteractionsConfigJob.serviceIdentifier | string | `"openklant-api"` | zgw_consumers service identifier (Service.slug) of the Open Klant klantinteracties service; must have api_type `kc`. |
 | openformulieren.flower.enabled | bool | `false` |  |
 | openformulieren.fullnameOverride | string | `"openformulieren"` |  |
-| openformulieren.image.tag | string | `"3.5.8@sha256:1050b6dd1554ff6f620390870fbb2056157d792e75b9fe6e965371a2ae84f41a"` |  |
+| openformulieren.image.tag | string | `"4.0.2@sha256:e1cad4bcf2319a3eb106e51156bf69c6be83da9dd070e977f52ec1079455b8e3"` |  |
 | openformulieren.nameOverride | string | `"openformulieren"` |  |
 | openformulieren.nginx.config.clientMaxBodySize | string | `"100M"` |  |
 | openformulieren.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
@@ -939,12 +912,13 @@ PodiumD Helm chart
 | openformulieren.persistentVolume.volumeAttributeShareName | string | `"openformulieren"` |  |
 | openformulieren.resources.requests.cpu | string | `"250m"` |  |
 | openformulieren.resources.requests.memory | string | `"1Gi"` |  |
-| openformulieren.settings.allowedHosts | string | `"openformulieren-nginx.podiumd.svc.cluster.local"` |  |
-| openformulieren.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/9"` |  |
-| openformulieren.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/9"` |  |
-| openformulieren.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/10"` |  |
+| openformulieren.settings.allowedHosts | string | `".svc.cluster.local"` |  |
+| openformulieren.settings.cache.axes | string | `"redis-ha-master:6379/9"` |  |
+| openformulieren.settings.cache.default | string | `"redis-ha-master:6379/9"` |  |
+| openformulieren.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/10"` |  |
 | openformulieren.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
-| openformulieren.settings.celery.resultBackendl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/10"` |  |
+| openformulieren.settings.celery.resultBackend | string | `"redis://redis-ha-master:6379/10"` |  |
+| openformulieren.settings.cookieSamesite | string | `"Lax"` | New in 4.10.0: SameSite for the session, CSRF and language cookies (SESSION_/CSRF_/LANGUAGE_COOKIE_SAMESITE). Unset, Open Forms uses None on HTTPS so the SDK can be embedded on another site. Lax still allows embedding on the gemeente's own domain and the return from DigiD/eHerkenning via OIDC; set None per environment that embeds forms elsewhere or logs in through SAML with an HTTP-POST ACS. |
 | openformulieren.settings.email.port | int | `587` |  |
 | openformulieren.settings.email.useTLS | bool | `true` |  |
 | openformulieren.tags.redis | bool | `false` |  |
@@ -957,7 +931,7 @@ PodiumD Helm chart
 | openinwoner.beat.resources.requests.memory | string | `"128Mi"` |  |
 | openinwoner.celeryMonitor.resources.requests.cpu | string | `"50m"` |  |
 | openinwoner.celeryMonitor.resources.requests.memory | string | `"64Mi"` |  |
-| openinwoner.clamavConfigJob | object | `{"activeDeadlineSeconds":1200,"backoffLimit":15,"clamavHost":"clamav.podiumd.svc.cluster.local","clamavPort":3310,"clamavTimeout":30,"enabled":false,"resources":{"limits":{"cpu":"200m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"128Mi"}},"ttlSecondsAfterFinished":600}` | Seeds Open Inwoner's SiteConfiguration singleton (enable_virus_scan, clamav_host/port/timeout) via `manage.py shell`. Unlike most SiteConfiguration fields, these four are NOT managed by the site_config_enable/site_config: setup-configuration step — upstream's SiteConfigurationStep omits them from both its required_settings and optional_settings, so setting them under configuration.data is silently ignored. This Job writes them directly and pings clamd itself first (SiteConfiguration.clean() only checks clamav_host is non-empty, it doesn't test connectivity). Off by default: opt-in per gemeente. See templates/openinwoner-configure-clamav.yaml and docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-gemeente-specific.md. |
+| openinwoner.clamavConfigJob | object | `{"activeDeadlineSeconds":1200,"backoffLimit":15,"clamavHost":"clamav","clamavPort":3310,"clamavTimeout":30,"enabled":false,"resources":{"limits":{"cpu":"200m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"128Mi"}},"ttlSecondsAfterFinished":600}` | Seeds Open Inwoner's SiteConfiguration singleton (enable_virus_scan, clamav_host/port/timeout) via `manage.py shell`. Unlike most SiteConfiguration fields, these four are NOT managed by the site_config_enable/site_config: setup-configuration step — upstream's SiteConfigurationStep omits them from both its required_settings and optional_settings, so setting them under configuration.data is silently ignored. This Job writes them directly and pings clamd itself first (SiteConfiguration.clean() only checks clamav_host is non-empty, it doesn't test connectivity). Off by default: opt-in per gemeente. See templates/openinwoner-configure-clamav.yaml and docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-gemeente-specific.md. |
 | openinwoner.clamavConfigJob.backoffLimit | int | `15` | Retries generously: on first deploy this Job can race both the openinwoner DB migration (image entrypoint) and ClamAV's own cold-start (up to ~5 minutes to load its signature database, see docs/apps/clamav/clamav-BASICS.md) — it fails fast and lets Kubernetes' Job backoff retry until both are ready, rather than needing a wait container or Helm hook ordering. |
 | openinwoner.configuration.data | string | `""` |  |
 | openinwoner.configuration.enabled | bool | `true` |  |
@@ -993,15 +967,15 @@ PodiumD Helm chart
 | openinwoner.persistentVolume.volumeAttributeShareName | string | `"openinwoner"` |  |
 | openinwoner.resources.requests.cpu | string | `"200m"` |  |
 | openinwoner.resources.requests.memory | string | `"1Gi"` |  |
-| openinwoner.settings.allowedHosts | string | `"openinwoner-nginx.podiumd.svc.cluster.local"` |  |
+| openinwoner.settings.allowedHosts | string | `".svc.cluster.local"` |  |
 | openinwoner.settings.brpVersion | string | `""` |  |
-| openinwoner.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/11"` |  |
-| openinwoner.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/11"` |  |
+| openinwoner.settings.cache.axes | string | `"redis-ha-master:6379/11"` |  |
+| openinwoner.settings.cache.default | string | `"redis-ha-master:6379/11"` |  |
 | openinwoner.settings.cacheSeedingQueue | string | `""` | New in openinwoner 2.3.0: Celery queue for cache-seeding tasks. Empty defaults to the low-latency worker queue (see lowLatencyWorker below). |
 | openinwoner.settings.cacheZgwZakenTimeout | string | `""` | New in openinwoner 2.3.0: per-request timeout (seconds) for cached ZGW zaken. Empty uses the application default (300s, raised from 60s upstream). |
-| openinwoner.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/12"` |  |
+| openinwoner.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/12"` |  |
 | openinwoner.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
-| openinwoner.settings.celery.resultBackendl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/12"` |  |
+| openinwoner.settings.celery.resultBackendl | string | `"redis://redis-ha-master:6379/12"` |  |
 | openinwoner.settings.cms4MigrationInitContainer | bool | `false` | New in openinwoner 2.3.0 (chart 2.2.0): runs an init container executing `manage.py cms4_migration` for the one-time Django CMS v3 → v4 migration, which every environment completed when it rolled out 4.8.0. Off since 4.9.4: from openinwoner 2.4.5 (django-cms 5.0.11) the command crashes with `FieldError: Unsupported lookup 'node__site_id'` and blocks the web pod. |
 | openinwoner.settings.digidMock | string | `""` |  |
 | openinwoner.settings.eherkenningMock | string | `""` |  |
@@ -1044,12 +1018,12 @@ PodiumD Helm chart
 | openklant.persistentVolume.volumeAttributeShareName | string | `"openklant"` |  |
 | openklant.resources.requests.cpu | string | `"100m"` |  |
 | openklant.resources.requests.memory | string | `"300Mi"` |  |
-| openklant.settings.allowedHosts | string | `"openklant.podiumd.svc.cluster.local"` |  |
-| openklant.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/7"` |  |
-| openklant.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/7"` |  |
-| openklant.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/8"` |  |
+| openklant.settings.allowedHosts | string | `".svc.cluster.local"` |  |
+| openklant.settings.cache.axes | string | `"redis-ha-master:6379/7"` |  |
+| openklant.settings.cache.default | string | `"redis-ha-master:6379/7"` |  |
+| openklant.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/8"` |  |
 | openklant.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
-| openklant.settings.celery.resultBackendl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/8"` |  |
+| openklant.settings.celery.resultBackendl | string | `"redis://redis-ha-master:6379/8"` |  |
 | openklant.settings.disable2fa | bool | `false` |  |
 | openklant.settings.email.port | int | `587` |  |
 | openklant.settings.email.useTLS | bool | `true` |  |
@@ -1087,18 +1061,18 @@ PodiumD Helm chart
 | opennotificaties.persistentVolume.volumeAttributeShareName | string | `"opennotificaties"` |  |
 | opennotificaties.resources.requests.cpu | string | `"100m"` |  |
 | opennotificaties.resources.requests.memory | string | `"256Mi"` |  |
-| opennotificaties.settings.allowedHosts | string | `"opennotificaties.podiumd.svc.cluster.local"` |  |
-| opennotificaties.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/3"` |  |
-| opennotificaties.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/3"` |  |
-| opennotificaties.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/6"` |  |
+| opennotificaties.settings.allowedHosts | string | `".svc.cluster.local"` |  |
+| opennotificaties.settings.cache.axes | string | `"redis-ha-master:6379/3"` |  |
+| opennotificaties.settings.cache.default | string | `"redis-ha-master:6379/3"` |  |
+| opennotificaties.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/6"` |  |
 | opennotificaties.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
-| opennotificaties.settings.celery.publishBrokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/6"` |  |
-| opennotificaties.settings.celery.resultBackend | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/6"` |  |
+| opennotificaties.settings.celery.publishBrokerUrl | string | `"redis://redis-ha-master:6379/6"` |  |
+| opennotificaties.settings.celery.resultBackend | string | `"redis://redis-ha-master:6379/6"` |  |
 | opennotificaties.settings.disable2fa | bool | `false` |  |
 | opennotificaties.settings.email.port | int | `587` |  |
 | opennotificaties.settings.email.useTLS | bool | `true` |  |
 | opennotificaties.settings.maxRetries | int | `5` |  |
-| opennotificaties.settings.messageBroker.celeryResultBackend | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/6"` |  |
+| opennotificaties.settings.messageBroker.celeryResultBackend | string | `"redis://redis-ha-master:6379/6"` |  |
 | opennotificaties.settings.notificationSecInterval | int | `5` | Seconds between execute_notifications runs (chart default 20, minimum 5). Lowered to the minimum so notifications go out with less delay. |
 | opennotificaties.settings.requestsTimeout | int | `60` |  |
 | opennotificaties.settings.retryBackoff | int | `3` |  |
@@ -1139,6 +1113,8 @@ PodiumD Helm chart
 | openzaak.fullnameOverride | string | `"openzaak"` |  |
 | openzaak.image.tag | string | `"1.29.3@sha256:7ac22da287ac190a0e1c14849a370c433d3511678dcc8f3897007fd6de6dd4ac"` |  |
 | openzaak.nameOverride | string | `"openzaak"` |  |
+| openzaak.nginx.config.proxyConnectTimeoutSeconds | int | `1800` | Same as ZAC's nginx proxy_timeout: ZAC uploads large documents to Open Zaak in parts (bestandsdelen) through this nginx; the chart default is 300. |
+| openzaak.nginx.config.proxyReadTimeoutSeconds | int | `1800` | See proxyConnectTimeoutSeconds. |
 | openzaak.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openzaak.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
 | openzaak.nginx.image.tag | string | `"1.31.6@sha256:929e1d5e610e8aa89a1715ba44dce5edb4d42c172a208c171233292f472560c5"` |  |
@@ -1152,12 +1128,12 @@ PodiumD Helm chart
 | openzaak.persistentVolume.volumeAttributeShareName | string | `"openzaak"` |  |
 | openzaak.resources.requests.cpu | string | `"250m"` |  |
 | openzaak.resources.requests.memory | string | `"512Mi"` |  |
-| openzaak.settings.allowedHosts | string | `"openzaak-nginx.podiumd.svc.cluster.local"` |  |
-| openzaak.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/4"` |  |
-| openzaak.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/4"` |  |
-| openzaak.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/5"` |  |
+| openzaak.settings.allowedHosts | string | `".svc.cluster.local"` |  |
+| openzaak.settings.cache.axes | string | `"redis-ha-master:6379/4"` |  |
+| openzaak.settings.cache.default | string | `"redis-ha-master:6379/4"` |  |
+| openzaak.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/5"` |  |
 | openzaak.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
-| openzaak.settings.celery.resultBackendl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/5"` |  |
+| openzaak.settings.celery.resultBackendl | string | `"redis://redis-ha-master:6379/5"` |  |
 | openzaak.settings.disable2fa | bool | `false` |  |
 | openzaak.settings.documentApiBackend | string | `"filesystem"` | Backend for the Documenten API. Supported values: filesystem | azure_blob_storage |
 | openzaak.settings.email.port | int | `587` |  |
@@ -1175,13 +1151,14 @@ PodiumD Helm chart
 | pabc.enabled | bool | `true` |  |
 | pabc.fullnameOverride | string | `"pabc"` |  |
 | pabc.image.repository | string | `"ghcr.io/platform-autorisatie-beheer-component/pabc-api"` |  |
-| pabc.image.tag | string | `"1.1.1@sha256:09a902e43f6cdb214afc369d04005c7b6108fd24b15709f1debbcfb1b446ef42"` |  |
+| pabc.image.tag | string | `"2.1.0@sha256:7e4f906ea46ba4eace1997a074099a5a54038e38901890d486d117583861a61d"` |  |
 | pabc.initContainers.waitFor.image.pullPolicy | string | `"IfNotPresent"` |  |
 | pabc.initContainers.waitFor.image.repository | string | `"ghcr.io/groundnuty/k8s-wait-for"` |  |
 | pabc.initContainers.waitFor.image.tag | string | `"v2.0@sha256:c14d7271e4013b24b34ef0d7144c4610577d0e9110ccc26b163fa28089fa1f4e"` |  |
 | pabc.migrations.image.repository | string | `"ghcr.io/platform-autorisatie-beheer-component/pabc-migrations"` |  |
-| pabc.migrations.image.tag | string | `"1.1.1@sha256:a3841a2eb78cddd34ebb0de1bfede1db1ae9713921c0d77e4366baceffa86e05"` |  |
+| pabc.migrations.image.tag | string | `"2.1.0@sha256:75640f1ee9dc6a155800a31457574b9c36eb0cd41827c45333b9f39d05c94abb"` |  |
 | pabc.migrations.nodeSelector | object | `{}` |  |
+| pabc.migrations.prefill | object | `{"applications":[{"name":"zaakafhandelcomponent","roles":["behandelaar","beheerder","brp_zoeken","coordinator","raadpleger","recordmanager"]}]}` | Applications and application roles the migrations job creates when they do not exist yet (PABC 2.1.0 prefill, PREFILL_PATH). Non-destructive: an existing application is skipped as a whole, with its roles, and nothing is ever changed or removed, so it is safe on curated environments. The default is the application roles ZAC 5.9.1 checks (policies/rollen.rego); functional roles, domains and mappings are not part of prefill. Set to [] per environment to turn it off. |
 | pabc.nodeSelector | object | `{}` |  |
 | pabc.postgresql.enabled | bool | `false` |  |
 | pabc.resources.limits.cpu | string | `"200m"` |  |
@@ -1196,6 +1173,7 @@ PodiumD Helm chart
 | pabc.settings.database.username | string | `"pabc"` |  |
 | pabc.settings.keycloakAdmin.clientId | string | `"pabc-keycloak-admin"` |  |
 | pabc.settings.keycloakAdmin.clientSecret | string | `""` |  |
+| pabc.settings.keycloakAdmin.excludedRoles | list | `["default-roles-podiumd","offline_access","uma_authorization"]` | Realm roles the PABC UI's "import functional roles from Keycloak" never imports (exact name match): the podiumd realm's technical roles. |
 | pabc.settings.oidc.authority | string | `""` |  |
 | pabc.settings.oidc.clientId | string | `"pabc"` |  |
 | pabc.settings.oidc.clientSecret | string | `""` |  |
@@ -1205,13 +1183,19 @@ PodiumD Helm chart
 | pabc.settings.oidc.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://pabc.example.nl`. |
 | pabc.settings.oidc.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. PABC is a .NET app; enable when OpenIdConnect PKCE is configured in the application. |
 | pabc.settings.oidc.roleClaimType | string | `"roles"` |  |
+| pabc.settings.zgwZaakregister | object | `{"catalogiBaseUrl":"","catalogusDomein":"","clientId":"pabc","clientSecret":"","enabled":false}` | Import zaaktypes from Open Zaak as PABC entity types (a button in the PABC UI). PABC authenticates as its own Open Zaak application (see the commented `pabc` entry under openzaak's vng_api_common_applicaties) and needs read access to the Catalogi API. When enabled, the render fails while catalogiBaseUrl, clientId, clientSecret or catalogusDomein is empty. |
+| pabc.settings.zgwZaakregister.catalogiBaseUrl | string | `""` | Full base URL of the Open Zaak Catalogi API, with trailing slash. E.g. `https://openzaak.example.nl/catalogi/api/v1/`. |
+| pabc.settings.zgwZaakregister.catalogusDomein | string | `""` | `domein` of the zaaktype catalogus to import from, e.g. `ALG`. PABC imports from one catalogus only. |
+| pabc.settings.zgwZaakregister.clientId | string | `"pabc"` | Client ID of PABC's application in Open Zaak. |
+| pabc.settings.zgwZaakregister.clientSecret | string | `""` | Secret of PABC's application in Open Zaak; PABC signs its ZGW JWTs with it. |
+| pabc.settings.zgwZaakregister.enabled | bool | `false` | Turn on the zaaktype import. The render fails while catalogiBaseUrl, clientId, clientSecret or catalogusDomein is empty. |
 | persistentVolume.nodeStageSecretRefName | string | `""` |  |
 | persistentVolume.nodeStageSecretRefNamespace | string | `""` |  |
 | persistentVolume.volumeAttributeResourceGroup | string | `""` |  |
 | persistentVolume.volumeAttributeShareName | string | `""` |  |
 | redis-operator.enabled | bool | `true` |  |
 | redis-operator.featureGates.GenerateConfigInInitContainer | bool | `true` |  |
-| redis-operator.redis-ha | object | `{"databases":32,"enabled":true,"image":{"repository":"quay.io/opstree/redis","tag":"v8.6.6@sha256:12724412997e6acc32783f8c3c1ce8a7657029e06f563ffc8cbd81e2e9de7628"},"initContainerImage":{"pullPolicy":"IfNotPresent","repository":"library/busybox","tag":"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"},"initContainerResources":{"limits":{"cpu":"50m","memory":"32Mi"},"requests":{"cpu":"10m","memory":"16Mi"}},"labelMasterCronJob":{"enabled":true,"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"},"nodeSelector":{},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"schedule":"*/2 * * * *"},"podSecurityContext":{"fsGroup":1000},"preDeleteJob":{"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"},"nodeSelector":{}},"redisConfig":{"additionalRedisConfig":""},"redisExporter":{"enabled":false,"image":{"repository":"quay.io/opstree/redis-exporter","tag":"v1.89.0@sha256:00a3628bdd3bb3423a15c5daefa328c471ee609798eed1744fe578c906d20cab"},"podMonitor":{"enabled":false,"interval":"30s","scrapeTimeout":"10s"}},"replicaCount":3,"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"256Mi"}},"serviceName":"redis-ha","storage":{"volumeClaimTemplate":{"spec":{"accessModes":["ReadWriteOnce"],"resources":{"requests":{"storage":"2Gi"}},"storageClassName":"managed-csi-premiumv2"}}}}` | Shared Redis HA cluster using the RedisReplication CRD from the OT Redis Operator. When redis-operator.redis-ha.enabled is true, individual Redis subcharts per service should be disabled:   servicename:     tags:       redis: false   # disables template references to .Subcharts.redis     redis:       enabled: false # prevents subchart installation  Database allocation:   objecttypen        : db 0  (cache)   objecten           : db 1  (cache), db 2  (celery)   opennotificaties   : db 3  (cache), db 6  (celery result backend; broker nu ook Redis i.p.v. RabbitMQ vanaf chart 2.0.0)   openzaak           : db 4  (cache), db 5  (celery)   openklant          : db 7  (cache), db 8  (celery)   openformulieren    : db 9  (cache), db 10 (celery)   openinwoner        : db 11 (cache), db 12 (celery)   openarchiefbeheer  : db 13 (cache+axes), db 14 (choices + celery)   referentielijsten  : db 15 (cache), db 16 (reserved — celery not yet used)   openbeheer         : db 17 (cache), db 18 (reserved — celery not yet used)   <future component> : db 19 (cache), db 20 (celery)   db 21–31           : unallocated See docs/apps/redis/redis-ha-databases.md for the full allocation table and guidance. |
+| redis-operator.redis-ha | object | `{"databases":32,"enabled":true,"image":{"repository":"quay.io/opstree/redis","tag":"v8.6.6@sha256:12724412997e6acc32783f8c3c1ce8a7657029e06f563ffc8cbd81e2e9de7628"},"initContainerImage":{"pullPolicy":"IfNotPresent","repository":"library/busybox","tag":"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"},"initContainerResources":{"limits":{"cpu":"50m","memory":"32Mi"},"requests":{"cpu":"10m","memory":"16Mi"}},"labelMasterCronJob":{"enabled":true,"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"},"nodeSelector":{},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"schedule":"*/2 * * * *"},"podSecurityContext":{"fsGroup":1000},"preDeleteJob":{"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"},"nodeSelector":{}},"redisConfig":{"additionalRedisConfig":""},"redisExporter":{"enabled":false,"image":{"repository":"quay.io/opstree/redis-exporter","tag":"v1.89.0@sha256:00a3628bdd3bb3423a15c5daefa328c471ee609798eed1744fe578c906d20cab"},"podMonitor":{"enabled":false,"interval":"30s","scrapeTimeout":"10s"}},"replicaCount":3,"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"256Mi"}},"serviceName":"redis-ha","storage":{"volumeClaimTemplate":{"spec":{"accessModes":["ReadWriteOnce"],"resources":{"requests":{"storage":"2Gi"}},"storageClassName":"managed-csi-premiumv2"}}}}` | Shared Redis HA cluster using the RedisReplication CRD from the OT Redis Operator. When redis-operator.redis-ha.enabled is true, individual Redis subcharts per service should be disabled:   servicename:     tags:       redis: false   # disables template references to .Subcharts.redis     redis:       enabled: false # prevents subchart installation  Database allocation:   objecten           : db 1  (cache), db 2  (celery) — since the objecten/objecttypen                        merge (H.3), also covers what used to be objecttypen's traffic;                        db 0 is freed.   opennotificaties   : db 3  (cache), db 6  (celery result backend; broker nu ook Redis i.p.v. RabbitMQ vanaf chart 2.0.0)   openzaak           : db 4  (cache), db 5  (celery)   openklant          : db 7  (cache), db 8  (celery)   openformulieren    : db 9  (cache), db 10 (celery)   openinwoner        : db 11 (cache), db 12 (celery)   openarchiefbeheer  : db 13 (cache+axes), db 14 (choices + celery)   referentielijsten  : db 15 (cache), db 16 (reserved — celery not yet used)   openbeheer         : db 17 (cache), db 18 (reserved — celery not yet used)   <future component> : db 19 (cache), db 20 (celery)   db 21–31           : unallocated See docs/apps/redis/redis-ha-databases.md for the full allocation table and guidance. |
 | redis-operator.redis-ha.databases | int | `32` | Number of Redis databases to configure. Applied via an initContainer because `databases` is a startup-only parameter and the OT redis-operator does not include the additionalRedisConfig ConfigMap in the main redis.conf (operator limitation in v0.24.0). |
 | redis-operator.redis-ha.initContainerImage | object | `{"pullPolicy":"IfNotPresent","repository":"library/busybox","tag":"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"}` | Image used by the initContainer that appends `databases N` to redis.conf. Override this in environments that restrict public Docker Hub pulls (e.g. point to an ACR mirror). |
 | redis-operator.redis-ha.initContainerResources | object | `{"limits":{"cpu":"50m","memory":"32Mi"},"requests":{"cpu":"10m","memory":"16Mi"}}` | Resources for the initContainer that configures redis.conf. |
@@ -1224,7 +1208,7 @@ PodiumD Helm chart
 | redis-operator.redis-ha.storage.volumeClaimTemplate.spec.resources.requests.storage | string | `"2Gi"` | Default storage per Redis replica. To increase, override in your environment values file. Note: managed-csi-premiumv2 supports online volume expansion — patch the PVC directly after resizing:   kubectl patch pvc <pvc-name> -n <namespace> -p '{"spec":{"resources":{"requests":{"storage":"8Gi"}}}}' |
 | redis-operator.redisOperator.imageName | string | `"quay.io/opstree/redis-operator"` |  |
 | redis-operator.redisOperator.imageTag | string | `"v0.26.0@sha256:1c6818e5e50553f9f3c1b91a8824ae5c1999a0c9416c794ca51431b7f0cb48c3"` |  |
-| redis-operator.redisOperator.initContainerImageTag | string | `"v0.26.0@sha256:1c6818e5e50553f9f3c1b91a8824ae5c1999a0c9416c794ca51431b7f0cb48c3"` | Chart default for initContainerImageTag is a plain (non-digest-pinned) "v0.26.0"; override explicitly so the init container is digest-pinned like every other image here. |
+| redis-operator.redisOperator.initContainerImageTag | string | `"v0.26.0@sha256:1c6818e5e50553f9f3c1b91a8824ae5c1999a0c9416c794ca51431b7f0cb48c3"` | Chart default for initContainerImageTag is a plain (non-digest-pinned) "v0.26.0"; override explicitly so the init container is digest-pinned like every other image here. It runs the operator image, so it aliases imageTag (a lockstep pair). |
 | redis-operator.resources.limits.cpu | string | `"500m"` |  |
 | redis-operator.resources.limits.memory | string | `"256Mi"` |  |
 | redis-operator.resources.requests.cpu | string | `"100m"` |  |
@@ -1252,9 +1236,9 @@ PodiumD Helm chart
 | referentielijsten.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | referentielijsten.persistentVolume.volumeAttributeShareName | string | `"referentielijsten"` |  |
 | referentielijsten.replicaCount | int | `1` |  |
-| referentielijsten.settings.allowedHosts | string | `"referentielijsten-nginx.podiumd.svc.cluster.local"` |  |
-| referentielijsten.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/15"` |  |
-| referentielijsten.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/15"` |  |
+| referentielijsten.settings.allowedHosts | string | `".svc.cluster.local"` |  |
+| referentielijsten.settings.cache.axes | string | `"redis-ha-master:6379/15"` |  |
+| referentielijsten.settings.cache.default | string | `"redis-ha-master:6379/15"` |  |
 | referentielijsten.settings.debug | bool | `false` |  |
 | referentielijsten.settings.disable2fa | bool | `false` |  |
 | referentielijsten.settings.djangoSettingsModule | string | `"referentielijsten.conf.docker"` |  |
@@ -1316,7 +1300,7 @@ PodiumD Helm chart
 | zac.global.curlImage.repository | string | `"curlimages/curl"` |  |
 | zac.global.curlImage.tag | string | `"8.22.0@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777"` |  |
 | zac.image.pullPolicy | string | `"IfNotPresent"` |  |
-| zac.image.tag | string | `"5.4.5@sha256:9d14affb67d7bb7fce01af220e4b28c190188c5f1355d787735bd7e669fa57e3"` |  |
+| zac.image.tag | string | `"5.10.0@sha256:952e89644169d7bb3125a163412455145a1f4adcca370fb29b569bef334a88a0"` |  |
 | zac.initContainer.enabled | bool | `true` |  |
 | zac.initContainer.resources.requests.cpu | string | `"50m"` |  |
 | zac.initContainer.resources.requests.memory | string | `"256Mi"` |  |
@@ -1334,9 +1318,7 @@ PodiumD Helm chart
 | zac.mail.smtp.port | string | `"587"` |  |
 | zac.mail.smtp.server | string | `"mail.example.nl"` |  |
 | zac.mail.smtp.username | string | `"dummy"` |  |
-| zac.maxFileSizeMB | int | `150` |  |
 | zac.nameOverride | string | `"zac"` |  |
-| zac.nginx.client_max_body_size | string | `"150M"` |  |
 | zac.nginx.enabled | bool | `true` |  |
 | zac.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | zac.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
@@ -1346,16 +1328,18 @@ PodiumD Helm chart
 | zac.notificationsSecretKey | string | `"changeme"` |  |
 | zac.objectenApi.token | string | `"objectentoken"` |  |
 | zac.objectenApi.url | string | `"http://objecten.example.nl"` |  |
-| zac.objecttypenApi.token | string | `"objecttypentoken"` |  |
-| zac.objecttypenApi.url | string | `"http://objecttypen.example.nl"` |  |
-| zac.office_converter.image.tag | string | `"8.36.0@sha256:87c16b9f364279d321bc9772d31fa58aa6abe036423c270698bd636c3a8e9466"` |  |
-| zac.opa.image.tag | string | `"1.19.1-static@sha256:32bf41d914b1505fea13303f60587cc57bdd2902262177585fb208f5dde76d32"` |  |
+| zac.objecttypenApi.token | string | `"objectentoken"` |  |
+| zac.objecttypenApi.url | string | `"http://objecten.example.nl"` |  |
+| zac.office_converter.image.tag | string | `"8.37.0@sha256:f29984bd1e226bf1b93ba90af06000afa8b315853e99d27b9aaa41b93f15c769"` |  |
+| zac.office_converter.password | string | `"dummy"` | Basic auth password for the office converter; see username. |
+| zac.office_converter.username | string | `"dummy"` | Basic auth user shared by ZAC and its office converter (Gotenberg). Override per environment: the converter Service is reachable from any pod in the cluster. |
+| zac.opa.image.tag | string | `"1.21.2-static@sha256:0843d2adce51655422e8b95a803629ab9f424803c4bd27876e7f44cce9a2b84d"` |  |
 | zac.opa.resources.requests.cpu | string | `"10m"` |  |
 | zac.opa.resources.requests.memory | string | `"20Mi"` |  |
 | zac.opa.sidecar | bool | `true` |  |
 | zac.openForms.url | string | `"http://open-forms.example.nl"` |  |
 | zac.opentelemetry-collector.image.repository | string | `"otel/opentelemetry-collector-contrib"` |  |
-| zac.opentelemetry-collector.image.tag | string | `"0.158.0@sha256:c5918f78992ee73b0d6f0e599423ac5ec52dd5d9726733114d6eca53d5a32ed5"` |  |
+| zac.opentelemetry-collector.image.tag | string | `"0.162.0@sha256:39923a8e431bd1f57be82411999d389fcfe40857492e4365456d97a4c1f74be6"` |  |
 | zac.organizations.bron.rsin | string | `"000000000"` |  |
 | zac.organizations.verantwoordelijke.rsin | string | `"000000000"` |  |
 | zac.pabcApi.apiKey | string | `""` |  |
@@ -1376,23 +1360,26 @@ PodiumD Helm chart
 | zac.solr-operator.solr.busyBoxImage.tag | string | `"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"` |  |
 | zac.solr-operator.solr.dataStorage.persistent.reclaimPolicy | string | `"Retain"` | Retain PVCs when the operator scales down Solr (e.g. during node rotation). The default "Delete" causes the operator to destroy PVC data on scale-down, which requires a full index resync from another replica. |
 | zac.solr-operator.solr.enabled | bool | `true` | set enabled to provision solrcloud as well |
-| zac.solr-operator.solr.image.tag | string | `"9.10.1-slim@sha256:9987e11a90a0b115cc3f52b74d3d87788e3c1fa479deeaece80d33515480204a"` |  |
+| zac.solr-operator.solr.image.tag | string | `"9.11.0-slim@sha256:c8a5ad7d951c00f15d5847ba0a94c1ab212de42de10668b80848831b72d75b9f"` |  |
 | zac.solr-operator.solr.javaMem | string | `"-Xms512m -Xmx768m"` | define memory settings for solr in the solrcloud |
 | zac.solr-operator.solr.jobs.createZacCore | bool | `true` |  |
 | zac.solr-operator.solr.resources.limits.cpu | string | `"2000m"` |  |
 | zac.solr-operator.solr.resources.limits.memory | string | `"2Gi"` |  |
 | zac.solr-operator.solr.resources.requests.cpu | string | `"500m"` |  |
 | zac.solr-operator.solr.resources.requests.memory | string | `"1Gi"` |  |
-| zac.solr-operator.watchNamespaces | string | `"podiumd"` | namespaces to watch for solr-operator |
+| zac.solr-operator.watchNamespaces | string | `"podiumd"` | Namespaces to watch for solr-operator. MUST equal the namespace the chart is deployed into (Helm cannot template values.yaml with `.Release.Namespace`). Default assumes `podiumd`; override when deploying elsewhere (e.g. `--set zac.solr-operator.watchNamespaces=<namespace>` or ci/values-namespace-scope.example.yaml). Empty ("") watches ALL namespaces and needs cluster-scoped RBAC — avoided by design. See docs/misc/deploying-to-a-custom-namespace.md. |
 | zac.solr-operator.zookeeper-operator | object | `{"crd":{"create":false},"hooks":{"image":{"tag":"v1.25.4@sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc"}},"image":{"tag":"0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e"},"resources":{"limits":{"cpu":"200m","memory":"128Mi"},"requests":{"cpu":"50m","memory":"64Mi"}},"watchNamespace":"podiumd","zookeeper":{"image":{"tag":"0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8"},"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"256Mi"}},"storage":{"reclaimPolicy":"Retain"}}}` | install crds using https://github.com/pravega/zookeeper-operator/blob/master/charts/zookeeper-operator/templates/zookeeper.pravega.io_zookeeperclusters_crd.yaml |
-| zac.solr-operator.zookeeper-operator.watchNamespace | string | `"podiumd"` | namespaces to watch for zookeeper-operator |
+| zac.solr-operator.zookeeper-operator.watchNamespace | string | `"podiumd"` | Namespaces to watch for zookeeper-operator. MUST equal the namespace the chart is deployed into (Helm cannot template values.yaml with `.Release.Namespace`). Default assumes `podiumd`; override when deploying elsewhere (e.g. `--set zac.solr-operator.zookeeper-operator.watchNamespace=<namespace>` or ci/values-namespace-scope.example.yaml). Empty ("") watches ALL namespaces and needs cluster-scoped RBAC — avoided by design. See docs/misc/deploying-to-a-custom-namespace.md. |
 | zac.solr-operator.zookeeper-operator.zookeeper.storage.reclaimPolicy | string | `"Retain"` | Retain PVCs when the operator scales down ZooKeeper (e.g. during node rotation). The default "Delete" causes the operator to destroy PVC data on scale-down, which prevents the cluster from recovering quorum after a node replacement event. |
+| zac.solr.password | string | `""` | Basic auth password of the external Solr; required when url is set. |
+| zac.solr.url | string | `""` | URL of an external Solr, instead of the solr-operator managed one. |
+| zac.solr.username | string | `""` | Basic auth user of the external Solr; required when url is set. Configure the matching user in that Solr's security.json. |
 | zac.zacInternalEndpointsApiKey | string | `"dummy"` |  |
 | zac.zgwApis.clientId | string | `"zac"` |  |
 | zac.zgwApis.secret | string | `"changeme"` |  |
 | zac.zgwApis.url | string | `"http://open-zaak.internal"` |  |
 | zac.zgwApis.urlExtern | string | `"http://open-zaak.example.nl"` |  |
-| zgw-office-addin.backend.image.tag | string | `"0.11.0@sha256:5b188e853531986e31709ed6cae130a891e0014cb267c43ac338b792c84a29ab"` |  |
+| zgw-office-addin.backend.image.tag | string | `"0.12.0@sha256:886c4616c7cb88769013c8b96d72fbde8b6db6c8947e49e83cd2d2d538175bca"` |  |
 | zgw-office-addin.backend.msalSecret | string | `""` |  |
 | zgw-office-addin.backend.resources.requests.cpu | string | `"100m"` |  |
 | zgw-office-addin.backend.resources.requests.memory | string | `"256Mi"` |  |
@@ -1403,7 +1390,7 @@ PodiumD Helm chart
 | zgw-office-addin.common.msalTenantId | string | `""` | MS Azure Tenant ID of the Office Add-in application |
 | zgw-office-addin.common.podLabels | object | `{"app":"office-addin","service_name":"office-addin"}` | IN-2060: Grafana/Loki app + service_name labels on the office-addin pods. Without these the pods are attributed to the Helm release name ("podiumd"). Requires zgw-office-addin chart >= 0.0.89 (adds podLabels support). |
 | zgw-office-addin.enabled | bool | `true` |  |
-| zgw-office-addin.frontend.image.tag | string | `"0.11.0@sha256:9a6b3e9023b8cfba152a84dd7477e079490fc7d35562d32e0dc094be81a7f7a2"` |  |
+| zgw-office-addin.frontend.image.tag | string | `"0.12.0@sha256:11fa2df3546def1fcfec0704d6ed55009ea0c8dcca49a7b6e848936ed9d93584"` |  |
 | zgw-office-addin.frontend.resources.requests.cpu | string | `"50m"` |  |
 | zgw-office-addin.frontend.resources.requests.memory | string | `"64Mi"` |  |
 | zgw-office-addin.fullnameOverride | string | `"zgw-office-addin"` |  |

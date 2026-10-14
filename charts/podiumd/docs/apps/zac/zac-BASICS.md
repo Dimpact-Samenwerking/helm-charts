@@ -75,7 +75,10 @@ peak load.
 - **Open Notificaties**: `zac.notificationsSecretKey` secures the notification
   callback endpoint.
 - **Open Klant**: `zac.klantinteractiesApi.url` + token.
-- **Objecten / Objecttypen**: `zac.objectenApi` / `zac.objecttypenApi` (url + token).
+- **Objecten / Objecttypen**: `zac.objectenApi` / `zac.objecttypenApi` (url + token) —
+  since the objecten/objecttypen merge (`docs/apps/objecten/openobject-migration.md`) both point
+  at the same merged host/token; ZAC's own chart schema still expects two
+  distinct keys even though there's only one app behind them now.
 - **Open Formulieren**: `zac.openForms.url`.
 - **PABC**: `zac.pabcApi.url` + `apiKey` (role/authorisation component).
 - **External APIs**: BRP (`zac.brpApi`, optional protocollering — see related doc),
