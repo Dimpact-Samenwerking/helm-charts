@@ -916,7 +916,7 @@ PodiumD Helm chart
 | openformulieren.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/10"` |  |
 | openformulieren.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
 | openformulieren.settings.celery.resultBackend | string | `"redis://redis-ha-master:6379/10"` |  |
-| openformulieren.settings.cookieSamesite | string | `"Lax"` | New in 4.10.0: SameSite for the session, CSRF and language cookies (SESSION_/CSRF_/LANGUAGE_COOKIE_SAMESITE). Unset, Open Forms uses None on HTTPS so the SDK can be embedded on another site. Lax still allows embedding on the gemeente's own domain and the return from DigiD/eHerkenning; set None per environment that embeds forms elsewhere. |
+| openformulieren.settings.cookieSamesite | string | `"Lax"` | New in 4.10.0: SameSite for the session, CSRF and language cookies (SESSION_/CSRF_/LANGUAGE_COOKIE_SAMESITE). Unset, Open Forms uses None on HTTPS so the SDK can be embedded on another site. Lax still allows embedding on the gemeente's own domain and the return from DigiD/eHerkenning via OIDC; set None per environment that embeds forms elsewhere or logs in through SAML with an HTTP-POST ACS. |
 | openformulieren.settings.email.port | int | `587` |  |
 | openformulieren.settings.email.useTLS | bool | `true` |  |
 | openformulieren.tags.redis | bool | `false` |  |

@@ -1888,7 +1888,8 @@ openformulieren:
     # (SESSION_/CSRF_/LANGUAGE_COOKIE_SAMESITE). Unset, Open Forms uses None
     # on HTTPS so the SDK can be embedded on another site. Lax still allows
     # embedding on the gemeente's own domain and the return from
-    # DigiD/eHerkenning; set None per environment that embeds forms elsewhere.
+    # DigiD/eHerkenning via OIDC; set None per environment that embeds forms
+    # elsewhere or logs in through SAML with an HTTP-POST ACS.
     cookieSamesite: Lax
     email:
       port: 587
