@@ -20,7 +20,6 @@ falling back to an uncached scan if that lookup fails.
 """
 
 import tarfile
-import urllib.error
 
 from collections import Counter
 from dataclasses import dataclass
@@ -36,12 +35,14 @@ from lib.checks.cve import CacheSession
 from lib.checks.cve import ImageClassification
 from lib.checks.cve import ScanTarget
 from lib.checks.cve import Vulnerability
+from lib.checks.cve import bare_digest
 from lib.checks.cve import bucket_of
 from lib.checks.cve import bucket_title
 from lib.checks.cve import classify_rendered_images
 from lib.checks.cve import open_cache_session
 from lib.checks.cve import print_bucket_header
 from lib.checks.cve import print_findings_per_package
+from lib.checks.cve import resolve_scan_digest
 from lib.checks.cve import save_cache
 from lib.checks.cve import scan_cached
 from lib.checks.cve import severity_label
@@ -52,7 +53,6 @@ from lib.image.digests import unique_image_targets
 from lib.image.upgrade_cache import load_cache as load_upgrade_cache
 from lib.image.upgrade_cache import same_major_upgrade
 from lib.registry import parse_repo
-from lib.registry import registry_tag_exists
 from lib.settings import cve_max_cves_per_package_before_summarizing
 from lib.settings import cve_scan_cache_ttl_days
 from lib.settings import image_upgrade_tag_check_cache_ttl_days
@@ -72,12 +72,6 @@ def diff_vulns(current_vulns: list[Vulnerability], proposed_vulns: list[Vulnerab
     closed = [v for key, v in current_by_key.items() if key not in proposed_by_key]
     introduced = [v for key, v in proposed_by_key.items() if key not in current_by_key]
     return closed, introduced
-
-
-def _bare_digest(digest_ref: str):
-    """ "sha256:<hex>" -> "<hex>", the form lib.checks.cve.cache_key expects."""
-    prefix = "sha256:"
-    return digest_ref.removeprefix(prefix)
 
 
 class DiffCandidate(TypedDict):
@@ -147,7 +141,7 @@ def gather_candidates(chart_dir: Path) -> list[DiffCandidate]:
                 "current_digest": pinned_digest,
                 "proposed_label": digest,
                 "proposed_ref": f"{repository}@{digest}",
-                "proposed_digest": _bare_digest(digest),
+                "proposed_digest": bare_digest(digest),
                 "line": targets.get((repository, version), (None, None))[1],
             }
         )
@@ -168,10 +162,11 @@ class DiffContext:
 
 
 def _scan_current(context: DiffContext, candidate: DiffCandidate):
-    """Scan the pinned side; usually a cache hit from check_cves."""
+    """Scan the pinned side; usually a cache hit from check_cves, also for an unpinned tag."""
+    digest = resolve_scan_digest(candidate["repository"], candidate["version"], candidate["current_digest"])
     vulns, _ = scan_cached(
         context.chart_dir,
-        ScanTarget(candidate["repository"], candidate["current_digest"], candidate["current_ref"]),
+        ScanTarget(candidate["repository"], digest, candidate["current_ref"]),
         context.cache,
         context.ttl_days,
         label="current",
@@ -184,16 +179,7 @@ def _scan_proposed(context: DiffContext, candidate: DiffCandidate):
 
     A failed resolve falls back to an uncached scan rather than failing the candidate.
     """
-    digest = candidate["proposed_digest"]
-    if digest is None:
-        host, repo_path = parse_repo(candidate["repository"])
-        try:
-            exists, resolved = registry_tag_exists(host, repo_path, candidate["proposed_label"])
-            if exists and resolved:
-                digest = _bare_digest(resolved)
-        except (urllib.error.URLError, OSError):
-            digest = None
-
+    digest = resolve_scan_digest(candidate["repository"], candidate["proposed_label"], candidate["proposed_digest"])
     vulns, _ = scan_cached(
         context.chart_dir,
         ScanTarget(candidate["repository"], digest, candidate["proposed_ref"]),

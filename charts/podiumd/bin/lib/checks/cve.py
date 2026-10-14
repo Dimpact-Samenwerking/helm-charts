@@ -21,6 +21,7 @@ capped by cve_scan.scan_cache_ttl_days because trivy's DB changes even when the 
 import json
 import re
 import shutil
+import urllib.error
 
 from collections import Counter
 from collections.abc import Mapping
@@ -46,6 +47,7 @@ from lib.json_cache import load_json_cache
 from lib.json_cache import save_json_cache
 from lib.procutil import run
 from lib.registry import parse_repo
+from lib.registry import registry_tag_exists
 from lib.render_scope import OWN_TEMPLATES_PREFIX
 from lib.render_scope import chart_name_from_source
 from lib.render_scope import friendly_vendor_charts
@@ -247,6 +249,28 @@ def scan_cached(chart_dir: Path, target: ScanTarget, session: CacheSession, ttl_
         session.new_cache[key] = {"scanned_at": datetime.now(timezone.utc).isoformat(), "vulnerabilities": vulns}
         save_cache(chart_dir, session.new_cache)  # persist incrementally — a scan sweep can be slow
     return vulns, False
+
+
+def bare_digest(digest_ref: str) -> str:
+    """ "sha256:<hex>" -> "<hex>", the form cache_key expects."""
+    return digest_ref.removeprefix("sha256:")
+
+
+def resolve_scan_digest(repository: str, tag: str, digest: str | None) -> str | None:
+    """`digest`, else the bare digest `tag` has upstream now; None when that lookup fails.
+
+    Gives an unpinned tag (eck-stack's images, an upgrade's proposed tag) a
+    scan_cached key, so it is pulled and scanned once per digest instead of
+    on every run.
+    """
+    if digest is not None:
+        return digest
+    host, repo_path = parse_repo(repository)
+    try:
+        exists, resolved = registry_tag_exists(host, repo_path, tag)
+    except (urllib.error.URLError, OSError):
+        return None
+    return bare_digest(resolved) if exists and resolved else None
 
 
 # --- own/partner/other classification ---
@@ -459,23 +483,31 @@ def target_label(
     return classify_by_key(top_key, classification.dep_names, classification.vendor_map)
 
 
+def _scan_target(repository: str, version: str, digest: str | None) -> ScanTarget:
+    """The ScanTarget of a pin: its digest, or for an unpinned tag the digest that tag has now.
+
+    Scanning by digest keeps the scan and its cache key the same image, also
+    when the tag was republished since pinning.
+    """
+    scan_digest = resolve_scan_digest(repository, version, digest)
+    return ScanTarget(repository, scan_digest, _digest_ref(repository, scan_digest) or _image_ref(repository, version))
+
+
 def _scan_one_target(
     repo_version: ImageTarget, digest_line: tuple[str | None, int], index: int, total: int, context: ScanContext
 ):
     """(image_ref, entry, was_cached); entry is None when the scan failed.
 
-    image_ref (tag-based) is for display; trivy scans the pinned digest, since the tag
-    may have been republished since pinning.
+    image_ref (tag-based) is for display; trivy scans by digest (_scan_target).
     """
     repository, version = repo_version
     digest, line = digest_line
     image_ref = _image_ref(repository, version)
-    scan_ref = _digest_ref(repository, digest) or image_ref
     label = target_label(context.classification, context.values_lines, (repository, version, digest), line)
 
     vulns, was_cached = scan_cached(
         context.chart_dir,
-        ScanTarget(repository, digest, scan_ref),
+        _scan_target(repository, version, digest),
         context.session,
         context.settings.cve_cache_ttl_days,
         label=f"[{index}/{total}] this image",

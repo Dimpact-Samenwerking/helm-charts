@@ -5,6 +5,7 @@ treatment; `run` is mocked throughout, so no docker/trivy/registry call happens.
 The image-upgrade cache is read (read-only) to annotate "upgradable" findings."""
 
 import json
+import urllib.error
 
 from datetime import datetime
 from datetime import timedelta
@@ -930,3 +931,67 @@ def test_check_cves_still_updates_its_own_currently_pinned_targets(
     assert ok is True
     saved = libcvecheck.load_cache(chart_dir)
     assert libcvecheck.cache_key("ghcr.io/wearefrank/frank-gateway", DIGEST_A) in saved
+
+
+# --- resolve_scan_digest: a cache key for an unpinned tag ---
+
+
+def test_resolve_scan_digest_keeps_a_pinned_digest(libcvecheck: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    def fail_if_called(*_args):
+        pytest.fail("a pinned digest needs no registry lookup")
+
+    monkeypatch.setattr(libcvecheck, "registry_tag_exists", fail_if_called)
+    assert libcvecheck.resolve_scan_digest("org/repo", "1.0.0", DIGEST_A) == DIGEST_A
+
+
+def test_resolve_scan_digest_looks_up_an_unpinned_tag(libcvecheck: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    calls = []
+
+    def live(host, repo, tag):
+        calls.append((host, repo, tag))
+        return True, f"sha256:{DIGEST_B}"
+
+    monkeypatch.setattr(libcvecheck, "registry_tag_exists", live)
+    assert libcvecheck.resolve_scan_digest("docker.elastic.co/elasticsearch/elasticsearch", "8.19.23", None) == DIGEST_B
+    assert calls == [("docker.elastic.co", "elasticsearch/elasticsearch", "8.19.23")]
+
+
+@pytest.mark.parametrize(
+    "lookup",
+    [
+        lambda host, repo, tag: (False, None),
+        lambda host, repo, tag: (_ for _ in ()).throw(urllib.error.URLError("network down")),
+    ],
+    ids=["tag-missing", "network-error"],
+)
+def test_resolve_scan_digest_none_when_the_lookup_fails(
+    libcvecheck: ModuleType, monkeypatch: pytest.MonkeyPatch, lookup
+):
+    monkeypatch.setattr(libcvecheck, "registry_tag_exists", lookup)
+    assert libcvecheck.resolve_scan_digest("org/repo", "1.0.0", None) is None
+
+
+def test_check_cves_scans_an_unpinned_image_once_across_runs(
+    vp: ModuleType, libcvecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """An image without a digest is scanned by the digest its tag resolves to, so the next run is a cache hit."""
+    chart_dir = make_chart_dir(
+        tmp_path,
+        values='kiss-eck:\n  image:\n    repository: docker.elastic.co/kibana/kibana\n    tag: "8.19.23"\n',
+    )
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
+    monkeypatch.setattr(libcvecheck, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{DIGEST_C}"))
+    scanned = []
+
+    def run(cmd, **kwargs):
+        scanned.append(cmd[-1])
+        return trivy_result(stdout="{}")
+
+    monkeypatch.setattr(libcvecheck, "run", run)
+
+    vp.check_cves(chart_dir, [])
+    assert scanned == [f"docker.elastic.co/kibana/kibana@sha256:{DIGEST_C}"]
+
+    scanned.clear()
+    vp.check_cves(chart_dir, [])
+    assert scanned == []

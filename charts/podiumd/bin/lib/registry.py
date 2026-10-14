@@ -319,7 +319,9 @@ def historical_digests_for_tag(values_path: Path, version: str) -> set[str]:
 
 LINK_NEXT_RE = re.compile(r'<([^>]+)>\s*;\s*rel="?next"?')
 # Upper bound on followed "next" pages, so a registry that keeps answering with a
-# next link can't loop forever; quay.io serves 100 tags per page.
+# next link can't loop forever; quay.io serves 100 tags per page. Reaching it is an
+# error, not a partial list: on an oldest-first registry the unread pages hold the
+# newest tags.
 MAX_TAG_PAGES = 200
 
 
@@ -334,13 +336,18 @@ def list_tags(registry_host: str, repo: str):
 
     Follows the Link rel="next" pages (OCI distribution spec): quay.io serves
     100 tags per page, oldest first, so the first page alone misses every
-    recent release."""
+    recent release. Raises URLError when a page repeats or MAX_TAG_PAGES is
+    exceeded."""
     url, headers = _registry_request(registry_host, repo, "tags/list", None, None)
     tags: list[str] = []
+    seen: set[str] = set()
     next_url: str | None = url
-    for _ in range(MAX_TAG_PAGES):
-        if next_url is None:
-            break
+    while next_url is not None:
+        if next_url in seen or len(seen) >= MAX_TAG_PAGES:
+            reason = "a page repeats" if next_url in seen else f"more than {MAX_TAG_PAGES} pages"
+            msg = f"tags/list of {repo} on {registry_host}: {reason}; the newest tags may be missing"
+            raise urllib.error.URLError(msg)
+        seen.add(next_url)
         with _get_with_dynamic_auth(next_url, repo, headers) as resp:
             page = get_path(_read_json(resp), "tags") or []
             following = _next_page_url(next_url, resp.headers.get("Link"))

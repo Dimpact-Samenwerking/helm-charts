@@ -381,6 +381,34 @@ def test_list_tags_follows_link_next_pages(libregistry: ModuleType, monkeypatch:
     ]
 
 
+def test_list_tags_raises_when_a_page_repeats(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    """A registry pointing "next" back at the same page must not loop or return a partial list."""
+    link = '</v2/coreos/etcd/tags/list>; rel="next"'
+
+    def fake_urlopen(req):
+        return FakeResponse(headers={"Link": link}, body=json.dumps({"tags": ["1.0.0"]}).encode())
+
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    with pytest.raises(urllib.error.URLError, match="a page repeats"):
+        libregistry.list_tags("quay.io", "coreos/etcd")
+
+
+def test_list_tags_raises_past_the_page_cap(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    """Hitting MAX_TAG_PAGES with a next link left is an error: the unread pages hold the newest tags."""
+    calls = []
+
+    def fake_urlopen(req):
+        calls.append(req.full_url)
+        link = f'</v2/coreos/etcd/tags/list?last={len(calls)}>; rel="next"'
+        return FakeResponse(headers={"Link": link}, body=json.dumps({"tags": [str(len(calls))]}).encode())
+
+    monkeypatch.setattr(libregistry, "MAX_TAG_PAGES", 3)
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    with pytest.raises(urllib.error.URLError, match="more than 3 pages"):
+        libregistry.list_tags("quay.io", "coreos/etcd")
+    assert len(calls) == 3
+
+
 def test_list_tags_fetches_token_for_docker_hub(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
     calls = []
 

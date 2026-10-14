@@ -2,10 +2,11 @@
 
 Candidates come from check_image_upgrades (newer tag) and check_image_digests
 (slid digest), bucketed own/partner-vendor/other-vendor like check_cves. No
-real docker/trivy/registry calls: load_upgrade_cache/find_sliding_pins/
-registry_tag_exists are mocked on lib.checks.cve_diff, but run_trivy and
-cache_key on lib.checks.cve (`libcvecheck`), because scans go through
-lib.checks.cve.scan_cached.
+real docker/trivy/registry calls: load_upgrade_cache/find_sliding_pins are
+mocked on lib.checks.cve_diff, but run_trivy, cache_key and
+registry_tag_exists on lib.checks.cve (`libcvecheck`), because scans and
+their digest lookups go through lib.checks.cve (scan_cached,
+resolve_scan_digest).
 
 classify_candidates needs a Chart.yaml and calls render_chart: make_chart_dir
 writes a dependency-less Chart.yaml and an autouse fixture makes the render
@@ -137,7 +138,7 @@ zac:
         lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
     )
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
-    monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", lambda host, repo, tag: (False, None))
+    monkeypatch.setattr("lib.checks.cve.registry_tag_exists", lambda host, repo, tag: (False, None))
 
     vulns_by_ref = {
         "ghcr.io/infonl/zac:1.0.0": [vuln("CRITICAL", "CVE-1", "openssl"), vuln("HIGH", "CVE-2", "libxml2")],
@@ -174,7 +175,7 @@ zac:
         lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
     )
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
-    monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", lambda host, repo, tag: (False, None))
+    monkeypatch.setattr("lib.checks.cve.registry_tag_exists", lambda host, repo, tag: (False, None))
 
     calls = []
     monkeypatch.setattr(libcvecheck, "run_trivy", make_run_trivy({}, calls))
@@ -323,7 +324,7 @@ zac:
         resolve_calls.append((host, repo, tag))
         return True, f"sha256:{DIGEST_B}"
 
-    monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", fake_registry_tag_exists)
+    monkeypatch.setattr("lib.checks.cve.registry_tag_exists", fake_registry_tag_exists)
 
     trivy_calls = []
     vulns_by_ref = {
@@ -369,7 +370,7 @@ zac:
         msg = "network down"
         raise urllib.error.URLError(msg)
 
-    monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", failing_resolve)
+    monkeypatch.setattr("lib.checks.cve.registry_tag_exists", failing_resolve)
 
     vulns_by_ref = {
         "ghcr.io/infonl/zac:1.0.0": [],
@@ -408,7 +409,7 @@ zac:
         lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
     )
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
-    monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", lambda host, repo, tag: (False, None))
+    monkeypatch.setattr("lib.checks.cve.registry_tag_exists", lambda host, repo, tag: (False, None))
 
     # pre-populate the shared cve-scan cache for the CURRENT side only
     libcvediffcheck.save_cache(
@@ -496,7 +497,7 @@ zac:
         lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
     )
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
-    monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", lambda host, repo, tag: (False, None))
+    monkeypatch.setattr("lib.checks.cve.registry_tag_exists", lambda host, repo, tag: (False, None))
 
     vulns_by_ref = {
         "ghcr.io/infonl/zac:1.0.0": [],
@@ -534,7 +535,7 @@ zac:
         lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
     )
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
-    monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", lambda host, repo, tag: (False, None))
+    monkeypatch.setattr("lib.checks.cve.registry_tag_exists", lambda host, repo, tag: (False, None))
 
     vulns_by_ref = {
         "ghcr.io/infonl/zac:1.0.0": [],
@@ -573,7 +574,7 @@ zac:
         lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
     )
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
-    monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", lambda host, repo, tag: (False, None))
+    monkeypatch.setattr("lib.checks.cve.registry_tag_exists", lambda host, repo, tag: (False, None))
 
     vulns_by_ref = {
         "ghcr.io/infonl/zac:1.0.0": [],
@@ -615,7 +616,7 @@ zac:
         lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
     )
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
-    monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", lambda host, repo, tag: (False, None))
+    monkeypatch.setattr("lib.checks.cve.registry_tag_exists", lambda host, repo, tag: (False, None))
     monkeypatch.setattr(libcvecheck, "run_trivy", make_run_trivy({}))
 
     calls = []
@@ -827,7 +828,7 @@ def _setup_bucket_scenario(
     monkeypatch.setattr("lib.checks.cve.render_chart", fake_render_chart(BUCKET_RENDERED, returncode=0))
     monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache", lambda chart_dir: _bucket_upgrade_cache())
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
-    monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", lambda host, repo, tag: (False, None))
+    monkeypatch.setattr("lib.checks.cve.registry_tag_exists", lambda host, repo, tag: (False, None))
     monkeypatch.setattr(libcvecheck, "run_trivy", make_run_trivy(vulns_by_ref))
 
 

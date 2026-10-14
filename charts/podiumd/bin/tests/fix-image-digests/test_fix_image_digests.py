@@ -789,3 +789,43 @@ def test_main_refreshes_sibling_digest_then_checker_reports_nothing(
         sid.main()
     assert exc_info.value.code == 0
     assert values_path.read_text(encoding="utf-8") == written
+
+
+def test_main_scoped_refreshes_only_the_named_sibling_digest(
+    sid: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """`keycloak keycloak` finds the "sha:" pin, and leaves other stale pins alone."""
+    values_path = tmp_path / "values.yaml"
+    old_digest, new_digest, other_digest = "a" * 64, "b" * 64, "c" * 64
+    original = (
+        f'keycloak:\n  image:\n    repository: quay.io/keycloak/keycloak\n    tag: "26.7.3"\n    sha: "{old_digest}"\n'
+        f'other:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{other_digest}"\n'
+    )
+    write_values(values_path, original)
+    fetched: list[str] = []
+
+    def live(host, repo, tag):
+        fetched.append(repo)
+        return True, f"sha256:{new_digest}"
+
+    monkeypatch.setattr(sid, "VALUES_PATH", values_path)
+    monkeypatch.setattr(sid, "registry_tag_exists", live)
+    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
+    monkeypatch.setattr("sys.argv", ["fix-image-digests", "keycloak", "keycloak"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        sid.main()
+    assert exc_info.value.code == 0
+    assert values_path.read_text(encoding="utf-8") == original.replace(old_digest, new_digest)
+    assert fetched == ["keycloak/keycloak"]
+
+
+def test_main_scoped_unknown_basename_exits_with_error(
+    sid: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    values_path = tmp_path / "values.yaml"
+    write_values(values_path, f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n')
+    monkeypatch.setattr(sid, "VALUES_PATH", values_path)
+    monkeypatch.setattr("sys.argv", ["fix-image-digests", "a", "nope"])
+    with pytest.raises(SystemExit, match="no image pin with image basename 'nope' found under 'a'"):
+        sid.main()

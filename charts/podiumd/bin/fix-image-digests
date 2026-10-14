@@ -47,7 +47,6 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # pylint: disable=wrong-import-position
 from lib.chart.chart_yaml import chart_dir_dependencies
 from lib.chart.paths import CHART_DIR
-from lib.chart.pull_and_subchart_resolution import formatted_repo
 from lib.chart.repo_and_path_resolution import subchart_needs_vendoring
 from lib.cli import print_section
 from lib.dependencies import check_dependencies as vendor_dependencies
@@ -55,7 +54,7 @@ from lib.dependencies import ensure_repos_configured
 from lib.image.digests import ImagePin
 from lib.image.digests import ImageTarget
 from lib.image.digests import digest_pin_targets
-from lib.image.version import resolve_scoped_matches
+from lib.image.version import resolve_scoped_image_pins
 from lib.procutil import run_script
 from lib.registry import is_sliding_tag
 from lib.registry import parse_repo
@@ -125,13 +124,21 @@ def _check_target(
     return None, None
 
 
-def find_stale_digests(values_path: Path) -> tuple[list[StaleDigest], list[ImagePin], list[FetchError]]:
+def find_stale_digests(
+    values_path: Path, scope: tuple[str, str] | None = None
+) -> tuple[list[StaleDigest], list[ImagePin], list[FetchError]]:
     """(stale, unresolved, fetch_errors) for every digest pin of the chart next to `values_path` (digest_pin_targets).
 
     A digest in a registered sibling field (keycloak's "sha:") is found too.
+    `scope` (<key>, <image-basename>) limits it to that image's repository;
+    SystemExit if it identifies none or several.
     """
     pins, targets = _resolve_digest_pin_targets(values_path.parent)
     unresolved = [p for p in pins if not p["repository"]]
+    if scope is not None:
+        repository = resolve_scoped_image_pins(pins, *scope)[0]["repository"]
+        targets = {target: entry for target, entry in targets.items() if target[0] == repository}
+        unresolved = []  # unrelated to the scoped image
 
     stale: list[StaleDigest] = []
     fetch_errors: list[FetchError] = []
@@ -204,25 +211,16 @@ def main():
     dry_run, key, basename = _parse_args(sys.argv[1:])
 
     text = VALUES_PATH.read_text(encoding="utf-8")
-    lines = text.splitlines()
-
-    target_repository = None
-    if key is not None and basename is not None:
-        target_repository = formatted_repo(resolve_scoped_matches(lines, key, basename)[0]["repository"])
+    scope = (key, basename) if key is not None and basename is not None else None
 
     print(f"Scanning {VALUES_PATH} for digest-pinned images...")
-    stale, unresolved, fetch_errors = find_stale_digests(VALUES_PATH)
-
-    if target_repository:
-        stale = [s for s in stale if s[0] == target_repository]
-        unresolved = []  # unrelated to the scoped target
-        fetch_errors = [f for f in fetch_errors if f[0] == target_repository]
+    stale, unresolved, fetch_errors = find_stale_digests(VALUES_PATH, scope)
 
     _report_unresolved_and_errors(unresolved, fetch_errors)
 
     to_update = stale
     if not to_update:
-        if target_repository:
+        if scope is not None:
             print(f"\n'{key}' '{basename}' has no stale digest to update — nothing to do.")
         else:
             print("\nNo stale digests found — nothing to do.")
