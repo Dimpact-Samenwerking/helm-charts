@@ -1109,7 +1109,8 @@ PodiumD Helm chart
 | openvtb.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openvtb.persistentVolume.volumeAttributeShareName | string | `"openvtb"` |  |
 | openvtb.replicaCount | int | `2` |  |
-| openvtb.resources | object | `{}` |  |
+| openvtb.resources.requests.cpu | string | `"100m"` |  |
+| openvtb.resources.requests.memory | string | `"256Mi"` |  |
 | openvtb.securityContext.capabilities.drop[0] | string | `"ALL"` |  |
 | openvtb.securityContext.readOnlyRootFilesystem | bool | `false` |  |
 | openvtb.securityContext.runAsNonRoot | bool | `true` |  |
