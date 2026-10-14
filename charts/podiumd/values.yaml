@@ -3552,11 +3552,11 @@ zac:
     mail: "noreply@example.nl"
   global:
     curlImage: *curlImage
-  # ghcr.io/infonl/zaakafhandelcomponent:5.9.1
+  # ghcr.io/infonl/zaakafhandelcomponent:5.10.0
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 5.9.1@sha256:d2b43634c21205183ed7ce9591791fa0112501bb2e4b04baff0362da9e001da4
+    tag: 5.10.0@sha256:952e89644169d7bb3125a163412455145a1f4adcca370fb29b569bef334a88a0
   # Liveness probe uses /health/ready (not /health/live) with a high failureThreshold so
   # Kubernetes automatically restarts ZAC after extended OpenZaak/catalogus unavailability.
   # The ZGW-API-Client has no connectTimeout/readTimeout, causing stale TCP connections
@@ -3682,7 +3682,7 @@ zac:
     # check_digest_pinning (charts/podiumd's own values.yaml only) noticing.
     image:
       repository: otel/opentelemetry-collector-contrib
-      tag: "0.161.0@sha256:fd328de2552466ad78385e1b1289c3f2402b1c45f265b252aab1955b42845ac1"
+      tag: "0.162.0@sha256:39923a8e431bd1f57be82411999d389fcfe40857492e4365456d97a4c1f74be6"
   organizations:
     bron:
       rsin: "000000000"
