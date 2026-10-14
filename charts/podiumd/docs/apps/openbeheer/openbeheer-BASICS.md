@@ -1,5 +1,9 @@
 # Open Beheer — Basics
 
+> **Version:** this page describes 4.10.0 and later, where the Objecttypen API is part of
+> `objecten`. Before 4.10.0 read `objecttypen` for `objecten`: see
+> [`openbeheer.md` § Objecttypen API on Open Object](openbeheer.md#objecttypen-api-on-open-object).
+
 ## Management summary
 
 Open Beheer is the administration console for the case-type catalogues that drive

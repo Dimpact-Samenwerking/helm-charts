@@ -7,6 +7,10 @@ case-types (`zaaktype`) and document-types (`informatieobjecttype`) through the 
 **Catalogi** API, object schemas through the **Objecttypen** API, and references retention
 schedules from the public **Selectielijst** API.
 
+> **Version:** this page describes 4.10.0 and later, where the Objecttypen API is part of
+> `objecten`. Before 4.10.0 read `objecttypen` for `objecten`: see
+> [§ Objecttypen API on Open Object](#objecttypen-api-on-open-object).
+
 Open Beheer is delivered as a vendored Helm sub-chart dependency (`openbeheer` v0.1.3, repository
 `@maykinmedia`, `charts/podiumd/Chart.yaml:59-62`). It is **disabled by default**
 (`openbeheer.enabled: false`) — existing environments see no change after the upgrade; the feature
@@ -35,7 +39,7 @@ The detailed sections below expand on any row.
 | KV: Open Zaak ZGW secret | **infra** | _(env KV convention)_ | `configuration.secrets.openzaak_openbeheer_secret` | `openssl rand -hex 32`. |
 | KV: Objecttypen API token | **infra** | _(env KV convention)_ | `configuration.secrets.objecttypen_openbeheer_token` | `openssl rand -hex 32`; inline header token `REP_OBJECTTYPEN_OPENBEHEER_TOKEN_REP`. |
 | Open Zaak ZGW consumer | **infra** | client `openbeheer` | _(uses the ZGW secret)_ | Register in Open Zaak admin; `auth_type: zgw`. |
-| Objecttypen token holder | **infra** | `tokenauth` item `openbeheer-token` | `objecten.configuration.data` | Same token value; no permissions or `is_superuser` needed. See [§ Objecttypen API on Open Object](#objecttypen-api-on-open-object). |
+| Objecttypen token holder | **infra** | `tokenauth` item `openbeheer-token` | `objecten.configuration.data` (before 4.10.0: `objecttypen.configuration.data`) | Same token value; no permissions or `is_superuser` needed. See [§ Objecttypen API on Open Object](#objecttypen-api-on-open-object). |
 | PersistentVolume + PVC | **helm** | PV `<ns>-openbeheer`, PVC `openbeheer` | `persistence.*` | `templates/openbeheer-storage.yaml`; RWX, Retain, `resource-policy: keep`. |
 | Ingress (opt-in) | **helm** | host `oidcUrl` → svc `openbeheer-nginx:80` | `openbeheer.ingress.*` | Sub-chart `ingress.yaml`; **opt-in per env** (Traefik / `extraIngress` for App Gateway). |
 | HTTPRoute | **infra** | `hr-openbeheer-nginx`, `backendRefs` → `openbeheer-nginx:80` | — | Created by ADO `ExternalsPodiumD` on `public-gateway`, not by this chart. |
@@ -138,7 +142,8 @@ by the chart / shared pattern):
 - **Open Zaak**: register an application/credential for client id `openbeheer` with the ZGW JWT
   secret (the `openzaak_openbeheer_secret` value) so the Catalogi API accepts Open Beheer.
 - **Objecttypen API** (served by `objecten`): add a `tokenauth` item `openbeheer-token` holding
-  the `objecttypen_openbeheer_token` value to `objecten.configuration.data`.
+  the `objecttypen_openbeheer_token` value to `objecten.configuration.data` (before 4.10.0:
+  `objecttypen.configuration.data`).
 
 ## Quick reference
 

@@ -51,8 +51,8 @@ Upgrade one hop at a time, in order. Each guide covers exactly one hop.
 
 ### Optional components — an upgrade will not enable these
 
-Ten components ship disabled. Upgrade guides do not cover enabling one: read
-its enablement doc **before** setting `enabled: true`
+Ten components ship disabled. An upgrade does not enable them: read its
+enablement doc **before** setting `enabled: true`
 ([IN-2847](https://dimpact.atlassian.net/browse/IN-2847)).
 
 | Component | Values key | Enablement doc |
