@@ -203,7 +203,7 @@ with production workload measurements.
             services:
               - identifier: objecttypen-service
                 label: Objecttypen API
-                api_root: "https://objecten.example.nl/api/v2/"
+                api_root: "https://<objecten-host>/api/v2/"  # host of objecten.configuration.oidcUrl
                 api_type: orc
                 auth_type: api_key
                 header_key: Authorization

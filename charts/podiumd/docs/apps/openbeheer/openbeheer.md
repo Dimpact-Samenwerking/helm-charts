@@ -179,12 +179,14 @@ service registry in Postgres, but the data it manages lives in the ZGW APIs:
 Since 4.10.0 the Objecttypen API is part of `objecten` (Open Object, see
 [`openobject-migration.md`](../objecten/openobject-migration.md)):
 
-- Set the `objecttypen-service` `api_root` to `https://objecten.<env-domain>/api/v2/`.
+- Set the `objecttypen-service` `api_root` to the public Objecten URL plus `/api/v2/`: the host
+  of `objecten.configuration.oidcUrl`, e.g. `https://ontw-objecten.dimpact.nl/api/v2/` (SSC).
 - Open Beheer only calls `objecttypes` (list, detail and, in its dev data helper, create). It
   never calls the Objects API, so it needs no Objecten token.
 - Open Object 4.1.0 accepts any valid token on `objecttypes`, for read and write.
   `is_superuser` and per-object-type permissions only apply to `objects`; leave them off.
-- Before 4.10.0, `objecttypen` is a separate app: use `https://objecttypen.<env-domain>/api/v2/`
+- Before 4.10.0, `objecttypen` is a separate app: use the public Objecttypen URL
+  (host of `objecttypen.configuration.oidcUrl`) plus `/api/v2/`
   and put the `openbeheer-token` item in `objecttypen.configuration.data`.
 
 Verified on johnb00 on 2026-10-13 (open-beheer 0.9.1, Open Object 4.1.0). The checks in
@@ -302,7 +304,7 @@ Disabled by default. First provision everything in the [§ Resources](#resources
            services:
            - identifier: objecttypen-service
              label: Objecttypen API
-             api_root: https://objecten.<env>.example.nl/api/v2/
+             api_root: https://<objecten-host>/api/v2/  # host of objecten.configuration.oidcUrl
              api_type: orc
              auth_type: api_key
              header_key: Authorization
