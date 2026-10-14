@@ -60,6 +60,9 @@ from lib.yaml_types import YamlValue
 from lib.yaml_types import is_yaml_mapping
 
 TRIVY_IMAGE = "aquasec/trivy:latest"
+# Named volume for trivy's cache dir: without it every --rm run downloads the
+# vulnerability database again (about a minute per image).
+TRIVY_CACHE_VOLUME = "trivy-cache"
 # Worst first.
 SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"]
 
@@ -202,8 +205,19 @@ def run_trivy(image_ref: str) -> list[Vulnerability] | None:
             "docker",
             "run",
             "--rm",
+            # The host network creates no veth per container; on the bridge, each
+            # start and stop changes the host's interfaces, and browsers on the same
+            # machine (podiumd-tests' Chromium) abort page loads with ERR_NETWORK_CHANGED.
+            "--network",
+            "host",
+            "--volume",
+            f"{TRIVY_CACHE_VOLUME}:/root/.cache/trivy",
             TRIVY_IMAGE,
             "image",
+            # Image layers stay in memory: the shared volume then only holds the
+            # database, and concurrent scans don't wait on trivy's fs cache lock.
+            "--cache-backend",
+            "memory",
             "--ignore-unfixed",
             "--scanners",
             "vuln",

@@ -148,6 +148,27 @@ def test_run_trivy_trims_vulnerabilities_to_reporting_fields(libcvecheck: Module
     assert libcvecheck.run_trivy("org/repo:1.0.0") == [trimmed(raw)]
 
 
+def test_run_trivy_uses_the_host_network_and_the_shared_database_cache(
+    libcvecheck: ModuleType, monkeypatch: pytest.MonkeyPatch
+):
+    """No bridge veth per scan (ERR_NETWORK_CHANGED in local browsers), and one database download for all scans."""
+    commands = []
+
+    def run(cmd, **kwargs):
+        commands.append(cmd)
+        return trivy_result(stdout="{}")
+
+    monkeypatch.setattr(libcvecheck, "run", run)
+    libcvecheck.run_trivy("org/repo:1.0.0")
+    assert len(commands) == 1
+    cmd = commands[0]
+    docker_args = cmd[: cmd.index(libcvecheck.TRIVY_IMAGE)]
+    assert docker_args[docker_args.index("--network") + 1] == "host"
+    assert docker_args[docker_args.index("--volume") + 1] == "trivy-cache:/root/.cache/trivy"
+    assert cmd[cmd.index("--cache-backend") + 1] == "memory"
+    assert cmd[-1] == "org/repo:1.0.0"
+
+
 def test_run_trivy_handles_missing_results_and_vulnerabilities_keys(
     libcvecheck: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
