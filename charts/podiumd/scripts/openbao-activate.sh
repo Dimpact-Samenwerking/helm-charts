@@ -69,8 +69,10 @@
 
 set -euo pipefail
 
+# The whole header comment, however long it gets: from line 2 to the first
+# line that isn't a comment.
 usage() {
-  sed -n '2,67p' "$0" | sed 's/^# \{0,1\}//'
+  awk 'NR > 1 && !/^#/ { exit } NR > 1' "$0" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
