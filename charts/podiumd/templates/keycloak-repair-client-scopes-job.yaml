@@ -110,9 +110,13 @@ done <<< "$rows"
 MARKER=podiumd.repair-client-scopes
 service_account_id=$(scope_id service_account)
 offline_access_id=$(scope_id offline_access)
-clients=$(kc get clients -r "$REALM" --fields id,clientId,protocol,bearerOnly,serviceAccountsEnabled --format csv --noquotes)
+clients=$(kc get clients -r "$REALM" --fields id,clientId,protocol,bearerOnly,serviceAccountsEnabled,authorizationServicesEnabled --format csv --noquotes)
 
-while IFS=, read -r id client protocol bearer sa; do
+while IFS=, read -r id client protocol bearer sa authz; do
+  # A client update without authorizationServicesEnabled switches Authorization
+  # Services off and deletes the resource server, so every --no-merge write
+  # passes the current value (true for a client that has it is a no-op).
+  authz=${authz:-false}
   # Bearer-only clients get no tokens (and realm-management refuses changes).
   if [ "$protocol" != "openid-connect" ] || [ "$bearer" = "true" ]; then continue; fi
   defaults=$(kc get "clients/$id/default-client-scopes" -r "$REALM" --fields name --format csv --noquotes)
@@ -124,7 +128,7 @@ while IFS=, read -r id client protocol bearer sa; do
   # client marked pending was being repaired when an earlier run stopped (for
   # example because the Keycloak operator restarted Keycloak); finish it.
   if [ -z "$defaults" ] || [ "$defaults" = "service_account" ] || [[ "$attrs" == *"\"$MARKER\":\"pending\""* ]]; then
-    kc update "clients/$id" -r "$REALM" --no-merge -s "attributes.\"$MARKER\"=pending" >/dev/null
+    kc update "clients/$id" -r "$REALM" --no-merge -s "attributes.\"$MARKER\"=pending" -s "authorizationServicesEnabled=$authz" >/dev/null
     for row in "${realm_defaults[@]}"; do
       if ! has_scope "$id" default "${row#*,}"; then
         kc update "clients/$id/default-client-scopes/${row%%,*}" -r "$REALM" >/dev/null
@@ -135,7 +139,7 @@ while IFS=, read -r id client protocol bearer sa; do
       kc update "clients/$id/default-client-scopes/$service_account_id" -r "$REALM" >/dev/null
       echo "$client: added default scope service_account"
     fi
-    kc update "clients/$id" -r "$REALM" --no-merge -s "attributes.\"$MARKER\"=done" >/dev/null
+    kc update "clients/$id" -r "$REALM" --no-merge -s "attributes.\"$MARKER\"=done" -s "authorizationServicesEnabled=$authz" >/dev/null
   fi
   if [ -n "$offline_access_id" ]; then
     for kind in default optional; do

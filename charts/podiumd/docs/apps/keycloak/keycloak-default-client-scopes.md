@@ -19,9 +19,10 @@ and the import no longer removes them. The `keycloak-repair-client-scopes`
 Job (every deploy, `keycloak-operator.jobs.repairClientScopes.enabled`) repairs
 what 4.9.1–4.9.4 left behind: a client with no default scopes, or only
 `service_account`, gets the realm's default openid-connect scopes, and
-`offline_access` is removed from every client. It never removes another scope.
-The steps below are for an environment that runs the Job disabled or an
-older release.
+`offline_access` is removed from every client. It never removes another scope,
+and it keeps Authorization Services on for clients that have it (`monitoring`,
+`datamigratie`). The steps below are for an environment that runs the Job
+disabled or an older release.
 
 ## Symptoms
 
@@ -72,10 +73,14 @@ done
 # Realm defaults that new clients get:
 kc get realms/podiumd/default-default-client-scopes --fields name --format csv --noquotes
 
-# Every client without the roles scope (created by a 4.9.1–4.9.4 import):
-for row in $(kc get clients -r podiumd --fields id,clientId --format csv --noquotes); do
-  kc get "clients/${row%%,*}/default-client-scopes" -r podiumd --fields name --format csv --noquotes \
-    | grep -qx roles || echo "no default scopes: ${row#*,}"
+# Every client without the roles default scope (created by a 4.9.1–4.9.4
+# import). Bearer-only clients (realm-management, broker) get no tokens and are
+# skipped, as the repair Job does:
+for row in $(kc get clients -r podiumd --fields id,clientId,bearerOnly --format csv --noquotes); do
+  IFS=, read -r id client bearer <<< "$row"
+  [ "$bearer" = "true" ] && continue
+  kc get "clients/$id/default-client-scopes" -r podiumd --fields name --format csv --noquotes \
+    | grep -qx roles || echo "no roles default scope: $client"
 done
 ```
 
