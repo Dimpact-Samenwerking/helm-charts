@@ -1,7 +1,66 @@
+{{/*
+Pod template of the Keycloak groups Job, rendered separately so its checksum
+can go into the Job name (see below). Context: dict "root" (the chart) and
+"script" (the rendered script).
+*/}}
+{{- define "podiumd.pabcKeycloakGroups.podTemplate" -}}
+{{- $root := .root -}}
+metadata:
+  labels:
+    {{- include "podiumd.selectorLabels" $root | nindent 4 }}
+    app.kubernetes.io/component: pabc
+spec:
+  {{- if $root.Values.keycloak.nodeSelector }}
+  nodeSelector:
+    {{- toYaml $root.Values.keycloak.nodeSelector | nindent 4 }}
+  {{- else if $root.Values.nodeSelector }}
+  nodeSelector:
+    {{- toYaml $root.Values.nodeSelector | nindent 4 }}
+  {{- end }}
+  restartPolicy: Never
+  volumes:
+  - name: tmp
+    emptyDir: {}
+  containers:
+  - name: pabc-keycloak-groups
+    image: {{ include "podiumd.image" $root.Values.keycloak.image }}
+    resources:
+      {{- toYaml $root.Values.pabc.seedJob.keycloak.resources | nindent 6 }}
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop: ["ALL"]
+      seccompProfile:
+        type: RuntimeDefault
+    command: ["/bin/bash", "-c"]
+    args:
+    - |
+      {{- .script | nindent 6 }}
+    env:
+    - name: HOME
+      value: /tmp
+    - name: KEYCLOAK_URL
+      value: {{ (index $root.Values "keycloak-operator").jobs.keycloakUrl | default "http://keycloak-service:8080" | quote }}
+    - name: REALM
+      value: {{ $root.Values.keycloak.config.realm | quote }}
+    - name: CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: keycloak-operator-client-secret
+          key: client-secret
+    volumeMounts:
+    - name: tmp
+      mountPath: /tmp
+{{- end }}
+
 {{- $operatorJobs := (index .Values "keycloak-operator").jobs }}
 {{- if and .Values.pabc.enabled .Values.pabc.seedJob.enabled .Values.pabc.seedJob.keycloak.enabled (index .Values "keycloak-operator").enabled $operatorJobs.ensureOperatorSa.enabled $operatorJobs.ensureOperatorSa.clientSecret }}
 {{- $dataset := .Files.Get "files/pabc-dataset.json" | fromJson }}
 {{- $script := include "podiumd.pabcKeycloakGroups.script" (dict "dataset" $dataset) }}
+{{- $podTemplate := include "podiumd.pabcKeycloakGroups.podTemplate" (dict "root" . "script" $script) }}
 ---
 # Job: Keycloak side of the PABC seed. Only for test environments that seed
 # PABC (pabc.seedJob.enabled); municipalities set up PABC through its UI and
@@ -18,69 +77,24 @@
 # With keycloak.config.skipRoles/skipGroups: false the realm import creates the
 # same roles and groups, so there this Job changes nothing.
 #
-# The Job name carries a checksum of the rendered script, so it runs once per
-# change of the functional roles. It is kept separate from pabc-seed-job on
-# purpose: that Job's name hashes its own pod template, and folding this in
-# would re-seed (and wipe) PABC.
+# The Job name carries a checksum of its whole pod template, script included,
+# so it runs once per change of the functional roles, and also when the
+# Keycloak image or the resources change: spec.template on a batch/v1 Job is
+# immutable, so a name that hashed only the script made the next helm upgrade
+# fail with "field is immutable" after a Keycloak image bump. It is kept
+# separate from pabc-seed-job on purpose: that Job's name hashes its own pod
+# template, and folding this in would re-seed (and wipe) PABC.
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: pabc-keycloak-groups-job-{{ $script | sha256sum | trunc 10 }}
+  name: pabc-keycloak-groups-job-{{ $podTemplate | sha256sum | trunc 10 }}
   labels:
     {{- include "podiumd.labels" . | nindent 4 }}
     app.kubernetes.io/component: pabc
 spec:
   backoffLimit: 10
   template:
-    metadata:
-      labels:
-        {{- include "podiumd.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: pabc
-    spec:
-      {{- if .Values.keycloak.nodeSelector }}
-      nodeSelector:
-        {{- toYaml .Values.keycloak.nodeSelector | nindent 8 }}
-      {{- else if .Values.nodeSelector }}
-      nodeSelector:
-        {{- toYaml .Values.nodeSelector | nindent 8 }}
-      {{- end }}
-      restartPolicy: Never
-      volumes:
-      - name: tmp
-        emptyDir: {}
-      containers:
-      - name: pabc-keycloak-groups
-        image: {{ include "podiumd.image" .Values.keycloak.image }}
-        resources:
-          {{- toYaml .Values.pabc.seedJob.keycloak.resources | nindent 10 }}
-        securityContext:
-          runAsNonRoot: true
-          runAsUser: 1000
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
-          capabilities:
-            drop: ["ALL"]
-          seccompProfile:
-            type: RuntimeDefault
-        command: ["/bin/bash", "-c"]
-        args:
-        - |
-          {{- $script | nindent 10 }}
-        env:
-        - name: HOME
-          value: /tmp
-        - name: KEYCLOAK_URL
-          value: {{ $operatorJobs.keycloakUrl | default "http://keycloak-service:8080" | quote }}
-        - name: REALM
-          value: {{ .Values.keycloak.config.realm | quote }}
-        - name: CLIENT_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: keycloak-operator-client-secret
-              key: client-secret
-        volumeMounts:
-        - name: tmp
-          mountPath: /tmp
+    {{- $podTemplate | nindent 4 }}
 {{- end }}
 
 {{- define "podiumd.pabcKeycloakGroups.script" -}}
