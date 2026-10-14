@@ -39,8 +39,8 @@
 
 - name: keycloak/keycloak
   url: quay.io/keycloak/keycloak
-  version: "26.7.3"
-  digest: "sha256:ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54"
+  version: "26.8.1"
+  digest: "sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244"
 
 - name: adorsys/keycloak-config-cli
   url: docker.io/adorsys/keycloak-config-cli
@@ -49,8 +49,8 @@
 
 - name: keycloak/keycloak-operator
   url: quay.io/keycloak/keycloak-operator
-  version: "26.7.3"
-  digest: "sha256:e3856fd1aeb404f0e6ae2180b01875c8eeebd3748b0e5d955da77b5d41095ae4"
+  version: "26.8.1"
+  digest: "sha256:60996d513b9e9945657b348655c98071c366bb0212deefa1508785941b1651dc"
 
 - name: library/python
   url: docker.io/library/python
