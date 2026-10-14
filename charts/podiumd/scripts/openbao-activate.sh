@@ -48,6 +48,12 @@
 #   --allow-shamir           Accept the Shamir seal. Without it the script stops
 #                            when openbao.seal.static.key is not set, because
 #                            Shamir pods stay sealed after every restart.
+#   --force                  Cancel a generate-root attempt that is already in
+#                            progress (another operator or pipeline run) instead
+#                            of stopping.
+#   --revoke-accessor ACC    Revoke the token with accessor ACC, using this run's
+#                            temporary root token: for a root token an earlier
+#                            run could not revoke (it prints the accessor).
 #   -h, --help               Show this help.
 #
 # Environment:
@@ -88,6 +94,8 @@ ROTATE_READER=0
 NO_READER=0
 ALLOW_SHAMIR=0
 RECOVER_INIT=0
+FORCE=0
+REVOKE_ACCESSOR=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --check)               CHECK_ONLY=1 ;;
@@ -95,6 +103,8 @@ while [[ $# -gt 0 ]]; do
     --rotate-reader-token) ROTATE_READER=1 ;;
     --no-reader-token)     NO_READER=1 ;;
     --allow-shamir)        ALLOW_SHAMIR=1 ;;
+    --force)               FORCE=1 ;;
+    --revoke-accessor)     REVOKE_ACCESSOR="${2:?--revoke-accessor needs an accessor}"; shift ;;
     -h|--help)             usage 0 ;;
     *) echo "ERROR: unknown argument '$1'" >&2; usage 1 ;;
   esac
@@ -149,6 +159,18 @@ fail() { echo "    FAIL  $*" >&2; exit 1; }
 # command arguments: they stay out of `ps`, the pod's shell history and the
 # Kubernetes audit log (which records exec arguments, not the streamed input).
 bao_sh() { kc exec -i "$1" -c openbao -- sh -e; }
+
+bao_any() {
+  # Runs the script on stdin with bao_sh on the first pod that takes it: the
+  # active pod when known, then pod 0, 1, ... A standby forwards the request to
+  # the active node, so one pod that cannot be exec'd into does not block it.
+  local script pod i
+  script=$(cat)
+  for pod in ${ACTIVE:-} $(for i in $(seq 0 $((REPLICAS - 1))); do echo "${STS}-${i}"; done); do
+    printf '%s\n' "${script}" | bao_sh "${pod}" && return 0
+  done
+  return 1
+}
 
 pod_status() {
   # `bao status` exits 2 when sealed; the JSON is what counts.
@@ -294,19 +316,30 @@ if [[ "${CHECK_ONLY}" -eq 1 ]]; then
   exit "${RC}"
 fi
 
-ROOT=""
+ROOT=""; ROOT_ACCESSOR=""; ACTIVE=""
+revoke_root() {
+  bao_any >/dev/null 2>&1 <<EOS
+export BAO_ADDR="${BAO_ADDR}" BAO_TOKEN="${ROOT}"
+bao token revoke -self
+EOS
+}
+remember_root_accessor() {
+  # Best effort: only for the hint when the root token cannot be revoked.
+  ROOT_ACCESSOR=$(bao_any 2>/dev/null <<EOS | jq -r '.data.accessor // empty' || true
+export BAO_ADDR="${BAO_ADDR}" BAO_TOKEN="${ROOT}"
+bao token lookup -format=json
+EOS
+)
+}
 # On any exit, also a failed step: revoke a root token that is still live
 # (init and generate-root tokens never expire), then clear the secrets.
 cleanup() {
   if [[ -n "${ROOT}" ]]; then
-    if bao_sh "${STS}-0" >/dev/null 2>&1 <<EOS
-export BAO_ADDR="${BAO_ADDR}" BAO_TOKEN="${ROOT}"
-bao token revoke -self
-EOS
-    then
+    if revoke_root; then
       echo "    ..    root token revoked on exit" >&2
     else
-      echo "    WARN  could not revoke the root token; revoke it by accessor (bao list auth/token/accessors)" >&2
+      echo "    WARN  could not revoke the root token on any OpenBao pod; it does not expire." >&2
+      echo "          Once OpenBao is reachable, run this script with --revoke-accessor ${ROOT_ACCESSOR:-<accessor>}" >&2
     fi
   fi
   ROOT=""; KEY=""; KV_VALUE=""; OLD_CFG=""; OLD_RD=""
@@ -372,6 +405,8 @@ if [[ "${RECOVER_INIT}" -eq 1 ]]; then
   if [[ "${INITIALIZED}" == "true" ]] && ! token_valid "${STS}-0" "${ROOT}"; then
     ROOT=""
     info "the init root token is no longer valid; a temporary one is created when needed"
+  else
+    remember_root_accessor
   fi
 else
   ok "already initialised"
@@ -435,14 +470,14 @@ CFG=""; RD=""
 
 revoke_token() {
   # revoke_token <label> <token>: revoke a replaced token with the root token.
-  bao_sh "${STS}-0" >/dev/null <<EOS
+  bao_any >/dev/null <<EOS
 export BAO_ADDR="${BAO_ADDR}" BAO_TOKEN="${ROOT}"
 printf '%s' "$2" | bao write auth/token/revoke token=- >/dev/null
 EOS
   ok "previous $1 revoked"
 }
 
-if [[ "${NEED_CONFIG}" -eq 1 || "${NEED_READER}" -eq 1 ]] && [[ -z "${ROOT}" ]]; then
+if [[ "${NEED_CONFIG}" -eq 1 || "${NEED_READER}" -eq 1 || -n "${REVOKE_ACCESSOR}" ]] && [[ -z "${ROOT}" ]]; then
   # Temporary root token from the key in Key Vault; revoked in step 6. OpenBao
   # >= 2.5 only allows unauthenticated generate-root on the loopback listener
   # (127.0.0.1:8210, server.ha.config), so run it on the active pod.
@@ -456,9 +491,20 @@ if [[ "${NEED_CONFIG}" -eq 1 || "${NEED_READER}" -eq 1 ]] && [[ -z "${ROOT}" ]];
   # The bao 2.x CLI (`bao operator generate-root`) calls the authenticated
   # sys/generate-root-token/* endpoints, which need a token; use the legacy
   # sys/generate-root/* endpoints instead, which the loopback listener allows.
+  # Another operator's or pipeline run's attempt is not cancelled silently:
+  # both runs would race and one would fail.
+  STARTED=$(kc exec "${ACTIVE}" -c openbao -- sh -ec \
+    "BAO_ADDR=${LOCAL_ADDR} bao read -format=json sys/generate-root/attempt" | jq -r '.data.started // false') \
+    || fail "generate-root refused on ${ACTIVE}; does server.ha.config still have the 127.0.0.1:8210 listener?"
+  if [[ "${STARTED}" == "true" ]]; then
+    [[ "${FORCE}" -eq 1 ]] \
+      || fail "a generate-root attempt is already in progress on ${ACTIVE} (another operator or pipeline run?). Wait for it, or rerun with --force to cancel it"
+    kc exec "${ACTIVE}" -c openbao -- sh -ec "BAO_ADDR=${LOCAL_ADDR} bao delete sys/generate-root/attempt" >/dev/null \
+      || fail "could not cancel the generate-root attempt on ${ACTIVE}"
+    info "cancelled the generate-root attempt in progress (--force)"
+  fi
   GEN=$(kc exec "${ACTIVE}" -c openbao -- sh -ec \
-    "BAO_ADDR=${LOCAL_ADDR} bao delete sys/generate-root/attempt >/dev/null 2>&1 || true
-     BAO_ADDR=${LOCAL_ADDR} bao write -f -format=json sys/generate-root/attempt") \
+    "BAO_ADDR=${LOCAL_ADDR} bao write -f -format=json sys/generate-root/attempt") \
     || fail "generate-root refused on ${ACTIVE}; does server.ha.config still have the 127.0.0.1:8210 listener?"
   NONCE=$(jq -r .data.nonce <<<"${GEN}"); OTP=$(jq -r .data.otp <<<"${GEN}"); GEN=""
   [[ -n "${NONCE}" && "${NONCE}" != "null" && -n "${OTP}" && "${OTP}" != "null" ]] \
@@ -478,7 +524,16 @@ print(bytes(a ^ b for a, b in zip(raw, otp)).decode(), end="")') \
     || fail "could not decode the generate-root token"
   ENCODED=""; OTP=""
   [[ -n "${ROOT}" ]] || fail "could not create a temporary root token"
+  remember_root_accessor
   ok "temporary root token created from ${KEYVAULT_ITEM}"
+fi
+
+if [[ -n "${REVOKE_ACCESSOR}" ]]; then
+  bao_any >/dev/null <<EOS || fail "could not revoke the token with accessor ${REVOKE_ACCESSOR}"
+export BAO_ADDR="${BAO_ADDR}" BAO_TOKEN="${ROOT}"
+bao write auth/token/revoke-accessor accessor="${REVOKE_ACCESSOR}" >/dev/null
+EOS
+  ok "token with accessor ${REVOKE_ACCESSOR} revoked"
 fi
 
 if [[ "${NEED_CONFIG}" -eq 1 ]]; then
@@ -553,10 +608,7 @@ ok "openbao-config Job configured the vault"
 step "6. Revoke the root token"
 ###############################################################################
 if [[ -n "${ROOT}" ]]; then
-  bao_sh "${STS}-0" >/dev/null <<EOS
-export BAO_ADDR="${BAO_ADDR}" BAO_TOKEN="${ROOT}"
-bao token revoke -self
-EOS
+  revoke_root || fail "could not revoke the root token on any OpenBao pod"
   ROOT=""
   ok "root token revoked; a new one needs ${KEYVAULT_ITEM} (run this script with --rotate-*)"
 else
