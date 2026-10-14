@@ -209,8 +209,17 @@ else
   IMPORT_PY="${IMPORT_PY/__APPLY__/False}"
 fi
 
+# Without the configured identifiers every token would count as "only in the
+# database" and be copied, also those the values migration merges.
+CONFIG_YAML="$(k get configmap "${CONFIGMAP}" -o jsonpath='{.data.configuration\.yaml}')"
+if [ -z "${CONFIG_YAML}" ]; then
+  echo "ERROR: ConfigMap ${CONFIGMAP} has no configuration.yaml key (or it is empty)." >&2
+  echo "Pass objecttypen's setup-configuration ConfigMap with --configmap NAME." >&2
+  exit 1
+fi
+
 echo "Context ${CONTEXT}, namespace ${NAMESPACE}, objecttypen configuration from ConfigMap ${CONFIGMAP}"
-k get configmap "${CONFIGMAP}" -o jsonpath='{.data.configuration\.yaml}' \
+printf '%s\n' "${CONFIG_YAML}" \
   | k exec -i "deploy/${OBJECTTYPEN_DEPLOY}" -c objecttypen -- \
       python /app/src/manage.py shell --verbosity 0 -c "${EXPORT_PY}" \
   | k exec -i "deploy/${OBJECTEN_DEPLOY}" -c objecten -- \

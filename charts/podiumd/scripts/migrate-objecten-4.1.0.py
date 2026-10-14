@@ -72,7 +72,8 @@ that change:
 
 The file is edited in place, line by line: only the lines that change are
 touched, so comments, quoting, indentation and REP_..._REP placeholders stay
-as they are. Before writing, the script checks that the edited file parses to
+as they are. The objecttypen hostnames and the rewritten tokens are replaced
+everywhere in the file, comments included. Before writing, the script checks that the edited file parses to
 exactly the intended values; it refuses to write a file that does not.
 
 Not done by this script (reported as reminders):
@@ -319,9 +320,13 @@ def token_remap(objecten_items: list[dict], objecttypen_items: list[dict],
     values (REP_..._REP placeholders) that consumers use.
 
     Returns (rewrite map, identifiers that clash but cannot be rewritten
-    automatically because a token cannot be resolved to a string).
+    automatically: a token cannot be resolved to a string, or the objecttypen
+    token is also the token of another objecten item).
     """
     by_ident = {i.get("identifier"): i.get("token") for i in objecten_items}
+    # Tokens of objecten's own tokenauth items: the file-wide rewrite must never
+    # turn one of them into another item's token (two items, one token).
+    ob_plain = {_plain_token(t, objecten_secrets or {}) for t in by_ident.values()} - {None}
     remap: dict[str, str] = {}
     manual: list[str] = []
     for item in objecttypen_items:
@@ -332,7 +337,8 @@ def token_remap(objecten_items: list[dict], objecttypen_items: list[dict],
         ob_token = _plain_token(by_ident[ident], objecten_secrets or {})
         if token is not None and token == ob_token:
             continue
-        if token is not None and ob_token is not None and len(token) >= MIN_REWRITE_TOKEN_LEN:
+        if token is not None and ob_token is not None and len(token) >= MIN_REWRITE_TOKEN_LEN \
+                and token not in ob_plain:
             remap[token] = ob_token
         else:
             manual.append(str(ident))
@@ -391,8 +397,9 @@ def expected_values(doc: dict, hosts: Hosts, image_repo: str | None) -> dict:
     sites = (od.get("sites_config") or {}).get("items") or []
     settings = ob.setdefault("settings", {})
     settings["siteDomain"] = sites[0]["domain"] if sites else hosts.new_public
-    allowed = [h.strip() for h in str(settings.get("allowedHosts") or "").split(",") if h.strip()]
-    if hosts.old_public not in allowed:
+    orig = [h.strip() for h in str(doc["objecten"]["settings"].get("allowedHosts") or "").split(",") if h.strip()]
+    allowed = [h if h == hosts.old_public else hosts.rewrite(h) for h in orig]
+    if hosts.old_public not in orig:
         allowed.append(hosts.old_public)
     settings["allowedHosts"] = ",".join(allowed)
     cfg = ob["configuration"]
@@ -404,8 +411,8 @@ def expected_values(doc: dict, hosts: Hosts, image_repo: str | None) -> dict:
         su, (doc["objecten"]["configuration"].get("secrets") or {}))
     cfg["secrets"] = secrets
     cfg["data"] = expected_data(_rewrite_strings(od, hosts), _rewrite_strings(td, hosts))
-    if "create_required_objecttypen_job" in ot:
-        ob["create_required_objecttypen_job"] = ot["create_required_objecttypen_job"]
+    if "create_required_objecttypen_job" in ot and "create_required_objecttypen_job" not in doc["objecten"]:
+        ob["create_required_objecttypen_job"] = _rewrite_strings(ot["create_required_objecttypen_job"], hosts)
     if image_repo:
         ob.setdefault("image", {})["repository"] = image_repo
     adapter = (out.get("kiss") or {}).get("adapter") or {}
@@ -570,8 +577,8 @@ def migrate_text(text: str, image_repo: str | None) -> tuple[str, list[str]]:
         ed.insert(st_s + 1, [" " * child_indent(lines, st_s, st_e) + f"siteDomain: {site_domain}"])
     ah_line = ob["settings"].lc.key("allowedHosts")[0]
     allowed = [h.strip() for h in str(ob["settings"]["allowedHosts"]).split(",") if h.strip()]
-    if old not in allowed:
-        allowed.append("__KEEP_OLD_OBJECTTYPEN_HOST__")
+    keep = "__KEEP_OLD_OBJECTTYPEN_HOST__"  # protects the old host from the hostname rewrite
+    allowed = [keep if h == old else h for h in allowed] + ([] if old in allowed else [keep])
     ed.replace(ah_line, ah_line + 1, [_scalar_line(lines[ah_line], ",".join(allowed))])
 
     # objecten.configuration.secrets: objecttypen's secrets + the job token
@@ -684,9 +691,10 @@ def migrate_text(text: str, image_repo: str | None) -> tuple[str, list[str]]:
                      f"wins. {uses} consumer value(s) that used the objecttypen token now use the objecten "
                      "token. Clients outside these values must switch too.")
     for ident in manual_clashes:
-        notes.append(f"token {ident!r}: objecten and objecttypen have different tokens and one cannot be "
-                     "resolved to a value; the objecten token wins - point consumers of the objecttypen token "
-                     "at it by hand")
+        notes.append(f"token {ident!r}: objecten and objecttypen have different tokens, and the objecttypen "
+                     "token cannot be rewritten automatically (a token is not a plain value, or it is also the "
+                     "token of another objecten item); the objecten token wins - point consumers of the "
+                     "objecttypen token at it by hand")
     for item in plan_tokenauth(ob_tokens, ot_tokens):
         notes.append(f"token {item.get('identifier')!r} existed only in objecttypen and is copied; "
                      "drop it if no client uses it any more")
