@@ -24,6 +24,9 @@
 {{- $old := index $cfg "oidcSecret" | default "" -}}
 {{- $oidcInputs = append $oidcInputs (printf "%s:%s:%s" $comp $kcs $old) -}}
 {{- end -}}
+{{- if $.Values.openvtb.enabled -}}
+{{- $oidcInputs = append $oidcInputs (printf "openvtb:%s:" (index $.Values.openvtb.configuration.secrets "keycloak_client_secret" | default "")) -}}
+{{- end -}}
 {{- $jobSuffix := printf "%s|%s" $realmCfgTpl (join "|" $oidcInputs) | sha256sum | trunc 10 }}
 apiVersion: batch/v1
 kind: Job
@@ -205,6 +208,13 @@ spec:
             secretKeyRef:
               name: keycloak-podiumd-realm-secrets
               key: openbeheer-oidc-secret
+{{- if .Values.openvtb.enabled }}
+        - name: KC_SECRET_OPENVTB
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: openvtb-oidc-secret
+{{- end }}
         - name: KC_SECRET_OPENBAO
           valueFrom:
             secretKeyRef:
