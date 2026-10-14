@@ -417,7 +417,7 @@ def test_render_image_labels_own_wins_over_other_sources(libcvecheck: ModuleType
         f"spec:\n  containers:\n    - name: b\n      image: shared/img:1.0@sha256:{DIGEST_A}\n"
     )
     labels = libcvecheck.render_image_labels(rendered, {})
-    assert labels[("shared/img", "1.0", DIGEST_A)] == "own"
+    assert labels[("docker.io/shared/img", "1.0", DIGEST_A)] == "own"
 
 
 # --- per-package grouping/summarization ---

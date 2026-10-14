@@ -1,4 +1,4 @@
-"""Report-only check for newer same-variant tags of every digest-pinned image in values.yaml.
+"""Report-only check for newer same-variant tags of every pinned image in values.yaml (see scan_image_pins).
 
 Per image it lists the newest newer tag in each major, so a same-major upgrade
 (postgres 16.x while 18 is out) shows next to the newest release.
@@ -23,15 +23,14 @@ from pathlib import Path
 from typing import TypedDict
 
 from lib.checks.cve import BUCKETS
-from lib.checks.cve import ImageKey
+from lib.checks.cve import ImageClassification
 from lib.checks.cve import bucket_of
 from lib.checks.cve import bucket_title
-from lib.checks.cve import classify_by_key
-from lib.checks.cve import dependency_names
+from lib.checks.cve import classify_rendered_images
 from lib.checks.cve import refs_by_bucket
-from lib.checks.cve import render_image_labels
-from lib.checks.cve import top_level_key_for_line
-from lib.image.digests import unique_digest_pin_targets
+from lib.checks.cve import target_label
+from lib.image.digests import ImageTarget
+from lib.image.digests import unique_image_targets
 from lib.image.upgrade_cache import UpgradeEntry
 from lib.image.upgrade_cache import cache_entry_is_fresh
 from lib.image.upgrade_cache import cache_key
@@ -39,8 +38,6 @@ from lib.image.upgrade_cache import load_cache
 from lib.image.upgrade_cache import save_cache
 from lib.registry import find_newer_same_variant_tags
 from lib.registry import parse_repo
-from lib.render_scope import friendly_vendor_charts
-from lib.render_scope import render_chart
 from lib.settings import image_upgrade_tag_check_cache_ttl_days
 
 
@@ -48,10 +45,8 @@ from lib.settings import image_upgrade_tag_check_cache_ttl_days
 class UpgradeCheckContext:
     """The per-scan inputs of _resolve_target_upgrade: label lookups and cache state."""
 
-    rendered_labels: dict[ImageKey, str]
+    classification: ImageClassification
     values_lines: list[str]
-    dep_names: set[str]
-    vendor_map: dict[str, str]
     old_cache: dict[str, UpgradeEntry]
     ttl_days: int
 
@@ -84,15 +79,6 @@ def _upgrade_info(label: str, newer: list[str]) -> ImageUpgrade:
         "vendor_label": label if bucket_of(label) == "partner" else None,
         "newer": newer,
     }
-
-
-def _label_for_target(repository: str, version: str, digest: str, line: int, ctx: UpgradeCheckContext) -> str:
-    """A target's label: the render's "# Source:" attribution, else the values.yaml top-level-key heuristic."""
-    label = ctx.rendered_labels.get((repository, version, digest))
-    if label is not None:
-        return label
-    top_key = top_level_key_for_line(ctx.values_lines, line)
-    return classify_by_key(top_key, ctx.dep_names, ctx.vendor_map)
 
 
 @dataclass
@@ -133,7 +119,7 @@ def _fetch_target_upgrade(i: int, total: int, info: _TargetResolveInfo) -> _Targ
 
 
 def _resolve_target_upgrade(
-    i: int, total: int, target: tuple[tuple[str, str], tuple[str, int]], ctx: UpgradeCheckContext
+    i: int, total: int, target: tuple[ImageTarget, tuple[str | None, int]], ctx: UpgradeCheckContext
 ) -> _TargetResult:
     """Resolve one target from a fresh cache entry or the registry."""
     (repository, version), (digest, line) = target
@@ -144,7 +130,7 @@ def _resolve_target_upgrade(
         host,
         repo_path,
         version,
-        _label_for_target(repository, version, digest, line, ctx),
+        target_label(ctx.classification, ctx.values_lines, (repository, version, digest), line),
     )
     cached = ctx.old_cache.get(info.key)
 
@@ -156,7 +142,7 @@ def _resolve_target_upgrade(
 
 
 def _scan_image_upgrades(
-    chart_dir: Path, targets: list[tuple[tuple[str, str], tuple[str, int]]], ctx: UpgradeCheckContext
+    chart_dir: Path, targets: list[tuple[ImageTarget, tuple[str | None, int]]], ctx: UpgradeCheckContext
 ) -> ImageUpgradeScan:
     """Resolve every target, saving the cache after each registry call and at the end (drops stale entries)."""
     new_cache: dict[str, UpgradeEntry] = {}
@@ -214,26 +200,22 @@ def _image_upgrade_detail(scan: ImageUpgradeScan):
 
 
 def check_image_upgrades(chart_dir: Path, extra_args: list[str]):
-    """verify-podiumd check: report digest-pinned images with a newer same-variant tag.
+    """verify-podiumd check: report pinned images with a newer same-variant tag.
 
     Returns (True, "upgradable: X/Y own, ...") regardless of findings, or
     (False, "helm template failed to render") if the render fails.
     """
     ttl_days = image_upgrade_tag_check_cache_ttl_days(chart_dir)
 
-    result = render_chart(chart_dir, extra_args)
-    if result.returncode != 0:
+    classification = classify_rendered_images(chart_dir, extra_args)
+    if classification is None:
         return False, "helm template failed to render"
-
-    vendor_map = friendly_vendor_charts(chart_dir)
-    dep_names = dependency_names(chart_dir)
-    rendered_labels = render_image_labels(result.stdout, vendor_map)
 
     values_path = chart_dir / "values.yaml"
     values_lines = values_path.read_text(encoding="utf-8").splitlines()
-    targets = sorted(unique_digest_pin_targets(values_lines).items())
+    targets = sorted(unique_image_targets(chart_dir).items())
 
-    ctx = UpgradeCheckContext(rendered_labels, values_lines, dep_names, vendor_map, load_cache(chart_dir), ttl_days)
+    ctx = UpgradeCheckContext(classification, values_lines, load_cache(chart_dir), ttl_days)
     print(f"Checking {len(targets)} unique pinned image(s) for a newer published tag...")
     scan = _scan_image_upgrades(chart_dir, targets, ctx)
 

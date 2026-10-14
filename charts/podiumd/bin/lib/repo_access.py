@@ -1,5 +1,5 @@
 """Fast reachability/authorization preflight for every repo Chart.yaml's
-dependencies and values.yaml's digest-pinned images need.
+dependencies and values.yaml's pinned images (scan_image_pins) need.
 
 Runs before "Dependencies"/"Image digests", which are far slower. Successes
 are cached briefly (lib.repo_access_cache) to avoid Docker Hub's anonymous
@@ -20,7 +20,9 @@ from typing import TypedDict
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.values_tree_primitives import values_key_of
 from lib.image.digests import cached_tag_exists
-from lib.image.digests import scan_digest_pins
+from lib.image.digests import distinct_lines
+from lib.image.digests import image_targets
+from lib.image.digests import scan_image_pins
 from lib.registry import parse_repo
 from lib.render_scope import resolve_dependency_repo
 from lib.repo_access_cache import cache_entry_is_fresh
@@ -101,18 +103,14 @@ def dependency_repos(chart_dir: Path) -> list[DependencyRepo]:
 
 
 def image_repos(values_path: Path) -> list[tuple[RegistryTarget, list[int]]]:
-    """(target, lines) per unique (host, repo_path, version) digest pin in values.yaml.
+    """(target, lines) per unique (host, repo_path, version) pinned image in values.yaml (scan_image_pins).
 
-    Pins without an explicit repository are skipped: resolving them needs
-    charts/*.tgz, which "Dependencies" populates later."""
-    pins = scan_digest_pins(values_path.read_text(encoding="utf-8").splitlines())
-    grouped: dict[RegistryTarget, list[int]] = {}
-    for p in pins:
-        if not p["repository"]:
-            continue
-        target = (*parse_repo(p["repository"]), p["version"])
-        grouped.setdefault(target, []).append(p["line"])
-    return list(grouped.items())
+    Pins whose repository is only in a subchart's default are skipped
+    while charts/*.tgz isn't vendored yet: "Dependencies" populates it later."""
+    targets = image_targets(scan_image_pins(values_path.parent))
+    return [
+        ((*parse_repo(repository), version), distinct_lines(group)) for (repository, version), group in targets.items()
+    ]
 
 
 def _check_http_repo(url: str, timeout_seconds: float):

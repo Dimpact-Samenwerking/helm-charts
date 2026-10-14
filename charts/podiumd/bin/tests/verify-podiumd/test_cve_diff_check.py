@@ -85,7 +85,7 @@ def fake_render_chart(rendered="", returncode=1):
 
 @pytest.fixture(autouse=True)
 def _default_render(libcvediffcheck: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(libcvediffcheck, "render_chart", fake_render_chart())
+    monkeypatch.setattr("lib.checks.cve.render_chart", fake_render_chart())
 
 
 # --- diff_vulns ---
@@ -676,7 +676,7 @@ def test_gather_candidates_attaches_the_values_yaml_line_for_both_kinds(
     """Both kinds carry the values.yaml line classify_by_key needs.
 
     find_sliding_pins returns no line, so sliding candidates look it up in
-    targets by (repository, version)."""
+    targets by (host-qualified repository, version)."""
     write_values_yaml(
         tmp_path,
         f"""\
@@ -696,7 +696,9 @@ redis-thing:
         lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
     )
     monkeypatch.setattr(
-        libcvediffcheck, "find_sliding_pins", lambda chart_dir: [("redis", "8.0", DIGEST_A, f"sha256:{DIGEST_B}")]
+        libcvediffcheck,
+        "find_sliding_pins",
+        lambda chart_dir: [("docker.io/library/redis", "8.0", DIGEST_A, f"sha256:{DIGEST_B}")],
     )
 
     candidates = libcvediffcheck.gather_candidates(tmp_path)
@@ -718,7 +720,7 @@ def test_classify_candidates_falls_back_to_classify_by_key_when_render_raises(
         msg = "helm"
         raise FileNotFoundError(msg)
 
-    monkeypatch.setattr(libcvediffcheck, "render_chart", missing_helm)
+    monkeypatch.setattr("lib.checks.cve.render_chart", missing_helm)
     candidate = {
         "kind": "upgrade",
         "repository": "ghcr.io/infonl/zac",
@@ -813,7 +815,7 @@ BUCKET_RENDERED = (
 def _bucket_upgrade_cache():
     return {
         "ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0"),
-        "maykinmedia/objects-api:1.0.0": fresh_upgrade_entry("1.1.0"),
+        "docker.io/maykinmedia/objects-api:1.0.0": fresh_upgrade_entry("1.1.0"),
         "docker.io/alpine/k8s:1.36.2": fresh_upgrade_entry("1.36.3"),
     }
 
@@ -822,7 +824,7 @@ def _setup_bucket_scenario(
     libcvediffcheck: ModuleType, libcvecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, vulns_by_ref
 ):
     make_chart_dir(tmp_path, BUCKET_VALUES_YAML, BUCKET_CHART_YAML)
-    monkeypatch.setattr(libcvediffcheck, "render_chart", fake_render_chart(BUCKET_RENDERED, returncode=0))
+    monkeypatch.setattr("lib.checks.cve.render_chart", fake_render_chart(BUCKET_RENDERED, returncode=0))
     monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache", lambda chart_dir: _bucket_upgrade_cache())
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
     monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", lambda host, repo, tag: (False, None))
@@ -892,7 +894,7 @@ def test_check_cve_diff_bucket_with_no_candidates_prints_no_header(
         "load_upgrade_cache",
         lambda chart_dir: {
             "ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0"),
-            "maykinmedia/objects-api:1.0.0": fresh_upgrade_entry("1.1.0"),
+            "docker.io/maykinmedia/objects-api:1.0.0": fresh_upgrade_entry("1.1.0"),
             "docker.io/alpine/k8s:1.36.2": fresh_upgrade_entry(),  # no newer tag -- not a candidate
         },
     )

@@ -5,8 +5,9 @@
 """
 Refresh stale image digest pins in charts/podiumd/values.yaml.
 
-For each "<repository>:<tag>@sha256:<digest>" pin, fetches the tag's
-current digest from the registry. When it differs (the tag was
+For each "<repository>:<tag>@sha256:<digest>" pin, and each digest in a
+registered sibling field (keycloak's "sha:"), fetches the tag's current
+digest from the registry. When it differs (the tag was
 re-published), replaces every occurrence of the old digest. Tags labelled
 "(sliding)" float by design; they are refreshed too.
 
@@ -44,17 +45,16 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 # sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
-from lib.chart.chart_yaml import ChartDependency
-from lib.chart.chart_yaml import load_chart_dependencies
+from lib.chart.chart_yaml import chart_dir_dependencies
 from lib.chart.paths import CHART_DIR
+from lib.chart.pull_and_subchart_resolution import formatted_repo
 from lib.chart.repo_and_path_resolution import subchart_needs_vendoring
 from lib.cli import print_section
 from lib.dependencies import check_dependencies as vendor_dependencies
 from lib.dependencies import ensure_repos_configured
-from lib.image.digests import DigestPin
-from lib.image.digests import fill_pin_repositories
-from lib.image.digests import group_pins_by_target
-from lib.image.digests import scan_digest_pins
+from lib.image.digests import ImagePin
+from lib.image.digests import ImageTarget
+from lib.image.digests import digest_pin_targets
 from lib.image.version import resolve_scoped_matches
 from lib.procutil import run_script
 from lib.registry import is_sliding_tag
@@ -71,31 +71,25 @@ StaleDigest = tuple[str, str, str, str, list[int], bool]
 FetchError = tuple[str, str, str, list[int]]
 
 
-def _resolve_pin_repositories(
-    pins: list[DigestPin], chart_dir: Path, lines: list[str], deps: list[ChartDependency]
-) -> list[DigestPin]:
-    """Fill missing pin repositories from the vendored subchart default; return pins still unresolved.
+def _resolve_digest_pin_targets(chart_dir: Path):
+    """digest_pin_targets(chart_dir), re-vendoring dependencies once when a pin's subchart .tgz is missing."""
+    pins, targets = digest_pin_targets(chart_dir)
+    deps = chart_dir_dependencies(chart_dir)
+    unresolved = [p for p in pins if not p["repository"]]
+    if not any(subchart_needs_vendoring(chart_dir, deps, p["path"]) for p in unresolved):
+        return pins, targets
 
-    Vendors dependencies once and retries when a subchart .tgz is missing.
-    """
-    fill_pin_repositories(chart_dir, lines, pins, deps)
-
-    still_unresolved = [p for p in pins if not p["repository"]]
-    if any(subchart_needs_vendoring(chart_dir, lines, p["line"], deps) for p in still_unresolved):
-        print(
-            "Some pin(s) rely on their subchart's own default repository, but it isn't "
-            "vendored yet — re-vendoring dependencies once to resolve them too."
-        )
-        ok, msg = ensure_repos_configured(chart_dir)
-        if not ok:
-            print(f"WARNING: {msg} — those pin(s) will stay unresolved", file=sys.stderr)
-        else:
-            ok, msg = vendor_dependencies(chart_dir)
-            if not ok:
-                print(f"WARNING: {msg} — those pin(s) will stay unresolved", file=sys.stderr)
-        fill_pin_repositories(chart_dir, lines, still_unresolved, deps)
-
-    return [p for p in pins if not p["repository"]]
+    print(
+        "Some pin(s) rely on their subchart's own default repository, but it isn't "
+        "vendored yet — re-vendoring dependencies once to resolve them too."
+    )
+    ok, msg = ensure_repos_configured(chart_dir)
+    if ok:
+        ok, msg = vendor_dependencies(chart_dir)
+    if not ok:
+        print(f"WARNING: {msg} — those pin(s) will stay unresolved", file=sys.stderr)
+        return pins, targets
+    return digest_pin_targets(chart_dir)
 
 
 def _fetch_live_digest(host: str, repo_path: str, version: str) -> tuple[str | None, str | None]:
@@ -112,15 +106,14 @@ def _fetch_live_digest(host: str, repo_path: str, version: str) -> tuple[str | N
 
 
 def _check_target(
-    repository: str, version: str, group: list[DigestPin], values_path: Path
+    target: ImageTarget, pinned_digest: str, lines_for_pin: list[int], values_path: Path
 ) -> tuple[StaleDigest | None, FetchError | None]:
     """(stale_entry, fetch_error) for one (repository, version); each None when not applicable.
 
     `sliding` in stale_entry only affects the printed label.
     """
+    repository, version = target
     host, repo_path = parse_repo(repository)
-    pinned_digest = group[0]["digest"]
-    lines_for_pin = [p["line"] for p in group]
 
     digest, error = _fetch_live_digest(host, repo_path, version)
 
@@ -132,23 +125,18 @@ def _check_target(
     return None, None
 
 
-def find_stale_digests(
-    lines: list[str], values_path: Path
-) -> tuple[list[StaleDigest], list[DigestPin], list[FetchError]]:
-    """(stale, unresolved, fetch_errors) for every digest pin in `lines`."""
-    pins = scan_digest_pins(lines)
+def find_stale_digests(values_path: Path) -> tuple[list[StaleDigest], list[ImagePin], list[FetchError]]:
+    """(stale, unresolved, fetch_errors) for every digest pin of the chart next to `values_path` (digest_pin_targets).
 
-    chart_dir = values_path.parent
-    chart_yaml_path = chart_dir / "Chart.yaml"
-    deps = load_chart_dependencies(chart_yaml_path) if chart_yaml_path.is_file() else []
-
-    unresolved = _resolve_pin_repositories(pins, chart_dir, lines, deps)
-    targets = group_pins_by_target(pins)
+    A digest in a registered sibling field (keycloak's "sha:") is found too.
+    """
+    pins, targets = _resolve_digest_pin_targets(values_path.parent)
+    unresolved = [p for p in pins if not p["repository"]]
 
     stale: list[StaleDigest] = []
     fetch_errors: list[FetchError] = []
-    for (repository, version), group in sorted(targets.items()):
-        stale_entry, fetch_error_entry = _check_target(repository, version, group, values_path)
+    for target, (pinned_digest, pin_lines) in sorted(targets.items()):
+        stale_entry, fetch_error_entry = _check_target(target, pinned_digest, pin_lines, values_path)
         if stale_entry:
             stale.append(stale_entry)
         if fetch_error_entry:
@@ -171,7 +159,7 @@ def _parse_args(argv: list[str]):
     return dry_run, key, basename
 
 
-def _report_unresolved_and_errors(unresolved: list[DigestPin], fetch_errors: list[FetchError]) -> None:
+def _report_unresolved_and_errors(unresolved: list[ImagePin], fetch_errors: list[FetchError]) -> None:
     """Print unresolved pins and fetch errors, if any."""
     if unresolved:
         print(f"\n{len(unresolved)} pin(s) could not be resolved to a repository (skipped):")
@@ -220,10 +208,10 @@ def main():
 
     target_repository = None
     if key is not None and basename is not None:
-        target_repository = resolve_scoped_matches(lines, key, basename)[0]["repository"]
+        target_repository = formatted_repo(resolve_scoped_matches(lines, key, basename)[0]["repository"])
 
     print(f"Scanning {VALUES_PATH} for digest-pinned images...")
-    stale, unresolved, fetch_errors = find_stale_digests(lines, VALUES_PATH)
+    stale, unresolved, fetch_errors = find_stale_digests(VALUES_PATH)
 
     if target_repository:
         stale = [s for s in stale if s[0] == target_repository]

@@ -144,7 +144,7 @@ def test_check_image_upgrades_render_failure_fails(
     vp: ModuleType, libimageupgradecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     chart_dir = make_chart_dir(tmp_path)
-    monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run(returncode=1))
+    monkeypatch.setattr("lib.checks.cve.render_chart", template_run(returncode=1))
     ok, detail = vp.check_image_upgrades(chart_dir, [])
     assert ok is False
     assert "failed to render" in detail
@@ -161,7 +161,7 @@ def test_check_image_upgrades_splits_own_partner_other_and_never_fails(
     capsys: pytest.CaptureFixture[str],
 ):
     chart_dir = make_chart_dir(tmp_path)
-    monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
+    monkeypatch.setattr("lib.checks.cve.render_chart", template_run())
     monkeypatch.setattr(
         libimageupgradecheck, "find_newer_same_variant_tags", newer_tags_for(**{"wearefrank/frank-gateway": "999"})
     )
@@ -193,7 +193,7 @@ def test_check_image_upgrades_partner_upgrade_shown_with_vendor_label(
     capsys: pytest.CaptureFixture[str],
 ):
     chart_dir = make_chart_dir(tmp_path)
-    monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
+    monkeypatch.setattr("lib.checks.cve.render_chart", template_run())
     monkeypatch.setattr(
         libimageupgradecheck, "find_newer_same_variant_tags", newer_tags_for(**{"maykinmedia/objects-api": "2.0.0"})
     )
@@ -214,7 +214,7 @@ def test_check_image_upgrades_other_vendor_itemized_like_partner(
     capsys: pytest.CaptureFixture[str],
 ):
     chart_dir = make_chart_dir(tmp_path)
-    monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
+    monkeypatch.setattr("lib.checks.cve.render_chart", template_run())
     monkeypatch.setattr(
         libimageupgradecheck, "find_newer_same_variant_tags", newer_tags_for(**{"alpine/k8s": "1.37.0"})
     )
@@ -236,7 +236,7 @@ def test_check_image_upgrades_nothing_upgradable_prints_ok(
     capsys: pytest.CaptureFixture[str],
 ):
     chart_dir = make_chart_dir(tmp_path)
-    monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
+    monkeypatch.setattr("lib.checks.cve.render_chart", template_run())
     monkeypatch.setattr(libimageupgradecheck, "find_newer_same_variant_tags", newer_tags_for())
 
     ok, detail = vp.check_image_upgrades(chart_dir, [])
@@ -257,7 +257,7 @@ def test_check_image_upgrades_fetch_error_reported_but_still_passes(
     import urllib.error
 
     chart_dir = make_chart_dir(tmp_path)
-    monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
+    monkeypatch.setattr("lib.checks.cve.render_chart", template_run())
 
     def find(host, repo_path, version):
         if repo_path == "wearefrank/frank-gateway":
@@ -284,7 +284,7 @@ def test_check_image_upgrades_cache_miss_scans_and_persists(
     vp: ModuleType, libimageupgradecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     chart_dir = make_chart_dir(tmp_path)
-    monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
+    monkeypatch.setattr("lib.checks.cve.render_chart", template_run())
     monkeypatch.setattr(libimageupgradecheck, "find_newer_same_variant_tags", newer_tags_for())
 
     ok, _detail = vp.check_image_upgrades(chart_dir, [])
@@ -301,7 +301,7 @@ def test_check_image_upgrades_cache_hit_skips_registry_call(
     capsys: pytest.CaptureFixture[str],
 ):
     chart_dir = make_chart_dir(tmp_path)
-    monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
+    monkeypatch.setattr("lib.checks.cve.render_chart", template_run())
     key = libimageupgradecheck.cache_key("ghcr.io/wearefrank/frank-gateway", "104")
     libimageupgradecheck.save_cache(
         chart_dir,
@@ -334,7 +334,7 @@ def test_check_image_upgrades_expired_cache_entry_rechecks(
     capsys: pytest.CaptureFixture[str],
 ):
     chart_dir = make_chart_dir(tmp_path)
-    monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
+    monkeypatch.setattr("lib.checks.cve.render_chart", template_run())
     key = libimageupgradecheck.cache_key("ghcr.io/wearefrank/frank-gateway", "104")
     stale = datetime.now(timezone.utc) - timedelta(days=1 + 1)
     libimageupgradecheck.save_cache(
@@ -356,7 +356,7 @@ def test_check_image_upgrades_prunes_entries_for_unpinned_images(
     vp: ModuleType, libimageupgradecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     chart_dir = make_chart_dir(tmp_path)
-    monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
+    monkeypatch.setattr("lib.checks.cve.render_chart", template_run())
     monkeypatch.setattr(libimageupgradecheck, "find_newer_same_variant_tags", newer_tags_for())
     stale_key = "org/gone:1.0.0"
     libimageupgradecheck.save_cache(
@@ -382,7 +382,7 @@ def test_check_image_upgrades_heuristic_fallback_for_disabled_component(
     back to the values-key heuristic: not a Chart.yaml dependency -> own."""
     values = VALUES_YAML + (f'apiproxy:\n  image:\n    repository: org/apiproxy\n    tag: "1.0.0@sha256:{"d" * 64}"\n')
     chart_dir = make_chart_dir(tmp_path, values=values)
-    monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
+    monkeypatch.setattr("lib.checks.cve.render_chart", template_run())
     monkeypatch.setattr(
         libimageupgradecheck, "find_newer_same_variant_tags", newer_tags_for(**{"org/apiproxy": "2.0.0"})
     )

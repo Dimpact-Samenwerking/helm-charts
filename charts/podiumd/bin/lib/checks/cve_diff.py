@@ -33,28 +33,26 @@ import yaml
 from lib.checks.cve import BUCKETS
 from lib.checks.cve import SEVERITY_ORDER
 from lib.checks.cve import CacheSession
+from lib.checks.cve import ImageClassification
 from lib.checks.cve import ScanTarget
 from lib.checks.cve import Vulnerability
 from lib.checks.cve import bucket_of
 from lib.checks.cve import bucket_title
-from lib.checks.cve import classify_by_key
-from lib.checks.cve import dependency_names
+from lib.checks.cve import classify_rendered_images
 from lib.checks.cve import open_cache_session
 from lib.checks.cve import print_bucket_header
 from lib.checks.cve import print_findings_per_package
-from lib.checks.cve import render_image_labels
 from lib.checks.cve import save_cache
 from lib.checks.cve import scan_cached
 from lib.checks.cve import severity_label
-from lib.checks.cve import top_level_key_for_line
+from lib.checks.cve import target_label
+from lib.checks.cve import unrendered_classification
 from lib.image.digests import find_sliding_pins
-from lib.image.digests import unique_digest_pin_targets
+from lib.image.digests import unique_image_targets
 from lib.image.upgrade_cache import load_cache as load_upgrade_cache
 from lib.image.upgrade_cache import same_major_upgrade
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
-from lib.render_scope import friendly_vendor_charts
-from lib.render_scope import render_chart
 from lib.settings import cve_max_cves_per_package_before_summarizing
 from lib.settings import cve_scan_cache_ttl_days
 from lib.settings import image_upgrade_tag_check_cache_ttl_days
@@ -92,7 +90,7 @@ class DiffCandidate(TypedDict):
     repository: str
     version: str
     current_ref: str
-    current_digest: str
+    current_digest: str | None
     proposed_label: str
     proposed_ref: str
     proposed_digest: str | None
@@ -116,9 +114,7 @@ def gather_candidates(chart_dir: Path) -> list[DiffCandidate]:
     proposed_digest is known for a sliding digest; for an upgrade (a bare tag) it is None
     and resolved lazily by _scan_proposed.
     """
-    values_path = chart_dir / "values.yaml"
-    values_lines = values_path.read_text(encoding="utf-8").splitlines()
-    targets = unique_digest_pin_targets(values_lines)
+    targets = unique_image_targets(chart_dir)
 
     upgrade_cache = load_upgrade_cache(chart_dir)
     upgrade_ttl_days = image_upgrade_tag_check_cache_ttl_days(chart_dir)
@@ -252,21 +248,14 @@ def classify_candidates(
     and "Image upgrades" already rendered with the same args, so this is normally free.
     """
     try:
-        result = render_chart(chart_dir, extra_args)
-        vendor_map = friendly_vendor_charts(chart_dir)
-        dep_names = dependency_names(chart_dir)
-        rendered_labels = render_image_labels(result.stdout, vendor_map) if result.returncode == 0 else {}
+        classification = classify_rendered_images(chart_dir, extra_args) or unrendered_classification(chart_dir)
     except (OSError, tarfile.TarError, yaml.YAMLError, KeyError, TypeError, ValueError):
-        vendor_map = {}
-        dep_names: set[str] = set()
-        rendered_labels = {}
+        classification = ImageClassification({}, set(), {})
 
     classified: list[ClassifiedCandidate] = []
     for candidate in candidates:
-        label = rendered_labels.get((candidate["repository"], candidate["version"], candidate["current_digest"]))
-        if label is None:
-            top_key = top_level_key_for_line(values_lines, candidate["line"]) if candidate["line"] else None
-            label = classify_by_key(top_key, dep_names, vendor_map)
+        image = (candidate["repository"], candidate["version"], candidate["current_digest"])
+        label = target_label(classification, values_lines, image, candidate["line"])
         classified.append({**candidate, "bucket": bucket_of(label)})
     return classified
 
