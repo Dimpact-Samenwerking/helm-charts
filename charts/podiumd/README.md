@@ -1469,7 +1469,7 @@ PodiumD Helm chart
 | zac.global.curlImage.repository | string | `"curlimages/curl"` |  |
 | zac.global.curlImage.tag | string | `"8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93"` |  |
 | zac.image.pullPolicy | string | `"IfNotPresent"` |  |
-| zac.image.tag | string | `"5.9.1@sha256:d2b43634c21205183ed7ce9591791fa0112501bb2e4b04baff0362da9e001da4"` |  |
+| zac.image.tag | string | `"5.10.0@sha256:952e89644169d7bb3125a163412455145a1f4adcca370fb29b569bef334a88a0"` |  |
 | zac.initContainer.enabled | bool | `true` |  |
 | zac.initContainer.resources.requests.cpu | string | `"50m"` |  |
 | zac.initContainer.resources.requests.memory | string | `"256Mi"` |  |
@@ -1516,7 +1516,7 @@ PodiumD Helm chart
 | zac.opa.sidecar | bool | `true` |  |
 | zac.openForms.url | string | `"https://open-forms.example.nl"` |  |
 | zac.opentelemetry-collector.image.repository | string | `"otel/opentelemetry-collector-contrib"` |  |
-| zac.opentelemetry-collector.image.tag | string | `"0.161.0@sha256:fd328de2552466ad78385e1b1289c3f2402b1c45f265b252aab1955b42845ac1"` |  |
+| zac.opentelemetry-collector.image.tag | string | `"0.162.0@sha256:39923a8e431bd1f57be82411999d389fcfe40857492e4365456d97a4c1f74be6"` |  |
 | zac.organizations.bron.rsin | string | `"000000000"` |  |
 | zac.organizations.verantwoordelijke.rsin | string | `"000000000"` |  |
 | zac.pabcApi.apiKey | string | `""` |  |
