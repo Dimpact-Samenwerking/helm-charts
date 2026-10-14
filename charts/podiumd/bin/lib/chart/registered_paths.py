@@ -13,6 +13,7 @@ from lib.settings import component_resolution_embedded_version_images
 from lib.settings import component_resolution_image_paths
 from lib.settings import component_resolution_native_components
 from lib.settings import component_resolution_version_paths
+from lib.settings import component_resolution_version_repository_paths
 
 
 def component_image_paths(chart_dir: Path | None = None):
@@ -42,6 +43,25 @@ def component_version_paths(chart_dir: Path | None = None):
 def version_paths_for(component: str, chart_dir: Path | None = None):
     """`component`'s registered bare-version path(s), or []; no generic fallback makes sense for a scalar."""
     return component_version_paths(chart_dir).get(component, [])
+
+
+def split_version_fields(chart_dir: Path | None = None) -> dict[str, str]:
+    """{version field: repository field} of the registered split image fields, e.g.
+    {"imageTag": "imageName", "initContainerImageTag": "imageName"} for redis-operator.
+
+    A version_paths entry counts when its component's version_repository_paths
+    entry is a sibling. chart_dir defaults to CHART_DIR.
+    """
+    chart_dir = chart_dir or CHART_DIR
+    version_paths = component_resolution_version_paths(chart_dir)
+    fields: dict[str, str] = {}
+    for component, repository_path in component_resolution_version_repository_paths(chart_dir).items():
+        parent, _, repository_field = repository_path.rpartition(".")
+        for path in version_paths.get(component, []):
+            path_parent, _, version_field = path.rpartition(".")
+            if path_parent == parent:
+                fields[version_field] = repository_field
+    return fields
 
 
 def native_components(chart_dir: Path | None = None):

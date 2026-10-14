@@ -1,4 +1,7 @@
-"""Report-only check for a newer same-variant tag of every digest-pinned image in values.yaml.
+"""Report-only check for newer same-variant tags of every digest-pinned image in values.yaml.
+
+Per image it lists the newest newer tag in each major, so a same-major upgrade
+(postgres 16.x while 18 is out) shows next to the newest release.
 
 Images are split into own/partner-vendor/other-vendor buckets using
 lib.checks.cve's classification; only partner-vendor entries carry a
@@ -34,7 +37,7 @@ from lib.image.upgrade_cache import cache_entry_is_fresh
 from lib.image.upgrade_cache import cache_key
 from lib.image.upgrade_cache import load_cache
 from lib.image.upgrade_cache import save_cache
-from lib.registry import find_newest_same_variant_tag
+from lib.registry import find_newer_same_variant_tags
 from lib.registry import parse_repo
 from lib.render_scope import friendly_vendor_charts
 from lib.render_scope import render_chart
@@ -55,12 +58,11 @@ class UpgradeCheckContext:
 
 class ImageUpgrade(TypedDict):
     """One image in the upgrade report: its bucket, vendor label (partner
-    only), the newest same-variant tag and whether that is newer."""
+    only) and the newest newer same-variant tag per major."""
 
     bucket: str
     vendor_label: str | None
-    newest: str
-    has_newer: bool
+    newer: list[str]
 
 
 @dataclass
@@ -75,13 +77,12 @@ class ImageUpgradeScan:
     cache_hits: int
 
 
-def _upgrade_info(label: str, newest: str, version: str) -> ImageUpgrade:
-    """One images[] entry: bucket, vendor-label suffix (partner-vendor only) and whether a newer tag exists."""
+def _upgrade_info(label: str, newer: list[str]) -> ImageUpgrade:
+    """One images[] entry: bucket, vendor-label suffix (partner-vendor only) and the newer tags."""
     return {
         "bucket": bucket_of(label),
         "vendor_label": label if bucket_of(label) == "partner" else None,
-        "newest": newest,
-        "has_newer": newest != version,
+        "newer": newer,
     }
 
 
@@ -122,13 +123,13 @@ def _fetch_target_upgrade(i: int, total: int, info: _TargetResolveInfo) -> _Targ
     """Announce and run the registry tag-list call (cache hits stay silent)."""
     print(f"  [{i}/{total}] checking {info.image_ref} for a newer tag...", flush=True)
     try:
-        newest = find_newest_same_variant_tag(info.host, info.repo_path, info.version)
+        newer = find_newer_same_variant_tags(info.host, info.repo_path, info.version)
     except (urllib.error.URLError, OSError) as e:
         print(f"  [FETCH-ERR] {info.image_ref}  {e}")
         return _TargetResult(info.image_ref, error=True)
 
-    cache_entry: UpgradeEntry = {"checked_at": datetime.now(timezone.utc).isoformat(), "newest": newest}
-    return _TargetResult(info.image_ref, info.key, cache_entry, _upgrade_info(info.label, newest, info.version))
+    cache_entry: UpgradeEntry = {"checked_at": datetime.now(timezone.utc).isoformat(), "newer": newer}
+    return _TargetResult(info.image_ref, info.key, cache_entry, _upgrade_info(info.label, newer))
 
 
 def _resolve_target_upgrade(
@@ -148,7 +149,7 @@ def _resolve_target_upgrade(
     cached = ctx.old_cache.get(info.key)
 
     if cached and cache_entry_is_fresh(cached, ctx.ttl_days):
-        result_info = _upgrade_info(info.label, cached["newest"], info.version)
+        result_info = _upgrade_info(info.label, cached["newer"])
         return _TargetResult(info.image_ref, info.key, cached, result_info, cache_hit=True)
 
     return _fetch_target_upgrade(i, total, info)
@@ -192,7 +193,7 @@ def _print_image_upgrade_findings(scan: ImageUpgradeScan, total: int, ttl_days: 
 
     if scan.fetch_errors:
         print(f"INCOMPLETE: {len(scan.fetch_errors)}/{total} image(s) could not be checked for a newer tag")
-    elif not any(info["has_newer"] for info in scan.images.values()):
+    elif not any(info["newer"] for info in scan.images.values()):
         print("OK: no newer tag published for any pinned image")
 
     if scan.fetch_errors:
@@ -242,16 +243,16 @@ def check_image_upgrades(chart_dir: Path, extra_args: list[str]):
 
 def bucket_totals(refs: list[str], images: dict[str, ImageUpgrade]) -> tuple[int, int]:
     """(total, upgradable_count) for one bucket's `refs`."""
-    return len(refs), sum(1 for ref in refs if images[ref]["has_newer"])
+    return len(refs), sum(1 for ref in refs if images[ref]["newer"])
 
 
 def print_upgradable(title: str, refs: list[str], images: dict[str, ImageUpgrade]) -> None:
     """Print `title` and each upgradable ref with its vendor label; nothing if none is upgradable."""
-    upgradable = [ref for ref in refs if images[ref]["has_newer"]]
+    upgradable = [ref for ref in refs if images[ref]["newer"]]
     if not upgradable:
         return
     print(f"--- {title} ---")
     for ref in upgradable:
         info = images[ref]
         vendor = f" [{info['vendor_label']}]" if info["vendor_label"] else ""
-        print(f"{ref}{vendor}: newer tag available: {info['newest']}")
+        print(f"{ref}{vendor}: newest tag per major: {', '.join(info['newer'])}")

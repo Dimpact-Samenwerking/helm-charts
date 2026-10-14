@@ -72,7 +72,8 @@ operator.
 
 - **Cluster-internal only.** No HTTPRoute, no public hostname.
 - Apps connect to the write endpoint
-  `redis-ha-master.podiumd.svc.cluster.local:6379` — a ClusterIP Service
+  `redis-ha-master:6379` (the bare service name, which resolves to the
+  `redis-ha-master` Service in the app's own namespace) — a ClusterIP Service
   selecting the pod labelled `redis-role=master`.
 
 ### Other dependencies
@@ -140,11 +141,11 @@ Redis itself ships with the umbrella chart (`redis-operator.enabled: true`,
    newcomponent:
      settings:
        cache:
-         default: redis-ha-master.podiumd.svc.cluster.local:6379/21
-         axes: redis-ha-master.podiumd.svc.cluster.local:6379/21
+         default: redis-ha-master:6379/21
+         axes: redis-ha-master:6379/21
        celery:
-         brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/22
-         resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/22
+         brokerUrl: redis://redis-ha-master:6379/22
+         resultBackendl: redis://redis-ha-master:6379/22
    ```
 
    (The `resultBackendl` spelling — trailing `l` — is intentional; it matches

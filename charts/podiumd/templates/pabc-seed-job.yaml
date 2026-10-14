@@ -30,6 +30,12 @@ spec:
   # scratch dir even though the migration service itself only reads.
   - name: tmp
     emptyDir: {}
+  {{- if .Values.pabc.migrations.prefill.applications }}
+  # The pabc ConfigMap sets PREFILL_PATH whenever prefill is configured.
+  - name: prefill
+    configMap:
+      name: {{ .Values.pabc.fullnameOverride | default "pabc" }}-prefill
+  {{- end }}
   containers:
   - name: pabc-seed
     image: {{ include "podiumd.image" .Values.pabc.migrations.image }}
@@ -63,6 +69,12 @@ spec:
       readOnly: true
     - name: tmp
       mountPath: /tmp
+    {{- if .Values.pabc.migrations.prefill.applications }}
+    - name: prefill
+      mountPath: /app/prefill.json
+      subPath: prefill.json
+      readOnly: true
+    {{- end }}
 {{- end }}
 {{- if and .Values.pabc.enabled .Values.pabc.seedJob.enabled }}
 ---

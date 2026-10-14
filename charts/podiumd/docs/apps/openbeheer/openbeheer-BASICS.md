@@ -74,7 +74,7 @@ default) — see [openbeheer.md](openbeheer.md).
 
 ### Other dependencies
 
-- **Redis**: shared `redis-ha` at `redis-ha-master.podiumd.svc.cluster.local:6379`,
+- **Redis**: shared `redis-ha` at `redis-ha-master:6379` (release namespace),
   **db 17** for both `default` and `axes` caches (`openbeheer.settings.cache.*`); db 18 is
   reserved for Celery but unused — Open Beheer runs no Celery worker. Allocation table:
   `docs/apps/redis/redis-ha-databases.md`.
@@ -139,7 +139,7 @@ with production workload measurements.
         image:
           repository: acrprodmgmt.azurecr.io/nginxinc/nginx-unprivileged
       settings:
-        allowedHosts: "openbeheer.example.nl,openbeheer-nginx.podiumd.svc.cluster.local"
+        allowedHosts: "openbeheer.example.nl,.svc.cluster.local"
         database:
           name: openbeheer
           username: openbeheer
