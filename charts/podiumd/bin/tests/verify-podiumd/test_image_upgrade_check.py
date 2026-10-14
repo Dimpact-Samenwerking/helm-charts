@@ -173,7 +173,7 @@ def test_check_image_upgrades_splits_own_partner_other_and_never_fails(
 
     out = capsys.readouterr().out
     assert "--- Own images ---" in out
-    assert "ghcr.io/wearefrank/frank-gateway:104: newest tag per major: 999" in out
+    assert "ghcr.io/wearefrank/frank-gateway 104: newest tag per major: 999" in out
 
     assert "--- Partner-vendor images ---" not in out  # nothing upgradable there
     assert "--- Other-vendor images ---" not in out  # nothing upgradable there
@@ -203,7 +203,7 @@ def test_check_image_upgrades_partner_upgrade_shown_with_vendor_label(
     assert "upgradable: 0/1 own, 1/1 partner-vendor, 0/1 other-vendor" in detail
     out = capsys.readouterr().out
     assert "--- Partner-vendor images ---" in out
-    assert "docker.io/maykinmedia/objects-api:1.0.0 [Maykin]: newest tag per major: 2.0.0" in out
+    assert "docker.io/maykinmedia/objects-api 1.0.0 [Maykin]: newest tag per major: 2.0.0" in out
 
 
 def test_check_image_upgrades_other_vendor_itemized_like_partner(
@@ -225,7 +225,7 @@ def test_check_image_upgrades_other_vendor_itemized_like_partner(
     out = capsys.readouterr().out
     assert "--- Other-vendor images ---" in out
     # same per-image itemization partner-vendor/own get, no vendor-label suffix
-    assert "docker.io/alpine/k8s:1.36.2: newest tag per major: 1.37.0" in out
+    assert "docker.io/alpine/k8s 1.36.2: newest tag per major: 1.37.0" in out
 
 
 def test_check_image_upgrades_nothing_upgradable_prints_ok(
@@ -391,4 +391,4 @@ def test_check_image_upgrades_heuristic_fallback_for_disabled_component(
     assert ok is True
     assert "upgradable: 1/2 own" in detail  # frankgateway + apiproxy, only apiproxy has an upgrade
     out = capsys.readouterr().out
-    assert "docker.io/org/apiproxy:1.0.0: newest tag per major: 2.0.0" in out
+    assert "docker.io/org/apiproxy 1.0.0: newest tag per major: 2.0.0" in out

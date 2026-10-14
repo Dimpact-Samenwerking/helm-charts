@@ -133,11 +133,12 @@ def test_check_reports_newer_charts_with_app_versions_caches_them_and_never_fail
     assert check_chart_upgrades(tmp_path) == (True, "upgradable: 2/2 chart(s); 0 fetch error(s)")
     out = capsys.readouterr().out
     assert (
-        "zac (zaakafhandelcomponent 1.0.297 (app 5.9.1)): newest chart version per major: 1.0.310 (app 5.10.0)" in out
+        "zac (zaakafhandelcomponent) app 5.9.1, chart 1.0.297: newest version per major: app 5.10.0, chart 1.0.310"
+        in out
     )
     assert (
-        "ita (ita 2.0.0 (app 5.9.1)): newest chart version per major: 2.1.0 (app app-2.1.0), 3.0.0 (app app-3.0.0)"
-        in out
+        "ita (ita) app 5.9.1, chart 2.0.0: newest version per major: app app-2.1.0, chart 2.1.0 | "
+        "app app-3.0.0, chart 3.0.0" in out
     )
 
     # A second run within the TTL is served from the cache, app versions included.
@@ -145,7 +146,7 @@ def test_check_reports_newer_charts_with_app_versions_caches_them_and_never_fail
     assert calls == ["https://example.org/zac/index.yaml", "ghcr.io/org/ita"]
     out = capsys.readouterr().out
     assert "2/2 chart(s) served from cache" in out
-    assert "3.0.0 (app app-3.0.0)" in out
+    assert "app app-3.0.0, chart 3.0.0" in out
 
 
 def test_check_omits_an_unset_app_version(
@@ -157,7 +158,10 @@ def test_check_omits_an_unset_app_version(
     monkeypatch.setattr(upgrade_check, "subchart_app_version", lambda chart_dir, dep: None)
 
     check_chart_upgrades(tmp_path)
-    assert "zac (zaakafhandelcomponent 1.0.297): newest chart version per major: 1.0.310\n" in capsys.readouterr().out
+    assert (
+        "zac (zaakafhandelcomponent) chart 1.0.297: newest version per major: chart 1.0.310\n"
+        in capsys.readouterr().out
+    )
 
 
 def test_check_reports_a_fetch_error_as_incomplete(

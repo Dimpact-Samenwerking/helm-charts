@@ -28,6 +28,7 @@ from lib.checks.cve import bucket_of
 from lib.checks.cve import bucket_title
 from lib.checks.cve import classify_rendered_images
 from lib.checks.cve import refs_by_bucket
+from lib.checks.cve import split_image_ref
 from lib.checks.cve import target_label
 from lib.image.digests import ImageTarget
 from lib.image.digests import unique_image_targets
@@ -237,4 +238,5 @@ def print_upgradable(title: str, refs: list[str], images: dict[str, ImageUpgrade
     for ref in upgradable:
         info = images[ref]
         vendor = f" [{info['vendor_label']}]" if info["vendor_label"] else ""
-        print(f"{ref}{vendor}: newest tag per major: {', '.join(info['newer'])}")
+        repository, version, _digest = split_image_ref(ref)
+        print(f"{repository} {version}{vendor}: newest tag per major: {' | '.join(info['newer'])}")
