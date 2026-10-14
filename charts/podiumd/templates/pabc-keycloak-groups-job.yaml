@@ -85,20 +85,7 @@ spec:
 
 {{- define "podiumd.pabcKeycloakGroups.script" -}}
 set -euo pipefail
-kc() { /opt/keycloak/bin/kcadm.sh "$@" --config /tmp/kcadm.config; }
-
-# The realm itself comes from the realm import job, which may still be running.
-echo "Logging in to $KEYCLOAK_URL as keycloak-operator..."
-for i in $(seq 1 60); do
-  if kc config credentials --server "$KEYCLOAK_URL" --realm master \
-       --client keycloak-operator --secret "$CLIENT_SECRET" >/dev/null 2>&1 \
-     && kc get "realms/$REALM" --fields realm >/dev/null 2>&1; then
-    break
-  fi
-  if [ "$i" = 60 ]; then echo "Timed out waiting for Keycloak realm $REALM"; exit 1; fi
-  echo "Waiting for Keycloak realm $REALM ($i/60)..."
-  sleep 10
-done
+{{ include "podiumd.kcadmLogin" . }}
 
 ensure_role_and_group() {
   local id
