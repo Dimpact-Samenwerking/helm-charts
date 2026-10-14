@@ -22,7 +22,7 @@ PodiumD Helm chart
 | @maykinmedia | referentielijsten(referentielijsten) | 0.2.0 |
 | @opstree | redis-operator | 0.26.1 |
 | @wiremind | clamav | 3.7.2 |
-| @worth-nl | omc(notifynl-omc-nodep) | 0.14.1 |
+| @worth-nl | omc(notifynl-omc-nodep) | 0.17.4 |
 | @zac | zac(zaakafhandelcomponent) | 1.0.338 |
 | @zgw-office-addin | zgw-office-addin | 0.0.93 |
 | file://../mi-data | mi(mi-data) | 1.1.0 |
@@ -661,7 +661,7 @@ PodiumD Helm chart
 | objecten.worker.resources.requests.memory | string | `"192Mi"` |  |
 | omc.enabled | bool | `false` |  |
 | omc.fullnameOverride | string | `"omc"` |  |
-| omc.image.tag | string | `"1.17.19"` |  |
+| omc.image.tag | string | `"2.3.1"` |  |
 | omc.settings.notify.api.baseUrl | string | `"https://api.notifynl.nl"` |  |
 | omc.settings.omc.auth.jwt.audience | string | `"omc"` |  |
 | omc.settings.omc.auth.jwt.issuer | string | `"omc"` |  |

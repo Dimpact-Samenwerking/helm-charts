@@ -101,7 +101,7 @@ dependencies:
   - name: notifynl-omc-nodep
     alias: omc
     repository: "@worth-nl"
-    version: 0.14.1
+    version: 0.17.4
     condition: omc.enabled
   - name: redis-operator
     repository: "@opstree"

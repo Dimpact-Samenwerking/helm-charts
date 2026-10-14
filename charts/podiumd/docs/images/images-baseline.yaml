@@ -259,8 +259,8 @@
 
 - name: worthnl/notifynl-omc
   url: docker.io/worthnl/notifynl-omc
-  version: "1.17.19"
-  digest: "sha256:fdaabe81d6974dc2170d5383e604c15d76febd0a3563362a6827e437f04b398b"
+  version: "2.3.1"
+  digest: "sha256:e4e232b4aab94c897604e23e9c2f02835cf32dd6ff1d5e561a9d6f1197b15338"
 
 - name: wearefrank/frank-gateway
   url: ghcr.io/wearefrank/frank-gateway
