@@ -361,6 +361,16 @@ Consequences (one-time, per fresh cluster):
 - `updateStrategyType: RollingUpdate` (not the sub-chart default `OnDelete`) so a
   `helm upgrade` recreates the server pods to pick up config changes — and
   every recreated pod comes back **sealed**.
+- **Interrupted init.** `scripts/openbao-activate.sh` writes the `bao operator
+  init` output to `/tmp/.openbao-init.json` (mode 0600) in pod 0 and deletes it
+  only after the Key Vault read-back matches. If the run breaks in between, run
+  it again: it finds the vault initialised with the Key Vault item still at
+  `pending-init`, and stores the key from that file. The file is gone when pod 0
+  was recreated in the meantime; then the key is lost. On a vault that holds no
+  data yet, wipe it and initialise again: scale the StatefulSet to 0, empty the
+  storage tables (`TRUNCATE openbao_kv_store, openbao_ha_locks;` in the
+  `openbao` database), scale back up, and run the script. Never do this on a
+  vault that holds secrets: they become unreadable.
 
 ### 3.6.1 Static seal: unseal without an operator (optional)
 

@@ -14,7 +14,11 @@
 #   2. Initialise, when the vault is not initialised yet. The one key OpenBao
 #      returns (the recovery key with the static seal, the unseal key with
 #      Shamir) goes to Key Vault item KEYVAULT_ITEM and is read back. This is
-#      the ONLY Key Vault write the script does.
+#      the ONLY Key Vault write the script does. The init output first goes to
+#      a mode-0600 file in pod 0 (INIT_FILE) and is removed only after the Key
+#      Vault read-back matches, so a broken `kubectl exec` cannot lose the key:
+#      a rerun finds the vault initialised, Key Vault still at the placeholder,
+#      and stores the key from that file.
 #   3. Unseal. Static seal: wait for every pod, restarting a pod that stays
 #      sealed. Shamir: unseal every pod with the key.
 #   4. Mint the scoped config token (scripts/openbao-mint-config-token.sh) and,
@@ -81,6 +85,7 @@ ROTATE_CONFIG=0
 ROTATE_READER=0
 NO_READER=0
 ALLOW_SHAMIR=0
+RECOVER_INIT=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --check)               CHECK_ONLY=1 ;;
@@ -114,6 +119,8 @@ BOOTSTRAP_SECRET="${BOOTSTRAP_SECRET:-openbao-bootstrap-token}"
 TOKEN_PERIOD="${TOKEN_PERIOD:-768h}"
 PLACEHOLDER="pending-init"
 STS="${RELEASE}-openbao"
+# `bao operator init` output, in pod 0, until the key is safe in Key Vault.
+INIT_FILE="/tmp/.openbao-init.json"
 BAO_ADDR="http://${RELEASE}-openbao-active:8200"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
@@ -142,6 +149,11 @@ pod_status() {
 kv_get() {
   az keyvault secret show "${AZ_SUB[@]}" --vault-name "${KEYVAULT}" --name "${KEYVAULT_ITEM}" \
     --query value -o tsv 2>/dev/null
+}
+
+init_file() {
+  # The init output kept in pod 0, or nothing.
+  kc exec "${STS}-0" -c openbao -- cat "${INIT_FILE}" 2>/dev/null || true
 }
 
 secret_value() {
@@ -205,9 +217,13 @@ if [[ "${INITIALIZED}" == "false" ]]; then
   [[ "${KV_VALUE}" == "${PLACEHOLDER}" ]] \
     || fail "vault is not initialised but ${KEYVAULT_ITEM} already holds a key. Is this the right database? Set the item back to '${PLACEHOLDER}' only if that key belongs to a vault that is gone"
   ok "${KEYVAULT_ITEM} holds the placeholder; ready to initialise"
+elif [[ "${KV_VALUE}" == "${PLACEHOLDER}" ]]; then
+  # An earlier run initialised the vault but did not get the key into Key Vault.
+  [[ -n "$(init_file)" ]] \
+    || fail "vault is initialised but ${KEYVAULT_ITEM} still holds the placeholder and ${STS}-0 has no ${INIT_FILE}: the key is lost. Wipe and re-initialise (frankgateway-openbao.md §3.6, Interrupted init)"
+  RECOVER_INIT=1
+  info "vault is initialised but the key is not in Key Vault yet; storing it from ${STS}-0:${INIT_FILE}"
 else
-  [[ "${KV_VALUE}" != "${PLACEHOLDER}" ]] \
-    || fail "vault is initialised but ${KEYVAULT_ITEM} still holds the placeholder: the key was never stored"
   ok "${KEYVAULT_ITEM} holds the key"
 fi
 
@@ -226,6 +242,7 @@ fi
 if [[ "${CHECK_ONLY}" -eq 1 ]]; then
   step "Status"
   RC=0
+  [[ "${RECOVER_INIT}" -eq 1 ]] && { info "key not in Key Vault yet: run without --check to store it"; RC=1; }
   for i in $(seq 0 $((REPLICAS - 1))); do
     s=$(pod_status "${STS}-${i}")
     info "${STS}-${i}: $(jq -c '{initialized, sealed}' <<<"${s}")"
@@ -275,23 +292,30 @@ trap cleanup EXIT
 step "2. Initialise"
 ###############################################################################
 KEY=""
+if [[ "${SEAL_TYPE}" == "static" ]]; then
+  INIT_ARGS="-recovery-shares=1 -recovery-threshold=1"; KEY_FIELD='.recovery_keys_b64[0]'
+else
+  INIT_ARGS="-key-shares=1 -key-threshold=1"; KEY_FIELD='.unseal_keys_b64[0]'
+fi
 if [[ "${INITIALIZED}" == "false" ]]; then
   # Write access is checked before init: init returns the key exactly once.
   az keyvault secret set-attributes "${AZ_SUB[@]}" --vault-name "${KEYVAULT}" --name "${KEYVAULT_ITEM}" \
     --tags "openbao=pending-init" -o none \
     || fail "no write access to ${KEYVAULT_ITEM} in ${KEYVAULT}; not initialising"
-  if [[ "${SEAL_TYPE}" == "static" ]]; then
-    INIT_ARGS="-recovery-shares=1 -recovery-threshold=1"; KEY_FIELD='.recovery_keys_b64[0]'
-  else
-    INIT_ARGS="-key-shares=1 -key-threshold=1"; KEY_FIELD='.unseal_keys_b64[0]'
-  fi
-  # shellcheck disable=SC2086
-  INIT=$(kc exec "${STS}-0" -c openbao -- bao operator init ${INIT_ARGS} -format=json)
-  KEY=$(jq -r "${KEY_FIELD}" <<<"${INIT}")
-  ROOT=$(jq -r .root_token <<<"${INIT}")
+  # The output stays in the pod (mode 0600) until Key Vault holds the key: if
+  # this exec breaks after the server initialised, a rerun stores it from there.
+  kc exec "${STS}-0" -c openbao -- sh -ec \
+    "umask 077; bao operator init ${INIT_ARGS} -format=json > ${INIT_FILE}" \
+    || fail "bao operator init failed on ${STS}-0. If the vault is initialised now, run this script again: it stores the key from ${STS}-0:${INIT_FILE}"
+  RECOVER_INIT=1
+fi
+if [[ "${RECOVER_INIT}" -eq 1 ]]; then
+  INIT=$(init_file)
+  KEY=$(jq -r "${KEY_FIELD}" <<<"${INIT}") || fail "${STS}-0:${INIT_FILE} is not valid init output"
+  ROOT=$(jq -r .root_token <<<"${INIT}") || fail "${STS}-0:${INIT_FILE} is not valid init output"
   INIT=""
   [[ -n "${KEY}" && "${KEY}" != "null" && -n "${ROOT}" && "${ROOT}" != "null" ]] \
-    || fail "bao operator init returned no key or root token"
+    || fail "${STS}-0:${INIT_FILE} holds no key or root token"
   stored=0
   for attempt in 1 2 3; do
     if az keyvault secret set "${AZ_SUB[@]}" --vault-name "${KEYVAULT}" --name "${KEYVAULT_ITEM}" \
@@ -304,13 +328,26 @@ if [[ "${INITIALIZED}" == "false" ]]; then
     sleep 5
   done
   if [[ "${stored}" -ne 1 ]]; then
-    # The key exists nowhere else. Printing it to this run's log is the lesser
-    # evil than losing it; rotate it (bao operator rekey) once stored.
-    echo "    FAIL  could not store the key in ${KEYVAULT}. Store this value as ${KEYVAULT_ITEM} NOW:" >&2
-    echo "${KEY}" >&2
+    # The key stays in ${INIT_FILE} for a rerun. Also keep a copy on this
+    # machine, in a 0600 file, and print only its path: a pipeline log is
+    # kept and unmasked. The key itself goes to stderr only on a terminal.
+    KEY_COPY=$(umask 077; mktemp "${TMPDIR:-/tmp}/openbao-key.XXXXXX")
+    printf '%s\n' "${KEY}" > "${KEY_COPY}"
+    echo "    FAIL  could not store the key in ${KEYVAULT}/${KEYVAULT_ITEM}. It is kept in" >&2
+    echo "          ${STS}-0:${INIT_FILE} (rerun this script to store it from there) and in" >&2
+    echo "          ${KEY_COPY} on this machine (mode 0600). Store it, then delete that file." >&2
+    [[ -t 2 ]] && echo "${KEY}" >&2
     exit 1
   fi
+  kc exec "${STS}-0" -c openbao -- rm -f "${INIT_FILE}" \
+    || info "could not remove ${STS}-0:${INIT_FILE}; it holds the key and the root token: delete it"
   ok "initialised; key stored in ${KEYVAULT}/${KEYVAULT_ITEM} and read back"
+  # Stored on a rerun: the failed run revoked the init root token on exit;
+  # step 4 then creates a temporary one from the key, as on any initialised vault.
+  if [[ "${INITIALIZED}" == "true" && -z "$(token_lookup "${STS}-0" "${ROOT}")" ]]; then
+    ROOT=""
+    info "the init root token is no longer valid; a temporary one is created when needed"
+  fi
 else
   ok "already initialised"
 fi
