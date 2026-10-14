@@ -104,8 +104,8 @@
 
 - name: openformulieren/open-forms
   url: docker.io/openformulieren/open-forms
-  version: "3.5.10"
-  digest: "sha256:a71bb4a76bfa0886391b9dcf87a9c4857a7b76076c084b61d38db820fd09d6dc"
+  version: "4.0.2"
+  digest: "sha256:e1cad4bcf2319a3eb106e51156bf69c6be83da9dd070e977f52ec1079455b8e3"
 
 - name: maykinmedia/open-inwoner
   url: docker.io/maykinmedia/open-inwoner

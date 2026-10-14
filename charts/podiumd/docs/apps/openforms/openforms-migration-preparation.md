@@ -50,6 +50,10 @@ migration tool is available since 3.5.2. **Use it on 3.5.10 or later
 converted with it on an older version get the correct order back when saved
 once in the admin on 3.5.10.
 
+**Up to 3.5.9 the command has no dry run:** run without arguments it converts
+every form at once, and `--no-dry-run` fails as an unknown argument. The two
+commands below only behave as described from 3.5.10 on.
+
 **NOTE: this cannot be easily reverted for large forms, these should be copied first!**
 
 ```bash

@@ -1644,7 +1644,6 @@ openformulieren:
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
     secrets:
       keycloak_client_secret: ""
@@ -1885,6 +1884,13 @@ openformulieren:
         memory: 256Mi
   settings:
     allowedHosts: ".svc.cluster.local"
+    # -- New in 4.10.0: SameSite for the session, CSRF and language cookies
+    # (SESSION_/CSRF_/LANGUAGE_COOKIE_SAMESITE). Unset, Open Forms uses None
+    # on HTTPS so the SDK can be embedded on another site. Lax still allows
+    # embedding on the gemeente's own domain and the return from
+    # DigiD/eHerkenning via OIDC; set None per environment that embeds forms
+    # elsewhere or logs in through SAML with an HTTP-POST ACS.
+    cookieSamesite: Lax
     email:
       port: 587
       useTLS: true
@@ -1893,7 +1899,8 @@ openformulieren:
       axes: redis-ha-master:6379/9
     celery:
       brokerUrl: redis://redis-ha-master:6379/10
-      resultBackendl: redis://redis-ha-master:6379/10
+      # openforms chart 1.13.0 renamed the misspelled resultBackendl to resultBackend.
+      resultBackend: redis://redis-ha-master:6379/10
       # -- Set to debug for test/acceptance environments
       logLevel: warning
   persistence:
@@ -1906,7 +1913,7 @@ openformulieren:
     volumeAttributeShareName: openformulieren
     storageClassName: podiumd-standard
   image:
-    tag: "3.5.10@sha256:a71bb4a76bfa0886391b9dcf87a9c4857a7b76076c084b61d38db820fd09d6dc"
+    tag: "4.0.2@sha256:e1cad4bcf2319a3eb106e51156bf69c6be83da9dd070e977f52ec1079455b8e3"
   resources:
     requests:
       cpu: 250m
