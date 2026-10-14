@@ -29,7 +29,7 @@ Always run before committing changes to `charts/podiumd/`:
 /helm-precommit
 ```
 
-This runs BOM check + duplicate key detection + helm lint in one step.
+This runs BOM check + duplicate key detection + helm lint + the full `verify-podiumd` in one step.
 
 ## Markdown
 
@@ -42,7 +42,9 @@ Run `/markdown-lint` after creating or editing any `*.md` file, before committin
 | `/helm-lint` | Lint the podiumd chart |
 | `/helm-render` | Render a single template |
 | `/helm-render-all` | Render all templates |
-| `/helm-precommit` | BOM check + dup-key check + lint (run before every commit) |
+| `/helm-precommit` | BOM check + dup-key check + lint + full verify (run before every commit) |
+| `/verify-podiumd` | Full `verify-podiumd`, every step, before a push, a PR review report or a release |
+| `/sync-pr-branch` | Move a PR onto its rewritten release branch with only its own changes |
 | `/markdown-lint` | Lint and fix changed `*.md` files with the `verify-podiumd` markdown rules (run after writing any Markdown) |
 | `/helm-deps` | Update Helm dependencies |
 | `/helm-repos` | Add all required Helm repositories |
