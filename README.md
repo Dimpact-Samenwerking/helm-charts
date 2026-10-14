@@ -47,7 +47,7 @@ main  (current release, e.g. 4.7.5)
 - Short-lived feature branches (`feature/podiumd-<X.Y.0>-*`) target the release branch they are named after and are deleted after merging.
 - `main` always reflects the latest production release; only completed release branches are merged into it.
 - A release branch takes new `main` commits by **merging** `main` into it, not by rebasing it onto `main`. A force-pushed release branch leaves every open PR with old copies of its commits: GitHub then shows dozens of unrelated files and the conflicts come back.
-- If a release branch was rewritten anyway, move each open PR onto it with only its own changes: `/sync-pr-branch <PR>` (`git rebase --onto origin/feature/podiumd-<X.Y.0> <old-base> <branch>`).
+- If a release branch was rewritten anyway, rebase each open PR onto it with only its own commits: `/sync-pr-branch <PR>` (`git rebase --onto origin/feature/podiumd-<X.Y.0> <old-base> <branch>`). Do not merge the release branch into a PR branch: a non-linear branch blocks a GitHub stack ("stack branches diverged").
 
 ## Releases
 

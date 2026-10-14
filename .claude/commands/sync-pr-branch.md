@@ -18,32 +18,22 @@ git reflog show origin/<baseRefName>   # earlier tips, "forced-update" marks a r
 
 ## 2. Move only the PR's own changes
 
-Feature branches that reject merge commits (`feature/podiumd-*`): rebase, keeping every commit.
+Rebase, keeping every commit of the PR:
 
 ```bash
 git rebase --onto "$B" <old-base> "$H"
 ```
 
-Branches that allow merge commits: keep the history and add one merge commit whose tree is the current base plus the PR's own diff. No force push is needed.
+Always rebase, also on branches that allow merge commits. A merge commit makes the branch non-linear: a GitHub stack then reports "stack branches diverged" and blocks the merge. Feature branches (`feature/podiumd-*`) also reject merge commits.
 
-```bash
-git switch --detach "$B"
-git diff <old-base> "$H" | git apply --3way --index   # resolve conflicts, git add
-T=$(git write-tree)
-NEW=$(git commit-tree "${T}" -p "$H" -p "$B" -m "Merge <base> into <head>")
-```
-
-In zsh, write `${T}` and `${NEW}`: `$NEW:r` is a zsh modifier.
-
-Resolve conflicts by keeping both sides. Generated docs (`_UPGRADE_PATHS/`, `images-*.yaml`) follow `values.yaml` order: run `fix-doc-consistency` afterwards.
+Resolve conflicts by keeping both sides. For generated docs (`_UPGRADE_PATHS/`, `images-*.yaml`), take the base version, run `fix-doc-consistency`, and add the PR's hand-written text back: a plain "keep both" duplicates generated lists and breaks tables.
 
 ## 3. Verify, then push
 
 1. Run the full `/verify-podiumd` on the result.
 2. Ask the user before a force push, and before pushing to a branch someone else owns.
 3. Push with a lease on the head you started from:
-   - rebase: `git push --force-with-lease=<head>:<old-head-sha> origin HEAD:refs/heads/<head>`
-   - merge: `git push origin "${NEW}:refs/heads/<head>"`
+   `git push --force-with-lease=<head>:<old-head-sha> origin HEAD:refs/heads/<head>`
 4. Check that GitHub shows only the PR's own files and that the PR is mergeable:
    `gh pr view <n> --json mergeable,files -q '.mergeable, (.files|length)'`.
 5. Comment on the PR: why it was synced, the old base, how conflicts were resolved, and the verify result.
@@ -53,7 +43,6 @@ Resolve conflicts by keeping both sides. Generated docs (`_UPGRADE_PATHS/`, `ima
 ```text
 SYNC-PR-BRANCH #<n> <head>
   Old base : <sha> (<date of the base rewrite>)
-  Method   : rebase | merge commit
   Files    : <before> -> <after>
   Verify   : PASS | FAIL
   Pushed   : <new head sha>
