@@ -228,7 +228,7 @@ Configured per environment via `openinwoner.eck-elasticsearch.nodeSets`. The nod
 | enterprise-search `(op)` | — | 4Gi | — | 4Gi | Set by ECK operator; configure via EnterpriseSearch CR |
 | elastic-internal-init-filesystem (init) `(op)` | 100m | 50Mi | 100m | 50Mi | Set by ECK operator |
 
-*Enterprise Search (disabled since KISS 3.0.0) has no CPU request. An environment that overrides `kiss-eck.eck-elasticsearch.nodeSets` must repeat the `podTemplate` containers: a list replaces the chart default.*
+*Enterprise Search (disabled since KISS 3.0.0) has no CPU request. An environment that overrides `kiss-eck.eck-elasticsearch.nodeSets` must repeat the `podTemplate` containers, because a list replaces the chart default: `scripts/migrate-eck-resources-4.10.0.py` adds them.*
 
 > ⚠️ **Increase for production**: KISS Elasticsearch defaults have only limits with no requests — this puts pods in the Burstable QoS class and makes them eviction candidates under node pressure. Suggested for production: ES `500m / 4Gi` (request = limit for Guaranteed QoS), Kibana `200m / 1Gi`, Enterprise Search `500m / 4Gi`.
 
