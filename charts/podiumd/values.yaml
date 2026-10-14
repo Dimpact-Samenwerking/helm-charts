@@ -4964,7 +4964,7 @@ openbao:
         }
 
         # Loopback-only listener for break-glass root-token generation from the
-        # recovery/unseal key. OpenBao >= 2.5 disables the unauthenticated
+        # recovery/unseal key. OpenBao >= 2.5.3 disables the unauthenticated
         # generate-root endpoints by default, and they must stay off on the
         # listener the Service exposes. This one is reachable only from inside
         # the pod (kubectl exec); scripts/openbao-activate.sh uses it on the

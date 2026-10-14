@@ -479,7 +479,7 @@ EOS
 
 if [[ "${NEED_CONFIG}" -eq 1 || "${NEED_READER}" -eq 1 || -n "${REVOKE_ACCESSOR}" ]] && [[ -z "${ROOT}" ]]; then
   # Temporary root token from the key in Key Vault; revoked in step 6. OpenBao
-  # >= 2.5 only allows unauthenticated generate-root on the loopback listener
+  # >= 2.5.3 only allows unauthenticated generate-root on the loopback listener
   # (127.0.0.1:8210, server.ha.config), so run it on the active pod.
   [[ -n "${KEY}" ]] || KEY=$(kv_get) || fail "cannot read ${KEYVAULT_ITEM} from ${KEYVAULT}"
   ACTIVE=""

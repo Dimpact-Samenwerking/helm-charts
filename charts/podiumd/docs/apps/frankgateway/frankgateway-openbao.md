@@ -662,17 +662,26 @@ The gateway-side checks are in
   access policy as narrow as the database's. It is never revoked; rotating it
   means `bao operator rekey`, after which the Key Vault item must be updated in
   the same sitting.
-- The **root token** captured at `bao operator init` is needed twice: to mint
-  the scoped config token (runbook step 4, `scripts/openbao-mint-config-token.sh`)
-  and the gateway's reader token (runbook step 5). Store it only in Azure Key
-  Vault (`openbao-root-token`) and **revoke it** (`--revoke-root`, runbook
-  step 8) only after both tokens are minted and a deploy has succeeded with the
-  scoped token — revocation no longer breaks upgrades. Break-glass: the unseal key can mint a
-  new root token through the legacy `sys/generate-root/*` endpoints, which the
-  chart allows only on the loopback listener `127.0.0.1:8210` of each pod
-  (OpenBao 2.5 and later refuse them on the exposed listener, and the
-  `bao operator generate-root` CLI needs a token). `scripts/openbao-activate.sh`
-  does this for you, and revokes the token afterwards.
+- The **root token** captured at `bao operator init`:
+  - **Activation flow** (`scripts/openbao-activate.sh`,
+    [frankgateway-openbao-activation.md](frankgateway-openbao-activation.md)):
+    the root token is never stored. The script uses the one init returns, or
+    a temporary one it creates from the key in Key Vault when it has to mint a
+    token, and revokes it in the same run.
+  - **Manual flow** ([runbook](frankgateway-deploy-runbook.md)): it is needed
+    twice, to mint the scoped config token (runbook step 4,
+    `scripts/openbao-mint-config-token.sh`) and the gateway's reader token
+    (runbook step 5). Store it only in Azure Key Vault (`openbao-root-token`)
+    and **revoke it** (`--revoke-root`, runbook step 8) after both tokens are
+    minted and a deploy has succeeded with the scoped token.
+
+  Break-glass: the unseal key can mint a new root token through the legacy
+  `sys/generate-root/*` endpoints, which the chart allows only on the loopback
+  listener `127.0.0.1:8210` of each pod (OpenBao 2.5.3 and later refuse them by
+  default, and the `bao operator generate-root` CLI needs a token). Upstream
+  has deprecated these unauthenticated endpoints; they are still in 2.7.1.
+  `scripts/openbao-activate.sh` does this for you, and revokes the token
+  afterwards.
 - The `openbao-config` Job authenticates with the **`podiumd-config-job`
   token**: orphan (survives root revocation), periodic (renewed by the Job on
   every run), and restricted to the exact paths the Job configures — an
