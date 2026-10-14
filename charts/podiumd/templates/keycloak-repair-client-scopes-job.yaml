@@ -1,0 +1,155 @@
+{{- $operatorJobs := (index .Values "keycloak-operator").jobs }}
+{{- if and (index .Values "keycloak-operator").enabled $operatorJobs.importPodiumdRealm.enabled $operatorJobs.repairClientScopes.enabled $operatorJobs.ensureOperatorSa.enabled $operatorJobs.ensureOperatorSa.clientSecret }}
+---
+# Job: repairs client scopes in the podiumd realm without managing them. The
+# realm import lists no scopes on clients, so scopes that environments and
+# Keycloak updates add (bsn, eherkenning, ...) stay. This Job only:
+# - gives a client with no default scopes (or only service_account) the realm's default
+#   openid-connect scopes (plus service_account for a service-account client).
+#   4.9.1-4.9.4 imports created clients like that; a curated client always has
+#   at least one default scope and is left alone.
+# - removes offline_access from every client (see keycloak-security-updates.md).
+# The name carries the release revision, so it runs on every deploy. It
+# tolerates Keycloak restarting mid-run (Keycloak operator upgrade): the login
+# waits for Keycloak, a failed call fails the pod, backoffLimit retries it, and
+# every step checks before it changes anything. A client is marked with the
+# attribute podiumd.repair-client-scopes=pending while its defaults are added,
+# so a retry finishes a half-repaired client. That marker is written with
+# kcadm --no-merge, which sends only the attribute: the realm import Job runs
+# in the same deploy, and a full GET/PUT of the client could undo its changes.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-repair-client-scopes-{{ .Release.Revision }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak
+spec:
+  backoffLimit: 10
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        {{- include "podiumd.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: keycloak
+    spec:
+      {{- if .Values.keycloak.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.keycloak.nodeSelector | nindent 8 }}
+      {{- else if .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
+      restartPolicy: Never
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      containers:
+      - name: repair-client-scopes
+        image: {{ include "podiumd.image" .Values.keycloak.image }}
+        resources:
+          {{- toYaml $operatorJobs.repairClientScopes.resources | nindent 10 }}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          {{- include "podiumd.keycloakRepairClientScopes.script" . | nindent 10 }}
+        env:
+        - name: HOME
+          value: /tmp
+        - name: KEYCLOAK_URL
+          value: {{ $operatorJobs.keycloakUrl | default "http://keycloak-service:8080" | quote }}
+        - name: REALM
+          value: {{ .Values.keycloak.config.realm | quote }}
+        - name: CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-operator-client-secret
+              key: client-secret
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+{{- end }}
+
+{{- define "podiumd.keycloakRepairClientScopes.script" -}}
+set -euo pipefail
+{{ include "podiumd.kcadmLogin" . }}
+
+# Plain bash only: the Keycloak image has no awk or grep. Every kc get is
+# captured in a variable first, so a failing call fails the Job (set -e does
+# not see failures inside a process substitution).
+all_scopes=$(kc get client-scopes -r "$REALM" --fields id,name --format csv --noquotes)
+scope_id() {
+  local id name
+  while IFS=, read -r id name; do
+    if [ "$name" = "$1" ]; then echo "$id"; fi
+  done <<< "$all_scopes"
+}
+has_scope() {  # has_scope <client id> <default|optional> <scope name>
+  local names name
+  # Called inside `if`, where set -e is off: exit explicitly on failure.
+  names=$(kc get "clients/$1/$2-client-scopes" -r "$REALM" --fields name --format csv --noquotes) || exit 1
+  while read -r name; do
+    if [ "$name" = "$3" ]; then return 0; fi
+  done <<< "$names"
+  return 1
+}
+realm_defaults=()
+rows=$(kc get "realms/$REALM/default-default-client-scopes" -r "$REALM" --fields id,name,protocol --format csv --noquotes)
+while IFS=, read -r id name protocol; do
+  if [ "$protocol" = "openid-connect" ]; then realm_defaults+=("$id,$name"); fi
+done <<< "$rows"
+MARKER=podiumd.repair-client-scopes
+service_account_id=$(scope_id service_account)
+offline_access_id=$(scope_id offline_access)
+clients=$(kc get clients -r "$REALM" --fields id,clientId,protocol,bearerOnly,serviceAccountsEnabled,authorizationServicesEnabled --format csv --noquotes)
+
+while IFS=, read -r id client protocol bearer sa authz; do
+  # A client update without authorizationServicesEnabled switches Authorization
+  # Services off and deletes the resource server, so every --no-merge write
+  # passes the current value (true for a client that has it is a no-op).
+  authz=${authz:-false}
+  # Bearer-only clients get no tokens (and realm-management refuses changes).
+  if [ "$protocol" != "openid-connect" ] || [ "$bearer" = "true" ]; then continue; fi
+  defaults=$(kc get "clients/$id/default-client-scopes" -r "$REALM" --fields name --format csv --noquotes)
+  # Full representation (kcadm --fields attributes returns an empty object),
+  # whitespace removed so the match does not depend on kcadm's JSON layout.
+  attrs=$(kc get "clients/$id" -r "$REALM")
+  attrs=${attrs//[[:space:]]/}
+  # Keycloak adds service_account itself when a service account is enabled. A
+  # client marked pending was being repaired when an earlier run stopped (for
+  # example because the Keycloak operator restarted Keycloak); finish it.
+  if [ -z "$defaults" ] || [ "$defaults" = "service_account" ] || [[ "$attrs" == *"\"$MARKER\":\"pending\""* ]]; then
+    kc update "clients/$id" -r "$REALM" --no-merge -s "attributes.\"$MARKER\"=pending" -s "authorizationServicesEnabled=$authz" >/dev/null
+    for row in "${realm_defaults[@]}"; do
+      if ! has_scope "$id" default "${row#*,}"; then
+        kc update "clients/$id/default-client-scopes/${row%%,*}" -r "$REALM" >/dev/null
+        echo "$client: added default scope ${row#*,}"
+      fi
+    done
+    if [ "$sa" = "true" ] && [ -n "$service_account_id" ] && ! has_scope "$id" default service_account; then
+      kc update "clients/$id/default-client-scopes/$service_account_id" -r "$REALM" >/dev/null
+      echo "$client: added default scope service_account"
+    fi
+    kc update "clients/$id" -r "$REALM" --no-merge -s "attributes.\"$MARKER\"=done" -s "authorizationServicesEnabled=$authz" >/dev/null
+  fi
+  if [ -n "$offline_access_id" ]; then
+    for kind in default optional; do
+      if has_scope "$id" "$kind" offline_access; then
+        kc delete "clients/$id/$kind-client-scopes/$offline_access_id" -r "$REALM" >/dev/null
+        echo "$client: removed $kind scope offline_access"
+      fi
+    done
+  fi
+done <<< "$clients"
+
+echo "Done."
+{{- end -}}
