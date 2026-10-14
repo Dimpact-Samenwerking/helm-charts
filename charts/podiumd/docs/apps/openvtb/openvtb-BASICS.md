@@ -65,14 +65,17 @@ sub-chart ships an optional classic Ingress (`openvtb.ingress.*`, disabled by de
 
 ## CPU and memory
 
-Chart defaults (`openvtb.resources: {}`, no section in `docs/misc/resource-overview.md`):
+Chart defaults (`openvtb.resources.requests`, no section in `docs/misc/resource-overview.md`
+yet — never deployed anywhere to observe real usage):
 
 | Container | CPU request | CPU limit | Memory request | Memory limit |
 |---|---|---|---|---|
-| web (x2) | not set (burstable) | not set | not set (burstable) | not set |
+| web (x2) | 100m | not set (burstable) | 256Mi | not set (burstable) |
 | configuration job | not set (burstable) | not set | not set (burstable) | not set |
 
-No observed usage yet. Set requests and limits per environment before enabling.
+The 100m/256Mi request matches objecten's own convention (request set, no limit, same as the
+rest of the chart) — a starting point to revisit once there is observed usage. Adjust per
+environment before enabling if the workload turns out heavier.
 
 ## Integrating Open VTB as a new app
 
