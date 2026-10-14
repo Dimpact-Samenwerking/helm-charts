@@ -8,14 +8,15 @@
 #   2. openformulieren 3.5.8 -> 4.0.2 (chart 1.12.0 -> 1.13.0).
 #   3. openvtb 0.2.0 (new optional component, image maykinmedia/open-vtb,
 #      disabled by default).
-#   4. kiss - crawler 1.0.0 -> 1.1.0 (Elastic Open Crawler, CVE fixes).
-#   5. zac 5.4.5 -> 5.9.1 (chart 1.0.297 -> 1.0.338).
-#   6. zac - gotenberg 8.36.0 -> 8.37.0.
-#   7. zac - opa 1.19.1-static -> 1.21.1-static.
-#   8. zac - opentelemetry-collector-contrib 0.158.0 -> 0.161.0.
-#   9. zac - solr 9.10.1-slim (digest changed).
-#   10. zgw-office-addin 0.11.0 -> 0.12.0 (chart 0.0.89 -> 0.0.93).
-#   11. pabc 1.1.1 -> 2.1.0 (chart 1.1.1 -> 2.1.0).
+#   4. kiss 3.1.3 -> 3.2.0 (chart 3.1.3 -> 3.2.0, incl. kiss-elastic-sync).
+#   5. kiss - crawler 1.0.0 -> 1.1.0 (Elastic Open Crawler, CVE fixes).
+#   6. zac 5.4.5 -> 5.9.1 (chart 1.0.297 -> 1.0.338).
+#   7. zac - gotenberg 8.36.0 -> 8.37.0.
+#   8. zac - opa 1.19.1-static -> 1.21.1-static.
+#   9. zac - opentelemetry-collector-contrib 0.158.0 -> 0.161.0.
+#   10. zac - solr 9.10.1-slim (digest changed).
+#   11. zgw-office-addin 0.11.0 -> 0.12.0 (chart 0.0.89 -> 0.0.93).
+#   12. pabc 1.1.1 -> 2.1.0 (chart 1.1.1 -> 2.1.0).
 #
 # See docs/_UPGRADE_PATHS/4.9.4-to-4.10.0-upgrade.md for the operator upgrade notes.
 #
@@ -40,6 +41,16 @@
   version: "0.2.0"
   digest: "sha256:b382b2fdeb052994d6a785864f1277bffb2490e61de2a0222ad74379dede2f01"
 
+# kiss 3.1.3 -> 3.2.0
+- name: klantinteractie-servicesysteem/kiss-frontend
+  url: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
+  version: "3.2.0"
+  digest: "sha256:478d9f229119c3045dff404059b8a349efdb4faca2bf8db436fc41a826a3dbf9"
+#   sidecar: kiss - kiss-elastic-sync 3.1.3 -> 3.2.0
+- name: klantinteractie-servicesysteem/kiss-elastic-sync
+  url: ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync
+  version: "3.2.0"
+  digest: "sha256:8ebfe45802a4d7c09ecc8d9c237e11ba6c893479e6f59957e09116594ea52c49"
 #   sidecar: kiss - crawler 1.0.0 -> 1.1.0
 - name: integrations/crawler
   url: docker.elastic.co/integrations/crawler
