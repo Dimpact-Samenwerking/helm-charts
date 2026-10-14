@@ -255,14 +255,15 @@ keycloak-operator:
 
 
 def test_scan_image_pins_reads_a_registered_sibling_digest(libimagedigests: ModuleType, tmp_path: Path):
-    """keycloak's digest is in "sha:", not in the tag; the aliased operator copy reports the anchor's line."""
+    """keycloak's digest is in "sha:", not in the tag, and the pin reports that line; the aliased
+    operator copy reports the anchor's line."""
     (tmp_path / "values.yaml").write_text(KEYCLOAK_VALUES, encoding="utf-8")
     pins = libimagedigests.scan_image_pins(tmp_path)
     assert [(p["path"], p["line"], p["version"], p["digest"], p["repository"]) for p in pins] == [
-        (("keycloak", "image"), 4, "26.7.3", "a" * 64, "quay.io/keycloak/keycloak"),
+        (("keycloak", "image"), 5, "26.7.3", "a" * 64, "quay.io/keycloak/keycloak"),
         (
             ("keycloak-operator", "operator", "config", "keycloakImage"),
-            4,
+            5,
             "26.7.3",
             "a" * 64,
             "quay.io/keycloak/keycloak",
@@ -274,7 +275,18 @@ def test_digest_pin_targets_include_sibling_digest_pins(libimagedigests: ModuleT
     (tmp_path / "values.yaml").write_text(KEYCLOAK_VALUES, encoding="utf-8")
     pins, targets = libimagedigests.digest_pin_targets(tmp_path)
     assert len(pins) == 2
-    assert targets == {("quay.io/keycloak/keycloak", "26.7.3"): ("a" * 64, [4])}
+    assert targets == {("quay.io/keycloak/keycloak", "26.7.3"): ("a" * 64, [5])}
+
+
+def test_find_inconsistent_version_pins_reports_drift_between_literal_sibling_digests(
+    libimagedigests: ModuleType, tmp_path: Path
+):
+    """One aliased tag, two literal "sha:" values: drift, though both pins share the tag's line."""
+    values = KEYCLOAK_VALUES.replace("sha: *kcDigest", f'sha: "{"b" * 64}"')
+    (tmp_path / "values.yaml").write_text(values, encoding="utf-8")
+    findings = libimagedigests.find_inconsistent_version_pins(libimagedigests.scan_image_pins(tmp_path))
+    assert findings["quay.io/keycloak/keycloak"]["kind"] == "drift"
+    assert sorted(line for _pair, lines in findings["quay.io/keycloak/keycloak"]["pins"] for line in lines) == [5, 12]
 
 
 def test_find_inconsistent_version_pins_ignores_aliases_of_one_anchor(libimagedigests: ModuleType, tmp_path: Path):

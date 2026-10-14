@@ -409,6 +409,35 @@ def test_list_tags_raises_past_the_page_cap(libregistry: ModuleType, monkeypatch
     assert len(calls) == 3
 
 
+def test_list_tags_reuses_the_challenge_token_on_later_pages(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    """docker.elastic.co pages: one 401 and one token fetch, not one per page."""
+    calls = []
+
+    def fake_urlopen(arg):
+        url = arg if isinstance(arg, str) else arg.full_url
+        calls.append(url)
+        if "docker-auth.elastic.co" in url:
+            return FakeResponse(body=json.dumps({"token": "elastictoken"}).encode())
+        assert isinstance(arg, urllib.request.Request)
+        if arg.headers.get("Authorization") != "Bearer elastictoken":
+            raise urllib.error.HTTPError(
+                url,
+                401,
+                "Unauthorized",
+                _headers({"WWW-Authenticate": 'Bearer realm="https://docker-auth.elastic.co/auth"'}),
+                BytesIO(b""),
+            )
+        if "last=" not in url:
+            link = '</v2/kibana/kibana/tags/list?last=8.19.22>; rel="next"'
+            return FakeResponse(headers={"Link": link}, body=json.dumps({"tags": ["8.19.22"]}).encode())
+        return FakeResponse(body=json.dumps({"tags": ["8.19.23"]}).encode())
+
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    assert libregistry.list_tags("docker.elastic.co", "kibana/kibana") == ["8.19.22", "8.19.23"]
+    assert sum("docker-auth.elastic.co" in c for c in calls) == 1
+    assert len(calls) == 4  # 401, token, page 1, page 2
+
+
 def test_list_tags_fetches_token_for_docker_hub(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
     calls = []
 

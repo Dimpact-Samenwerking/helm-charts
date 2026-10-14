@@ -148,7 +148,10 @@ def _get_with_dynamic_auth(
     Needed for registries not in TOKEN_ENDPOINTS, e.g. docker.elastic.co (realm
     docker-auth.elastic.co). Re-raises a 401 without a Bearer challenge. The retry uses the
     same method. A blob download follows a redirect to another host without the
-    Authorization header (see _DropAuthOnRedirect)."""
+    Authorization header (see _DropAuthOnRedirect).
+
+    The token is stored in `headers`, so a caller's next request with the same
+    dict (list_tags' next page) skips the 401 and the token fetch."""
     urlopen = _urlopen_blob if "/blobs/" in url else _urlopen
     try:
         return urlopen(urllib.request.Request(url, headers=headers, method=method), timeout=timeout)
@@ -162,7 +165,7 @@ def _get_with_dynamic_auth(
         if challenge.get("service"):
             query["service"] = challenge["service"]
         token = _read_token(_urlopen(f"{challenge['realm']}?{urllib.parse.urlencode(query)}", timeout=timeout))
-        headers = {**headers, "Authorization": f"Bearer {token}"}
+        headers["Authorization"] = f"Bearer {token}"
         return urlopen(urllib.request.Request(url, headers=headers, method=method), timeout=timeout)
 
 

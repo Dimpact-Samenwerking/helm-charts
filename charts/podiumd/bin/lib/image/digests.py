@@ -25,6 +25,7 @@ from lib.repo_access_cache import cache_entry_is_fresh as repo_access_entry_is_f
 from lib.repo_access_cache import cache_key as repo_access_cache_key
 from lib.repo_access_cache import load_cache as load_repo_access_cache
 from lib.repo_access_cache import save_cache as save_repo_access_cache
+from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
 from lib.settings import repo_access_cache_ttl_minutes
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
@@ -33,7 +34,9 @@ from lib.yaml_types import parse_yaml_mapping
 
 # One "tag:" pin, quoted or bare, optionally with an "&anchor"; digest None for a bare
 # tag ("tag: <version>[@sha256:<digest>]"). scan_digest_pins keeps the pins with a digest.
-# An alias ("tag: *anchor") has no value to read and doesn't match.
+# An alias ("tag: *anchor") has no value to read and doesn't match. This line scan serves
+# lib.image.version (update-image-version, the release table); the image checks use
+# scan_image_pins, which also sees sibling digests and version fields without "tag:".
 VERSION_PIN_RE = re.compile(
     r'^(?P<indent>\s*)tag:\s*(?:&\S+\s+)?"?(?P<version>[\w][\w.\-]*)(?:@sha256:(?P<digest>[0-9a-f]{64}))?"?\s*(?:#.*)?$'
 )
@@ -81,8 +84,9 @@ class VersionPin(TypedDict):
 class ImagePin(TypedDict):
     """One pinned image of values.yaml (see scan_image_pins).
 
-    `line` (1-based) is where the version is written: an alias reports its
-    anchor's line, 0 means inside a sequence. `digest` is bare hex, None
+    `line` (1-based) is where the pin is written: the digest's own field
+    when it is a registered sibling (keycloak's "sha:"), else the version's;
+    an alias reports its anchor's line, 0 means inside a sequence. `digest` is bare hex, None
     without one; `repository` is host-qualified, None when unresolvable.
     """
 
@@ -226,6 +230,13 @@ def _active_field_re(field: str) -> re.Pattern[str]:
     return re.compile(ACTIVE_REPO_RE.pattern.replace("repository:", f"{re.escape(field)}:", 1))
 
 
+def _pin_line(lines: dict[tuple[str, ...], int], path: ImagePath, digest_sibling: DigestPinningException | None) -> int:
+    """ImagePin.line: the sibling digest field's line when the digest comes from one, else the version's."""
+    version_line = lines.get((*path, "tag"), lines.get(path, 0))
+    field = digest_sibling["sibling_field"] if digest_sibling is not None else None
+    return lines.get((*path, field), version_line) if field else version_line
+
+
 def scan_image_pins(chart_dir: Path, *, allow_pull: bool = False) -> list[ImagePin]:
     """Every pinned image of chart_dir's values.yaml, in line order.
 
@@ -247,7 +258,7 @@ def scan_image_pins(chart_dir: Path, *, allow_pull: bool = False) -> list[ImageP
         pins.append(
             {
                 "path": path,
-                "line": lines.get((*path, "tag"), lines.get(path, 0)),
+                "line": _pin_line(lines, path, sibling_fields.get(path) if digest and "@" not in tag else None),
                 "version": version,
                 "digest": digest or None,
                 "repository": resolver.full_repository(path),
