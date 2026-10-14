@@ -58,10 +58,10 @@ spec:
 
 {{- $operatorJobs := (index .Values "keycloak-operator").jobs }}
 {{- if and .Values.pabc.enabled .Values.pabc.seedJob.enabled .Values.pabc.seedJob.keycloak.enabled (index .Values "keycloak-operator").enabled $operatorJobs.ensureOperatorSa.enabled $operatorJobs.ensureOperatorSa.clientSecret }}
+---
 {{- $dataset := .Files.Get "files/pabc-dataset.json" | fromJson }}
 {{- $script := include "podiumd.pabcKeycloakGroups.script" (dict "dataset" $dataset) }}
 {{- $podTemplate := include "podiumd.pabcKeycloakGroups.podTemplate" (dict "root" . "script" $script) }}
----
 # Job: Keycloak side of the PABC seed. Only for test environments that seed
 # PABC (pabc.seedJob.enabled); municipalities set up PABC through its UI and
 # keep this off.
