@@ -1817,12 +1817,6 @@ openformulieren:
     #       documenten_service_identifier: documenten-api
     #       catalogi_service_identifier: catalogus-api
     #       organisatie_rsin: "001876387"
-    #       document_type_submission_report: PDF Informatieobjecttype
-    #       document_type_submission_csv: CSV Informatieobjecttype
-    #       document_type_attachment: Attachment Informatieobjecttype
-    #       catalogue_domain: TEST
-    #       catalogue_rsin: "000000000"
-    #       organisatie_rsin: "000000000"
     #   zgw_api_config_enable: true
     #   zgw_api:
     #     groups:
@@ -1831,8 +1825,6 @@ openformulieren:
     #       zaken_service_identifier: zaken-api
     #       documenten_service_identifier: documenten-api
     #       catalogi_service_identifier: catalogus-api
-    #       catalogue_domain: TEST
-    #       catalogue_rsin: "000000000"
     #       organisatie_rsin: "000000000"
     #       auteur: Aanvrager
     #       zaak_vertrouwelijkheidaanduiding: openbaar
