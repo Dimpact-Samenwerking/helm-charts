@@ -47,6 +47,7 @@ Environment:
   KEYCLOAK_ADMIN_PASSWORD  its password; when unset and KUBE_CONTEXT is set,
                            read from Secret keycloak-podiumd-admin (keys
                            username/password) in NAMESPACE; otherwise prompted
+                           (only on a terminal; without one the script stops)
   KUBE_CONTEXT             kube-context for reading Secrets (optional)
 
 Requires: python3 with PyYAML, helm (unless --realm-config), kubectl (only
@@ -83,14 +84,29 @@ def change(msg):
 
 
 def kubectl_secret(context, namespace, name, key):
-    try:
-        out = subprocess.run(
-            ["kubectl", "--context", context, "-n", namespace, "get", "secret", name,
-             "-o", f"jsonpath={{.data.{key}}}"],
-            check=True, capture_output=True, text=True).stdout
-    except subprocess.CalledProcessError:
-        return ""
-    return base64.b64decode(out).decode() if out else ""
+    """The decoded value, or "" when the Secret or the key does not exist.
+
+    Any other kubectl failure (wrong context, RBAC, timeout) stops the script:
+    taking it for "not found" would skip the secret sync or fall through to a
+    password prompt."""
+    res = subprocess.run(
+        ["kubectl", "--context", context, "-n", namespace, "get", "secret", name,
+         "-o", f"jsonpath={{.data.{key}}}"],
+        capture_output=True, text=True)
+    if res.returncode != 0:
+        if "NotFound" in res.stderr:
+            return ""
+        die(f"kubectl get secret {name} (context {context}, namespace {namespace}) failed: "
+            + res.stderr.strip()[:300])
+    return base64.b64decode(res.stdout).decode() if res.stdout else ""
+
+
+def same_value(current, wanted):
+    """Lists are compared as sets: Keycloak stores redirectUris and webOrigins as
+    sets and returns them in any order."""
+    if isinstance(current, list) and isinstance(wanted, list):
+        return sorted(map(json.dumps, current)) == sorted(map(json.dumps, wanted))
+    return current == wanted
 
 
 def render_realm(args):
@@ -117,6 +133,9 @@ def render_realm(args):
             cmd += ["--set", s]
         res = subprocess.run(cmd, capture_output=True, text=True)
         if res.returncode != 0:
+            if "could not find template" in res.stderr:
+                die("the chart renders no realm import for these values: keycloak-operator.enabled "
+                    "and keycloak-operator.jobs.importPodiumdRealm.enabled must be true")
             die("helm template failed:\n" + res.stderr.strip())
         text = res.stdout
     for doc in yaml.safe_load_all(text):
@@ -130,6 +149,11 @@ def wanted_from_realm(realm):
     client = next((c for c in realm.get("clients", []) if c.get("clientId") == CLIENT_ID), None)
     if client is None:
         die("the render has no 'openbao' client; set openbao.enabled=true in the values")
+    # The redirect URIs are built from openbao.configuration.oidcUrl, which the
+    # chart requires while OpenBao is enabled: a relative one means it is off.
+    if any(not str(u).startswith(("http://", "https://")) for u in client.get("redirectUris", [])):
+        die("the openbao client has no host in its redirect URIs: openbao.enabled is false "
+            "(or openbao.configuration.oidcUrl is empty) for these values")
     roles = [r["name"] for r in realm.get("roles", {}).get("client", {}).get(CLIENT_ID, [])]
     groups = [g for g in realm.get("groups", []) if CLIENT_ID in g.get("clientRoles", {})]
     if not roles or not groups:
@@ -151,8 +175,10 @@ class Keycloak:
             with urllib.request.urlopen(
                     f"{self.url}/realms/master/protocol/openid-connect/token", data, timeout=30) as r:
                 self.token = json.load(r)["access_token"]
-        except urllib.error.URLError as exc:
-            die(f"Keycloak admin login failed at {self.url}: {exc}")
+        except urllib.error.HTTPError as exc:
+            die(f"Keycloak admin login failed at {self.url}: HTTP {exc.code}")
+        except (urllib.error.URLError, TimeoutError) as exc:
+            die(f"Keycloak not reachable at {self.url}: {getattr(exc, 'reason', exc)}")
 
     def api(self, method, path, body=None, retry=True):
         req = urllib.request.Request(
@@ -170,6 +196,8 @@ class Keycloak:
             if exc.code == 404 and method == "GET":
                 return None
             die(f"{method} {path}: HTTP {exc.code} {exc.read().decode(errors='replace')[:300]}")
+        except (urllib.error.URLError, TimeoutError) as exc:
+            die(f"{method} {path}: Keycloak not reachable at {self.url}: {getattr(exc, 'reason', exc)}")
         return None
 
 
@@ -180,8 +208,7 @@ def ensure_client(kc, want, secret, check):
     representation may mask it."""
     diffs = 0
     found = kc.api("GET", f"/clients?clientId={CLIENT_ID}") or []
-    body = {k: v for k, v in want.items()
-            if k not in ("secret", "protocolMappers", "optionalClientScopes")}
+    body = {k: v for k, v in want.items() if k not in ("secret", "protocolMappers")}
     if secret:
         body["secret"] = secret
     if not found:
@@ -189,8 +216,7 @@ def ensure_client(kc, want, secret, check):
         if check:
             print(f"    MISS  client {CLIENT_ID}")
             return None, diffs
-        kc.api("POST", "/clients", {**body, "protocolMappers": want.get("protocolMappers", []),
-                                    "optionalClientScopes": want.get("optionalClientScopes", [])})
+        kc.api("POST", "/clients", {**body, "protocolMappers": want.get("protocolMappers", [])})
         change(f"client {CLIENT_ID} created")
         found = kc.api("GET", f"/clients?clientId={CLIENT_ID}")
         if not found:
@@ -198,7 +224,7 @@ def ensure_client(kc, want, secret, check):
         return found[0]["id"], diffs
     current = found[0]
     cid = current["id"]
-    stale = [k for k, v in body.items() if k != "secret" and current.get(k) != v]
+    stale = [k for k, v in body.items() if k != "secret" and not same_value(current.get(k), v)]
     if secret and (kc.api("GET", f"/clients/{cid}/client-secret") or {}).get("value") != secret:
         stale.append("secret")
     if stale:
@@ -227,18 +253,6 @@ def ensure_client(kc, want, secret, check):
         else:
             kc.api("POST", f"/clients/{cid}/protocol-mappers/models", m)
             change(f"mapper {m['name']} created")
-    # Optional client scopes, by name.
-    scopes = {s["name"]: s["id"] for s in kc.api("GET", "/client-scopes") or []}
-    have_opt = {s["name"] for s in kc.api("GET", f"/clients/{cid}/optional-client-scopes") or []}
-    for name in want.get("optionalClientScopes", []):
-        if name in have_opt or name not in scopes:
-            continue
-        diffs += 1
-        if check:
-            print(f"    DIFF  optional scope {name}")
-        else:
-            kc.api("PUT", f"/clients/{cid}/optional-client-scopes/{scopes[name]}")
-            change(f"optional scope {name} added")
     return cid, diffs
 
 
@@ -297,9 +311,10 @@ def ensure_group(kc, cid, group, check):
 
 def ensure_members(kc, g, name, members, check):
     diffs = 0
-    current = {u["username"] for u in kc.api("GET", f"/groups/{g['id']}/members?max=1000") or []} if g else set()
+    # Keycloak stores usernames in lowercase.
+    current = {u["username"].lower() for u in kc.api("GET", f"/groups/{g['id']}/members?max=1000") or []} if g else set()
     for user in members:
-        if user in current:
+        if user.lower() in current:
             ok(f"{user} in {name}")
             continue
         found = kc.api("GET", f"/users?username={urllib.parse.quote(user)}&exact=true") or []
@@ -342,6 +357,9 @@ def main():
         password = kubectl_secret(context, args.namespace, "keycloak-podiumd-admin", "password")
     user = user or "admin"
     if not password:
+        if not sys.stdin.isatty():
+            die("no Keycloak admin password: set KEYCLOAK_ADMIN_PASSWORD, or KUBE_CONTEXT to read "
+                "Secret keycloak-podiumd-admin (no terminal to prompt on)")
         password = getpass.getpass(f"Keycloak admin password for '{user}' (master realm): ")
 
     print("==> Render the chart's realm import")
@@ -352,6 +370,10 @@ def main():
 
     secret = kubectl_secret(context, args.namespace, "keycloak-podiumd-realm-secrets",
                             "openbao-oidc-secret") if context else ""
+    if not secret:
+        print("    ..    client secret not synced: "
+              + ("Secret keycloak-podiumd-realm-secrets (key openbao-oidc-secret) does not exist yet; "
+                 "the deploy's realm import sets it" if context else "KUBE_CONTEXT is not set"))
 
     print(f"==> Keycloak {url}, realm {realm['realm']}" + (" (check only)" if args.check else ""))
     kc = Keycloak(url, realm["realm"], user, password)
