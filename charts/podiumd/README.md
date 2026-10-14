@@ -796,6 +796,7 @@ PodiumD Helm chart
 | openbao.server.image.repository | string | `"openbao/openbao"` |  |
 | openbao.server.image.tag | string | `"2.7.1@sha256:6d2b93856e3fcf7b18ad855a0b51eaba474dc8b79cf554379ea32034797d2acf"` |  |
 | openbao.server.ingress.enabled | bool | `false` |  |
+| openbao.server.livenessProbe | object | `{"enabled":true,"execCommand":["/bin/sh","-c","[ -f /openbao/seal/seal.hcl ] || exit 0; s=$(bao status -format=json 2>/dev/null); case \"$s\" in *'\"initialized\": true'*) ;; *) exit 0 ;; esac; case \"$s\" in *'\"sealed\": true'*) exit 1 ;; esac; exit 0"],"failureThreshold":3,"initialDelaySeconds":60,"periodSeconds":10,"timeoutSeconds":5}` | Restarts a running node that sealed itself; only with the static seal (see the comment above). |
 | openbao.server.readinessProbe.enabled | bool | `true` |  |
 | openbao.server.readinessProbe.path | string | `"/v1/sys/health?standbyok=true&perfstandbyok=true&uninitcode=200&sealedcode=200"` |  |
 | openbao.server.resources.limits.cpu | string | `"500m"` |  |

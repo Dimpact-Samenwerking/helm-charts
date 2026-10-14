@@ -4890,6 +4890,29 @@ openbao:
     readinessProbe:
       enabled: true
       path: "/v1/sys/health?standbyok=true&perfstandbyok=true&uninitcode=200&sealedcode=200"
+    # Liveness restarts a node that sealed itself while running: with the
+    # static seal a pod only unseals at startup. OpenBao 2.7 seals a standby that
+    # fails to restore leases while taking over as active (seen on johnb00 in 2
+    # of 3 failovers), and readiness above counts a sealed pod as Ready. The
+    # probe fails only when the static seal is configured (seal.hcl present) and
+    # the node is initialised and sealed: never before activation, and never
+    # with Shamir, where a restart would leave the pod sealed again.
+    # -- Restarts a running node that sealed itself; only with the static seal (see the comment above).
+    livenessProbe:
+      enabled: true
+      execCommand:
+        - /bin/sh
+        - -c
+        - >-
+          [ -f /openbao/seal/seal.hcl ] || exit 0;
+          s=$(bao status -format=json 2>/dev/null);
+          case "$s" in *'"initialized": true'*) ;; *) exit 0 ;; esac;
+          case "$s" in *'"sealed": true'*) exit 1 ;; esac;
+          exit 0
+      initialDelaySeconds: 60
+      periodSeconds: 10
+      failureThreshold: 3
+      timeoutSeconds: 5
     # Postgres storage backend => no data PVC.
     dataStorage:
       enabled: false
