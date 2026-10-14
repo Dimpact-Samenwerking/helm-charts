@@ -362,6 +362,25 @@ def test_list_tags_returns_tag_names(libregistry: ModuleType, monkeypatch: pytes
     assert libregistry.list_tags("quay.io", "coreos/etcd") == ["9.10.1", "9.10.1-slim"]
 
 
+def test_list_tags_follows_link_next_pages(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    """quay.io pages tags/list; tags on later pages must count too."""
+    seen = []
+
+    def fake_urlopen(req):
+        seen.append(req.full_url)
+        if "last=" not in req.full_url:
+            link = '</v2/keycloak/keycloak/tags/list?n=100&last=23.0.4-0>; rel="next"'
+            return FakeResponse(headers={"Link": link}, body=json.dumps({"tags": ["23.0.4-0"]}).encode())
+        return FakeResponse(body=json.dumps({"tags": ["26.8.1"]}).encode())
+
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    assert libregistry.list_tags("quay.io", "keycloak/keycloak") == ["23.0.4-0", "26.8.1"]
+    assert seen == [
+        "https://quay.io/v2/keycloak/keycloak/tags/list",
+        "https://quay.io/v2/keycloak/keycloak/tags/list?n=100&last=23.0.4-0",
+    ]
+
+
 def test_list_tags_fetches_token_for_docker_hub(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
     calls = []
 

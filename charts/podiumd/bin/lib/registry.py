@@ -317,15 +317,39 @@ def historical_digests_for_tag(values_path: Path, version: str) -> set[str]:
     return digests
 
 
+LINK_NEXT_RE = re.compile(r'<([^>]+)>\s*;\s*rel="?next"?')
+# Upper bound on followed "next" pages, so a registry that keeps answering with a
+# next link can't loop forever; quay.io serves 100 tags per page.
+MAX_TAG_PAGES = 200
+
+
+def _next_page_url(url: str, link_header: str | None) -> str | None:
+    """The absolute URL of the Link header's rel="next" target, or None on the last page."""
+    m = LINK_NEXT_RE.search(link_header or "")
+    return urllib.parse.urljoin(url, m.group(1)) if m else None
+
+
 def list_tags(registry_host: str, repo: str):
-    """All published tag names, via the generic OCI GET /v2/<repo>/tags/list endpoint."""
+    """All published tag names, via the generic OCI GET /v2/<repo>/tags/list endpoint.
+
+    Follows the Link rel="next" pages (OCI distribution spec): quay.io serves
+    100 tags per page, oldest first, so the first page alone misses every
+    recent release."""
     url, headers = _registry_request(registry_host, repo, "tags/list", None, None)
-    with _get_with_dynamic_auth(url, repo, headers) as resp:
-        tags = get_path(_read_json(resp), "tags") or []
-    if not isinstance(tags, list) or not all(isinstance(tag, str) for tag in tags):
-        msg = f"tags/list response from {urllib.parse.urlsplit(url).netloc} is not a list of tag names"
-        raise urllib.error.URLError(msg)
-    return [tag for tag in tags if isinstance(tag, str)]
+    tags: list[str] = []
+    next_url: str | None = url
+    for _ in range(MAX_TAG_PAGES):
+        if next_url is None:
+            break
+        with _get_with_dynamic_auth(next_url, repo, headers) as resp:
+            page = get_path(_read_json(resp), "tags") or []
+            following = _next_page_url(next_url, resp.headers.get("Link"))
+        if not isinstance(page, list) or not all(isinstance(tag, str) for tag in page):
+            msg = f"tags/list response from {urllib.parse.urlsplit(url).netloc} is not a list of tag names"
+            raise urllib.error.URLError(msg)
+        tags.extend(tag for tag in page if isinstance(tag, str))
+        next_url = following
+    return tags
 
 
 def _split_tag(tag: str) -> tuple[str, str | None, str]:
