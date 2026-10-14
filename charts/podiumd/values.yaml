@@ -2645,7 +2645,7 @@ openvtb:
     volumeAttributeShareName: openvtb
     storageClassName: podiumd-standard
   settings:
-    allowedHosts: "openvtb.podiumd.svc.cluster.local"
+    allowedHosts: ".svc.cluster.local"
     djangoSettingsModule: openvtb.conf.docker
     useXForwardedHost: false
     secretKey: ""
@@ -2671,13 +2671,13 @@ openvtb:
     sentry:
       dsn: ""
     cache:
-      default: redis-ha-master.podiumd.svc.cluster.local:6379/19
-      axes: redis-ha-master.podiumd.svc.cluster.local:6379/19
+      default: redis-ha-master:6379/19
+      axes: redis-ha-master:6379/19
     # No Celery worker is deployed, but the openvtb chart templates CELERY_BROKER_URL / CELERY_RESULT_BACKEND
     # unconditionally, so they must be set (db 20).
     celery:
-      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/20
-      resultBackend: redis://redis-ha-master.podiumd.svc.cluster.local:6379/20
+      brokerUrl: redis://redis-ha-master:6379/20
+      resultBackend: redis://redis-ha-master:6379/20
     isHttps: true
     debug: false
     uwsgi:

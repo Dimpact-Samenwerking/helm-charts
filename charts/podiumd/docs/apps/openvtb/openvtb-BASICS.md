@@ -89,7 +89,7 @@ No observed usage yet. Set requests and limits per environment before enabling.
      image:
        repository: acrprodmgmt.azurecr.io/maykinmedia/open-vtb
      settings:
-       allowedHosts: "openvtb.example.nl,openvtb.podiumd.svc.cluster.local"
+       allowedHosts: "openvtb.example.nl,.svc.cluster.local"
        database:
          host: <pg-host>
          name: openvtb

@@ -122,6 +122,11 @@
   version: "0.9.1"
   digest: "sha256:7c1dfaff1d069afe5d45e421f813078d8112b13c3cf65b5f547e866f6aad4e31"
 
+- name: maykinmedia/open-vtb
+  url: docker.io/maykinmedia/open-vtb
+  version: "0.2.0"
+  digest: "sha256:b382b2fdeb052994d6a785864f1277bffb2490e61de2a0222ad74379dede2f01"
+
 - name: eck/eck-operator
   url: docker.elastic.co/eck/eck-operator
   version: "3.5.0"
@@ -154,8 +159,8 @@
 
 - name: integrations/crawler
   url: docker.elastic.co/integrations/crawler
-  version: "1.0.0"
-  digest: "sha256:6f3c02f6c783711b8d9e133cf10934b137d6547dc1eb10a0d2ccf99ffe2e2d07"
+  version: "1.1.0"
+  digest: "sha256:7e87a0571129681cfd3053e9bd7998926633e69fbd8da7c29a384f0d7e9ef26e"
 
 - name: icatt-menselijk-digitaal/podiumd-adapter
   url: ghcr.io/icatt-menselijk-digitaal/podiumd-adapter

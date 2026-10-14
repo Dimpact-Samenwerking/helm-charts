@@ -1112,11 +1112,11 @@ PodiumD Helm chart
 | openvtb.securityContext.readOnlyRootFilesystem | bool | `false` |  |
 | openvtb.securityContext.runAsNonRoot | bool | `true` |  |
 | openvtb.securityContext.runAsUser | int | `1000` |  |
-| openvtb.settings.allowedHosts | string | `"openvtb.podiumd.svc.cluster.local"` |  |
-| openvtb.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/19"` |  |
-| openvtb.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/19"` |  |
-| openvtb.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/20"` |  |
-| openvtb.settings.celery.resultBackend | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/20"` |  |
+| openvtb.settings.allowedHosts | string | `".svc.cluster.local"` |  |
+| openvtb.settings.cache.axes | string | `"redis-ha-master:6379/19"` |  |
+| openvtb.settings.cache.default | string | `"redis-ha-master:6379/19"` |  |
+| openvtb.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/20"` |  |
+| openvtb.settings.celery.resultBackend | string | `"redis://redis-ha-master:6379/20"` |  |
 | openvtb.settings.database.host | string | `""` |  |
 | openvtb.settings.database.name | string | `""` |  |
 | openvtb.settings.database.password | string | `""` |  |
