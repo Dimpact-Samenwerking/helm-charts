@@ -59,7 +59,9 @@
 #   RELEASE             Helm release name            (default: podiumd)
 #   KV_PATH             openbao.configuration.kvPath (default: secret)
 #   READER_MOUNT        frankgateway.openbao.mount   (default: KV_PATH)
-#   READER_SECRET       frankgateway.openbao.tokenSecret (default: frankgateway-openbao-token)
+#   READER_SECRET       frankgateway.openbao.tokenSecret.name (default: frankgateway-openbao-token)
+#   READER_SECRET_KEY   frankgateway.openbao.tokenSecret.key  (default: token)
+#   READER_KV_VERSION   frankgateway.openbao.kvVersion, 1 or 2 (default: 2)
 #   READER_PERIOD       renewal period of the gateway token (default: 768h = 32 days)
 #   BOOTSTRAP_SECRET    openbao.configuration.bootstrapTokenSecret
 #                                                    (default: openbao-bootstrap-token)
@@ -114,6 +116,13 @@ RELEASE="${RELEASE:-podiumd}"
 KV_PATH="${KV_PATH:-secret}"
 READER_MOUNT="${READER_MOUNT:-${KV_PATH}}"
 READER_SECRET="${READER_SECRET:-frankgateway-openbao-token}"
+READER_SECRET_KEY="${READER_SECRET_KEY:-token}"
+READER_KV_VERSION="${READER_KV_VERSION:-2}"
+case "${READER_KV_VERSION}" in
+  2) READER_PATH="${READER_MOUNT}/data/frankgateway" ;;
+  1) READER_PATH="${READER_MOUNT}/frankgateway" ;;
+  *) echo "ERROR: READER_KV_VERSION must be 1 or 2" >&2; exit 1 ;;
+esac
 READER_PERIOD="${READER_PERIOD:-768h}"
 BOOTSTRAP_SECRET="${BOOTSTRAP_SECRET:-openbao-bootstrap-token}"
 TOKEN_PERIOD="${TOKEN_PERIOD:-768h}"
@@ -157,15 +166,32 @@ init_file() {
 }
 
 secret_value() {
-  kc get secret "$1" -o jsonpath='{.data.token}' 2>/dev/null | base64 -d 2>/dev/null || true
+  # secret_value <secret> [key, default token]
+  kc get secret "$1" -o jsonpath="{.data.${2:-token}}" 2>/dev/null | base64 -d 2>/dev/null || true
 }
 
-token_lookup() {
-  # Prints the lookup JSON for token $2 (via pod $1), or nothing when invalid.
-  bao_sh "$1" <<EOS 2>/dev/null || true
+token_valid() {
+  # token_valid <pod> <token>: 0 and the lookup JSON in LOOKUP when OpenBao
+  # accepts the token, 1 when it rejects it (403 permission denied). Any other
+  # failure (no active pod, a transport error) stops the run: treating it as
+  # "invalid" would mint a new token and leave the old one valid.
+  local err
+  LOOKUP=""
+  [[ -n "$2" ]] || return 1
+  err=$(mktemp)
+  if LOOKUP=$(bao_sh "$1" 2>"${err}" <<EOS
 export BAO_ADDR="${BAO_ADDR}" BAO_TOKEN="$2"
 bao token lookup -format=json
 EOS
+); then
+    rm -f "${err}"; return 0
+  fi
+  LOOKUP=""
+  if grep -qiE 'permission denied|Code: 403' "${err}"; then
+    rm -f "${err}"; return 1
+  fi
+  echo "          $(tail -1 "${err}")" >&2; rm -f "${err}"
+  fail "token lookup through ${BAO_ADDR} failed (is OpenBao reachable and unsealed?)"
 }
 
 ###############################################################################
@@ -250,15 +276,14 @@ if [[ "${CHECK_ONLY}" -eq 1 ]]; then
   done
   if [[ "${INITIALIZED}" == "true" ]]; then
     CFG=$(secret_value "${BOOTSTRAP_SECRET}")
-    if [[ -n "${CFG}" && -n "$(token_lookup "${STS}-0" "${CFG}")" ]]; then
+    if token_valid "${STS}-0" "${CFG}"; then
       ok "config token valid"
     else
       info "config token missing or invalid: run without --check"; RC=1
     fi
     if [[ "${HAS_GATEWAY}" -eq 1 ]]; then
-      RD=$(secret_value "${READER_SECRET}")
-      LOOKUP=$([[ -n "${RD}" ]] && token_lookup "${STS}-0" "${RD}" || true)
-      if [[ -n "${LOOKUP}" ]]; then
+      RD=$(secret_value "${READER_SECRET}" "${READER_SECRET_KEY}")
+      if token_valid "${STS}-0" "${RD}"; then
         ok "gateway token valid until $(jq -r .data.expire_time <<<"${LOOKUP}")"
       else
         info "gateway token missing or invalid: run without --check"; RC=1
@@ -344,7 +369,7 @@ if [[ "${RECOVER_INIT}" -eq 1 ]]; then
   ok "initialised; key stored in ${KEYVAULT}/${KEYVAULT_ITEM} and read back"
   # Stored on a rerun: the failed run revoked the init root token on exit;
   # step 4 then creates a temporary one from the key, as on any initialised vault.
-  if [[ "${INITIALIZED}" == "true" && -z "$(token_lookup "${STS}-0" "${ROOT}")" ]]; then
+  if [[ "${INITIALIZED}" == "true" ]] && ! token_valid "${STS}-0" "${ROOT}"; then
     ROOT=""
     info "the init root token is no longer valid; a temporary one is created when needed"
   fi
@@ -358,7 +383,7 @@ step "3. Unseal"
 for i in $(seq 0 $((REPLICAS - 1))); do
   pod="${STS}-${i}"
   if [[ "$(pod_status "${pod}" | jq -r .sealed)" == "true" && "${SEAL_TYPE}" == "shamir" ]]; then
-    [[ -n "${KEY}" ]] || KEY=$(kv_get)
+    [[ -n "${KEY}" ]] || KEY=$(kv_get) || fail "cannot read ${KEYVAULT_ITEM} from ${KEYVAULT}"
     # Key on stdin (key=-), not as an argument of a process in the pod.
     bao_sh "${pod}" >/dev/null <<EOS || fail "unseal of ${pod} failed with the key from ${KEYVAULT_ITEM}"
 printf '%s' "${KEY}" | bao write -format=json sys/unseal key=- >/dev/null
@@ -391,7 +416,7 @@ step "4. Tokens"
 OLD_CFG=""; OLD_RD=""
 CFG=$(secret_value "${BOOTSTRAP_SECRET}")
 NEED_CONFIG=${ROTATE_CONFIG}
-if [[ -n "${CFG}" && -n "$(token_lookup "${STS}-0" "${CFG}")" ]]; then
+if token_valid "${STS}-0" "${CFG}"; then
   [[ "${ROTATE_CONFIG}" -eq 1 ]] && OLD_CFG="${CFG}"
 else
   NEED_CONFIG=1
@@ -399,8 +424,8 @@ fi
 NEED_READER=0
 if [[ "${HAS_GATEWAY}" -eq 1 ]]; then
   NEED_READER=${ROTATE_READER}
-  RD=$(secret_value "${READER_SECRET}")
-  if [[ -n "${RD}" && -n "$(token_lookup "${STS}-0" "${RD}")" ]]; then
+  RD=$(secret_value "${READER_SECRET}" "${READER_SECRET_KEY}")
+  if token_valid "${STS}-0" "${RD}"; then
     [[ "${ROTATE_READER}" -eq 1 ]] && OLD_RD="${RD}"
   else
     NEED_READER=1
@@ -421,7 +446,7 @@ if [[ "${NEED_CONFIG}" -eq 1 || "${NEED_READER}" -eq 1 ]] && [[ -z "${ROOT}" ]];
   # Temporary root token from the key in Key Vault; revoked in step 6. OpenBao
   # >= 2.5 only allows unauthenticated generate-root on the loopback listener
   # (127.0.0.1:8210, server.ha.config), so run it on the active pod.
-  [[ -n "${KEY}" ]] || KEY=$(kv_get)
+  [[ -n "${KEY}" ]] || KEY=$(kv_get) || fail "cannot read ${KEYVAULT_ITEM} from ${KEYVAULT}"
   ACTIVE=""
   for i in $(seq 0 $((REPLICAS - 1))); do
     [[ "$(pod_status "${STS}-${i}" | jq -r '.is_self // false')" == "true" ]] && ACTIVE="${STS}-${i}"
@@ -442,14 +467,15 @@ if [[ "${NEED_CONFIG}" -eq 1 || "${NEED_READER}" -eq 1 ]] && [[ -z "${ROOT}" ]];
 export BAO_ADDR="${LOCAL_ADDR}"
 printf '%s' "${KEY}" | bao write -format=json sys/generate-root/update nonce="${NONCE}" key=-
 EOS
-)
+) || fail "generate-root did not accept the key from ${KEYVAULT_ITEM}"
   [[ -n "${ENCODED}" ]] || fail "generate-root did not complete with the key from ${KEYVAULT_ITEM}"
   # encoded_token = base64(token XOR otp); decode locally, nothing leaves this machine.
   ROOT=$(ENC="${ENCODED}" OTP="${OTP}" python3 -c '
 import base64, os
 enc = os.environ["ENC"]; otp = os.environ["OTP"].encode()
 raw = base64.b64decode(enc + "=" * (-len(enc) % 4))
-print(bytes(a ^ b for a, b in zip(raw, otp)).decode(), end="")')
+print(bytes(a ^ b for a, b in zip(raw, otp)).decode(), end="")') \
+    || fail "could not decode the generate-root token"
   ENCODED=""; OTP=""
   [[ -n "${ROOT}" ]] || fail "could not create a temporary root token"
   ok "temporary root token created from ${KEYVAULT_ITEM}"
@@ -471,16 +497,16 @@ if [[ "${NEED_READER}" -eq 1 ]]; then
   READER=$(bao_sh "${STS}-0" <<EOS
 export BAO_ADDR="${BAO_ADDR}" BAO_TOKEN="${ROOT}"
 bao policy write frankgateway-reader - >&2 <<'HCL'
-path "${READER_MOUNT}/data/frankgateway"   { capabilities = ["read"] }
-path "${READER_MOUNT}/data/frankgateway/*" { capabilities = ["read"] }
+path "${READER_PATH}"   { capabilities = ["read"] }
+path "${READER_PATH}/*" { capabilities = ["read"] }
 HCL
 bao token create -orphan -policy=frankgateway-reader -period=${READER_PERIOD} \
   -display-name=frankgateway-reader -field=token
 EOS
-)
+) || fail "gateway token create failed"
   [[ -n "${READER}" ]] || fail "gateway token create returned nothing"
   printf '%s' "${READER}" | kc create secret generic "${READER_SECRET}" \
-    --from-file=token=/dev/stdin --dry-run=client -o yaml | kc apply -f - >/dev/null
+    --from-file="${READER_SECRET_KEY}"=/dev/stdin --dry-run=client -o yaml | kc apply -f - >/dev/null
   READER=""
   kc rollout restart deployment -l app.kubernetes.io/component=frankgateway >/dev/null
   # Revoke the old token only once every gateway pod runs with the new one.
@@ -504,8 +530,18 @@ JOB_YAML=$(hc get hooks "${RELEASE}" | awk '
 [[ -n "${JOB_YAML}" ]] || fail "openbao-config Job not found in the release hooks"
 kc delete job openbao-config --ignore-not-found --wait=true >/dev/null
 printf '%s\n' "${JOB_YAML}" | kc create -f - >/dev/null
-kc wait --for=condition=complete job/openbao-config --timeout=300s >/dev/null \
-  || { kc logs job/openbao-config | tail -20 >&2; fail "openbao-config Job did not complete"; }
+# Poll the Job's conditions: `kubectl wait --for=condition=complete` would sit
+# out the whole timeout on a Job that has already failed.
+JOB_STATE=""
+for _ in $(seq 1 60); do
+  JOB_STATE=$(kc get job openbao-config -o jsonpath='{.status.conditions[?(@.status=="True")].type}' 2>/dev/null || true)
+  [[ "${JOB_STATE}" == *Complete* || "${JOB_STATE}" == *Failed* ]] && break
+  sleep 5
+done
+if [[ "${JOB_STATE}" != *Complete* ]]; then
+  kc logs job/openbao-config | tail -20 >&2
+  fail "openbao-config Job did not complete (${JOB_STATE:-still running after 300s})"
+fi
 JOB_LOG=$(kc logs job/openbao-config)
 if grep -qi 'skipping' <<<"${JOB_LOG}"; then
   echo "${JOB_LOG}" | tail -5 >&2
@@ -537,12 +573,11 @@ for i in $(seq 0 $((REPLICAS - 1))); do
 done
 ok "all ${REPLICAS} pods initialised and unsealed"
 CFG=$(secret_value "${BOOTSTRAP_SECRET}")
-[[ -n "$(token_lookup "${STS}-0" "${CFG}")" ]] || fail "config token invalid"
+token_valid "${STS}-0" "${CFG}" || fail "config token invalid"
 CFG=""
 ok "config token valid (renewed by every openbao-config run; period ${TOKEN_PERIOD})"
 if [[ "${HAS_GATEWAY}" -eq 1 ]]; then
-  LOOKUP=$(token_lookup "${STS}-0" "$(secret_value "${READER_SECRET}")")
-  [[ -n "${LOOKUP}" ]] || fail "gateway token invalid"
+  token_valid "${STS}-0" "$(secret_value "${READER_SECRET}" "${READER_SECRET_KEY}")" || fail "gateway token invalid"
   ok "gateway token valid until $(jq -r .data.expire_time <<<"${LOOKUP}"); renewed weekly by CronJob openbao-token-renewal"
 fi
 
