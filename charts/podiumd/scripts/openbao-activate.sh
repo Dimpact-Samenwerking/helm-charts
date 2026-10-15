@@ -264,6 +264,8 @@ KV_VALUE=$(kv_get) || true
 if [[ "${INITIALIZED}" == "false" ]]; then
   [[ "${KV_VALUE}" == "${PLACEHOLDER}" ]] \
     || fail "vault is not initialised but ${KEYVAULT_ITEM} already holds a key. Is this the right database? Set the item back to '${PLACEHOLDER}' only if that key belongs to a vault that is gone"
+  [[ -z "$(init_file)" ]] \
+    || fail "vault is not initialised but ${STS}-0 already has ${INIT_FILE}: another run is initialising it, or the file is left from a vault that is gone. Check, and remove the file only if its key is not needed"
   ok "${KEYVAULT_ITEM} holds the placeholder; ready to initialise"
 elif [[ "${KV_VALUE}" == "${PLACEHOLDER}" ]]; then
   # An earlier run initialised the vault but did not get the key into Key Vault.
@@ -316,7 +318,7 @@ if [[ "${CHECK_ONLY}" -eq 1 ]]; then
   exit "${RC}"
 fi
 
-ROOT=""; ROOT_ACCESSOR=""; ACTIVE=""
+ROOT=""; ROOT_ACCESSOR=""; ACTIVE=""; GEN_ROOT_ACTIVE=""
 revoke_root() {
   bao_any >/dev/null 2>&1 <<EOS
 export BAO_ADDR="${BAO_ADDR}" BAO_TOKEN="${ROOT}"
@@ -334,12 +336,29 @@ EOS
 # On any exit, also a failed step: revoke a root token that is still live
 # (init and generate-root tokens never expire), then clear the secrets.
 cleanup() {
+  if [[ -n "${GEN_ROOT_ACTIVE}" ]]; then
+    # This run started a generate-root attempt that did not finish: cancel it,
+    # so the next run does not take it for another operator's attempt.
+    if kc exec "${GEN_ROOT_ACTIVE}" -c openbao -- sh -ec \
+         "BAO_ADDR=http://127.0.0.1:8210 bao delete sys/generate-root/attempt" >/dev/null 2>&1; then
+      echo "    ..    generate-root attempt of this run cancelled on exit" >&2
+    else
+      echo "    WARN  could not cancel this run's generate-root attempt on ${GEN_ROOT_ACTIVE};" >&2
+      echo "          the next run needs --force to cancel it" >&2
+    fi
+  fi
   if [[ -n "${ROOT}" ]]; then
     if revoke_root; then
       echo "    ..    root token revoked on exit" >&2
     else
       echo "    WARN  could not revoke the root token on any OpenBao pod; it does not expire." >&2
-      echo "          Once OpenBao is reachable, run this script with --revoke-accessor ${ROOT_ACCESSOR:-<accessor>}" >&2
+      if [[ -n "${ROOT_ACCESSOR}" ]]; then
+        echo "          Once OpenBao is reachable, run this script with --revoke-accessor ${ROOT_ACCESSOR}" >&2
+      else
+        echo "          Its accessor is unknown: once OpenBao is unsealed, find the root token's accessor" >&2
+        echo "          (bao list auth/token/accessors, then bao token lookup -accessor <accessor>)" >&2
+        echo "          and run this script with --revoke-accessor <accessor>" >&2
+      fi
     fi
   fi
   ROOT=""; KEY=""; KV_VALUE=""; OLD_CFG=""; OLD_RD=""
@@ -362,8 +381,13 @@ if [[ "${INITIALIZED}" == "false" ]]; then
     || fail "no write access to ${KEYVAULT_ITEM} in ${KEYVAULT}; not initialising"
   # The output stays in the pod (mode 0600) until Key Vault holds the key: if
   # this exec breaks after the server initialised, a rerun stores it from there.
+  # It is written to a temporary file and linked into place only when init
+  # succeeds: a concurrent run, whose init fails with "already initialized",
+  # then cannot empty the file of the run that did initialise. `ln` fails if
+  # the file exists, so it never overwrites another run's key either.
+  INIT_TMP="${INIT_FILE}.$$"
   kc exec "${STS}-0" -c openbao -- sh -ec \
-    "umask 077; bao operator init ${INIT_ARGS} -format=json > ${INIT_FILE}" \
+    "umask 077; bao operator init ${INIT_ARGS} -format=json > ${INIT_TMP} || { rm -f ${INIT_TMP}; exit 1; }; ln ${INIT_TMP} ${INIT_FILE} || { echo 'init output kept in ${INIT_TMP}: ${INIT_FILE} already exists' >&2; exit 1; }; rm -f ${INIT_TMP}" \
     || fail "bao operator init failed on ${STS}-0. If the vault is initialised now, run this script again: it stores the key from ${STS}-0:${INIT_FILE}"
   RECOVER_INIT=1
 fi
@@ -400,14 +424,9 @@ if [[ "${RECOVER_INIT}" -eq 1 ]]; then
   kc exec "${STS}-0" -c openbao -- rm -f "${INIT_FILE}" \
     || info "could not remove ${STS}-0:${INIT_FILE}; it holds the key and the root token: delete it"
   ok "initialised; key stored in ${KEYVAULT}/${KEYVAULT_ITEM} and read back"
-  # Stored on a rerun: the failed run revoked the init root token on exit;
-  # step 4 then creates a temporary one from the key, as on any initialised vault.
-  if [[ "${INITIALIZED}" == "true" ]] && ! token_valid "${STS}-0" "${ROOT}"; then
-    ROOT=""
-    info "the init root token is no longer valid; a temporary one is created when needed"
-  else
-    remember_root_accessor
-  fi
+  # The init root token is checked after step 3: with the Shamir seal the pods
+  # are still sealed here, and a lookup on a sealed vault fails.
+  remember_root_accessor
 else
   ok "already initialised"
 fi
@@ -442,6 +461,18 @@ EOS
   [[ "$(pod_status "${pod}" | jq -r .sealed)" == "false" ]] || fail "${pod} is still sealed"
   ok "${pod} unsealed"
 done
+# Stored on a rerun: the failed run revoked the init root token on exit;
+# step 4 then creates a temporary one from the key, as on any initialised vault.
+if [[ -n "${ROOT}" && "${INITIALIZED}" == "true" ]]; then
+  if token_valid "${STS}-0" "${ROOT}"; then
+    remember_root_accessor
+  else
+    ROOT=""
+    info "the init root token is no longer valid; a temporary one is created when needed"
+  fi
+elif [[ -n "${ROOT}" && -z "${ROOT_ACCESSOR}" ]]; then
+  remember_root_accessor
+fi
 
 ###############################################################################
 step "4. Tokens"
@@ -470,7 +501,7 @@ CFG=""; RD=""
 
 revoke_token() {
   # revoke_token <label> <token>: revoke a replaced token with the root token.
-  bao_any >/dev/null <<EOS
+  bao_any >/dev/null <<EOS || fail "could not revoke the previous $1. The new one is stored; the old one stays valid until its period ends without renewal, or until you revoke it with --revoke-accessor <its accessor>"
 export BAO_ADDR="${BAO_ADDR}" BAO_TOKEN="${ROOT}"
 printf '%s' "$2" | bao write auth/token/revoke token=- >/dev/null
 EOS
@@ -506,6 +537,7 @@ if [[ "${NEED_CONFIG}" -eq 1 || "${NEED_READER}" -eq 1 || -n "${REVOKE_ACCESSOR}
   GEN=$(kc exec "${ACTIVE}" -c openbao -- sh -ec \
     "BAO_ADDR=${LOCAL_ADDR} bao write -f -format=json sys/generate-root/attempt") \
     || fail "generate-root refused on ${ACTIVE}; does server.ha.config still have the 127.0.0.1:8210 listener?"
+  GEN_ROOT_ACTIVE="${ACTIVE}"
   NONCE=$(jq -r .data.nonce <<<"${GEN}"); OTP=$(jq -r .data.otp <<<"${GEN}"); GEN=""
   [[ -n "${NONCE}" && "${NONCE}" != "null" && -n "${OTP}" && "${OTP}" != "null" ]] \
     || fail "generate-root attempt returned no nonce/OTP"
@@ -515,6 +547,8 @@ printf '%s' "${KEY}" | bao write -format=json sys/generate-root/update nonce="${
 EOS
 ) || fail "generate-root did not accept the key from ${KEYVAULT_ITEM}"
   [[ -n "${ENCODED}" ]] || fail "generate-root did not complete with the key from ${KEYVAULT_ITEM}"
+  # The attempt is complete once the encoded token is returned: nothing to cancel.
+  GEN_ROOT_ACTIVE=""
   # encoded_token = base64(token XOR otp); decode locally, nothing leaves this machine.
   ROOT=$(ENC="${ENCODED}" OTP="${OTP}" python3 -c '
 import base64, os

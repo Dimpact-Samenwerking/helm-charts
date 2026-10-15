@@ -4895,8 +4895,10 @@ openbao:
     # fails to restore leases while taking over as active (seen on johnb00 in 2
     # of 3 failovers), and readiness above counts a sealed pod as Ready. The
     # probe fails only when the static seal is configured (seal.hcl present) and
-    # the node is initialised and sealed: never before activation, and never
-    # with Shamir, where a restart would leave the pod sealed again.
+    # the node is initialised and sealed: never before activation, never
+    # with Shamir, where a restart would leave the pod sealed again, and never
+    # during a Shamir-to-static seal migration (status "migration": true), where
+    # a restart would interrupt `bao operator unseal -migrate`.
     # -- Restarts a running node that sealed itself; only with the static seal (see the comment above).
     livenessProbe:
       enabled: true
@@ -4907,6 +4909,7 @@ openbao:
           [ -f /openbao/seal/seal.hcl ] || exit 0;
           s=$(bao status -format=json 2>/dev/null);
           case "$s" in *'"initialized": true'*) ;; *) exit 0 ;; esac;
+          case "$s" in *'"migration": true'*) exit 0 ;; esac;
           case "$s" in *'"sealed": true'*) exit 1 ;; esac;
           exit 0
       initialDelaySeconds: 60
