@@ -42,7 +42,6 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.chart_yaml import load_chart_yaml
-from lib.chart.nested_subchart_identity import nested_subchart_registered_paths
 from lib.chart.paths import CHART_DIR
 from lib.chart.paths import CHART_YAML
 from lib.chart.paths import VALUES_YAML
@@ -274,10 +273,7 @@ def component_version_rows(dep: ChartDependency, key: str, merged: YamlMapping, 
     """
     rows: list[ImageRow] = []
     # CHART_DIR: settings.yaml lookup; tests only repoint VENDORED_DIR.
-    rels = sorted(
-        set(version_paths_for(dep["name"], CHART_DIR)) | set(nested_subchart_registered_paths(dep["name"], CHART_DIR))
-    )
-    for rel in rels:
+    for rel in sorted(version_paths_for(dep["name"], CHART_DIR)):
         tag = text_at(merged, rel)
         if not (isinstance(tag, str) and tag):
             continue
