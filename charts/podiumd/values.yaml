@@ -154,6 +154,19 @@ keycloak:
   instances: "2"
   ingress:
     enabled: false
+  # The Keycloak operator renders its own NetworkPolicy (keycloak-network-policy)
+  # that opens 8080 and 9000 to every pod in the cluster. With
+  # networkPolicies.enabled and networkPolicies.namespaceIsolation.enabled the
+  # Keycloak CR sets spec.networkPolicy to the namespace-isolation peers (this
+  # namespace, the ingress controller, the monitoring namespace for 9000 and
+  # namespaceIsolation.extraNamespaces). Without namespace isolation nothing
+  # changes.
+  networkPolicy:
+    extraFrom:
+      # -- Extra NetworkPolicyPeer entries allowed on Keycloak's http/https ports under namespace isolation, e.g. `[{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: monitoring}}}]` for a Grafana that calls Keycloak in-cluster.
+      http: []
+      # -- Extra NetworkPolicyPeer entries allowed on Keycloak's management port (9000) under namespace isolation.
+      management: []
   externalDatabase:
     vendor: "postgres"
     host: "postgres"

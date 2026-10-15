@@ -411,6 +411,8 @@ PodiumD Helm chart
 | keycloak.keycloakConfigCli.image.repository | string | `"adorsys/keycloak-config-cli"` |  |
 | keycloak.keycloakConfigCli.image.tag | string | `"6.5.1-26.5.5@sha256:0955d98c8a341898b7aa177477edf8a1e90569ae50bbe7598141c1270b773274"` |  |
 | keycloak.name | string | `"keycloak"` |  |
+| keycloak.networkPolicy.extraFrom.http | list | `[]` | Extra NetworkPolicyPeer entries allowed on Keycloak's http/https ports under namespace isolation, e.g. `[{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: monitoring}}}]` for a Grafana that calls Keycloak in-cluster. |
+| keycloak.networkPolicy.extraFrom.management | list | `[]` | Extra NetworkPolicyPeer entries allowed on Keycloak's management port (9000) under namespace isolation. |
 | keycloak.podTemplate.metadata.labels.app | string | `"keycloak"` |  |
 | keycloak.podTemplate.metadata.labels.version | string | `"26.8.1"` |  |
 | keycloak.podTemplate.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.labelSelector.matchExpressions[0].key | string | `"app"` |  |

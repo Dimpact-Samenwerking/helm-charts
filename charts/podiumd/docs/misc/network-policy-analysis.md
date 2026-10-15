@@ -19,7 +19,7 @@ policies enforced).
 |---|---|---|---|
 | `frankgateway-{inway,outway,internal}` | `templates/frankgateway-networkpolicy.yaml`, opt-in `frankgateway.networkPolicies.enabled` | the gateway class pods | clusters with a policy engine |
 | Frank!Gateway dashboard/shim policies | `frankgateway.dashboard.networkPolicy`, only with the dashboard on | dashboard and shim pods | same |
-| `keycloak-network-policy` | created by the Keycloak operator for the Keycloak CR | Keycloak pods: 8080 and 9000 open to all, 7800/57800 between Keycloak pods | same |
+| `keycloak-network-policy` | created by the Keycloak operator for the Keycloak CR. Under `networkPolicies.namespaceIsolation.enabled` the chart sets the CR's `spec.networkPolicy`: 8080/8443 from this namespace, the ingress controller and `namespaceIsolation.extraNamespaces`, 9000 from this namespace, the monitoring namespace and the extra namespaces (plus `keycloak.networkPolicy.extraFrom`) | Keycloak pods: 8080 and 9000 open to all without namespace isolation, 7800/57800 between Keycloak pods | same |
 | `opennotificaties-rabbitmq` | Bitnami RabbitMQ subchart, where RabbitMQ is enabled | RabbitMQ pods | same |
 | `podiumd-*` (this analysis) | `templates/networkpolicies.yaml`, opt-in `networkPolicies.enabled` | see below | same |
 

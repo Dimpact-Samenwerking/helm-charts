@@ -43,6 +43,37 @@
         {{- end }}
 {{- end }}
 {{- end }}
+{{- /*
+  Peers for the Keycloak CR's spec.networkPolicy (templates/keycloak-cr.yaml).
+  The Keycloak operator renders its own keycloak-network-policy, which opens
+  8080 and 9000 to every pod in the cluster; NetworkPolicies are additive, so
+  namespace isolation alone cannot close them. Under namespace isolation the
+  operator gets the same peers as podiumd-namespace-isolation: this namespace,
+  the extra namespaces, the ingress controller for http/https and the
+  monitoring namespace for the management port.
+  Usage: include "podiumd.networkPolicy.keycloakPeers" (dict "np" $np "port" "http"|"management" "extra" $list)
+*/ -}}
+{{- define "podiumd.networkPolicy.keycloakPeers" -}}
+{{- $nsLabel := .np.namespaceLabel | default "kubernetes.io/metadata.name" }}
+- podSelector: {}
+{{- if eq .port "http" }}
+- namespaceSelector:
+    matchLabels:
+      {{ $nsLabel }}: {{ .np.ingressControllerNamespace }}
+{{- else if .np.monitoringNamespace }}
+- namespaceSelector:
+    matchLabels:
+      {{ $nsLabel }}: {{ .np.monitoringNamespace }}
+{{- end }}
+{{- range (.np.namespaceIsolation | default dict).extraNamespaces }}
+- namespaceSelector:
+    matchLabels:
+      {{ $nsLabel }}: {{ . }}
+{{- end }}
+{{- with .extra }}
+{{ toYaml . }}
+{{- end }}
+{{- end }}
 {{- $np := .Values.networkPolicies | default dict }}
 {{- if $np.enabled }}
 {{- if not $np.ingressControllerNamespace }}
