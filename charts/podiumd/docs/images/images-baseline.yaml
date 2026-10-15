@@ -109,13 +109,13 @@
 
 - name: openformulieren/open-forms
   url: docker.io/openformulieren/open-forms
-  version: "3.5.8"
-  digest: "sha256:1050b6dd1554ff6f620390870fbb2056157d792e75b9fe6e965371a2ae84f41a"
+  version: "3.5.10"
+  digest: "sha256:a71bb4a76bfa0886391b9dcf87a9c4857a7b76076c084b61d38db820fd09d6dc"
 
 - name: maykinmedia/open-inwoner
   url: docker.io/maykinmedia/open-inwoner
-  version: "2.4.6"
-  digest: "sha256:ef686923eb1d046343288a26fae654a0333545c331cf8bedd2e809009acb0b3c"
+  version: "2.4.7"
+  digest: "sha256:f78563302f20a0b8f8f156e5328aae4343261c3b91994f6e1b964104ed66d58e"
 
 - name: maykinmedia/referentielijsten-api
   url: docker.io/maykinmedia/referentielijsten-api
