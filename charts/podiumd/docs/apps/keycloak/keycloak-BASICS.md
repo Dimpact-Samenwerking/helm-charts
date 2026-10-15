@@ -78,9 +78,12 @@ Two public hostnames, both HTTPRoutes on Gateway `public-gateway` in namespace
 Backends target the operator-created ClusterIP service `keycloak-service`
 (port 8080). TLS terminates at the gateway: `keycloak.http.httpEnabled: true`
 and `keycloak.proxy.headers: xforwarded`. Hostnames are set via
-`keycloak.hostname.hostname` / `keycloak.hostname.admin` (fallback:
-`keycloak.config.adminFrontendUrl`); the realm frontend URL is
-`keycloak.config.realmFrontendUrl`.
+`keycloak.hostname.hostname` (fallback: `keycloak.config.realmFrontendUrl`)
+and `keycloak.hostname.admin` (fallback: `keycloak.config.adminFrontendUrl`).
+The `podiumd` realm's `frontendUrl` is `keycloak.config.realmFrontendUrl`; the
+`master` realm's is `keycloak.config.adminFrontendUrl` (set by the
+`importMasterRealm` job), which keeps the admin console login on the admin
+host.
 
 ### Other dependencies
 

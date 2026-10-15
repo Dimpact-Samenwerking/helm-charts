@@ -129,7 +129,7 @@ keycloak:
   name: "keycloak"
   features:
     enabled: []
-  # -- new hostname configuration for keycloak-operator, falls back to config.adminFrontendUrl if not defined
+  # -- hostname configuration for keycloak-operator. `hostname` falls back to config.realmFrontendUrl (then config.adminFrontendUrl), `admin` falls back to config.adminFrontendUrl
   hostname:
     hostname: ""
     admin: ""
