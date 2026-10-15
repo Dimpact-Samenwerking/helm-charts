@@ -1454,6 +1454,22 @@ openarchiefbeheer:
     #repository: maykinmedia/open-archiefbeheer
     tag: "2.0.0@sha256:e5217d748869c62d26393311c3cfdcaacf69d8dde80ca3bc172ff41f3885f0ff"
 
+  # Loads files/openarchiefbeheer/sitecustomize.py (ConfigMap openarchiefbeheer-patches),
+  # which queues process_review_response only after the transaction commits
+  # (open-archiefbeheer#1103). Remove these three keys with that file once upstream fixes it.
+  # Helm replaces lists: an environment that sets one of these keys must repeat these items.
+  extraEnvVars:
+    - name: PYTHONPATH
+      value: /opt/podiumd-patches
+  extraVolumes:
+    - name: podiumd-patches
+      configMap:
+        name: openarchiefbeheer-patches
+  extraVolumeMounts:
+    - name: podiumd-patches
+      mountPath: /opt/podiumd-patches
+      readOnly: true
+
   resources:
     limits: {}
     requests:
