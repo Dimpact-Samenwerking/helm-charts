@@ -11,7 +11,7 @@ regression, even when the tests pass.
    "the doc row name of an image", "the order of doc items".
 2. List the low-level helpers the new code would call
    (`historical_app_version_for_path`, `canonical_sidecar_row_names`,
-   `paths_by_repository`, `match_dependency`, ...) and grep every caller of
+   `paths_by_repository`, `match_component`, ...) and grep every caller of
    each. A caller that already computes the same thing is the place to
    extend; do not write a second one.
 3. Use the shared entry point when one exists:
@@ -39,8 +39,8 @@ regression, even when the tests pass.
 4. Name resolution is deterministic: a name maps to a component, path or
    image by an exact or canonical match. Before adding a heuristic match
    (word span, substring, "closest", a synthesized display name), or using an
-   existing one (`match_dependency`, `resolve_entry_path`) for new cases, ask
-   the user.
+   existing one (`match_component`'s word-match fallback,
+   `resolve_entry_path`) for new cases, ask the user.
 
 ## Writers and checker
 
