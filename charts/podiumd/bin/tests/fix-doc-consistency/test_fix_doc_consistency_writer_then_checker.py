@@ -39,6 +39,30 @@ def test_a_version_bump(writer_then_checker):
     assert "#   1. zac 5.4.4 -> 5.4.5." in docs[MANIFEST]
 
 
+def test_a_stale_copy_of_a_changes_item_is_merged_in_one_run(writer_then_checker):
+    """Two PRs merged together can leave an older and a current copy of one item."""
+    manifest = (
+        "# Baseline: podiumd 4.8.5.\n#\n# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n#\n"
+        "# Changes:\n"
+        "#   1. zac 5.4.4 -> 5.4.5.\n"
+        "#   2. zac 5.4.4 -> 5.4.6.\n"
+        "#\n# See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.\n\n"
+        "# zac 5.4.4 -> 5.4.6\n"
+        "- name: infonl/zaakafhandelcomponent\n"
+        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+        '  version: "5.4.6"\n'
+        f'  digest: "sha256:{"a" * 64}"\n'
+    )
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC], "values": {"zac": zac("5.4.4")}},
+        {"version": "4.9.0", "deps": [ZAC], "values": {"zac": zac("5.4.6")}, "files": {f"docs/{MANIFEST}": manifest}},
+    )
+
+    assert docs[MANIFEST].count("#   1. zac 5.4.4 -> 5.4.6.") == 1
+    assert "zac 5.4.4 -> 5.4.5" not in docs[MANIFEST]
+    assert "#   2." not in docs[MANIFEST]
+
+
 def test_a_second_bump_keeps_the_user_text_of_the_section(writer_then_checker):
     note = "Restart the zaakbrug after ZAC.\n"
     earlier_doc = (

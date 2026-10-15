@@ -825,8 +825,10 @@ def _fix_images_manifest_content(state: RebaseState, images_path: Path, upgrade_
     _remove_removed_images_manifest_entries(images_path, state)
     _correct_images_manifest_entries(images_path, state, repo_map)
     _add_missing_images_manifest_entries(images_path, state)
-    _dedupe_images_manifest_changes_items(images_path)
+    # Correct before deduping: a stale copy ("1.1.0 -> 1.1.3") only becomes a
+    # duplicate of the current item ("1.1.0 -> 1.1.4") once corrected.
     _fix_stale_changes_items(images_path, state, upgrade_path, canonical_names)
+    _dedupe_images_manifest_changes_items(images_path)
     _sort_images_manifest(images_path, state, repo_map, canonical_names)
     _renumber_images_manifest_changes_items(images_path)
 
