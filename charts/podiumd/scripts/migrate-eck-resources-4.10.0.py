@@ -25,6 +25,10 @@ values are the chart defaults:
   elasticsearch  requests cpu 250m, memory 2Gi; limits cpu 2000m, memory 2Gi
   kibana         requests cpu 100m, memory 2Gi; limits cpu 1000m, memory 2Gi
 
+An added limit is never below a request the environment set, and an added
+request never above a limit it set (e.g. requests.memory 4Gi alone gets
+limits.memory 4Gi, not 2Gi).
+
 2Gi memory is what ECK already used, so only the CPU is new. ECK restarts the
 Elasticsearch nodes one at a time, and Kibana once, on the next deploy.
 
@@ -169,17 +173,54 @@ class Inserts:
 
 
 def _ensure(parent: CommentedMap, parent_line: int, parent_col: int, missing: dict, ins: Inserts, offset: int) -> None:
-    """Add the keys of `missing` that `parent` lacks, recursing into existing mappings."""
+    """Add the keys of `missing` that `parent` lacks, recursing into existing mappings.
+
+    Existing mappings go first: when one is parent's last key, its inserts and a new
+    sibling block anchor at the same line, and inserts keep the order they are added in.
+    The other way round, limits.cpu would land inside a new requests block.
+    """
     for key, value in missing.items():
-        col = _child_col(parent, parent_col)
-        if key not in parent:
-            last = _last_line(parent, parent_line)
-            ins.after(last, _emit({key: value}, col, offset))
-            continue
-        existing = parent[key]
+        existing = parent.get(key)
         if isinstance(value, dict) and isinstance(existing, CommentedMap):
             key_line, key_col = parent.lc.key(key)
             _ensure(existing, key_line, key_col, value, ins, offset)
+    for key, value in missing.items():
+        if key not in parent:
+            last = _last_line(parent, parent_line)
+            ins.after(last, _emit({key: value}, _child_col(parent, parent_col), offset))
+
+
+_UNITS = {"m": 0.001, "k": 1e3, "M": 1e6, "G": 1e9, "T": 1e12, "Ki": 2**10, "Mi": 2**20, "Gi": 2**30, "Ti": 2**40}
+
+
+def _quantity(value) -> float:
+    """A Kubernetes quantity ("250m", "2", "4Gi", "4096Mi") as a number."""
+    text = str(value).strip()
+    for unit in sorted(_UNITS, key=len, reverse=True):
+        if text.endswith(unit):
+            return float(text[: -len(unit)]) * _UNITS[unit]
+    return float(text)
+
+
+def _fitted(resources: dict, current) -> dict:
+    """`resources` with each added limit at least the set request, each added request at most the set limit.
+
+    An environment that sets only requests.memory: 4Gi must not get limits.memory: 2Gi:
+    Kubernetes rejects a pod whose request is above its limit.
+    """
+    current = current if isinstance(current, dict) else {}
+    requests = current.get("requests") if isinstance(current.get("requests"), dict) else {}
+    limits = current.get("limits") if isinstance(current.get("limits"), dict) else {}
+    fitted = copy.deepcopy(resources)
+    for key in fitted["limits"]:
+        try:
+            if key in requests and key not in limits and _quantity(requests[key]) > _quantity(fitted["limits"][key]):
+                fitted["limits"][key] = requests[key]
+            if key in limits and key not in requests and _quantity(limits[key]) < _quantity(fitted["requests"][key]):
+                fitted["requests"][key] = limits[key]
+        except ValueError:
+            raise MigrationError(f"resources {key} is not a plain quantity; add the resources by hand") from None
+    return fitted
 
 
 def _ensure_container(spec: CommentedMap, spec_line: int, spec_col: int, name: str, resources: dict,
@@ -193,7 +234,8 @@ def _ensure_container(spec: CommentedMap, spec_line: int, spec_col: int, name: s
     for index, container in enumerate(containers):
         if isinstance(container, CommentedMap) and container.get("name") == name:
             line, col = containers.lc.item(index)
-            _ensure(container, line, col - 2, {"resources": resources}, ins, offset)
+            _ensure(container, line, col - 2, {"resources": _fitted(resources, container.get("resources"))},
+                    ins, offset)
             return
     key_line, key_col = spec.lc.key("containers")
     dash_col = containers.lc.item(0)[1] - 2 if containers else key_col + offset
@@ -207,7 +249,7 @@ def _expected_container(spec: dict, name: str, resources: dict) -> None:
         containers.append({"name": name, "resources": copy.deepcopy(resources)})
         return
     current = container.setdefault("resources", {})
-    for kind, values in resources.items():
+    for kind, values in _fitted(resources, current).items():
         target = current.setdefault(kind, {})
         for key, value in values.items():
             target.setdefault(key, value)
