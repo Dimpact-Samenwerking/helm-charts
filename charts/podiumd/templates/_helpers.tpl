@@ -467,6 +467,14 @@ nginx_config:
     # Stream upstream responses instead of spooling up to 1 GiB per response
     # into the size-limited /tmp emptyDir.
     proxy_max_temp_file_size 0;
+  {{- if (dig "upstreamTls" "verify" true $fg) }}
+  # Check https upstream certificates (frankgateway.upstreamTls.verify). The
+  # image already sets proxy_ssl_trusted_certificate to the system CA bundle
+  # and sends the upstream host as SNI.
+  http_server_configuration_snippet: |
+    proxy_ssl_verify on;
+    proxy_ssl_verify_depth 5;
+  {{- end }}
   main_configuration_snippet: |
     env OPENBAO_TOKEN;
     env OPENBAO_ADDR;
@@ -879,20 +887,102 @@ failed until a second upgrade made the lookup succeed.
 Usage: {{ include "podiumd.frankgateway.oidcClientSecret" (dict "root" $ "clientId" $clientId) }}
 */}}
 {{- define "podiumd.frankgateway.oidcClientSecret" -}}
-{{- $root := .root -}}
-{{- $id := .clientId -}}
-{{- if not (hasKey $root.Values "__frankgatewayCredsOidc") -}}{{- $_ := set $root.Values "__frankgatewayCredsOidc" dict -}}{{- end -}}
-{{- $cache := index $root.Values "__frankgatewayCredsOidc" -}}
-{{- if not (hasKey $cache $id) -}}
-{{-   $val := "" -}}
-{{-   $existing := lookup "v1" "Secret" $root.Release.Namespace "keycloak-podiumd-realm-secrets" -}}
-{{-   with $existing -}}
-{{-     $val = index .data (printf "%s-oidc-secret" $id) | default "" | b64dec -}}
-{{-   end -}}
-{{-   if eq $val "" -}}{{- $val = randAlphaNum 32 -}}{{- end -}}
-{{-   $_ := set $cache $id $val -}}
+{{- include "podiumd.keycloak.realmSecret" (dict "root" .root "key" (printf "%s-oidc-secret" .clientId) "value" "") -}}
 {{- end -}}
-{{- get $cache $id -}}
+
+{{/*
+Keycloak — the value of one key of the keycloak-podiumd-realm-secrets Secret,
+which keycloak-config-cli imports as a client secret.
+
+ONE definition for every key: the Secret itself, the import Job's name hash
+and the Frank!Gateway dashboards' oauth2-proxy all read it.
+- `value` is the configured secret. It is used as-is unless it is empty or a
+  placeholder (podiumd.validation.isPlaceholder, e.g. "changeme"), which must
+  never become a working client secret. An enabled component with such a
+  value fails the render in validations.yaml first.
+- Otherwise the value from the existing Secret is kept, so a generated secret
+  is stable across upgrades, unless that is empty or a placeholder too.
+- Otherwise a random 32-character secret is generated: a first install, a
+  key that is new to the Secret, or a Secret that was deleted.
+The result is cached per render in .Values.__keycloakRealmSecrets, so every
+template sees the same value: `lookup` cannot see a Secret that this same
+release is still rendering, and a second randAlphaNum would differ. The
+lookup tolerates a missing Secret, a Secret without data and a missing key.
+Under `helm template` there is no cluster: generated values are random on
+every render.
+
+Usage: {{ include "podiumd.keycloak.realmSecret" (dict "root" $ "key" "zac-auth-secret" "value" .Values.zac.auth.secret) }}
+*/}}
+{{- define "podiumd.keycloak.realmSecret" -}}
+{{- $root := .root -}}
+{{- if not (hasKey $root.Values "__keycloakRealmSecrets") -}}{{- $_ := set $root.Values "__keycloakRealmSecrets" dict -}}{{- end -}}
+{{- $cache := index $root.Values "__keycloakRealmSecrets" -}}
+{{- if not (hasKey $cache .key) -}}
+{{-   $val := toString (.value | default "") -}}
+{{-   if or (eq (trim $val) "") (include "podiumd.validation.isPlaceholder" $val) -}}
+{{-     $existing := lookup "v1" "Secret" $root.Release.Namespace "keycloak-podiumd-realm-secrets" | default dict -}}
+{{-     $data := get $existing "data" | default dict -}}
+{{-     $val = get $data .key | default "" | b64dec -}}
+{{-     if or (eq (trim $val) "") (include "podiumd.validation.isPlaceholder" $val) -}}{{- $val = randAlphaNum 32 -}}{{- end -}}
+{{-   end -}}
+{{-   $_ := set $cache .key $val -}}
+{{- end -}}
+{{- get $cache .key -}}
+{{- end -}}
+
+{{/*
+Keycloak — the stringData of the keycloak-podiumd-realm-secrets Secret, one
+`key: "value"` line per client secret. keycloak-podiumd-realm-secrets.yaml
+renders it; the import Job hashes it into its name, so the Job runs again
+whenever any client secret changes, generated ones included.
+
+- Per-component clients (openzaak, ...): configuration.secrets.keycloak_client_secret,
+  else configuration.oidcSecret, else generated (podiumd.keycloak.realmSecret).
+- kiss, zac, zac-admin, ita and pabc: the realm import always creates these
+  clients, also when the component is disabled. Their configured secret is
+  used; an empty or placeholder one is generated instead.
+- monitoring, datamigratie and zaakbrug: as configured (validated in
+  validations.yaml for an enabled client).
+- One client per Frank!Gateway dashboard with SSO.
+*/}}
+{{- define "podiumd.keycloak.realmSecretsData" -}}
+{{- $root := . -}}
+{{- $secrets := dict -}}
+{{- range $comp := list "openzaak" "openarchiefbeheer" "opennotificaties" "objecten" "openklant" "openformulieren" "openinwoner" "referentielijsten" "openbeheer" "openvtb" "openbao" -}}
+{{-   if or (ne $comp "openvtb") $root.Values.openvtb.enabled -}}
+{{-     $cfg := index (index $root.Values $comp) "configuration" | default dict -}}
+{{-     $configured := coalesce (index (index $cfg "secrets" | default dict) "keycloak_client_secret") (index $cfg "oidcSecret") | default "" -}}
+{{-     $key := printf "%s-oidc-secret" $comp -}}
+{{-     $_ := set $secrets $key (include "podiumd.keycloak.realmSecret" (dict "root" $root "key" $key "value" $configured)) -}}
+{{-   end -}}
+{{- end -}}
+{{- range $s := list
+      (list "kiss-oidc-secret" $root.Values.kiss.settings.oidc.clientSecret)
+      (list "zac-auth-secret" $root.Values.zac.auth.secret)
+      (list "zac-keycloak-admin-secret" $root.Values.zac.keycloak.adminClient.secret)
+      (list "ita-oidc-secret" $root.Values.ita.web.oidc.clientSecret)
+      (list "pabc-oidc-secret" $root.Values.pabc.settings.oidc.clientSecret)
+      (list "pabc-keycloak-admin-secret" $root.Values.pabc.settings.keycloakAdmin.clientSecret) -}}
+{{-   $_ := set $secrets (index $s 0) (include "podiumd.keycloak.realmSecret" (dict "root" $root "key" (index $s 0) "value" (index $s 1))) -}}
+{{- end -}}
+{{- $clients := $root.Values.keycloak.config.clients -}}
+{{- $_ := set $secrets "monitoring-client-secret" (toString ($clients.monitoring.secret | default "")) -}}
+{{- $_ := set $secrets "datamigratie-client-secret" (toString ($clients.datamigratie.secret | default "")) -}}
+{{- if $root.Values.zaakbrug.enabled -}}
+{{-   $_ := set $secrets "zaakbrug-client-secret" (toString ($clients.zaakbrug.secret | default "")) -}}
+{{- end -}}
+{{- if $root.Values.frankgateway.enabled -}}
+{{-   range $key, $override := $root.Values.frankgateway.instances -}}
+{{-     $fg := include "podiumd.frankgateway.instanceValues" (dict "root" $root "key" $key "override" $override) | fromYaml -}}
+{{-     if and $fg.enabled $fg.dashboard.enabled $fg.dashboard.auth.enabled -}}
+{{-       $clientId := include "podiumd.frankgateway.oidcClientId" (dict "key" $key) -}}
+{{-       $_ := set $secrets (printf "%s-oidc-secret" $clientId) (include "podiumd.frankgateway.oidcClientSecret" (dict "root" $root "clientId" $clientId)) -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}
+{{- range $k := keys $secrets | sortAlpha }}
+{{ $k }}: {{ get $secrets $k | quote }}
+{{- end -}}
 {{- end -}}
 
 {{/*
