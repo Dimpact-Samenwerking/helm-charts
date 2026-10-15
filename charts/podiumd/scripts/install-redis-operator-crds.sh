@@ -13,7 +13,7 @@
 #   ./install-redis-operator-crds.sh [OPTIONS]
 #
 # Options:
-#   --version VERSION   Chart version to fetch CRDs from (default: 0.24.0)
+#   --version VERSION   Chart version to fetch CRDs from (default: 0.27.0)
 #   --context CONTEXT   kubectl context to use (default: current context)
 #   --dry-run           Print the CRDs YAML without applying them
 #   -h, --help          Show this help message
@@ -30,7 +30,7 @@
 
 set -euo pipefail
 
-CHART_VERSION="0.24.0"
+CHART_VERSION="0.27.0"
 DRY_RUN=false
 CONTEXT_ARG=""
 REPO_NAME="opstree"
