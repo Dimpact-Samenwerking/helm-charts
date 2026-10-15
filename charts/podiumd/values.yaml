@@ -2578,7 +2578,14 @@ openvtb:
       backoffLimit: 6
       ttlSecondsAfterFinished: 600
       restartPolicy: Never
-      resources: {}
+      # -- Resources of the setup-configuration Job (one Django process).
+      resources:
+        requests:
+          cpu: 50m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
     # Secret substitution inside configuration.data uses django-setup-configuration's
     # `value_from: {env: VAR}` pattern. Shell-style `${VAR}` references are NOT resolved.
     secrets:
@@ -2652,10 +2659,14 @@ openvtb:
     readOnlyRootFilesystem: false
     runAsNonRoot: true
     runAsUser: 1000
+  # -- Measured on johnb00: about 260Mi per pod idle (uWSGI 2 processes x 2 threads); the limit leaves room for load.
   resources:
     requests:
       cpu: 100m
       memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 768Mi
   persistence:
     enabled: true
     size: 1Gi

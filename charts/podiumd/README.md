@@ -1088,7 +1088,7 @@ PodiumD Helm chart
 | openvtb.configuration.enabled | bool | `true` |  |
 | openvtb.configuration.job.backoffLimit | int | `6` |  |
 | openvtb.configuration.job.enabled | bool | `true` |  |
-| openvtb.configuration.job.resources | object | `{}` |  |
+| openvtb.configuration.job.resources | object | `{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources of the setup-configuration Job (one Django process). |
 | openvtb.configuration.job.restartPolicy | string | `"Never"` |  |
 | openvtb.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
 | openvtb.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openvtb.example.nl`. |
@@ -1111,8 +1111,7 @@ PodiumD Helm chart
 | openvtb.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openvtb.persistentVolume.volumeAttributeShareName | string | `"openvtb"` |  |
 | openvtb.replicaCount | int | `2` |  |
-| openvtb.resources.requests.cpu | string | `"100m"` |  |
-| openvtb.resources.requests.memory | string | `"256Mi"` |  |
+| openvtb.resources | object | `{"limits":{"cpu":"500m","memory":"768Mi"},"requests":{"cpu":"100m","memory":"256Mi"}}` | Measured on johnb00: about 260Mi per pod idle (uWSGI 2 processes x 2 threads); the limit leaves room for load. |
 | openvtb.securityContext.capabilities.drop[0] | string | `"ALL"` |  |
 | openvtb.securityContext.readOnlyRootFilesystem | bool | `false` |  |
 | openvtb.securityContext.runAsNonRoot | bool | `true` |  |
