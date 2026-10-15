@@ -4,6 +4,7 @@
 #
 # Changes:
 #   1. openformulieren 3.5.8 -> 3.5.10.
+#   2. openinwoner 2.4.6 -> 2.4.7.
 #
 # See docs/_UPGRADE_PATHS/4.9.4-to-4.9.5-upgrade.md for the operator upgrade notes.
 #
@@ -15,3 +16,9 @@
   url: docker.io/openformulieren/open-forms
   version: "3.5.10"
   digest: "sha256:a71bb4a76bfa0886391b9dcf87a9c4857a7b76076c084b61d38db820fd09d6dc"
+
+# openinwoner 2.4.6 -> 2.4.7
+- name: maykinmedia/open-inwoner
+  url: docker.io/maykinmedia/open-inwoner
+  version: "2.4.7"
+  digest: "sha256:f78563302f20a0b8f8f156e5328aae4343261c3b91994f6e1b964104ed66d58e"

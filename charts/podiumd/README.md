@@ -975,7 +975,7 @@ PodiumD Helm chart
 | openinwoner.eck-elasticsearch.version | string | `"9.2.0"` |  |
 | openinwoner.eck-operator.enabled | bool | `false` |  |
 | openinwoner.fullnameOverride | string | `"openinwoner"` |  |
-| openinwoner.image.tag | string | `"2.4.6@sha256:ef686923eb1d046343288a26fae654a0333545c331cf8bedd2e809009acb0b3c"` |  |
+| openinwoner.image.tag | string | `"2.4.7@sha256:f78563302f20a0b8f8f156e5328aae4343261c3b91994f6e1b964104ed66d58e"` |  |
 | openinwoner.lowLatencyWorker | object | `{"replicaCount":1,"resources":{"requests":{"cpu":"100m","memory":"256Mi"}}}` | New in openinwoner 2.3.0 (chart 2.2.0): dedicated low-latency Celery worker for cache-seeding/warmup tasks. The chart creates this deployment by default (replicaCount 1) on upgrade; resources pinned here to match podiumd conventions. |
 | openinwoner.nameOverride | string | `"openinwoner"` |  |
 | openinwoner.nginx.config.basicAuth.enabled | bool | `false` |  |
