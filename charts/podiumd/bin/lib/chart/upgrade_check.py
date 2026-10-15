@@ -190,17 +190,17 @@ def _scan(chart_dir: Path, sources: list[ChartSource], ttl_days: int) -> ChartUp
 
 
 def _with_app_version(version: str, app_version: str | None) -> str:
-    """ "1.0.345 (app 5.12.0)", or just the version when the chart sets no appVersion."""
-    return f"{version} (app {app_version})" if app_version else version
+    """ "app 5.12.0, chart 1.0.345", or just "chart 1.0.345" when the chart sets no appVersion."""
+    return f"app {app_version}, chart {version}" if app_version else f"chart {version}"
 
 
 def _print_findings(scan: ChartUpgradeScan, total: int, ttl_days: int) -> None:
     """Print upgradable charts, then OK/INCOMPLETE and the cache summary."""
     upgradable = [(s, e) for s, e in scan.newer.items() if e["newer"]]
     for source, entry in upgradable:
-        newer = ", ".join(map(_with_app_version, entry["newer"], entry["app_versions"]))
-        current = _with_app_version(f"{source.chart} {source.version}", source.app_version)
-        print(f"{source.name} ({current}): newest chart version per major: {newer}")
+        newer = " | ".join(map(_with_app_version, entry["newer"], entry["app_versions"]))
+        current = _with_app_version(source.version, source.app_version)
+        print(f"{source.name} ({source.chart}) {current}: newest version per major: {newer}")
     if scan.fetch_errors:
         print(f"INCOMPLETE: {len(scan.fetch_errors)}/{total} chart(s) could not be checked for a newer version:")
         for source in scan.fetch_errors:

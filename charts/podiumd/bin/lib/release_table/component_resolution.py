@@ -7,7 +7,7 @@ from collections.abc import Collection
 from collections.abc import Sequence
 from pathlib import Path
 
-from lib.chart.chart_yaml import load_chart_dependencies
+from lib.chart.chart_yaml import chart_dir_dependencies
 from lib.chart.registered_paths import native_components
 from lib.chart.values_tree_primitives import mapping_at
 from lib.chart.values_tree_primitives import text_at
@@ -45,10 +45,7 @@ DependencyNames = tuple[str, str]
 
 def chart_dependencies(chart_dir: Path) -> list[DependencyNames]:
     """[(dependency_name, alias_or_empty), ...] in Chart.yaml order; [] without a Chart.yaml."""
-    chart_yaml_path = chart_dir / "Chart.yaml"
-    if not chart_yaml_path.is_file():
-        return []
-    return [(dep["name"], dep.get("alias", "")) for dep in load_chart_dependencies(chart_yaml_path)]
+    return [(dep["name"], dep.get("alias", "")) for dep in chart_dir_dependencies(chart_dir)]
 
 
 def orphan_values_yaml_keys(chart_dir: Path, dependencies: Sequence[DependencyNames]) -> list[DependencyNames]:
