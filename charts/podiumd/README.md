@@ -123,6 +123,8 @@ PodiumD Helm chart
 | frankgateway.admin.adminKey | string | `""` |  |
 | frankgateway.admin.allowFrom | list | `["10.0.0.0/8","172.16.0.0/12","192.168.0.0/16","127.0.0.1/32"]` | Source CIDRs APISIX accepts on the Admin API (9180), checked before the key. Private ranges by default; narrow to the cluster's pod CIDR per environment. |
 | frankgateway.admin.viewerKey | string | `""` |  |
+| frankgateway.buffering.clientMaxBodySize | string | `"1g"` | Largest request body the gateway accepts (nginx client_max_body_size); larger requests get 413. "0" = unlimited. |
+| frankgateway.buffering.tmpSizeLimit | string | `"2Gi"` | sizeLimit of the gateway's /tmp emptyDir (request-body temp files). |
 | frankgateway.clientCertSync.failedJobsHistoryLimit | int | `3` | Failed runs are kept so a sync that has stopped working is visible. |
 | frankgateway.clientCertSync.nodeSelector | object | `{}` |  |
 | frankgateway.clientCertSync.schedule | string | `"*/5 * * * *"` | Cron schedule of the per-instance sync — also the upper bound on how long a rotation in OpenBao takes to reach the gateway. |
