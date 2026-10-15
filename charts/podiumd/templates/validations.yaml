@@ -202,9 +202,17 @@
      Keycloak secret of a client that can list every realm user. Scan all
      values and fail with every offending path at once. A section with
      `enabled: false`, at any depth (a whole component or a part such as
-     zac.office_converter), is skipped: its placeholders are never used. */ -}}
-{{- define "podiumd.validation.placeholderPaths" -}}
+     zac.office_converter), is skipped: its placeholders are never used.
+     The Keycloak clients that keycloak-podiumd-realm-config always imports
+     (kiss, zac, zac-admin, ita, pabc) are no exception: for a disabled
+     component, keycloak-podiumd-realm-secrets replaces an empty or
+     placeholder secret with a generated one. */ -}}
+{{- define "podiumd.validation.isPlaceholder" -}}
 {{- $placeholders := list "changeme" "dummy" "openklanttoken" "objectentoken" "<token>" "<kiss>" -}}
+{{- if and (kindIs "string" .) (or (has (lower (trim .)) $placeholders) (regexMatch "REP_[A-Z0-9_]+_REP" .)) -}}true{{- end -}}
+{{- end -}}
+
+{{- define "podiumd.validation.placeholderPaths" -}}
 {{- if kindIs "map" .node -}}
 {{- if not (and (hasKey .node "enabled") (eq (toString .node.enabled) "false")) -}}
 {{- range $k, $v := .node -}}
@@ -215,7 +223,7 @@
 {{- range $i, $v := .node -}}
 {{- include "podiumd.validation.placeholderPaths" (dict "node" $v "path" (printf "%s[%d]" $.path $i)) -}}
 {{- end -}}
-{{- else if and (kindIs "string" .node) (or (has (lower (trim .node)) $placeholders) (regexMatch "REP_[A-Z0-9_]+_REP" .node)) -}}
+{{- else if include "podiumd.validation.isPlaceholder" .node -}}
 {{- printf "%s\n" .path -}}
 {{- end -}}
 {{- end -}}

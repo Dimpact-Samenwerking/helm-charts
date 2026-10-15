@@ -525,6 +525,27 @@ spec:
       {{- if get $on "openbao" }}{{ $names = append $names "openbao" }}{{ end }}
       {{- if get $on "clamav" }}{{ $names = append $names "clamav" }}{{ end }}
       {{- if get $on "solr" }}{{ $names = append $names "office-converter" }}{{ end }}
+      {{- /* Frank!Gateway pods with their own, stricter policy are excluded by
+             name, exactly the pods that policy selects: a classified instance
+             (frankgateway-networkpolicy.yaml), and a dashboard with its shim
+             (NW-03, frankgateway-dashboard-networkpolicy.yaml). Including them
+             here would let the whole namespace reach them again. An instance
+             without a class, and a dashboard without its policy, get no policy
+             of their own and so stay under namespace isolation. */ -}}
+      {{- if $fg.enabled }}
+      {{- range $key, $override := $fg.instances }}
+      {{- $inst := include "podiumd.frankgateway.instanceValues" (dict "root" $root "key" $key "override" $override) | fromYaml }}
+      {{- if $inst.enabled }}
+      {{- $instName := include "podiumd.frankgateway.instanceName" (dict "key" $key "instance" $inst) }}
+      {{- if and $fgNp.enabled (include "podiumd.frankgateway.class" (dict "key" $key "instance" $inst)) }}
+      {{- $names = append $names $instName }}
+      {{- end }}
+      {{- if and (dig "dashboard" "enabled" false $inst) (dig "dashboard" "networkPolicy" "enabled" false $inst) }}
+      {{- $names = concat $names (list (printf "%s-dashboard" $instName) (printf "%s-shim" $instName)) }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
       {{- with $names }}
       - key: app.kubernetes.io/name
         operator: NotIn
@@ -532,13 +553,6 @@ spec:
       {{- end }}
       {{- $components := list }}
       {{- if get $on "etcd" }}{{ $components = append $components "frankgateway-etcd" }}{{ end }}
-      {{- /* The gateway class pods have their own, stricter policies. */ -}}
-      {{- if and $fg.enabled $fgNp.enabled }}{{ $components = append $components "frankgateway" }}{{ end }}
-      {{- /* So do the dashboard and its shim (NW-03); including them here would let the whole namespace reach them again. */ -}}
-      {{- $fgDash := $fg.dashboard | default dict }}
-      {{- if and $fg.enabled $fgDash.enabled ($fgDash.networkPolicy | default dict).enabled }}
-      {{- $components = concat $components (list "frankgateway-dashboard" "frankgateway-shim") }}
-      {{- end }}
       {{- with $components }}
       - key: app.kubernetes.io/component
         operator: NotIn
