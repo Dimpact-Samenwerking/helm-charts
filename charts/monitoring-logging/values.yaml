@@ -435,7 +435,7 @@ kube-prometheus-stack:
       registry: registry.k8s.io
       repository: kube-state-metrics/kube-state-metrics
       pullPolicy: IfNotPresent
-      tag: v2.17.0
+      tag: v2.20.0
 
 # -- Pushgateway: separate dependency (not bundled in kube-prometheus-stack).
 # quay.io/prometheus/pushgateway:v1.11.1
