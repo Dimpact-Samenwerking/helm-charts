@@ -136,7 +136,7 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.7.3 — the primary
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.8.1 — the primary
   # image of the native keycloak component (etc/settings.yaml
   # native_components). Defines the anchors keycloak-operator.operator.
   # config.keycloakImage aliases below, so the operator's default server
@@ -148,8 +148,8 @@ keycloak:
   image:
     registry: ""
     repository: &keycloakImageRepo quay.io/keycloak/keycloak
-    tag: &keycloakImageVersion "26.7.3"
-    sha: &keycloakImageDigest "ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54"
+    tag: &keycloakImageVersion "26.8.1"
+    sha: &keycloakImageDigest "79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244"
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
@@ -189,7 +189,7 @@ keycloak:
         app: keycloak
         # Set by hand, deliberately not aliased to *keycloakImageVersion:
         # this label may move independently of the server image.
-        version: 26.7.3
+        version: 26.8.1
       # override: values-enable-observability.yaml adds prometheus.io scrape annotations
     spec:
       securityContext:
@@ -320,14 +320,15 @@ keycloak:
 keycloak-operator:
   enabled: true
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
-  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (chart 1.13.0, appVersion 26.7.2)
+  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (chart 1.13.1, appVersion 26.7.4)
   # Note: it appears that the podname automatically appends -operator.
-  # Official operator image: quay.io/keycloak/keycloak-operator:26.7.3
+  # Official operator image: quay.io/keycloak/keycloak-operator:26.8.1
   # Note: images are deliberately AHEAD of the chart line here — adfinis
-  # hasn't published a chart targeting 26.7.3 yet (still 1.13.0 / appVersion
-  # 26.7.2 as of 2026-08-31). Operator + server image pinned to 26.7.3 below
-  # for the 20-CVE 26.7.3 security release; bump the keycloak-operator chart
-  # dependency separately once adfinis catches up.
+  # hasn't published a chart targeting 26.8.x yet (still 1.13.1 / appVersion
+  # 26.7.4 as of 2026-10-14). Operator + server image pinned to 26.8.1 below
+  # for the security fixes in 26.7.5, 26.8.0 and 26.8.1; the operator CRDs come
+  # from upstream 26.8.1 (scripts/install-keycloak-operator-crds.sh), not from
+  # the chart. Bump the chart dependency again once adfinis catches up.
   # override: values-enable-observability.yaml sets enableServiceMonitor: true
   enableServiceMonitor: false
   fullnameOverride: keycloak
@@ -338,16 +339,16 @@ keycloak-operator:
       # `keycloak.image` (which uses the podiumd.image helper, repository:tag),
       # the adfinis subchart appends its own digest from a SEPARATE `operator.image.sha`
       # field: `repository:tag@sha256:{{ .sha }}`. Putting @sha256 in the tag
-      # produces an invalid DOUBLE digest (…:26.7.3@sha256:xxx@sha256:xxx).
-      # The chart's bundled default operator.image.sha for 1.13.0 is stale
-      # (doesn't match any manifest under the 26.7.3 tag — it doesn't even
+      # produces an invalid DOUBLE digest (…:26.8.1@sha256:xxx@sha256:xxx).
+      # The chart's bundled default operator.image.sha for 1.13.1 is stale
+      # (doesn't match any manifest under the 26.8.1 tag — it doesn't even
       # know this tag exists yet), so it's overridden explicitly below with
       # the real registry digest. To DISABLE digest pinning (e.g. on aks-blue
       # / ACR-mirror envs where the mirrored digest differs), set
       # `operator.image.sha: ""`. See
       # docs/_UPGRADE_PATHS/4.7.3-to-4.7.4-upgrade.md.
-      tag: "26.7.3"
-      sha: "e3856fd1aeb404f0e6ae2180b01875c8eeebd3748b0e5d955da77b5d41095ae4"
+      tag: "26.8.1"
+      sha: "60996d513b9e9945657b348655c98071c366bb0212deefa1508785941b1651dc"
     resources:
       requests:
         cpu: 100m
