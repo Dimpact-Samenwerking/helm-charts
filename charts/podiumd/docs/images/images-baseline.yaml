@@ -259,8 +259,8 @@
 
 - name: wearefrank/frank-gateway
   url: ghcr.io/wearefrank/frank-gateway
-  version: "1.1.0"
-  digest: "sha256:2f944fdbc16883e4b586aaa20f04928cd33afc7efc78d37012d2c7acb62f55bd"
+  version: "1.1.3"
+  digest: "sha256:611fefec557def735bc05ff577aa6ce4d94b562c0582abc8605205210fb7114b"
 
 - name: coreos/etcd
   url: quay.io/coreos/etcd

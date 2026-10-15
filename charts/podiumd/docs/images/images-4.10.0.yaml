@@ -15,6 +15,7 @@
 #   2. openvtb 0.2.0 (new optional component, image maykinmedia/open-vtb,
 #      disabled by default).
 #   2. openformulieren 3.5.8 -> 4.0.2 (chart 1.12.0 -> 1.13.0).
+#   11. frankgateway.image 1.1.0 -> 1.1.3.
 #
 # See docs/_UPGRADE_PATHS/4.9.4-to-4.10.0-upgrade.md for the operator upgrade notes.
 #
@@ -84,3 +85,9 @@
   url: docker.io/openformulieren/open-forms
   version: "4.0.2"
   digest: "sha256:e1cad4bcf2319a3eb106e51156bf69c6be83da9dd070e977f52ec1079455b8e3"
+
+# frankgateway.image 1.1.0 -> 1.1.3
+- name: wearefrank/frank-gateway
+  url: ghcr.io/wearefrank/frank-gateway
+  version: "1.1.3"
+  digest: "sha256:611fefec557def735bc05ff577aa6ce4d94b562c0582abc8605205210fb7114b"
