@@ -1,0 +1,580 @@
+{{- /*
+  NetworkPolicies for the PodiumD backends (security review 4.10.0, NW-01).
+  The access matrix behind every rule is in
+  docs/misc/network-policy-analysis.md. The Frank!Gateway class policies are
+  in frankgateway-networkpolicy.yaml and are not repeated here.
+
+  Phase 1 (protectBackends): one ingress-only policy per sensitive backend.
+  Only the listed clients may connect.
+  Phase 2 (namespaceIsolation): every other pod in the namespace accepts
+  traffic only from this namespace, the ingress controller and monitoring.
+
+  NetworkPolicies are additive: a pod is reachable when ANY policy that
+  selects it allows the traffic. Phase 2 therefore excludes the backends that
+  phase 1 protects, or it would open them up again to the whole namespace.
+
+  Each backend policy renders only when its component is enabled. A selector
+  that matches no pods (a client or backend that is not deployed) has no
+  effect, so a disabled component does not break the other policies.
+
+  A cluster without a policy engine accepts these objects and ignores them.
+*/ -}}
+{{- define "podiumd.networkPolicy.monitoring" -}}
+{{- if .np.monitoringNamespace }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              {{ .np.namespaceLabel }}: {{ .np.monitoringNamespace }}
+      ports:
+        {{- range .ports }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+{{- end }}
+{{- end }}
+{{- define "podiumd.networkPolicy.extra" -}}
+{{- with .peers }}
+    - from:
+        {{- toYaml . | nindent 8 }}
+      ports:
+        {{- range $.ports }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+{{- end }}
+{{- end }}
+{{- /*
+  Peers for the Keycloak CR's spec.networkPolicy (templates/keycloak-cr.yaml).
+  The Keycloak operator renders its own keycloak-network-policy, which opens
+  8080 and 9000 to every pod in the cluster; NetworkPolicies are additive, so
+  namespace isolation alone cannot close them. Under namespace isolation the
+  operator gets the same peers as podiumd-namespace-isolation: this namespace,
+  the extra namespaces, the ingress controller for http/https and the
+  monitoring namespace for the management port.
+  Usage: include "podiumd.networkPolicy.keycloakPeers" (dict "np" $np "port" "http"|"management" "extra" $list)
+*/ -}}
+{{- define "podiumd.networkPolicy.keycloakPeers" -}}
+{{- $nsLabel := .np.namespaceLabel | default "kubernetes.io/metadata.name" }}
+- podSelector: {}
+{{- if eq .port "http" }}
+- namespaceSelector:
+    matchLabels:
+      {{ $nsLabel }}: {{ .np.ingressControllerNamespace }}
+{{- else if .np.monitoringNamespace }}
+- namespaceSelector:
+    matchLabels:
+      {{ $nsLabel }}: {{ .np.monitoringNamespace }}
+{{- end }}
+{{- range (.np.namespaceIsolation | default dict).extraNamespaces }}
+- namespaceSelector:
+    matchLabels:
+      {{ $nsLabel }}: {{ . }}
+{{- end }}
+{{- with .extra }}
+{{ toYaml . }}
+{{- end }}
+{{- end }}
+{{- $np := .Values.networkPolicies | default dict }}
+{{- if $np.enabled }}
+{{- if not $np.ingressControllerNamespace }}
+{{- fail "networkPolicies.ingressControllerNamespace is required when networkPolicies.enabled is true (the namespace of the ingress controller pods, e.g. traefik)." }}
+{{- end }}
+{{- $root := . }}
+{{- $nsLabel := $np.namespaceLabel }}
+{{- $protect := $np.protectBackends | default dict }}
+{{- $extra := $protect.extraFrom | default dict }}
+{{- $redisOperator := index .Values "redis-operator" | default dict }}
+{{- $redisHa := index $redisOperator "redis-ha" | default dict }}
+{{- $fg := .Values.frankgateway | default dict }}
+{{- $fgNp := $fg.networkPolicies | default dict }}
+{{- $kissEck := index .Values "kiss-eck" | default dict }}
+{{- $kiss := .Values.kiss | default dict }}
+{{- $oi := .Values.openinwoner | default dict }}
+{{- $zac := .Values.zac | default dict }}
+{{- $clamav := .Values.clamav | default dict }}
+{{- $openbao := .Values.openbao | default dict }}
+{{- /* Which backends get a phase-1 policy; phase 2 excludes exactly these. */ -}}
+{{- $on := dict
+  "redis" (and $protect.enabled $redisOperator.enabled $redisHa.enabled)
+  "openbao" (and $protect.enabled $openbao.enabled)
+  "etcd" (and $protect.enabled $fg.enabled)
+  "elasticsearch" (and $protect.enabled (or $kissEck.enabled $kiss.enabled $oi.enabled))
+  "solr" (and $protect.enabled $zac.enabled)
+  "clamav" (and $protect.enabled $clamav.enabled)
+}}
+{{- if get $on "redis" }}
+---
+# Shared Redis HA: Celery brokers, caches, axes and OIDC state of the Django
+# apps (security review NW-04). Each app uses its own database index.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: podiumd-redis-ha
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" $root | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: redis-ha
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - objecten
+                  - objecten-config
+                  - objecten-worker
+                  - openarchiefbeheer
+                  - openarchiefbeheer-beat
+                  - openarchiefbeheer-config
+                  - openarchiefbeheer-worker
+                  - openbeheer
+                  - openbeheer-config
+                  - openformulieren
+                  - openformulieren-beat
+                  - openformulieren-config
+                  - openformulieren-worker
+                  - openinwoner
+                  - openinwoner-beat
+                  - openinwoner-celery-monitor
+                  - openinwoner-config
+                  - openinwoner-low-latency-worker
+                  - openinwoner-worker
+                  - openklant
+                  - openklant-config
+                  - openklant-worker
+                  - opennotificaties
+                  - opennotificaties-beat
+                  - opennotificaties-config
+                  - opennotificaties-worker
+                  - openvtb
+                  - openvtb-config
+                  - openzaak
+                  - openzaak-beat
+                  - openzaak-config
+                  - openzaak-worker
+                  - referentielijsten
+                  - referentielijsten-config
+        # This chart's own Django shell Jobs (configure-clamav,
+        # configure-customer-interactions) load the app settings, cache
+        # included; their pods carry the chart's name plus the app as component.
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ include "podiumd.name" $root }}
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - openformulieren
+                  - openinwoner
+        # Frank!Gateway dashboard login sessions (database 3).
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: frankgateway-oauth2-proxy
+        # Replication between the Redis pods.
+        - podSelector:
+            matchLabels:
+              app: redis-ha
+        # The operator checks and configures the replication.
+        - podSelector:
+            matchLabels:
+              name: redis-operator
+          namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 6379
+    {{- include "podiumd.networkPolicy.monitoring" (dict "np" $np "ports" (list 9121)) }}
+    {{- include "podiumd.networkPolicy.extra" (dict "peers" $extra.redis "ports" (list 6379)) }}
+{{- end }}
+{{- if get $on "openbao" }}
+---
+# OpenBao: secrets for Frank!Gateway and the Keycloak realm job.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: podiumd-openbao
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" $root | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: openbao
+      app.kubernetes.io/instance: {{ $root.Release.Name }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - frankgateway
+                  - frankgateway-seed
+                  - frankgateway-client-cert-sync
+                  - frankgateway-ssl-sync
+                  - openbao-config
+                  - openbao-token-renewal
+                  # The Keycloak realm import job reads its client secrets.
+                  - keycloak
+        # UI and API through the ingress.
+        - namespaceSelector:
+            matchLabels:
+              {{ $nsLabel }}: {{ $np.ingressControllerNamespace }}
+      ports:
+        - protocol: TCP
+          port: 8200
+    # Raft/HA traffic between the OpenBao pods.
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: openbao
+              app.kubernetes.io/instance: {{ $root.Release.Name }}
+      ports:
+        - protocol: TCP
+          port: 8200
+        - protocol: TCP
+          port: 8201
+    {{- include "podiumd.networkPolicy.monitoring" (dict "np" $np "ports" (list 8200)) }}
+    {{- include "podiumd.networkPolicy.extra" (dict "peers" $extra.openbao "ports" (list 8200)) }}
+{{- end }}
+{{- if get $on "etcd" }}
+---
+# Frank!Gateway etcd: the route configuration of every gateway class
+# (security review NW-02: no TLS, no authentication).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: podiumd-frankgateway-etcd
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" $root | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: frankgateway-etcd
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # The gateway pods and the dashboards (apisix-dashboard reads etcd).
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - frankgateway
+                  - frankgateway-dashboard
+                  - frankgateway-etcd
+      ports:
+        - protocol: TCP
+          port: 2379
+    # Peer traffic between the etcd members.
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: frankgateway-etcd
+      ports:
+        - protocol: TCP
+          port: 2380
+    {{- include "podiumd.networkPolicy.extra" (dict "peers" $extra.etcd "ports" (list 2379)) }}
+{{- end }}
+{{- if get $on "elasticsearch" }}
+---
+# Every ECK Elasticsearch cluster in the namespace: KISS and Open Inwoner
+# (security review NW-11: Open Inwoner uses plain HTTP).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: podiumd-elasticsearch
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" $root | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      common.k8s.elastic.co/type: elasticsearch
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  # KISS frontend and the kennisbank/smoelenboek/vac sync jobs.
+                  - contact
+                  - openinwoner
+                  - openinwoner-beat
+                  - openinwoner-celery-monitor
+                  - openinwoner-config
+                  - openinwoner-low-latency-worker
+                  - openinwoner-worker
+        - podSelector:
+            matchLabels:
+              common.k8s.elastic.co/type: kibana
+        - podSelector:
+            matchLabels:
+              common.k8s.elastic.co/type: elasticsearch
+        # The ECK operator, in whatever namespace it runs.
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: elastic-operator
+          namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 9200
+    # Transport between the Elasticsearch nodes.
+    - from:
+        - podSelector:
+            matchLabels:
+              common.k8s.elastic.co/type: elasticsearch
+      ports:
+        - protocol: TCP
+          port: 9300
+    {{- include "podiumd.networkPolicy.extra" (dict "peers" $extra.elasticsearch "ports" (list 9200)) }}
+{{- end }}
+{{- if get $on "solr" }}
+---
+# ZAC Solr (security review NW-11: plain HTTP).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: podiumd-zac-solr
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" $root | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      technology: solr-cloud
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: zac
+        - podSelector:
+            matchLabels:
+              technology: solr-cloud
+        - podSelector:
+            matchLabels:
+              control-plane: solr-operator
+          namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8983
+    {{- include "podiumd.networkPolicy.monitoring" (dict "np" $np "ports" (list 8983)) }}
+    {{- include "podiumd.networkPolicy.extra" (dict "peers" $extra.solr "ports" (list 8983)) }}
+---
+# ZooKeeper for ZAC Solr.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: podiumd-zac-zookeeper
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" $root | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      technology: zookeeper
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: technology
+                operator: In
+                values:
+                  - solr-cloud
+                  - zookeeper
+        - podSelector:
+            matchLabels:
+              name: zookeeper-operator
+          namespaceSelector: {}
+        - podSelector:
+            matchLabels:
+              control-plane: solr-operator
+          namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 2181
+    # Quorum and leader election between the ZooKeeper members.
+    - from:
+        - podSelector:
+            matchLabels:
+              technology: zookeeper
+      ports:
+        - protocol: TCP
+          port: 2888
+        - protocol: TCP
+          port: 3888
+    {{- include "podiumd.networkPolicy.monitoring" (dict "np" $np "ports" (list 7000)) }}
+    {{- include "podiumd.networkPolicy.extra" (dict "peers" $extra.zookeeper "ports" (list 2181)) }}
+---
+# ZAC office-converter (Gotenberg).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: podiumd-zac-office-converter
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" $root | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: office-converter
+      app.kubernetes.io/instance: {{ $root.Release.Name }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: zac
+      ports:
+        - protocol: TCP
+          port: 3000
+    {{- include "podiumd.networkPolicy.extra" (dict "peers" $extra.officeConverter "ports" (list 3000)) }}
+{{- end }}
+{{- if get $on "clamav" }}
+---
+# ClamAV: virus scan of uploaded files.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: podiumd-clamav
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" $root | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: clamav
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - openformulieren
+                  - openformulieren-worker
+                  - openinwoner
+                  - openinwoner-worker
+        # The openformulieren/openinwoner-configure-clamav Jobs ping clamd;
+        # their pods carry this chart's own name plus the app as component.
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ include "podiumd.name" $root }}
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - openformulieren
+                  - openinwoner
+      ports:
+        - protocol: TCP
+          port: 3310
+    {{- include "podiumd.networkPolicy.monitoring" (dict "np" $np "ports" (list 9906)) }}
+    {{- include "podiumd.networkPolicy.extra" (dict "peers" $extra.clamav "ports" (list 3310)) }}
+{{- end }}
+{{- $iso := $np.namespaceIsolation | default dict }}
+{{- if $iso.enabled }}
+---
+# Namespace isolation: every pod that no backend policy above protects accepts
+# traffic only from this namespace, the ingress controller and monitoring.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: podiumd-namespace-isolation
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" $root | nindent 4 }}
+spec:
+  podSelector:
+    matchExpressions:
+      {{- if get $on "redis" }}
+      - key: app
+        operator: NotIn
+        values: [redis-ha]
+      {{- end }}
+      {{- if get $on "elasticsearch" }}
+      - key: common.k8s.elastic.co/type
+        operator: NotIn
+        values: [elasticsearch]
+      {{- end }}
+      {{- if get $on "solr" }}
+      - key: technology
+        operator: NotIn
+        values: [solr-cloud, zookeeper]
+      {{- end }}
+      {{- $names := list }}
+      {{- if get $on "openbao" }}{{ $names = append $names "openbao" }}{{ end }}
+      {{- if get $on "clamav" }}{{ $names = append $names "clamav" }}{{ end }}
+      {{- if get $on "solr" }}{{ $names = append $names "office-converter" }}{{ end }}
+      {{- /* Frank!Gateway pods with their own, stricter policy are excluded by
+             name, exactly the pods that policy selects: a classified instance
+             (frankgateway-networkpolicy.yaml), and a dashboard with its shim
+             (NW-03, frankgateway-dashboard-networkpolicy.yaml). Including them
+             here would let the whole namespace reach them again. An instance
+             without a class, and a dashboard without its policy, get no policy
+             of their own and so stay under namespace isolation. */ -}}
+      {{- if $fg.enabled }}
+      {{- range $key, $override := $fg.instances }}
+      {{- $inst := include "podiumd.frankgateway.instanceValues" (dict "root" $root "key" $key "override" $override) | fromYaml }}
+      {{- if $inst.enabled }}
+      {{- $instName := include "podiumd.frankgateway.instanceName" (dict "key" $key "instance" $inst) }}
+      {{- if and $fgNp.enabled (include "podiumd.frankgateway.class" (dict "key" $key "instance" $inst)) }}
+      {{- $names = append $names $instName }}
+      {{- end }}
+      {{- if and (dig "dashboard" "enabled" false $inst) (dig "dashboard" "networkPolicy" "enabled" false $inst) }}
+      {{- $names = concat $names (list (printf "%s-dashboard" $instName) (printf "%s-shim" $instName)) }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
+      {{- with $names }}
+      - key: app.kubernetes.io/name
+        operator: NotIn
+        values: {{ toJson . }}
+      {{- end }}
+      {{- $components := list }}
+      {{- if get $on "etcd" }}{{ $components = append $components "frankgateway-etcd" }}{{ end }}
+      {{- with $components }}
+      - key: app.kubernetes.io/component
+        operator: NotIn
+        values: {{ toJson . }}
+      {{- end }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+        - namespaceSelector:
+            matchLabels:
+              {{ $nsLabel }}: {{ $np.ingressControllerNamespace }}
+        {{- if $np.monitoringNamespace }}
+        - namespaceSelector:
+            matchLabels:
+              {{ $nsLabel }}: {{ $np.monitoringNamespace }}
+        {{- end }}
+        {{- range $iso.extraNamespaces }}
+        - namespaceSelector:
+            matchLabels:
+              {{ $nsLabel }}: {{ . }}
+        {{- end }}
+{{- end }}
+{{- end }}
