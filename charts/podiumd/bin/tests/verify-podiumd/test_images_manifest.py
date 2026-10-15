@@ -853,6 +853,50 @@ def test_images_manifest_format_native_item_resolves_to_own_image_before_sidecar
     assert not any("frankgateway.image" in i for i in issues), issues
 
 
+def test_images_manifest_format_native_item_uses_its_registered_primary_pin(
+    libimagesmanifest: ModuleType, tmp_path: Path
+):
+    """A native component's item is checked against its registered primary pin
+    (pin_paths_for, as the writer's resolve_component_row reads it), not a hardcoded
+    <key>.image: here "gateway.image", with an unrelated "image" sidecar under the key."""
+    (tmp_path / "etc").mkdir()
+    (tmp_path / "etc" / "settings.yaml").write_text(
+        "component_resolution:\n"
+        "  native_components: [frankgateway]\n"
+        "  image_paths:\n"
+        '    frankgateway: ["gateway.image"]\n',
+        encoding="utf-8",
+    )
+    values = {
+        "frankgateway": {
+            "image": {"repository": "docker.io/nginxinc/nginx-unprivileged", "tag": "1.31.6"},
+            "gateway": {"image": {"repository": "ghcr.io/wearefrank/frank-gateway", "tag": "1.1.3"}},
+        }
+    }
+    (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": []}, sort_keys=False), encoding="utf-8")
+    (tmp_path / "values.yaml").write_text(yaml.safe_dump(values, sort_keys=False), encoding="utf-8")
+    images_path = tmp_path / "images-4.10.0.yaml"
+    manifest = (
+        "# Baseline: podiumd 4.9.4.\n#\n# podiumd 4.10.0 vs 4.9.4.\n\n"
+        "# Changes:\n"
+        "#   1. frankgateway {app}.\n"
+        "#\n\n"
+        "# frankgateway\n"
+        "- name: wearefrank/frank-gateway\n"
+        "  url: ghcr.io/wearefrank/frank-gateway\n"
+        '  version: "1.1.3"\n'
+        '  digest: "sha256:bbb"\n'
+    )
+    context = libimagesmanifest.ManifestCheckContext("4.9.4", "4.10.0", [], values, {}, chart_dir=tmp_path)
+
+    images_path.write_text(manifest.format(app="1.1.0 -> 1.1.3"), encoding="utf-8")
+    assert not any("target app" in i for i in libimagesmanifest.check_images_manifest_format(images_path, context))
+
+    images_path.write_text(manifest.format(app="1.1.0 -> 1.31.6"), encoding="utf-8")
+    issues = libimagesmanifest.check_images_manifest_format(images_path, context)
+    assert any('target app "1.31.6" != values.yaml "1.1.3"' in i for i in issues), issues
+
+
 # --- exact-vs-fuzzy Changes item collision: "Kiss's ECK-managed ..." fuzzy-matches
 # "kiss" while an exact "KISS ..." item already claims it ---
 
