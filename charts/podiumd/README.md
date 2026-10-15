@@ -121,19 +121,23 @@ PodiumD Helm chart
 | eck-operator.webhook.enabled | bool | `false` |  |
 | frankgateway.accessLog.jsonFormat | bool | `false` |  |
 | frankgateway.admin.adminKey | string | `""` |  |
+| frankgateway.admin.allowFrom | list | `["10.0.0.0/8","172.16.0.0/12","192.168.0.0/16","127.0.0.1/32"]` | Source CIDRs APISIX accepts on the Admin API (9180), checked before the key. Private ranges by default; narrow to the cluster's pod CIDR per environment. |
 | frankgateway.admin.viewerKey | string | `""` |  |
+| frankgateway.buffering.clientMaxBodySize | string | `"1g"` | Largest request body the gateway accepts (nginx client_max_body_size); larger requests get 413. "0" = unlimited. |
+| frankgateway.buffering.tmpSizeLimit | string | `"2Gi"` | sizeLimit of the gateway's /tmp emptyDir (request-body temp files). |
 | frankgateway.clientCertSync.failedJobsHistoryLimit | int | `3` | Failed runs are kept so a sync that has stopped working is visible. |
 | frankgateway.clientCertSync.nodeSelector | object | `{}` |  |
 | frankgateway.clientCertSync.schedule | string | `"*/5 * * * *"` | Cron schedule of the per-instance sync — also the upper bound on how long a rotation in OpenBao takes to reach the gateway. |
 | frankgateway.clientCertSync.successfulJobsHistoryLimit | int | `1` |  |
 | frankgateway.dashboard.adminPassword | string | `""` |  |
+| frankgateway.dashboard.allowFrom | list | `["10.0.0.0/8","172.16.0.0/12","192.168.0.0/16","127.0.0.1/32"]` | Source CIDRs the dashboard accepts (its own allow_list). Private ranges by default. |
 | frankgateway.dashboard.auth.adminGroup | string | `"fg-admins"` |  |
 | frankgateway.dashboard.auth.adminGroupMembers | list | `[]` |  |
 | frankgateway.dashboard.auth.dnsResolver | string | `"10.0.0.10"` |  |
 | frankgateway.dashboard.auth.enabled | bool | `true` |  |
 | frankgateway.dashboard.auth.hostname | string | `""` |  |
 | frankgateway.dashboard.auth.oauth2Proxy.image.repository | string | `"quay.io/oauth2-proxy/oauth2-proxy"` |  |
-| frankgateway.dashboard.auth.oauth2Proxy.image.tag | string | `"v7.7.1@sha256:f6a4aa83a27e316114bf79664302b1ffb2cc8ce697fb479273af4feb3fb16fe3"` |  |
+| frankgateway.dashboard.auth.oauth2Proxy.image.tag | string | `"v7.15.5@sha256:8498b0d0ef0a7b29686414000a08aee467f02d0299c9ed1e006a8f33fc017916"` |  |
 | frankgateway.dashboard.auth.oauth2Proxy.nodeSelector | object | `{}` |  |
 | frankgateway.dashboard.auth.oauth2Proxy.resources.limits.cpu | string | `"250m"` |  |
 | frankgateway.dashboard.auth.oauth2Proxy.resources.limits.memory | string | `"256Mi"` |  |
@@ -154,6 +158,7 @@ PodiumD Helm chart
 | frankgateway.dashboard.image.tag | string | `"3.0.1-alpine@sha256:b5fafc11b76f998269375192ac33efc992d72aa69bfd7f3eb2ca377906cdbb6d"` |  |
 | frankgateway.dashboard.ingress.clusterIssuer | string | `"letsencrypt-prod"` |  |
 | frankgateway.dashboard.ingress.enabled | bool | `false` |  |
+| frankgateway.dashboard.networkPolicy.enabled | bool | `false` | Opt-in: NetworkPolicies that let only the oauth2-proxy reach the shim and only the shim reach the dashboard (NW-03). Off by default. |
 | frankgateway.dashboard.nodeSelector | object | `{}` |  |
 | frankgateway.dashboard.replicas | int | `2` |  |
 | frankgateway.dashboard.resources.limits.cpu | string | `"500m"` |  |
@@ -162,7 +167,7 @@ PodiumD Helm chart
 | frankgateway.dashboard.resources.requests.memory | string | `"128Mi"` |  |
 | frankgateway.enabled | bool | `false` |  |
 | frankgateway.etcd.image.repository | string | `"quay.io/coreos/etcd"` |  |
-| frankgateway.etcd.image.tag | string | `"v3.5.16@sha256:d967d98a12dc220a1a290794711dba7eba04b8ce465e12b02383d1bfbb33e159"` |  |
+| frankgateway.etcd.image.tag | string | `"v3.5.34@sha256:2c029095680c13c2b36116cc3935e1b0cddc0f5af78004457fd863616d8d072b"` |  |
 | frankgateway.etcd.nodeSelector | object | `{}` |  |
 | frankgateway.etcd.podDisruptionBudget.enabled | bool | `true` |  |
 | frankgateway.etcd.podDisruptionBudget.maxUnavailable | int | `1` |  |
@@ -176,7 +181,7 @@ PodiumD Helm chart
 | frankgateway.etcd.storageClassName | string | `""` |  |
 | frankgateway.etcd.topologySpreadConstraints | list | `[]` |  |
 | frankgateway.image.repository | string | `"ghcr.io/wearefrank/frank-gateway"` |  |
-| frankgateway.image.tag | string | `"1.1.0@sha256:2f944fdbc16883e4b586aaa20f04928cd33afc7efc78d37012d2c7acb62f55bd"` |  |
+| frankgateway.image.tag | string | `"1.1.3@sha256:611fefec557def735bc05ff577aa6ce4d94b562c0582abc8605205210fb7114b"` |  |
 | frankgateway.instances.internal.enabled | bool | `true` |  |
 | frankgateway.instances.inway.enabled | bool | `true` |  |
 | frankgateway.instances.outway.enabled | bool | `true` |  |
@@ -204,6 +209,10 @@ PodiumD Helm chart
 | frankgateway.resources.limits.memory | string | `"1Gi"` |  |
 | frankgateway.resources.requests.cpu | string | `"100m"` |  |
 | frankgateway.resources.requests.memory | string | `"384Mi"` |  |
+| frankgateway.securityContext.container | object | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true}` | Container securityContext; each container also gets runAsUser/runAsGroup from users. |
+| frankgateway.securityContext.enabled | bool | `true` | Render the pod and container securityContext below into every Frank!Gateway workload. false: none (the pre-4.10.0 behaviour). |
+| frankgateway.securityContext.pod | object | `{"fsGroupChangePolicy":"OnRootMismatch","runAsNonRoot":true,"seccompProfile":{"type":"RuntimeDefault"}}` | Pod securityContext; each pod also gets fsGroup = its user's gid. |
+| frankgateway.securityContext.users | object | `{"dashboard":{"gid":65534,"uid":65534},"etcd":{"gid":1001,"uid":1001},"gateway":{"gid":636,"uid":636},"jobs":{"gid":101,"uid":100},"oauth2Proxy":{"gid":65532,"uid":65532},"shim":{"gid":101,"uid":101}}` | Numeric user per image. gateway: `apisix` in frank-gateway; etcd: any (the image runs as root); dashboard: `nobody`; shim: nginx-unprivileged; oauth2Proxy: `nonroot`; jobs: `curl_user` in curlimages/curl. |
 | frankgateway.seed.enabled | bool | `true` | Run the seed Job. Off means the chart writes nothing to etcd for this instance; whatever is there stays. |
 | frankgateway.seed.job.backoffLimit | int | `3` |  |
 | frankgateway.seed.job.image.pullPolicy | string | `"IfNotPresent"` |  |
