@@ -230,12 +230,15 @@ data:
         enabled: false
       # admin-cli is unused in this realm (no bootstrap/ROPC flow relies on it here,
       # unlike the master realm — see keycloak-master-realm-config.yaml). Disable the
-      # browser-redirect flows for the same reason: close off the unused
-      # authorization-code-interception surface on this public client.
+      # browser-redirect flows and Direct Access Grants (ROPC) for the same reason:
+      # close off the unused authorization-code-interception and password-grant
+      # surface on this public client. Every admin token in this chart (operator
+      # SA bootstrap, create-su-users.sh, openbao-keycloak-setup.py, /kc-idp-secret)
+      # comes from the master realm's admin-cli.
       - clientId: admin-cli
         standardFlowEnabled: false
         implicitFlowEnabled: false
-        directAccessGrantsEnabled: true
+        directAccessGrantsEnabled: false
       - clientId: openzaak
         name: Open Zaak
         enabled: true

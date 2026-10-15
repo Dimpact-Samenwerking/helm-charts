@@ -102,6 +102,7 @@ PodiumD Helm chart
 | clamav.persistentVolume.enabled | bool | `true` |  |
 | clamav.persistentVolume.size | string | `"2Gi"` |  |
 | clamav.persistentVolume.storageClass | string | `"managed-csi"` |  |
+| clamav.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | clamav.resources.limits.cpu | string | `"1000m"` |  |
 | clamav.resources.limits.memory | string | `"3Gi"` |  |
 | clamav.resources.requests.cpu | string | `"250m"` |  |
@@ -118,6 +119,7 @@ PodiumD Helm chart
 | eck-operator.installCRDs | bool | `true` | the chart installs and upgrades the 12 *.k8s.elastic.co CRDs, in lock-step with the operator version. The CRDs carry helm.sh/resource-policy: keep, so `helm uninstall` never removes them (the Elastic CRs and their data survive). Requires cluster-scope RBAC on the deploying identity. Clusters whose CRDs predate helm ownership (kisselastic era / manual apply) need a one-time adoption: deploy with `--take-ownership` (helm >= 3.17) or annotate the CRDs once — see docs/apps/elastic/migrating-to-eck-stack.md section 4b. Installers without cluster-scope RBAC: set false and apply the CRDs manually (same doc). override: values-enable-observability.yaml sets config.metricsPort and enables podMonitor |
 | eck-operator.managedNamespaces | list | `["podiumd"]` | Namespaces the ECK operator manages. This MUST equal the namespace the chart is deployed into. Because Helm does not template values.yaml, `.Release.Namespace` cannot be referenced here; the default assumes deployment to `podiumd`. When deploying to a different namespace, override this (e.g. `--set eck-operator.managedNamespaces={<namespace>}` or via ci/values-namespace-scope.example.yaml). Setting it empty makes ECK watch ALL namespaces, which requires cluster-scoped RBAC and is intentionally avoided (createClusterScopedResources: false). See docs/misc/deploying-to-a-custom-namespace.md. |
 | eck-operator.podMonitor.enabled | bool | `false` |  |
+| eck-operator.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | eck-operator.webhook.enabled | bool | `false` |  |
 | frankgateway.accessLog.jsonFormat | bool | `false` |  |
 | frankgateway.admin.adminKey | string | `""` |  |
@@ -246,6 +248,7 @@ PodiumD Helm chart
 | frankgateway.tls.sslSync.snis | list | `[]` |  |
 | frankgateway.tls.sslSync.successfulJobsHistoryLimit | int | `1` |  |
 | frankgateway.topologySpreadConstraints | list | `[]` |  |
+| frankgateway.upstreamTls | object | `{"verify":true}` | Verify the certificate of every https upstream against the image's system CA bundle (nginx proxy_ssl_verify; APISIX's own upstream.tls.verify only applies to Kafka upstreams). Without it the API keys an outway route adds go to whatever answers on the upstream address (security review 4.10.0 NW-07). Set false per instance only for an https upstream with a private CA, and prefer adding that CA to the trust bundle instead. |
 | global.configuration.enabled | bool | `true` |  |
 | global.configuration.organization | string | `"Example gemeente"` |  |
 | global.configuration.overwrite | bool | `true` |  |
@@ -265,7 +268,6 @@ PodiumD Helm chart
 | global.settings.databaseHost | string | `""` |  |
 | ita.afdeling.type | string | `"https://ontw-objecten.example.nl/api/v2/objecttypes/REP_CONTACT_AFDELING_UUID_REP"` |  |
 | ita.afdeling.typeVersion | int | `1` |  |
-| ita.afdeling.uuid | string | `"REP_CONTACT_AFDELING_UUID_REP"` |  |
 | ita.affinity | object | `{}` |  |
 | ita.apiConnections.object.apiKey | string | `"REP_OBJECTEN_CREDENTIALS_ITA_TOKEN_REP"` |  |
 | ita.apiConnections.object.baseUrl | string | `"https://objecten.example.nl/api/v2/"` |  |
@@ -283,7 +285,6 @@ PodiumD Helm chart
 | ita.fullnameOverride | string | `"ita"` |  |
 | ita.groep.type | string | `"https://ontw-objecten.example.nl/api/v2/objecttypes/REP_CONTACT_GROEP_UUID_REP"` |  |
 | ita.groep.typeVersion | int | `1` |  |
-| ita.groep.uuid | string | `"REP_CONTACT_GROEP_UUID_REP"` |  |
 | ita.imagePullSecrets | list | `[]` |  |
 | ita.ingress.enabled | bool | `false` |  |
 | ita.ita.baseUrl | string | `"https://ita.example.nl"` |  |
@@ -291,7 +292,6 @@ PodiumD Helm chart
 | ita.logboek.typeVersion | int | `1` |  |
 | ita.medewerker.type | string | `"https://ontw-objecten.example.nl/api/v2/objecttypes/REP_CONTACT_MEDEWERKER_UUID_REP"` |  |
 | ita.medewerker.typeVersion | int | `1` |  |
-| ita.medewerker.uuid | string | `"REP_CONTACT_MEDEWERKER_UUID_REP"` |  |
 | ita.nameOverride | string | `""` |  |
 | ita.nieuweInternetaakNotificatie | object | `{"notification":{"pollerMessage":"Poller uitgevoerd om:"},"schedule":"*/15 * * * *"}` | CronJob die behandelaars waarschuwt bij een nieuwe internetaak. Was tot 3.2.0 de enige poller; schedule en notification stonden toen onder ita.poller. Omgevingen die die sleutels overschrijven moeten ze hierheen verplaatsen, anders vallen ze stil terug op de chart-defaults. poller.notification.hourThreshold is niet meer aanwezig in subchart, dus verwijderd. |
 | ita.nodeSelector | object | `{}` |  |
@@ -413,6 +413,8 @@ PodiumD Helm chart
 | keycloak.keycloakConfigCli.image.repository | string | `"adorsys/keycloak-config-cli"` |  |
 | keycloak.keycloakConfigCli.image.tag | string | `"6.5.1-26.5.5@sha256:0955d98c8a341898b7aa177477edf8a1e90569ae50bbe7598141c1270b773274"` |  |
 | keycloak.name | string | `"keycloak"` |  |
+| keycloak.networkPolicy.extraFrom.http | list | `[]` | Extra NetworkPolicyPeer entries allowed on Keycloak's http/https ports under namespace isolation, e.g. `[{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: monitoring}}}]` for a Grafana that calls Keycloak in-cluster. |
+| keycloak.networkPolicy.extraFrom.management | list | `[]` | Extra NetworkPolicyPeer entries allowed on Keycloak's management port (9000) under namespace isolation. |
 | keycloak.podTemplate.metadata.labels.app | string | `"keycloak"` |  |
 | keycloak.podTemplate.metadata.labels.version | string | `"26.8.1"` |  |
 | keycloak.podTemplate.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.labelSelector.matchExpressions[0].key | string | `"app"` |  |
@@ -537,6 +539,7 @@ PodiumD Helm chart
 | kiss.imagePullSecrets | list | `[]` |  |
 | kiss.nameOverride | string | `"contact"` |  |
 | kiss.nodeSelector | object | `{}` |  |
+| kiss.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | kiss.resources.requests.cpu | string | `"100m"` |  |
 | kiss.resources.requests.memory | string | `"256Mi"` |  |
 | kiss.settings.afdelingen.baseUrl | string | `""` |  |
@@ -617,6 +620,21 @@ PodiumD Helm chart
 | mi.image.registry | string | `"mcr.microsoft.com"` |  |
 | mi.image.repository | string | `"azure-cli"` |  |
 | mi.image.tag | string | `"2.90.0@sha256:e3768dde8142efa45d8f356a317aaac77abd7da15ba3719b0a150e9453f251db"` |  |
+| networkPolicies.enabled | bool | `false` |  |
+| networkPolicies.ingressControllerNamespace | string | `""` |  |
+| networkPolicies.monitoringNamespace | string | `"monitoring"` |  |
+| networkPolicies.namespaceIsolation.enabled | bool | `false` |  |
+| networkPolicies.namespaceIsolation.extraNamespaces | list | `[]` |  |
+| networkPolicies.namespaceLabel | string | `"kubernetes.io/metadata.name"` |  |
+| networkPolicies.protectBackends.enabled | bool | `true` |  |
+| networkPolicies.protectBackends.extraFrom.clamav | list | `[]` |  |
+| networkPolicies.protectBackends.extraFrom.elasticsearch | list | `[]` |  |
+| networkPolicies.protectBackends.extraFrom.etcd | list | `[]` |  |
+| networkPolicies.protectBackends.extraFrom.officeConverter | list | `[]` |  |
+| networkPolicies.protectBackends.extraFrom.openbao | list | `[]` |  |
+| networkPolicies.protectBackends.extraFrom.redis | list | `[]` |  |
+| networkPolicies.protectBackends.extraFrom.solr | list | `[]` |  |
+| networkPolicies.protectBackends.extraFrom.zookeeper | list | `[]` |  |
 | objecten.configuration.data | string | `""` |  |
 | objecten.configuration.demo.enabled | bool | `false` |  |
 | objecten.configuration.enabled | bool | `true` |  |
@@ -642,14 +660,19 @@ PodiumD Helm chart
 | objecten.image.tag | string | `"4.1.0@sha256:7738cb8161d221d0a286d39d9d270c35024ff78123c296ceb46f3d9dda7208f9"` |  |
 | objecten.nameOverride | string | `"objecten"` |  |
 | objecten.otel.disabled | bool | `true` |  |
+| objecten.pdb.create | bool | `true` |  |
+| objecten.pdb.maxUnavailable | int | `1` |  |
+| objecten.pdb.minAvailable | string | `""` |  |
 | objecten.persistence.existingClaim | string | `"objecten"` |  |
 | objecten.persistence.mediaMountSubpath | string | `"objecten/media"` |  |
 | objecten.persistence.size | string | `"10Gi"` |  |
 | objecten.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | objecten.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | objecten.persistentVolume.volumeAttributeShareName | string | `"objecten"` |  |
+| objecten.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | objecten.resources.requests.cpu | string | `"100m"` |  |
 | objecten.resources.requests.memory | string | `"256Mi"` |  |
+| objecten.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | objecten.settings.allowedHosts | string | `".svc.cluster.local"` |  |
 | objecten.settings.cache.axes | string | `"redis-ha-master:6379/1"` |  |
 | objecten.settings.cache.default | string | `"redis-ha-master:6379/1"` |  |
@@ -657,6 +680,7 @@ PodiumD Helm chart
 | objecten.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/2"` |  |
 | objecten.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
 | objecten.settings.celery.resultBackend | string | `"redis://redis-ha-master:6379/2"` |  |
+| objecten.settings.database.sslmode | string | `"require"` |  |
 | objecten.settings.disable2fa | bool | `false` |  |
 | objecten.settings.email.port | int | `587` |  |
 | objecten.settings.email.useTLS | bool | `true` |  |
@@ -822,6 +846,8 @@ PodiumD Helm chart
 | openbao.server.serviceAccount.annotations."azure.workload.identity/client-id" | string | `""` |  |
 | openbao.server.serviceAccount.create | bool | `true` |  |
 | openbao.server.serviceAccount.name | string | `"openbao"` |  |
+| openbao.server.statefulSet.securityContext.container.allowPrivilegeEscalation | bool | `false` |  |
+| openbao.server.statefulSet.securityContext.container.capabilities.drop[0] | string | `"ALL"` |  |
 | openbao.server.updateStrategyType | string | `"RollingUpdate"` |  |
 | openbao.server.volumeMounts | list | `[{"mountPath":"/openbao/seal","name":"openbao-seal-config","readOnly":true},{"mountPath":"/openbao/seal-key","name":"openbao-seal-key","readOnly":true}]` | Mount points of the openbao-seal volumes; `seal.hcl` in /openbao/seal, the key in /openbao/seal-key. |
 | openbao.server.volumes | list | `[{"name":"openbao-seal-config","secret":{"items":[{"key":"seal.hcl","path":"seal.hcl"}],"optional":true,"secretName":"openbao-seal"}},{"name":"openbao-seal-key","secret":{"defaultMode":288,"items":[{"key":"key","path":"key"},{"key":"previous-key","path":"previous-key"}],"optional":true,"secretName":"openbao-seal"}}]` | Mounts the optional openbao-seal Secret (see openbao.seal); keep both entries in any override. |
@@ -873,7 +899,7 @@ PodiumD Helm chart
 | openbeheer.settings.database.name | string | `""` |  |
 | openbeheer.settings.database.password | string | `""` |  |
 | openbeheer.settings.database.port | int | `5432` |  |
-| openbeheer.settings.database.sslmode | string | `"prefer"` |  |
+| openbeheer.settings.database.sslmode | string | `"require"` |  |
 | openbeheer.settings.database.username | string | `""` |  |
 | openbeheer.settings.debug | bool | `false` |  |
 | openbeheer.settings.djangoSettingsModule | string | `"openbeheer.conf.docker"` |  |
@@ -925,6 +951,10 @@ PodiumD Helm chart
 | openformulieren.nginx.image.tag | string | `"1.31.6@sha256:929e1d5e610e8aa89a1715ba44dce5edb4d42c172a208c171233292f472560c5"` |  |
 | openformulieren.nginx.resources.requests.cpu | string | `"10m"` |  |
 | openformulieren.nginx.resources.requests.memory | string | `"16Mi"` |  |
+| openformulieren.nginx.securityContext.allowPrivilegeEscalation | bool | `false` |  |
+| openformulieren.pdb.create | bool | `true` |  |
+| openformulieren.pdb.maxUnavailable | int | `1` |  |
+| openformulieren.pdb.minAvailable | string | `""` |  |
 | openformulieren.persistence.existingClaim | string | `"openformulieren"` |  |
 | openformulieren.persistence.mediaMountSubpath | string | `"openformulieren/media"` |  |
 | openformulieren.persistence.privateMediaMountSubpath | string | `"openformulieren/private_media"` |  |
@@ -932,8 +962,10 @@ PodiumD Helm chart
 | openformulieren.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | openformulieren.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openformulieren.persistentVolume.volumeAttributeShareName | string | `"openformulieren"` |  |
+| openformulieren.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | openformulieren.resources.requests.cpu | string | `"250m"` |  |
 | openformulieren.resources.requests.memory | string | `"1Gi"` |  |
+| openformulieren.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | openformulieren.settings.allowedHosts | string | `".svc.cluster.local"` |  |
 | openformulieren.settings.cache.axes | string | `"redis-ha-master:6379/9"` |  |
 | openformulieren.settings.cache.default | string | `"redis-ha-master:6379/9"` |  |
@@ -941,6 +973,7 @@ PodiumD Helm chart
 | openformulieren.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
 | openformulieren.settings.celery.resultBackend | string | `"redis://redis-ha-master:6379/10"` |  |
 | openformulieren.settings.cookieSamesite | string | `"Lax"` | New in 4.10.0: SameSite for the session, CSRF and language cookies (SESSION_/CSRF_/LANGUAGE_COOKIE_SAMESITE). Unset, Open Forms uses None on HTTPS so the SDK can be embedded on another site. Lax still allows embedding on the gemeente's own domain and the return from DigiD/eHerkenning via OIDC; set None per environment that embeds forms elsewhere or logs in through SAML with an HTTP-POST ACS. |
+| openformulieren.settings.database.sslmode | string | `"require"` |  |
 | openformulieren.settings.email.port | int | `587` |  |
 | openformulieren.settings.email.useTLS | bool | `true` |  |
 | openformulieren.tags.redis | bool | `false` |  |
@@ -975,20 +1008,26 @@ PodiumD Helm chart
 | openinwoner.lowLatencyWorker | object | `{"replicaCount":1,"resources":{"requests":{"cpu":"100m","memory":"256Mi"}}}` | New in openinwoner 2.3.0 (chart 2.2.0): dedicated low-latency Celery worker for cache-seeding/warmup tasks. The chart creates this deployment by default (replicaCount 1) on upgrade; resources pinned here to match podiumd conventions. |
 | openinwoner.nameOverride | string | `"openinwoner"` |  |
 | openinwoner.nginx.config.basicAuth.enabled | bool | `false` |  |
-| openinwoner.nginx.config.basicAuth.users | string | `"dimpact:$apr1$E03dZmYK$npjTaXfI05tMJ63gB8dxm."` |  |
+| openinwoner.nginx.config.basicAuth.users | string | `""` |  |
 | openinwoner.nginx.config.clientMaxBodySize | string | `"100M"` |  |
 | openinwoner.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openinwoner.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
 | openinwoner.nginx.image.tag | string | `"1.31.6@sha256:929e1d5e610e8aa89a1715ba44dce5edb4d42c172a208c171233292f472560c5"` |  |
 | openinwoner.nginx.resources.requests.cpu | string | `"30m"` |  |
 | openinwoner.nginx.resources.requests.memory | string | `"8Mi"` |  |
+| openinwoner.nginx.securityContext.allowPrivilegeEscalation | bool | `false` |  |
+| openinwoner.pdb.create | bool | `true` |  |
+| openinwoner.pdb.maxUnavailable | int | `1` |  |
+| openinwoner.pdb.minAvailable | string | `""` |  |
 | openinwoner.persistence.existingClaim | string | `"openinwoner"` |  |
 | openinwoner.persistence.size | string | `"10Gi"` |  |
 | openinwoner.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | openinwoner.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openinwoner.persistentVolume.volumeAttributeShareName | string | `"openinwoner"` |  |
+| openinwoner.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | openinwoner.resources.requests.cpu | string | `"200m"` |  |
 | openinwoner.resources.requests.memory | string | `"1Gi"` |  |
+| openinwoner.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | openinwoner.settings.allowedHosts | string | `".svc.cluster.local"` |  |
 | openinwoner.settings.brpVersion | string | `""` |  |
 | openinwoner.settings.cache.axes | string | `"redis-ha-master:6379/11"` |  |
@@ -999,6 +1038,7 @@ PodiumD Helm chart
 | openinwoner.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
 | openinwoner.settings.celery.resultBackend | string | `"redis://redis-ha-master:6379/12"` |  |
 | openinwoner.settings.cms4MigrationInitContainer | bool | `false` | New in openinwoner 2.3.0 (chart 2.2.0): runs an init container executing `manage.py cms4_migration` for the one-time Django CMS v3 → v4 migration, which every environment completed when it rolled out 4.8.0. Off since 4.9.4: from openinwoner 2.4.5 (django-cms 5.0.11) the command crashes with `FieldError: Unsupported lookup 'node__site_id'` and blocks the web pod. |
+| openinwoner.settings.database.sslmode | string | `"require"` |  |
 | openinwoner.settings.digidMock | string | `""` |  |
 | openinwoner.settings.eherkenningMock | string | `""` |  |
 | openinwoner.settings.email.port | int | `587` |  |
@@ -1032,20 +1072,27 @@ PodiumD Helm chart
 | openklant.nginx.image.tag | string | `"1.31.6@sha256:929e1d5e610e8aa89a1715ba44dce5edb4d42c172a208c171233292f472560c5"` |  |
 | openklant.nginx.resources.requests.cpu | string | `"10m"` |  |
 | openklant.nginx.resources.requests.memory | string | `"16Mi"` |  |
+| openklant.nginx.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | openklant.otel.disabled | bool | `true` |  |
+| openklant.pdb.create | bool | `true` |  |
+| openklant.pdb.maxUnavailable | int | `1` |  |
+| openklant.pdb.minAvailable | string | `""` |  |
 | openklant.persistence.existingClaim | string | `"openklant"` |  |
 | openklant.persistence.size | string | `"10Gi"` |  |
 | openklant.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | openklant.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openklant.persistentVolume.volumeAttributeShareName | string | `"openklant"` |  |
+| openklant.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | openklant.resources.requests.cpu | string | `"100m"` |  |
 | openklant.resources.requests.memory | string | `"300Mi"` |  |
+| openklant.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | openklant.settings.allowedHosts | string | `".svc.cluster.local"` |  |
 | openklant.settings.cache.axes | string | `"redis-ha-master:6379/7"` |  |
 | openklant.settings.cache.default | string | `"redis-ha-master:6379/7"` |  |
 | openklant.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/8"` |  |
 | openklant.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
 | openklant.settings.celery.resultBackendl | string | `"redis://redis-ha-master:6379/8"` |  |
+| openklant.settings.database.sslmode | string | `"require"` |  |
 | openklant.settings.disable2fa | bool | `false` |  |
 | openklant.settings.email.port | int | `587` |  |
 | openklant.settings.email.useTLS | bool | `true` |  |
@@ -1076,13 +1123,18 @@ PodiumD Helm chart
 | opennotificaties.image.tag | string | `"1.16.2@sha256:2988d538b30db30487ed89873877e1d22e12f80dfa42d80ec1a5c97265c7e4cd"` |  |
 | opennotificaties.nameOverride | string | `"opennotificaties"` |  |
 | opennotificaties.otel.disabled | bool | `true` |  |
+| opennotificaties.pdb.create | bool | `true` |  |
+| opennotificaties.pdb.maxUnavailable | int | `1` |  |
+| opennotificaties.pdb.minAvailable | string | `""` |  |
 | opennotificaties.persistence.existingClaim | string | `"opennotificaties"` |  |
 | opennotificaties.persistence.size | string | `"10Gi"` |  |
 | opennotificaties.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | opennotificaties.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | opennotificaties.persistentVolume.volumeAttributeShareName | string | `"opennotificaties"` |  |
+| opennotificaties.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | opennotificaties.resources.requests.cpu | string | `"100m"` |  |
 | opennotificaties.resources.requests.memory | string | `"256Mi"` |  |
+| opennotificaties.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | opennotificaties.settings.allowedHosts | string | `".svc.cluster.local"` |  |
 | opennotificaties.settings.cache.axes | string | `"redis-ha-master:6379/3"` |  |
 | opennotificaties.settings.cache.default | string | `"redis-ha-master:6379/3"` |  |
@@ -1090,6 +1142,7 @@ PodiumD Helm chart
 | opennotificaties.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
 | opennotificaties.settings.celery.publishBrokerUrl | string | `"redis://redis-ha-master:6379/6"` |  |
 | opennotificaties.settings.celery.resultBackend | string | `"redis://redis-ha-master:6379/6"` |  |
+| opennotificaties.settings.database.sslmode | string | `"require"` |  |
 | opennotificaties.settings.disable2fa | bool | `false` |  |
 | opennotificaties.settings.email.port | int | `587` |  |
 | opennotificaties.settings.email.useTLS | bool | `true` |  |
@@ -1146,7 +1199,7 @@ PodiumD Helm chart
 | openvtb.settings.database.name | string | `""` |  |
 | openvtb.settings.database.password | string | `""` |  |
 | openvtb.settings.database.port | int | `5432` |  |
-| openvtb.settings.database.sslmode | string | `"prefer"` |  |
+| openvtb.settings.database.sslmode | string | `"require"` |  |
 | openvtb.settings.database.username | string | `""` |  |
 | openvtb.settings.debug | bool | `false` |  |
 | openvtb.settings.djangoSettingsModule | string | `"openvtb.conf.docker"` |  |
@@ -1206,20 +1259,27 @@ PodiumD Helm chart
 | openzaak.nginx.image.tag | string | `"1.31.6@sha256:929e1d5e610e8aa89a1715ba44dce5edb4d42c172a208c171233292f472560c5"` |  |
 | openzaak.nginx.resources.requests.cpu | string | `"10m"` |  |
 | openzaak.nginx.resources.requests.memory | string | `"16Mi"` |  |
+| openzaak.nginx.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | openzaak.otel.disabled | bool | `true` |  |
+| openzaak.pdb.create | bool | `true` |  |
+| openzaak.pdb.maxUnavailable | int | `1` |  |
+| openzaak.pdb.minAvailable | string | `""` |  |
 | openzaak.persistence.existingClaim | string | `"openzaak"` |  |
 | openzaak.persistence.size | string | `"10Gi"` |  |
 | openzaak.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | openzaak.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openzaak.persistentVolume.volumeAttributeShareName | string | `"openzaak"` |  |
+| openzaak.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | openzaak.resources.requests.cpu | string | `"250m"` |  |
 | openzaak.resources.requests.memory | string | `"512Mi"` |  |
+| openzaak.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | openzaak.settings.allowedHosts | string | `".svc.cluster.local"` |  |
 | openzaak.settings.cache.axes | string | `"redis-ha-master:6379/4"` |  |
 | openzaak.settings.cache.default | string | `"redis-ha-master:6379/4"` |  |
 | openzaak.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/5"` |  |
 | openzaak.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
 | openzaak.settings.celery.resultBackend | string | `"redis://redis-ha-master:6379/5"` |  |
+| openzaak.settings.database.sslmode | string | `"require"` |  |
 | openzaak.settings.disable2fa | bool | `false` |  |
 | openzaak.settings.documentApiBackend | string | `"filesystem"` | Backend for the Documenten API. Supported values: filesystem | azure_blob_storage |
 | openzaak.settings.email.port | int | `587` |  |
@@ -1246,11 +1306,13 @@ PodiumD Helm chart
 | pabc.migrations.nodeSelector | object | `{}` |  |
 | pabc.migrations.prefill | object | `{"applications":[{"name":"zaakafhandelcomponent","roles":["behandelaar","beheerder","brp_zoeken","coordinator","raadpleger","recordmanager"]}]}` | Applications and application roles the migrations job creates when they do not exist yet (PABC 2.1.0 prefill, PREFILL_PATH). Non-destructive: an existing application is skipped as a whole, with its roles, and nothing is ever changed or removed, so it is safe on curated environments. The default is the application roles ZAC 5.9.1 checks (policies/rollen.rego); functional roles, domains and mappings are not part of prefill. Set to [] per environment to turn it off. |
 | pabc.nodeSelector | object | `{}` |  |
+| pabc.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | pabc.postgresql.enabled | bool | `false` |  |
 | pabc.resources.limits.cpu | string | `"200m"` |  |
 | pabc.resources.limits.memory | string | `"768Mi"` |  |
 | pabc.resources.requests.cpu | string | `"10m"` |  |
 | pabc.resources.requests.memory | string | `"384Mi"` |  |
+| pabc.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | pabc.seedJob | object | `{"enabled":false,"keycloak":{"enabled":true,"resources":{"limits":{"memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}},"resources":{"limits":{"memory":"512Mi"},"requests":{"cpu":"10m","memory":"128Mi"}}}` | One-shot Job that seeds the PABC database from the pabc-dataset ConfigMap. Enable together with datasetConfigMap on an environment whose PABC is still empty: without it ZAC resolves no application roles at all and every user lands on "u heeft geen toestemming om deze pagina te bekijken".  The Job name carries a checksum of the dataset and of the rendered pod template, so it runs once and stays put across upgrades; editing files/pabc-dataset.json re-seeds on purpose, and so does a change that alters the Job itself, such as a migrations image tag bump. Seeding REPLACES all PABC content. On an environment that has already been curated through the PABC UI, leave this disabled. |
 | pabc.settings.apiKeys[0] | string | `""` |  |
 | pabc.settings.database.host | string | `""` |  |
@@ -1351,9 +1413,9 @@ PodiumD Helm chart
 | zac.auth.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. NOTE: ZAC does not currently support PKCE; this switch is reserved for when PKCE support is added to the ZAC OIDC client. |
 | zac.auth.realm | string | `"podiumd"` |  |
 | zac.auth.secret | string | `"changeme"` |  |
-| zac.auth.server | string | `"http://keycloak.example.nl"` |  |
+| zac.auth.server | string | `"https://keycloak.example.nl"` |  |
 | zac.bagApi.apiKey | string | `"dummy"` |  |
-| zac.bagApi.url | string | `"http://bag.example.nl"` |  |
+| zac.bagApi.url | string | `"https://bag.example.nl"` |  |
 | zac.brpApi.apiKey.header | string | `"x-api-key"` |  |
 | zac.brpApi.apiKey.value | string | `"dummy"` |  |
 | zac.brpApi.logLevel | string | `"OFF"` |  |
@@ -1370,9 +1432,9 @@ PodiumD Helm chart
 | zac.brpApi.protocollering.verwerking.extendWithZaaktype | bool | `false` | New in chart 1.0.297+: whether to extend the verwerking register with the zaaktype, i.e. "<register>@<zaaktype>" instead of "<register>" on its own. Must be true for iConnect; leave false for eServices/2Secure. |
 | zac.brpApi.protocollering.verwerking.header | string | `""` |  |
 | zac.brpApi.protocollering.verwerking.register | string | `""` |  |
-| zac.brpApi.url | string | `"http://brp.example.nl"` |  |
+| zac.brpApi.url | string | `"https://brp.example.nl"` |  |
 | zac.catalogusDomein | string | `"ALG"` |  |
-| zac.contextUrl | string | `""` | Public URL of ZAC; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `http://zac.example.nl`. |
+| zac.contextUrl | string | `""` | Public URL of ZAC; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://zac.example.nl`. |
 | zac.db.host | string | `"postgres"` |  |
 | zac.db.name | string | `"zac"` |  |
 | zac.db.password | string | `"changeme"` |  |
@@ -1390,12 +1452,14 @@ PodiumD Helm chart
 | zac.initContainer.enabled | bool | `true` |  |
 | zac.initContainer.resources.requests.cpu | string | `"50m"` |  |
 | zac.initContainer.resources.requests.memory | string | `"256Mi"` |  |
+| zac.initContainer.securityContext.runAsNonRoot | bool | `true` |  |
+| zac.initContainer.securityContext.runAsUser | int | `100` |  |
 | zac.keycloak.adminClient.id | string | `"zac-admin-client"` |  |
 | zac.keycloak.adminClient.secret | string | `"changeme"` |  |
 | zac.klantinteractiesApi.token | string | `"openklanttoken"` |  |
-| zac.klantinteractiesApi.url | string | `"http://open-klant.example.nl"` |  |
+| zac.klantinteractiesApi.url | string | `"https://open-klant.example.nl"` |  |
 | zac.kvkApi.apiKey | string | `"dummy"` |  |
-| zac.kvkApi.url | string | `"http://kvk.example.nl"` |  |
+| zac.kvkApi.url | string | `"https://kvk.example.nl"` |  |
 | zac.livenessProbe.failureThreshold | int | `16` |  |
 | zac.livenessProbe.path | string | `"/health/ready"` |  |
 | zac.livenessProbe.periodSeconds | int | `30` |  |
@@ -1411,25 +1475,32 @@ PodiumD Helm chart
 | zac.nginx.image.tag | string | `"1.31.6@sha256:929e1d5e610e8aa89a1715ba44dce5edb4d42c172a208c171233292f472560c5"` |  |
 | zac.nginx.resources.requests.cpu | string | `"50m"` |  |
 | zac.nginx.resources.requests.memory | string | `"64Mi"` |  |
+| zac.nginx.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | zac.notificationsSecretKey | string | `"changeme"` |  |
 | zac.objectenApi.token | string | `"objectentoken"` |  |
-| zac.objectenApi.url | string | `"http://objecten.example.nl"` |  |
+| zac.objectenApi.url | string | `"https://objecten.example.nl"` |  |
 | zac.objecttypenApi.token | string | `"objectentoken"` |  |
-| zac.objecttypenApi.url | string | `"http://objecten.example.nl"` |  |
+| zac.objecttypenApi.url | string | `"https://objecten.example.nl"` |  |
 | zac.office_converter.image.tag | string | `"8.37.0@sha256:f29984bd1e226bf1b93ba90af06000afa8b315853e99d27b9aaa41b93f15c769"` |  |
 | zac.office_converter.password | string | `"dummy"` | Basic auth password for the office converter; see username. |
+| zac.office_converter.securityContext.runAsNonRoot | bool | `true` |  |
+| zac.office_converter.securityContext.runAsUser | int | `1001` |  |
 | zac.office_converter.username | string | `"dummy"` | Basic auth user shared by ZAC and its office converter (Gotenberg). Override per environment: the converter Service is reachable from any pod in the cluster. |
 | zac.opa.image.tag | string | `"1.21.1-static@sha256:4675ab04ad1627f74741d2d9c5142698c79e18b7b09f192587d31d6dba20838e"` |  |
 | zac.opa.resources.requests.cpu | string | `"10m"` |  |
 | zac.opa.resources.requests.memory | string | `"20Mi"` |  |
+| zac.opa.securityContext.runAsNonRoot | bool | `true` |  |
+| zac.opa.securityContext.runAsUser | int | `1000` |  |
 | zac.opa.sidecar | bool | `true` |  |
-| zac.openForms.url | string | `"http://open-forms.example.nl"` |  |
+| zac.openForms.url | string | `"https://open-forms.example.nl"` |  |
 | zac.opentelemetry-collector.image.repository | string | `"otel/opentelemetry-collector-contrib"` |  |
 | zac.opentelemetry-collector.image.tag | string | `"0.161.0@sha256:fd328de2552466ad78385e1b1289c3f2402b1c45f265b252aab1955b42845ac1"` |  |
 | zac.organizations.bron.rsin | string | `"000000000"` |  |
 | zac.organizations.verantwoordelijke.rsin | string | `"000000000"` |  |
 | zac.pabcApi.apiKey | string | `""` |  |
 | zac.pabcApi.url | string | `""` |  |
+| zac.securityContext.runAsNonRoot | bool | `true` |  |
+| zac.securityContext.runAsUser | int | `1001` |  |
 | zac.smartDocuments.authentication | string | `""` |  |
 | zac.smartDocuments.enabled | bool | `false` |  |
 | zac.smartDocuments.fixedUserName | string | `""` |  |
@@ -1464,12 +1535,13 @@ PodiumD Helm chart
 | zac.zgwApis.clientId | string | `"zac"` |  |
 | zac.zgwApis.secret | string | `"changeme"` |  |
 | zac.zgwApis.url | string | `"http://open-zaak.internal"` |  |
-| zac.zgwApis.urlExtern | string | `"http://open-zaak.example.nl"` |  |
+| zac.zgwApis.urlExtern | string | `"https://open-zaak.example.nl"` |  |
 | zgw-office-addin.backend.image.tag | string | `"0.12.0@sha256:886c4616c7cb88769013c8b96d72fbde8b6db6c8947e49e83cd2d2d538175bca"` |  |
 | zgw-office-addin.backend.msalSecret | string | `""` |  |
+| zgw-office-addin.backend.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | zgw-office-addin.backend.resources.requests.cpu | string | `"100m"` |  |
 | zgw-office-addin.backend.resources.requests.memory | string | `"256Mi"` |  |
-| zgw-office-addin.backend.zgwApis | object | `{"secret":"","url":"http://open-zaak.example.nl"}` | ZGW API configuration for integration with the ZGW APIs provider (OpenZaak) |
+| zgw-office-addin.backend.zgwApis | object | `{"secret":"","url":"https://open-zaak.example.nl"}` | ZGW API configuration for integration with the ZGW APIs provider (OpenZaak) |
 | zgw-office-addin.common.appEnv | string | `"production"` | Name of the environment (used for display purposes). Default "production" means that no indicator is appended to the DiscplayName in the manifests. |
 | zgw-office-addin.common.frontendUrl | string | `"https://zgw-office-addin.example.nl"` | The frontend public URL where the manifest files and static js file are served |
 | zgw-office-addin.common.msalClientId | string | `""` | MS Azure Client ID assigned to the Office Add-in application |
@@ -1477,6 +1549,7 @@ PodiumD Helm chart
 | zgw-office-addin.common.podLabels | object | `{"app":"office-addin","service_name":"office-addin"}` | IN-2060: Grafana/Loki app + service_name labels on the office-addin pods. Without these the pods are attributed to the Helm release name ("podiumd"). Requires zgw-office-addin chart >= 0.0.89 (adds podLabels support). |
 | zgw-office-addin.enabled | bool | `true` |  |
 | zgw-office-addin.frontend.image.tag | string | `"0.12.0@sha256:11fa2df3546def1fcfec0704d6ed55009ea0c8dcca49a7b6e848936ed9d93584"` |  |
+| zgw-office-addin.frontend.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | zgw-office-addin.frontend.resources.requests.cpu | string | `"50m"` |  |
 | zgw-office-addin.frontend.resources.requests.memory | string | `"64Mi"` |  |
 | zgw-office-addin.fullnameOverride | string | `"zgw-office-addin"` |  |
