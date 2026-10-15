@@ -137,15 +137,15 @@
   version: "8.19.19"
   digest: "sha256:5dbf405a97e008f3024cf6f8f4a314d91b765d82954530893dcc13f8e87d21f4"
 
-- name: kibana/kibana
-  url: docker.elastic.co/kibana/kibana
-  version: "8.19.19"
-  digest: "sha256:cc1f9f8c09e2fe0869965ccbf4008a4af0b2691b370fe189dfb8e19f516215c7"
-
 - name: enterprise-search/enterprise-search
   url: docker.elastic.co/enterprise-search/enterprise-search
   version: "8.19.19"
   digest: "sha256:83e75654a20826027829a072197698358c6ee6e53c3305558a69f7d89992ab16"
+
+- name: kibana/kibana
+  url: docker.elastic.co/kibana/kibana
+  version: "8.19.19"
+  digest: "sha256:cc1f9f8c09e2fe0869965ccbf4008a4af0b2691b370fe189dfb8e19f516215c7"
 
 - name: klantinteractie-servicesysteem/kiss-frontend
   url: ghcr.io/klantinteractie-servicesysteem/kiss-frontend

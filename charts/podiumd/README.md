@@ -27,7 +27,6 @@ PodiumD Helm chart
 | @zgw-office-addin | zgw-office-addin | 0.0.93 |
 | file://../mi-data | mi(mi-data) | 1.1.0 |
 | https://helm.elastic.co | eck-operator | 3.5.0 |
-| https://helm.elastic.co | kiss-eck(eck-stack) | 0.20.0 |
 | https://openbao.github.io/openbao-helm | openbao | 0.30.3 |
 | https://wearefrank.github.io/charts | zaakbrug | 2.3.33 |
 | oci://ghcr.io/interne-taak-afhandeling | ita(internetaakafhandeling) | 3.3.4 |
@@ -493,15 +492,17 @@ PodiumD Helm chart
 | keycloak.update.strategy | string | `"Auto"` | Keycloak operator update strategy: Auto, Explicit or RecreateOnImageChange. |
 | kiss-eck.eck-elasticsearch.enabled | bool | `true` |  |
 | kiss-eck.eck-elasticsearch.fullnameOverride | string | `"kiss"` |  |
+| kiss-eck.eck-elasticsearch.image | object | `{"repository":"docker.elastic.co/elasticsearch/elasticsearch","tag":"8.19.19@sha256:5dbf405a97e008f3024cf6f8f4a314d91b765d82954530893dcc13f8e87d21f4"}` | elasticsearch image; spec.version is the tag's version part. ACR: override repository only. |
 | kiss-eck.eck-elasticsearch.nodeSets | list | `[{"config":{"node.roles":["data","ingest","master"],"node.store.allow_mmap":false},"count":3,"name":"default","podTemplate":{"spec":{"nodeSelector":{}}}}]` | default sizing, kept equal to the previous release (kiss-elastic used elasticsearchCount: 3). Environments can override nodeSets (e.g. nodeSelector, count, storage), the same way openinwoner.eck-elasticsearch.nodeSets is set. Note: volumeClaimTemplates is immutable — during a migration keep it equal to the existing PVCs; changing the size needs a manual recreate (see docs/apps/elastic/migrating-to-eck-stack.md). |
-| kiss-eck.eck-elasticsearch.version | string | `"8.19.19"` |  |
-| kiss-eck.eck-enterprise-search | object | `{"config":{"app_search.engine.total_fields.limit":1000,"connector.crawler.crawl.threads.limit":1,"connector.crawler.http.user_agent":"PodiumD-Contact-Elastic-Crawler","connector.crawler.workers.pool_size.limit":1,"kibana.host":"https://kiss-kb-http:5601"},"count":1,"elasticsearchRef":{"name":"kiss"},"enabled":false,"fullnameOverride":"kiss","podTemplate":{"spec":{"nodeSelector":{}}},"version":"8.19.19"}` | Uit sinds KISS 3.0.0. KISS bevraagt de Elasticsearch-indices rechtstreeks en crawlt met de Elastic Open Crawler, dus Enterprise Search wordt nergens meer voor gebruikt. De connector.crawler-instellingen hieronder waren voor de oude crawler; die zitten nu per site onder kiss.settings.syncJobs.website. Relevance- en precision-tuning gebeurde in Kibana en werd in Enterprise Search opgeslagen; dat had al geen effect meer, KISS 3.0.0 gebruikt vast precision 6. Aanzetten kan nog, maar levert alleen een ongebruikte pod op. |
+| kiss-eck.eck-enterprise-search | object | `{"config":{"app_search.engine.total_fields.limit":1000,"connector.crawler.crawl.threads.limit":1,"connector.crawler.http.user_agent":"PodiumD-Contact-Elastic-Crawler","connector.crawler.workers.pool_size.limit":1,"kibana.host":"https://kiss-kb-http:5601"},"count":1,"elasticsearchRef":{"name":"kiss"},"enabled":false,"fullnameOverride":"kiss","image":{"repository":"docker.elastic.co/enterprise-search/enterprise-search","tag":"8.19.19@sha256:83e75654a20826027829a072197698358c6ee6e53c3305558a69f7d89992ab16"},"podTemplate":{"spec":{"nodeSelector":{}}}}` | Uit sinds KISS 3.0.0. KISS bevraagt de Elasticsearch-indices rechtstreeks en crawlt met de Elastic Open Crawler, dus Enterprise Search wordt nergens meer voor gebruikt. De connector.crawler-instellingen hieronder waren voor de oude crawler; die zitten nu per site onder kiss.settings.syncJobs.website. Relevance- en precision-tuning gebeurde in Kibana en werd in Enterprise Search opgeslagen; dat had al geen effect meer, KISS 3.0.0 gebruikt vast precision 6. Aanzetten kan nog, maar levert alleen een ongebruikte pod op. |
+| kiss-eck.eck-enterprise-search.image | object | `{"repository":"docker.elastic.co/enterprise-search/enterprise-search","tag":"8.19.19@sha256:83e75654a20826027829a072197698358c6ee6e53c3305558a69f7d89992ab16"}` | enterprise-search image; spec.version is the tag's version part. ACR: override repository only. |
 | kiss-eck.eck-kibana.config."server.publicBaseUrl" | string | `"https://kiss-kb-http:5601"` |  |
+| kiss-eck.eck-kibana.count | int | `1` |  |
 | kiss-eck.eck-kibana.elasticsearchRef.name | string | `"kiss"` |  |
 | kiss-eck.eck-kibana.enabled | bool | `true` |  |
 | kiss-eck.eck-kibana.fullnameOverride | string | `"kiss"` |  |
+| kiss-eck.eck-kibana.image | object | `{"repository":"docker.elastic.co/kibana/kibana","tag":"8.19.19@sha256:cc1f9f8c09e2fe0869965ccbf4008a4af0b2691b370fe189dfb8e19f516215c7"}` | kibana image; spec.version is the tag's version part. ACR: override repository only. |
 | kiss-eck.eck-kibana.podTemplate.spec.nodeSelector | object | `{}` |  |
-| kiss-eck.eck-kibana.version | string | `"8.19.19"` |  |
 | kiss-eck.enabled | bool | `true` |  |
 | kiss.adapter.baseUrl | string | `""` |  |
 | kiss.adapter.clientId | string | `"kiss_intern"` |  |

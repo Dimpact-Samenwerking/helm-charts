@@ -1,0 +1,238 @@
+{{- /*
+KISS Elastic stack: the Elasticsearch, Kibana and Enterprise Search resources
+that ECK (the eck-operator dependency) runs for KISS.
+
+Rendered here instead of by the eck-stack chart, so each image is a normal
+podiumd image block (repository + "<version>@sha256:<digest>" tag) like every
+other image: environments with an ACR override only `image.repository`.
+`spec.version` is the tag's version part, so the two can't differ. ECK does
+not append the version to `spec.image`.
+
+Ported from eck-stack 0.20.0 (charts/eck-elasticsearch, eck-kibana,
+eck-enterprise-search); the values keys under kiss-eck.eck-* are unchanged.
+*/ -}}
+{{- $root := index .Values "kiss-eck" | default dict }}
+{{- if $root.enabled }}
+{{- $components := list
+  (dict "key" "eck-elasticsearch" "name" "eck-elasticsearch")
+  (dict "key" "eck-kibana" "name" "eck-kibana")
+  (dict "key" "eck-enterprise-search" "name" "eck-enterprise-search") }}
+{{- $versions := dict }}
+{{- range $components }}
+{{- $v := index $root .key | default dict }}
+{{- if $v.enabled }}
+{{- if or ($v.ingress).enabled $v.extraObjects }}
+{{- fail (printf "kiss-eck.%s: ingress and extraObjects are not supported since PodiumD renders these resources itself; route Kibana/Elasticsearch through the platform Gateway" .key) }}
+{{- end }}
+{{- if hasKey $v "version" }}
+{{- fail (printf "kiss-eck.%s.version is no longer used: set kiss-eck.%s.image.tag (\"<version>@sha256:<digest>\"); spec.version is taken from it" .key .key) }}
+{{- end }}
+{{- $tag := required (printf "kiss-eck.%s.image.tag is required" .key) ($v.image).tag | toString }}
+{{- $_ := set $versions .key (splitList "@" $tag | first) }}
+{{- end }}
+{{- end }}
+{{- $es := index $root "eck-elasticsearch" | default dict }}
+{{- if $es.enabled }}
+{{- if eq (len ($es.nodeSets | default list)) 0 }}
+{{- fail "kiss-eck.eck-elasticsearch.nodeSets: at least one nodeSet is required" }}
+{{- end }}
+---
+apiVersion: elasticsearch.k8s.elastic.co/v1
+kind: Elasticsearch
+metadata:
+  name: {{ default (printf "%s-eck-elasticsearch" $.Release.Name) $es.fullnameOverride | trunc 63 | trimSuffix "-" }}
+  labels:
+    helm.sh/chart: {{ include "podiumd.chart" $ }}
+    app.kubernetes.io/name: eck-elasticsearch
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+    {{- with $es.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  annotations:
+    eck.k8s.elastic.co/license: basic
+    {{- with $es.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  version: {{ index $versions "eck-elasticsearch" | quote }}
+  image: {{ include "podiumd.image" $es.image }}
+  {{- with $es.auth }}
+  auth:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $es.updateStrategy }}
+  updateStrategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $es.secureSettings }}
+  secureSettings:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $es.transport }}
+  transport:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $es.http }}
+  http:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $es.monitoring }}
+  monitoring:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $es.remoteClusters }}
+  remoteClusters:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $es.remoteClusterServer }}
+  remoteClusterServer:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $es.volumeClaimDeletePolicy }}
+  {{- if not (has . (list "DeleteOnScaledownOnly" "DeleteOnScaledownAndClusterDeletion")) }}
+  {{- fail "kiss-eck.eck-elasticsearch.volumeClaimDeletePolicy can only be one of 'DeleteOnScaledownOnly' or 'DeleteOnScaledownAndClusterDeletion'" }}
+  {{- end }}
+  volumeClaimDeletePolicy: {{ . }}
+  {{- end }}
+  nodeSets:
+    {{- toYaml $es.nodeSets | nindent 4 }}
+  {{- with $es.podDisruptionBudget }}
+  {{- if .disabled }}
+  podDisruptionBudget: {}
+  {{- else }}
+  {{- with .spec }}
+  podDisruptionBudget:
+    spec:
+      {{- toYaml . | nindent 6 }}
+  {{- end }}
+  {{- end }}
+  {{- end }}
+  {{- with $es.serviceAccountName }}
+  serviceAccountName: {{ . }}
+  {{- end }}
+  {{- with $es.revisionHistoryLimit }}
+  revisionHistoryLimit: {{ . }}
+  {{- end }}
+{{- end }}
+{{- $kb := index $root "eck-kibana" | default dict }}
+{{- if $kb.enabled }}
+{{- if not (or ($kb.elasticsearchRef).name ($kb.elasticsearchRef).secretName) }}
+{{- fail "kiss-eck.eck-kibana.elasticsearchRef: a name or secretName is required" }}
+{{- end }}
+---
+apiVersion: kibana.k8s.elastic.co/v1
+kind: Kibana
+metadata:
+  name: {{ default (printf "%s-eck-kibana" $.Release.Name) $kb.fullnameOverride | trunc 63 | trimSuffix "-" }}
+  labels:
+    helm.sh/chart: {{ include "podiumd.chart" $ }}
+    app.kubernetes.io/name: eck-kibana
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+    {{- with $kb.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  annotations:
+    eck.k8s.elastic.co/license: basic
+    {{- with $kb.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  version: {{ index $versions "eck-kibana" | quote }}
+  image: {{ include "podiumd.image" $kb.image }}
+  {{- with $kb.count }}
+  count: {{ . }}
+  {{- end }}
+  elasticsearchRef:
+    {{- toYaml $kb.elasticsearchRef | nindent 4 }}
+  {{- with $kb.enterpriseSearchRef }}
+  enterpriseSearchRef:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $kb.packageRegistryRef }}
+  packageRegistryRef:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $kb.config }}
+  config:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $kb.http }}
+  http:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $kb.podTemplate }}
+  podTemplate:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $kb.revisionHistoryLimit }}
+  revisionHistoryLimit: {{ . }}
+  {{- end }}
+  {{- with $kb.secureSettings }}
+  secureSettings:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $kb.serviceAccountName }}
+  serviceAccountName: {{ . }}
+  {{- end }}
+  {{- with $kb.monitoring }}
+  monitoring:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- $ent := index $root "eck-enterprise-search" | default dict }}
+{{- if $ent.enabled }}
+{{- if not (or $ent.configRef $ent.elasticsearchRef) }}
+{{- fail "kiss-eck.eck-enterprise-search: at least one of configRef or elasticsearchRef is required" }}
+{{- end }}
+---
+apiVersion: enterprisesearch.k8s.elastic.co/v1
+kind: EnterpriseSearch
+metadata:
+  name: {{ default (printf "%s-eck-enterprise-search" $.Release.Name) $ent.fullnameOverride | trunc 63 | trimSuffix "-" }}
+  labels:
+    helm.sh/chart: {{ include "podiumd.chart" $ }}
+    app.kubernetes.io/name: eck-enterprise-search
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+    {{- with $ent.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  annotations:
+    eck.k8s.elastic.co/license: basic
+    {{- with $ent.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  version: {{ index $versions "eck-enterprise-search" | quote }}
+  image: {{ include "podiumd.image" $ent.image }}
+  count: {{ required "kiss-eck.eck-enterprise-search.count is required" $ent.count }}
+  {{- with $ent.serviceAccountName }}
+  serviceAccountName: {{ . }}
+  {{- end }}
+  {{- with $ent.revisionHistoryLimit }}
+  revisionHistoryLimit: {{ . }}
+  {{- end }}
+  {{- with $ent.config }}
+  config:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $ent.http }}
+  http:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $ent.elasticsearchRef }}
+  elasticsearchRef:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $ent.podTemplate }}
+  podTemplate:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $ent.configRef }}
+  configRef:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- end }}
