@@ -50,7 +50,16 @@ secret.
 | Activate | read and write `openbao-unseal-key` (Key Vault Secrets Officer, or scope it to that item); create Secrets and Jobs and exec into pods in the PodiumD namespace; `helm get` on the release |
 
 **Database:** an Azure PostgreSQL database `openbao` with role
-`openbao-admin` and the password above. The chart creates the tables.
+`openbao-admin` and the password above. The chart creates the tables, but
+the role needs rights on the `public` schema first: on Azure PostgreSQL that
+schema belongs to `azure_pg_admin`, so owning the database is not enough,
+and the `openbao-db-schema` Job fails with `permission denied for schema
+public`. As the server admin, connected to `openbao`:
+
+```sql
+GRANT ALL PRIVILEGES ON DATABASE "openbao" TO "openbao-admin";
+GRANT USAGE, CREATE ON SCHEMA public TO "openbao-admin";
+```
 
 **Route and certificate:** a route from the OpenBao host
 (`openbao.configuration.oidcUrl`) to service `<release>-openbao-active`, port

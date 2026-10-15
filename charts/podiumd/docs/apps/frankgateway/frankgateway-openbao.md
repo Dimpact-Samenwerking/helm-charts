@@ -223,7 +223,19 @@ Prerequisites to provision per environment:
 
 - A database (default name `openbao`) on the shared Azure PostgreSQL flexible
   server.
-- A database role (default `openbao-admin`) owning that database.
+- A database role (default `openbao-admin`) owning that database, with
+  rights on its `public` schema. On Azure PostgreSQL owning the database is
+  not enough: `public` belongs to `azure_pg_admin`, and without the grant
+  the `openbao-db-schema` Job fails with `permission denied for schema
+  public`. As the server admin, connected to the `openbao` database:
+
+  ```sql
+  GRANT ALL PRIVILEGES ON DATABASE "openbao" TO "openbao-admin";
+  GRANT USAGE, CREATE ON SCHEMA public TO "openbao-admin";
+  ```
+
+  The podiumd-infra script `create-postgresql-databases.sh` already grants
+  this for every app database.
 - The password, injected by the deploy pipeline — `openbao-db-secret.yaml`
   renders `Secret/openbao-db` with `username`, `password` and a libpq
   `connection-url`; the pipeline substitutes `REP_OPENBAO_DB_PASSWORD_REP` from
