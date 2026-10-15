@@ -110,6 +110,8 @@ class RepositoryResolver:  # pylint: disable=too-few-public-methods  # one query
     A path without an owning dependency only has tier 1: podiumd's own
     templates render it. Each vendored .tgz is read at most once.
     allow_pull defaults to False: a check shouldn't hit the network.
+    vendored_defaults=False drops tier 4, for a tree that already holds the
+    target chart's own values: the vendored .tgz is the old chart version.
 
     A sibling "registry:" that looks like a host (".", ":" or localhost,
     e.g. mi's mcr.microsoft.com) is used as-is. One that doesn't (zaakbrug's
@@ -124,11 +126,13 @@ class RepositoryResolver:  # pylint: disable=too-few-public-methods  # one query
         values: YamlMapping | None,
         *,
         allow_pull: bool = False,
+        vendored_defaults: bool = True,
     ):
         self.chart_dir = chart_dir
         self.deps = deps
         self.values = values
         self.allow_pull = allow_pull
+        self.vendored_defaults = vendored_defaults
         self._by_values_key = {values_key_of(dep): dep for dep in deps}
         self._subchart_cache: dict[str, YamlMapping | None] = {}
 
@@ -150,6 +154,8 @@ class RepositoryResolver:  # pylint: disable=too-few-public-methods  # one query
         nested_repo = documented_repository_for_path(self.chart_dir, self.deps, path)
         if nested_repo:
             return formatted_repo(nested_repo)
+        if not self.vendored_defaults:
+            return None
 
         sub_values = self._subchart_values(dep)
         repo = text_at(sub_values, ".".join(path[1:]) + ".repository") if sub_values is not None else None
@@ -222,15 +228,16 @@ def pin_repositories(
 ) -> list[tuple[str, str]]:
     """[(pin path, repository)] for the pins of one component's values tree whose repository resolves.
 
-    `component_values` is that component's block; `dep` None (a native component)
-    leaves only its own "repository:".
+    `component_values` is that component's block, over the target chart's values
+    when checking a bump, so the vendored (old) chart's defaults are never read.
+    `dep` None (a native component) leaves only its own "repository:".
     """
     if dep is None:
         prefix: tuple[str, ...] = ()
         resolver = RepositoryResolver(None, [], component_values)
     else:
         prefix = (values_key_of(dep),)
-        resolver = RepositoryResolver(chart_dir, [dep], {prefix[0]: component_values})
+        resolver = RepositoryResolver(chart_dir, [dep], {prefix[0]: component_values}, vendored_defaults=False)
     return [(pin.path, repo) for pin in pins if (repo := resolver.full_repository((*prefix, *pin.path.split("."))))]
 
 

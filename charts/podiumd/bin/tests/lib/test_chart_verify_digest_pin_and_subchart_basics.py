@@ -218,6 +218,18 @@ def test_check_image_versions_honours_sibling_registry(
     assert checked == [("quay.io", "openbao/openbao")]
 
 
+def test_check_image_versions_ignores_the_old_vendored_chart_default(
+    tmp_path: Path, libchartrepoandpathresolution: ModuleType
+):
+    """The vendored .tgz is the old chart version: a path the target chart dropped must not resolve through it."""
+    make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {"repository": "openzaak/open-zaak"}})
+    dep: ChartDependency = {"name": "openzaak", "version": "1.14.2", "repository": "@maykinmedia"}
+    with pytest.raises(SystemExit, match="no repository found"):
+        libchartrepoandpathresolution.check_image_versions(
+            tmp_path, dep, {"image": {"tag": "1.20.0"}}, image_pins("image"), "1.20.0"
+        )
+
+
 def test_check_image_versions_resolves_registered_sibling_repository_field(
     monkeypatch: pytest.MonkeyPatch, libchartrepoandpathresolution: ModuleType
 ):

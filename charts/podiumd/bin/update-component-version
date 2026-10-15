@@ -46,6 +46,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # pylint: disable=wrong-import-position
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import load_chart_dependencies
+from lib.chart.nested_subchart_identity import version_repository_path_for
 from lib.chart.paths import CHART_DIR
 from lib.chart.paths import CHART_YAML
 from lib.chart.paths import VALUES_YAML
@@ -308,6 +309,25 @@ def check_chart_version_lockstep(chart_name: str, app_version: str, chart_versio
         sys.exit(1)
 
 
+def refuse_unwritable_pins(ctx: BumpContext) -> None:
+    """Exit 1 before any registry call when the component has bare version fields this script can't write.
+
+    A bare version field is written as a digest pin through its registered
+    repository field (version_repository_paths, redis-operator's imageName).
+    Without one (eck-stack's "*.version") there is no pin line to rewrite.
+    """
+    if version_repository_path_for(ctx.chart_name, CHART_DIR) is not None:
+        return
+    bare = [f"{ctx.values_key}.{pin.path}" for pin in ctx.pins if not pin.is_image_block]
+    if bare:
+        print(
+            f"FAIL: {', '.join(bare)} are bare version fields without a registered repository field "
+            f"(component_resolution.version_repository_paths); update-component-version can't write "
+            f"them — edit values.yaml by hand"
+        )
+        sys.exit(1)
+
+
 def _verify_versions(ctx: BumpContext):
     """Upfront version check. Returns (upstream_images, chart_unchanged)."""
     upstream_images = verify_component_version(
@@ -531,6 +551,7 @@ def main():
     split_tag_sha_paths = _load_split_tag_sha_paths()
     ctx = _resolve_bump_context(component, app_version, chart_version)
     check_chart_version_lockstep(ctx.chart_name, app_version, chart_version, no_chart=ctx.no_chart)
+    refuse_unwritable_pins(ctx)
 
     upstream_images, chart_unchanged = _verify_versions(ctx)
     paths_to_update = _compute_paths_to_update(ctx)
