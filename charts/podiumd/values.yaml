@@ -156,7 +156,9 @@ keycloak:
   # Its default, RecreateOnImageChange, stops every pod on an image change, so
   # all logins fail until Keycloak is back. Auto first runs an update Job that
   # checks whether the old and new versions can run side by side; if so it
-  # replaces the pods one at a time, otherwise it still recreates them. Any
+  # replaces the pods one at a time, otherwise it still recreates them. That
+  # rolls a patch release or the same version from another registry; a minor
+  # or major upgrade is still recreated. Any
   # field of the CR's spec.update (strategy, revision, labels, scheduling) can
   # be set here.
   update:
