@@ -164,6 +164,12 @@ def load_chart_dependencies(path: Path) -> list[ChartDependency]:
     return parse_chart_dependencies(path.read_text(encoding="utf-8"), str(path))
 
 
+def chart_dir_dependencies(chart_dir: Path) -> list[ChartDependency]:
+    """load_chart_dependencies of chart_dir's Chart.yaml; [] without one (e.g. a test chart)."""
+    chart_yaml_path = chart_dir / "Chart.yaml"
+    return load_chart_dependencies(chart_yaml_path) if chart_yaml_path.is_file() else []
+
+
 def parse_chart_app_version(text: str, source: str) -> str | None:
     """The appVersion of the Chart.yaml in `text`, or None; checks only that key."""
     mapping = parse_yaml_mapping(text, source)

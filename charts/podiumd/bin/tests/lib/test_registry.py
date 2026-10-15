@@ -362,6 +362,82 @@ def test_list_tags_returns_tag_names(libregistry: ModuleType, monkeypatch: pytes
     assert libregistry.list_tags("quay.io", "coreos/etcd") == ["9.10.1", "9.10.1-slim"]
 
 
+def test_list_tags_follows_link_next_pages(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    """quay.io pages tags/list; tags on later pages must count too."""
+    seen = []
+
+    def fake_urlopen(req):
+        seen.append(req.full_url)
+        if "last=" not in req.full_url:
+            link = '</v2/keycloak/keycloak/tags/list?n=100&last=23.0.4-0>; rel="next"'
+            return FakeResponse(headers={"Link": link}, body=json.dumps({"tags": ["23.0.4-0"]}).encode())
+        return FakeResponse(body=json.dumps({"tags": ["26.8.1"]}).encode())
+
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    assert libregistry.list_tags("quay.io", "keycloak/keycloak") == ["23.0.4-0", "26.8.1"]
+    assert seen == [
+        "https://quay.io/v2/keycloak/keycloak/tags/list",
+        "https://quay.io/v2/keycloak/keycloak/tags/list?n=100&last=23.0.4-0",
+    ]
+
+
+def test_list_tags_raises_when_a_page_repeats(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    """A registry pointing "next" back at the same page must not loop or return a partial list."""
+    link = '</v2/coreos/etcd/tags/list>; rel="next"'
+
+    def fake_urlopen(req):
+        return FakeResponse(headers={"Link": link}, body=json.dumps({"tags": ["1.0.0"]}).encode())
+
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    with pytest.raises(urllib.error.URLError, match="a page repeats"):
+        libregistry.list_tags("quay.io", "coreos/etcd")
+
+
+def test_list_tags_raises_past_the_page_cap(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    """Hitting MAX_TAG_PAGES with a next link left is an error: the unread pages hold the newest tags."""
+    calls = []
+
+    def fake_urlopen(req):
+        calls.append(req.full_url)
+        link = f'</v2/coreos/etcd/tags/list?last={len(calls)}>; rel="next"'
+        return FakeResponse(headers={"Link": link}, body=json.dumps({"tags": [str(len(calls))]}).encode())
+
+    monkeypatch.setattr(libregistry, "MAX_TAG_PAGES", 3)
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    with pytest.raises(urllib.error.URLError, match="more than 3 pages"):
+        libregistry.list_tags("quay.io", "coreos/etcd")
+    assert len(calls) == 3
+
+
+def test_list_tags_reuses_the_challenge_token_on_later_pages(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    """docker.elastic.co pages: one 401 and one token fetch, not one per page."""
+    calls = []
+
+    def fake_urlopen(arg):
+        url = arg if isinstance(arg, str) else arg.full_url
+        calls.append(url)
+        if "docker-auth.elastic.co" in url:
+            return FakeResponse(body=json.dumps({"token": "elastictoken"}).encode())
+        assert isinstance(arg, urllib.request.Request)
+        if arg.headers.get("Authorization") != "Bearer elastictoken":
+            raise urllib.error.HTTPError(
+                url,
+                401,
+                "Unauthorized",
+                _headers({"WWW-Authenticate": 'Bearer realm="https://docker-auth.elastic.co/auth"'}),
+                BytesIO(b""),
+            )
+        if "last=" not in url:
+            link = '</v2/kibana/kibana/tags/list?last=8.19.22>; rel="next"'
+            return FakeResponse(headers={"Link": link}, body=json.dumps({"tags": ["8.19.22"]}).encode())
+        return FakeResponse(body=json.dumps({"tags": ["8.19.23"]}).encode())
+
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    assert libregistry.list_tags("docker.elastic.co", "kibana/kibana") == ["8.19.22", "8.19.23"]
+    assert sum("docker-auth.elastic.co" in c for c in calls) == 1
+    assert len(calls) == 4  # 401, token, page 1, page 2
+
+
 def test_list_tags_fetches_token_for_docker_hub(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
     calls = []
 

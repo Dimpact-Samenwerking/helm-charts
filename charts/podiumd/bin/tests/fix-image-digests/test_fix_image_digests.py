@@ -2,6 +2,7 @@
 
 import io
 import subprocess
+import sys
 import tarfile
 import urllib.error
 
@@ -42,27 +43,14 @@ def test_parse_repo_explicit_host(sid: ModuleType):
     assert sid.parse_repo("ghcr.io/infonl/zaakafhandelcomponent") == ("ghcr.io", "infonl/zaakafhandelcomponent")
 
 
-# --- scan_digest_pins ---
-# (resolve_pin_repo is tested in tests/verify-podiumd/test_image_digests.py.)
-
-
-def test_scan_digest_pins_quoted_and_bare(sid: ModuleType):
-    lines = [
-        "  a:",
-        "    repository: org/repo-a",
-        '    tag: "1.0.0@sha256:' + "a" * 64 + '"',
-        "  b:",
-        "    repository: org/repo-b",
-        "    tag: 2.0.0@sha256:" + "b" * 64,
-    ]
-    pins = sid.scan_digest_pins(lines)
-    assert [(p["version"], p["digest"], p["repository"]) for p in pins] == [
-        ("1.0.0", "a" * 64, "org/repo-a"),
-        ("2.0.0", "b" * 64, "org/repo-b"),
-    ]
-
-
 # --- find_stale_digests ---
+
+
+def find_stale_in(sid: ModuleType, chart_dir: Path, lines: list[str]):
+    """find_stale_digests on a values.yaml holding `lines`."""
+    values_path = chart_dir / "values.yaml"
+    values_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return sid.find_stale_digests(values_path)
 
 
 def test_find_stale_digests_reports_mismatch(sid: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -74,13 +62,13 @@ def test_find_stale_digests_reports_mismatch(sid: ModuleType, tmp_path: Path, mo
     ]
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'b' * 64}"))
     monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
-    stale, unresolved, fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
+    stale, unresolved, fetch_errors = find_stale_in(sid, tmp_path, lines)
     assert unresolved == []
     assert fetch_errors == []
     assert len(stale) == 1
     repository, version, old_digest, new_digest, pin_lines, sliding = stale[0]
     assert (repository, version, old_digest, new_digest, pin_lines, sliding) == (
-        "org/repo",
+        "docker.io/org/repo",
         "1.0.0",
         "a" * 64,
         f"sha256:{'b' * 64}",
@@ -92,13 +80,13 @@ def test_find_stale_digests_reports_mismatch(sid: ModuleType, tmp_path: Path, mo
 def test_find_stale_digests_no_change_when_matching(sid: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     lines = ["a:", "  image:", "    repository: org/repo", f'    tag: "1.0.0@sha256:{"a" * 64}"']
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'a' * 64}"))
-    stale, unresolved, fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
+    stale, unresolved, fetch_errors = find_stale_in(sid, tmp_path, lines)
     assert stale == [] and unresolved == [] and fetch_errors == []
 
 
 def test_find_stale_digests_records_unresolved(sid: ModuleType, tmp_path: Path):
     lines = ["a:", "  image:", f'    tag: "1.0.0@sha256:{"a" * 64}"']
-    stale, unresolved, fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
+    stale, unresolved, fetch_errors = find_stale_in(sid, tmp_path, lines)
     assert stale == [] and fetch_errors == []
     assert len(unresolved) == 1 and unresolved[0]["line"] == 3
 
@@ -122,7 +110,7 @@ def test_find_stale_digests_falls_back_to_subchart_default_repository(
         return True, f"sha256:{'a' * 64}"
 
     monkeypatch.setattr(sid, "registry_tag_exists", spy)
-    stale, unresolved, fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
+    stale, unresolved, fetch_errors = find_stale_in(sid, tmp_path, lines)
     assert unresolved == [] and stale == [] and fetch_errors == []
     assert called == [("docker.io", "openzaak/open-zaak", "1.27.4")]
 
@@ -138,7 +126,7 @@ def test_find_stale_digests_stays_unresolved_when_subchart_has_no_default_either
     monkeypatch.setattr(sid, "ensure_repos_configured", lambda chart_dir: calls.append("ensure") or (True, "ok"))
     monkeypatch.setattr(sid, "vendor_dependencies", lambda cd: calls.append("vendor") or (True, "ok"))
 
-    stale, unresolved, fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
+    stale, unresolved, fetch_errors = find_stale_in(sid, tmp_path, lines)
     assert stale == [] and fetch_errors == []
     assert len(unresolved) == 1
     assert calls == []  # .tgz already present -> nothing to gain from re-vendoring, never triggered
@@ -168,7 +156,7 @@ def test_find_stale_digests_vendors_dependencies_when_tgz_missing(
     monkeypatch.setattr(sid, "vendor_dependencies", fake_vendor_dependencies)
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'a' * 64}"))
 
-    stale, unresolved, fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
+    stale, unresolved, fetch_errors = find_stale_in(sid, tmp_path, lines)
     assert calls == ["ensure", "vendor"]
     assert unresolved == []
     assert stale == [] and fetch_errors == []
@@ -189,7 +177,7 @@ def test_find_stale_digests_warns_and_stays_unresolved_when_repos_configuration_
     )
     monkeypatch.setattr(sid, "vendor_dependencies", fail_if_called)
 
-    stale, unresolved, fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
+    stale, unresolved, fetch_errors = find_stale_in(sid, tmp_path, lines)
     assert len(unresolved) == 1
     assert stale == [] and fetch_errors == []
     err = capsys.readouterr().err
@@ -206,7 +194,7 @@ def test_find_stale_digests_warns_and_stays_unresolved_when_vendoring_fails(
     monkeypatch.setattr(sid, "ensure_repos_configured", lambda chart_dir: (True, "ok"))
     monkeypatch.setattr(sid, "vendor_dependencies", lambda cd: (False, "helm dependency update failed"))
 
-    _stale, unresolved, _fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
+    _stale, unresolved, _fetch_errors = find_stale_in(sid, tmp_path, lines)
     assert len(unresolved) == 1
     err = capsys.readouterr().err
     assert "helm dependency update failed" in err
@@ -227,7 +215,7 @@ def test_find_stale_digests_never_vendors_when_no_matching_dependency(
     monkeypatch.setattr(sid, "ensure_repos_configured", fail_if_called)
     monkeypatch.setattr(sid, "vendor_dependencies", fail_if_called)
 
-    _stale, unresolved, _fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
+    _stale, unresolved, _fetch_errors = find_stale_in(sid, tmp_path, lines)
     assert len(unresolved) == 1
 
 
@@ -240,9 +228,9 @@ def test_find_stale_digests_retries_once_then_gives_up(
         "registry_tag_exists",
         lambda host, repo, tag: (_ for _ in ()).throw(urllib.error.URLError("down")),
     )
-    stale, unresolved, fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
+    stale, unresolved, fetch_errors = find_stale_in(sid, tmp_path, lines)
     assert stale == [] and unresolved == []
-    assert len(fetch_errors) == 1 and fetch_errors[0][0] == "org/repo"
+    assert len(fetch_errors) == 1 and fetch_errors[0][0] == "docker.io/org/repo"
 
 
 def test_find_stale_digests_dedupes_shared_repo_and_tag(
@@ -266,7 +254,7 @@ def test_find_stale_digests_dedupes_shared_repo_and_tag(
 
     monkeypatch.setattr(sid, "registry_tag_exists", spy)
     monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
-    stale, _unresolved, _fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
+    stale, _unresolved, _fetch_errors = find_stale_in(sid, tmp_path, lines)
     assert calls == [("docker.io", "org/repo", "1.0.0")]
     assert len(stale) == 1
     assert stale[0][4] == [4, 8]  # both pin lines share the one stale digest
@@ -279,7 +267,7 @@ def test_find_stale_digests_marks_sliding_from_is_sliding_tag(
     lines = ["a:", "  image:", "    repository: org/repo", f'    tag: "1.0.0@sha256:{"a" * 64}"']
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'b' * 64}"))
     monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: True)
-    stale, _unresolved, _fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
+    stale, _unresolved, _fetch_errors = find_stale_in(sid, tmp_path, lines)
     assert stale[0][5] is True
 
 
@@ -296,7 +284,7 @@ def test_find_stale_digests_calls_is_sliding_tag_with_live_digest(
         return False
 
     monkeypatch.setattr(sid, "is_sliding_tag", spy)
-    sid.find_stale_digests(lines, values_path)
+    find_stale_in(sid, tmp_path, lines)
     assert calls == [(values_path, "docker.io", "org/repo", "1.0.0", f"sha256:{'b' * 64}")]
 
 
@@ -759,3 +747,85 @@ def test_main_one_target_raises(sid: ModuleType, tmp_path: Path, monkeypatch: py
     with pytest.raises(SystemExit) as exc_info:
         sid.main()
     assert exc_info.value.code == 1
+
+
+# --- writer then checker: a digest in a registered sibling field ---
+
+
+def test_main_refreshes_sibling_digest_then_checker_reports_nothing(
+    sid: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """keycloak's "sha:" sibling is refreshed; check_image_digests then matches, and a second run changes nothing."""
+    values_path = tmp_path / "values.yaml"
+    old_digest, new_digest = "a" * 64, "b" * 64
+    write_values(
+        values_path,
+        f'keycloak:\n  image:\n    repository: quay.io/keycloak/keycloak\n    tag: "26.7.3"\n    sha: "{old_digest}"\n',
+    )
+
+    def live(host, repo, tag):
+        return True, f"sha256:{new_digest}"
+
+    monkeypatch.setattr(sid, "VALUES_PATH", values_path)
+    monkeypatch.setattr(sid, "registry_tag_exists", live)
+    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
+    monkeypatch.setattr("sys.argv", ["fix-image-digests"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        sid.main()
+    assert exc_info.value.code == 0
+    written = values_path.read_text(encoding="utf-8")
+    assert f'sha: "{new_digest}"' in written
+    assert old_digest not in written
+
+    image_digests = sys.modules["lib.image.digests"]
+    image_digests.clear_tag_exists_cache()
+    monkeypatch.setattr(image_digests, "registry_tag_exists", live)
+    ok, detail = image_digests.check_image_digests(tmp_path)
+    assert ok is True
+    assert "1/1 matched" in detail
+
+    with pytest.raises(SystemExit) as exc_info:
+        sid.main()
+    assert exc_info.value.code == 0
+    assert values_path.read_text(encoding="utf-8") == written
+
+
+def test_main_scoped_refreshes_only_the_named_sibling_digest(
+    sid: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """`keycloak keycloak` finds the "sha:" pin, and leaves other stale pins alone."""
+    values_path = tmp_path / "values.yaml"
+    old_digest, new_digest, other_digest = "a" * 64, "b" * 64, "c" * 64
+    original = (
+        f'keycloak:\n  image:\n    repository: quay.io/keycloak/keycloak\n    tag: "26.7.3"\n    sha: "{old_digest}"\n'
+        f'other:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{other_digest}"\n'
+    )
+    write_values(values_path, original)
+    fetched: list[str] = []
+
+    def live(host, repo, tag):
+        fetched.append(repo)
+        return True, f"sha256:{new_digest}"
+
+    monkeypatch.setattr(sid, "VALUES_PATH", values_path)
+    monkeypatch.setattr(sid, "registry_tag_exists", live)
+    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
+    monkeypatch.setattr("sys.argv", ["fix-image-digests", "keycloak", "keycloak"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        sid.main()
+    assert exc_info.value.code == 0
+    assert values_path.read_text(encoding="utf-8") == original.replace(old_digest, new_digest)
+    assert fetched == ["keycloak/keycloak"]
+
+
+def test_main_scoped_unknown_basename_exits_with_error(
+    sid: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    values_path = tmp_path / "values.yaml"
+    write_values(values_path, f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n')
+    monkeypatch.setattr(sid, "VALUES_PATH", values_path)
+    monkeypatch.setattr("sys.argv", ["fix-image-digests", "a", "nope"])
+    with pytest.raises(SystemExit, match="no image pin with image basename 'nope' found under 'a'"):
+        sid.main()
