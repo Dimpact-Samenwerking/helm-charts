@@ -320,7 +320,7 @@ def canonical_sidecar_row_names(
       component (e.g. "redis-operator - redis-exporter").
     - "<image-basename>" for an image under "global".
 
-    Primary images are left to match_dependency. A sidecar whose repository
+    Primary images are left to match_component. A sidecar whose repository
     is also a global image or an owner's primary image is excluded, so one
     bump never gets two row names. Deterministic; no fuzzy matching.
     """

@@ -1,4 +1,4 @@
-"""match_dependency and resolve_entry_path, including sibling-path
+"""match_component and resolve_entry_path, including sibling-path
 disambiguation."""
 
 from types import ModuleType
@@ -8,24 +8,24 @@ from dep_helpers import make_dep
 
 def test_match_dependency_by_name(libupgradedocbasics: ModuleType):
     deps = [make_dep("zaakafhandelcomponent", "1.0.297", alias="zac")]
-    assert libupgradedocbasics.match_dependency("ZAC (Zaakafhandelcomponent)", deps) == deps[0]
+    assert libupgradedocbasics.match_component("ZAC (Zaakafhandelcomponent)", deps, set()) == deps[0]
 
 
 def test_match_dependency_by_alias(libupgradedocbasics: ModuleType):
     deps = [make_dep("zgw-office-addin", "0.0.92")]
-    assert libupgradedocbasics.match_dependency("ZGW Office Add-in (frontend + backend)", deps) == deps[0]
+    assert libupgradedocbasics.match_component("ZGW Office Add-in (frontend + backend)", deps, set()) == deps[0]
 
 
 def test_match_dependency_no_match_returns_none(libupgradedocbasics: ModuleType):
     deps = [make_dep("zaakafhandelcomponent", "1.0.297", alias="zac")]
-    assert libupgradedocbasics.match_dependency("Totally Fictitious Component", deps) is None
+    assert libupgradedocbasics.match_component("Totally Fictitious Component", deps, set()) is None
 
 
 def test_match_dependency_short_alias_does_not_match_mid_word(libupgradedocbasics: ModuleType):
     """ "mi" is a raw substring of "ensurePodiumdAdminUser"; word-aligned
     matching must not match it."""
     deps = [make_dep("mi-data", "1.0.0", alias="mi")]
-    assert libupgradedocbasics.match_dependency("Python (ensurePodiumdAdminUser init image)", deps) is None
+    assert libupgradedocbasics.match_component("Python (ensurePodiumdAdminUser init image)", deps, set()) is None
 
 
 def test_match_dependency_prefers_longer_more_specific_match(libupgradedocbasics: ModuleType):
@@ -35,7 +35,7 @@ def test_match_dependency_prefers_longer_more_specific_match(libupgradedocbasics
     ]
     # "zac" is a substring of "zacx" too, but the plain "zac" dep is the
     # better (exact) match for a doc row literally named "ZAC"
-    assert libupgradedocbasics.match_dependency("ZAC", deps)["name"] == "zac"
+    assert libupgradedocbasics.match_component("ZAC", deps, set())["name"] == "zac"
 
 
 def test_resolve_entry_path_exact_match(libupgradedocappversion: ModuleType):

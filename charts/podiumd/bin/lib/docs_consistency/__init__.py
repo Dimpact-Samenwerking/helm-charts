@@ -161,7 +161,9 @@ def _build_docs_check_context(chart_dir: Path, doc_dir: Path, podiumd_version: s
     )
     # Ground truth, independent of the docs, so a changed component missing from every doc is caught.
     actual_changed_keys: set[str] = (
-        compute_changed_components(deps, baseline_deps, values, baseline_values) if baseline_ref else set()
+        compute_changed_components(deps, baseline_deps, values, baseline_values, chart_dir=chart_dir)
+        if baseline_ref
+        else set()
     )
     ctx = DocsCheckContext(
         chart_dir=chart_dir,

@@ -138,7 +138,7 @@ def redis_sidecar_deps_and_values(target_chart="0.26.1", baseline_chart="0.25.0"
 
 
 def test_fix_component_version_table_leaves_a_correct_sidecar_row_untouched(cdb: ModuleType):
-    """A canonical sidecar row is never "corrected" against the dependency match_dependency fuzzy-matches it to."""
+    """A canonical sidecar row is never "corrected" against the dependency match_component fuzzy-matches it to."""
     text = (
         "## Component versions (4.9.0 vs 4.8.5)\n\n"
         "| Component | App version | Helm chart | Notes |\n"
@@ -672,7 +672,7 @@ def test_fix_changes_heading_app_versions_corrects_stale_bare_sidecar_heading(cd
 
 def test_fix_changes_heading_app_versions_corrects_stale_real_sidecar_heading(cdb: ModuleType):
     """A stale nested sidecar heading ("redis-operator - redis") is corrected; the canonical sidecar match
-    takes precedence over match_dependency's fuzzy leading-word match."""
+    takes precedence over match_component's fuzzy leading-word match."""
     text = (
         "## Component versions (4.9.0 vs 4.8.5)\n\n"
         "| Component | App version | Helm chart | Notes |\n"

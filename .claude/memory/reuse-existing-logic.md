@@ -11,7 +11,7 @@ regression, even when the tests pass.
    "the doc row name of an image", "the order of doc items".
 2. List the low-level helpers the new code would call
    (`historical_app_version_for_path`, `canonical_sidecar_row_names`,
-   `paths_by_repository`, `match_dependency`, ...) and grep every caller of
+   `paths_by_repository`, `match_component`, ...) and grep every caller of
    each. A caller that already computes the same thing is the place to
    extend; do not write a second one.
 3. Use the shared entry point when one exists:
@@ -36,6 +36,11 @@ regression, even when the tests pass.
      (`paths_by_repository`)
    - `repo_map` exact match → `resolve_entry_path` word match
      (`resolve_entry_image_path`)
+4. Name resolution is deterministic: a name maps to a component, path or
+   image by an exact or canonical match. Before adding a heuristic match
+   (word span, substring, "closest", a synthesized display name), or using an
+   existing one (`match_component`'s word-match fallback,
+   `resolve_entry_path`) for new cases, ask the user.
 
 ## Writers and checker
 
@@ -51,11 +56,22 @@ regression, even when the tests pass.
 - Every new writer behaviour gets a writer-then-checker test: run the writer
   on a test chart, the checker reports nothing, and a second writer run
   changes nothing.
+- When a check learns a new pin shape or repository source, every writer
+  (`update-*`, `fix-*`) and `verify-component-version` switches to the same
+  code (`pin_paths_for`, `RepositoryResolver`, `check_image_versions`) in the
+  same change.
+- `update-*` scripts end by running `fix-doc-consistency`.
+- Writers rewrite only the generated lines of `*-upgrade.md` and
+  `*-values-deltas.md`, recognised by the renderers' exact templates. User
+  text is never changed or lost; when a removed section still holds user
+  text, keep the text and report it.
 
 ## While changing code
 
 - Build shared inputs (path sets, name maps, values.yaml order, resolution
-  contexts) through the shared builder, never inline in a caller.
+  contexts) through the shared builder, never inline in a caller. This holds
+  for small setup steps too (loading a cache and copying it): two hand-written
+  copies drift apart.
 - A near-copy of existing code is merged in the same change, including copies
   that differ only in a detail (how unmatched items sort, which fallback runs
   first).
