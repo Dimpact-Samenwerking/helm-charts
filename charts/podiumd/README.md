@@ -28,7 +28,7 @@ PodiumD Helm chart
 | file://../mi-data | mi(mi-data) | 1.1.0 |
 | https://helm.elastic.co | eck-operator | 3.5.0 |
 | https://helm.elastic.co | kiss-eck(eck-stack) | 0.20.0 |
-| https://openbao.github.io/openbao-helm | openbao | 0.29.6 |
+| https://openbao.github.io/openbao-helm | openbao | 0.30.3 |
 | https://wearefrank.github.io/charts | zaakbrug | 2.3.32 |
 | oci://ghcr.io/interne-taak-afhandeling | ita(internetaakafhandeling) | 3.3.4 |
 | oci://ghcr.io/klantinteractie-servicesysteem | kiss(kiss-chart) | 3.2.0 |
@@ -742,7 +742,7 @@ PodiumD Helm chart
 | openbao.configuration.enabled | bool | `true` |  |
 | openbao.configuration.job.backoffLimit | int | `6` |  |
 | openbao.configuration.job.image.repository | string | `"quay.io/openbao/openbao"` |  |
-| openbao.configuration.job.image.tag | string | `"2.6.3@sha256:a60afafda36337abe833c4a63894bf1095098f29abea4091e7e555a33dd52889"` |  |
+| openbao.configuration.job.image.tag | string | `"2.7.1@sha256:6d2b93856e3fcf7b18ad855a0b51eaba474dc8b79cf554379ea32034797d2acf"` |  |
 | openbao.configuration.job.nodeSelector | object | `{}` |  |
 | openbao.configuration.job.resources.limits.cpu | string | `"250m"` |  |
 | openbao.configuration.job.resources.limits.memory | string | `"128Mi"` |  |
@@ -755,6 +755,8 @@ PodiumD Helm chart
 | openbao.configuration.kvPath | string | `"secret"` |  |
 | openbao.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openbao.example.nl`. |
 | openbao.configuration.secrets.keycloak_client_secret | string | `""` |  |
+| openbao.configuration.tokenRenewal.enabled | bool | `true` | Render the openbao-token-renewal CronJob. |
+| openbao.configuration.tokenRenewal.schedule | string | `"17 4 * * 1"` | Cron schedule (cluster time zone). Weekly leaves three retries within the 32-day period. |
 | openbao.configuration.uploadersGroup | string | `"vault-uploaders"` |  |
 | openbao.configuration.uploadersRole | string | `"uploaders"` |  |
 | openbao.csi.image.repository | string | `"quay.io/openbao/openbao-csi-provider"` |  |
@@ -785,20 +787,23 @@ PodiumD Helm chart
 | openbao.seal.static.previousKey | string | `""` | Previous key during a rotation: set `key`/`keyId` to the new key and these to the old one until OpenBao has re-wrapped its root key, then clear them. |
 | openbao.seal.static.previousKeyId | string | `""` | Identifier of `previousKey`; required when `previousKey` is set. |
 | openbao.seal.static.secretName | string | `"openbao-seal"` | Secret the chart renders; must match `secretName` in both openbao-seal entries of openbao.server.volumes. |
+| openbao.server.annotations | string | `"checksum/seal: {{ .Values.seal.static | toJson | sha256sum | quote }}\n"` | Pod annotations (string form is rendered with tpl in the subchart). checksum/seal restarts the pods when the static-seal key is set, rotated or removed: the seal config lives in a Secret, so without it the pod template would not change and the pods would keep running with the old seal. |
+| openbao.server.configAnnotation | bool | `true` | Adds a config-checksum pod annotation, so a change to the server HCL (server.ha.config) restarts the pods; the static seal unseals them again. |
 | openbao.server.dataStorage.enabled | bool | `false` |  |
 | openbao.server.extraArgs | string | `"-config=/openbao/seal"` | Loads the static-seal config directory (see openbao.seal) as a second `-config`; keep it in any override. |
 | openbao.server.extraLabels."azure.workload.identity/use" | string | `"true"` |  |
 | openbao.server.extraSecretEnvironmentVars[0].envName | string | `"BAO_PG_CONNECTION_URL"` |  |
 | openbao.server.extraSecretEnvironmentVars[0].secretKey | string | `"connection-url"` |  |
 | openbao.server.extraSecretEnvironmentVars[0].secretName | string | `"openbao-db"` |  |
-| openbao.server.ha.config | string | `"ui = true\n\nlistener \"tcp\" {\n  tls_disable     = 1\n  address         = \"[::]:8200\"\n  cluster_address = \"[::]:8201\"\n}\n\nstorage \"postgresql\" {\n  table      = \"openbao_kv_store\"\n  ha_enabled = \"true\"\n  ha_table   = \"openbao_ha_locks\"\n}\n\nservice_registration \"kubernetes\" {}\n"` |  |
+| openbao.server.ha.config | string | `"ui = true\n\nlistener \"tcp\" {\n  tls_disable     = 1\n  address         = \"[::]:8200\"\n  cluster_address = \"[::]:8201\"\n}\n\n# Loopback-only listener for break-glass root-token generation from the\n# recovery/unseal key. OpenBao >= 2.5.3 disables the unauthenticated\n# generate-root endpoints by default, and they must stay off on the\n# listener the Service exposes. This one is reachable only from inside\n# the pod (kubectl exec); scripts/openbao-activate.sh uses it on the\n# active pod to mint tokens on an initialised vault.\nlistener \"tcp\" {\n  tls_disable                              = 1\n  address                                  = \"127.0.0.1:8210\"\n  cluster_address                          = \"127.0.0.1:8211\"\n  disable_unauthed_generate_root_endpoints = false\n}\n\nstorage \"postgresql\" {\n  table      = \"openbao_kv_store\"\n  ha_enabled = \"true\"\n  ha_table   = \"openbao_ha_locks\"\n}\n\nservice_registration \"kubernetes\" {}\n"` |  |
 | openbao.server.ha.enabled | bool | `true` |  |
 | openbao.server.ha.raft.enabled | bool | `false` |  |
 | openbao.server.ha.replicas | int | `3` |  |
 | openbao.server.image.registry | string | `"quay.io"` |  |
 | openbao.server.image.repository | string | `"openbao/openbao"` |  |
-| openbao.server.image.tag | string | `"2.6.3@sha256:a60afafda36337abe833c4a63894bf1095098f29abea4091e7e555a33dd52889"` |  |
+| openbao.server.image.tag | string | `"2.7.1@sha256:6d2b93856e3fcf7b18ad855a0b51eaba474dc8b79cf554379ea32034797d2acf"` |  |
 | openbao.server.ingress.enabled | bool | `false` |  |
+| openbao.server.livenessProbe | object | `{"enabled":true,"execCommand":["/bin/sh","-c","[ -f /openbao/seal/seal.hcl ] || exit 0; s=$(bao status -format=json 2>/dev/null); case \"$s\" in *'\"initialized\": true'*) ;; *) exit 0 ;; esac; case \"$s\" in *'\"migration\": true'*) exit 0 ;; esac; case \"$s\" in *'\"sealed\": true'*) exit 1 ;; esac; exit 0"],"failureThreshold":3,"initialDelaySeconds":60,"periodSeconds":10,"timeoutSeconds":5}` | Restarts a running node that sealed itself; only with the static seal (see the comment above). |
 | openbao.server.readinessProbe.enabled | bool | `true` |  |
 | openbao.server.readinessProbe.path | string | `"/v1/sys/health?standbyok=true&perfstandbyok=true&uninitcode=200&sealedcode=200"` |  |
 | openbao.server.resources.limits.cpu | string | `"500m"` |  |

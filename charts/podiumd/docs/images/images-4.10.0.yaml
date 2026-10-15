@@ -18,6 +18,7 @@
 #   11. zgw-office-addin 0.11.0 -> 0.12.0 (chart 0.0.89 -> 0.0.93).
 #   12. pabc 1.1.1 -> 2.1.0 (chart 1.1.1 -> 2.1.0).
 #   13. omc 1.17.19 -> 2.3.1 (chart 0.14.1 -> 0.17.4).
+#   14. openbao 2.6.3 -> 2.7.1 (chart 0.29.6 -> 0.30.3).
 #
 # See docs/_UPGRADE_PATHS/4.9.4-to-4.10.0-upgrade.md for the operator upgrade notes.
 #
@@ -111,3 +112,9 @@
   url: docker.io/worthnl/notifynl-omc
   version: "2.3.1"
   digest: "sha256:e4e232b4aab94c897604e23e9c2f02835cf32dd6ff1d5e561a9d6f1197b15338"
+
+# openbao 2.6.3 -> 2.7.1
+- name: openbao/openbao
+  url: quay.io/openbao/openbao
+  version: "2.7.1"
+  digest: "sha256:6d2b93856e3fcf7b18ad855a0b51eaba474dc8b79cf554379ea32034797d2acf"
