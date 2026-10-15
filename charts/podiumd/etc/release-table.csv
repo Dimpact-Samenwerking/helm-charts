@@ -1,7 +1,7 @@
 section,vendor,used_by,name,component,alias,image_basename,source_version_app,source_version_helm,target_version_app,target_version_helm
 Product,Maykin Media,,Formulier (Open Formulieren),openforms,openformulieren,,3.5.8,1.12.0,4.0.1,
 Product,Maykin Media,,Open Inwoner (Portaal),openinwoner,,,2.4.3,2.4.0,,
-Product,ICATT,,Contact (KISS),kiss-chart,kiss,kiss-frontend,3.1.3,3.1.3,3.2.0,
+Product,ICATT,,Contact (KISS),kiss-chart,kiss,kiss-frontend,3.1.3,3.1.3,3.2.0,3.2.0
 Product,ICATT,,Interne Taak Afhandeling,internetaakafhandeling,ita,"internetaakafhandeling.poller,internetaakafhandeling.web",3.3.2,3.3.2,3.3.3,
 Product,INFO,,Zaak - ZAC (zaakafhandelcomponent),zaakafhandelcomponent,zac,zaakafhandelcomponent,5.4.5,1.0.297,5.9.1,1.0.338
 Product,Maykin Media,,Zaak - Archiefbeheer (Open Archief Beheer),openarchiefbeheer,,open-archiefbeheer,2.0.0,2.0.0,,
@@ -13,8 +13,9 @@ Common Ground,Maykin Media,,Objecttypen (Objecttypes API),UNKNOWN,,,3.4.2,1.6.1,
 Common Ground,Maykin Media,,Open Notificaties,opennotificaties,,,1.16.2,2.0.0,1.17.0,
 Common Ground,ICATT,,Platform Autorisatie Beheer Component (PABC),pabc,pabc,"pabc-api,pabc-migrations",1.1.1,1.1.1,UNKNOWN,
 Common Ground,Maykin Media,,Open Beheer (LBI),openbeheer,,open-beheer,0.9.1,0.1.3,0.9.1,0.1.3
+Common Ground,Maykin Media,,Open VTB,openvtb,,open-vtb,,,0.2.0,0.2.0
 Common Ground,Maykin Media,,Referentielijsten,referentielijsten,referentielijsten,referentielijsten-api,0.7.4,0.2.0,0.7.5,0.2.0
-Common Ground,Worth,,OMC (NotifyNL),notifynl-omc-nodep,omc,notifynl-omc,1.17.19,0.14.1,2.3.0,
+Common Ground,Worth,,OMC (NotifyNL),notifynl-omc-nodep,omc,notifynl-omc,1.17.19,0.14.1,2.3.1,0.17.4
 Common Ground,WeAreFrank,,Zaak Brug,zaakbrug,,zaakbrug,1.26.19,2.3.32,1.26.19,2.3.32
 Common Ground,WeAreFrank,,Frank Gateway,frankgateway,,frank-gateway,1.1.0,NATIVE,1.1.0,NATIVE
 Common Ground,Dimpact,,MI Data (export),mi-data,mi,azure-cli,2.90.0,1.0.0,2.90.0,1.0.0
@@ -39,8 +40,8 @@ Technische,,zac,OPA,zaakafhandelcomponent,zac,opa,1.19.1-static,,,
 Technische,,zac,Gotenberg,zaakafhandelcomponent,zac,gotenberg,8.36.0,,,
 Technische,,zac,opentelemetry-collector-contrib,zaakafhandelcomponent,zac,opentelemetry-collector-contrib,0.158.0,,,
 Technische,,kiss,PodiumD Adapter,kiss-chart,kiss,podiumd-adapter,0.6.7,,,
-Technische,,kiss,Elastic Open Crawler (crawler),kiss-chart,kiss,crawler,1.0.0,,,
-Technische,,kiss,Elastic Sync (kiss-elastic-sync),kiss-chart,kiss,kiss-elastic-sync,3.1.3,,,
+Technische,,kiss,Elastic Open Crawler (crawler),kiss-chart,kiss,crawler,1.0.0,,1.1.0,
+Technische,,kiss,Elastic Sync (kiss-elastic-sync),kiss-chart,kiss,kiss-elastic-sync,3.1.3,,3.2.0,
 Technische,,ita,ITA Poller,internetaakafhandeling,ita,,3.3.0,,,
 Technische,,keycloak-operator,Python,keycloak-operator,,python,3.14.7-slim,,,
 Technische,,keycloak,Keycloak Config CLI,keycloak,,keycloak-config-cli,6.5.1-26.5.5,,,
