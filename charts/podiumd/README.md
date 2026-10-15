@@ -487,6 +487,7 @@ PodiumD Helm chart
 | keycloak.resources.requests.cpu | string | `"500m"` |  |
 | keycloak.resources.requests.memory | string | `"1700Mi"` |  |
 | keycloak.secretsName | string | `"keycloak-secrets"` |  |
+| keycloak.update.strategy | string | `"Auto"` | Keycloak operator update strategy: Auto, Explicit or RecreateOnImageChange. |
 | kiss-eck.eck-elasticsearch.enabled | bool | `true` |  |
 | kiss-eck.eck-elasticsearch.fullnameOverride | string | `"kiss"` |  |
 | kiss-eck.eck-elasticsearch.nodeSets | list | `[{"config":{"node.roles":["data","ingest","master"],"node.store.allow_mmap":false},"count":3,"name":"default","podTemplate":{"spec":{"nodeSelector":{}}}}]` | default sizing, kept equal to the previous release (kiss-elastic used elasticsearchCount: 3). Environments can override nodeSets (e.g. nodeSelector, count, storage), the same way openinwoner.eck-elasticsearch.nodeSets is set. Note: volumeClaimTemplates is immutable — during a migration keep it equal to the existing PVCs; changing the size needs a manual recreate (see docs/apps/elastic/migrating-to-eck-stack.md). |

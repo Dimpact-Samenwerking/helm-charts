@@ -152,6 +152,16 @@ keycloak:
     sha: &keycloakImageDigest "79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244"
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
+  # How the Keycloak operator applies a change of the Keycloak CR (IN-3176).
+  # Its default, RecreateOnImageChange, stops every pod on an image change, so
+  # all logins fail until Keycloak is back. Auto first runs an update Job that
+  # checks whether the old and new versions can run side by side; if so it
+  # replaces the pods one at a time, otherwise it still recreates them. Any
+  # field of the CR's spec.update (strategy, revision, labels, scheduling) can
+  # be set here.
+  update:
+    # -- Keycloak operator update strategy: Auto, Explicit or RecreateOnImageChange.
+    strategy: Auto
   ingress:
     enabled: false
   # The Keycloak operator renders its own NetworkPolicy (keycloak-network-policy)
