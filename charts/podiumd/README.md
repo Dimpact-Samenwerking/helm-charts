@@ -415,6 +415,9 @@ PodiumD Helm chart
 | keycloak.name | string | `"keycloak"` |  |
 | keycloak.networkPolicy.extraFrom.http | list | `[]` | Extra NetworkPolicyPeer entries allowed on Keycloak's http/https ports under namespace isolation, e.g. `[{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: monitoring}}}]` for a Grafana that calls Keycloak in-cluster. |
 | keycloak.networkPolicy.extraFrom.management | list | `[]` | Extra NetworkPolicyPeer entries allowed on Keycloak's management port (9000) under namespace isolation. |
+| keycloak.podDisruptionBudget.enabled | bool | `false` | Render a PodDisruptionBudget for the Keycloak pods (only when instances is more than 1). |
+| keycloak.podDisruptionBudget.maxUnavailable | int | `1` | Keycloak pods a node drain may evict at the same time. |
+| keycloak.podDisruptionBudget.unhealthyPodEvictionPolicy | string | `"AlwaysAllow"` | Lets a drain evict a Keycloak pod that is not Ready. |
 | keycloak.podTemplate.metadata.labels.app | string | `"keycloak"` |  |
 | keycloak.podTemplate.metadata.labels.version | string | `"26.8.1"` |  |
 | keycloak.podTemplate.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.labelSelector.matchExpressions[0].key | string | `"app"` |  |
