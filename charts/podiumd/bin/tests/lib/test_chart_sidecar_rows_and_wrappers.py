@@ -438,6 +438,7 @@ def test_component_image_paths_self_resolves_against_real_chart_dir(libchartregi
         "kiss-chart": ["image", "settings.syncJobs.image"],
         "pabc": ["image", "migrations.image"],
         "eck-operator": ["image"],
+        "kiss-eck": ["eck-elasticsearch.image", "eck-kibana.image", "eck-enterprise-search.image"],
     }
 
 
@@ -475,7 +476,7 @@ def test_image_paths_for_explicit_override(libchartregisteredpaths: ModuleType, 
 def test_component_version_paths_self_resolves_against_real_chart_dir(libchartregisteredpaths: ModuleType):
     """Self-resolving default for the bare-version-field registry."""
     assert libchartregisteredpaths.component_version_paths() == {
-        "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"],
+        "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version", "eck-enterprise-search.version"],
         "redis-operator": ["redisOperator.imageTag", "redisOperator.initContainerImageTag"],
     }
 
@@ -490,7 +491,11 @@ def test_component_version_paths_explicit_override(libchartregisteredpaths: Modu
 
 
 def test_version_paths_for_self_resolves_against_real_chart_dir(libchartregisteredpaths: ModuleType):
-    assert libchartregisteredpaths.version_paths_for("eck-stack") == ["eck-elasticsearch.version", "eck-kibana.version"]
+    assert libchartregisteredpaths.version_paths_for("eck-stack") == [
+        "eck-elasticsearch.version",
+        "eck-kibana.version",
+        "eck-enterprise-search.version",
+    ]
     assert libchartregisteredpaths.version_paths_for("unregistered") == []
 
 
