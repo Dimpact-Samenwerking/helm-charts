@@ -18,8 +18,7 @@ from typing import Literal
 from lib.chart.chart_state import BaselineState
 from lib.chart.chart_state import ComponentState
 from lib.chart.registered_paths import component_chart_versions
-from lib.chart.registered_paths import image_paths_for
-from lib.chart.registered_paths import version_paths_for
+from lib.chart.registered_paths import pin_paths_for
 from lib.component_docs.baseline_doc_stubs import UPGRADE_CHANGES_STUB_TODO_LINE
 from lib.component_docs.baseline_doc_stubs import UPGRADE_INTRO_STUB_TODO_LINE
 from lib.component_docs.doc_lines import is_bare_placeholder_span
@@ -303,8 +302,8 @@ def make_changes_section(
 
     `image_paths` become "Image tag pin `<key>.<path>.tag`" bullets;
     `version_paths` (bare version fields, e.g. eck-stack) become
-    "Version pin `<path>`" bullets. Callers must pick per image_paths_for/
-    version_paths_for, or the bullet names a nonexistent values path.
+    "Version pin `<path>`" bullets. Callers split pin_paths_for by
+    is_image_block, or the bullet names a nonexistent values path.
 
     No "Helm chart" bullet when new_chart is "-" (native component) or
     old_chart is None (heading says "new"). old_app None renders
@@ -587,13 +586,10 @@ def resolve_component_own_version_change(
 
 
 def component_changes_section(identity: ComponentIdentity, change: VersionChange, doc_context: DocContext) -> str:
-    """make_changes_section for a dependency or native component, with its registered pins.
-
-    version_paths_for wins over image_paths_for: registered bare-version
-    fields (eck-stack) have no image block, so the generic
-    "<key>.image.tag" would name a nonexistent path."""
-    version_paths = version_paths_for(identity.chart_name, doc_context.chart_dir)
-    image_paths = [] if version_paths else image_paths_for(identity.chart_name, doc_context.chart_dir)
+    """make_changes_section for a dependency or native component, with its pin_paths_for pins."""
+    pins = pin_paths_for(identity.chart_name, doc_context.chart_dir)
+    image_paths = [pin.path for pin in pins if pin.is_image_block]
+    version_paths = [pin.path for pin in pins if not pin.is_image_block]
     return make_changes_section(identity, doc_context.target, change, image_paths, version_paths)
 
 

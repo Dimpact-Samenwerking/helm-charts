@@ -12,17 +12,21 @@ from lib.chart.nested_subchart_identity import version_repository_path_for
 from lib.chart.pull_and_subchart_resolution import formatted_repo
 from lib.chart.pull_and_subchart_resolution import own_full_repository
 from lib.chart.pull_and_subchart_resolution import resolve_chart_values
-from lib.chart.registered_paths import image_paths_for
+from lib.chart.registered_paths import PinPath
 from lib.chart.registered_paths import is_primary_image_path
 from lib.chart.registered_paths import is_primary_rel_path
 from lib.chart.registered_paths import native_component_named
 from lib.chart.registered_paths import native_components
+from lib.chart.registered_paths import pin_paths_for
 from lib.chart.values_tree_primitives import dep_for_values_key
 from lib.chart.values_tree_primitives import find_app_versions
 from lib.chart.values_tree_primitives import find_dependency
 from lib.chart.values_tree_primitives import strip_registry_host
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
+from lib.registry import ImagePathTagCheck
+from lib.registry import parse_repo
+from lib.registry import registry_tag_exists
 from lib.release_baseline import resolve_baseline_chart_state
 from lib.yaml_types import YamlMapping
 
@@ -63,9 +67,9 @@ def component_state_at_baseline(
             (f"no dependency named or aliased '{component}' in {chart_dir_relpath}/Chart.yaml at {baseline_ref}"),
         )
     values_key = values_key_of(dep) if dep else name
-    image_paths = image_paths_for(name, chart_dir)
-    app_versions = find_app_versions(baseline_values, values_key, image_paths)
-    return baseline_ref, dep, values_key, image_paths, app_versions, None
+    pins = pin_paths_for(name, chart_dir)
+    app_versions = find_app_versions(baseline_values, values_key, pins)
+    return baseline_ref, dep, values_key, [pin.path for pin in pins], app_versions, None
 
 
 def repo_group_representative(repo_paths: list[tuple[str, ...]], deps: list[ChartDependency]) -> tuple[str, ...]:
@@ -106,6 +110,11 @@ class RepositoryResolver:  # pylint: disable=too-few-public-methods  # one query
     A path without an owning dependency only has tier 1: podiumd's own
     templates render it. Each vendored .tgz is read at most once.
     allow_pull defaults to False: a check shouldn't hit the network.
+    vendored_defaults=False drops tier 4, for a tree that already holds the
+    target chart's own values: the vendored .tgz is the old chart version.
+    Tier 3 still reads the vendored .tgz (a nested subchart's documented
+    repository isn't in the parent's values); it is the only source for
+    eck-stack's elasticsearch/kibana repositories.
 
     A sibling "registry:" that looks like a host (".", ":" or localhost,
     e.g. mi's mcr.microsoft.com) is used as-is. One that doesn't (zaakbrug's
@@ -120,11 +129,13 @@ class RepositoryResolver:  # pylint: disable=too-few-public-methods  # one query
         values: YamlMapping | None,
         *,
         allow_pull: bool = False,
+        vendored_defaults: bool = True,
     ):
         self.chart_dir = chart_dir
         self.deps = deps
         self.values = values
         self.allow_pull = allow_pull
+        self.vendored_defaults = vendored_defaults
         self._by_values_key = {values_key_of(dep): dep for dep in deps}
         self._subchart_cache: dict[str, YamlMapping | None] = {}
 
@@ -146,6 +157,8 @@ class RepositoryResolver:  # pylint: disable=too-few-public-methods  # one query
         nested_repo = documented_repository_for_path(self.chart_dir, self.deps, path)
         if nested_repo:
             return formatted_repo(nested_repo)
+        if not self.vendored_defaults:
+            return None
 
         sub_values = self._subchart_values(dep)
         repo = text_at(sub_values, ".".join(path[1:]) + ".repository") if sub_values is not None else None
@@ -211,6 +224,64 @@ def full_repository_for_path(
     paths of one tree: build one RepositoryResolver instead.
     """
     return RepositoryResolver(chart_dir, deps, values, allow_pull=allow_pull).full_repository(path)
+
+
+def pin_repositories(
+    chart_dir: Path | None, dep: ChartDependency | None, component_values: YamlMapping, pins: list[PinPath]
+) -> list[tuple[str, str]]:
+    """[(pin path, repository)] for the pins of one component's values tree whose repository resolves.
+
+    `component_values` is that component's block, over the target chart's values
+    when checking a bump, so the vendored (old) chart's own defaults are never
+    read. A nested subchart's documented repository (eck-stack, tier 3 of
+    RepositoryResolver) still comes from the vendored chart.
+    `dep` None (a native component) leaves only its own "repository:".
+    """
+    if dep is None:
+        prefix: tuple[str, ...] = ()
+        resolver = RepositoryResolver(None, [], component_values)
+    else:
+        prefix = (values_key_of(dep),)
+        resolver = RepositoryResolver(chart_dir, [dep], {prefix[0]: component_values}, vendored_defaults=False)
+    return [(pin.path, repo) for pin in pins if (repo := resolver.full_repository((*prefix, *pin.path.split("."))))]
+
+
+def check_image_versions(
+    chart_dir: Path | None,
+    dep: ChartDependency | None,
+    component_values: YamlMapping,
+    pins: list[PinPath],
+    app_version: str,
+) -> list[ImagePathTagCheck]:
+    """Registry existence check of `app_version` for every pin in `pins` whose repository resolves.
+
+    `component_values` is one component's values tree: podiumd's block over
+    the target chart's values, or a native component's block (`dep` None).
+    Repositories come from RepositoryResolver, as in verify-podiumd's image
+    checks, so a registered sibling field (redis-operator's imageName) counts.
+    Raises SystemExit when no pin resolves (wrong path or a restructured
+    chart), rather than reporting "0 checked". Pins sharing a repository
+    (redis-operator's imageTag and initContainerImageTag) cost one lookup.
+    """
+    repos = pin_repositories(chart_dir, dep, component_values, pins)
+    if not repos:
+        msg = (
+            f"error: no repository found for {', '.join(pin.path for pin in pins)} "
+            f"— wrong path? see lib.chart.registered_paths.pin_paths_for()"
+        )
+        raise SystemExit(msg)
+
+    results: list[ImagePathTagCheck] = []
+    lookups: dict[str, tuple[bool, str | None]] = {}
+    for path, repo in repos:
+        host, repo_path = parse_repo(repo)
+        if repo not in lookups:
+            lookups[repo] = registry_tag_exists(host, repo_path, app_version)
+        exists, digest = lookups[repo]
+        results.append(
+            {"path": path, "repository": repo, "host": host, "repo_path": repo_path, "exists": exists, "digest": digest}
+        )
+    return results
 
 
 def repository_path_map(
