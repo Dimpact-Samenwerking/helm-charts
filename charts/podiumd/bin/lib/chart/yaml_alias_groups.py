@@ -1,4 +1,4 @@
-"""Dotted values paths that share one scalar through YAML anchors and aliases."""
+"""Values paths that share one scalar through YAML anchors and aliases, and the line each scalar is on."""
 
 import functools
 
@@ -23,15 +23,23 @@ def _mapping_pairs(node: yaml.MappingNode) -> Iterator[tuple[str, yaml.Node]]:
             yield key_node.value, value_node
 
 
-def _collect(node: yaml.Node, path: tuple[str, ...], paths_by_node: dict[int, list[str]]) -> None:
+def _scalar_nodes(node: yaml.Node, path: tuple[str, ...] = ()) -> Iterator[tuple[tuple[str, ...], yaml.ScalarNode]]:
+    """(path, node) for every scalar under a mapping, in document order; an alias yields its anchor's node."""
     if isinstance(node, yaml.MappingNode):
         for key, value in _mapping_pairs(node):
-            _collect(value, (*path, key), paths_by_node)
+            yield from _scalar_nodes(value, (*path, key))
     elif isinstance(node, yaml.ScalarNode) and path:
-        paths_by_node.setdefault(id(node), []).append(".".join(path))
+        yield path, node
 
 
 @functools.lru_cache(maxsize=8)
+def _scalars_in_text(text: str) -> tuple[tuple[tuple[str, ...], yaml.ScalarNode], ...]:
+    """_scalar_nodes of the whole document; () for an empty one."""
+    # yaml.compose without its untyped stub.
+    root = yaml.SafeLoader(text).get_single_node()
+    return () if root is None else tuple(_scalar_nodes(root))
+
+
 def alias_groups_in_text(text: str) -> dict[str, tuple[str, ...]]:
     """Each scalar path that shares its value with another path via an anchor, mapped to all such paths.
 
@@ -39,12 +47,9 @@ def alias_groups_in_text(text: str) -> dict[str, tuple[str, ...]]:
     ("image: *x") and "<<" merges. A group is in document order, so an
     anchor comes before its aliases. Paths inside sequences are left out.
     """
-    # yaml.compose without its untyped stub.
-    root = yaml.SafeLoader(text).get_single_node()
-    if root is None:
-        return {}
     paths_by_node: dict[int, list[str]] = {}
-    _collect(root, (), paths_by_node)
+    for path, node in _scalars_in_text(text):
+        paths_by_node.setdefault(id(node), []).append(".".join(path))
     groups: dict[str, tuple[str, ...]] = {}
     for paths in paths_by_node.values():
         if len(paths) > 1:
@@ -56,3 +61,12 @@ def alias_groups_in_text(text: str) -> dict[str, tuple[str, ...]]:
 def alias_groups(values_path: Path) -> dict[str, tuple[str, ...]]:
     """alias_groups_in_text of the file at `values_path`."""
     return alias_groups_in_text(values_path.read_text(encoding="utf-8"))
+
+
+def scalar_lines_in_text(text: str) -> dict[tuple[str, ...], int]:
+    """{path: 1-based line of its scalar value} for every scalar outside a sequence.
+
+    An aliased path gets the line of its anchor, where the literal value is
+    written: the line a writer must change.
+    """
+    return {path: node.start_mark.line + 1 for path, node in _scalars_in_text(text)}

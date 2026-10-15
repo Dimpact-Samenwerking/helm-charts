@@ -79,7 +79,9 @@ def test_require_dependency_exits_naming_the_chart_yaml(
 
 def test_find_app_versions_single_image(libchartvaluestreeprimitives: ModuleType):
     values = {"zac": {"image": {"tag": "5.0.2@sha256:abc"}}}
-    assert libchartvaluestreeprimitives.find_app_versions(values, "zac", ["image"]) == [("image", "5.0.2@sha256:abc")]
+    assert libchartvaluestreeprimitives.find_app_versions(values, "zac", [("image", "image.tag")]) == [
+        ("image", "5.0.2@sha256:abc")
+    ]
 
 
 def test_find_app_versions_multi_image(libchartvaluestreeprimitives: ModuleType):
@@ -90,18 +92,29 @@ def test_find_app_versions_multi_image(libchartvaluestreeprimitives: ModuleType)
         }
     }
     result = libchartvaluestreeprimitives.find_app_versions(
-        values, "zgw-office-addin", ["frontend.image", "backend.image"]
+        values, "zgw-office-addin", [("frontend.image", "frontend.image.tag"), ("backend.image", "backend.image.tag")]
     )
     assert result == [("frontend.image", "v0.9.313@sha256:a"), ("backend.image", "v0.9.313@sha256:b")]
 
 
 def test_find_app_versions_missing_key_returns_empty(libchartvaluestreeprimitives: ModuleType):
-    assert libchartvaluestreeprimitives.find_app_versions({}, "zac", ["image"]) == []
+    assert libchartvaluestreeprimitives.find_app_versions({}, "zac", [("image", "image.tag")]) == []
+
+
+def test_find_app_versions_bare_version_field(libchartvaluestreeprimitives: ModuleType):
+    """A split image field (redis-operator) holds its version in the field itself, not in ".tag"."""
+    values = {
+        "redis-operator": {"redisOperator": {"imageName": "quay.io/opstree/redis-operator", "imageTag": "v0.26.0"}}
+    }
+    pins = [("redisOperator.imageTag", "redisOperator.imageTag")]
+    assert libchartvaluestreeprimitives.find_app_versions(values, "redis-operator", pins) == [
+        ("redisOperator.imageTag", "v0.26.0")
+    ]
 
 
 def test_find_app_versions_empty_tag_is_skipped(libchartvaluestreeprimitives: ModuleType):
     values = {"zac": {"image": {"tag": ""}}}
-    assert libchartvaluestreeprimitives.find_app_versions(values, "zac", ["image"]) == []
+    assert libchartvaluestreeprimitives.find_app_versions(values, "zac", [("image", "image.tag")]) == []
 
 
 # --- component_state_at_baseline ---
@@ -112,7 +125,7 @@ def test_find_app_versions_empty_tag_is_skipped(libchartvaluestreeprimitives: Mo
 def test_component_state_at_baseline_success(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
-    """Needs a real chart_dir: image_paths_for reads etc/settings.yaml (missing, so ["image"])."""
+    """Needs a real chart_dir: pin_paths_for reads etc/settings.yaml (missing, so ["image"])."""
     monkeypatch.setattr(
         libchartrepoandpathresolution,
         "resolve_baseline_chart_state",
@@ -135,6 +148,52 @@ def test_component_state_at_baseline_success(
     assert values_key == "zac"
     assert image_paths == ["image"]
     assert app_versions == [("image", "5.0.2@sha256:abc")]
+
+
+def test_component_state_at_baseline_split_image_fields(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, libchartrepoandpathresolution: ModuleType
+):
+    """redis-operator has no "image:" block: its registered bare version fields hold the versions."""
+    (tmp_path / "etc").mkdir()
+    (tmp_path / "etc" / "settings.yaml").write_text(
+        "component_resolution:\n"
+        "  version_paths:\n"
+        '    redis-operator: ["redisOperator.imageTag", "redisOperator.initContainerImageTag"]\n'
+        "  version_repository_paths:\n"
+        "    redis-operator: redisOperator.imageName\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        libchartrepoandpathresolution,
+        "resolve_baseline_chart_state",
+        lambda chart_dir, baseline: (
+            "podiumd-4.9.4",
+            [{"name": "redis-operator", "version": "0.26.1"}],
+            {
+                "redis-operator": {
+                    "redisOperator": {
+                        "imageName": "quay.io/opstree/redis-operator",
+                        "imageTag": "v0.26.0@sha256:abc",
+                        "initContainerImageTag": "v0.26.0@sha256:abc",
+                    }
+                }
+            },
+            [],
+            None,
+        ),
+    )
+
+    ref, _dep, _values_key, image_paths, app_versions, error = (
+        libchartrepoandpathresolution.component_state_at_baseline(tmp_path, "charts/podiumd", "4.9.4", "redis-operator")
+    )
+
+    assert error is None
+    assert ref == "podiumd-4.9.4"
+    assert image_paths == ["redisOperator.imageTag", "redisOperator.initContainerImageTag"]
+    assert app_versions == [
+        ("redisOperator.imageTag", "v0.26.0@sha256:abc"),
+        ("redisOperator.initContainerImageTag", "v0.26.0@sha256:abc"),
+    ]
 
 
 def test_component_state_at_baseline_propagates_resolve_baseline_chart_state_error(

@@ -1,0 +1,134 @@
+# Baseline: podiumd 4.9.4. Re-verify before release.
+#
+# Images new or changed in podiumd 4.10.0 vs 4.9.4.
+#
+# Changes:
+#   1. keycloak.image 26.7.3 -> 26.8.1.
+#   2. keycloak-operator 26.7.3 -> 26.8.1 (chart 1.13.0 -> 1.13.1).
+#   3. objecten 3.6.2 -> 4.1.0 (image maykinmedia/open-object; objecttypen
+#      3.4.2 is merged into it).
+#   4. openformulieren 3.5.8 -> 4.0.2 (chart 1.12.0 -> 1.13.0).
+#   5. openvtb 0.2.0 (new optional component, image maykinmedia/open-vtb,
+#      disabled by default).
+#   6. kiss 3.1.3 -> 3.2.0 (chart 3.1.3 -> 3.2.0).
+#   7. kiss - crawler 1.0.0 -> 1.1.0.
+#   8. zac 5.4.5 -> 5.9.1 (chart 1.0.297 -> 1.0.338).
+#   9. zac - gotenberg 8.36.0 -> 8.37.0.
+#   10. zac - opa 1.19.1-static -> 1.21.1-static.
+#   11. zac - opentelemetry-collector-contrib 0.158.0 -> 0.161.0.
+#   12. zac - solr 9.10.1-slim (digest changed).
+#   13. zgw-office-addin 0.11.0 -> 0.12.0 (chart 0.0.89 -> 0.0.93).
+#   14. pabc 1.1.1 -> 2.1.0 (chart 1.1.1 -> 2.1.0).
+#   15. omc 1.17.19 -> 2.3.1 (chart 0.14.1 -> 0.17.4).
+#   16. openbao 2.6.3 -> 2.7.1 (chart 0.29.6 -> 0.30.3).
+#
+# See docs/_UPGRADE_PATHS/4.9.4-to-4.10.0-upgrade.md for the operator upgrade notes.
+#
+# Digests are the OCI image index (multi-arch manifest) digest as returned in
+# the Docker-Content-Digest response header from the source registry.
+
+# keycloak.image 26.7.3 -> 26.8.1
+- name: keycloak/keycloak
+  url: quay.io/keycloak/keycloak
+  version: "26.8.1"
+  digest: "sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244"
+
+# keycloak-operator 26.7.3 -> 26.8.1
+- name: keycloak/keycloak-operator
+  url: quay.io/keycloak/keycloak-operator
+  version: "26.8.1"
+  digest: "sha256:60996d513b9e9945657b348655c98071c366bb0212deefa1508785941b1651dc"
+
+# objecten 3.6.2 -> 4.1.0 (open-object, replaces objects-api and objecttypes-api)
+- name: maykinmedia/open-object
+  url: docker.io/maykinmedia/open-object
+  version: "4.1.0"
+  digest: "sha256:7738cb8161d221d0a286d39d9d270c35024ff78123c296ceb46f3d9dda7208f9"
+
+# openformulieren 3.5.8 -> 4.0.2
+- name: openformulieren/open-forms
+  url: docker.io/openformulieren/open-forms
+  version: "4.0.2"
+  digest: "sha256:e1cad4bcf2319a3eb106e51156bf69c6be83da9dd070e977f52ec1079455b8e3"
+
+# openvtb 0.2.0 (new optional component, Open VTB)
+- name: maykinmedia/open-vtb
+  url: docker.io/maykinmedia/open-vtb
+  version: "0.2.0"
+  digest: "sha256:b382b2fdeb052994d6a785864f1277bffb2490e61de2a0222ad74379dede2f01"
+
+# kiss 3.1.3 -> 3.2.0
+- name: klantinteractie-servicesysteem/kiss-frontend
+  url: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
+  version: "3.2.0"
+  digest: "sha256:478d9f229119c3045dff404059b8a349efdb4faca2bf8db436fc41a826a3dbf9"
+#   sidecar: kiss - kiss-elastic-sync 3.1.3 -> 3.2.0
+- name: klantinteractie-servicesysteem/kiss-elastic-sync
+  url: ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync
+  version: "3.2.0"
+  digest: "sha256:8ebfe45802a4d7c09ecc8d9c237e11ba6c893479e6f59957e09116594ea52c49"
+#   sidecar: kiss - crawler 1.0.0 -> 1.1.0
+- name: integrations/crawler
+  url: docker.elastic.co/integrations/crawler
+  version: "1.1.0"
+  digest: "sha256:7e87a0571129681cfd3053e9bd7998926633e69fbd8da7c29a384f0d7e9ef26e"
+
+# zac 5.4.5 -> 5.9.1
+- name: infonl/zaakafhandelcomponent
+  url: ghcr.io/infonl/zaakafhandelcomponent
+  version: "5.9.1"
+  digest: "sha256:d2b43634c21205183ed7ce9591791fa0112501bb2e4b04baff0362da9e001da4"
+#   sidecar: zac - gotenberg 8.36.0 -> 8.37.0
+- name: gotenberg/gotenberg
+  url: docker.io/gotenberg/gotenberg
+  version: "8.37.0"
+  digest: "sha256:f29984bd1e226bf1b93ba90af06000afa8b315853e99d27b9aaa41b93f15c769"
+#   sidecar: zac - opa 1.19.1-static -> 1.21.1-static
+- name: openpolicyagent/opa
+  url: docker.io/openpolicyagent/opa
+  version: "1.21.1-static"
+  digest: "sha256:4675ab04ad1627f74741d2d9c5142698c79e18b7b09f192587d31d6dba20838e"
+#   sidecar: zac - opentelemetry-collector-contrib 0.158.0 -> 0.161.0
+- name: otel/opentelemetry-collector-contrib
+  url: docker.io/otel/opentelemetry-collector-contrib
+  version: "0.161.0"
+  digest: "sha256:fd328de2552466ad78385e1b1289c3f2402b1c45f265b252aab1955b42845ac1"
+#   sidecar: zac - solr 9.10.1-slim (digest changed)
+- name: library/solr
+  url: docker.io/library/solr
+  version: "9.10.1-slim"
+  digest: "sha256:ba6beb789c758b198c42603046fb2fb67b42843d2cd4333f12b632c3b811e55a"
+
+# zgw-office-addin 0.11.0 -> 0.12.0
+- name: infonl/zgw-office-addin-frontend
+  url: ghcr.io/infonl/zgw-office-addin-frontend
+  version: "0.12.0"
+  digest: "sha256:11fa2df3546def1fcfec0704d6ed55009ea0c8dcca49a7b6e848936ed9d93584"
+# zgw-office-addin 0.11.0 -> 0.12.0
+- name: infonl/zgw-office-addin-backend
+  url: ghcr.io/infonl/zgw-office-addin-backend
+  version: "0.12.0"
+  digest: "sha256:886c4616c7cb88769013c8b96d72fbde8b6db6c8947e49e83cd2d2d538175bca"
+
+# pabc 1.1.1 -> 2.1.0
+- name: platform-autorisatie-beheer-component/pabc-api
+  url: ghcr.io/platform-autorisatie-beheer-component/pabc-api
+  version: "2.1.0"
+  digest: "sha256:7e4f906ea46ba4eace1997a074099a5a54038e38901890d486d117583861a61d"
+# pabc 1.1.1 -> 2.1.0
+- name: platform-autorisatie-beheer-component/pabc-migrations
+  url: ghcr.io/platform-autorisatie-beheer-component/pabc-migrations
+  version: "2.1.0"
+  digest: "sha256:75640f1ee9dc6a155800a31457574b9c36eb0cd41827c45333b9f39d05c94abb"
+
+# omc 1.17.19 -> 2.3.1
+- name: worthnl/notifynl-omc
+  url: docker.io/worthnl/notifynl-omc
+  version: "2.3.1"
+  digest: "sha256:e4e232b4aab94c897604e23e9c2f02835cf32dd6ff1d5e561a9d6f1197b15338"
+
+# openbao 2.6.3 -> 2.7.1
+- name: openbao/openbao
+  url: quay.io/openbao/openbao
+  version: "2.7.1"
+  digest: "sha256:6d2b93856e3fcf7b18ad855a0b51eaba474dc8b79cf554379ea32034797d2acf"

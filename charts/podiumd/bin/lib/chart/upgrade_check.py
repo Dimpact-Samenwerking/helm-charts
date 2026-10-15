@@ -1,4 +1,8 @@
-"""Report-only check for a newer stable version of every Chart.yaml dependency chart.
+"""Report-only check for newer stable versions of every Chart.yaml dependency chart.
+
+Per chart it lists the newest newer version in each major, so a same-major upgrade
+shows next to the newest release, each with its appVersion: the pinned one from the
+vendored chart, newer ones from index.yaml or the OCI chart's config blob.
 
 Versions come from a classic repository's index.yaml or an OCI registry's
 tag list; "file://" dependencies are skipped. Pre-releases ("-rc.1") never
@@ -14,52 +18,69 @@ from dataclasses import field
 from datetime import datetime
 from datetime import timezone
 from pathlib import Path
+from typing import TypeGuard
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import load_chart_dependencies
+from lib.chart.chart_yaml import normalize_app_version
+from lib.chart.pull_and_subchart_resolution import subchart_app_version
 from lib.chart.values_tree_primitives import values_key_of
 from lib.image.upgrade_cache import UpgradeEntry
 from lib.image.upgrade_cache import cache_entry_is_fresh
-from lib.image.upgrade_cache import is_upgrade_entry
 from lib.json_cache import cache_file
 from lib.json_cache import load_json_cache
 from lib.json_cache import save_json_cache
+from lib.registry import chart_app_version
 from lib.registry import list_tags
 from lib.render_scope import resolve_dependency_repo
 from lib.settings import chart_upgrade_check_cache_ttl_days
 from lib.settings import helm_repos_urls_by_alias
 from lib.settings import repo_access_request_timeout_seconds
+from lib.version_numbers import newest_per_major
 from lib.version_numbers import stable_semver_key
 from lib.yaml_types import YamlShapeError
 from lib.yaml_types import parse_yaml
+from lib.yaml_types import shape_problem
 
 CACHE_FILENAME = "chart-upgrade-cache.json"
 
 
-def newest_stable_version(current: str, published: list[str]) -> str:
-    """The highest stable version in `published` above `current`, else `current`."""
-    best, best_key = current, stable_semver_key(current)
-    if best_key is None:
-        return current
-    for version in published:
-        key = stable_semver_key(version)
-        if key is not None and key > best_key:
-            best, best_key = version, key
-    return best
+class ChartUpgradeEntry(UpgradeEntry):
+    """An UpgradeEntry plus the appVersion of each "newer" version, in the same order (None if unset)."""
+
+    app_versions: list[str | None]
 
 
-def index_chart_versions(index_text: str, chart_name: str, source: str) -> list[str]:
-    """The versions `chart_name` has in a Helm repository index.yaml."""
+def is_chart_upgrade_entry(value: object) -> TypeGuard[ChartUpgradeEntry]:
+    """Whether a parsed cache entry is a ChartUpgradeEntry."""
+    shape = {"checked_at": str, "newer": [str], "app_versions": [(str, type(None))]}
+    return shape_problem(value, shape) is None
+
+
+def newer_stable_versions(current: str, published: list[str]) -> list[str]:
+    """The highest stable version in `published` above `current`, one per major; [] if none."""
+    current_key = stable_semver_key(current)
+    if current_key is None:
+        return []
+    keyed = ((version, stable_semver_key(version)) for version in published)
+    return newest_per_major(current_key, [(version, key) for version, key in keyed if key is not None])
+
+
+def index_chart_releases(index_text: str, chart_name: str, source: str) -> dict[str, str | None]:
+    """version -> appVersion (None if unset) of every `chart_name` release in a Helm repository index.yaml."""
     index = parse_yaml(index_text, source)
     releases = index.get("entries") if isinstance(index, dict) else None
     chart_releases = releases.get(chart_name) if isinstance(releases, dict) else None
     if not isinstance(chart_releases, list):
-        return []
-    versions: list[str] = []
+        return {}
+    versions: dict[str, str | None] = {}
     for release in chart_releases:
-        version = release.get("version") if isinstance(release, dict) else None
+        if not isinstance(release, dict):
+            continue
+        normalize_app_version(release)
+        version, app_version = release.get("version"), release.get("appVersion")
         if isinstance(version, str):
-            versions.append(version)
+            versions[version] = app_version if isinstance(app_version, str) else None
     return versions
 
 
@@ -71,6 +92,7 @@ class ChartSource:
     chart: str
     version: str
     repository: str
+    app_version: str | None = None
 
     @property
     def cache_key(self) -> str:
@@ -79,13 +101,24 @@ class ChartSource:
 
 
 def chart_sources(chart_dir: Path, deps: list[ChartDependency]) -> list[ChartSource]:
-    """A ChartSource per network-resolved dependency, "@alias" resolved; "file://" ones left out."""
+    """A ChartSource per network-resolved dependency, "@alias" resolved; "file://" ones left out.
+
+    app_version is the vendored chart's appVersion (None if not vendored).
+    """
     repos_by_alias = helm_repos_urls_by_alias(chart_dir)
     sources: list[ChartSource] = []
     for dep in deps:
         repository = resolve_dependency_repo(dep.get("repository", ""), repos_by_alias)
         if repository and not repository.startswith("file://"):
-            sources.append(ChartSource(values_key_of(dep), dep["name"], str(dep["version"]), repository.rstrip("/")))
+            sources.append(
+                ChartSource(
+                    values_key_of(dep),
+                    dep["name"],
+                    str(dep["version"]),
+                    repository.rstrip("/"),
+                    subchart_app_version(chart_dir, dep),
+                )
+            )
     return sources
 
 
@@ -96,24 +129,31 @@ class _Fetcher:
     timeout_seconds: float
     index_texts: dict[str, str] = field(default_factory=dict)
 
-    def versions(self, source: ChartSource) -> list[str]:
-        """All published versions of `source`'s chart."""
+    def newer(self, source: ChartSource) -> tuple[list[str], list[str | None]]:
+        """`source`'s newer_stable_versions and their appVersions.
+
+        An OCI tag list has no appVersions, so those cost one config-blob read per listed version.
+        """
         if source.repository.startswith("oci://"):
             host, _, path = source.repository[len("oci://") :].partition("/")
-            return list_tags(host, f"{path}/{source.chart}" if path else source.chart)
+            repo = f"{path}/{source.chart}" if path else source.chart
+            newer = newer_stable_versions(source.version, list_tags(host, repo))
+            return newer, [chart_app_version(host, repo, version, self.timeout_seconds) for version in newer]
         if source.repository not in self.index_texts:
             index_url = f"{source.repository}/index.yaml"
             # index_url comes from Chart.yaml/settings.yaml, never an attacker-controlled scheme.
             with urllib.request.urlopen(index_url, timeout=self.timeout_seconds) as resp:  # nosec B310
                 self.index_texts[source.repository] = resp.read().decode("utf-8")
-        return index_chart_versions(self.index_texts[source.repository], source.chart, source.repository)
+        releases = index_chart_releases(self.index_texts[source.repository], source.chart, source.repository)
+        newer = newer_stable_versions(source.version, list(releases))
+        return newer, [releases[version] for version in newer]
 
 
 @dataclass
 class ChartUpgradeScan:
-    """newest version per checked source, sources that could not be checked, and cache hits."""
+    """Newer versions per checked source, sources that could not be checked, and cache hits."""
 
-    newest: dict[ChartSource, str] = field(default_factory=dict)
+    newer: dict[ChartSource, ChartUpgradeEntry] = field(default_factory=dict)
     fetch_errors: list[ChartSource] = field(default_factory=list)
     cache_hits: int = 0
 
@@ -121,8 +161,8 @@ class ChartUpgradeScan:
 def _scan(chart_dir: Path, sources: list[ChartSource], ttl_days: int) -> ChartUpgradeScan:
     """Resolve every source from a fresh cache entry or the network; the saved cache drops unused entries."""
     cache_path = cache_file(chart_dir, CACHE_FILENAME)
-    old_cache = load_json_cache(cache_path, is_upgrade_entry)
-    new_cache: dict[str, UpgradeEntry] = {}
+    old_cache = load_json_cache(cache_path, is_chart_upgrade_entry)
+    new_cache: dict[str, ChartUpgradeEntry] = {}
     fetcher = _Fetcher(repo_access_request_timeout_seconds(chart_dir))
     scan = ChartUpgradeScan()
     for i, source in enumerate(sources, 1):
@@ -133,23 +173,34 @@ def _scan(chart_dir: Path, sources: list[ChartSource], ttl_days: int) -> ChartUp
         else:
             print(f"  [{i}/{len(sources)}] checking {source.name} ({source.chart} {source.version})...", flush=True)
             try:
-                newest = newest_stable_version(source.version, fetcher.versions(source))
+                newer, app_versions = fetcher.newer(source)
             except (urllib.error.URLError, OSError, UnicodeDecodeError, YamlShapeError) as e:
                 print(f"  [FETCH-ERR] {source.name}  {e}")
                 scan.fetch_errors.append(source)
                 continue
-            entry: UpgradeEntry = {"checked_at": datetime.now(timezone.utc).isoformat(), "newest": newest}
+            entry: ChartUpgradeEntry = {
+                "checked_at": datetime.now(timezone.utc).isoformat(),
+                "newer": newer,
+                "app_versions": app_versions,
+            }
         new_cache[source.cache_key] = entry
-        scan.newest[source] = entry["newest"]
+        scan.newer[source] = entry
     save_json_cache(cache_path, new_cache)
     return scan
 
 
+def _with_app_version(version: str, app_version: str | None) -> str:
+    """ "app 5.12.0, chart 1.0.345", or just "chart 1.0.345" when the chart sets no appVersion."""
+    return f"app {app_version}, chart {version}" if app_version else f"chart {version}"
+
+
 def _print_findings(scan: ChartUpgradeScan, total: int, ttl_days: int) -> None:
     """Print upgradable charts, then OK/INCOMPLETE and the cache summary."""
-    upgradable = [(s, n) for s, n in scan.newest.items() if n != s.version]
-    for source, newest in upgradable:
-        print(f"{source.name} ({source.chart} {source.version}): newer chart version available: {newest}")
+    upgradable = [(s, e) for s, e in scan.newer.items() if e["newer"]]
+    for source, entry in upgradable:
+        newer = " | ".join(map(_with_app_version, entry["newer"], entry["app_versions"]))
+        current = _with_app_version(source.version, source.app_version)
+        print(f"{source.name} ({source.chart}) {current}: newest version per major: {newer}")
     if scan.fetch_errors:
         print(f"INCOMPLETE: {len(scan.fetch_errors)}/{total} chart(s) could not be checked for a newer version:")
         for source in scan.fetch_errors:
@@ -169,5 +220,5 @@ def check_chart_upgrades(chart_dir: Path) -> tuple[bool, str]:
     print(f"Checking {len(sources)} dependency chart(s) for a newer published version...")
     scan = _scan(chart_dir, sources, ttl_days)
     _print_findings(scan, len(sources), ttl_days)
-    upgradable = sum(1 for s, n in scan.newest.items() if n != s.version)
+    upgradable = sum(1 for e in scan.newer.values() if e["newer"])
     return True, f"upgradable: {upgradable}/{len(sources)} chart(s); {len(scan.fetch_errors)} fetch error(s)"

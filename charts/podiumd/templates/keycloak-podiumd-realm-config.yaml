@@ -10,12 +10,12 @@
   (dict "name" "openarchiefbeheer" "pkce" .Values.openarchiefbeheer.configuration.pkceEnabled "data" .Values.openarchiefbeheer.configuration.data)
   (dict "name" "opennotificaties"  "pkce" .Values.opennotificaties.configuration.pkceEnabled  "data" .Values.opennotificaties.configuration.data)
   (dict "name" "objecten"          "pkce" .Values.objecten.configuration.pkceEnabled          "data" .Values.objecten.configuration.data)
-  (dict "name" "objecttypen"       "pkce" .Values.objecttypen.configuration.pkceEnabled       "data" .Values.objecttypen.configuration.data)
   (dict "name" "openklant"         "pkce" .Values.openklant.configuration.pkceEnabled         "data" .Values.openklant.configuration.data)
   (dict "name" "openformulieren"   "pkce" .Values.openformulieren.configuration.pkceEnabled   "data" .Values.openformulieren.configuration.data)
   (dict "name" "openinwoner"       "pkce" .Values.openinwoner.configuration.pkceEnabled       "data" .Values.openinwoner.configuration.data)
   (dict "name" "referentielijsten" "pkce" .Values.referentielijsten.configuration.pkceEnabled "data" .Values.referentielijsten.configuration.data)
   (dict "name" "openbeheer"        "pkce" .Values.openbeheer.configuration.pkceEnabled        "data" .Values.openbeheer.configuration.data)
+  (dict "name" "openvtb"           "pkce" .Values.openvtb.configuration.pkceEnabled           "data" .Values.openvtb.configuration.data)
 -}}
 {{- range $djangoApps }}
 {{- if .pkce }}
@@ -41,12 +41,12 @@
   (dict "name" "openarchiefbeheer" "enabled" .Values.openarchiefbeheer.enabled "oidcUrl" .Values.openarchiefbeheer.configuration.oidcUrl)
   (dict "name" "opennotificaties"  "enabled" .Values.opennotificaties.enabled  "oidcUrl" .Values.opennotificaties.configuration.oidcUrl)
   (dict "name" "objecten"          "enabled" .Values.objecten.enabled          "oidcUrl" .Values.objecten.configuration.oidcUrl)
-  (dict "name" "objecttypen"       "enabled" .Values.objecttypen.enabled       "oidcUrl" .Values.objecttypen.configuration.oidcUrl)
   (dict "name" "openklant"         "enabled" .Values.openklant.enabled         "oidcUrl" .Values.openklant.configuration.oidcUrl)
   (dict "name" "openformulieren"   "enabled" .Values.openformulieren.enabled   "oidcUrl" .Values.openformulieren.configuration.oidcUrl)
   (dict "name" "openinwoner"       "enabled" .Values.openinwoner.enabled       "oidcUrl" .Values.openinwoner.configuration.oidcUrl)
   (dict "name" "referentielijsten" "enabled" .Values.referentielijsten.enabled "oidcUrl" .Values.referentielijsten.configuration.oidcUrl)
   (dict "name" "openbeheer"        "enabled" .Values.openbeheer.enabled        "oidcUrl" .Values.openbeheer.configuration.oidcUrl)
+  (dict "name" "openvtb"           "enabled" .Values.openvtb.enabled           "oidcUrl" .Values.openvtb.configuration.oidcUrl)
   (dict "name" "openbao"           "enabled" .Values.openbao.enabled           "oidcUrl" .Values.openbao.configuration.oidcUrl)
   (dict "name" "kiss"              "enabled" .Values.kiss.enabled              "oidcUrl" .Values.kiss.configuration.oidcUrl "field" "kiss.configuration.oidcUrl")
   (dict "name" "zac"               "enabled" .Values.zac.enabled               "oidcUrl" .Values.zac.contextUrl "field" "zac.contextUrl")
@@ -107,12 +107,11 @@ data:
     # Disable offline_access (persistent refresh-token) grants realm-wide. This
     # realm serves browser-based admin/beheer sessions and service accounts only
     # — no client needs a refresh token that keeps working after the user is no
-    # longer logged in. Governs scopes for clients created after this change; the
-    # &defaultOptionalClientScopes anchor is also referenced as
-    # `optionalClientScopes: *defaultOptionalClientScopes` on every client below,
-    # to strip offline_access from clients that already exist. See
+    # longer logged in. Clients the import creates get these realm defaults.
+    # Client entries list no scopes, so the import leaves the scopes of existing
+    # clients to the environment (as before 4.9.1). See
     # docs/apps/keycloak/keycloak-security-updates.md § "Offline Access Disabled".
-    defaultOptionalClientScopes: &defaultOptionalClientScopes
+    defaultOptionalClientScopes:
       - address
       - phone
       - microprofile-jwt
@@ -226,22 +225,18 @@ data:
     clients:
       # Disable built-in self-service portal — all accounts are admin-provisioned.
       - clientId: account-console
-        optionalClientScopes: *defaultOptionalClientScopes
         enabled: false
       - clientId: account
-        optionalClientScopes: *defaultOptionalClientScopes
         enabled: false
       # admin-cli is unused in this realm (no bootstrap/ROPC flow relies on it here,
       # unlike the master realm — see keycloak-master-realm-config.yaml). Disable the
       # browser-redirect flows for the same reason: close off the unused
       # authorization-code-interception surface on this public client.
       - clientId: admin-cli
-        optionalClientScopes: *defaultOptionalClientScopes
         standardFlowEnabled: false
         implicitFlowEnabled: false
         directAccessGrantsEnabled: true
       - clientId: openzaak
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Open Zaak
         enabled: true
         clientAuthenticatorType: client-secret
@@ -283,7 +278,6 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openzaak"
       - clientId: abc
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Open Archiefbeheer
         enabled: true
         clientAuthenticatorType: client-secret
@@ -325,7 +319,6 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "abc"
       - clientId: monitoring
-        optionalClientScopes: *defaultOptionalClientScopes
         name: {{ .Values.keycloak.config.clients.monitoring.name|quote }}
         enabled: {{ .Values.keycloak.config.clients.monitoring.enabled }}
         standardFlowEnabled: true
@@ -361,7 +354,6 @@ data:
             config:
               role: "monitoring.viewer"
       - clientId: datamigratie
-        optionalClientScopes: *defaultOptionalClientScopes
         name: {{ .Values.keycloak.config.clients.datamigratie.name|quote }}
         enabled: {{ .Values.keycloak.config.clients.datamigratie.enabled }}
         secret: $(KC_SECRET_DATAMIGRATIE)
@@ -394,7 +386,6 @@ data:
               role: "DMT-Functioneel-Beheerder"
 {{- if .Values.zaakbrug.enabled }}
       - clientId: zaakbrug
-        optionalClientScopes: *defaultOptionalClientScopes
         name: {{ .Values.keycloak.config.clients.zaakbrug.name | quote }}
         enabled: {{ .Values.keycloak.config.clients.zaakbrug.enabled }}
         secret: $(KC_SECRET_ZAAKBRUG)
@@ -426,7 +417,6 @@ data:
               usermodel.clientRoleMapping.clientId: "zaakbrug"
 {{- end }}
       - clientId: opennotificaties
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Open Notificaties
         enabled: true
         clientAuthenticatorType: client-secret
@@ -468,7 +458,6 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "opennotificaties"
       - clientId: objecten
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Objecten
         enabled: true
         clientAuthenticatorType: client-secret
@@ -509,50 +498,7 @@ data:
               claim.name: "groups"
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "objecten"
-      - clientId: objecttypen
-        optionalClientScopes: *defaultOptionalClientScopes
-        name: Objecttypen
-        enabled: true
-        clientAuthenticatorType: client-secret
-{{- if .Values.objecttypen.configuration.pkceEnabled }}
-        attributes:
-          pkce.code.challenge.method: S256
-{{- end }}
-        redirectUris:
-          - "{{ .Values.objecttypen.configuration.oidcUrl | trimSuffix "/" }}/*"
-        webOrigins:
-          - "{{ .Values.objecttypen.configuration.oidcUrl | trimSuffix "/" }}/*"
-        secret: $(KC_SECRET_OBJECTTYPEN)
-        protocolMappers:
-          - name: "username"
-            protocol: "openid-connect"
-            protocolMapper: oidc-usermodel-property-mapper
-            config:
-              introspection.token.claim: "true"
-              userinfo.token.claim: "true"
-              user.attribute: "username"
-              id.token.claim: "true"
-              lightweight.claim: "false"
-              access.token.claim: "true"
-              claim.name: "preferred_username"
-              jsonType.label: "String"
-          - name: "client roles"
-            protocol: "openid-connect"
-            protocolMapper: "oidc-usermodel-client-role-mapper"
-            consentRequired: false
-            config:
-              introspection.token.claim: "true"
-              multivalued: "true"
-              userinfo.token.claim: "false"
-              user.attribute: "foo"
-              id.token.claim: "true"
-              lightweight.claim: "false"
-              access.token.claim: "true"
-              claim.name: "groups"
-              jsonType.label: "String"
-              usermodel.clientRoleMapping.clientId: "objecttypen"
       - clientId: openklant
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Open Klant
         enabled: true
         clientAuthenticatorType: client-secret
@@ -594,7 +540,6 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openklant"
       - clientId: openformulieren
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Open Formulieren
         enabled: true
         clientAuthenticatorType: client-secret
@@ -636,7 +581,6 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openformulieren"
       - clientId: openinwoner
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Open Inwoner
         enabled: true
         clientAuthenticatorType: client-secret
@@ -678,7 +622,6 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openinwoner"
       - clientId: referentielijsten
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Referentielijsten
         enabled: true
         clientAuthenticatorType: client-secret
@@ -720,7 +663,6 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "referentielijsten"
       - clientId: openbeheer
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Open Beheer
         enabled: true
         clientAuthenticatorType: client-secret
@@ -761,8 +703,50 @@ data:
               claim.name: "groups"
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openbeheer"
+{{- if .Values.openvtb.enabled }}
+      - clientId: openvtb
+        name: Open VTB
+        enabled: true
+        clientAuthenticatorType: client-secret
+{{- if .Values.openvtb.configuration.pkceEnabled }}
+        attributes:
+          pkce.code.challenge.method: S256
+{{- end }}
+        redirectUris:
+          - "{{ .Values.openvtb.configuration.oidcUrl | trimSuffix "/" }}/*"
+        webOrigins:
+          - "{{ .Values.openvtb.configuration.oidcUrl | trimSuffix "/" }}/*"
+        secret: $(KC_SECRET_OPENVTB)
+        protocolMappers:
+          - name: "username"
+            protocol: "openid-connect"
+            protocolMapper: oidc-usermodel-property-mapper
+            config:
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              user.attribute: "username"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "preferred_username"
+              jsonType.label: "String"
+          - name: "client roles"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-usermodel-client-role-mapper"
+            consentRequired: false
+            config:
+              introspection.token.claim: "true"
+              multivalued: "true"
+              userinfo.token.claim: "false"
+              user.attribute: "foo"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "groups"
+              jsonType.label: "String"
+              usermodel.clientRoleMapping.clientId: "openvtb"
+{{- end }}
       - clientId: openbao
-        optionalClientScopes: *defaultOptionalClientScopes
         name: OpenBao
         enabled: true
         clientAuthenticatorType: client-secret
@@ -802,7 +786,6 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openbao"
       - clientId: kiss
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Kiss
         enabled: true
         clientAuthenticatorType: client-secret
@@ -841,7 +824,6 @@ data:
               claim.name: samaccountname
               jsonType.label: String
       - clientId: {{ .Values.zac.auth.clientId }}
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Zaakafhandelcomponent
         enabled: true
         clientAuthenticatorType: client-secret
@@ -881,7 +863,6 @@ data:
               access.token.claim: "true"
               claim.name: "group_membership"
       - clientId: {{ .Values.zac.keycloak.adminClient.id }}
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Zaakafhandelcomponent Admin Client
         enabled: true
         clientAuthenticatorType: client-secret
@@ -925,7 +906,6 @@ data:
               claim.name: "client_id"
               jsonType.label: "String"
       - clientId: ita
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Interne Taak Afhandeling
         enabled: true
         clientAuthenticatorType: client-secret
@@ -967,7 +947,6 @@ data:
               claim.name: "samaccountname"
               jsonType.label: "String"
       - clientId: {{ .Values.pabc.settings.oidc.clientId }}
-        optionalClientScopes: *defaultOptionalClientScopes
         name: PABC OIDC Client
         enabled: true
         clientAuthenticatorType: client-secret
@@ -997,7 +976,6 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "pabc"
       - clientId: {{ .Values.pabc.settings.keycloakAdmin.clientId }}
-        optionalClientScopes: *defaultOptionalClientScopes
         name: PABC Keycloak Admin REST API client
         enabled: true
         clientAuthenticatorType: client-secret
@@ -1017,7 +995,6 @@ data:
 {{- $fgInst := include "podiumd.frankgateway.instanceValues" (dict "root" $ "key" $fgKey "override" $fgOverride) | fromYaml }}
 {{- if and $fgInst.enabled $fgInst.dashboard.enabled $fgInst.dashboard.auth.enabled }}
       - clientId: {{ include "podiumd.frankgateway.oidcClientId" (dict "key" $fgKey) }}
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Frank!Gateway Dashboard ({{ $fgKey }})
         description: OIDC client used by oauth2-proxy in front of the Frank!Gateway (APISIX) dashboard to authenticate operator browser sessions.
         enabled: true
@@ -1193,8 +1170,6 @@ data:
           - name: administrators
         objecten:
           - name: administrators
-        objecttypen:
-          - name: administrators
         openzaak:
           - name: administrators
         opennotificaties:
@@ -1207,6 +1182,10 @@ data:
           - name: administrators
         openbeheer:
           - name: administrators
+{{- if .Values.openvtb.enabled }}
+        openvtb:
+          - name: administrators
+{{- end }}
         openbao:
           - name: {{ .Values.openbao.configuration.uploadersRole | quote }}
         kiss:
@@ -1279,8 +1258,6 @@ data:
             - "admin"
           objecten:
             - "administrators"
-          objecttypen:
-            - "administrators"
           openzaak:
             - "administrators"
           openklant:
@@ -1295,6 +1272,10 @@ data:
             - "administrators"
           openbeheer:
             - "administrators"
+{{- if .Values.openvtb.enabled }}
+          openvtb:
+            - "administrators"
+{{- end }}
           pabc:
             - "administrator"
 {{- if .Values.zaakbrug.enabled }}

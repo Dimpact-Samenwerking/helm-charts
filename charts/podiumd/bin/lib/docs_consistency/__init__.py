@@ -574,7 +574,11 @@ def _check_images_manifest_entry(
         findings.mismatches.append(f'{name}: entry in {scan.images_path.name} is missing "version" or "digest"')
         return
     expected_tag = f"{version}@{digest}"
-    if actual_tag != expected_tag:
+    # A path exempt from digest pinning without a digest field (omc.image) pins the
+    # tag only; its entry still records the registry digest of that tag.
+    exception = scan.sibling_fields.get(path)
+    tag_only = exception is not None and exception["sibling_field"] is None
+    if actual_tag != expected_tag and not (tag_only and actual_tag == version):
         findings.mismatches.append(
             f'{name}: values.yaml tag is "{actual_tag}", {scan.images_path.name} says "{expected_tag}"'
         )

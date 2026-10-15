@@ -1,44 +1,57 @@
-{{- if .Values.objecttypen.enabled }}
-{{- if .Values.objecttypen.configuration.enabled }}
-{{- if .Values.objecttypen.create_required_objecttypen_job.enabled }}
+{{- if .Values.objecten.enabled }}
+{{- if .Values.objecten.configuration.enabled }}
+{{- if .Values.objecten.create_required_objecttypen_job.enabled }}
 apiVersion: v1
 kind: Secret
 metadata:
   name: create-required-objecttypen-secret
   labels:
-    {{- include "objecttypen.labels" . | nindent 4 }}
+    {{- include "openobject.labels" . | nindent 4 }}
 type: Opaque
 stringData:
-  authorization-token: {{ .Values.objecttypen.configuration.token | quote }}
+  # H.5: admin token now comes from a `tokenauth` item with `is_superuser: true`
+  # (see values.yaml, objecten.configuration.data / .secrets), replacing the old
+  # plain objecttypen.configuration.token field which no longer exists.
+  authorization-token: {{ .Values.objecten.configuration.secrets.create_required_objecttypen_token | quote }}
+---
+# The schemas ship with the chart: raw.githubusercontent.com, where most
+# documentationUrls point, is unreliable for these files (it answers 404 for
+# some of them). documentationUrl stays as metadata only.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: create-required-objecttypen-schemas
+  labels:
+    {{- include "openobject.labels" . | nindent 4 }}
+data:
+{{ (.Files.Glob "files/objecttypen/*.json").AsConfig | indent 2 }}
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: create-required-objecttypen-configmap
   labels:
-    {{- include "objecttypen.labels" . | nindent 4 }}
+    {{- include "openobject.labels" . | nindent 4 }}
 data:
-  OBJECTTYPES_URL: {{ printf "%s%s" .Values.objecttypen.configuration.oidcUrl "/api/v2" | quote}}
+  OBJECTTYPES_URL: {{ printf "%s%s" .Values.objecten.configuration.oidcUrl "/api/v2" | quote}}
   create-required-objecttypen.py: |
     #!/usr/local/bin/python
-    import requests
+    import json
     import os
     import re
+    import sys
+
+    import requests
 
     authorization_token = os.environ['AUTHORIZATION_TOKEN']
     objecttypes_url = os.environ['OBJECTTYPES_URL']
+    schemas_dir = '/schemas'
 
     authorization="Token " + authorization_token
     def findHighestVersion(versions):
       pattern = r'/(\d+)$'
       numbers = [int(match.group(1)) for url in versions if (match := re.search(pattern, url))]
       return max(numbers) if numbers else None
-
-    json_response = requests.get(
-      f"{objecttypes_url}/objecttypes",
-      params={"pageSize": "10000","dataClassification": "open"},
-      headers={"Authorization": authorization}
-    )
 
     objecttypes_data = [
       { "documentationUrl": "https://raw.githubusercontent.com/open-objecten/objecttypes/refs/heads/main/community-concepts/Medewerker/medewerker-schema.json", "namePlural": "Medewerkers", "name": "Medewerker", "dataClassification":"open", "updateFrequency":"unknown"  },
@@ -62,63 +75,91 @@ data:
         {"uuid":"2eb81bd1-0d2b-4123-84ab-d55b99b9e75a","name":"Activiteitenlog"}
     ]
 
-    existing_objecttypes = []
-    json=json_response.json()
+    # Read every schema before any API call: a missing or broken schema is a
+    # chart defect that no retry fixes, so stop before creating anything.
+    schemas = {}
+    for objecttype in objecttypes_data:
+      path = os.path.join(schemas_dir, f"{objecttype['name']}.json")
+      try:
+        with open(path, encoding='utf-8') as schema_file:
+          schemas[objecttype['name']] = json.load(schema_file)
+      except (OSError, ValueError) as error:
+        sys.exit(f"schema for objecttype {objecttype['name']} unusable: {path}: {error}")
+
+    def check(response, action):
+      if not response.ok:
+        sys.exit(f"{action} failed: HTTP {response.status_code}: {response.text[:500]}")
+      return response
+
+    # The API caps pageSize at 500, so follow "next" instead of trusting one page.
+    # No dataClassification filter: a type with another classification must still
+    # be found, or its fixed UUID is POSTed again and the job fails.
+    existing = []
+    page_url = f"{objecttypes_url}/objecttypes"
+    params = {"pageSize": "500"}
+    while page_url:
+      page = check(requests.get(page_url, params=params, headers={"Authorization": authorization}), "listing objecttypes").json()
+      existing.extend(page["results"])
+      page_url = page.get("next")
+      params = None
+
     # Find existing uuid and latest version of objecttypes
-    for result in json["results"]:
+    for result in existing:
       for objecttype in objecttypes_data:
         if(result["name"] == objecttype['name'] or result["namePlural"] == objecttype['namePlural']):
           objecttype['uuid']=result["uuid"]
-          objecttype['version']=findHighestVersion(result['versions'])
-          existing_objecttypes.append(objecttype)
+          # Post-merge, objecten's objecttypes_config step creates these types
+          # without versions; they still need a (schema) version from here.
+          version=findHighestVersion(result['versions'])
+          if version is not None:
+            objecttype['version']=version
           print(f"found existing objecttype for {objecttype['name']}")
 
     for objecttype in objecttypes_data:
-      if not any ('uuid' in item for item in objecttype):
-        #create objecttype
+      if 'uuid' not in objecttype:
         print(f"creating objecttype for {objecttype['name']}")
         objecttype['uuid']=next((item['uuid'] for item in objecttypes_uuid if item['name']==objecttype['name']), None)
-        response = requests.post(
+        response = check(requests.post(
           f"{objecttypes_url}/objecttypes",
           json=objecttype,
           headers={
             "Authorization": authorization,
             "Content-Type": "application/json"
           }
-        )
-        objecttype['uuid']=response.json().get('uuid')
+        ), f"creating objecttype {objecttype['name']}")
+        objecttype['uuid']=response.json()['uuid']
         print(f"created objecttype for {objecttype['name']}: {objecttype['uuid']}")
 
-      if not any ('version' in item for item in objecttype):
-        #create version
-        jsonSchema=requests.get(f"{objecttype['documentationUrl']}",headers={"Content-type":"application/json"}).json()
-        versionData={"status":"published","jsonSchema":jsonSchema}
-        response = requests.post(
+      # Only a type without any version gets one. Published versions are never
+      # replaced, so a newer schema in the chart doesn't reach existing types.
+      if 'version' not in objecttype:
+        versionData={"status":"published","jsonSchema":schemas[objecttype['name']]}
+        check(requests.post(
           f"{objecttypes_url}/objecttypes/{objecttype['uuid']}/versions",
           json=versionData,
           headers={
             "Authorization": authorization,
             "Content-Type": "application/json"
           }
-        )
-        print(f"created version for objecttype {objecttype['uuid']}")
+        ), f"creating version for objecttype {objecttype['name']}")
+        print(f"created version for objecttype {objecttype['name']} ({objecttype['uuid']})")
 ---
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: create-required-objecttypen-job
   labels:
-    {{- include "objecttypen.configLabels" . | nindent 4 }}
+    {{- include "openobject.configLabels" . | nindent 4 }}
 spec:
   ttlSecondsAfterFinished: 600
   template:
     spec:
       containers:
-        - image: {{ include "podiumd.image" .Values.objecttypen.image }}
+        - image: {{ include "podiumd.image" .Values.objecten.image }}
           command: ["/jobs/create-required-objecttypen.py"]
           name: create-required-objecttypen
           resources:
-            {{- toYaml .Values.objecttypen.create_required_objecttypen_job.resources | nindent 12 }}
+            {{- toYaml .Values.objecten.create_required_objecttypen_job.resources | nindent 12 }}
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000
@@ -140,6 +181,9 @@ spec:
           volumeMounts:
             - mountPath: /jobs
               name: jobs
+            - mountPath: /schemas
+              name: schemas
+              readOnly: true
             - mountPath: /tmp
               name: tmp
       volumes:
@@ -147,15 +191,18 @@ spec:
             defaultMode: 0755
             name: create-required-objecttypen-configmap
           name: jobs
+        - configMap:
+            name: create-required-objecttypen-schemas
+          name: schemas
         - name: tmp
           emptyDir: {}
-      {{- with .Values.objecttypen.nodeSelector }}
+      {{- with .Values.objecten.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       restartPolicy: OnFailure
-  backoffLimit: {{ .Values.objecttypen.create_required_objecttypen_job.backoffLimit | default 10 }}
-  activeDeadlineSeconds: {{ .Values.objecttypen.create_required_objecttypen_job.activeDeadlineSeconds | default 900 }}
+  backoffLimit: {{ .Values.objecten.create_required_objecttypen_job.backoffLimit | default 10 }}
+  activeDeadlineSeconds: {{ .Values.objecten.create_required_objecttypen_job.activeDeadlineSeconds | default 900 }}
 {{- end }}
 {{- end }}
 {{- end }}

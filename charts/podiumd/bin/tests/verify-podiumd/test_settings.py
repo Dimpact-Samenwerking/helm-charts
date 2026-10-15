@@ -176,7 +176,7 @@ ACCESSOR_CASES = [
         "component_resolution_version_paths",
         {
             "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"],
-            "redis-operator": ["redisOperator.imageTag"],
+            "redis-operator": ["redisOperator.imageTag", "redisOperator.initContainerImageTag"],
         },
         {"widget-b": ["version"]},
         dict,

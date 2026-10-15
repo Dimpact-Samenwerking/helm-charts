@@ -92,9 +92,9 @@ and `keycloak.proxy.headers: xforwarded`. Hostnames are set via
 - **No Redis, no ClamAV, no Elasticsearch.** Clustering uses Infinispan
   (`cache: ispn`) between the two instances.
 - Everything else depends on **it**: the podiumd realm import provisions OIDC
-  clients for openzaak, opennotificaties, objecten, objecttypen,
+  clients for openzaak, opennotificaties, objecten,
   openarchiefbeheer, openklant, openformulieren, openinwoner,
-  referentielijsten, openbeheer, kiss, zac (+ zac-admin), ita, pabc
+  referentielijsten, openbeheer, openvtb (when enabled), kiss, zac (+ zac-admin), ita, pabc
   (+ pabc-admin), apisix-dashboard, plus the extra clients under
   `keycloak.config.clients` (monitoring/Grafana, datamigratie, zaakbrug).
   Client secrets live in Secret `keycloak-podiumd-realm-secrets` and are

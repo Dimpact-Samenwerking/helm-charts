@@ -12,7 +12,7 @@ from lib.chart.nested_subchart_identity import nested_subchart_registered_paths
 from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.pull_and_subchart_resolution import subchart_app_version
 from lib.chart.registered_paths import component_image_paths
-from lib.chart.registered_paths import image_paths_for
+from lib.chart.registered_paths import pin_paths_for
 from lib.chart.registered_paths import version_paths_for
 from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import text_at
@@ -33,11 +33,10 @@ def actual_app_version(
     """The app version pinned for a component, or None.
 
     Tries, in order:
-    1. image_paths_for(component) paths + ".tag" (first non-empty tag wins for
-       multi-image components);
-    2. version_paths_for(component) paths read as-is, for versions not in an
-       "image: {tag}" block (e.g. eck-stack's "eck-elasticsearch.version");
-    3. with `chart_dir` and `dep` (needs "version"), the vendored subchart's
+    1. pin_paths_for(component): the image blocks' ".tag", then the bare
+       version fields (e.g. eck-stack's "eck-elasticsearch.version"); the
+       first non-empty one wins for multi-image components;
+    2. with `chart_dir` and `dep` (needs "version"), the vendored subchart's
        appVersion — only for components registered in component_image_paths(),
        where a blank tag deliberately defers to appVersion; on an unregistered
        component it may mean the image isn't used at all.
@@ -45,12 +44,8 @@ def actual_app_version(
     `component` is the Chart.yaml dependency name (registries are keyed by name,
     not alias); defaults to `values_key`."""
     resolved_component = component or values_key
-    for path in image_paths_for(resolved_component, chart_dir):
-        tag = text_at(values, f"{values_key}.{path}.tag")
-        if tag:
-            return tag.split("@")[0]
-    for path in version_paths_for(resolved_component, chart_dir):
-        version = text_at(values, f"{values_key}.{path}")
+    for pin in pin_paths_for(resolved_component, chart_dir):
+        version = text_at(values, f"{values_key}.{pin.version_key}")
         if isinstance(version, str) and version:
             return version.split("@")[0]
     if chart_dir is not None and dep is not None and resolved_component in component_image_paths(chart_dir):

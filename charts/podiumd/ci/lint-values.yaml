@@ -81,12 +81,6 @@ opennotificaties:
       security:
         allowInsecureImages: true
 
-objecttypen:
-  configuration:
-    oidcUrl: https://objecttypen.ci.podiumd.test
-    secrets:
-      keycloak_client_secret: "placeholder"
-
 openarchiefbeheer:
   configuration:
     oidcUrl: https://openarchiefbeheer.ci.podiumd.test
@@ -135,6 +129,15 @@ referentielijsten:
 openbeheer:
   configuration:
     oidcUrl: https://openbeheer.ci.podiumd.test
+    secrets:
+      keycloak_client_secret: "placeholder"
+
+# openvtb is disabled by default; CI enables it so its client, Deployment and Job
+# are rendered and linted. The render-time guard needs a real oidcUrl.
+openvtb:
+  enabled: true
+  configuration:
+    oidcUrl: https://openvtb.ci.podiumd.test
     secrets:
       keycloak_client_secret: "placeholder"
 

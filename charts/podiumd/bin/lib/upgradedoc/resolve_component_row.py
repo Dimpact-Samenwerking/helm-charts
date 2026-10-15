@@ -16,8 +16,8 @@ from lib.chart.historical_baselines import BaselineLookup
 from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
 from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.pull_and_subchart_resolution import global_image_paths
-from lib.chart.registered_paths import image_paths_for
 from lib.chart.registered_paths import native_components
+from lib.chart.registered_paths import pin_paths_for
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.values_tree_primitives import dep_for_values_key
 from lib.chart.values_tree_primitives import text_at
@@ -194,9 +194,9 @@ def _sidecar_baseline_app(resolution: ResolutionContext, sidecar_path: tuple[str
 def _historical_dependency_app(resolution: ResolutionContext, values_key: str, chart_name: str) -> str | None:
     """A dependency's or native component's app version from past images-<version>.yaml manifests, or None."""
     chart_dir, deps, values = resolution.chart_dir, resolution.target.deps, resolution.target.values
-    for path in image_paths_for(chart_name, chart_dir):
+    for pin in pin_paths_for(chart_name, chart_dir):
         app = historical_app_version_for_path(
-            chart_dir, deps, values, (values_key, *tuple(path.split("."))), resolution.upgrade_docs_baseline
+            chart_dir, deps, values, (values_key, *tuple(pin.path.split("."))), resolution.upgrade_docs_baseline
         )
         if app is not None:
             return app

@@ -239,25 +239,19 @@ def test_subchart_template_text_no_templates_dir_returns_none(
     assert libchartrepoandpathresolution.subchart_template_text(tmp_path, dep) is None
 
 
-# --- subchart_default_repository ---
+# --- RepositoryResolver: vendored subchart default tier ---
 
 
-def test_subchart_default_repository_resolves_via_alias(tmp_path: Path, libchartrepoandpathresolution: ModuleType):
+def test_repository_resolver_subchart_default_via_alias(tmp_path: Path, libchartrepoandpathresolution: ModuleType):
     """The .tgz is keyed by the real chart name (openforms), not the alias."""
     make_tgz(tmp_path / "charts", "openforms", "1.12.0", {"image": {"repository": "openformulieren/open-forms"}})
     deps = [{"name": "openforms", "alias": "openformulieren", "version": "1.12.0"}]
-    lines = [
-        "openformulieren:",
-        "  image:",
-        '    tag: "3.4.10@sha256:aaaa"',
-    ]
-    assert (
-        libchartrepoandpathresolution.subchart_default_repository(tmp_path, lines, 3, deps)
-        == "openformulieren/open-forms"
-    )
+    values = {"openformulieren": {"image": {"tag": "3.4.10"}}}
+    resolver = libchartrepoandpathresolution.RepositoryResolver(tmp_path, deps, values)
+    assert resolver.full_repository(("openformulieren", "image")) == "docker.io/openformulieren/open-forms"
 
 
-def test_subchart_default_repository_nested_subpath(tmp_path: Path, libchartrepoandpathresolution: ModuleType):
+def test_repository_resolver_subchart_default_nested_subpath(tmp_path: Path, libchartrepoandpathresolution: ModuleType):
     make_tgz(
         tmp_path / "charts",
         "zgw-office-addin",
@@ -267,42 +261,31 @@ def test_subchart_default_repository_nested_subpath(tmp_path: Path, libchartrepo
         },
     )
     deps = [{"name": "zgw-office-addin", "version": "0.9.352"}]
-    lines = [
-        "zgw-office-addin:",
-        "  frontend:",
-        "    image:",
-        '      tag: "v0.9.352@sha256:aaaa"',
-    ]
-    assert libchartrepoandpathresolution.subchart_default_repository(tmp_path, lines, 4, deps) == "example/frontend"
+    values = {"zgw-office-addin": {"frontend": {"image": {"tag": "v0.9.352"}}}}
+    resolver = libchartrepoandpathresolution.RepositoryResolver(tmp_path, deps, values)
+    assert resolver.full_repository(("zgw-office-addin", "frontend", "image")) == "docker.io/example/frontend"
 
 
-def test_subchart_default_repository_unknown_component_returns_none(
-    tmp_path: Path, libchartrepoandpathresolution: ModuleType
-):
-    lines = ["a:", "  image:", '    tag: "1.0.0@sha256:aaaa"']
-    assert libchartrepoandpathresolution.subchart_default_repository(tmp_path, lines, 3, []) is None
+def test_repository_resolver_unknown_component_returns_none(tmp_path: Path, libchartrepoandpathresolution: ModuleType):
+    values = {"a": {"image": {"tag": "1.0.0"}}}
+    assert (
+        libchartrepoandpathresolution.RepositoryResolver(tmp_path, [], values).full_repository(("a", "image")) is None
+    )
 
 
-def test_subchart_default_repository_too_shallow_path_returns_none(
-    tmp_path: Path, libchartrepoandpathresolution: ModuleType
-):
-    lines = ['tag: "1.0.0@sha256:aaaa"']
-    assert libchartrepoandpathresolution.subchart_default_repository(tmp_path, lines, 1, [{"name": "a"}]) is None
-
-
-def test_subchart_default_repository_subchart_has_no_repository_at_path(
+def test_repository_resolver_subchart_has_no_repository_at_path(
     tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
     make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {}})
     deps = [{"name": "openzaak", "version": "1.14.2"}]
-    lines = ["openzaak:", "  image:", '    tag: "1.27.4@sha256:aaaa"']
-    assert libchartrepoandpathresolution.subchart_default_repository(tmp_path, lines, 3, deps) is None
+    values = {"openzaak": {"image": {"tag": "1.27.4"}}}
+    resolver = libchartrepoandpathresolution.RepositoryResolver(tmp_path, deps, values)
+    assert resolver.full_repository(("openzaak", "image")) is None
 
 
-def test_subchart_default_repository_caches_across_calls(
+def test_repository_resolver_reads_each_subchart_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    libchartpullandsubchartresolution: ModuleType,
     libchartrepoandpathresolution: ModuleType,
 ):
     make_tgz(
@@ -315,32 +298,31 @@ def test_subchart_default_repository_caches_across_calls(
         },
     )
     deps = [{"name": "openzaak", "version": "1.14.2"}]
-    lines = [
-        "openzaak:",
-        "  image:",
-        '    tag: "1.27.4@sha256:aaaa"',
-        "  worker:",
-        "    image:",
-        '      tag: "1.27.4@sha256:bbbb"',
-    ]
+    values = {"openzaak": {"image": {"tag": "1.27.4"}, "worker": {"image": {"tag": "1.27.4"}}}}
     calls = []
-    real_subchart_values = libchartpullandsubchartresolution.subchart_values
+    real_resolve_chart_values = libchartrepoandpathresolution.resolve_chart_values
 
-    def spy(chart_dir, dep):
+    def spy(chart_dir, dep, version, *, allow_pull):
         calls.append(dep["name"])
-        return real_subchart_values(chart_dir, dep)
+        return real_resolve_chart_values(chart_dir, dep, version, allow_pull=allow_pull)
 
-    monkeypatch.setattr(libchartrepoandpathresolution, "subchart_values", spy)
-    cache = {}
-    assert (
-        libchartrepoandpathresolution.subchart_default_repository(tmp_path, lines, 3, deps, cache)
-        == "openzaak/open-zaak"
-    )
-    assert (
-        libchartrepoandpathresolution.subchart_default_repository(tmp_path, lines, 6, deps, cache)
-        == "openzaak/open-zaak-worker"
-    )
-    assert calls == ["openzaak"]  # second lookup served from cache, .tgz read only once
+    monkeypatch.setattr(libchartrepoandpathresolution, "resolve_chart_values", spy)
+    resolver = libchartrepoandpathresolution.RepositoryResolver(tmp_path, deps, values)
+    assert resolver.full_repository(("openzaak", "image")) == "docker.io/openzaak/open-zaak"
+    assert resolver.full_repository(("openzaak", "worker", "image")) == "docker.io/openzaak/open-zaak-worker"
+    assert calls == ["openzaak"]  # second lookup served from the resolver's cache, .tgz read only once
+
+
+# --- subchart_needs_vendoring ---
+
+
+def test_subchart_needs_vendoring_only_for_a_missing_tgz(tmp_path: Path, libchartrepoandpathresolution: ModuleType):
+    deps = [{"name": "openforms", "alias": "openformulieren", "version": "1.12.0"}]
+    needs = libchartrepoandpathresolution.subchart_needs_vendoring
+    assert needs(tmp_path, deps, ("openformulieren", "image")) is True
+    make_tgz(tmp_path / "charts", "openforms", "1.12.0", {})
+    assert needs(tmp_path, deps, ("openformulieren", "image")) is False
+    assert needs(tmp_path, deps, ("apiproxy", "image")) is False
 
 
 # --- chart_version_lockstep_components (self-resolving wrapper) ---
@@ -494,7 +476,7 @@ def test_component_version_paths_self_resolves_against_real_chart_dir(libchartre
     """Self-resolving default for the bare-version-field registry."""
     assert libchartregisteredpaths.component_version_paths() == {
         "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"],
-        "redis-operator": ["redisOperator.imageTag"],
+        "redis-operator": ["redisOperator.imageTag", "redisOperator.initContainerImageTag"],
     }
 
 
@@ -520,3 +502,10 @@ def test_version_paths_for_explicit_override(libchartregisteredpaths: ModuleType
     )
     assert libchartregisteredpaths.version_paths_for("only-this-one", tmp_path) == ["some.version"]
     assert libchartregisteredpaths.version_paths_for("redis-operator", tmp_path) == []
+
+
+def test_split_version_fields_maps_redis_operator_tags_to_image_name(libchartregisteredpaths: ModuleType):
+    assert libchartregisteredpaths.split_version_fields() == {
+        "imageTag": "imageName",
+        "initContainerImageTag": "imageName",
+    }

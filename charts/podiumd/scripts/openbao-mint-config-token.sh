@@ -17,7 +17,7 @@
 # (docs/apps/frankgateway/frankgateway-openbao.md §5). Re-run any time to
 # rotate the config token — e.g. when no deploy has renewed it within
 # TOKEN_PERIOD and it has expired. If the root token was already revoked,
-# generate a new one first with the unseal key: `bao operator generate-root`.
+# create a temporary one with openbao-activate.sh --rotate-config-token instead.
 #
 # Usage:
 #   KUBE_CONTEXT=<ctx> NAMESPACE=<ns> ./openbao-mint-config-token.sh [--revoke-root]
@@ -35,13 +35,15 @@
 #   TOKEN_PERIOD      renewal period of the minted token (default: 768h = 32 days)
 #   BAO_ROOT_TOKEN_FILE  file holding the root token, e.g. <(az keyvault secret show ...)
 #   BAO_ROOT_TOKEN    root token (prompted silently if neither is set)
+#   CALLER_REVOKES_ROOT  1 when the caller revokes the root token itself
+#                     (openbao-activate.sh): skips the --revoke-root hint
 #
 # Requires: bash 3+, kubectl.
 
 set -euo pipefail
 
 usage() {
-  sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,41p' "$0" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && usage 0
@@ -142,7 +144,7 @@ if [[ "${REVOKE_ROOT}" -eq 1 ]]; then
   echo
   echo "WARNING: about to revoke the OpenBao root token. This is irreversible."
   echo "Recovery afterwards requires a quorum of unseal key shares"
-  echo "('bao operator generate-root') — unseal keys are NOT affected."
+  echo "(openbao-activate.sh generates a temporary one) — unseal keys are NOT affected."
   read -r -p "Revoke the root token now? [y/N] " answer
   if [[ "${answer}" == "y" || "${answer}" == "Y" ]]; then
     kc exec -i "${OPENBAO_POD}" -- sh -e >&2 <<EOS
@@ -154,7 +156,7 @@ EOS
   else
     echo "Root token NOT revoked."
   fi
-else
+elif [[ "${CALLER_REVOKES_ROOT:-0}" != "1" ]]; then
   echo
   echo "Root token left untouched. Recommended once a deploy has succeeded with"
   echo "the new token: re-run with --revoke-root (frankgateway-openbao.md §7)."

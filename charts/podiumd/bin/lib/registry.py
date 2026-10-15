@@ -15,7 +15,9 @@ from typing import TypedDict
 from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import text_at
 from lib.procutil import run
+from lib.version_numbers import NUMERIC_PREFIX_RE
 from lib.version_numbers import dotted_numbers
+from lib.version_numbers import newest_per_major
 from lib.yaml_types import YamlValue
 from lib.yaml_types import is_yaml_value
 
@@ -146,7 +148,10 @@ def _get_with_dynamic_auth(
     Needed for registries not in TOKEN_ENDPOINTS, e.g. docker.elastic.co (realm
     docker-auth.elastic.co). Re-raises a 401 without a Bearer challenge. The retry uses the
     same method. A blob download follows a redirect to another host without the
-    Authorization header (see _DropAuthOnRedirect)."""
+    Authorization header (see _DropAuthOnRedirect).
+
+    The token is stored in `headers`, so a caller's next request with the same
+    dict (list_tags' next page) skips the 401 and the token fetch."""
     urlopen = _urlopen_blob if "/blobs/" in url else _urlopen
     try:
         return urlopen(urllib.request.Request(url, headers=headers, method=method), timeout=timeout)
@@ -160,7 +165,7 @@ def _get_with_dynamic_auth(
         if challenge.get("service"):
             query["service"] = challenge["service"]
         token = _read_token(_urlopen(f"{challenge['realm']}?{urllib.parse.urlencode(query)}", timeout=timeout))
-        headers = {**headers, "Authorization": f"Bearer {token}"}
+        headers["Authorization"] = f"Bearer {token}"
         return urlopen(urllib.request.Request(url, headers=headers, method=method), timeout=timeout)
 
 
@@ -252,6 +257,15 @@ def _platform_manifest_digest(index: YamlValue) -> str:
     raise urllib.error.URLError(msg)
 
 
+def _config_blob_path(registry_host: str, repo: str, manifest: YamlValue, reference: str) -> str:
+    """The "blobs/<digest>" path of `manifest`'s config; URLError if it has none."""
+    config_digest = text_at(manifest, "config.digest")
+    if not config_digest:
+        msg = f"manifest of {registry_host}/{repo}:{reference} has no config"
+        raise urllib.error.URLError(msg)
+    return f"blobs/{config_digest}"
+
+
 def image_config_user(registry_host: str, repo: str, reference: str, timeout: float | None = None) -> str:
     """The image's default user (its config "User"; "" means root), for a tag or digest `reference`.
 
@@ -263,12 +277,24 @@ def image_config_user(registry_host: str, repo: str, reference: str, timeout: fl
     if get_path(manifest, "manifests") is not None:
         digest = _platform_manifest_digest(manifest)
         manifest = _registry_json(registry_host, repo, f"manifests/{digest}", MANIFEST_ACCEPT, timeout)
-    config_digest = text_at(manifest, "config.digest")
-    if not config_digest:
-        msg = f"manifest of {registry_host}/{repo}:{reference} has no config"
-        raise urllib.error.URLError(msg)
-    config = _registry_json(registry_host, repo, f"blobs/{config_digest}", IMAGE_CONFIG_ACCEPT, timeout)
+    blob = _config_blob_path(registry_host, repo, manifest, reference)
+    config = _registry_json(registry_host, repo, blob, IMAGE_CONFIG_ACCEPT, timeout)
     return text_at(config, "config.User") or ""
+
+
+HELM_CHART_CONFIG_ACCEPT = "application/vnd.cncf.helm.config.v1+json"
+
+
+def chart_app_version(registry_host: str, repo: str, version: str, timeout: float | None = None) -> str | None:
+    """An OCI Helm chart's appVersion, from its config blob (the chart's Chart.yaml metadata); None if unset.
+
+    Raises URLError when the registry answers without a usable manifest or config.
+    """
+    manifest = _registry_json(registry_host, repo, f"manifests/{version}", MANIFEST_ACCEPT, timeout)
+    blob = _config_blob_path(registry_host, repo, manifest, version)
+    config = _registry_json(registry_host, repo, blob, HELM_CHART_CONFIG_ACCEPT, timeout)
+    app_version = get_path(config, "appVersion")
+    return None if app_version is None else str(app_version)
 
 
 HISTORICAL_DIGEST_RE_TMPL = r'tag:\s*"?{version}@sha256:([0-9a-f]{{64}})'
@@ -294,27 +320,57 @@ def historical_digests_for_tag(values_path: Path, version: str) -> set[str]:
     return digests
 
 
+LINK_NEXT_RE = re.compile(r'<([^>]+)>\s*;\s*rel="?next"?')
+# Upper bound on followed "next" pages, so a registry that keeps answering with a
+# next link can't loop forever; quay.io serves 100 tags per page. Reaching it is an
+# error, not a partial list: on an oldest-first registry the unread pages hold the
+# newest tags.
+MAX_TAG_PAGES = 200
+
+
+def _next_page_url(url: str, link_header: str | None) -> str | None:
+    """The absolute URL of the Link header's rel="next" target, or None on the last page."""
+    m = LINK_NEXT_RE.search(link_header or "")
+    return urllib.parse.urljoin(url, m.group(1)) if m else None
+
+
 def list_tags(registry_host: str, repo: str):
-    """All published tag names, via the generic OCI GET /v2/<repo>/tags/list endpoint."""
+    """All published tag names, via the generic OCI GET /v2/<repo>/tags/list endpoint.
+
+    Follows the Link rel="next" pages (OCI distribution spec): quay.io serves
+    100 tags per page, oldest first, so the first page alone misses every
+    recent release. Raises URLError when a page repeats or MAX_TAG_PAGES is
+    exceeded."""
     url, headers = _registry_request(registry_host, repo, "tags/list", None, None)
-    with _get_with_dynamic_auth(url, repo, headers) as resp:
-        tags = get_path(_read_json(resp), "tags") or []
-    if not isinstance(tags, list) or not all(isinstance(tag, str) for tag in tags):
-        msg = f"tags/list response from {urllib.parse.urlsplit(url).netloc} is not a list of tag names"
-        raise urllib.error.URLError(msg)
-    return [tag for tag in tags if isinstance(tag, str)]
+    tags: list[str] = []
+    seen: set[str] = set()
+    next_url: str | None = url
+    while next_url is not None:
+        if next_url in seen or len(seen) >= MAX_TAG_PAGES:
+            reason = "a page repeats" if next_url in seen else f"more than {MAX_TAG_PAGES} pages"
+            msg = f"tags/list of {repo} on {registry_host}: {reason}; the newest tags may be missing"
+            raise urllib.error.URLError(msg)
+        seen.add(next_url)
+        with _get_with_dynamic_auth(next_url, repo, headers) as resp:
+            page = get_path(_read_json(resp), "tags") or []
+            following = _next_page_url(next_url, resp.headers.get("Link"))
+        if not isinstance(page, list) or not all(isinstance(tag, str) for tag in page):
+            msg = f"tags/list response from {urllib.parse.urlsplit(url).netloc} is not a list of tag names"
+            raise urllib.error.URLError(msg)
+        tags.extend(tag for tag in page if isinstance(tag, str))
+        next_url = following
+    return tags
 
 
-NUMERIC_PREFIX_RE = re.compile(r"^(\d+(?:\.\d+)*)")
+def _split_tag(tag: str) -> tuple[str, str | None, str]:
+    """("v", "3.14", "-slim") for "v3.14-slim": an optional "v", the leading dotted-digits
+    run and everything after. ("", None, tag) if it doesn't start with a digit after the "v".
 
-
-def _numeric_prefix_and_suffix(tag: str):
-    """("3.14", "-slim") for "3.14-slim" — the leading dotted-digits run and
-    everything after. (None, tag) if it doesn't start with a digit."""
+    The "v" is part of the variant: "v1.2" and "1.2" are different tag series."""
     m = NUMERIC_PREFIX_RE.match(tag)
     if not m:
-        return None, tag
-    return m.group(1), tag[m.end() :]
+        return "", None, tag
+    return m.group(1), m.group(2), tag[m.end() :]
 
 
 def _is_more_specific_tag(candidate: str, version: str):
@@ -322,9 +378,9 @@ def _is_more_specific_tag(candidate: str, version: str):
 
     Not a string-prefix check: the numeric parts must match as whole dot components
     ("3.13" never refines "3.14"), and candidate's suffix must equal or extend version's."""
-    cand_num, cand_suffix = _numeric_prefix_and_suffix(candidate)
-    ver_num, ver_suffix = _numeric_prefix_and_suffix(version)
-    if cand_num is None or ver_num is None:
+    cand_v, cand_num, cand_suffix = _split_tag(candidate)
+    ver_v, ver_num, ver_suffix = _split_tag(version)
+    if cand_num is None or ver_num is None or cand_v != ver_v:
         return False
     cand_parts, ver_parts = cand_num.split("."), ver_num.split(".")
     if cand_parts[: len(ver_parts)] != ver_parts:
@@ -332,26 +388,24 @@ def _is_more_specific_tag(candidate: str, version: str):
     return cand_suffix == ver_suffix or cand_suffix.startswith(ver_suffix)
 
 
-def find_newest_same_variant_tag(registry_host: str, repo: str, version: str) -> str:
-    """The numerically highest published tag with version's suffix, else version itself.
+def find_newer_same_variant_tags(registry_host: str, repo: str, version: str) -> list[str]:
+    """The highest published tag with version's "v" and suffix above version, one per major
+    (see newest_per_major); [] if none or version isn't numeric.
 
     Unlike _is_more_specific_tag, any newer same-variant release counts. Candidates must
     have as many dot components as version: frank-gateway publishes bare CI run-ID tags
     ("12294937630"), and (12294937630,) > (1, 1, 0) in tuple comparison."""
-    ver_num, ver_suffix = _numeric_prefix_and_suffix(version)
+    ver_v, ver_num, ver_suffix = _split_tag(version)
     if ver_num is None:
-        return version
+        return []
 
-    ver_parts = ver_num.split(".")
-    best, best_key = version, dotted_numbers(ver_num)
+    arity = len(ver_num.split("."))
+    candidates: list[tuple[str, tuple[int, ...]]] = []
     for tag in list_tags(registry_host, repo):
-        num, suffix = _numeric_prefix_and_suffix(tag)
-        if num is None or suffix != ver_suffix or len(num.split(".")) != len(ver_parts):
-            continue
-        key = dotted_numbers(num)
-        if key > best_key:
-            best, best_key = tag, key
-    return best
+        v, num, suffix = _split_tag(tag)
+        if num is not None and (v, suffix) == (ver_v, ver_suffix) and len(num.split(".")) == arity:
+            candidates.append((tag, dotted_numbers(num)))
+    return newest_per_major(dotted_numbers(ver_num), candidates)
 
 
 def find_more_specific_tag_at_same_digest(registry_host: str, repo: str, version: str, live_digest: str):

@@ -1,5 +1,5 @@
 """Fast reachability/authorization preflight for every repo Chart.yaml's
-dependencies and values.yaml's digest-pinned images need.
+dependencies and values.yaml's pinned images (scan_image_pins) need.
 
 Runs before "Dependencies"/"Image digests", which are far slower. Successes
 are cached briefly (lib.repo_access_cache) to avoid Docker Hub's anonymous
@@ -17,10 +17,15 @@ from pathlib import Path
 from typing import Literal
 from typing import TypedDict
 
+from lib.chart.chart_yaml import chart_dir_dependencies
 from lib.chart.chart_yaml import load_chart_dependencies
+from lib.chart.repo_and_path_resolution import subchart_needs_vendoring
 from lib.chart.values_tree_primitives import values_key_of
+from lib.image.digests import ImagePin
 from lib.image.digests import cached_tag_exists
-from lib.image.digests import scan_digest_pins
+from lib.image.digests import distinct_lines
+from lib.image.digests import image_targets
+from lib.image.digests import scan_image_pins
 from lib.registry import parse_repo
 from lib.render_scope import resolve_dependency_repo
 from lib.repo_access_cache import cache_entry_is_fresh
@@ -100,19 +105,33 @@ def dependency_repos(chart_dir: Path) -> list[DependencyRepo]:
     return repos
 
 
-def image_repos(values_path: Path) -> list[tuple[RegistryTarget, list[int]]]:
-    """(target, lines) per unique (host, repo_path, version) digest pin in values.yaml.
+def image_repos(values_path: Path) -> tuple[list[tuple[RegistryTarget, list[int]]], list[ImagePin]]:
+    """([(target, lines) per unique (host, repo_path, version) pinned image], unresolved pins) of values.yaml.
 
-    Pins without an explicit repository are skipped: resolving them needs
-    charts/*.tgz, which "Dependencies" populates later."""
-    pins = scan_digest_pins(values_path.read_text(encoding="utf-8").splitlines())
-    grouped: dict[RegistryTarget, list[int]] = {}
-    for p in pins:
-        if not p["repository"]:
-            continue
-        target = (*parse_repo(p["repository"]), p["version"])
-        grouped.setdefault(target, []).append(p["line"])
-    return list(grouped.items())
+    A pin whose repository is only in a subchart's default is unresolved
+    while charts/*.tgz isn't vendored yet: "Dependencies" populates it later.
+    """
+    pins = scan_image_pins(values_path.parent)
+    targets = image_targets(pins)
+    resolved = [
+        ((*parse_repo(repository), version), distinct_lines(group)) for (repository, version), group in targets.items()
+    ]
+    return resolved, [p for p in pins if not p["repository"]]
+
+
+def _report_unresolved(chart_dir: Path, unresolved: list[ImagePin]) -> None:
+    """Print the pins this step cannot check, and why, so a skip is never silent."""
+    if not unresolved:
+        return
+    deps = chart_dir_dependencies(chart_dir)
+    print(f"Not checked: {len(unresolved)} pin(s) without a known repository:")
+    for pin in unresolved:
+        reason = (
+            "its subchart is not vendored yet (Dependencies runs later)"
+            if subchart_needs_vendoring(chart_dir, deps, pin["path"])
+            else "no repository found"
+        )
+        print(f"  {'.'.join(pin['path'])} (values.yaml:{pin['line']}): {reason}")
 
 
 def _check_http_repo(url: str, timeout_seconds: float):
@@ -267,7 +286,8 @@ def check_repo_access(chart_dir: Path):
 
     chart_deps = dependency_repos(chart_dir)
     values_path = chart_dir / "values.yaml"
-    img_targets = image_repos(values_path) if values_path.is_file() else []
+    img_targets, unresolved = image_repos(values_path) if values_path.is_file() else ([], [])
+    _report_unresolved(chart_dir, unresolved)
     entries = _build_entries(chart_deps, img_targets)
 
     total_refs = len(chart_deps) + sum(len(lines) for _, lines in img_targets)
