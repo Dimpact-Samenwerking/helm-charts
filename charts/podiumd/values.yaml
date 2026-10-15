@@ -2638,6 +2638,13 @@ openvtb:
     tag: "0.2.0@sha256:b382b2fdeb052994d6a785864f1277bffb2490e61de2a0222ad74379dede2f01"
   nameOverride: openvtb
   fullnameOverride: openvtb
+  # The image's start.sh takes the uWSGI port from OPENVTB_PORT, and the
+  # Service named openvtb makes Kubernetes inject OPENVTB_PORT=tcp://<ip>:80
+  # into the pod. uWSGI then binds to that address instead of :8000 and every
+  # probe fails. Pin the port the chart's containerPort and probes use.
+  extraEnvVars:
+    - name: OPENVTB_PORT
+      value: "8000"
   securityContext:
     capabilities:
       drop:

@@ -57,7 +57,7 @@ sub-chart ships an optional classic Ingress (`openvtb.ingress.*`, disabled by de
   `docs/apps/redis/redis-ha-databases.md`.
 - **Keycloak**: OIDC client `openvtb` on realm `podiumd`, created by the realm-config job
   only while `openvtb.enabled: true`; secret from
-  `openvtb.configuration.secrets.keycloak_client_secret` (random when empty). Optional PKCE via
+  `openvtb.configuration.secrets.keycloak_client_secret` (required: the same value configures the openvtb app; when empty, Keycloak gets a random secret the app never sees). Optional PKCE via
   `openvtb.configuration.pkceEnabled`.
 - **SMTP**: optional, `openvtb.settings.email.*` (defaults `localhost:25`).
 - Django `SECRET_KEY` via `openvtb.settings.secretKey` (pipeline-injected).

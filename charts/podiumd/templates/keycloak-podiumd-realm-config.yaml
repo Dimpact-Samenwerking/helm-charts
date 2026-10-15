@@ -705,7 +705,6 @@ data:
               usermodel.clientRoleMapping.clientId: "openbeheer"
 {{- if .Values.openvtb.enabled }}
       - clientId: openvtb
-        optionalClientScopes: *defaultOptionalClientScopes
         name: Open VTB
         enabled: true
         clientAuthenticatorType: client-secret
