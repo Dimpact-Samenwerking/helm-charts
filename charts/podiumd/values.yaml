@@ -162,6 +162,16 @@ keycloak:
   update:
     # -- Keycloak operator update strategy: Auto, Explicit or RecreateOnImageChange.
     strategy: Auto
+  # The Keycloak operator cannot create a PodDisruptionBudget (its CR has no
+  # field for it), so the chart offers one. Off by default: without it a node
+  # drain only takes Keycloak down when both pods share the drained node.
+  podDisruptionBudget:
+    # -- Render a PodDisruptionBudget for the Keycloak pods (only when instances is more than 1).
+    enabled: false
+    # -- Keycloak pods a node drain may evict at the same time.
+    maxUnavailable: 1
+    # -- Lets a drain evict a Keycloak pod that is not Ready.
+    unhealthyPodEvictionPolicy: AlwaysAllow
   ingress:
     enabled: false
   # The Keycloak operator renders its own NetworkPolicy (keycloak-network-policy)
