@@ -811,6 +811,48 @@ def test_images_manifest_format_changes_item_canonical_path_segment_target_misma
     assert any("target app" in i and "9.9.9" in i for i in issues), issues
 
 
+def test_images_manifest_format_native_item_resolves_to_own_image_before_sidecar(
+    libimagesmanifest: ModuleType, tmp_path: Path
+):
+    """Regression: "frankgateway.image" must check frankgateway.image's entry, not the
+    entry of a sidecar under frankgateway (the nginx-unprivileged shim) that comes first."""
+    values = {
+        "frankgateway": {
+            "image": {"repository": "ghcr.io/wearefrank/frank-gateway", "tag": "1.1.3"},
+            "dashboard": {
+                "auth": {"shim": {"image": {"repository": "docker.io/nginxinc/nginx-unprivileged", "tag": "1.31.6"}}}
+            },
+        }
+    }
+    (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": []}, sort_keys=False), encoding="utf-8")
+    (tmp_path / "values.yaml").write_text(yaml.safe_dump(values, sort_keys=False), encoding="utf-8")
+    images_path = tmp_path / "images-4.10.0.yaml"
+    images_path.write_text(
+        "# Baseline: podiumd 4.9.4.\n#\n# podiumd 4.10.0 vs 4.9.4.\n\n"
+        "# Changes:\n"
+        "#   1. nginx-unprivileged 1.31.6 (digest changed).\n"
+        "#   2. frankgateway.image 1.1.0 -> 1.1.3.\n"
+        "#\n\n"
+        "# nginx-unprivileged 1.31.6 (digest changed)\n"
+        "- name: nginxinc/nginx-unprivileged\n"
+        "  url: docker.io/nginxinc/nginx-unprivileged\n"
+        '  version: "1.31.6"\n'
+        '  digest: "sha256:aaa"\n'
+        "# frankgateway.image 1.1.0 -> 1.1.3\n"
+        "- name: wearefrank/frank-gateway\n"
+        "  url: ghcr.io/wearefrank/frank-gateway\n"
+        '  version: "1.1.3"\n'
+        '  digest: "sha256:bbb"\n'
+    )
+
+    issues = libimagesmanifest.check_images_manifest_format(
+        images_path,
+        libimagesmanifest.ManifestCheckContext("4.9.4", "4.10.0", [], values, {}, chart_dir=tmp_path),
+    )
+
+    assert not any("frankgateway.image" in i for i in issues), issues
+
+
 # --- exact-vs-fuzzy Changes item collision: "Kiss's ECK-managed ..." fuzzy-matches
 # "kiss" while an exact "KISS ..." item already claims it ---
 

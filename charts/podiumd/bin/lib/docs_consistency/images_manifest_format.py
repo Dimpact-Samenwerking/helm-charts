@@ -192,7 +192,11 @@ def _changes_item_issues(
     if identity is not None and identity[0] == "sidecar":
         entry = entries.get(identity[1])
     elif identity is not None:
-        entry = next((e for path, e in entries.items() if path[0] == identity[1]), None)
+        # The component's own <key>.image first: its sidecars (e.g. frankgateway's
+        # nginx-unprivileged shim) can come earlier in the manifest.
+        entry = entries.get((identity[1], "image")) or next(
+            (e for path, e in entries.items() if path[0] == identity[1]), None
+        )
     if entry is None:
         return [
             (
