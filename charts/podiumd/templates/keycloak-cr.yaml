@@ -5,6 +5,10 @@ metadata:
   name: {{ default "keycloak" .Values.keycloak.name }}
 spec:
   instances: {{ .Values.keycloak.instances }}
+  {{- with .Values.keycloak.update }}
+  update:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   image: {{ include "podiumd.image" .Values.keycloak.image }}
   {{- if (index .Values "keycloak-operator").enabled }}
   bootstrapAdmin:
