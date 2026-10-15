@@ -401,6 +401,19 @@ Opt out with `pabc.enabled: false`.*
 
 ---
 
+## Open VTB
+
+Optional (`openvtb.enabled`, default off). Default replicas: **2**.
+
+| Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
+|-----------|-------------|-------------|-----------|-----------|
+| openvtb | 100m | 256Mi | 500m | 768Mi |
+| job: openvtb-config | 50m | 256Mi | 500m | 512Mi |
+
+Measured on johnb00: about 260Mi per pod at rest (uWSGI, 2 processes x 2 threads).
+
+---
+
 ## OMC (NotifyNL)
 
 | Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
