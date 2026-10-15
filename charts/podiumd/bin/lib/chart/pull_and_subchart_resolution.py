@@ -22,7 +22,6 @@ from lib.chart.vendored_files import vendored_chart_path
 from lib.procutil import run
 from lib.registry import ImagePathTagCheck
 from lib.registry import parse_repo
-from lib.registry import registry_tag_exists
 from lib.settings import DigestPinningException
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import cached_file_mapping
@@ -181,35 +180,6 @@ def component_check_values(chart_values: YamlMapping, component_values: YamlMapp
     merged = copy.deepcopy(chart_values)
     deep_merge(merged, component_values or {})
     return merged
-
-
-def check_image_versions(values: YamlMapping, image_paths: list[str], app_version: str) -> list[ImagePathTagCheck]:
-    """Registry existence check of `app_version` for every path in `image_paths` with a "repository:".
-
-    Raises SystemExit when no path has a repository (wrong path or a
-    restructured chart), rather than reporting "0 checked".
-    """
-    repos = [
-        (path, repo)
-        for path in image_paths
-        for repo in [own_full_repository(values, tuple(path.split(".")))]
-        if repo is not None
-    ]
-    if not repos:
-        msg = (
-            f"error: no repository found at {', '.join(f'{p}.repository' for p in image_paths)} "
-            f"— wrong path? see lib.chart.component_image_paths()"
-        )
-        raise SystemExit(msg)
-
-    results: list[ImagePathTagCheck] = []
-    for path, repo in repos:
-        host, repo_path = parse_repo(repo)
-        exists, digest = registry_tag_exists(host, repo_path, app_version)
-        results.append(
-            {"path": path, "repository": repo, "host": host, "repo_path": repo_path, "exists": exists, "digest": digest}
-        )
-    return results
 
 
 def print_image_version_results(results: list[ImagePathTagCheck], app_version: str) -> bool:

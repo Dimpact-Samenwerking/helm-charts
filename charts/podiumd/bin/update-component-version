@@ -49,15 +49,17 @@ from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.paths import CHART_DIR
 from lib.chart.paths import CHART_YAML
 from lib.chart.paths import VALUES_YAML
-from lib.chart.pull_and_subchart_resolution import check_image_versions
 from lib.chart.pull_and_subchart_resolution import component_check_values
 from lib.chart.pull_and_subchart_resolution import print_image_version_results
 from lib.chart.pull_and_subchart_resolution import resolve_chart_values
+from lib.chart.registered_paths import PinPath
 from lib.chart.registered_paths import chart_version_lockstep_components
-from lib.chart.registered_paths import image_paths_for
 from lib.chart.registered_paths import is_native_chart_version
+from lib.chart.registered_paths import pin_paths_for
 from lib.chart.registered_paths import resolve_native_component
 from lib.chart.release_baseline_basics import chart_version as _chart_version
+from lib.chart.repo_and_path_resolution import check_image_versions
+from lib.chart.repo_and_path_resolution import pin_repositories
 from lib.chart.values_tag_sha_lines import SiblingWrite
 from lib.chart.values_tag_sha_lines import find_block_end
 from lib.chart.values_tag_sha_lines import find_child_key_line
@@ -82,8 +84,6 @@ from lib.image.version import plan_image_version_update
 from lib.image.version import write_pin_updates
 from lib.procutil import run_script
 from lib.registry import ImagePathTagCheck
-from lib.registry import parse_repo
-from lib.registry import registry_tag_exists
 from lib.settings import digest_pinning_exceptions
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import load_yaml_mapping
@@ -96,9 +96,11 @@ def find_dependency(name_or_alias: str):
     return require_dependency(CHART_YAML, name_or_alias)
 
 
-def _check_and_print_image_versions(values_for_check: YamlMapping, image_paths: list[str], app_version: str):
+def _check_and_print_image_versions(
+    dep: ChartDependency | None, values_for_check: YamlMapping, pins: list[PinPath], app_version: str
+):
     """check_image_versions with FOUND/MISSING output; exits 1 if any is missing. Returns results by path."""
-    image_results = check_image_versions(values_for_check, image_paths, app_version)
+    image_results = check_image_versions(CHART_DIR, dep, values_for_check, pins, app_version)
     if not print_image_version_results(image_results, app_version):
         print()
         print("FAIL: one or more app image versions do not exist yet — refusing to change any files")
@@ -108,7 +110,7 @@ def _check_and_print_image_versions(values_for_check: YamlMapping, image_paths: 
 
 def verify_component_version(
     dep: ChartDependency | None,
-    image_paths: list[str],
+    pins: list[PinPath],
     app_version: str,
     chart_version: str | None,
     component_values: YamlMapping | None = None,
@@ -125,7 +127,7 @@ def verify_component_version(
             "directly from values.yaml (see lib.chart.native_components)"
         )
         print(f"\nChecking app version {app_version!r}:")
-        return _check_and_print_image_versions(component_values or {}, image_paths, app_version)
+        return _check_and_print_image_versions(None, component_values or {}, pins, app_version)
 
     chart_name = dep["name"]
     print(f"=== Checking chart version {chart_version!r} for {chart_name} ===")
@@ -140,7 +142,7 @@ def verify_component_version(
 
     values_for_check = component_check_values(upstream_values, component_values)
     print(f"\nChecking app version {app_version!r} for {values_key_of(dep)}:")
-    return _check_and_print_image_versions(values_for_check, image_paths, app_version)
+    return _check_and_print_image_versions(dep, values_for_check, pins, app_version)
 
 
 def update_chart_yaml(chart_name: str, new_chart_version: str):
@@ -170,20 +172,20 @@ def update_chart_yaml(chart_name: str, new_chart_version: str):
 
 
 def update_values_yaml(
-    values_key: str, image_paths: list[str], new_tags_by_path: dict[str, str]
+    values_key: str, pins: list[PinPath], new_tags_by_path: dict[str, str]
 ) -> list[tuple[str, str, str]]:
-    """Rewrite each "<values_key>.<path>.tag" line. Returns (dotted_path, old_line, new_line) tuples."""
+    """Rewrite each "<values_key>.<version_key>" line. Returns (dotted_path, old_line, new_line) tuples."""
     lines = VALUES_YAML.read_text(encoding="utf-8").splitlines(keepends=True)
     changes: list[tuple[str, str, str]] = []
-    for path in image_paths:
-        dotted = f"{values_key}.{path}.tag"
+    for pin in pins:
+        dotted = f"{values_key}.{pin.version_key}"
         located = locate_dotted_key_line(lines, dotted)
         if located is None:
             msg = f"error: could not find '{dotted}' in {VALUES_YAML}"
             raise SystemExit(msg)
         line_idx, _ = located
         old_line = lines[line_idx]
-        lines[line_idx] = replace_scalar_value(old_line, new_tags_by_path[path])
+        lines[line_idx] = replace_scalar_value(old_line, new_tags_by_path[pin.path])
         changes.append((dotted, old_line.strip(), lines[line_idx].strip()))
     VALUES_YAML.write_text("".join(lines), encoding="utf-8")
     return changes
@@ -229,7 +231,7 @@ class BumpContext:
     resolution: ComponentResolution
     deps: list[ChartDependency]
     values: YamlMapping
-    image_paths: list[str]
+    pins: list[PinPath]
 
     def __getattr__(self, name: str):
         return _group_getattr((self.versions, self.resolution), name)
@@ -239,9 +241,9 @@ class BumpContext:
 class TagUpdatePlan:
     """paths_to_update split by tag-update strategy."""
 
-    split_paths: list[str]
-    delegated_paths: list[str]
-    fallback_paths: list[str]
+    split_paths: list[PinPath]
+    delegated_paths: list[PinPath]
+    fallback_paths: list[PinPath]
 
 
 def _parse_cli_args():
@@ -283,13 +285,13 @@ def _resolve_bump_context(component: str, app_version: str, chart_version: str):
         chart_name = dep["name"]
         values_key = values_key_of(dep)
     # Keyed by Chart.yaml name, not alias.
-    image_paths = image_paths_for(chart_name, CHART_DIR)
+    pins = pin_paths_for(chart_name, CHART_DIR)
     return BumpContext(
         TargetVersions(app_version, chart_version, new_chart),
         ComponentResolution(no_chart, dep, chart_name, values_key),
         deps,
         values,
-        image_paths,
+        pins,
     )
 
 
@@ -310,7 +312,7 @@ def _verify_versions(ctx: BumpContext):
     """Upfront version check. Returns (upstream_images, chart_unchanged)."""
     upstream_images = verify_component_version(
         None if ctx.no_chart else ctx.dep,
-        ctx.image_paths,
+        ctx.pins,
         ctx.app_version,
         None if ctx.no_chart else ctx.chart_version,
         component_values=mapping_at(ctx.values, ctx.values_key),
@@ -327,58 +329,67 @@ def _verify_versions(ctx: BumpContext):
     return upstream_images, chart_unchanged
 
 
-def _compute_paths_to_update(ctx: BumpContext) -> list[str]:
-    """The image paths needing a bump; prints a line per path."""
-    paths_to_update: list[str] = []
-    for path in ctx.image_paths:
-        current_tag = text_at(ctx.values, f"{ctx.values_key}.{path}.tag") or ""
+def _compute_paths_to_update(ctx: BumpContext) -> list[PinPath]:
+    """The pins needing a bump; prints a line per pin."""
+    paths_to_update: list[PinPath] = []
+    for pin in ctx.pins:
+        current_tag = text_at(ctx.values, f"{ctx.values_key}.{pin.version_key}") or ""
         current_version = current_tag.split("@", 1)[0]
         if current_version == ctx.app_version:
-            print(f"{ctx.values_key}.{path}: app version already {ctx.app_version} — unchanged")
+            print(f"{ctx.values_key}.{pin.path}: app version already {ctx.app_version} — unchanged")
         else:
-            print(f"{ctx.values_key}.{path}: app version {current_version or '(none)'} -> {ctx.app_version}")
-            paths_to_update.append(path)
+            print(f"{ctx.values_key}.{pin.path}: app version {current_version or '(none)'} -> {ctx.app_version}")
+            paths_to_update.append(pin)
     return paths_to_update
 
 
 def _classify_paths_to_update(
-    ctx: BumpContext, paths_to_update: list[str], split_tag_sha_paths: dict[tuple[str, str], str]
+    ctx: BumpContext, paths_to_update: list[PinPath], split_tag_sha_paths: dict[tuple[str, str], str]
 ) -> TagUpdatePlan:
-    """Classify paths as split tag/sha pins, own "repository:", or sub-chart default."""
-    split_paths: list[str] = []
-    delegated_paths: list[str] = []
-    fallback_paths: list[str] = []
-    for path in paths_to_update:
-        if (ctx.values_key, path) in split_tag_sha_paths:
-            split_paths.append(path)
+    """Classify pins as split tag/sha pins, own repository, or sub-chart default.
+
+    A bare version field is always podiumd's own pin: it has no "image:"
+    block for a sub-chart default to fill.
+    """
+    split_paths: list[PinPath] = []
+    delegated_paths: list[PinPath] = []
+    fallback_paths: list[PinPath] = []
+    for pin in paths_to_update:
+        if (ctx.values_key, pin.path) in split_tag_sha_paths:
+            split_paths.append(pin)
             continue
-        explicit_repo = text_at(ctx.values, f"{ctx.values_key}.{path}.repository")
-        (delegated_paths if isinstance(explicit_repo, str) and explicit_repo else fallback_paths).append(path)
+        explicit_repo = text_at(ctx.values, f"{ctx.values_key}.{pin.path}.repository")
+        own = not pin.is_image_block or (isinstance(explicit_repo, str) and bool(explicit_repo))
+        (delegated_paths if own else fallback_paths).append(pin)
     return TagUpdatePlan(split_paths, delegated_paths, fallback_paths)
 
 
 def _write_split_tag_sha_pins(
-    ctx: BumpContext, split_paths: list[str], split_tag_sha_paths: dict[tuple[str, str], str]
+    ctx: BumpContext,
+    split_paths: list[PinPath],
+    split_tag_sha_paths: dict[tuple[str, str], str],
+    upstream_images: dict[str, ImagePathTagCheck],
 ) -> None:
-    """Write the split tag/sibling pin pairs for split_paths."""
+    """Write the split tag/sibling pin pairs for split_paths, with the digests the version check found."""
     if not split_paths:
         return
     values_lines = VALUES_YAML.read_text(encoding="utf-8").splitlines(keepends=True)
-    print_section(f"Writing split tag/sha pin(s) for {', '.join(f'{ctx.values_key}.{p}' for p in split_paths)}")
-    for path in split_paths:
-        _write_split_tag_sha_pin(ctx, values_lines, path, split_tag_sha_paths[(ctx.values_key, path)])
+    print_section(f"Writing split tag/sha pin(s) for {', '.join(f'{ctx.values_key}.{p.path}' for p in split_paths)}")
+    for pin in split_paths:
+        sibling_field = split_tag_sha_paths[(ctx.values_key, pin.path)]
+        _write_split_tag_sha_pin(ctx, values_lines, pin.path, sibling_field, upstream_images.get(pin.path))
     VALUES_YAML.write_text("".join(values_lines), encoding="utf-8")
 
 
-def _write_split_tag_sha_pin(ctx: BumpContext, values_lines: list[str], path: str, sibling_field: str):
-    """Write one split pin pair into values_lines."""
-    repo = text_at(ctx.values, f"{ctx.values_key}.{path}.repository")
-    if not isinstance(repo, str) or not repo:
-        msg = f"error: no repository found at {ctx.values_key}.{path}.repository in {VALUES_YAML}"
+def _write_split_tag_sha_pin(
+    ctx: BumpContext, values_lines: list[str], path: str, sibling_field: str, checked: ImagePathTagCheck | None
+):
+    """Write one split pin pair into values_lines; `checked` is check_image_versions' result for `path`."""
+    if checked is None:
+        msg = f"error: no repository found for {ctx.values_key}.{path} in {VALUES_YAML}"
         raise SystemExit(msg)
-    host, repo_path = parse_repo(repo)
-    exists, digest = registry_tag_exists(host, repo_path, ctx.app_version)
-    if not exists or not digest:
+    host, repo_path, digest = checked["host"], checked["repo_path"], checked["digest"]
+    if not checked["exists"] or not digest:
         msg = f"error: {host}/{repo_path}:{ctx.app_version} not found upstream"
         raise SystemExit(msg)
     digest_hex = digest.split("sha256:", 1)[1]
@@ -401,19 +412,20 @@ class DelegatedUpdate:
     """The resolved, not yet written, pin updates of one basename's delegated paths."""
 
     basename: str
-    paths: list[str]
+    paths: list[PinPath]
     changes: list[PinUpdate]
 
 
-def _delegated_paths_by_basename(ctx: BumpContext, delegated_paths: list[str]) -> dict[str, list[str]]:
-    """Delegated paths grouped by their repository's basename."""
-    by_basename: dict[str, list[str]] = {}
-    for path in delegated_paths:
-        repo = text_at(ctx.values, f"{ctx.values_key}.{path}.repository")
+def _delegated_paths_by_basename(ctx: BumpContext, delegated_paths: list[PinPath]) -> dict[str, list[PinPath]]:
+    """Delegated pins grouped by their repository's basename, resolved as check_image_versions does."""
+    repos = dict(pin_repositories(CHART_DIR, ctx.dep, mapping_at(ctx.values, ctx.values_key), delegated_paths))
+    by_basename: dict[str, list[PinPath]] = {}
+    for pin in delegated_paths:
+        repo = repos.get(pin.path)
         if repo is None:
-            msg = f"error: no repository found at {ctx.values_key}.{path}.repository in {VALUES_YAML}"
+            msg = f"error: no repository found for {ctx.values_key}.{pin.path} in {VALUES_YAML}"
             raise SystemExit(msg)
-        by_basename.setdefault(image_basename(repo), []).append(path)
+        by_basename.setdefault(image_basename(repo), []).append(pin)
     return by_basename
 
 
@@ -431,7 +443,7 @@ def _change_for_tag_path(
     raise SystemExit(msg)
 
 
-def _plan_delegated_tags(ctx: BumpContext, delegated_paths: list[str]) -> list[DelegatedUpdate]:
+def _plan_delegated_tags(ctx: BumpContext, delegated_paths: list[PinPath]) -> list[DelegatedUpdate]:
     """Resolve every delegated path's pins and digests, one call per basename, writing nothing.
 
     update_image_version bumps every pin of a basename under the key at once,
@@ -444,8 +456,8 @@ def _plan_delegated_tags(ctx: BumpContext, delegated_paths: list[str]) -> list[D
     for basename, paths in _delegated_paths_by_basename(ctx, delegated_paths).items():
         changes = plan_image_version_update(VALUES_YAML, ctx.values_key, basename, ctx.app_version)
         change_by_path = {dotted_key_path(values_lines, c["line"] - 1): c for c in changes}
-        for path in paths:
-            _change_for_tag_path(f"{ctx.values_key}.{path}.tag", change_by_path, groups)
+        for pin in paths:
+            _change_for_tag_path(f"{ctx.values_key}.{pin.version_key}", change_by_path, groups)
         updates.append(DelegatedUpdate(basename, paths, changes))
     return updates
 
@@ -453,9 +465,8 @@ def _plan_delegated_tags(ctx: BumpContext, delegated_paths: list[str]) -> list[D
 def _write_delegated_tags(ctx: BumpContext, updates: list[DelegatedUpdate]) -> None:
     """Write the pin updates _plan_delegated_tags resolved."""
     for update in updates:
-        print_section(
-            f"Updating '{update.basename}' image pin(s) for {', '.join(f'{ctx.values_key}.{p}' for p in update.paths)}"
-        )
+        paths = ", ".join(f"{ctx.values_key}.{p.path}" for p in update.paths)
+        print_section(f"Updating '{update.basename}' image pin(s) for {paths}")
         for c in update.changes:
             print(f"  values.yaml:{c['line']}  ({c['repository']})")
             print(f"    {c['old_version']}@{c['old_digest']}")
@@ -465,21 +476,21 @@ def _write_delegated_tags(ctx: BumpContext, updates: list[DelegatedUpdate]) -> N
 
 def _write_fallback_tags(
     ctx: BumpContext,
-    fallback_paths: list[str],
+    fallback_paths: list[PinPath],
     upstream_images: dict[str, ImagePathTagCheck],
 ) -> None:
     """Write the already-resolved sub-chart-default digests for fallback_paths."""
     if not fallback_paths:
         return
-    print_section(f"Using sub-chart default digests for: {', '.join(fallback_paths)}")
+    print_section(f"Using sub-chart default digests for: {', '.join(p.path for p in fallback_paths)}")
     new_tags_by_path: dict[str, str] = {}
-    for path in fallback_paths:
-        r = upstream_images.get(path)
+    for pin in fallback_paths:
+        r = upstream_images.get(pin.path)
         if r is None or not r["exists"] or not r["digest"]:
-            msg = f"error: no repository found at {path}.repository in {ctx.chart_name}'s own values.yaml"
+            msg = f"error: no repository found at {pin.path}.repository in {ctx.chart_name}'s own values.yaml"
             raise SystemExit(msg)
-        new_tags_by_path[path] = f"{ctx.app_version}@{r['digest']}"
-        print(f"  {ctx.values_key}.{path}: {r['host']}/{r['repo_path']}:{ctx.app_version} -> {r['digest']}")
+        new_tags_by_path[pin.path] = f"{ctx.app_version}@{r['digest']}"
+        print(f"  {ctx.values_key}.{pin.path}: {r['host']}/{r['repo_path']}:{ctx.app_version} -> {r['digest']}")
     print_section(f"Writing {VALUES_YAML}")
     for dotted, old_v, new_v in update_values_yaml(ctx.values_key, fallback_paths, new_tags_by_path):
         print(f"  {dotted}:")
@@ -489,17 +500,17 @@ def _write_fallback_tags(
 
 def _update_image_tags(
     ctx: BumpContext,
-    paths_to_update: list[str],
+    paths_to_update: list[PinPath],
     split_tag_sha_paths: dict[tuple[str, str], str],
     upstream_images: dict[str, ImagePathTagCheck],
 ) -> None:
-    """Write every path's new tag."""
+    """Write every pin's new tag."""
     if not paths_to_update:
         return
     plan = _classify_paths_to_update(ctx, paths_to_update, split_tag_sha_paths)
     # Resolve the delegated pins before writing anything, so an error leaves values.yaml untouched.
     delegated = _plan_delegated_tags(ctx, plan.delegated_paths)
-    _write_split_tag_sha_pins(ctx, plan.split_paths, split_tag_sha_paths)
+    _write_split_tag_sha_pins(ctx, plan.split_paths, split_tag_sha_paths, upstream_images)
     _write_delegated_tags(ctx, delegated)
     _write_fallback_tags(ctx, plan.fallback_paths, upstream_images)
 

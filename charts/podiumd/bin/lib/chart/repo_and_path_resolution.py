@@ -12,6 +12,7 @@ from lib.chart.nested_subchart_identity import version_repository_path_for
 from lib.chart.pull_and_subchart_resolution import formatted_repo
 from lib.chart.pull_and_subchart_resolution import own_full_repository
 from lib.chart.pull_and_subchart_resolution import resolve_chart_values
+from lib.chart.registered_paths import PinPath
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.registered_paths import is_primary_image_path
 from lib.chart.registered_paths import is_primary_rel_path
@@ -23,6 +24,9 @@ from lib.chart.values_tree_primitives import find_dependency
 from lib.chart.values_tree_primitives import strip_registry_host
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
+from lib.registry import ImagePathTagCheck
+from lib.registry import parse_repo
+from lib.registry import registry_tag_exists
 from lib.release_baseline import resolve_baseline_chart_state
 from lib.yaml_types import YamlMapping
 
@@ -211,6 +215,57 @@ def full_repository_for_path(
     paths of one tree: build one RepositoryResolver instead.
     """
     return RepositoryResolver(chart_dir, deps, values, allow_pull=allow_pull).full_repository(path)
+
+
+def pin_repositories(
+    chart_dir: Path | None, dep: ChartDependency | None, component_values: YamlMapping, pins: list[PinPath]
+) -> list[tuple[str, str]]:
+    """[(pin path, repository)] for the pins of one component's values tree whose repository resolves.
+
+    `component_values` is that component's block; `dep` None (a native component)
+    leaves only its own "repository:".
+    """
+    if dep is None:
+        prefix: tuple[str, ...] = ()
+        resolver = RepositoryResolver(None, [], component_values)
+    else:
+        prefix = (values_key_of(dep),)
+        resolver = RepositoryResolver(chart_dir, [dep], {prefix[0]: component_values})
+    return [(pin.path, repo) for pin in pins if (repo := resolver.full_repository((*prefix, *pin.path.split("."))))]
+
+
+def check_image_versions(
+    chart_dir: Path | None,
+    dep: ChartDependency | None,
+    component_values: YamlMapping,
+    pins: list[PinPath],
+    app_version: str,
+) -> list[ImagePathTagCheck]:
+    """Registry existence check of `app_version` for every pin in `pins` whose repository resolves.
+
+    `component_values` is one component's values tree: podiumd's block over
+    the target chart's values, or a native component's block (`dep` None).
+    Repositories come from RepositoryResolver, as in verify-podiumd's image
+    checks, so a registered sibling field (redis-operator's imageName) counts.
+    Raises SystemExit when no pin resolves (wrong path or a restructured
+    chart), rather than reporting "0 checked".
+    """
+    repos = pin_repositories(chart_dir, dep, component_values, pins)
+    if not repos:
+        msg = (
+            f"error: no repository found for {', '.join(pin.path for pin in pins)} "
+            f"— wrong path? see lib.chart.registered_paths.pin_paths_for()"
+        )
+        raise SystemExit(msg)
+
+    results: list[ImagePathTagCheck] = []
+    for path, repo in repos:
+        host, repo_path = parse_repo(repo)
+        exists, digest = registry_tag_exists(host, repo_path, app_version)
+        results.append(
+            {"path": path, "repository": repo, "host": host, "repo_path": repo_path, "exists": exists, "digest": digest}
+        )
+    return results
 
 
 def repository_path_map(

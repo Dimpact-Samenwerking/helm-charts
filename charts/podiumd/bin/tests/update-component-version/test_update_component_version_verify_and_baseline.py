@@ -23,7 +23,7 @@ def test_verify_component_version_returns_upstream_image_results(ucv: ModuleType
     monkeypatch.setattr(
         ucv,
         "check_image_versions",
-        lambda values, image_paths, app_version: [
+        lambda _chart_dir, _dep, values, pins, app_version: [
             {
                 "path": "image",
                 "repository": "maykinmedia/open-forms",
@@ -34,7 +34,7 @@ def test_verify_component_version_returns_upstream_image_results(ucv: ModuleType
             }
         ],
     )
-    result = ucv.verify_component_version(dep, ["image"], "3.5.6", "1.12.0")
+    result = ucv.verify_component_version(dep, [ucv.PinPath("image", "image.tag")], "3.5.6", "1.12.0")
     assert result == {
         "image": {
             "path": "image",
@@ -55,7 +55,7 @@ def test_verify_component_version_exits_on_pull_failure(ucv: ModuleType, monkeyp
         lambda chart_dir, dep_arg, version, allow_pull=True: (None, None, "chart version not found"),
     )
     with pytest.raises(SystemExit):
-        ucv.verify_component_version(dep, ["image"], "3.5.6", "9.9.9")
+        ucv.verify_component_version(dep, [ucv.PinPath("image", "image.tag")], "3.5.6", "9.9.9")
 
 
 def test_verify_component_version_exits_when_image_does_not_exist(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch):
@@ -73,7 +73,7 @@ def test_verify_component_version_exits_when_image_does_not_exist(ucv: ModuleTyp
     monkeypatch.setattr(
         ucv,
         "check_image_versions",
-        lambda values, image_paths, app_version: [
+        lambda _chart_dir, _dep, values, pins, app_version: [
             {
                 "path": "image",
                 "repository": "maykinmedia/open-forms",
@@ -85,7 +85,7 @@ def test_verify_component_version_exits_when_image_does_not_exist(ucv: ModuleTyp
         ],
     )
     with pytest.raises(SystemExit):
-        ucv.verify_component_version(dep, ["image"], "9.9.9", "1.12.0")
+        ucv.verify_component_version(dep, [ucv.PinPath("image", "image.tag")], "9.9.9", "1.12.0")
 
 
 def _checked_repositories(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch, component_values):
@@ -98,13 +98,15 @@ def _checked_repositories(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch, comp
     )
     checked = []
 
-    def fake_check(values, image_paths, app_version):
+    def fake_check(_chart_dir, _dep, values, pins, app_version):
         repo = values["image"]["repository"]
         checked.append(repo)
         return [{"path": "image", "repository": repo, "host": "x", "repo_path": repo, "exists": True, "digest": None}]
 
     monkeypatch.setattr(ucv, "check_image_versions", fake_check)
-    ucv.verify_component_version(dep, ["image"], "3.5.6", "1.12.0", component_values=component_values)
+    ucv.verify_component_version(
+        dep, [ucv.PinPath("image", "image.tag")], "3.5.6", "1.12.0", component_values=component_values
+    )
     assert upstream == {"image": {"repository": "maykinmedia/open-forms", "tag": "3.5.5"}}, "pulled values mutated"
     return checked
 
