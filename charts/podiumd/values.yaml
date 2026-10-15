@@ -3910,7 +3910,7 @@ frankgateway:
   # Digest-pinned; matches docs/images/images-baseline.yaml.
   image:
     repository: ghcr.io/wearefrank/frank-gateway
-    tag: "1.1.0@sha256:2f944fdbc16883e4b586aaa20f04928cd33afc7efc78d37012d2c7acb62f55bd"
+    tag: "1.1.4@sha256:eb03ea3df1b89f37357e500f6635d2c2ba16296fdc62a0a82e2441de04576217"
   # Per class. Two, not one: one replica means every pod event — a crash, an
   # eviction, a node image upgrade, an autoscaler consolidation — is an outage
   # of that traffic class. Raise for load, never lower below 2 in an
