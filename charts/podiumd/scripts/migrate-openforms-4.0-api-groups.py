@@ -205,7 +205,11 @@ def process(path: str, args) -> tuple[str, list[str]]:
     except MigrationError as e:
         return "error", [str(e)]
     except Exception as e:  # unexpected file shape: report, never write half a migration
-        return "error", [f"unexpected {type(e).__name__}: {str(e).splitlines()[0][:200]}"]
+        # A YAML error (e.g. a duplicate key elsewhere in the file) names its line and problem.
+        mark = getattr(e, "problem_mark", None)
+        where = f" at line {mark.line + 1}" if mark else ""
+        problem = getattr(e, "problem", None) or str(e).splitlines()[0]
+        return "error", [f"unexpected {type(e).__name__}{where}: {problem[:200]}"]
     if new == text:
         return "unchanged", notes
     if args.dry_run:
