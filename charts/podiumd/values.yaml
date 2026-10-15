@@ -2270,6 +2270,33 @@ openinwoner:
       limits:
         cpu: 200m
         memory: 256Mi
+  # KvK API for Open Inwoner's KvKConfig (IN-3183): eHerkenning users see their
+  # Handelsnaam, Vestigingsnaam and Zakelijk adres on Mijn profiel, and the
+  # login stops logging "Unable to sync rsin from KvK API". Open Inwoner has no
+  # setup-configuration step for KvK, so templates/openinwoner-configure-kvk.yaml
+  # writes the singleton through `manage.py shell`. KISS (kiss.settings.kvk) and
+  # ZAC (zac.kvkApi) use the same KvK endpoint.
+  kvk:
+    # -- KvK API root without version or endpoint, e.g. `http://api-proxy/api/`. Empty: the chart leaves KvKConfig alone (configure it in the admin).
+    apiRoot: ""
+    # -- KvK API key. Empty when a proxy adds the key; when set, the chart stores it in the Secret `openinwoner-kvk`. With apiRoot set, the Job writes this value, also when empty.
+    apiKey: ""
+    # -- Existing Secret with the API key, instead of apiKey. Rename the Secret or the key to re-run the Job after rotating it.
+    existingSecret: ""
+    # -- Key of the API key in existingSecret.
+    existingSecretKey: "apiKey"
+    job:
+      # -- Retries until the openinwoner database migrations are done, like clamavConfigJob.
+      backoffLimit: 15
+      activeDeadlineSeconds: 1200
+      ttlSecondsAfterFinished: 600
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
   settings:
     database:
       # NW-09: never fall back to plaintext (the chart default is prefer).
