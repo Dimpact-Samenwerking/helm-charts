@@ -541,7 +541,7 @@ def test_subchart_app_version_no_app_version_field_returns_none(
     assert libchartpullandsubchartresolution.subchart_app_version(tmp_path, dep) is None
 
 
-# --- nested_subchart_raw_text / nested_subchart_documented_image_repository ---
+# --- nested_subchart_raw_text ---
 
 
 def test_nested_subchart_raw_text_reads_nested_file(libchartnestedsubchartidentity: ModuleType, tmp_path: Path):
@@ -584,49 +584,6 @@ def test_nested_subchart_raw_text_missing_nested_chart_returns_none(
         },
     )
     assert libchartnestedsubchartidentity.nested_subchart_raw_text(tmp_path, dep, "eck-kibana", "values.yaml") is None
-
-
-def test_nested_subchart_documented_image_repository_extracts_first_example(
-    libchartnestedsubchartidentity: ModuleType, tmp_path: Path
-):
-    """The first "# image:" example wins, stripped of tag and digest (ECK lists plain first)."""
-    dep = {"name": "eck-stack", "version": "0.20.0"}
-    make_tgz(
-        tmp_path / "charts",
-        "eck-stack",
-        "0.20.0",
-        {},
-        raw_files={
-            "eck-stack/charts/eck-kibana/values.yaml": (
-                "# Kibana Docker image to deploy.\n#\n"
-                "# image: docker.elastic.co/kibana/kibana:9.5.0\n"
-                "# image: docker.elastic.co/kibana/kibana:9.5.0@sha256:<digest>\n"
-                "# image: docker.elastic.co/kibana/kibana@sha256:<digest>\n"
-            ),
-        },
-    )
-    assert (
-        libchartnestedsubchartidentity.nested_subchart_documented_image_repository(tmp_path, dep, "eck-kibana")
-        == "docker.elastic.co/kibana/kibana"
-    )
-
-
-def test_nested_subchart_documented_image_repository_no_comment_returns_none(
-    libchartnestedsubchartidentity: ModuleType, tmp_path: Path
-):
-    dep = {"name": "eck-stack", "version": "0.20.0"}
-    make_tgz(
-        tmp_path / "charts",
-        "eck-stack",
-        "0.20.0",
-        {},
-        raw_files={
-            "eck-stack/charts/eck-kibana/values.yaml": "enabled: true\n",
-        },
-    )
-    assert (
-        libchartnestedsubchartidentity.nested_subchart_documented_image_repository(tmp_path, dep, "eck-kibana") is None
-    )
 
 
 # --- subchart_dependencies ---

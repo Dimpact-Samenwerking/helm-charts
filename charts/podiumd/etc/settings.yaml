@@ -115,14 +115,6 @@ component_resolution:
   # repository, when podiumd's values.yaml overrides it.
   version_repository_paths:
     "redis-operator": "redisOperator.imageName"
-  # component -> {version field: nested sub-subchart} for bare versions the
-  # operator maps to images internally (ECK); the image is only documented
-  # in the nested sub-subchart's values.yaml inside the .tgz.
-  version_path_nested_subcharts:
-    "eck-stack":
-      "eck-elasticsearch.version": "eck-elasticsearch"
-      "eck-kibana.version": "eck-kibana"
-      "eck-enterprise-search.version": "eck-enterprise-search"
   # component (name or alias) -> the image path(s) that carry its app
   # version, for multi-image components; others use default_image_paths.
   # Multiple paths form a lockstep group.
