@@ -690,6 +690,13 @@ PodiumD Helm chart
 | openarchiefbeheer.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. |
 | openarchiefbeheer.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | openarchiefbeheer.enabled | bool | `false` |  |
+| openarchiefbeheer.extraEnvVars[0].name | string | `"PYTHONPATH"` |  |
+| openarchiefbeheer.extraEnvVars[0].value | string | `"/opt/podiumd-patches"` |  |
+| openarchiefbeheer.extraVolumeMounts[0].mountPath | string | `"/opt/podiumd-patches"` |  |
+| openarchiefbeheer.extraVolumeMounts[0].name | string | `"podiumd-patches"` |  |
+| openarchiefbeheer.extraVolumeMounts[0].readOnly | bool | `true` |  |
+| openarchiefbeheer.extraVolumes[0].configMap.name | string | `"openarchiefbeheer-patches"` |  |
+| openarchiefbeheer.extraVolumes[0].name | string | `"podiumd-patches"` |  |
 | openarchiefbeheer.fullnameOverride | string | `"openarchiefbeheer"` |  |
 | openarchiefbeheer.image.tag | string | `"2.0.0@sha256:e5217d748869c62d26393311c3cfdcaacf69d8dde80ca3bc172ff41f3885f0ff"` |  |
 | openarchiefbeheer.nameOverride | string | `"openarchiefbeheer"` |  |
