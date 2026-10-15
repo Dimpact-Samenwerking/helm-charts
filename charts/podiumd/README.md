@@ -13,9 +13,9 @@ PodiumD Helm chart
 | @maykinmedia | openarchiefbeheer | 2.0.0 |
 | @maykinmedia | openbeheer | 0.1.3 |
 | @maykinmedia | openformulieren(openforms) | 1.13.0 |
-| @maykinmedia | openinwoner | 2.4.0 |
+| @maykinmedia | openinwoner | 2.6.0 |
 | @maykinmedia | openklant | 1.11.0 |
-| @maykinmedia | opennotificaties | 2.0.0 |
+| @maykinmedia | opennotificaties | 2.1.0 |
 | @maykinmedia | objecten(openobject) | 1.1.1 |
 | @maykinmedia | openvtb | 0.2.0 |
 | @maykinmedia | openzaak | 1.14.2 |
@@ -1003,7 +1003,6 @@ PodiumD Helm chart
 | openinwoner.configuration.job.enabled | bool | `true` |  |
 | openinwoner.configuration.job.resources | object | `{}` |  |
 | openinwoner.configuration.job.restartPolicy | string | `"OnFailure"` |  |
-| openinwoner.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
 | openinwoner.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openinwoner.example.nl`. |
 | openinwoner.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
 | openinwoner.configuration.secrets.keycloak_client_secret | string | `""` |  |
@@ -1132,14 +1131,13 @@ PodiumD Helm chart
 | opennotificaties.configuration.job.enabled | bool | `true` |  |
 | opennotificaties.configuration.job.resources | object | `{}` |  |
 | opennotificaties.configuration.job.restartPolicy | string | `"OnFailure"` |  |
-| opennotificaties.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
 | opennotificaties.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://opennotificaties.example.nl`. |
 | opennotificaties.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
 | opennotificaties.configuration.secrets.keycloak_client_secret | string | `""` |  |
-| opennotificaties.extraEnvVars | list | `[{"name":"OPENNOTIFICATIES_PORT","value":"8000"}]` | Override OPENNOTIFICATIES_PORT to prevent Kubernetes service-discovery injection (tcp://<ip>:80) from being passed to uwsgi as the port number. Since Open Notificaties 1.16.2 the app reads OPENNOTIFICATIES_PORT for uwsgi_port; K8s auto-injects OPENNOTIFICATIES_PORT=tcp://<svc-ip>:80 for the opennotificaties Service, so uwsgi binds on the Service ClusterIP instead of the pod and both probes get "connection refused". Same defect as OPENZAAK_PORT above (Open Zaak 1.27.3). Only bites when the release's Service is named "opennotificaties", i.e. the chart default: environments that set fullnameOverride (the QA rigs use "notificaties") never see it. NOTE: a gemeente that sets its own opennotificaties.extraEnvVars REPLACES this list and silently loses the fix — keep this entry when overriding. The clean fix is enableServiceLinks: false, as the openzaak subchart (1.14.2) does; the opennotificaties subchart (2.0.0) has no such value yet. |
+| opennotificaties.extraEnvVars | list | `[{"name":"OPENNOTIFICATIES_PORT","value":"8000"}]` | Override OPENNOTIFICATIES_PORT to prevent Kubernetes service-discovery injection (tcp://<ip>:80) from being passed to uwsgi as the port number. Since Open Notificaties 1.16.2 the app reads OPENNOTIFICATIES_PORT for uwsgi_port; K8s auto-injects OPENNOTIFICATIES_PORT=tcp://<svc-ip>:80 for the opennotificaties Service, so uwsgi binds on the Service ClusterIP instead of the pod and both probes get "connection refused". Same defect as OPENZAAK_PORT above (Open Zaak 1.27.3). Only bites when the release's Service is named "opennotificaties", i.e. the chart default: environments that set fullnameOverride (the QA rigs use "notificaties") never see it. NOTE: a gemeente that sets its own opennotificaties.extraEnvVars REPLACES this list and silently loses the fix — keep this entry when overriding. The opennotificaties subchart sets enableServiceLinks: false since 2.1.0, so Kubernetes no longer injects the variable; this entry stays as a safeguard for an environment that turns service links back on. |
 | opennotificaties.flower.enabled | bool | `false` |  |
 | opennotificaties.fullnameOverride | string | `"opennotificaties"` |  |
-| opennotificaties.image.tag | string | `"1.16.2@sha256:2988d538b30db30487ed89873877e1d22e12f80dfa42d80ec1a5c97265c7e4cd"` |  |
+| opennotificaties.image.tag | string | `"1.17.0@sha256:5200540e78eb67993760bd9ad98d6c7f174ce61f5122b3e20627a690cbf3dfe0"` |  |
 | opennotificaties.nameOverride | string | `"opennotificaties"` |  |
 | opennotificaties.otel.disabled | bool | `true` |  |
 | opennotificaties.pdb.create | bool | `true` |  |
@@ -1395,7 +1393,7 @@ PodiumD Helm chart
 | referentielijsten.fullnameOverride | string | `"referentielijsten"` |  |
 | referentielijsten.image.pullPolicy | string | `"IfNotPresent"` |  |
 | referentielijsten.image.repository | string | `"maykinmedia/referentielijsten-api"` |  |
-| referentielijsten.image.tag | string | `"0.7.4@sha256:5501b48fe9b988a72adba14308748e6b5928f851ec66d108bab2fe625eb831a3"` |  |
+| referentielijsten.image.tag | string | `"0.7.5@sha256:d4d86ff802eec5272724e7f9ad7db3cb32ed667bd268e9b92c07630d8a3325f1"` |  |
 | referentielijsten.persistence.enabled | bool | `true` |  |
 | referentielijsten.persistence.existingClaim | string | `"referentielijsten"` |  |
 | referentielijsten.persistence.size | string | `"10Gi"` |  |

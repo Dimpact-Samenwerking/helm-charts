@@ -84,8 +84,8 @@
 
 - name: openzaak/open-notificaties
   url: docker.io/openzaak/open-notificaties
-  version: "1.16.2"
-  digest: "sha256:2988d538b30db30487ed89873877e1d22e12f80dfa42d80ec1a5c97265c7e4cd"
+  version: "1.17.0"
+  digest: "sha256:5200540e78eb67993760bd9ad98d6c7f174ce61f5122b3e20627a690cbf3dfe0"
 
 - name: maykinmedia/open-object
   url: docker.io/maykinmedia/open-object
@@ -114,8 +114,8 @@
 
 - name: maykinmedia/referentielijsten-api
   url: docker.io/maykinmedia/referentielijsten-api
-  version: "0.7.4"
-  digest: "sha256:5501b48fe9b988a72adba14308748e6b5928f851ec66d108bab2fe625eb831a3"
+  version: "0.7.5"
+  digest: "sha256:d4d86ff802eec5272724e7f9ad7db3cb32ed667bd268e9b92c07630d8a3325f1"
 
 - name: maykinmedia/open-beheer
   url: docker.io/maykinmedia/open-beheer
