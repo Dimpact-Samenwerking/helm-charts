@@ -14,9 +14,9 @@ stringData:
   # plain objecttypen.configuration.token field which no longer exists.
   authorization-token: {{ .Values.objecten.configuration.secrets.create_required_objecttypen_token | quote }}
 ---
-# The schemas ship with the chart: open-objecten/objecttypes, where most
-# documentationUrls point, is now an empty repository and raw.githubusercontent.com
-# answers 404 for its files. documentationUrl stays as metadata only.
+# The schemas ship with the chart: raw.githubusercontent.com, where most
+# documentationUrls point, is unreliable for these files (it answers 404 for
+# some of them). documentationUrl stays as metadata only.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -92,9 +92,11 @@ data:
       return response
 
     # The API caps pageSize at 500, so follow "next" instead of trusting one page.
+    # No dataClassification filter: a type with another classification must still
+    # be found, or its fixed UUID is POSTed again and the job fails.
     existing = []
     page_url = f"{objecttypes_url}/objecttypes"
-    params = {"pageSize": "500","dataClassification": "open"}
+    params = {"pageSize": "500"}
     while page_url:
       page = check(requests.get(page_url, params=params, headers={"Authorization": authorization}), "listing objecttypes").json()
       existing.extend(page["results"])
@@ -128,6 +130,8 @@ data:
         objecttype['uuid']=response.json()['uuid']
         print(f"created objecttype for {objecttype['name']}: {objecttype['uuid']}")
 
+      # Only a type without any version gets one. Published versions are never
+      # replaced, so a newer schema in the chart doesn't reach existing types.
       if 'version' not in objecttype:
         versionData={"status":"published","jsonSchema":schemas[objecttype['name']]}
         check(requests.post(
