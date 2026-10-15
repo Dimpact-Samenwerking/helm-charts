@@ -13,11 +13,11 @@ from lib.chart.pull_and_subchart_resolution import formatted_repo
 from lib.chart.pull_and_subchart_resolution import own_full_repository
 from lib.chart.pull_and_subchart_resolution import resolve_chart_values
 from lib.chart.registered_paths import PinPath
-from lib.chart.registered_paths import image_paths_for
 from lib.chart.registered_paths import is_primary_image_path
 from lib.chart.registered_paths import is_primary_rel_path
 from lib.chart.registered_paths import native_component_named
 from lib.chart.registered_paths import native_components
+from lib.chart.registered_paths import pin_paths_for
 from lib.chart.values_tree_primitives import dep_for_values_key
 from lib.chart.values_tree_primitives import find_app_versions
 from lib.chart.values_tree_primitives import find_dependency
@@ -67,9 +67,9 @@ def component_state_at_baseline(
             (f"no dependency named or aliased '{component}' in {chart_dir_relpath}/Chart.yaml at {baseline_ref}"),
         )
     values_key = values_key_of(dep) if dep else name
-    image_paths = image_paths_for(name, chart_dir)
-    app_versions = find_app_versions(baseline_values, values_key, image_paths)
-    return baseline_ref, dep, values_key, image_paths, app_versions, None
+    pins = pin_paths_for(name, chart_dir)
+    app_versions = find_app_versions(baseline_values, values_key, pins)
+    return baseline_ref, dep, values_key, [pin.path for pin in pins], app_versions, None
 
 
 def repo_group_representative(repo_paths: list[tuple[str, ...]], deps: list[ChartDependency]) -> tuple[str, ...]:
@@ -112,6 +112,9 @@ class RepositoryResolver:  # pylint: disable=too-few-public-methods  # one query
     allow_pull defaults to False: a check shouldn't hit the network.
     vendored_defaults=False drops tier 4, for a tree that already holds the
     target chart's own values: the vendored .tgz is the old chart version.
+    Tier 3 still reads the vendored .tgz (a nested subchart's documented
+    repository isn't in the parent's values); it is the only source for
+    eck-stack's elasticsearch/kibana repositories.
 
     A sibling "registry:" that looks like a host (".", ":" or localhost,
     e.g. mi's mcr.microsoft.com) is used as-is. One that doesn't (zaakbrug's
@@ -229,7 +232,9 @@ def pin_repositories(
     """[(pin path, repository)] for the pins of one component's values tree whose repository resolves.
 
     `component_values` is that component's block, over the target chart's values
-    when checking a bump, so the vendored (old) chart's defaults are never read.
+    when checking a bump, so the vendored (old) chart's own defaults are never
+    read. A nested subchart's documented repository (eck-stack, tier 3 of
+    RepositoryResolver) still comes from the vendored chart.
     `dep` None (a native component) leaves only its own "repository:".
     """
     if dep is None:
@@ -255,7 +260,8 @@ def check_image_versions(
     Repositories come from RepositoryResolver, as in verify-podiumd's image
     checks, so a registered sibling field (redis-operator's imageName) counts.
     Raises SystemExit when no pin resolves (wrong path or a restructured
-    chart), rather than reporting "0 checked".
+    chart), rather than reporting "0 checked". Pins sharing a repository
+    (redis-operator's imageTag and initContainerImageTag) cost one lookup.
     """
     repos = pin_repositories(chart_dir, dep, component_values, pins)
     if not repos:
@@ -266,9 +272,12 @@ def check_image_versions(
         raise SystemExit(msg)
 
     results: list[ImagePathTagCheck] = []
+    lookups: dict[str, tuple[bool, str | None]] = {}
     for path, repo in repos:
         host, repo_path = parse_repo(repo)
-        exists, digest = registry_tag_exists(host, repo_path, app_version)
+        if repo not in lookups:
+            lookups[repo] = registry_tag_exists(host, repo_path, app_version)
+        exists, digest = lookups[repo]
         results.append(
             {"path": path, "repository": repo, "host": host, "repo_path": repo_path, "exists": exists, "digest": digest}
         )

@@ -246,7 +246,21 @@ def test_check_image_versions_resolves_registered_sibling_repository_field(
     pins = pin_paths_for("redis-operator", CHART_DIR)
     results = libchartrepoandpathresolution.check_image_versions(CHART_DIR, dep, values, pins, "v0.27.0")
     assert [r["path"] for r in results] == ["redisOperator.imageTag", "redisOperator.initContainerImageTag"]
-    assert checked == [("quay.io", "opstree/redis-operator", "v0.27.0")] * 2
+    # Both fields share one repository: one registry lookup, one result per pin.
+    assert checked == [("quay.io", "opstree/redis-operator", "v0.27.0")]
+
+
+def test_print_image_version_results_prints_a_shared_image_once(
+    capsys: pytest.CaptureFixture[str], libchartpullandsubchartresolution: ModuleType
+):
+    """Two pins of one image (redis-operator's imageTag and initContainerImageTag) print one line."""
+    result = {"repository": "quay.io/opstree/redis-operator", "host": "quay.io", "repo_path": "opstree/redis-operator"}
+    results = [
+        {**result, "path": "redisOperator.imageTag", "exists": True, "digest": "sha256:fake"},
+        {**result, "path": "redisOperator.initContainerImageTag", "exists": True, "digest": "sha256:fake"},
+    ]
+    assert libchartpullandsubchartresolution.print_image_version_results(results, "v0.27.0") is True
+    assert capsys.readouterr().out == "  [FOUND  ] quay.io/opstree/redis-operator:v0.27.0  digest=sha256:fake\n"
 
 
 # --- component_check_values ---

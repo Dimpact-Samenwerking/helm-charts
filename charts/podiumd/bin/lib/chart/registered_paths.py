@@ -142,9 +142,7 @@ def is_primary_rel_path(owner_name: str, rel_path: str, chart_dir: Path | None =
     Bare-version fields cover apps without an "image:" block (e.g.
     redis-operator's redisOperator.imageTag, eck-stack's *.version).
     """
-    return rel_path in set(image_paths_for(owner_name, chart_dir)) or rel_path in set(
-        version_paths_for(owner_name, chart_dir)
-    )
+    return any(pin.path == rel_path for pin in pin_paths_for(owner_name, chart_dir))
 
 
 def is_primary_image_path(path: tuple[str, ...], deps: list[ChartDependency], chart_dir: Path | None = None):

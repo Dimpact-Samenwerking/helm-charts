@@ -51,6 +51,7 @@ from lib.chart.paths import CHART_DIR
 from lib.chart.paths import CHART_YAML
 from lib.chart.paths import VALUES_YAML
 from lib.chart.pull_and_subchart_resolution import component_check_values
+from lib.chart.pull_and_subchart_resolution import own_full_repository
 from lib.chart.pull_and_subchart_resolution import print_image_version_results
 from lib.chart.pull_and_subchart_resolution import resolve_chart_values
 from lib.chart.registered_paths import PinPath
@@ -378,8 +379,10 @@ def _classify_paths_to_update(
         if (ctx.values_key, pin.path) in split_tag_sha_paths:
             split_paths.append(pin)
             continue
-        explicit_repo = text_at(ctx.values, f"{ctx.values_key}.{pin.path}.repository")
-        own = not pin.is_image_block or (isinstance(explicit_repo, str) and bool(explicit_repo))
+        own = (
+            not pin.is_image_block
+            or own_full_repository(ctx.values, (ctx.values_key, *pin.path.split("."))) is not None
+        )
         (delegated_paths if own else fallback_paths).append(pin)
     return TagUpdatePlan(split_paths, delegated_paths, fallback_paths)
 

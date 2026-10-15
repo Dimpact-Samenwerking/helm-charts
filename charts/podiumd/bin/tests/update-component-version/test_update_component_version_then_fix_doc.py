@@ -46,9 +46,11 @@ def values_yaml(zac: str, opa: str, kiss: str, redis_operator: str = f"v0.26.0@{
         f'zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n    tag: "{zac}"\n'
         f'  opa:\n    image:\n      repository: openpolicyagent/opa\n      tag: "{opa}"\n'
         f'kiss:\n  image:\n    repository: ghcr.io/kiss/kiss-frontend\n    tag: "{kiss}"\n'
-        # Split "imageName:"/"imageTag:" fields, no "image:" block.
+        # Split "imageName:"/"imageTag:" fields, no "image:" block; the init
+        # container's tag aliases imageTag's anchor, as in the real chart.
         f"redis-operator:\n  redisOperator:\n    imageName: quay.io/opstree/redis-operator\n"
-        f'    imageTag: "{redis_operator}"\n    initContainerImageTag: "{redis_operator}"\n'
+        f'    imageTag: &redisOperatorImageTag "{redis_operator}"\n'
+        "    initContainerImageTag: *redisOperatorImageTag\n"
     )
 
 
@@ -175,9 +177,11 @@ def test_a_split_version_field_bump_is_written_checked_and_stable(
 
     written = bump(ucv, chart, monkeypatch, "redis-operator", "v0.27.0", "0.27.0")
 
-    assert checked == [("quay.io", "opstree/redis-operator", "v0.27.0")] * 2
+    # imageTag and initContainerImageTag share one repository: one lookup.
+    assert checked == [("quay.io", "opstree/redis-operator", "v0.27.0")]
     values = (chart / "values.yaml").read_text(encoding="utf-8")
-    assert values.count(f'"v0.27.0@{DIGEST["f"]}"') == 2
+    assert values.count(f'"v0.27.0@{DIGEST["f"]}"') == 1
+    assert "initContainerImageTag: *redisOperatorImageTag\n" in values
     assert "v0.26.0" not in values
     assert "version: 0.27.0" in (chart / "Chart.yaml").read_text(encoding="utf-8")
     assert "| redis-operator | v0.26.0 → v0.27.0 | 0.26.1 → 0.27.0 | - |" in written[UPGRADE]

@@ -183,8 +183,12 @@ def component_check_values(chart_values: YamlMapping, component_values: YamlMapp
 
 
 def print_image_version_results(results: list[ImagePathTagCheck], app_version: str) -> bool:
-    """Print a FOUND/MISSING line per result; True when every image version exists."""
+    """Print a FOUND/MISSING line per distinct image; True when every image version exists."""
+    printed: set[tuple[str, str]] = set()
     for r in results:
+        if (r["host"], r["repo_path"]) in printed:
+            continue
+        printed.add((r["host"], r["repo_path"]))
         status = "FOUND  " if r["exists"] else "MISSING"
         suffix = f"  digest={r['digest']}" if r["digest"] else ""
         print(f"  [{status}] {r['host']}/{r['repo_path']}:{app_version}{suffix}")

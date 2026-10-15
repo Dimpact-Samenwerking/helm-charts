@@ -209,3 +209,26 @@ def test_split_version_fields_are_written_through_the_registered_repository_fiel
         ucv, tmp_path, monkeypatch, REDIS_OPERATOR_VALUES, "redis-operator", pins, "v0.27.0", dep=dep
     )
     assert text == REDIS_OPERATOR_VALUES.replace(f"v0.26.0@sha256:{OLD_DIGEST}", f"v0.27.0@{NEW_DIGEST}")
+
+
+# The real chart: initContainerImageTag is an alias of imageTag's anchor.
+REDIS_OPERATOR_ALIASED_VALUES = f"""\
+redis-operator:
+  redisOperator:
+    imageName: quay.io/opstree/redis-operator
+    imageTag: &redisOperatorImageTag "v0.26.0@sha256:{OLD_DIGEST}"
+    initContainerImageTag: *redisOperatorImageTag
+"""
+
+
+def test_aliased_split_version_field_follows_its_anchor(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Only the anchored imageTag line is rewritten; the aliased initContainerImageTag follows it unchanged."""
+    dep: ChartDependency = {"name": "redis-operator", "version": "0.26.1", "repository": "@ot-helm"}
+    pins = pin_paths_for("redis-operator")
+    text = _bump_delegated(
+        ucv, tmp_path, monkeypatch, REDIS_OPERATOR_ALIASED_VALUES, "redis-operator", pins, "v0.27.0", dep=dep
+    )
+    assert text == REDIS_OPERATOR_ALIASED_VALUES.replace(f"v0.26.0@sha256:{OLD_DIGEST}", f"v0.27.0@{NEW_DIGEST}")
+    assert "initContainerImageTag: *redisOperatorImageTag\n" in text
