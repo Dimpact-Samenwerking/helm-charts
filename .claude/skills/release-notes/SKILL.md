@@ -58,6 +58,29 @@ Audience: stakeholders and municipalities. Language: **Dutch**, plain and short.
    For a release that is not tagged yet, the target tag does not exist: run
    it against the release branch head instead (adapt `tag` in `main()`), or
    rely on sources 1–3.
+5. **Review statistics** for "Review en kwaliteit": run
+   `python3 -I .claude/skills/release-notes/review_stats.py <version> <out.json>`.
+   - It reads every open or merged PR into `feature/podiumd-<version>`, the
+     open PRs into `feature/podiumd-<version>-*` (they still need a second
+     merge step), and the release PR into `main`.
+   - It reports PRs, reviews, approvals, "changes requested", human reviewers
+     other than the author, review threads (resolved and open per PR), the
+     median and longest time to merge, and merged PRs without a review.
+   - "Reviews" includes plain review comments, also from the author: show
+     the approvals next to it, never the count alone.
+   - Name a merged PR without a review when it is large or risky, and say what
+     testing covered it. Small docs fixes only get a count.
+6. **The Jira build story** for a release that is not out yet:
+   `PodiumD <version> bouwen` (for 4.10.0: IN-2971). Read its subtasks with the
+   Jira tools (`parent = <key>`), once for the open ones
+   (`statusCategory != Done`) and once for the done ones. Group the open
+   ones by status: In Review, In Progress, Selected for Development.
+   - Match each subtask to its PR with the review statistics (`jira` keys) or
+     the PR number in the subtask title. Use the PR state from GitHub.
+   - A subtask whose PR is merged but which is not Done in Jira gets "al
+     gemerged; Jira nog bijwerken". Report it to the user too.
+   - Jira and GitHub change during the day. Fetch both again right before
+     every rebuild, and put the date (`stand <datum>`) in the section.
 
 ## Size
 
@@ -92,14 +115,32 @@ Rules:
 - **Configuration changes** that are not version bumps go in their own table.
 - **Links:** to the PRs and Jira issues as given in the PRs, and at the end
   to the SSC docs and the images manifest.
+- **Not released yet:** add `Nog open voor <version>` (source 6, one table per
+  status) and keep "Review en kwaliteit" (source 5). After the release, drop
+  "Nog open" and keep the review section with the final numbers.
 
 ## Check and hand over
 
 1. Lint `<version>.md` with the verify settings (`/markdown-lint`). The slides
    file is Marp, not documentation: skip it.
-2. Build the deck once:
-   `npx -y @marp-team/marp-cli@4.1.2 <version>-slides.md --html -o /tmp/slides.html`.
-   PDF and PPTX need a browser; the release workflow builds those.
+2. Build the deck from `release-notes/podiumd/` (the deck links local files):
+
+   ```bash
+   out=~/Downloads/podiumd-<version>-presentatie
+   mkdir -p "$out"
+   npx -y @marp-team/marp-cli@4.1.2 <version>-slides.md --html -o "$out/podiumd-<version>.html"
+   npx -y @marp-team/marp-cli@4.1.2 <version>-slides.md --html --allow-local-files --pdf -o "$out/podiumd-<version>.pdf"
+   npx -y @marp-team/marp-cli@4.1.2 <version>-slides.md --html --allow-local-files --pptx -o "$out/podiumd-<version>.pptx"
+   cp <version>.md "$out/podiumd-<version>-release-notes.md"
+   ```
+
+   - PDF and PPTX need a browser. Without Chrome in `/Applications`, marp
+     fails with `No suitable browser found`: set `CHROME_PATH` to the
+     puppeteer copy, for example
+     `~/.cache/puppeteer/chrome/<version>/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing`.
+   - Check the PDF pages for text that runs off a slide. Keep each slide to
+     about six bullets.
+   - The release workflow builds the deck for a published release.
 3. Show the user:
    - the size per component;
    - any claim you could not back with a source;

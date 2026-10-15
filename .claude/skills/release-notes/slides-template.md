@@ -47,6 +47,30 @@ Integratie, impact en validatie
 
 ---
 
+## Nog open voor {version} ({Jira})
+
+<!-- Alleen zolang de release niet uit is; splits over twee slides als het niet past. -->
+
+{n} subtaken: **{n} klaar**, {n} in review, {n} in uitvoering, {n} nog niet gestart
+
+**In review**
+- {onderwerp (#PR)}
+
+**In uitvoering**
+- {onderwerp (#PR)}
+
+---
+
+## Review en kwaliteit
+
+- **{n} PR's** naar de releasebranch: {n} gemerged, {n} open
+- **{n} reviews**, {n} goedkeuringen; {n} reviewers naast de auteur
+- **{n} reviewdiscussies, {n} opgelost**
+- Doorlooptijd: mediaan **{n} dag**
+- {zonder review gemerged, met wat het testte}
+
+---
+
 ## Meer informatie
 
 - Acties voor gemeenten: releasepagina in de wiki
