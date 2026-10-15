@@ -237,7 +237,7 @@ spec:
             sizeLimit: 256Mi
         - name: tmp
           emptyDir:
-            sizeLimit: 256Mi
+            sizeLimit: {{ $fg.buffering.tmpSizeLimit }}
         - name: config
           secret:
             secretName: {{ $name }}-config

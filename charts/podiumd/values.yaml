@@ -4343,6 +4343,18 @@ frankgateway:
   accessLog:
     jsonFormat: false
 
+  # Request bodies the gateway buffers to disk. With readOnlyRootFilesystem
+  # nginx's temp files live in the /tmp emptyDir, and a pod whose emptyDir
+  # passes its sizeLimit is evicted. Upstream responses are streamed, never
+  # spooled to disk (proxy_max_temp_file_size 0), so only request bodies use
+  # /tmp: keep tmpSizeLimit well above clientMaxBodySize times the uploads
+  # one pod handles at once. Can be overridden per instance.
+  buffering:
+    # -- Largest request body the gateway accepts (nginx client_max_body_size); larger requests get 413. "0" = unlimited.
+    clientMaxBodySize: 1g
+    # -- sizeLimit of the gateway's /tmp emptyDir (request-body temp files).
+    tmpSizeLimit: 2Gi
+
   # etcd cluster backing every instance (quay.io/coreos upstream build — no
   # Bitnami). PVC-backed so gateway config survives pod restarts.
   etcd:

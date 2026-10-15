@@ -430,7 +430,14 @@ plugin_attr:
 # NAMES appear in this config; the token VALUE reaches the container from a
 # Secret and never lands in etcd, git or a ConfigMap.
 nginx_config:
+  # The image links logs/error.log and logs/access.log to /dev/stderr and
+  # /dev/stdout, but the logs emptyDir (readOnlyRootFilesystem) hides those
+  # links: write to the streams directly, so kubectl logs, Loki and Alloy
+  # keep the gateway logs and nothing grows in the emptyDir.
+  error_log: /dev/stderr
   http:
+    access_log: /dev/stdout
+    client_max_body_size: {{ $fg.buffering.clientMaxBodySize | quote }}
     # Pod-wide memory for files/frankgateway/openbao-client.lua's last-good
     # copies. Lua state is otherwise per nginx worker (worker_processes auto:
     # one per CPU), so a last-good value known to one worker would be unknown
@@ -457,6 +464,9 @@ nginx_config:
     fastcgi_temp_path /tmp/fastcgi_temp;
     uwsgi_temp_path /tmp/uwsgi_temp;
     scgi_temp_path /tmp/scgi_temp;
+    # Stream upstream responses instead of spooling up to 1 GiB per response
+    # into the size-limited /tmp emptyDir.
+    proxy_max_temp_file_size 0;
   main_configuration_snippet: |
     env OPENBAO_TOKEN;
     env OPENBAO_ADDR;
