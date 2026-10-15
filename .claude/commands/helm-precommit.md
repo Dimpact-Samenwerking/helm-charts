@@ -11,7 +11,7 @@ Sequence (stop on first failure, report which step failed):
    Fail on errors. Warnings are reported but do not fail.
 4. **Full render** — invoke `/helm-render-all`. Fail on render errors.
 5. **Markdown lint** — invoke `/markdown-lint` for every `*.md` file changed on this branch or staged. Fail on any finding in scope.
-6. **Full verify** — invoke `/verify-podiumd` (every step, no `--include`/`--skip`). Fail on any FAIL; list every SKIP with its reason.
+6. **Verify** — run `/verify-podiumd` with `--skip=cve-scan,cve-diff`: every other step runs. The CVE steps can take more than an hour, which is too slow before every commit. The full run, CVE steps included, is the gate before a PR is reported ready and before a release (`/verify-podiumd` without skips). Fail on any FAIL; list every SKIP with its reason.
 
 If `$ARGUMENTS` names one or more specific templates (e.g. `keycloak-cr.yaml`), also invoke `/helm-render <template>` for each as a final focused check (per the "always verify values.yaml with helm render" rule in memory).
 
@@ -24,7 +24,7 @@ PRECOMMIT SUMMARY
   Lint           : PASS|FAIL (<error count>, <warning count>)
   Full render    : PASS|FAIL
   Markdown lint  : PASS|FAIL (<finding count>)
-  Verify-podiumd : PASS|FAIL (<failed steps>; skipped: <steps and reasons>)
+  Verify-podiumd : PASS|FAIL (<failed steps>; skipped: cve-scan, cve-diff, <other steps and reasons>)
   Targeted render: <template> PASS|FAIL  (only if $ARGUMENTS given)
 ```
 

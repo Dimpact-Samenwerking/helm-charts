@@ -25,7 +25,7 @@ A FAIL from `Repo access` with `Internal Server Error` for docker.io images is u
 python3 charts/podiumd/bin/verify-podiumd 2>&1 | tee "$SCRATCHPAD/verify-<target>.log"
 ```
 
-- Never pass `--include` or `--skip`. Use them only to rerun one step after a fix, and run the full set again before reporting.
+- Never pass `--include` or `--skip`. Use them only to rerun one step after a fix, and run the full set again before reporting. The one exception is `/helm-precommit`, which skips only `cve-scan` and `cve-diff`, because they can take more than an hour.
 - The run takes several minutes; run it in the background and wait for it.
 
 ## 4. Fix or report every finding

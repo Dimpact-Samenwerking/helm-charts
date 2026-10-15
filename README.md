@@ -46,8 +46,9 @@ main  (current release, e.g. 4.7.5)
 - Environment-specific branches (`feature/<env>-podiumd-*`) are branched from the corresponding release branch and kept in sync with it by rebasing or merging.
 - Short-lived feature branches (`feature/podiumd-<X.Y.0>-*`) target the release branch they are named after and are deleted after merging.
 - `main` always reflects the latest production release; only completed release branches are merged into it.
-- A release branch takes new `main` commits by **merging** `main` into it, not by rebasing it onto `main`. A force-pushed release branch leaves every open PR with old copies of its commits: GitHub then shows dozens of unrelated files and the conflicts come back.
-- If a release branch was rewritten anyway, rebase each open PR onto it with only its own commits: `/sync-pr-branch <PR>` (`git rebase --onto origin/feature/podiumd-<X.Y.0> <old-base> <branch>`). Do not merge the release branch into a PR branch: a non-linear branch blocks a GitHub stack ("stack branches diverged").
+- History stays linear. The release branch protection requires linear history, and the repository only allows squash merges, so a merge commit cannot land on a release branch or on `main`.
+- A release branch takes new `main` commits by rebasing only its own commits onto `main`: `git rebase --onto origin/main <old-main> feature/podiumd-<X.Y.0>`, where `<old-main>` is the `main` commit (or previous release tip) it was based on. Because releases reach `main` as one squash commit, a plain `git rebase origin/main` would replay the previous release's commits and conflict. Announce the force push first: every open PR on the release branch then needs a sync.
+- After a release branch was rewritten, rebase each open PR onto it with only its own commits: `/sync-pr-branch <PR>` (`git rebase --onto origin/feature/podiumd-<X.Y.0> <old-base> <branch>`). Do not merge the release branch into a PR branch: a non-linear branch blocks a GitHub stack ("stack branches diverged").
 
 ## Releases
 

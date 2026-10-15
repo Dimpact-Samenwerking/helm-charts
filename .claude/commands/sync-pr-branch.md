@@ -24,7 +24,7 @@ Rebase, keeping every commit of the PR:
 git rebase --onto "$B" <old-base> "$H"
 ```
 
-Always rebase, also on branches that allow merge commits. A merge commit makes the branch non-linear: a GitHub stack then reports "stack branches diverged" and blocks the merge. Feature branches (`feature/podiumd-*`) also reject merge commits.
+Always rebase, also on branches that allow merge commits. A merge commit makes the branch non-linear: a GitHub stack then reports "stack branches diverged" and blocks the merge. Release branches (`feature/podiumd-<X.Y.0>`) also require linear history in their branch protection, and the repository only allows squash merges.
 
 Resolve conflicts by keeping both sides. For generated docs (`_UPGRADE_PATHS/`, `images-*.yaml`), take the base version, run `fix-doc-consistency`, and add the PR's hand-written text back: a plain "keep both" duplicates generated lists and breaks tables.
 
