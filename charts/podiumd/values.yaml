@@ -739,7 +739,8 @@ openzaak:
       axes: redis-ha-master:6379/4
     celery:
       brokerUrl: redis://redis-ha-master:6379/5
-      resultBackendl: redis://redis-ha-master:6379/5
+      # The openzaak chart reads resultBackend; the misspelled resultBackendl left it empty.
+      resultBackend: redis://redis-ha-master:6379/5
       # -- Set to debug for test/acceptance environments
       logLevel: warning
     uwsgi:
@@ -2153,7 +2154,8 @@ openinwoner:
       axes: redis-ha-master:6379/11
     celery:
       brokerUrl: redis://redis-ha-master:6379/12
-      resultBackendl: redis://redis-ha-master:6379/12
+      # The openinwoner chart reads resultBackend; the misspelled resultBackendl left it empty.
+      resultBackend: redis://redis-ha-master:6379/12
       # -- Set to debug for test/acceptance environments
       logLevel: warning
     # override: values-enable-observability.yaml sets disabled: false and configures the OTEL endpoint
