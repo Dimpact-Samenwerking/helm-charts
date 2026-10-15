@@ -223,7 +223,19 @@ Prerequisites to provision per environment:
 
 - A database (default name `openbao`) on the shared Azure PostgreSQL flexible
   server.
-- A database role (default `openbao-admin`) owning that database.
+- A database role (default `openbao-admin`) owning that database, with
+  rights on its `public` schema. On Azure PostgreSQL owning the database is
+  not enough: `public` belongs to `azure_pg_admin`, and without the grant
+  the `openbao-db-schema` Job fails with `permission denied for schema
+  public`. As the server admin, connected to the `openbao` database:
+
+  ```sql
+  GRANT ALL PRIVILEGES ON DATABASE "openbao" TO "openbao-admin";
+  GRANT USAGE, CREATE ON SCHEMA public TO "openbao-admin";
+  ```
+
+  The podiumd-infra script `create-postgresql-databases.sh` already grants
+  this for every app database.
 - The password, injected by the deploy pipeline — `openbao-db-secret.yaml`
   renders `Secret/openbao-db` with `username`, `password` and a libpq
   `connection-url`; the pipeline substitutes `REP_OPENBAO_DB_PASSWORD_REP` from
@@ -361,6 +373,16 @@ Consequences (one-time, per fresh cluster):
 - `updateStrategyType: RollingUpdate` (not the sub-chart default `OnDelete`) so a
   `helm upgrade` recreates the server pods to pick up config changes — and
   every recreated pod comes back **sealed**.
+- **Interrupted init.** `scripts/openbao-activate.sh` writes the `bao operator
+  init` output to `/tmp/.openbao-init.json` (mode 0600) in pod 0 and deletes it
+  only after the Key Vault read-back matches. If the run breaks in between, run
+  it again: it finds the vault initialised with the Key Vault item still at
+  `pending-init`, and stores the key from that file. The file is gone when pod 0
+  was recreated in the meantime; then the key is lost. On a vault that holds no
+  data yet, wipe it and initialise again: scale the StatefulSet to 0, empty the
+  storage tables (`TRUNCATE openbao_kv_store, openbao_ha_locks;` in the
+  `openbao` database), scale back up, and run the script. Never do this on a
+  vault that holds secrets: they become unreadable.
 
 ### 3.6.1 Static seal: unseal without an operator (optional)
 
@@ -652,17 +674,26 @@ The gateway-side checks are in
   access policy as narrow as the database's. It is never revoked; rotating it
   means `bao operator rekey`, after which the Key Vault item must be updated in
   the same sitting.
-- The **root token** captured at `bao operator init` is needed twice: to mint
-  the scoped config token (runbook step 4, `scripts/openbao-mint-config-token.sh`)
-  and the gateway's reader token (runbook step 5). Store it only in Azure Key
-  Vault (`openbao-root-token`) and **revoke it** (`--revoke-root`, runbook
-  step 8) only after both tokens are minted and a deploy has succeeded with the
-  scoped token — revocation no longer breaks upgrades. Break-glass: the unseal key can mint a
-  new root token through the legacy `sys/generate-root/*` endpoints, which the
-  chart allows only on the loopback listener `127.0.0.1:8210` of each pod
-  (OpenBao 2.5 and later refuse them on the exposed listener, and the
-  `bao operator generate-root` CLI needs a token). `scripts/openbao-activate.sh`
-  does this for you, and revokes the token afterwards.
+- The **root token** captured at `bao operator init`:
+  - **Activation flow** (`scripts/openbao-activate.sh`,
+    [frankgateway-openbao-activation.md](frankgateway-openbao-activation.md)):
+    the root token is never stored. The script uses the one init returns, or
+    a temporary one it creates from the key in Key Vault when it has to mint a
+    token, and revokes it in the same run.
+  - **Manual flow** ([runbook](frankgateway-deploy-runbook.md)): it is needed
+    twice, to mint the scoped config token (runbook step 4,
+    `scripts/openbao-mint-config-token.sh`) and the gateway's reader token
+    (runbook step 5). Store it only in Azure Key Vault (`openbao-root-token`)
+    and **revoke it** (`--revoke-root`, runbook step 8) after both tokens are
+    minted and a deploy has succeeded with the scoped token.
+
+  Break-glass: the unseal key can mint a new root token through the legacy
+  `sys/generate-root/*` endpoints, which the chart allows only on the loopback
+  listener `127.0.0.1:8210` of each pod (OpenBao 2.5.3 and later refuse them by
+  default, and the `bao operator generate-root` CLI needs a token). Upstream
+  has deprecated these unauthenticated endpoints; they are still in 2.7.1.
+  `scripts/openbao-activate.sh` does this for you, and revokes the token
+  afterwards.
 - The `openbao-config` Job authenticates with the **`podiumd-config-job`
   token**: orphan (survives root revocation), periodic (renewed by the Job on
   every run), and restricted to the exact paths the Job configures — an

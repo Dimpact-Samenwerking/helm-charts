@@ -262,7 +262,7 @@ Default replicas: **1** (all components)
 
 | Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
 |-----------|-------------|-------------|-----------|-----------|
-| zac | 100m | 1Gi | — | — |
+| zac | 100m | 2Gi | — | 2Gi |
 | opa (sidecar) | 10m | 20Mi | — | — |
 | init-solr-zac-core (init) | 50m | 256Mi | — | — |
 | nginx | 50m | 64Mi | — | — |
@@ -271,7 +271,7 @@ Default replicas: **1** (all components)
 
 *signaleren (CronJob) has no resource settings — needs settings.* Suggested: `100m / 256Mi`.
 
-> ⚠️ **Increase for production**: ZAC is a Quarkus JVM application. Under production load with many concurrent zaakafhandeling flows, 1Gi may be insufficient. Suggested: `500m / 2Gi` request, no CPU limit. Office converter is CPU-intensive for large DOCX/PDF; consider `500m / 1Gi` on production.
+> ZAC chart 1.0.338 defaults: memory request and limit 2Gi, `ephemeral-storage` request and limit 4Gi; the heap is 75% of the memory limit. Raise the limit, not `-Xmx`, for more heap. Suggested for production: `500m` CPU request, no CPU limit. Office converter is CPU-intensive for large DOCX/PDF; consider `500m / 1Gi` on production.
 
 ### ZAC — Solr (Operator managed)
 
@@ -398,6 +398,19 @@ Default replicas: **1**
 *Enabled by default since PodiumD 4.8.0 (`pabc.enabled: true`); needs an
 external database — see [enabling-pabc.md](../apps/pabc/enabling-pabc.md).
 Opt out with `pabc.enabled: false`.*
+
+---
+
+## Open VTB
+
+Optional (`openvtb.enabled`, default off). Default replicas: **2**.
+
+| Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
+|-----------|-------------|-------------|-----------|-----------|
+| openvtb | 100m | 256Mi | 500m | 768Mi |
+| job: openvtb-config | 50m | 256Mi | 500m | 512Mi |
+
+Measured on johnb00: about 260Mi per pod at rest (uWSGI, 2 processes x 2 threads).
 
 ---
 

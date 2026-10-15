@@ -15,6 +15,7 @@ import re
 from pathlib import Path
 
 from lib.chart.chart_yaml import ChartDependency
+from lib.chart.chart_yaml import chart_dir_dependencies
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.pull_and_subchart_resolution import resolve_subchart_default
@@ -46,12 +47,6 @@ ValuesPath = tuple[str, ...]
 RepoGroups = dict[str, list[ValuesPath]]
 # A find_unresolved_subchart_images finding: (scope_key, subpath, tag, already_pinned).
 SubchartImageFinding = tuple[str, str, str, bool]
-
-
-def _deps_from_chart_yaml(chart_dir: Path):
-    """Chart.yaml's "dependencies" list, or [] if Chart.yaml doesn't exist."""
-    chart_yaml_path = chart_dir / "Chart.yaml"
-    return load_chart_dependencies(chart_yaml_path) if chart_yaml_path.is_file() else []
 
 
 def _repository_groups(chart_dir: Path, values: YamlMapping, deps: list[ChartDependency]) -> RepoGroups:
@@ -231,7 +226,7 @@ def check_shared_image_usage(chart_dir: Path, extra_args: list[str]):
     rendered_paths = rendered_chart_paths(result.stdout)
 
     values = load_yaml_mapping(values_path)
-    deps = _deps_from_chart_yaml(chart_dir)
+    deps = chart_dir_dependencies(chart_dir)
     repo_groups = _live_repository_groups(chart_dir, deps, values, rendered_paths)
     global_usage = _global_image_usage(values, repo_groups)
     underused = _print_shared_image_usage(chart_dir, deps, values, repo_groups, global_usage)

@@ -35,11 +35,9 @@ defined in [`_UPGRADING.md`](_UPGRADING.md).
 
 ## Adding a new upgrade guide
 
-If the release introduces a component that ships `enabled: false`, add it to the
-*Optional components* table in [`_UPGRADING.md`](_UPGRADING.md) and link its
-enablement doc from the hop guide — otherwise the checklist is unreachable from
-the documents operators actually follow.
-
+A new component that ships `enabled: false` gets a row in the *Optional
+components* table in [`_UPGRADING.md`](_UPGRADING.md), and the hop guide that
+introduces it links its enablement doc.
 
 For a new release `<new>` with predecessor `<prev>`:
 

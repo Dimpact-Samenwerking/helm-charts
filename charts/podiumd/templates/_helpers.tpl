@@ -1101,3 +1101,24 @@ verified by the byte-identical default-render check.
 {{- $c := printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 -}}
 {{- regexReplaceAll "[^a-zA-Z0-9]+$" $c "" -}}
 {{- end }}
+
+{{/*
+kcadm.sh login for the Keycloak repair jobs: defines kc(), logs in to the master
+realm as the keycloak-operator client and waits until $REALM exists (the realm
+import job may still be running). Expects KEYCLOAK_URL, REALM and CLIENT_SECRET.
+*/}}
+{{- define "podiumd.kcadmLogin" -}}
+kc() { /opt/keycloak/bin/kcadm.sh "$@" --config /tmp/kcadm.config; }
+
+echo "Logging in to $KEYCLOAK_URL as keycloak-operator..."
+for i in $(seq 1 60); do
+  if kc config credentials --server "$KEYCLOAK_URL" --realm master \
+       --client keycloak-operator --secret "$CLIENT_SECRET" >/dev/null 2>&1 \
+     && kc get "realms/$REALM" --fields realm >/dev/null 2>&1; then
+    break
+  fi
+  if [ "$i" = 60 ]; then echo "Timed out waiting for Keycloak realm $REALM"; exit 1; fi
+  echo "Waiting for Keycloak realm $REALM ($i/60)..."
+  sleep 10
+done
+{{- end }}

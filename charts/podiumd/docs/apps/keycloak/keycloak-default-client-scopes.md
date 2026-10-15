@@ -4,19 +4,25 @@ ZAC and ITA read the user's roles from the access token. Keycloak only puts
 roles in the token when the client has the `roles` client scope as a
 **default** scope.
 
-Since 4.10.0 the realm config sets `defaultClientScopes` on every client
-(`*defaultDefaultClientScopes`, plus `service_account` for service-account
-clients). Before that, from 4.9.1 on, it set only `optionalClientScopes`.
-Keycloak treats a client's default and optional scopes as one complete set as
-soon as either list is given, so every client the realm import created got
-**no** default scopes at all. Clients that already existed before 4.9.1 kept
-theirs, because keycloak-config-cli leaves a client's default scopes alone
-when the config does not list them. That is why the older ontw environments
-worked and a rebuilt realm such as johnb00's did not.
+From 4.9.1 to 4.9.4 the realm config set `optionalClientScopes` on every
+client. Keycloak treats a client's default and optional scopes as one complete
+set as soon as either list is given, so every client the realm import
+**created** on those releases got no default scopes at all. Clients that
+already existed kept theirs, which is why the older ontw environments worked
+and a rebuilt realm such as johnb00's did not.
 
-Deploying 4.10.0 adds the missing scopes to existing clients. This page
-describes how to check a realm, and how to add the scopes by hand on an
-environment that still runs an older release.
+Since 4.10.0 client entries list no scopes, as before 4.9.1: a client the
+import creates gets the realm's default scopes, and keycloak-config-cli leaves
+the scopes of existing clients alone. Environments and Keycloak updates add
+scopes to clients (for example `bsn` and `eherkenning` for DigiD/eHerkenning),
+and the import no longer removes them. The `keycloak-repair-client-scopes`
+Job (every deploy, `keycloak-operator.jobs.repairClientScopes.enabled`) repairs
+what 4.9.1–4.9.4 left behind: a client with no default scopes, or only
+`service_account`, gets the realm's default openid-connect scopes, and
+`offline_access` is removed from every client. It never removes another scope,
+and it keeps Authorization Services on for clients that have it (`monitoring`,
+`datamigratie`). The steps below are for an environment that runs the Job
+disabled or an older release.
 
 ## Symptoms
 
@@ -42,8 +48,8 @@ The realm's default set, as on the working ontw environments:
 Service-account clients (`zac-admin-client`, `pabc-keycloak-admin`,
 `monitoring`, `datamigratie`) also keep `service_account`.
 
-`address`, `phone` and `microprofile-jwt` stay **optional** scopes; the realm
-config sets those on every client. `offline_access` is disabled realm-wide on
+`address`, `phone` and `microprofile-jwt` are the realm's default **optional**
+scopes. `offline_access` is disabled realm-wide on
 purpose (see [keycloak-security-updates.md](keycloak-security-updates.md)).
 
 ## 1. Check the realm
@@ -66,6 +72,16 @@ done
 
 # Realm defaults that new clients get:
 kc get realms/podiumd/default-default-client-scopes --fields name --format csv --noquotes
+
+# Every client without the roles default scope (created by a 4.9.1–4.9.4
+# import). Bearer-only clients (realm-management, broker) get no tokens and are
+# skipped, as the repair Job does:
+for row in $(kc get clients -r podiumd --fields id,clientId,bearerOnly --format csv --noquotes); do
+  IFS=, read -r id client bearer <<< "$row"
+  [ "$bearer" = "true" ] && continue
+  kc get "clients/$id/default-client-scopes" -r podiumd --fields name --format csv --noquotes \
+    | grep -qx roles || echo "no roles default scope: $client"
+done
 ```
 
 The operator service-account secret is in the `keycloak-operator-client-secret`
@@ -74,18 +90,16 @@ Secret (key `client-secret`), the same credentials the realm import and
 
 ## 2. Add the missing scopes
 
-On 4.10.0 or later: deploy. The realm import adds the missing default scopes
-to every client in the realm config. The steps below are for an environment
-that still runs an older release.
+Since 4.10.0 the `keycloak-repair-client-scopes` Job adds them on every deploy.
+Without it, add them by hand to every client the check above lists.
 
-With the Admin Console: **Clients** → `zac` → **Client scopes** →
+With the Admin Console: **Clients** → `<client>` → **Client scopes** →
 **Add client scope** → select the missing scopes → **Add** → **Default**.
-Repeat for `ita`.
 
 With `kcadm.sh`:
 
 ```bash
-for c in zac ita; do
+for c in zac ita; do   # the clients the check listed
   id=$(kc get clients -r podiumd -q clientId=$c --fields id --format csv --noquotes)
   for s in roles basic profile email web-origins acr; do
     sid=$(kc get client-scopes -r podiumd --fields id,name --format csv --noquotes | awk -F, -v s="$s" '$2==s{print $1}')
@@ -101,11 +115,9 @@ Keycloak's built-in scopes. Create it in the Admin Console
 (**Client scopes** → **Create client scope**) or restore it from a realm that
 has it, before assigning it.
 
-On a release before 4.10.0 the realm import does not remove these again:
-keycloak-config-cli only changes an existing client's default scopes when the
-realm config lists them, and before 4.10.0 it does not. A client the realm
-import creates on such a release still gets no default scopes; repeat the
-steps for it.
+The realm import does not remove them again: since 4.10.0 the realm config
+lists no scopes on clients. On 4.9.1–4.9.4 a client the realm import creates
+still gets no default scopes; repeat the steps for it.
 
 **aks-blue environments:** a change with `kcadm.sh` through `kubectl exec` is a
 manual change to the realm, outside the pipeline. Let a Keycloak administrator

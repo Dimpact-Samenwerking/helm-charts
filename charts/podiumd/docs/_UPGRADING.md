@@ -51,17 +51,13 @@ Upgrade one hop at a time, in order. Each guide covers exactly one hop.
 
 ### Optional components — an upgrade will not enable these
 
-Ten components ship disabled and are deployed only when a gemeente opts in.
-Upgrade guides do not cover turning one on: enabling a component is its own
-piece of work, with its own prerequisites (database, file share, Key Vault
-entries, DNS, Keycloak client). Read its enablement doc **before** setting
-`enabled: true` — a half-finished enablement deploys green and fails at first
-use, which is how [IN-2847](https://dimpact.atlassian.net/browse/IN-2847)
-happened.
+Ten components ship disabled. An upgrade does not enable them: read its
+enablement doc **before** setting `enabled: true`
+([IN-2847](https://dimpact.atlassian.net/browse/IN-2847)).
 
 | Component | Values key | Enablement doc |
 |---|---|---|
-| Open Beheer | `openbeheer` | [`openbeheer.md`](apps/openbeheer/openbeheer.md) — full checklist; [`openbeheer-BASICS.md`](apps/openbeheer/openbeheer-BASICS.md) for the summary |
+| Open Beheer | `openbeheer` | [`openbeheer.md`](apps/openbeheer/openbeheer.md); [`openbeheer-BASICS.md`](apps/openbeheer/openbeheer-BASICS.md) for the summary |
 | Open Archiefbeheer | `openarchiefbeheer` | [`openarchiefbeheer-BASICS.md`](apps/openarchiefbeheer/openarchiefbeheer-BASICS.md) |
 | Referentielijsten | `referentielijsten` | [`referentielijsten-BASICS.md`](apps/referentielijsten/referentielijsten-BASICS.md) |
 | API-proxy | `apiproxy` | [`apiproxy-BASICS.md`](apps/apiproxy/apiproxy-BASICS.md) |
@@ -70,7 +66,7 @@ happened.
 | Zaakbrug | `zaakbrug` | [`zaakbrug-BASICS.md`](apps/zaakbrug/zaakbrug-BASICS.md) |
 | MI-data | `mi` | [`mi-BASICS.md`](apps/mi/mi-BASICS.md) |
 | OpenBao | `openbao` | [`openbao-BASICS.md`](apps/openbao/openbao-BASICS.md) |
-| BRP Personen mock | `brppersonenmock` | — no enablement doc yet |
+| BRP Personen mock | `brppersonenmock` | [`brp-personen-mock-BASICS.md`](apps/brp-personen-mock/brp-personen-mock-BASICS.md) |
 
 ### Environments on 4.6.6
 

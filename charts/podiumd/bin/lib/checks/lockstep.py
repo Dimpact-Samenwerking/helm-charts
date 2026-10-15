@@ -23,6 +23,7 @@ from lib.chart.registered_paths import chart_version_lockstep_components
 from lib.chart.registered_paths import component_image_paths
 from lib.chart.registered_paths import component_version_paths
 from lib.chart.registered_paths import embedded_version_images
+from lib.chart.registered_paths import pin_paths_for
 from lib.chart.values_tree_primitives import find_dependency
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
@@ -41,12 +42,8 @@ def find_lockstep_mismatches(
     default is a legitimate choice). Components with fewer than two such paths, or no
     matching Chart.yaml dependency, are skipped.
     """
-    entries = [(name, paths, True) for name, paths in component_image_paths().items() if len(paths) >= 2] + [
-        (name, paths, False) for name, paths in component_version_paths().items() if len(paths) >= 2
-    ]
-
     findings: list[tuple[str, str, list[tuple[str, str]]]] = []
-    for component, paths, is_image_paths in entries:
+    for component in {**component_image_paths(), **component_version_paths()}:
         dep = find_dependency(deps, component)
         if dep is None:
             continue
@@ -54,10 +51,10 @@ def find_lockstep_mismatches(
         base = values.get(values_key, {}) if isinstance(values, dict) else {}
 
         resolved: list[tuple[str, str]] = []
-        for path in paths:
-            raw = text_at(base, f"{path}.tag" if is_image_paths else path)
+        for pin in pin_paths_for(component):
+            raw = text_at(base, pin.version_key)
             if isinstance(raw, str) and raw:
-                resolved.append((path, version_of(raw)))
+                resolved.append((pin.path, version_of(raw)))
 
         if len({version for _, version in resolved}) > 1:
             findings.append((component, values_key, resolved))

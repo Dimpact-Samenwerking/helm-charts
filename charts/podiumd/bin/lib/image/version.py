@@ -15,6 +15,7 @@ from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.chart.values_tree_primitives import same_name
 from lib.chart.values_tree_primitives import values_key_of
 from lib.image.digests import DigestPin
+from lib.image.digests import ImagePin
 from lib.image.digests import VersionPin
 from lib.image.digests import scan_digest_pins
 from lib.image.digests import scan_version_pins
@@ -135,15 +136,42 @@ def resolve_key_scope(key: str, deps: list[ChartDependency]) -> str:
     return values_key_of(dep) if dep is not None else key
 
 
+def _in_scope(top_key: str, repository: str | None, scope_key: str, basename: str) -> bool:
+    """Whether a pin under top-level `top_key` with `repository` is <scope_key> <basename> (ignoring case)."""
+    return bool(repository) and same_name(image_basename(repository), basename) and same_name(top_key, scope_key)
+
+
+def _scope_key(key: str) -> str:
+    """The top-level values.yaml key CLI <key> searches: global for MULTIPLE_KEY."""
+    return GLOBAL_IMAGES_SCOPE if same_name(key, MULTIPLE_KEY) else key
+
+
+ScopedT = TypeVar("ScopedT", ScopedPin, ImagePin)
+
+
+def _require_one_repository(matches: list[ScopedT], key: str, basename: str) -> list[ScopedT]:
+    """`matches`, or SystemExit if it is empty or holds more than one distinct repository."""
+    if not matches:
+        msg = f"error: no image pin with image basename '{basename}' found under '{key}'"
+        raise SystemExit(msg)
+    repositories = {str(m["repository"]) for m in matches}
+    if len(repositories) > 1:
+        msg = (
+            f"error: '{basename}' under '{key}' is not unique — "
+            f"{len(repositories)} distinct repositories match: "
+            f"{', '.join(sorted(repositories))}"
+        )
+        raise SystemExit(msg)
+    return matches
+
+
 def find_matches_in_scope(lines: list[str], scope_key: str, basename: str) -> list[ScopedPin]:
     """find_matches restricted to pins under top-level `scope_key`."""
     matches: list[ScopedPin] = []
     for pin in scan_digest_pins(lines):
         repository = pin["repository"]
-        if not repository or not same_name(image_basename(repository), basename):
-            continue
-        path = dotted_key_path(lines, pin["line"] - 1).split(".")
-        if not same_name(path[0], scope_key):
+        top_key = dotted_key_path(lines, pin["line"] - 1).split(".", maxsplit=1)[0]
+        if repository is None or not _in_scope(top_key, repository, scope_key, basename):
             continue
         matches.append(
             {"line": pin["line"], "version": pin["version"], "digest": pin["digest"], "repository": repository}
@@ -157,20 +185,14 @@ def resolve_scoped_matches(lines: list[str], key: str, basename: str) -> list[Sc
     Raises SystemExit if nothing matches or more than one distinct
     repository does.
     """
-    scope_key = GLOBAL_IMAGES_SCOPE if same_name(key, MULTIPLE_KEY) else key
-    matches = find_matches_in_scope(lines, scope_key, basename)
-    if not matches:
-        msg = f"error: no image pin with image basename '{basename}' found under '{key}'"
-        raise SystemExit(msg)
-    repositories = {m["repository"] for m in matches}
-    if len(repositories) > 1:
-        msg = (
-            f"error: '{basename}' under '{key}' is not unique — "
-            f"{len(repositories)} distinct repositories match: "
-            f"{', '.join(sorted(repositories))}"
-        )
-        raise SystemExit(msg)
-    return matches
+    return _require_one_repository(find_matches_in_scope(lines, _scope_key(key), basename), key, basename)
+
+
+def resolve_scoped_image_pins(pins: list[ImagePin], key: str, basename: str) -> list[ImagePin]:
+    """resolve_scoped_matches over scan_image_pins pins, so sibling digests (keycloak's "sha:") match too."""
+    scope_key = _scope_key(key)
+    matches = [p for p in pins if _in_scope(p["path"][0], p["repository"], scope_key, basename)]
+    return _require_one_repository(matches, key, basename)
 
 
 def check_basename_version(lines: list[str], key: str, basename: str, new_version: str) -> list[TagCheck]:

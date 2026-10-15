@@ -1,4 +1,4 @@
-"""Report-only trivy CVE scan (fixable vulnerabilities) of every digest-pinned image in values.yaml.
+"""Report-only trivy CVE scan (fixable vulnerabilities) of every pinned image in values.yaml (scan_image_pins).
 
 Never fails: whether a HIGH/CRITICAL fix is reachable or exploitable here is a human
 triage decision, not a chart-correctness fact.
@@ -10,8 +10,9 @@ every finding grouped per package (one bundled binary can carry hundreds of CVEs
 summarized past cve_scan.max_cves_per_package_before_summarizing. FixedVersion is
 never shown: only the image tag is pinned here, not packages inside it.
 
-An "upgradable to X" marker comes from the image-upgrade cache, read-only; verify-podiumd
-runs "Image upgrades" first as a prerequisite so it is fresh.
+An "upgradable to X" marker (the newest tag in the pin's major) comes from the
+image-upgrade cache, read-only; verify-podiumd runs "Image upgrades" first as a
+prerequisite so it is fresh.
 
 Results are cached per (repository, digest) in <repo-root>/.cache/cve-scan-cache.json,
 capped by cve_scan.scan_cache_ttl_days because trivy's DB changes even when the image doesn't.
@@ -20,6 +21,7 @@ capped by cve_scan.scan_cache_ttl_days because trivy's DB changes even when the 
 import json
 import re
 import shutil
+import urllib.error
 
 from collections import Counter
 from collections.abc import Mapping
@@ -32,18 +34,20 @@ from typing import TypedDict
 from typing import TypeGuard
 
 from lib.chart.chart_yaml import load_chart_dependencies
+from lib.chart.pull_and_subchart_resolution import formatted_repo
 from lib.chart.values_tree_primitives import values_key_of
-from lib.image.digests import unique_digest_pin_targets
+from lib.image.digests import ImageTarget
+from lib.image.digests import unique_image_targets
 from lib.image.upgrade_cache import UpgradeEntry
-from lib.image.upgrade_cache import cache_entry_is_fresh as upgrade_entry_is_fresh
-from lib.image.upgrade_cache import cache_key as upgrade_cache_key
 from lib.image.upgrade_cache import load_cache as load_upgrade_cache
+from lib.image.upgrade_cache import same_major_upgrade
 from lib.json_cache import cache_file
 from lib.json_cache import checked_within
 from lib.json_cache import load_json_cache
 from lib.json_cache import save_json_cache
 from lib.procutil import run
 from lib.registry import parse_repo
+from lib.registry import registry_tag_exists
 from lib.render_scope import OWN_TEMPLATES_PREFIX
 from lib.render_scope import chart_name_from_source
 from lib.render_scope import friendly_vendor_charts
@@ -56,6 +60,9 @@ from lib.yaml_types import YamlValue
 from lib.yaml_types import is_yaml_mapping
 
 TRIVY_IMAGE = "aquasec/trivy:latest"
+# Named volume for trivy's cache dir: without it every --rm run downloads the
+# vulnerability database again (about a minute per image).
+TRIVY_CACHE_VOLUME = "trivy-cache"
 # Worst first.
 SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"]
 
@@ -198,8 +205,19 @@ def run_trivy(image_ref: str) -> list[Vulnerability] | None:
             "docker",
             "run",
             "--rm",
+            # The host network creates no veth per container; on the bridge, each
+            # start and stop changes the host's interfaces, and browsers on the same
+            # machine (podiumd-tests' Chromium) abort page loads with ERR_NETWORK_CHANGED.
+            "--network",
+            "host",
+            "--volume",
+            f"{TRIVY_CACHE_VOLUME}:/root/.cache/trivy",
             TRIVY_IMAGE,
             "image",
+            # Image layers stay in memory: the shared volume then only holds the
+            # database, and concurrent scans don't wait on trivy's fs cache lock.
+            "--cache-backend",
+            "memory",
             "--ignore-unfixed",
             "--scanners",
             "vuln",
@@ -247,6 +265,28 @@ def scan_cached(chart_dir: Path, target: ScanTarget, session: CacheSession, ttl_
     return vulns, False
 
 
+def bare_digest(digest_ref: str) -> str:
+    """ "sha256:<hex>" -> "<hex>", the form cache_key expects."""
+    return digest_ref.removeprefix("sha256:")
+
+
+def resolve_scan_digest(repository: str, tag: str, digest: str | None) -> str | None:
+    """`digest`, else the bare digest `tag` has upstream now; None when that lookup fails.
+
+    Gives an unpinned tag (eck-stack's images, an upgrade's proposed tag) a
+    scan_cached key, so it is pulled and scanned once per digest instead of
+    on every run.
+    """
+    if digest is not None:
+        return digest
+    host, repo_path = parse_repo(repository)
+    try:
+        exists, resolved = registry_tag_exists(host, repo_path, tag)
+    except (urllib.error.URLError, OSError):
+        return None
+    return bare_digest(resolved) if exists and resolved else None
+
+
 # --- own/partner/other classification ---
 
 # Digest-pinned "image:" lines in a render; every image helper renders a plain scalar.
@@ -255,10 +295,10 @@ PINNED_IMAGE_RE = re.compile(r'^\s*image:\s*"?([^"\s]+@sha256:[0-9a-f]{64})"?\s*
 # Top-level values.yaml key; fallback classification for components absent from the render.
 TOP_LEVEL_KEY_RE = re.compile(r"^([a-zA-Z0-9_-]+):")
 
-# A digest-pinned image as (repository, version or None, digest).
+# A digest-pinned image as (host-qualified repository, version or None, digest).
 ImageKey = tuple[str, str | None, str]
-# A scan target as ((repository, version), (digest, values.yaml line)).
-ScanTargetPin = tuple[tuple[str, str], tuple[str, int]]
+# A scan target as ((repository, version), (digest or None, values.yaml line)).
+ScanTargetPin = tuple[ImageTarget, tuple[str | None, int]]
 
 
 def split_image_ref(ref: str) -> tuple[str, str | None, str | None]:
@@ -338,13 +378,16 @@ def bucket_of(label: str) -> str:
 def render_image_labels(rendered_text: str, vendor_map: dict[str, str]) -> dict[ImageKey, str]:
     """(repository, version, digest) -> label for every pinned image in the render.
 
-    "own" wins if any source is own, even when a vendored chart also renders it.
+    The repository is host-qualified (formatted_repo), as scan_image_pins
+    gives it. "own" wins if any source is own, even when a vendored chart
+    also renders it.
     """
     labels: dict[ImageKey, str] = {}
     for source, text in split_rendered_by_source(rendered_text):
         label = classify_source(source, vendor_map)
         for ref in PINNED_IMAGE_RE.findall(text):
-            key = parse_image_ref(ref)
+            repository, version, digest = parse_image_ref(ref)
+            key = (formatted_repo(repository), version, digest)
             if labels.get(key) != "own":
                 labels[key] = label
     return labels
@@ -352,7 +395,7 @@ def render_image_labels(rendered_text: str, vendor_map: dict[str, str]) -> dict[
 
 @dataclass
 class ImageClassification:
-    """Inputs for classifying a scan target (see _target_label)."""
+    """Inputs for classifying a scan target (see target_label)."""
 
     rendered_labels: dict[ImageKey, str]
     dep_names: set[str]
@@ -406,16 +449,20 @@ class ScanStats:
     target_count: int
 
 
-def _classify_pinned_images(chart_dir: Path, extra_args: list[str]):
-    """An ImageClassification if the chart renders successfully, else
-    None (the caller reports "helm template failed to render" and stops)."""
+def unrendered_classification(chart_dir: Path) -> ImageClassification:
+    """An ImageClassification without rendered labels: classify_by_key's inputs only."""
+    return ImageClassification({}, dependency_names(chart_dir), friendly_vendor_charts(chart_dir))
+
+
+def classify_rendered_images(chart_dir: Path, extra_args: list[str]) -> ImageClassification | None:
+    """unrendered_classification plus the render's image labels; None
+    when the chart fails to render (the caller decides whether that stops it)."""
     result = render_chart(chart_dir, extra_args)
     if result.returncode != 0:
         return None
-    vendor_map = friendly_vendor_charts(chart_dir)
-    dep_names = dependency_names(chart_dir)
-    rendered_labels = render_image_labels(result.stdout, vendor_map)
-    return ImageClassification(rendered_labels, dep_names, vendor_map)
+    classification = unrendered_classification(chart_dir)
+    classification.rendered_labels = render_image_labels(result.stdout, classification.vendor_map)
+    return classification
 
 
 def _image_ref(repository: str, version: str):
@@ -433,44 +480,48 @@ def _digest_ref(repository: str, digest: str | None) -> str | None:
     return f"{host}/{repo_path}@sha256:{digest}"
 
 
-def _target_label(repository: str, version: str, digest: str, line: int, context: ScanContext):
-    """The render-based label, else classify_by_key's top-level-key fallback."""
-    label = context.classification.rendered_labels.get((repository, version, digest))
+def target_label(
+    classification: ImageClassification,
+    values_lines: list[str],
+    image: tuple[str, str, str | None],
+    line: int | None,
+) -> str:
+    """The render's label of `image` (repository, version, digest), else
+    classify_by_key of the top-level key above `line`; a digest-less image
+    always takes the fallback."""
+    repository, version, digest = image
+    label = classification.rendered_labels.get((repository, version, digest)) if digest else None
     if label is not None:
         return label
-    top_key = top_level_key_for_line(context.values_lines, line)
-    return classify_by_key(top_key, context.classification.dep_names, context.classification.vendor_map)
+    top_key = top_level_key_for_line(values_lines, line) if line else None
+    return classify_by_key(top_key, classification.dep_names, classification.vendor_map)
 
 
-def _upgradable_to(repository: str, version: str, context: ScanContext) -> str | None:
-    """The newer tag from a fresh upgrade-cache entry, or None."""
-    upgrade_entry = context.upgrade_cache.get(upgrade_cache_key(repository, version))
-    if (
-        upgrade_entry
-        and upgrade_entry_is_fresh(upgrade_entry, context.settings.upgrade_cache_ttl_days)
-        and upgrade_entry["newest"] != version
-    ):
-        return upgrade_entry["newest"]
-    return None
+def _scan_target(repository: str, version: str, digest: str | None) -> ScanTarget:
+    """The ScanTarget of a pin: its digest, or for an unpinned tag the digest that tag has now.
+
+    Scanning by digest keeps the scan and its cache key the same image, also
+    when the tag was republished since pinning.
+    """
+    scan_digest = resolve_scan_digest(repository, version, digest)
+    return ScanTarget(repository, scan_digest, _digest_ref(repository, scan_digest) or _image_ref(repository, version))
 
 
 def _scan_one_target(
-    repo_version: tuple[str, str], digest_line: tuple[str, int], index: int, total: int, context: ScanContext
+    repo_version: ImageTarget, digest_line: tuple[str | None, int], index: int, total: int, context: ScanContext
 ):
     """(image_ref, entry, was_cached); entry is None when the scan failed.
 
-    image_ref (tag-based) is for display; trivy scans the pinned digest, since the tag
-    may have been republished since pinning.
+    image_ref (tag-based) is for display; trivy scans by digest (_scan_target).
     """
     repository, version = repo_version
     digest, line = digest_line
     image_ref = _image_ref(repository, version)
-    scan_ref = _digest_ref(repository, digest) or image_ref
-    label = _target_label(repository, version, digest, line, context)
+    label = target_label(context.classification, context.values_lines, (repository, version, digest), line)
 
     vulns, was_cached = scan_cached(
         context.chart_dir,
-        ScanTarget(repository, digest, scan_ref),
+        _scan_target(repository, version, digest),
         context.session,
         context.settings.cve_cache_ttl_days,
         label=f"[{index}/{total}] this image",
@@ -482,7 +533,9 @@ def _scan_one_target(
         "bucket": bucket_of(label),
         "vendor_label": label if bucket_of(label) == "partner" else None,
         "vulns": vulns,
-        "upgradable_to": _upgradable_to(repository, version, context),
+        "upgradable_to": same_major_upgrade(
+            context.upgrade_cache, repository, version, context.settings.upgrade_cache_ttl_days
+        ),
     }
     return image_ref, entry, was_cached
 
@@ -556,12 +609,12 @@ def check_cves(chart_dir: Path, extra_args: list[str], *, detail: bool = False):
         image_upgrade_tag_check_cache_ttl_days(chart_dir),
     )
 
-    classification = _classify_pinned_images(chart_dir, extra_args)
+    classification = classify_rendered_images(chart_dir, extra_args)
     if classification is None:
         return False, "helm template failed to render"
 
     values_lines = (chart_dir / "values.yaml").read_text(encoding="utf-8").splitlines()
-    targets = sorted(unique_digest_pin_targets(values_lines).items())
+    targets = sorted(unique_image_targets(chart_dir).items())
     session = CacheSession(*open_cache_session(chart_dir))
     scan_context = ScanContext(
         chart_dir, values_lines, classification, load_upgrade_cache(chart_dir), session, settings

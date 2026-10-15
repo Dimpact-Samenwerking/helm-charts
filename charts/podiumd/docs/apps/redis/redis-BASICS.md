@@ -141,16 +141,11 @@ Redis itself ships with the umbrella chart (`redis-operator.enabled: true`,
    newcomponent:
      settings:
        cache:
-         default: redis-ha-master.podiumd.svc.cluster.local:6379/21
-         axes: redis-ha-master.podiumd.svc.cluster.local:6379/21
+         default: redis-ha-master:6379/21
+         axes: redis-ha-master:6379/21
        celery:
-         brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/22
-         resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/22
-         default: redis-ha-master:6379/19
-         axes: redis-ha-master:6379/19
-       celery:
-         brokerUrl: redis://redis-ha-master:6379/20
-         resultBackendl: redis://redis-ha-master:6379/20
+         brokerUrl: redis://redis-ha-master:6379/22
+         resultBackendl: redis://redis-ha-master:6379/22
    ```
 
    (The `resultBackendl` spelling — trailing `l` — is intentional; it matches

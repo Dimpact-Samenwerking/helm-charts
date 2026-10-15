@@ -1,0 +1,16 @@
+{{- if .Values.openarchiefbeheer.enabled }}
+{{- /*
+  Python loaded through PYTHONPATH by every Open Archiefbeheer container; see
+  openarchiefbeheer.extraEnvVars in values.yaml.
+*/ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openarchiefbeheer-patches
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: openarchiefbeheer
+data:
+{{ (.Files.Glob "files/openarchiefbeheer/*.py").AsConfig | indent 2 }}
+{{- end }}

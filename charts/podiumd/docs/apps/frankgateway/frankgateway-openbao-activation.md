@@ -50,7 +50,16 @@ secret.
 | Activate | read and write `openbao-unseal-key` (Key Vault Secrets Officer, or scope it to that item); create Secrets and Jobs and exec into pods in the PodiumD namespace; `helm get` on the release |
 
 **Database:** an Azure PostgreSQL database `openbao` with role
-`openbao-admin` and the password above. The chart creates the tables.
+`openbao-admin` and the password above. The chart creates the tables, but
+the role needs rights on the `public` schema first: on Azure PostgreSQL that
+schema belongs to `azure_pg_admin`, so owning the database is not enough,
+and the `openbao-db-schema` Job fails with `permission denied for schema
+public`. As the server admin, connected to `openbao`:
+
+```sql
+GRANT ALL PRIVILEGES ON DATABASE "openbao" TO "openbao-admin";
+GRANT USAGE, CREATE ON SCHEMA public TO "openbao-admin";
+```
 
 **Route and certificate:** a route from the OpenBao host
 (`openbao.configuration.oidcUrl`) to service `<release>-openbao-active`, port
@@ -147,7 +156,11 @@ What it does, stopping at the first problem:
    [Preflight checks](#preflight-checks).
 2. **Initialise** the vault, store the recovery key in `openbao-unseal-key`
    and read it back. Write access is checked before initialising, because the
-   key is returned only once.
+   key is returned only once. The init output stays in a mode-0600 file in
+   pod 0 until the read-back matches, so a run that breaks halfway loses
+   nothing: run it again. When Key Vault keeps refusing the key, the script
+   writes it to a mode-0600 file on the machine it runs on and prints only
+   that file's path.
 3. **Unseal**: with the static seal the pods unseal themselves; a standby that
    stays sealed is restarted.
 4. **Tokens**: the scoped config token (Secret `openbao-bootstrap-token`) and,
@@ -161,6 +174,15 @@ What it does, stopping at the first problem:
 
 Exit code 0 means OpenBao is operational. Secrets are never printed and never
 passed as command arguments.
+
+Two options for exceptional cases:
+
+- `--force` cancels a `generate-root` attempt that another operator or
+  pipeline run left in progress. Without it the script stops, so two runs
+  never race.
+- `--revoke-accessor <accessor>` revokes a root token that an earlier run
+  could not revoke (no OpenBao pod reachable at the end). That run prints the
+  accessor; the next run revokes it with its own temporary root token.
 
 ## 6. Give uploaders access
 
@@ -222,7 +244,7 @@ What `openbao-activate.sh` checks before it changes anything:
 | Seal migration | a pod is migrating from Shamir to static | finish it by hand ([§3.6.1](frankgateway-openbao.md#361-static-seal-unseal-without-an-operator-optional)) |
 | `openbao-unseal-key` | missing or unreadable | create it with `pending-init` (step 1) |
 | `openbao-unseal-key` | vault uninitialised but the item holds a key | check the database is the right one; reset the item to `pending-init` only when its vault is gone |
-| `openbao-unseal-key` | vault initialised but the item holds `pending-init` | the key was never stored; stop and escalate |
+| `openbao-unseal-key` | vault initialised, the item holds `pending-init`, and pod 0 has no `/tmp/.openbao-init.json` | the key is lost (an interrupted init whose pod 0 was recreated since): on a vault without data, wipe and re-initialise ([§3.6](frankgateway-openbao.md#36-seal--init--unseal-model-shamir), interrupted init); otherwise escalate. With that file present the script stores the key from it instead |
 | Keycloak client secret | no `openbao-oidc-secret` in `keycloak-podiumd-realm-secrets` | deploy with the Keycloak realm import enabled |
 
 The chart checks at render time too (`templates/validations.yaml`): a

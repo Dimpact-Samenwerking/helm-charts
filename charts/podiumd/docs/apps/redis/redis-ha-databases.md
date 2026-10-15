@@ -103,16 +103,11 @@ When adding a new Django-based component to the chart, follow these steps:
    future-component:
      settings:
        cache:
-         default: redis-ha-master.podiumd.svc.cluster.local:6379/21
-         axes: redis-ha-master.podiumd.svc.cluster.local:6379/21
+         default: redis-ha-master:6379/21
+         axes: redis-ha-master:6379/21
        celery:
-         brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/22
-         resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/22
-         default: redis-ha-master:6379/19
-         axes: redis-ha-master:6379/19
-       celery:
-         brokerUrl: redis://redis-ha-master:6379/20
-         resultBackendl: redis://redis-ha-master:6379/20
+         brokerUrl: redis://redis-ha-master:6379/22
+         resultBackendl: redis://redis-ha-master:6379/22
    ```
 
    > **Note:** The `resultBackendl` key has a typo (extra `l`) — this is intentional to match

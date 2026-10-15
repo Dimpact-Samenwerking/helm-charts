@@ -233,7 +233,7 @@ def test_main_reorders_images_manifest_to_match_values_yaml(
         yaml.safe_dump(
             {
                 "redis-operator": {
-                    "image": {"repository": "quay.io/opstree/redis-operator", "tag": "0.26.0@sha256:aaaa"}
+                    "redisOperator": {"imageName": "quay.io/opstree/redis-operator", "imageTag": "0.26.0@sha256:aaaa"}
                 },
                 "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.4@sha256:bbbb"}},
             },
