@@ -249,6 +249,41 @@ Usage: {{ include "podiumd.frankgateway.spread" (dict "name" $name "override" $f
 {{- end -}}
 
 {{/*
+Frank!Gateway — workload hardening (WH-01).
+
+podSecurity: pod-level fields. No FrankGateway pod talks to the Kubernetes API
+(the scripts only use curl), so the ServiceAccount token is never mounted.
+With securityContext.enabled the pod gets securityContext.pod plus an fsGroup
+of the given user's gid, so a volume (etcd's PVC) is writable for it.
+
+containerSecurity: container-level fields, securityContext.container plus the
+numeric user and group from securityContext.users.<user>. Numeric, because
+several images declare `root` or a user name, and runAsNonRoot needs a number
+it can check. Which paths each container then needs writable is handled with
+emptyDir mounts in the templates.
+
+Usage:
+  {{- include "podiumd.frankgateway.podSecurity" (dict "instance" $fg "user" "gateway") | nindent 6 }}
+  {{- include "podiumd.frankgateway.containerSecurity" (dict "instance" $fg "user" "gateway") | nindent 10 }}
+*/}}
+{{- define "podiumd.frankgateway.podSecurity" -}}
+automountServiceAccountToken: false
+{{- if .instance.securityContext.enabled }}
+{{- $u := index .instance.securityContext.users .user }}
+securityContext:
+  {{- toYaml (mergeOverwrite (deepCopy .instance.securityContext.pod) (dict "fsGroup" $u.gid)) | nindent 2 }}
+{{- end }}
+{{- end -}}
+
+{{- define "podiumd.frankgateway.containerSecurity" -}}
+{{- if .instance.securityContext.enabled }}
+{{- $u := index .instance.securityContext.users .user }}
+securityContext:
+  {{- toYaml (mergeOverwrite (deepCopy .instance.securityContext.container) (dict "runAsUser" $u.uid "runAsGroup" $u.gid)) | nindent 2 }}
+{{- end }}
+{{- end -}}
+
+{{/*
 Frank!Gateway — etcd client endpoints, one per member.
 
 Addresses the members individually through the headless Service rather than the
@@ -343,17 +378,22 @@ apisix:
       - port: {{ $fg.tls.port }}
   {{- end }}
 
+  # Control API: unauthenticated, and nothing in this chart uses it, so it
+  # only listens on the pod's loopback (NW-15).
   enable_control: true
   control:
-    ip: "0.0.0.0"
+    ip: "127.0.0.1"
     port: 9092
 
 deployment:
   admin:
-    # ClusterIP-only Service; the Admin API is additionally protected by
-    # the random admin key below. Tighten per-env if required.
+    # Source addresses APISIX accepts on the Admin API, in addition to the
+    # random admin key below (NW-05). Default: private ranges only (pod and
+    # loopback addresses); set admin.allowFrom to the cluster's pod CIDR to
+    # narrow it further. The NetworkPolicy limits port 9180 to the jobs that
+    # call it.
     allow_admin:
-      - 0.0.0.0/0
+      {{- toYaml $fg.admin.allowFrom | nindent 6 }}
 
     admin_key:
       - name: "admin"
@@ -390,7 +430,14 @@ plugin_attr:
 # NAMES appear in this config; the token VALUE reaches the container from a
 # Secret and never lands in etcd, git or a ConfigMap.
 nginx_config:
+  # The image links logs/error.log and logs/access.log to /dev/stderr and
+  # /dev/stdout, but the logs emptyDir (readOnlyRootFilesystem) hides those
+  # links: write to the streams directly, so kubectl logs, Loki and Alloy
+  # keep the gateway logs and nothing grows in the emptyDir.
+  error_log: /dev/stderr
   http:
+    access_log: /dev/stdout
+    client_max_body_size: {{ $fg.buffering.clientMaxBodySize | quote }}
     # Pod-wide memory for files/frankgateway/openbao-client.lua's last-good
     # copies. Lua state is otherwise per nginx worker (worker_processes auto:
     # one per CPU), so a last-good value known to one worker would be unknown
@@ -409,6 +456,17 @@ nginx_config:
     access_log_format_escape: json
     access_log_format: '{"time":"$time_iso8601","instance_name":"{{ .name }}","client":"$remote_addr","method":"$request_method","host":"$host","uri":"$uri","query":"$args","status":$status,"bytes_sent":$body_bytes_sent,"request_time":$request_time,"upstream_addr":"$upstream_addr","upstream_status":"$upstream_status","upstream_response_time":"$upstream_response_time","request_id":"$request_id","referer":"$http_referer","user_agent":"$http_user_agent","consumer":"$http_x_consumer_username"}'
   {{- end }}
+  # nginx's default temp paths sit under /usr/local/apisix, which is read-only
+  # with readOnlyRootFilesystem; /tmp is an emptyDir (WH-01).
+  http_configuration_snippet: |
+    client_body_temp_path /tmp/client_body_temp;
+    proxy_temp_path /tmp/proxy_temp;
+    fastcgi_temp_path /tmp/fastcgi_temp;
+    uwsgi_temp_path /tmp/uwsgi_temp;
+    scgi_temp_path /tmp/scgi_temp;
+    # Stream upstream responses instead of spooling up to 1 GiB per response
+    # into the size-limited /tmp emptyDir.
+    proxy_max_temp_file_size 0;
   main_configuration_snippet: |
     env OPENBAO_TOKEN;
     env OPENBAO_ADDR;

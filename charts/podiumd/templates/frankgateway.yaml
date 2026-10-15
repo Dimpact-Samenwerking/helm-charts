@@ -82,9 +82,31 @@ spec:
         # takes effect on a roll.
         checksum/lua: {{ ($root.Files.Glob "files/frankgateway/*.lua").AsConfig | sha256sum }}
     spec:
+      {{- include "podiumd.frankgateway.podSecurity" (dict "instance" $fg "user" "gateway") | nindent 6 }}
       topologySpreadConstraints:
         {{- include "podiumd.frankgateway.spread" (dict "name" $name "override" $fg.topologySpreadConstraints) | nindent 8 }}
       initContainers:
+        # APISIX writes conf/nginx.conf at start-up, so conf/ must be writable
+        # while the root filesystem is not: copy the image's conf/ (mime.types,
+        # debug.yaml, cert/) into an emptyDir that the gateway mounts as conf/.
+        # config.yaml and lua/ are mounted on top of it as before.
+        - name: copy-conf
+          image: {{ include "podiumd.image" $fg.image }}
+          imagePullPolicy: IfNotPresent
+          # cp -R, not -a: the emptyDir root belongs to root, so a non-root
+          # user may not set its timestamps and `cp -a` fails on it.
+          command: ["sh", "-c", "cp -R /usr/local/apisix/conf/. /conf-rw/"]
+          {{- include "podiumd.frankgateway.containerSecurity" (dict "instance" $fg "user" "gateway") | nindent 10 }}
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          volumeMounts:
+            - name: conf
+              mountPath: /conf-rw
         # Wait for the etcd cluster to be usable before starting APISIX.
         #
         # APISIX reads etcd's /version once, at startup, and exits if it does
@@ -109,6 +131,7 @@ spec:
         - name: wait-for-etcd
           image: {{ include "podiumd.image" $fg.seed.job.image }}
           imagePullPolicy: IfNotPresent
+          {{- include "podiumd.frankgateway.containerSecurity" (dict "instance" $fg "user" "jobs") | nindent 10 }}
           command: ["sh", "-c"]
           args:
             - |
@@ -160,6 +183,7 @@ spec:
         - name: frankgateway
           image: {{ include "podiumd.image" $fg.image }}
           imagePullPolicy: IfNotPresent
+          {{- include "podiumd.frankgateway.containerSecurity" (dict "instance" $fg "user" "gateway") | nindent 10 }}
           env:
             # Read at request time by files/frankgateway/openbao-secret-header.lua.
             # The token is mounted optionally so a class that reads no secrets
@@ -192,13 +216,28 @@ spec:
           resources:
             {{- toYaml $fg.resources | nindent 12 }}
           volumeMounts:
+            - name: conf
+              mountPath: /usr/local/apisix/conf
             - name: config
               mountPath: /usr/local/apisix/conf/config.yaml
               subPath: config.yaml
             - name: lua
               mountPath: /usr/local/apisix/conf/lua
               readOnly: true
+            - name: logs
+              mountPath: /usr/local/apisix/logs
+            - name: tmp
+              mountPath: /tmp
       volumes:
+        - name: conf
+          emptyDir:
+            sizeLimit: 16Mi
+        - name: logs
+          emptyDir:
+            sizeLimit: 256Mi
+        - name: tmp
+          emptyDir:
+            sizeLimit: {{ $fg.buffering.tmpSizeLimit }}
         - name: config
           secret:
             secretName: {{ $name }}-config

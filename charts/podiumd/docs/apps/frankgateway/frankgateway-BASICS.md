@@ -393,17 +393,64 @@ traffic, and the gateway CPU request in particular is a placeholder for
 evidence that does not exist yet — revisit after a production environment has
 run for a week.
 
+## Workload hardening
+
+Since 4.10.0 every Frank!Gateway workload runs hardened (security review
+WH-01, NW-03, NW-05, NW-15). Values: `frankgateway.securityContext`.
+
+| Workload | User | Writable paths (emptyDir) |
+| --- | --- | --- |
+| gateway (APISIX) | 636 (`apisix`) | `conf/` (copied from the image by the `copy-conf` init container, because APISIX writes `conf/nginx.conf` at start-up), `logs/`, `/tmp` (nginx temp paths, set in the config) |
+| etcd | 1001 | its PVC, re-owned through `fsGroup` |
+| dashboard | 65534 (`nobody`) | `logs/`, `/tmp` |
+| shim (nginx-unprivileged) | 101 | `/tmp`, `/var/cache/nginx` |
+| oauth2-proxy | 65532 (`nonroot`) | none |
+| seed and sync jobs, `wait-for-etcd` (curl) | 100 (`curl_user`) | `/tmp` |
+
+All containers: `runAsNonRoot`, `allowPrivilegeEscalation: false`, all
+capabilities dropped, `readOnlyRootFilesystem`, seccomp `RuntimeDefault`. No
+pod mounts a ServiceAccount token: nothing in Frank!Gateway calls the
+Kubernetes API (the scripts only use curl).
+
+Exposure of the admin surfaces:
+
+- **Admin API (9180):** APISIX accepts it only from
+  `frankgateway.admin.allowFrom` (private ranges by default), and with
+  `frankgateway.networkPolicies.enabled` only from the seed and sync jobs. The
+  dashboard does not use it; it reads and writes etcd directly.
+- **Control API (9092):** loopback only; nothing in the chart uses it.
+- **Dashboard chain:** the shim logs every caller in as dashboard admin, so
+  `frankgateway.dashboard.networkPolicy.enabled` (opt-in, default `false`)
+  lets only the instance's oauth2-proxy reach its shim and only the shim
+  reach its dashboard. Without it, any pod in the cluster that reaches the
+  shim gets dashboard admin: turn it on wherever the dashboard runs. The dashboard's own `allow_list` is
+  `frankgateway.dashboard.allowFrom`.
+
+Tested in containers before release: every image starts and serves with these
+settings, the Admin API refuses a valid key from an address outside
+`allowFrom` (403), the Control API refuses connections from another
+container, and etcd started as uid 1001 reads and writes data that root wrote
+after the fsGroup re-own (without the re-own it stops with `permission
+denied`).
+
 ## NetworkPolicies are not enforced everywhere
 
 `frankgateway.networkPolicies.enabled: true` renders per-traffic-class
 NetworkPolicies. Whether anything acts on them is a property of the cluster's
 CNI, not of the chart.
 
-**The CNI on the `aks-blue-*` clusters does not support NetworkPolicy.** There
-the API server accepts every policy object and silently never enforces it:
-`kubectl get networkpolicy` shows them, `kubectl describe` shows the rules, and
-all traffic still flows. A policy that is not enforced reads exactly like a
-policy that is.
+**Not every `aks-blue-*` cluster enforces NetworkPolicy** (security review
+NW-01, checked on the `cilium-config` ConfigMap and the AKS network profile):
+
+| Cluster | Policy engine | Enforced |
+| --- | --- | --- |
+| aks-blue-ontw-dim1, -dim2, -dim3, aks-blue-ontw-dimp, aks-blue-test-dimp | Cilium | yes |
+| aks-blue-accp-dimp, aks-blue-ontw-icat, aks-blue-ontw-info | none (azure-cns, kube-proxy) | no |
+
+Where nothing enforces them, the API server accepts every policy object and
+silently never applies it: `kubectl get networkpolicy` shows them, `kubectl
+describe` shows the rules, and all traffic still flows. A policy that is not
+enforced reads exactly like a policy that is.
 
 So on those clusters, turning this on buys documentation of intent and nothing
 else. Do not treat it as isolation, and do not use it as a control in a

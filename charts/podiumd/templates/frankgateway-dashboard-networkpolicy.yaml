@@ -1,0 +1,76 @@
+{{- if .Values.frankgateway.enabled }}
+{{- /*
+  NW-03: the shim injects the dashboard admin password and returns a dashboard
+  JWT to whoever calls it, and the dashboard has full write access to the
+  gateway's etcd prefix. So neither may be reachable except through the chain
+  public user -> oauth2-proxy (Keycloak SSO) -> shim -> dashboard.
+
+    <instance>-shim       ingress only from <instance>-oauth2-proxy, port 8080
+    <instance>-dashboard  ingress only from <instance>-shim, port 9000
+                          (nothing at all when dashboard.auth is off: the
+                          dashboard is then only for kubectl port-forward)
+
+  oauth2-proxy itself is left open: it is the public entry and authenticates
+  every request. Only ingress is restricted; egress (etcd, Keycloak, Redis)
+  is unchanged.
+*/ -}}
+{{- $root := . }}
+{{- range $key, $override := .Values.frankgateway.instances }}
+{{- $fg := include "podiumd.frankgateway.instanceValues" (dict "root" $root "key" $key "override" $override) | fromYaml }}
+{{- if and $fg.enabled $fg.dashboard.enabled $fg.dashboard.networkPolicy.enabled }}
+{{- $name := include "podiumd.frankgateway.instanceName" (dict "key" $key "instance" $fg) }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}-dashboard
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labelsNamed" (dict "context" $root "name" (printf "%s-dashboard" $name)) | nindent 4 }}
+    app.kubernetes.io/component: frankgateway-dashboard
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $name }}-dashboard
+  policyTypes:
+    - Ingress
+  {{- if $fg.dashboard.auth.enabled }}
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ $name }}-shim
+      ports:
+        - protocol: TCP
+          port: 9000
+  {{- else }}
+  ingress: []
+  {{- end }}
+{{- if $fg.dashboard.auth.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}-shim
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labelsNamed" (dict "context" $root "name" (printf "%s-shim" $name)) | nindent 4 }}
+    app.kubernetes.io/component: frankgateway-shim
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $name }}-shim
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ $name }}-oauth2-proxy
+      ports:
+        - protocol: TCP
+          port: 8080
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
