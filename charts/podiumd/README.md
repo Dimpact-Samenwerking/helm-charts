@@ -706,6 +706,8 @@ PodiumD Helm chart
 | omc.settings.zgw.auth.jwt.secret | string | `""` |  |
 | omc.settings.zgw.auth.jwt.userId | string | `"OMC (PodiumD)"` |  |
 | omc.settings.zgw.auth.jwt.userName | string | `"OMC (PodiumD)"` |  |
+| omc.settings.zgw.auth.key.openvtb | string | `"not-configured"` |  |
+| omc.settings.zgw.endpoint.openVtb | string | `"https://openvtb.invalid"` |  |
 | omc.settings.zgw.variable.objectType.decisionInfoObjectType.uuids | string | `"00000000-0000-1000-b000-000000000000"` |  |
 | omc.settings.zgw.variable.objectType.ktoObjectType.uuid | string | `"00000000-0000-1000-b000-000000000000"` |  |
 | omc.settings.zgw.variable.objectType.messageObjectType.uuid | string | `"00000000-0000-1000-b000-000000000000"` |  |
