@@ -85,6 +85,12 @@ kubectl exec -n <ns> <openformulieren-pod> -- \
   python /app/src/manage.py migrate_catalogi_api_urls --no-dry-run
 ```
 
+If the dry run reports `Resolving the case/document types didn't converge to a
+single catalogue`, the case type and document type sit in one catalogue, but
+the ZGW API group's default catalogue (`catalogue_domain`/`catalogue_rsin`) is
+another one. Set the catalogue of the case type on that form's registration
+backend (in the form's registration settings), then run the dry run again.
+
 Also check `file` component registration options for inconsistent catalogue
 references (available since 3.5.5):
 
