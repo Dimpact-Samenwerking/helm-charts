@@ -82,7 +82,7 @@ def test_canonical_sidecar_row_names_excludes_native_components_own_primary_imag
 def test_canonical_sidecar_row_names_excludes_dependencys_own_primary_image(
     tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
-    """A dependency's primary image is not a sidecar; match_dependency already covers it."""
+    """A dependency's primary image is not a sidecar; match_component already covers it."""
     dep = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}
     values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"}}}
     paths = [("zac", "image")]

@@ -44,6 +44,7 @@ from lib.fix_doc_consistency.component_version_table import remove_unchanged_com
 from lib.fix_doc_consistency.manifest_changes_items import correct_stale_changes_items
 from lib.fix_doc_consistency.manifest_changes_items import dedupe_images_manifest_changes_items
 from lib.fix_doc_consistency.manifest_changes_items import sort_images_manifest_changes_items
+from lib.fix_doc_consistency.manifest_entries_core import BaselineRelease
 from lib.fix_doc_consistency.manifest_entries_core import ManifestEntriesContext
 from lib.fix_doc_consistency.manifest_entries_core import fix_images_manifest_entries
 from lib.fix_doc_consistency.manifest_entries_new_and_urls import MissingEntriesContext
@@ -208,7 +209,7 @@ class RebaseState:
             self.target_values,
             self.baseline_values,
             allow_pull=True,
-            upgrade_docs_baseline=self.new_baseline,
+            baseline_release=BaselineRelease(self.new_baseline, self.baseline_deps),
             indexes=self.image_indexes,
         )
 
@@ -647,7 +648,7 @@ def _correct_images_manifest_entries(images_path: Path, state: RebaseState, repo
             state.target_values,
             state.baseline_values,
             repo_map,
-            upgrade_docs_baseline=state.new_baseline,
+            baseline_release=BaselineRelease(state.new_baseline, state.baseline_deps),
         ),
     )
     if changed_entries:
@@ -824,8 +825,10 @@ def _fix_images_manifest_content(state: RebaseState, images_path: Path, upgrade_
     _remove_removed_images_manifest_entries(images_path, state)
     _correct_images_manifest_entries(images_path, state, repo_map)
     _add_missing_images_manifest_entries(images_path, state)
-    _dedupe_images_manifest_changes_items(images_path)
+    # Correct before deduping: a stale copy ("1.1.0 -> 1.1.3") only becomes a
+    # duplicate of the current item ("1.1.0 -> 1.1.4") once corrected.
     _fix_stale_changes_items(images_path, state, upgrade_path, canonical_names)
+    _dedupe_images_manifest_changes_items(images_path)
     _sort_images_manifest(images_path, state, repo_map, canonical_names)
     _renumber_images_manifest_changes_items(images_path)
 
@@ -918,7 +921,11 @@ def _fix_values_deltas(state: RebaseState, upgrade_path: Path, values_deltas_pat
         return
 
     changed_keys = compute_changed_components(
-        state.target_deps, state.baseline_deps, state.target_values, state.baseline_values
+        state.target_deps,
+        state.baseline_deps,
+        state.target_values,
+        state.baseline_values,
+        chart_dir=state.paths.chart_dir,
     )
     text = values_deltas_path.read_text(encoding="utf-8")
     canonical_names = state.resolution.target_index.canonical_names
@@ -952,7 +959,13 @@ def fix_docs(paths: FixDocPaths, target: str, new_baseline: str) -> RebaseState:
 
     state = _load_rebase_state(paths, target, new_baseline)
     actual_changed_keys: set[str] = (
-        compute_changed_components(state.target_deps, state.baseline_deps, state.target_values, state.baseline_values)
+        compute_changed_components(
+            state.target_deps,
+            state.baseline_deps,
+            state.target_values,
+            state.baseline_values,
+            chart_dir=state.paths.chart_dir,
+        )
         if state.baseline_deps is not None
         else set()
     )

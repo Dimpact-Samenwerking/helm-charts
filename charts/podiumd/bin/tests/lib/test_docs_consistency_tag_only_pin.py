@@ -2,6 +2,8 @@
 
 from pathlib import Path
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
+from typing import cast
 
 import pytest
 
@@ -10,21 +12,30 @@ import lib.docs_consistency as dc
 from lib.docs_consistency.check_context import Findings
 from lib.docs_consistency.check_context import ManifestEntryScan
 
+if TYPE_CHECKING:
+    from lib.docs_consistency.check_context import DocsCheckContext
+    from lib.images_manifest import ManifestEntry
+
 OMC = ("omc", "image")
 DIGEST = "sha256:" + "e" * 64
 
 
 def _check(monkeypatch: pytest.MonkeyPatch, values_tag: str, sibling_fields) -> list[str]:
     monkeypatch.setattr(dc, "entry_pin", lambda *_args: (OMC, values_tag))
-    ctx = SimpleNamespace(
-        current=SimpleNamespace(values={}),
-        images=SimpleNamespace(current=SimpleNamespace(paths={OMC: values_tag})),
-        baseline_ref=None,
+    # Only the fields the entry check reads; a full DocsCheckContext needs a chart on disk.
+    ctx = cast(
+        "DocsCheckContext",
+        SimpleNamespace(
+            current=SimpleNamespace(values={}),
+            images=SimpleNamespace(current=SimpleNamespace(paths={OMC: values_tag})),
+            baseline_ref=None,
+        ),
     )
     scan = ManifestEntryScan(Path("images-4.10.0.yaml"), {}, sibling_fields)
     findings = Findings(checked=[], mismatches=[])
-    entry = {"name": "worthnl/notifynl-omc", "version": "2.3.1", "digest": DIGEST}
-    dc._check_images_manifest_entry(ctx, scan, entry, findings)  # pylint: disable=protected-access
+    entry: ManifestEntry = {"name": "worthnl/notifynl-omc", "version": "2.3.1", "digest": DIGEST}
+    # The per-entry check has no public entry point without a full manifest run.
+    dc._check_images_manifest_entry(ctx, scan, entry, findings)  # pylint: disable=protected-access  # pyright: ignore[reportPrivateUsage]
     return findings.mismatches
 
 

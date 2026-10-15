@@ -65,7 +65,8 @@ def _existing_row_update(lines: list[str], row: TableRow, resolved: ResolvedRow)
     target_chart, target_app = resolved["target_chart"], resolved["target_app"]
     baseline_chart = resolved["baseline_chart"]
     if target_chart is None:
-        chart_cell = NO_CHART
+        # A native component that was a chart at the baseline shows that chart going away.
+        chart_cell = component_version_cell(baseline_chart, NO_CHART)
     elif baseline_chart is not None:
         chart_cell = canonical_version_cell(baseline_chart, target_chart)
     else:
@@ -89,7 +90,7 @@ def fix_component_version_table(
     whose current version can't be resolved is left as-is and reported.
 
     A canonical sidecar/shared-image row name (see canonical_sidecar_row_names)
-    is corrected against its own resolved tag, not match_dependency, whose fuzzy
+    is corrected against its own resolved tag, not match_component, whose fuzzy
     match could hit an unrelated dependency sharing the leading word (e.g.
     "redis-operator - redis"). Its chart cell is "-". Returns (new_text,
     changed_rows, unmatched_names, unresolved_names)."""
