@@ -156,7 +156,7 @@ PodiumD Helm chart
 | frankgateway.dashboard.image.tag | string | `"3.0.1-alpine@sha256:b5fafc11b76f998269375192ac33efc992d72aa69bfd7f3eb2ca377906cdbb6d"` |  |
 | frankgateway.dashboard.ingress.clusterIssuer | string | `"letsencrypt-prod"` |  |
 | frankgateway.dashboard.ingress.enabled | bool | `false` |  |
-| frankgateway.dashboard.networkPolicy.enabled | bool | `true` | NetworkPolicies that let only the oauth2-proxy reach the shim and only the shim reach the dashboard (NW-03). |
+| frankgateway.dashboard.networkPolicy.enabled | bool | `false` | Opt-in: NetworkPolicies that let only the oauth2-proxy reach the shim and only the shim reach the dashboard (NW-03). Off by default. |
 | frankgateway.dashboard.nodeSelector | object | `{}` |  |
 | frankgateway.dashboard.replicas | int | `2` |  |
 | frankgateway.dashboard.resources.limits.cpu | string | `"500m"` |  |

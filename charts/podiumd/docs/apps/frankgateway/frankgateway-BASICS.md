@@ -420,9 +420,10 @@ Exposure of the admin surfaces:
   dashboard does not use it; it reads and writes etcd directly.
 - **Control API (9092):** loopback only; nothing in the chart uses it.
 - **Dashboard chain:** the shim logs every caller in as dashboard admin, so
-  `frankgateway.dashboard.networkPolicy` (on by default) lets only the
-  instance's oauth2-proxy reach its shim and only the shim reach its
-  dashboard. The dashboard's own `allow_list` is
+  `frankgateway.dashboard.networkPolicy.enabled` (opt-in, default `false`)
+  lets only the instance's oauth2-proxy reach its shim and only the shim
+  reach its dashboard. Without it, any pod in the cluster that reaches the
+  shim gets dashboard admin: turn it on wherever the dashboard runs. The dashboard's own `allow_list` is
   `frankgateway.dashboard.allowFrom`.
 
 Tested in containers before release: every image starts and serves with these

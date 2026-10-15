@@ -4486,11 +4486,12 @@ frankgateway:
     # dashboard trusts the shim (NW-03). These policies keep both reachable
     # only through their own chain: the dashboard from its shim, the shim from
     # its oauth2-proxy. kubectl port-forward still works (it does not pass the
-    # pod network). Independent of frankgateway.networkPolicies.enabled; like
-    # every NetworkPolicy, only effective on a CNI that enforces them.
+    # pod network). Opt-in and independent of frankgateway.networkPolicies.enabled;
+    # like every NetworkPolicy, only effective on a CNI that enforces them.
+    # Turn it on wherever the dashboard runs on such a cluster.
     networkPolicy:
-      # -- NetworkPolicies that let only the oauth2-proxy reach the shim and only the shim reach the dashboard (NW-03).
-      enabled: true
+      # -- Opt-in: NetworkPolicies that let only the oauth2-proxy reach the shim and only the shim reach the dashboard (NW-03). Off by default.
+      enabled: false
     # -- Source CIDRs the dashboard accepts (its own allow_list). Private ranges by default.
     allowFrom:
       - 10.0.0.0/8
