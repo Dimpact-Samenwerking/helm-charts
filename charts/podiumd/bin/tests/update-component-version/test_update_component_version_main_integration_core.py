@@ -8,6 +8,7 @@ from types import ModuleType
 
 import pytest
 
+import lib.chart.repo_and_path_resolution as repo_and_path_resolution
 import lib.image.version as image_version
 
 from lib.chart import values_tag_sha_lines as tag_sha_lines
@@ -56,11 +57,12 @@ def mock_registry_passes(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, diges
 def mock_verify_passes(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, digest_char="b", calls=None):
     """Fake the upfront verify_component_version step (FOUND for every path)
     so tests need no helm/network. If `calls` is given, each
-    check_image_versions image_paths argument is appended, to assert the
+    check_image_versions call's pin paths are appended, to assert the
     check ran exactly once."""
     digest = "sha256:" + digest_char * 64
 
-    def fake_check_image_versions(values, image_paths, app_version):
+    def fake_check_image_versions(_chart_dir, _dep, values, pins, app_version):
+        image_paths = [pin.path for pin in pins]
         if calls is not None:
             calls.append(image_paths)
         return [
@@ -79,6 +81,17 @@ def mock_verify_passes(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, digest_
         ucv, "resolve_chart_values", lambda chart_dir, dep, version, allow_pull=True: ({}, "vendored", None)
     )
     monkeypatch.setattr(ucv, "check_image_versions", fake_check_image_versions)
+
+
+def mock_registry_check(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, registry_tag_exists):
+    """Run the real check_image_versions against `registry_tag_exists`, with no helm pull.
+
+    Split tag/sha pins are written with the digests this check finds.
+    """
+    monkeypatch.setattr(
+        ucv, "resolve_chart_values", lambda chart_dir, dep, version, allow_pull=True: ({}, "vendored", None)
+    )
+    monkeypatch.setattr(repo_and_path_resolution, "registry_tag_exists", registry_tag_exists)
 
 
 def test_main_writes_both_files_when_verify_passes(ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -363,9 +376,8 @@ def test_main_keycloak_operator_bumps_only_operator_image_not_server_image(
     sha (a combined @sha256 would double-digest the adfinis template); the
     server image is left untouched."""
     _chart_yaml, values_yaml = setup_keycloak_operator_repo(tmp_path, monkeypatch, ucv)
-    mock_verify_passes(monkeypatch, ucv, "b")
 
-    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + NEW_KEYCLOAK_DIGEST))
+    mock_registry_check(monkeypatch, ucv, lambda host, repo, tag: (True, "sha256:" + NEW_KEYCLOAK_DIGEST))
     monkeypatch.setattr("sys.argv", ["update-component-version", "keycloak-operator", "26.7.3", "1.12.1"])
 
     ucv.main()  # success path does not raise
@@ -392,9 +404,8 @@ def test_main_native_keycloak_bumps_server_image_anchor_site_only(
     tag + sha; the aliases follow; operator.image and Chart.yaml untouched."""
     chart_yaml, values_yaml = setup_keycloak_operator_repo(tmp_path, monkeypatch, ucv)
     original_chart_yaml = chart_yaml.read_text(encoding="utf-8")
-    mock_verify_passes(monkeypatch, ucv, "b")
 
-    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + NEW_KEYCLOAK_DIGEST))
+    mock_registry_check(monkeypatch, ucv, lambda host, repo, tag: (True, "sha256:" + NEW_KEYCLOAK_DIGEST))
     monkeypatch.setattr("sys.argv", ["update-component-version", "keycloak", "26.7.3", "native"])
 
     ucv.main()  # success path does not raise
@@ -450,8 +461,7 @@ def test_main_eck_operator_writes_digest_field_correctly_regression(
     it must be updated in place (no bogus "sha:" inserted) and keep the
     "sha256:" prefix its chart requires."""
     _chart_yaml, values_yaml = setup_eck_operator_repo(tmp_path, monkeypatch, ucv)
-    mock_verify_passes(monkeypatch, ucv)
-    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "e" * 64))
+    mock_registry_check(monkeypatch, ucv, lambda host, repo, tag: (True, "sha256:" + "e" * 64))
     monkeypatch.setattr("sys.argv", ["update-component-version", "eck-operator", "3.6.0", "3.6.0"])
 
     ucv.main()  # success path does not raise
@@ -523,7 +533,6 @@ def test_main_keycloak_operator_operator_image_gets_independent_digest_regressio
         '    keycloak-operator: ["operator.image", "operator.config.keycloakImage"]\n',
         encoding="utf-8",
     )
-    mock_verify_passes(monkeypatch, ucv)
 
     operator_digest = "e" * 64
     server_digest = "f" * 64
@@ -536,7 +545,7 @@ def test_main_keycloak_operator_operator_image_gets_independent_digest_regressio
         msg = f"unexpected repo {host}/{repo}"
         raise AssertionError(msg)
 
-    monkeypatch.setattr(ucv, "registry_tag_exists", fake_registry_tag_exists)
+    mock_registry_check(monkeypatch, ucv, fake_registry_tag_exists)
     monkeypatch.setattr("sys.argv", ["update-component-version", "keycloak-operator", "26.7.3", "1.12.1"])
 
     ucv.main()  # success path does not raise

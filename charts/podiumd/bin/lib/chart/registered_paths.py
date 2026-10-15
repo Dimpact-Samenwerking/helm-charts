@@ -1,6 +1,7 @@
 """Lookups of settings.yaml's component_resolution.* registrations: image/version paths, lockstep, primaries."""
 
 from pathlib import Path
+from typing import NamedTuple
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.paths import CHART_DIR
@@ -101,6 +102,39 @@ def chart_version_lockstep_components(chart_dir: Path | None = None):
     return component_resolution_chart_version_lockstep_components(chart_dir)
 
 
+class PinPath(NamedTuple):
+    """One registered pin of a component, relative to its values key.
+
+    `path` is the pin as chart_image_paths keys it (an image block or a bare
+    version field); `version_key` is the field holding its version.
+    """
+
+    path: str
+    version_key: str
+
+    @property
+    def is_image_block(self) -> bool:
+        """Whether the pin is an "image:" block, rather than a bare version field."""
+        return self.version_key != self.path
+
+
+def pin_paths_for(component: str, chart_dir: Path | None = None) -> list[PinPath]:
+    """`component`'s primary pins: its image blocks (version in ".tag"), then its bare version fields.
+
+    The generic default image path only applies to a component with neither
+    registered: redis-operator and eck-stack have no "image:" block.
+    """
+    version_paths = version_paths_for(component, chart_dir)
+    registered_images = component_image_paths(chart_dir).get(component)
+    if registered_images is not None:
+        image_paths = registered_images
+    elif version_paths:
+        image_paths = []
+    else:
+        image_paths = image_paths_for(component, chart_dir)
+    return [PinPath(p, f"{p}.tag") for p in image_paths] + [PinPath(p, p) for p in version_paths]
+
+
 def is_primary_rel_path(owner_name: str, rel_path: str, chart_dir: Path | None = None):
     """Whether rel_path (path[1:], dotted) is one of the owner's primary image or bare-version fields.
 
@@ -108,9 +142,7 @@ def is_primary_rel_path(owner_name: str, rel_path: str, chart_dir: Path | None =
     Bare-version fields cover apps without an "image:" block (e.g.
     redis-operator's redisOperator.imageTag, eck-stack's *.version).
     """
-    return rel_path in set(image_paths_for(owner_name, chart_dir)) or rel_path in set(
-        version_paths_for(owner_name, chart_dir)
-    )
+    return any(pin.path == rel_path for pin in pin_paths_for(owner_name, chart_dir))
 
 
 def is_primary_image_path(path: tuple[str, ...], deps: list[ChartDependency], chart_dir: Path | None = None):
