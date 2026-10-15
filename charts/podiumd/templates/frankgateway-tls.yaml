@@ -153,10 +153,12 @@ spec:
             app.kubernetes.io/component: frankgateway-ssl-sync
         spec:
           restartPolicy: Never
+          {{- include "podiumd.frankgateway.podSecurity" (dict "instance" $fg "user" "jobs") | nindent 10 }}
           containers:
             - name: sync
               image: {{ include "podiumd.image" $fg.seed.job.image }}
               imagePullPolicy: IfNotPresent
+              {{- include "podiumd.frankgateway.containerSecurity" (dict "instance" $fg "user" "jobs") | nindent 14 }}
               env:
                 - name: ADMIN_KEY
                   valueFrom:
@@ -165,6 +167,9 @@ spec:
                       key: admin
               command: ["sh", "/scripts/sync.sh"]
               volumeMounts:
+                # The scripts keep curl responses in /tmp (readOnlyRootFilesystem).
+                - name: tmp
+                  mountPath: /tmp
                 - name: scripts
                   mountPath: /scripts
                 - name: tls
@@ -178,6 +183,9 @@ spec:
                   cpu: 250m
                   memory: 128Mi
           volumes:
+            - name: tmp
+              emptyDir:
+                sizeLimit: 16Mi
             - name: scripts
               configMap:
                 name: {{ $name }}-ssl-sync
