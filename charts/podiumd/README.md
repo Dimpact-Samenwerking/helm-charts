@@ -137,7 +137,7 @@ PodiumD Helm chart
 | frankgateway.dashboard.auth.enabled | bool | `true` |  |
 | frankgateway.dashboard.auth.hostname | string | `""` |  |
 | frankgateway.dashboard.auth.oauth2Proxy.image.repository | string | `"quay.io/oauth2-proxy/oauth2-proxy"` |  |
-| frankgateway.dashboard.auth.oauth2Proxy.image.tag | string | `"v7.7.1@sha256:f6a4aa83a27e316114bf79664302b1ffb2cc8ce697fb479273af4feb3fb16fe3"` |  |
+| frankgateway.dashboard.auth.oauth2Proxy.image.tag | string | `"v7.15.5@sha256:8498b0d0ef0a7b29686414000a08aee467f02d0299c9ed1e006a8f33fc017916"` |  |
 | frankgateway.dashboard.auth.oauth2Proxy.nodeSelector | object | `{}` |  |
 | frankgateway.dashboard.auth.oauth2Proxy.resources.limits.cpu | string | `"250m"` |  |
 | frankgateway.dashboard.auth.oauth2Proxy.resources.limits.memory | string | `"256Mi"` |  |
@@ -167,7 +167,7 @@ PodiumD Helm chart
 | frankgateway.dashboard.resources.requests.memory | string | `"128Mi"` |  |
 | frankgateway.enabled | bool | `false` |  |
 | frankgateway.etcd.image.repository | string | `"quay.io/coreos/etcd"` |  |
-| frankgateway.etcd.image.tag | string | `"v3.5.16@sha256:d967d98a12dc220a1a290794711dba7eba04b8ce465e12b02383d1bfbb33e159"` |  |
+| frankgateway.etcd.image.tag | string | `"v3.5.34@sha256:2c029095680c13c2b36116cc3935e1b0cddc0f5af78004457fd863616d8d072b"` |  |
 | frankgateway.etcd.nodeSelector | object | `{}` |  |
 | frankgateway.etcd.podDisruptionBudget.enabled | bool | `true` |  |
 | frankgateway.etcd.podDisruptionBudget.maxUnavailable | int | `1` |  |
