@@ -1096,6 +1096,8 @@ PodiumD Helm chart
 | openvtb.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
 | openvtb.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | openvtb.enabled | bool | `false` |  |
+| openvtb.extraEnvVars[0].name | string | `"OPENVTB_PORT"` |  |
+| openvtb.extraEnvVars[0].value | string | `"8000"` |  |
 | openvtb.fullnameOverride | string | `"openvtb"` |  |
 | openvtb.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openvtb.image.repository | string | `"maykinmedia/open-vtb"` |  |

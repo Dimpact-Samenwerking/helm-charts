@@ -8,8 +8,8 @@
 #   2. openformulieren 3.5.8 -> 4.0.2 (chart 1.12.0 -> 1.13.0).
 #   3. openvtb 0.2.0 (new optional component, image maykinmedia/open-vtb,
 #      disabled by default).
-#   4. kiss 3.1.3 -> 3.2.0 (chart 3.1.3 -> 3.2.0, incl. kiss-elastic-sync).
-#   5. kiss - crawler 1.0.0 -> 1.1.0 (Elastic Open Crawler, CVE fixes).
+#   4. kiss 3.1.3 -> 3.2.0 (chart 3.1.3 -> 3.2.0).
+#   5. kiss - crawler 1.0.0 -> 1.1.0.
 #   6. zac 5.4.5 -> 5.9.1 (chart 1.0.297 -> 1.0.338).
 #   7. zac - gotenberg 8.36.0 -> 8.37.0.
 #   8. zac - opa 1.19.1-static -> 1.21.1-static.
@@ -17,6 +17,7 @@
 #   10. zac - solr 9.10.1-slim (digest changed).
 #   11. zgw-office-addin 0.11.0 -> 0.12.0 (chart 0.0.89 -> 0.0.93).
 #   12. pabc 1.1.1 -> 2.1.0 (chart 1.1.1 -> 2.1.0).
+#   13. omc 1.17.19 -> 2.3.1 (chart 0.14.1 -> 0.17.4).
 #
 # See docs/_UPGRADE_PATHS/4.9.4-to-4.10.0-upgrade.md for the operator upgrade notes.
 #
@@ -104,3 +105,9 @@
   url: ghcr.io/platform-autorisatie-beheer-component/pabc-migrations
   version: "2.1.0"
   digest: "sha256:75640f1ee9dc6a155800a31457574b9c36eb0cd41827c45333b9f39d05c94abb"
+
+# omc 1.17.19 -> 2.3.1
+- name: worthnl/notifynl-omc
+  url: docker.io/worthnl/notifynl-omc
+  version: "2.3.1"
+  digest: "sha256:e4e232b4aab94c897604e23e9c2f02835cf32dd6ff1d5e561a9d6f1197b15338"
