@@ -3,14 +3,13 @@ missing entries and removing stale ones."""
 
 from collections.abc import Collection
 from dataclasses import dataclass
+from dataclasses import field
 from functools import cached_property
 from pathlib import Path
 from typing import Literal
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.historical_baselines import baseline_lookup
-from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
-from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.nested_subchart_identity import documented_repository_for_path
 from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
 from lib.chart.registered_paths import is_primary_image_path
@@ -26,6 +25,8 @@ from lib.component_docs.images_manifest_changes_header import find_images_manife
 from lib.component_docs.images_manifest_changes_header import images_manifest_changes_block
 from lib.component_docs.images_manifest_changes_header import insert_images_manifest_header_item
 from lib.component_docs.images_manifest_changes_header import remove_changes_item
+from lib.fix_doc_consistency.manifest_entries_core import BaselineRelease
+from lib.fix_doc_consistency.manifest_entries_core import entry_baseline_version
 from lib.image.repository_check import find_images_without_repository
 from lib.images_manifest import ENTRY_NAME_RE
 from lib.images_manifest import ENTRY_URL_RE
@@ -80,7 +81,7 @@ class MissingEntriesContext:
     target_values: YamlMapping
     baseline_values: YamlMapping | None
     allow_pull: bool = False
-    upgrade_docs_baseline: str | None = None
+    baseline_release: BaselineRelease = field(default_factory=BaselineRelease)
     indexes: StateImageIndexes | None = None
 
     @cached_property
@@ -257,7 +258,7 @@ def _manifest_list_diff(
             context=ManifestDiffContext(
                 chart_dir=context.chart_dir,
                 deps=context.deps,
-                upgrade_docs_baseline=context.upgrade_docs_baseline,
+                upgrade_docs_baseline=context.baseline_release.name,
                 values=context.target_values,
                 baseline_values=context.baseline_values,
             ),
@@ -343,8 +344,7 @@ def _entry_old_version_and_digest_change(
 ) -> tuple[str | None, bool]:
     """(old_version, digest_only_change) for a new entry's comment: from the
     baseline path (flagging a same-version re-pin so it doesn't render
-    "<v> -> <v>"), else baseline_tag_for_sidecar_path, else past
-    manifests."""
+    "<v> -> <v>"), else entry_baseline_version."""
     baseline_tag = resolution.baseline.baseline_paths.get(path)
     if baseline_tag:
         old_version = version_of(baseline_tag)
@@ -357,16 +357,13 @@ def _entry_old_version_and_digest_change(
                 digest_only_change = pinned_tag.split("@", 1)[1] != baseline_pinned_tag.split("@", 1)[1]
         return old_version, digest_only_change
 
-    old_version = baseline_tag_for_sidecar_path(
+    old_version = entry_baseline_version(
         baseline_lookup(
             context.chart_dir, context.deps, context.target_values, context.baseline_values, resolution.baseline
         ),
         path,
+        context.baseline_release,
     )
-    if old_version is None:
-        old_version = historical_app_version_for_path(
-            context.chart_dir, context.deps, context.target_values, path, context.upgrade_docs_baseline
-        )
     return old_version, False
 
 

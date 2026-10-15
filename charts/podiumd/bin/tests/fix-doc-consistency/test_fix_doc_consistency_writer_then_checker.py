@@ -613,3 +613,81 @@ def test_a_doc_without_a_changes_heading_gets_one_section_per_component(writer_t
 
     assert docs[UPGRADE].count("## Changes\n") == 1
     assert docs[UPGRADE].count("### zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)") == 1
+
+
+KISS_CHART = {"name": "kiss-chart", "alias": "kiss", "version": "3.1.1", "repository": "@kiss"}
+ECK_STACK = {"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0", "repository": "@elastic"}
+# kiss-eck rendered by podiumd itself; eck-stack's bare version fields stay registered for the baseline.
+KISS_ECK_NATIVE_SETTINGS = {
+    "etc/settings.yaml": (
+        "component_resolution:\n"
+        '  native_components: ["frankgateway", "keycloak", "kiss-eck"]\n'
+        "  image_paths:\n"
+        '    "kiss-eck": ["eck-elasticsearch.image", "eck-kibana.image"]\n'
+        "  version_paths:\n"
+        '    "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"]\n'
+    )
+}
+
+
+def kiss_eck_chart(version: str, kibana: str | None = None) -> dict[str, object]:
+    return {"eck-elasticsearch": {"version": version}, "eck-kibana": {"version": kibana or version}}
+
+
+def kiss_eck_native(tag: str) -> dict[str, object]:
+    return {
+        "eck-elasticsearch": {"image": image("docker.elastic.co/elasticsearch/elasticsearch", tag)},
+        "eck-kibana": {"image": image("docker.elastic.co/kibana/kibana", tag, "b")},
+    }
+
+
+def test_a_dependency_that_becomes_a_native_component_keeps_its_baseline(writer_then_checker):
+    """kiss-eck: the eck-stack chart until 4.10, then podiumd's own templates under the same key.
+
+    Its row is not KISS's ("kiss" alias), not new, and not removed: the old
+    version comes from eck-stack's bare version fields, the chart goes away."""
+    docs = writer_then_checker(
+        {
+            "version": "4.8.5",
+            "deps": [KISS_CHART, ECK_STACK],
+            # Kibana one patch behind: each image keeps its own baseline.
+            "values": {"kiss": kiss("3.1.1"), "kiss-eck": kiss_eck_chart("8.19.19", kibana="8.19.18")},
+        },
+        {
+            "version": "4.9.0",
+            "deps": [KISS_CHART],
+            "values": {"kiss": kiss("3.1.1"), "kiss-eck": kiss_eck_native("8.19.23")},
+            "files": KISS_ECK_NATIVE_SETTINGS,
+        },
+    )
+
+    assert "| kiss-eck | 8.19.19 → 8.19.23 | 0.20.0 → - | - |" in docs[UPGRADE]
+    assert "### kiss-eck 8.19.19 → 8.19.23\n" in docs[UPGRADE]
+    assert "| kiss |" not in docs[UPGRADE]
+    assert "(removed)" not in docs[UPGRADE]
+    assert "#   1. kiss-eck.eck-elasticsearch.image 8.19.19 -> 8.19.23." in docs[MANIFEST]
+    assert "#   2. kiss-eck.eck-kibana.image 8.19.18 -> 8.19.23." in docs[MANIFEST]
+    assert "# kiss-eck.eck-elasticsearch.image 8.19.19 -> 8.19.23\n" in docs[MANIFEST]
+    assert "# kiss-eck.eck-kibana.image 8.19.18 -> 8.19.23\n" in docs[MANIFEST]
+    assert "## kiss-eck 8.19.19 → 8.19.23" in docs[DELTAS]
+
+
+def test_a_dependency_that_becomes_a_native_component_at_the_same_version(writer_then_checker):
+    """Same Elastic version: the row stays, as the eck-stack chart went away."""
+    docs = writer_then_checker(
+        {
+            "version": "4.8.5",
+            "deps": [KISS_CHART, ECK_STACK],
+            "values": {"kiss": kiss("3.1.1"), "kiss-eck": kiss_eck_chart("8.19.19")},
+        },
+        {
+            "version": "4.9.0",
+            "deps": [KISS_CHART],
+            "values": {"kiss": kiss("3.1.1"), "kiss-eck": kiss_eck_native("8.19.19")},
+            "files": KISS_ECK_NATIVE_SETTINGS,
+        },
+    )
+
+    assert "| kiss-eck | 8.19.19 (unchanged) | 0.20.0 → - | - |" in docs[UPGRADE]
+    assert "### kiss-eck 8.19.19 (unchanged)\n" in docs[UPGRADE]
+    assert "(removed)" not in docs[UPGRADE]

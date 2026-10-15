@@ -62,11 +62,12 @@ def words_of(s: str):
 # jscpd:ignore-start
 def extract_target_version(cell: str) -> str | None:
     """Pull the target (right-hand) version out of a markdown table cell like
-    "5.0.2 → 5.4.3" or "1.0.297 (unchanged)" or "`0.0.92`"."""
+    "5.0.2 → 5.4.3" or "1.0.297 (unchanged)" or "`0.0.92`". None for "0.20.0 → -"
+    (the chart went away: a native component that was a dependency)."""
     cell = cell.strip()
-    m = re.search(r"(?:→|->)\s*`?([A-Za-z0-9][\w.\-]*)", cell)
+    m = re.search(r"(?:→|->)\s*`?([A-Za-z0-9][\w.\-]*|-(?![\w.]))", cell)
     if m:
-        return m.group(1)
+        return None if m.group(1) == "-" else m.group(1)
     m = re.match(r"`?([A-Za-z0-9][\w.\-]*)", cell)
     return m.group(1) if m else None
 
@@ -218,13 +219,6 @@ def changes_item_names(rest: str, name: str) -> bool:
 ItemT = TypeVar("ItemT")
 
 
-def match_dependency(text: str, deps: list[ChartDependency]):
-    """Match a doc's free-form component name against Chart.yaml dependency names/aliases.
-
-    Case/punctuation-insensitive, at word boundaries only (see _word_aligned_spans)."""
-    return best_name_match(text, ((dep, (dep["name"], dep.get("alias"))) for dep in deps))
-
-
 def best_name_match(text: str, candidates: Iterable[tuple[ItemT, Iterable[str | None]]]) -> ItemT | None:
     """The item whose names give the longest word-aligned match in `text`, or None.
 
@@ -239,18 +233,31 @@ def best_name_match(text: str, candidates: Iterable[tuple[ItemT, Iterable[str | 
     return best_item
 
 
-def match_native_component(text: str, native_component_names: set[str] | frozenset[str]):
-    """match_dependency's word-boundary match against native component names.
+def match_component(
+    text: str, deps: list[ChartDependency], native_component_names: set[str] | frozenset[str]
+) -> ChartDependency | str | None:
+    """The dependency, or native component key, that `text` names, or None.
 
-    Separate from match_dependency because callers differ on whether native components
-    should match. Takes resolved names, not chart_dir, for callers without one."""
-    spans = _word_aligned_spans(text)
-    best_key, best_norm = None, None
-    for key in native_component_names:
-        norm = normalize_name(key)
-        if norm and norm in spans and (best_norm is None or len(norm) > len(best_norm)):
-            best_key, best_norm = key, norm
-    return best_key
+    First an exact match (case/punctuation-insensitive) on a dependency name or
+    alias or a native component key: of the whole text, or of the first key of a
+    values path ("kiss-eck.eck-kibana.image"). So "kiss-eck" is the native, not
+    the "kiss" alias of another dependency. Otherwise the longest
+    match at word boundaries (see _word_aligned_spans): dependencies first, then
+    native components. Dependencies are skipped when `text` contains " - " (the
+    canonical sidecar delimiter), so "redis-operator - redis" is not the
+    redis-operator dependency. Not for component_order_key, which wants a sidecar
+    row to sort near its owning dependency."""
+    dep_candidates = [] if " - " in text else [(dep, (dep["name"], dep.get("alias"))) for dep in deps]
+    natives = sorted(native_component_names)
+    is_values_path = "." in text and not any(c.isspace() for c in text)
+    norm = normalize_name(text.split(".", 1)[0] if is_values_path else text)
+    for dep, names in dep_candidates:
+        if any(name and normalize_name(name) == norm for name in names):
+            return dep
+    exact_native = next((key for key in natives if normalize_name(key) == norm), None)
+    if exact_native is not None:
+        return exact_native
+    return best_name_match(text, dep_candidates) or best_name_match(text, ((key, (key,)) for key in natives))
 
 
 def match_canonical_sidecar_name(
@@ -269,15 +276,6 @@ def match_canonical_sidecar_name(
         return exact
     paths = {path for name, path in canonical_names.items() if text_names(text, name)}
     return paths.pop() if len(paths) == 1 else None
-
-
-def match_dependency_excluding_sidecar_names(text: str, deps: list[ChartDependency]):
-    """match_dependency, but None when `text` contains " - " (the canonical sidecar delimiter).
-
-    Otherwise "redis-operator - redis" would match the redis-operator dependency. Use it
-    wherever a match must be a real Chart.yaml component; not in component_order_key, which
-    wants a sidecar row to sort near its owning dependency."""
-    return None if " - " in text else match_dependency(text, deps)
 
 
 def changes_heading_identities(

@@ -570,12 +570,15 @@ def resolve_component_own_version_change(
     if chart_versions is None:
         return None
     dep, chart_name, old_chart, new_chart = chart_versions
-    chart_unchanged = new_chart == "-" or (
-        old_chart is not None and normalize_version(old_chart) == normalize_version(new_chart)
-    )
     # The same resolver as the key's table row, so a row added here can't contradict it.
     resolved = resolve_component_row(
         key, {}, ResolutionContext(chart_dir, target_state, baseline_state, upgrade_docs_baseline)
+    )
+    if resolved["kind"] == "native":
+        # A native component that was a chart at the baseline: that chart going away is a change.
+        old_chart = resolved["baseline_chart"]
+    chart_unchanged = (new_chart == "-" and old_chart is None) or (
+        old_chart is not None and normalize_version(old_chart) == normalize_version(new_chart)
     )
     old_app = resolved["baseline_app"] if resolved["kind"] != "unmatched" else None
     new_app = resolved["target_app"] if resolved["kind"] != "unmatched" else None

@@ -230,7 +230,7 @@ def test_unresolvable_canonical_named_row_is_not_fuzzy_matched_to_a_real_depende
     vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
     """A "<values_key> - <image-basename>" row whose repository can't be resolved must be reported
-    as unresolvable, never fuzzy-matched by match_dependency onto the real dependency
+    as unresolvable, never fuzzy-matched by match_component onto the real dependency
     (which would compare against that dependency's unrelated app version)."""
     repo_root = tmp_path
     chart_dir = repo_root / "charts" / "podiumd"

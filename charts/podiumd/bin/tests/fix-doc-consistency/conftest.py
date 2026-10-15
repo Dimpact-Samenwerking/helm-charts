@@ -406,6 +406,8 @@ def writer_then_checker(
         monkeypatch.setattr(cdb, "DOC_DIR", tmp_path / "docs" / "_UPGRADE_PATHS")
         monkeypatch.setattr(cdb, "IMAGES_DIR", tmp_path / "docs" / "images")
         monkeypatch.setattr(cdb, "CHART_YAML", tmp_path / "Chart.yaml")
+        # Settings read without an explicit chart dir (native_components()) come from the test chart too.
+        monkeypatch.setattr("lib.chart.registered_paths.CHART_DIR", tmp_path)
         monkeypatch.setattr(cdb, "current_chart_version", lambda: target["version"])
         if earlier is not None:
             _write_state(tmp_path, earlier)
