@@ -5,24 +5,27 @@
 # Changes:
 #   1. keycloak.image 26.7.3 -> 26.8.1.
 #   2. keycloak-operator 26.7.3 -> 26.8.1 (chart 1.13.0 -> 1.13.1).
-#   3. objecten 3.6.2 -> 4.1.0 (image maykinmedia/open-object; objecttypen
+#   3. opennotificaties 1.16.2 -> 1.17.0 (chart 2.0.0 -> 2.1.0).
+#   4. objecten 3.6.2 -> 4.1.0 (image maykinmedia/open-object; objecttypen
 #      3.4.2 is merged into it).
-#   4. openformulieren 3.5.8 -> 4.0.2 (chart 1.12.0 -> 1.13.0).
-#   5. openvtb 0.2.0 (new optional component, image maykinmedia/open-vtb,
+#   5. openformulieren 3.5.8 -> 4.0.2 (chart 1.12.0 -> 1.13.0).
+#   6. openinwoner 2.4.6 -> 2.4.7 (chart 2.4.0 -> 2.6.0).
+#   7. referentielijsten 0.7.4 -> 0.7.5.
+#   8. openvtb 0.2.0 (new optional component, image maykinmedia/open-vtb,
 #      disabled by default).
-#   6. kiss 3.1.3 -> 3.2.0 (chart 3.1.3 -> 3.2.0).
-#   7. kiss - crawler 1.0.0 -> 1.1.0.
-#   8. zac 5.4.5 -> 5.9.1 (chart 1.0.297 -> 1.0.338).
-#   9. zac - gotenberg 8.36.0 -> 8.37.0.
-#   10. zac - opa 1.19.1-static -> 1.21.1-static.
-#   11. zac - opentelemetry-collector-contrib 0.158.0 -> 0.161.0.
-#   12. zac - solr 9.10.1-slim (digest changed).
-#   13. zgw-office-addin 0.11.0 -> 0.12.0 (chart 0.0.89 -> 0.0.93).
-#   14. pabc 1.1.1 -> 2.1.0 (chart 1.1.1 -> 2.1.0).
-#   15. omc 1.17.19 -> 2.3.1 (chart 0.14.1 -> 0.17.4).
-#   16. frankgateway.image 1.1.0 -> 1.1.3.
-#   17. frankgateway - etcd v3.5.16 -> v3.5.34.
-#   18. frankgateway - oauth2-proxy v7.7.1 -> v7.15.5.
+#   1. kiss 3.1.3 -> 3.2.0 (chart 3.1.3 -> 3.2.0).
+#   2. kiss - crawler 1.0.0 -> 1.1.0.
+#   3. zac 5.4.5 -> 5.9.1 (chart 1.0.297 -> 1.0.338).
+#   4. zac - gotenberg 8.36.0 -> 8.37.0.
+#   5. zac - opa 1.19.1-static -> 1.21.1-static.
+#   6. zac - opentelemetry-collector-contrib 0.158.0 -> 0.161.0.
+#   7. zac - solr 9.10.1-slim (digest changed).
+#   8. zgw-office-addin 0.11.0 -> 0.12.0 (chart 0.0.89 -> 0.0.93).
+#   9. pabc 1.1.1 -> 2.1.0 (chart 1.1.1 -> 2.1.0).
+#   10. omc 1.17.19 -> 2.3.1 (chart 0.14.1 -> 0.17.4).
+#   11. frankgateway.image 1.1.0 -> 1.1.3.
+#   12. frankgateway - etcd v3.5.16 -> v3.5.34.
+#   13. frankgateway - oauth2-proxy v7.7.1 -> v7.15.5.
 #   19. openbao 2.6.3 -> 2.7.1 (chart 0.29.6 -> 0.30.3).
 #
 # See docs/_UPGRADE_PATHS/4.9.4-to-4.10.0-upgrade.md for the operator upgrade notes.
@@ -42,6 +45,12 @@
   version: "26.8.1"
   digest: "sha256:60996d513b9e9945657b348655c98071c366bb0212deefa1508785941b1651dc"
 
+# opennotificaties 1.16.2 -> 1.17.0
+- name: openzaak/open-notificaties
+  url: docker.io/openzaak/open-notificaties
+  version: "1.17.0"
+  digest: "sha256:5200540e78eb67993760bd9ad98d6c7f174ce61f5122b3e20627a690cbf3dfe0"
+
 # objecten 3.6.2 -> 4.1.0 (open-object, replaces objects-api and objecttypes-api)
 - name: maykinmedia/open-object
   url: docker.io/maykinmedia/open-object
@@ -53,6 +62,18 @@
   url: docker.io/openformulieren/open-forms
   version: "4.0.2"
   digest: "sha256:e1cad4bcf2319a3eb106e51156bf69c6be83da9dd070e977f52ec1079455b8e3"
+
+# openinwoner 2.4.6 -> 2.4.7
+- name: maykinmedia/open-inwoner
+  url: docker.io/maykinmedia/open-inwoner
+  version: "2.4.7"
+  digest: "sha256:f78563302f20a0b8f8f156e5328aae4343261c3b91994f6e1b964104ed66d58e"
+
+# referentielijsten 0.7.4 -> 0.7.5
+- name: maykinmedia/referentielijsten-api
+  url: docker.io/maykinmedia/referentielijsten-api
+  version: "0.7.5"
+  digest: "sha256:d4d86ff802eec5272724e7f9ad7db3cb32ed667bd268e9b92c07630d8a3325f1"
 
 # openvtb 0.2.0 (new optional component, Open VTB)
 - name: maykinmedia/open-vtb
