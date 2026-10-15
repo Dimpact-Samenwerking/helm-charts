@@ -56,14 +56,14 @@ commands below only behave as described from 3.5.10 on.
 
 **NOTE: this cannot be easily reverted for large forms, these should be copied first!**
 
-The command has no dry-run mode: it converts every form straight away and
-lists the forms with cyclic rules that it cannot convert. It rejects
-`--no-dry-run`.
-
 ```bash
-# Apply (note: cannot be easily reverted for large forms; copy first):
-kubectl --context <kube-context> exec -n <ns> <openformulieren-pod> -- \
+# Dry run — lists forms with cyclic rules that cannot be auto-converted:
+kubectl exec -n <ns> <openformulieren-pod> -- \
   python /app/src/manage.py enable_new_logic_evaluation_for_all_forms
+
+# Apply (note: cannot be easily reverted for large forms; copy first):
+kubectl exec -n <ns> <openformulieren-pod> -- \
+  python /app/src/manage.py enable_new_logic_evaluation_for_all_forms --no-dry-run
 ```
 
 #### 4. Catalogi API direct URL references (removed in 4.0) - migration script
