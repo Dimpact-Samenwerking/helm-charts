@@ -1,0 +1,124 @@
+{{/*
+Open Inwoner's KvK API settings (IN-3183) live on the KvKConfig singleton
+(open_inwoner.kvk.models), and Open Inwoner has no setup-configuration step for
+it, so a fresh install leaves api_root empty: eHerkenning users then see no
+company names or address on Mijn profiel, and every eHerkenning login logs
+"Unable to sync rsin from KvK API". This Job writes api_root and api_key
+through `manage.py shell` in the app's own image, like
+openinwoner-configure-clamav.yaml.
+
+Only with openinwoner.kvk.apiRoot set; an empty apiRoot leaves KvKConfig to the
+admin. The key comes from the Secret openinwoner-kvk (openinwoner.kvk.apiKey)
+or from openinwoner.kvk.existingSecret, never from a ConfigMap; without either
+it is written empty, for a proxy that adds the key itself.
+
+The pod template is rendered separately and its checksum goes into the Job
+name, because spec.template on a batch/v1 Job is immutable. A checksum of the
+key's source is part of the template, so a changed apiKey runs the Job again.
+The Job retries until the openinwoner database migrations are done.
+*/}}
+{{- define "podiumd.openinwonerKvkJob.podTemplate" -}}
+{{- $kvk := .Values.openinwoner.kvk }}
+metadata:
+  labels:
+    {{- include "podiumd.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: openinwoner
+  annotations:
+    checksum/kvk-api-key: {{ printf "%s|%s|%s" $kvk.apiKey $kvk.existingSecret $kvk.existingSecretKey | sha256sum | trunc 16 }}
+spec:
+  serviceAccountName: {{ include "podiumd.serviceAccountName" . }}
+  restartPolicy: OnFailure
+  {{- if .Values.openinwoner.nodeSelector }}
+  nodeSelector:
+    {{- toYaml .Values.openinwoner.nodeSelector | nindent 4 }}
+  {{- else if .Values.nodeSelector }}
+  nodeSelector:
+    {{- toYaml .Values.nodeSelector | nindent 4 }}
+  {{- end }}
+  containers:
+    - name: configure-kvk
+      image: {{ include "podiumd.image" .Values.openinwoner.image }}
+      imagePullPolicy: {{ .Values.openinwoner.image.pullPolicy | default "IfNotPresent" }}
+      command: ["/app/src/manage.py"]
+      args:
+        - shell
+        - -c
+        - |
+          import os
+
+          from django.core.exceptions import ValidationError
+          from open_inwoner.kvk.models import KvKConfig
+
+          config = KvKConfig.get_solo()
+          config.api_root = {{ $kvk.apiRoot | quote }}
+          config.api_key = os.environ.get("KVK_API_KEY", "")
+          try:
+              config.full_clean()
+          except ValidationError as exc:
+              raise SystemExit(f"Invalid KvK configuration: {exc}")
+          config.save(update_fields=["api_root", "api_key"])
+          print("KvK API configuration applied.")
+      env:
+        {{- if or $kvk.existingSecret $kvk.apiKey }}
+        - name: KVK_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ $kvk.existingSecret | default "openinwoner-kvk" }}
+              key: {{ ternary $kvk.existingSecretKey "apiKey" (ne $kvk.existingSecret "") }}
+        {{- end }}
+      envFrom:
+        - secretRef:
+            name: openinwoner
+        - configMapRef:
+            name: openinwoner
+      resources:
+        {{- toYaml $kvk.job.resources | nindent 8 }}
+      securityContext:
+        {{- toYaml .Values.openinwoner.securityContext | nindent 8 }}
+      volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+  volumes:
+    - name: tmp
+      emptyDir: {}
+{{- end }}
+
+{{- $kvk := .Values.openinwoner.kvk | default dict }}
+{{- if and (or .Values.openinwoner.enabled (not (hasKey .Values.openinwoner "enabled"))) $kvk.apiRoot }}
+{{- /* Open Inwoner's own validate_api_root: the root must not contain a version or endpoint. */ -}}
+{{- if regexMatch "(?i)/api/[0-9a-z]" $kvk.apiRoot }}
+{{- fail (printf "openinwoner.kvk.apiRoot %q includes a version or endpoint; use the API root, e.g. http://api-proxy/api/" $kvk.apiRoot) }}
+{{- end }}
+{{- /* KvKConfig.api_root is a URLField(max_length=128): fail here, not in a Job that retries backoffLimit times. */ -}}
+{{- if or (not (regexMatch "^https?://[^/\\s]+" $kvk.apiRoot)) (gt (len $kvk.apiRoot) 128) }}
+{{- fail (printf "openinwoner.kvk.apiRoot %q must be an http(s) URL of at most 128 characters" $kvk.apiRoot) }}
+{{- end }}
+{{- if and $kvk.apiKey (not $kvk.existingSecret) }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: openinwoner-kvk
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: openinwoner
+type: Opaque
+stringData:
+  apiKey: {{ $kvk.apiKey | quote }}
+---
+{{- end }}
+{{- $podTemplate := include "podiumd.openinwonerKvkJob.podTemplate" . }}
+{{- $jobSuffix := $podTemplate | sha256sum | trunc 10 }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: openinwoner-configure-kvk-{{ $jobSuffix }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: openinwoner
+spec:
+  backoffLimit: {{ $kvk.job.backoffLimit }}
+  activeDeadlineSeconds: {{ $kvk.job.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: {{ $kvk.job.ttlSecondsAfterFinished }}
+  template:
+    {{- $podTemplate | nindent 4 }}
+{{- end }}

@@ -49,7 +49,10 @@ Open Inwoner ("Mijn omgeving") is the citizen self-service portal of PodiumD. Re
 - **Open Zaak**: consumes Zaken/Documenten/Catalogi/Besluiten APIs — ZGW client `openinwoner` with secret `openzaak_openinwoner_secret` (registered in Open Zaak's Autorisaties API), configured under `zgw_consumers` and `openzaak_config` in `configuration.data`.
 - **Open Klant**: Klanten API access via token `openklant_openinwoner_token`.
 - **BRP (haal-centraal)**: `settings.brpVersion` (personal data; `brp-personen-mock` in test environments).
-- **KvK**: company data lookup for eHerkenning users (configured in the app/admin).
+- **KvK**: company data lookup for eHerkenning users. Set `openinwoner.kvk.apiRoot`
+  (and `apiKey` or `existingSecret`) to have the chart write Open Inwoner's KvKConfig
+  (`templates/openinwoner-configure-kvk.yaml`); empty leaves it to the admin. KISS
+  (`kiss.settings.kvk`) and ZAC (`zac.kvkApi`) use the same KvK endpoint.
 - **SMTP**: outgoing mail, `settings.email` (port 587, TLS).
 - **OTel**: disabled by default (`settings.otel.disabled: true`); the `values-enable-observability.yaml` overlay enables it.
 - **ClamAV** (file-upload virus scanning): off by default, opt-in via

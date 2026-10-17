@@ -1005,6 +1005,17 @@ PodiumD Helm chart
 | openinwoner.eck-operator.enabled | bool | `false` |  |
 | openinwoner.fullnameOverride | string | `"openinwoner"` |  |
 | openinwoner.image.tag | string | `"2.4.6@sha256:ef686923eb1d046343288a26fae654a0333545c331cf8bedd2e809009acb0b3c"` |  |
+| openinwoner.kvk.apiKey | string | `""` | KvK API key. Empty when a proxy adds the key; when set, the chart stores it in the Secret `openinwoner-kvk`. With apiRoot set, the Job writes this value, also when empty. |
+| openinwoner.kvk.apiRoot | string | `""` | KvK API root without version or endpoint, e.g. `http://api-proxy/api/`. Empty: the chart leaves KvKConfig alone (configure it in the admin). |
+| openinwoner.kvk.existingSecret | string | `""` | Existing Secret with the API key, instead of apiKey. Rename the Secret or the key to re-run the Job after rotating it. |
+| openinwoner.kvk.existingSecretKey | string | `"apiKey"` | Key of the API key in existingSecret. |
+| openinwoner.kvk.job.activeDeadlineSeconds | int | `1200` |  |
+| openinwoner.kvk.job.backoffLimit | int | `15` | Retries until the openinwoner database migrations are done, like clamavConfigJob. |
+| openinwoner.kvk.job.resources.limits.cpu | string | `"200m"` |  |
+| openinwoner.kvk.job.resources.limits.memory | string | `"256Mi"` |  |
+| openinwoner.kvk.job.resources.requests.cpu | string | `"50m"` |  |
+| openinwoner.kvk.job.resources.requests.memory | string | `"128Mi"` |  |
+| openinwoner.kvk.job.ttlSecondsAfterFinished | int | `600` |  |
 | openinwoner.lowLatencyWorker | object | `{"replicaCount":1,"resources":{"requests":{"cpu":"100m","memory":"256Mi"}}}` | New in openinwoner 2.3.0 (chart 2.2.0): dedicated low-latency Celery worker for cache-seeding/warmup tasks. The chart creates this deployment by default (replicaCount 1) on upgrade; resources pinned here to match podiumd conventions. |
 | openinwoner.nameOverride | string | `"openinwoner"` |  |
 | openinwoner.nginx.config.basicAuth.enabled | bool | `false` |  |
