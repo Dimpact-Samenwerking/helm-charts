@@ -20,9 +20,12 @@ OIDC: the providers schema".
 
 For every flat item in openinwoner.configuration.data, this script:
 
-  - adds a provider "<item identifier>-provider" with the item's
-    endpoint_config (and oidc_token_use_basic_auth, oidc_use_nonce,
-    oidc_nonce_size, oidc_state_size, when the item sets them);
+  - adds a provider with the item's endpoint_config (and
+    oidc_token_use_basic_auth, oidc_use_nonce, oidc_nonce_size,
+    oidc_state_size, when the item sets them), named after the item's
+    oidc_provider_identifier when it already sets one, else
+    "<item identifier>-provider"; nothing is added when that provider is
+    already listed;
   - sets the item's oidc_provider_identifier to that provider;
   - moves username_claim and claim_mapping to options.user_settings.claim_mappings,
     and groups_claim, sync_groups, sync_groups_glob_pattern, make_users_staff,
@@ -142,6 +145,8 @@ def migrate_block(block) -> tuple[object, list[str]]:
     for item in items:
         if not is_flat(item):
             continue
+        if not item.get("identifier"):
+            raise MigrationError("an oidc_db_config_admin_auth item has no identifier; fix it by hand")
         ident = item.get("oidc_provider_identifier") or f"{item['identifier']}-provider"
         existing = next((p for p in providers or [] if isinstance(p, dict) and p.get("identifier") == ident), None)
         endpoint_config = item.pop("endpoint_config", None)
@@ -229,7 +234,7 @@ def migrate_text(text: str) -> tuple[str, list[str]]:
     lines = text.splitlines(keepends=True)
     rt = _rt_yaml().load(text)
     data_line = rt["openinwoner"]["configuration"].lc.key("data")[0]
-    if not lines[data_line].rstrip().endswith(("|", "|-", "|+")):
+    if not lines[data_line].split(" #", 1)[0].rstrip().endswith(("|", "|-", "|+")):
         raise MigrationError(f"line {data_line + 1}: openinwoner.configuration.data is not a literal block (|)")
     start = data_line + 1
     inner_rt = _rt_yaml().load(data)
