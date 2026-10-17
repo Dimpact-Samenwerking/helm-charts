@@ -89,6 +89,10 @@ spec:
 {{- if regexMatch "(?i)/api/[0-9a-z]" $kvk.apiRoot }}
 {{- fail (printf "openinwoner.kvk.apiRoot %q includes a version or endpoint; use the API root, e.g. http://api-proxy/api/" $kvk.apiRoot) }}
 {{- end }}
+{{- /* KvKConfig.api_root is a URLField(max_length=128): fail here, not in a Job that retries backoffLimit times. */ -}}
+{{- if or (not (regexMatch "^https?://[^/\\s]+" $kvk.apiRoot)) (gt (len $kvk.apiRoot) 128) }}
+{{- fail (printf "openinwoner.kvk.apiRoot %q must be an http(s) URL of at most 128 characters" $kvk.apiRoot) }}
+{{- end }}
 {{- if and $kvk.apiKey (not $kvk.existingSecret) }}
 apiVersion: v1
 kind: Secret
