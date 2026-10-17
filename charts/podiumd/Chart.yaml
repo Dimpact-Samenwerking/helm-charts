@@ -10,7 +10,7 @@ dependencies:
     repository: "@adfinis"
     condition: keycloak-operator.enabled
   - name: clamav
-    version: 3.7.2
+    version: 3.7.3
     repository: "@wiremind"
     condition: clamav.enabled
   - name: brp-personen-mock
@@ -74,7 +74,7 @@ dependencies:
     tags:
       - zaak
   - name: zaakbrug
-    version: 2.3.32
+    version: 2.3.33
     repository: "https://wearefrank.github.io/charts"
     condition: zaakbrug.enabled
     tags:
@@ -105,7 +105,7 @@ dependencies:
     condition: omc.enabled
   - name: redis-operator
     repository: "@opstree"
-    version: 0.26.1
+    version: 0.27.0
     condition: redis-operator.enabled
   - name: eck-operator
     version: 3.5.0
