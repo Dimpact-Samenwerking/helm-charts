@@ -4,13 +4,28 @@ that ECK (the eck-operator dependency) runs for KISS.
 
 Rendered here instead of by the eck-stack chart, so each image is a normal
 podiumd image block (repository + "<version>@sha256:<digest>" tag) like every
-other image: environments with an ACR override only `image.repository`.
+other image: environments with an ACR override only `image.repository`, or
+set eck-operator.config.containerRegistry (see podiumd.kissEck.image).
 `spec.version` is the tag's version part, so the two can't differ. ECK does
 not append the version to `spec.image`.
 
 Ported from eck-stack 0.20.0 (charts/eck-elasticsearch, eck-kibana,
 eck-enterprise-search); the values keys under kiss-eck.eck-* are unchanged.
 */ -}}
+{{- /*
+The image of one KISS Elastic resource. Like ECK did with the eck-stack chart, a
+non-default eck-operator.config.containerRegistry replaces the docker.elastic.co
+host of a repository the environment did not override: SSC environments set only
+that registry (their ACR), so their KISS Elastic images keep coming from it.
+*/ -}}
+{{- define "podiumd.kissEck.image" -}}
+{{- $img := deepCopy .image -}}
+{{- $registry := (((index .values "eck-operator") | default dict).config | default dict).containerRegistry | default "" -}}
+{{- if and $registry (ne $registry "docker.elastic.co") (hasPrefix "docker.elastic.co/" ($img.repository | default "")) -}}
+{{- $_ := set $img "repository" (printf "%s/%s" (trimSuffix "/" $registry) (trimPrefix "docker.elastic.co/" $img.repository)) -}}
+{{- end -}}
+{{- include "podiumd.image" $img -}}
+{{- end -}}
 {{- $root := index .Values "kiss-eck" | default dict }}
 {{- if $root.enabled }}
 {{- $components := list
@@ -26,6 +41,9 @@ eck-enterprise-search); the values keys under kiss-eck.eck-* are unchanged.
 {{- end }}
 {{- if hasKey $v "version" }}
 {{- fail (printf "kiss-eck.%s.version is no longer used: set kiss-eck.%s.image.tag (\"<version>@sha256:<digest>\"); spec.version is taken from it" .key .key) }}
+{{- end }}
+{{- if kindIs "string" $v.image }}
+{{- fail (printf "kiss-eck.%s.image is now an image block, not a string (%q): set kiss-eck.%s.image.repository to the registry and repository only, and keep the chart's image.tag" .key $v.image .key) }}
 {{- end }}
 {{- $tag := required (printf "kiss-eck.%s.image.tag is required" .key) ($v.image).tag | toString }}
 {{- $_ := set $versions .key (splitList "@" $tag | first) }}
@@ -56,7 +74,7 @@ metadata:
     {{- end }}
 spec:
   version: {{ index $versions "eck-elasticsearch" | quote }}
-  image: {{ include "podiumd.image" $es.image }}
+  image: {{ include "podiumd.kissEck.image" (dict "image" $es.image "values" $.Values) }}
   {{- with $es.auth }}
   auth:
     {{- toYaml . | nindent 4 }}
@@ -140,7 +158,7 @@ metadata:
     {{- end }}
 spec:
   version: {{ index $versions "eck-kibana" | quote }}
-  image: {{ include "podiumd.image" $kb.image }}
+  image: {{ include "podiumd.kissEck.image" (dict "image" $kb.image "values" $.Values) }}
   {{- with $kb.count }}
   count: {{ . }}
   {{- end }}
@@ -206,7 +224,7 @@ metadata:
     {{- end }}
 spec:
   version: {{ index $versions "eck-enterprise-search" | quote }}
-  image: {{ include "podiumd.image" $ent.image }}
+  image: {{ include "podiumd.kissEck.image" (dict "image" $ent.image "values" $.Values) }}
   count: {{ required "kiss-eck.eck-enterprise-search.count is required" $ent.count }}
   {{- with $ent.serviceAccountName }}
   serviceAccountName: {{ . }}
