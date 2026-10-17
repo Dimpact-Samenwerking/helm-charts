@@ -7,7 +7,6 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from lib.chart.chart_yaml import ChartDependency
-from lib.chart.nested_subchart_identity import documented_repository_for_path
 from lib.chart.nested_subchart_identity import version_repository_path_for
 from lib.chart.pull_and_subchart_resolution import formatted_repo
 from lib.chart.pull_and_subchart_resolution import own_full_repository
@@ -105,16 +104,12 @@ class RepositoryResolver:  # pylint: disable=too-few-public-methods  # one query
     Per path, first match wins:
     1. podiumd's own "repository:" at that path (with a sibling "registry:").
     2. The component's registered sibling field (redis-operator imageName).
-    3. A registered nested subchart's documented default (eck-stack).
-    4. The dependency's vendored subchart default.
+    3. The dependency's vendored subchart default.
     A path without an owning dependency only has tier 1: podiumd's own
     templates render it. Each vendored .tgz is read at most once.
     allow_pull defaults to False: a check shouldn't hit the network.
-    vendored_defaults=False drops tier 4, for a tree that already holds the
+    vendored_defaults=False drops tier 3, for a tree that already holds the
     target chart's own values: the vendored .tgz is the old chart version.
-    Tier 3 still reads the vendored .tgz (a nested subchart's documented
-    repository isn't in the parent's values); it is the only source for
-    eck-stack's elasticsearch/kibana repositories.
 
     A sibling "registry:" that looks like a host (".", ":" or localhost,
     e.g. mi's mcr.microsoft.com) is used as-is. One that doesn't (zaakbrug's
@@ -154,9 +149,6 @@ class RepositoryResolver:  # pylint: disable=too-few-public-methods  # one query
             if isinstance(sibling_repo, str) and sibling_repo:
                 return formatted_repo(sibling_repo)
 
-        nested_repo = documented_repository_for_path(self.chart_dir, self.deps, path)
-        if nested_repo:
-            return formatted_repo(nested_repo)
         if not self.vendored_defaults:
             return None
 
@@ -233,8 +225,7 @@ def pin_repositories(
 
     `component_values` is that component's block, over the target chart's values
     when checking a bump, so the vendored (old) chart's own defaults are never
-    read. A nested subchart's documented repository (eck-stack, tier 3 of
-    RepositoryResolver) still comes from the vendored chart.
+    read.
     `dep` None (a native component) leaves only its own "repository:".
     """
     if dep is None:
