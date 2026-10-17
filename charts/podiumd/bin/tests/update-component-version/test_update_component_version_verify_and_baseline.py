@@ -173,7 +173,10 @@ def test_refuse_unwritable_pins_refuses_bare_version_fields_without_a_repository
         ucv.refuse_unwritable_pins(_pins_ctx(ucv, "eck-stack", "kiss-eck"))
     assert exc.value.code == 1
     out = capsys.readouterr().out
-    assert "kiss-eck.eck-elasticsearch.version, kiss-eck.eck-kibana.version are bare version fields" in out
+    assert (
+        "kiss-eck.eck-elasticsearch.version, kiss-eck.eck-kibana.version, kiss-eck.eck-enterprise-search.version "
+        "are bare version fields"
+    ) in out
 
 
 @pytest.mark.parametrize(

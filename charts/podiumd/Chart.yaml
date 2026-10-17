@@ -113,14 +113,6 @@ dependencies:
     condition: eck-operator.enabled
     tags:
       - eck-operator
-  - name: eck-stack
-    alias: kiss-eck
-    version: 0.20.0
-    repository: https://helm.elastic.co
-    tags:
-      - kiss-eck
-      - contact
-    condition: kiss-eck.enabled
   - name: openbao
     version: 0.30.3
     repository: "https://openbao.github.io/openbao-helm"

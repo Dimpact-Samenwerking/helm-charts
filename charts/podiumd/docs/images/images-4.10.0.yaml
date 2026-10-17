@@ -10,20 +10,23 @@
 #   4. openformulieren 3.5.8 -> 4.0.2 (chart 1.12.0 -> 1.13.0).
 #   5. openvtb 0.2.0 (new optional component, image maykinmedia/open-vtb,
 #      disabled by default).
-#   6. kiss 3.1.3 -> 3.2.0 (chart 3.1.3 -> 3.2.0).
-#   7. kiss - crawler 1.0.0 -> 1.1.0.
-#   8. zac 5.4.5 -> 5.9.1 (chart 1.0.297 -> 1.0.338).
-#   9. zac - gotenberg 8.36.0 -> 8.37.0.
-#   10. zac - opa 1.19.1-static -> 1.21.1-static.
-#   11. zac - opentelemetry-collector-contrib 0.158.0 -> 0.161.0.
-#   12. zac - solr 9.10.1-slim (digest changed).
-#   13. zgw-office-addin 0.11.0 -> 0.12.0 (chart 0.0.89 -> 0.0.93).
-#   14. pabc 1.1.1 -> 2.1.0 (chart 1.1.1 -> 2.1.0).
-#   15. omc 1.17.19 -> 2.3.1 (chart 0.14.1 -> 0.17.4).
-#   16. frankgateway.image 1.1.0 -> 1.1.3.
-#   17. frankgateway - etcd v3.5.16 -> v3.5.34.
-#   18. frankgateway - oauth2-proxy v7.7.1 -> v7.15.5.
-#   19. openbao 2.6.3 -> 2.7.1 (chart 0.29.6 -> 0.30.3).
+#   6. kiss-eck.eck-elasticsearch.image 8.19.19 (unchanged).
+#   7. kiss-eck.eck-enterprise-search.image 8.19.19 (unchanged).
+#   8. kiss-eck.eck-kibana.image 8.19.19 (unchanged).
+#   9. kiss 3.1.3 -> 3.2.0 (chart 3.1.3 -> 3.2.0).
+#   10. kiss - crawler 1.0.0 -> 1.1.0.
+#   11. zac 5.4.5 -> 5.9.1 (chart 1.0.297 -> 1.0.338).
+#   12. zac - gotenberg 8.36.0 -> 8.37.0.
+#   13. zac - opa 1.19.1-static -> 1.21.1-static.
+#   14. zac - opentelemetry-collector-contrib 0.158.0 -> 0.161.0.
+#   15. zac - solr 9.10.1-slim (digest changed).
+#   16. zgw-office-addin 0.11.0 -> 0.12.0 (chart 0.0.89 -> 0.0.93).
+#   17. pabc 1.1.1 -> 2.1.0 (chart 1.1.1 -> 2.1.0).
+#   18. omc 1.17.19 -> 2.3.1 (chart 0.14.1 -> 0.17.4).
+#   19. frankgateway.image 1.1.0 -> 1.1.3.
+#   20. frankgateway - etcd v3.5.16 -> v3.5.34.
+#   21. frankgateway - oauth2-proxy v7.7.1 -> v7.15.5.
+#   22. openbao 2.6.3 -> 2.7.1 (chart 0.29.6 -> 0.30.3).
 #
 # See docs/_UPGRADE_PATHS/4.9.4-to-4.10.0-upgrade.md for the operator upgrade notes.
 #
@@ -59,6 +62,22 @@
   url: docker.io/maykinmedia/open-vtb
   version: "0.2.0"
   digest: "sha256:b382b2fdeb052994d6a785864f1277bffb2490e61de2a0222ad74379dede2f01"
+
+# kiss-eck.eck-elasticsearch.image 8.19.19 (unchanged)
+- name: elasticsearch/elasticsearch
+  url: docker.elastic.co/elasticsearch/elasticsearch
+  version: "8.19.19"
+  digest: "sha256:5dbf405a97e008f3024cf6f8f4a314d91b765d82954530893dcc13f8e87d21f4"
+# kiss-eck.eck-enterprise-search.image 8.19.19 (unchanged)
+- name: enterprise-search/enterprise-search
+  url: docker.elastic.co/enterprise-search/enterprise-search
+  version: "8.19.19"
+  digest: "sha256:83e75654a20826027829a072197698358c6ee6e53c3305558a69f7d89992ab16"
+# kiss-eck.eck-kibana.image 8.19.19 (unchanged)
+- name: kibana/kibana
+  url: docker.elastic.co/kibana/kibana
+  version: "8.19.19"
+  digest: "sha256:cc1f9f8c09e2fe0869965ccbf4008a4af0b2691b370fe189dfb8e19f516215c7"
 
 # kiss 3.1.3 -> 3.2.0
 - name: klantinteractie-servicesysteem/kiss-frontend

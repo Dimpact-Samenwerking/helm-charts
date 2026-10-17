@@ -49,14 +49,10 @@ def test_is_primary_image_path_version_paths_for_field_is_primary(libchartregist
 
 
 def test_is_primary_image_path_eck_stack_registered_version_fields_are_primary(libchartregisteredpaths: ModuleType):
-    """eck-stack's registered eck-elasticsearch and eck-kibana are co-equal primaries; unregistered
-    eck-enterprise-search stays a sidecar needing its own header."""
+    """eck-stack's registered version fields are co-equal primaries, eck-enterprise-search too."""
     deps = [{"name": "eck-stack", "alias": "kiss-eck", "version": "1.0.0"}]
-    assert libchartregisteredpaths.is_primary_image_path(("kiss-eck", "eck-elasticsearch", "version"), deps) is True
-    assert libchartregisteredpaths.is_primary_image_path(("kiss-eck", "eck-kibana", "version"), deps) is True
-    assert (
-        libchartregisteredpaths.is_primary_image_path(("kiss-eck", "eck-enterprise-search", "version"), deps) is False
-    )
+    for resource in ("eck-elasticsearch", "eck-kibana", "eck-enterprise-search"):
+        assert libchartregisteredpaths.is_primary_image_path(("kiss-eck", resource, "version"), deps) is True
 
 
 def test_is_primary_image_path_no_owning_dependency_is_primary(libchartregisteredpaths: ModuleType):
@@ -762,7 +758,7 @@ def test_images_manifest_display_name_positions_matches_entry_positions_order(
         "# kiss-eck 8.19.3 -> 8.19.19\n"
         "- name: kibana/kibana\n"
         '  version: "8.19.19"\n'
-        "#   sidecar: kiss-eck - enterprise-search 8.19.3 -> 8.19.19\n"
+        "# kiss-eck 8.19.3 -> 8.19.19\n"
         "- name: enterprise-search/enterprise-search\n"
         '  version: "8.19.19"\n'
         "\n"
@@ -797,7 +793,6 @@ def test_images_manifest_display_name_positions_matches_entry_positions_order(
     }
     canonical_names = {
         "kiss - crawler": ("kiss", "crawler", "image"),
-        "kiss-eck - enterprise-search": ("kiss-eck", "eck-enterprise-search", "version"),
     }
 
     display_positions = libupgradedocmanifestordering.images_manifest_display_name_positions(
@@ -805,9 +800,8 @@ def test_images_manifest_display_name_positions_matches_entry_positions_order(
     )
 
     assert display_positions["kiss"] < display_positions["kiss - crawler"]
-    assert display_positions["kiss-eck"] < display_positions["kiss-eck - enterprise-search"]
     assert display_positions["redis-operator"] < display_positions["kiss-eck"]
-    assert display_positions["kiss-eck - enterprise-search"] < display_positions["kiss"]
+    assert display_positions["kiss-eck"] < display_positions["kiss"]
 
 
 def test_images_manifest_display_name_positions_ambiguous_name_keeps_first_position(
