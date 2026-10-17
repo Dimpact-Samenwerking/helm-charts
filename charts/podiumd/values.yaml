@@ -4214,6 +4214,16 @@ omc:
           issuer: ""
           userId: "OMC (PodiumD)"
           userName: "OMC (PodiumD)"
+        # OMC 2.x builds an Open VTB client at startup, and while
+        # ZGW_AUTH_KEY_OPENVTB or ZGW_ENDPOINT_OPENVTB is empty it answers every
+        # notification with HTTP 500, also when no Berichtenbox/MOBB scenario is
+        # used (IN-3179). These non-empty defaults keep OMC working without
+        # Open VTB; the .invalid host never resolves. For the MOBB scenario, set
+        # a key generated in Open VTB and the Open VTB endpoint.
+        key:
+          openvtb: "not-configured"
+      endpoint:
+        openVtb: "https://openvtb.invalid"
       variable:
         # including dummy defaults for object types, because R'dam wants to POC with object-scenario's
         objectType:
