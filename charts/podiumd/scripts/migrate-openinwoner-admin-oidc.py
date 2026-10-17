@@ -34,6 +34,13 @@ The provider identifier and the options are what mozilla-django-oidc-db's own
 fallback for the flat shape would create, except that the options use
 groups_settings, the key its admin plugin reads.
 
+Input files:
+  - a gemeente podiumd.yml (openinwoner.configuration.data is a block scalar
+    holding the setup-configuration YAML);
+  - a setup-configuration data file whose top level holds
+    oidc_db_config_admin_auth (e.g. podiumd-infra's
+    values/layer0/openinwoner.configuration.data.yml).
+
 Only the oidc_db_config_admin_auth block changes; the rest of the file keeps
 its lines, comments and REP_..._REP placeholders. Moved values keep their
 quoting. Before writing, the script checks that the edited file parses to
@@ -205,6 +212,8 @@ def migrate_text(text: str) -> tuple[str, list[str]]:
     doc = _safe_load(text)
     if not isinstance(doc, dict):
         raise MigrationError("not a YAML mapping")
+    if isinstance(doc.get(KEY), dict):  # a setup-configuration data file
+        return _migrate_data_file(text, doc)
     oip = doc.get("openinwoner")
     data = ((oip or {}).get("configuration") or {}).get("data") if isinstance(oip, dict) else None
     if not data:
@@ -243,6 +252,24 @@ def migrate_text(text: str) -> tuple[str, list[str]]:
     return new, notes
 
 
+def _migrate_data_file(text: str, doc: dict) -> tuple[str, list[str]]:
+    """migrate_text for a file whose top level holds oidc_db_config_admin_auth."""
+    if not any(is_flat(i) for i in doc[KEY].get("items") or []):
+        return text, []
+    lines = text.splitlines(keepends=True)
+    rt = _rt_yaml().load(text)
+    key_line, key_col = rt.lc.key(KEY)
+    end = _value_end(lines, key_line, len(lines))
+    migrated, notes = migrate_block(rt[KEY])
+    body = _dump(CommentedMap([(KEY, migrated)]), key_col, _seq_offset(rt[KEY], key_col))
+    new = "".join(lines[:key_line]) + body + "".join(lines[end:])
+    expected = copy.deepcopy(doc)
+    expected[KEY] = _plain(migrate_block(doc[KEY])[0])
+    if _safe_load(new) != expected:
+        raise MigrationError("edited file does not parse to the intended values; not written")
+    return new, notes
+
+
 def _diff(path: str, old: str, new: str) -> str:
     return "".join(difflib.unified_diff(old.splitlines(True), new.splitlines(True), f"a/{path}", f"b/{path}"))
 
@@ -271,7 +298,7 @@ def process(path: str, args) -> tuple[str, list[str]]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("files", nargs="*", help="podiumd.yml files (default: all under --gemeenten-dir)")
+    parser.add_argument("files", nargs="*", help="podiumd.yml or data files (default: all under --gemeenten-dir)")
     parser.add_argument(
         "--gemeenten-dir", help="directory with <gemeente>/<env>/podiumd.yml (used when no files are given)"
     )
