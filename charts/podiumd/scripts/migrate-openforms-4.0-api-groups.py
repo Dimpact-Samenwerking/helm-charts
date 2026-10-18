@@ -14,7 +14,7 @@ from the setup-configuration models of its API groups:
 A group that still sets one of them fails validation (`Extra inputs are not
 permitted`), the openformulieren-config post-upgrade hook Job fails, and the
 helm upgrade fails with it. See
-docs/_UPGRADE_PATHS/4.9.4-to-4.10.0-values-deltas.md, "Remove the catalogue
+docs/_UPGRADE_PATHS/4.9.5-to-4.10.0-values-deltas.md, "Remove the catalogue
 and document type fields from the API groups".
 
 This script removes those keys from every group under objects_api.groups and

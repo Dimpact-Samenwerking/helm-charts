@@ -3402,7 +3402,7 @@ zac:
   # (streamed upload/download), maxInMemoryFileSizeMB 80 (preview, mail,
   # WebDAV), nginx client_max_body_size 600M and proxy_timeout 1800s. Larger
   # documents also need the gateway route in front of zac-nginx and
-  # openzaak-nginx to allow them; see 4.9.4-to-4.10.0-upgrade.md.
+  # openzaak-nginx to allow them; see 4.9.5-to-4.10.0-upgrade.md.
   nginx:
     securityContext:
       allowPrivilegeEscalation: false
