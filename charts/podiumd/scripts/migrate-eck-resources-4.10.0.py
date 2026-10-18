@@ -139,13 +139,16 @@ def _emit(value, col: int, seq_offset: int) -> list[str]:
 
 
 def _seq_offset(doc) -> int:
-    """How far this file indents "- " under its key (0 or 2), from its first block sequence."""
+    """How far this file indents "- " under its key (0 or 2), from its first block sequence.
+
+    ruamel reports an item's column after its "- ", hence the - 2.
+    """
     def walk(node, col):
         if isinstance(node, CommentedMap):
             for key, value in node.items():
                 key_col = node.lc.key(key)[1]
                 if isinstance(value, CommentedSeq) and value and isinstance(value[0], CommentedMap):
-                    return value.lc.item(0)[1] - key_col
+                    return value.lc.item(0)[1] - 2 - key_col
                 found = walk(value, key_col)
                 if found is not None:
                     return found

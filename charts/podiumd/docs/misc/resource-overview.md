@@ -230,7 +230,7 @@ Configured per environment via `openinwoner.eck-elasticsearch.nodeSets`. The nod
 
 *Enterprise Search (disabled since KISS 3.0.0) has no CPU request. An environment that overrides `kiss-eck.eck-elasticsearch.nodeSets` must repeat the `podTemplate` containers, because a list replaces the chart default: `scripts/migrate-eck-resources-4.10.0.py` adds them.*
 
-> ⚠️ **Increase for production**: KISS Elasticsearch defaults have only limits with no requests — this puts pods in the Burstable QoS class and makes them eviction candidates under node pressure. Suggested for production: ES `500m / 4Gi` (request = limit for Guaranteed QoS), Kibana `200m / 1Gi`, Enterprise Search `500m / 4Gi`.
+> ⚠️ **Increase for production**: the KISS Elasticsearch and Kibana defaults above set CPU requests below their limits, which puts the pods in the Burstable QoS class (eviction candidates under node pressure). Suggested for production: ES `500m / 4Gi` (request = limit for Guaranteed QoS), Kibana `200m / 2Gi`, Enterprise Search `500m / 4Gi`.
 
 **PDB**: ECK manages the PDB automatically (`minAvailable: 1` for the 3-node ES cluster).
 
