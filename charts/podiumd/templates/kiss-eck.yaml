@@ -5,7 +5,7 @@ that ECK (the eck-operator dependency) runs for KISS.
 Rendered here instead of by the eck-stack chart, so each image is a normal
 podiumd image block (repository + "<version>@sha256:<digest>" tag) like every
 other image: environments with an ACR override only `image.repository`, or
-set eck-operator.config.containerRegistry (see podiumd.kissEck.image).
+set eck-operator.config.containerRegistry (see podiumd.kissEck.imageBlock).
 `spec.version` is the tag's version part, so the two can't differ. ECK does
 not append the version to `spec.image`.
 
@@ -18,13 +18,30 @@ non-default eck-operator.config.containerRegistry replaces the docker.elastic.co
 host of a repository the environment did not override: SSC environments set only
 that registry (their ACR), so their KISS Elastic images keep coming from it.
 */ -}}
-{{- define "podiumd.kissEck.image" -}}
+{{- /*
+The name of one KISS Elastic resource, as eck-stack 0.20.0's <chart>.fullname
+helpers made it: fullnameOverride, else <release>-<nameOverride or chart name>,
+or just <release> when that already contains the name.
+*/ -}}
+{{- define "podiumd.kissEck.fullname" -}}
+{{- if .v.fullnameOverride -}}
+{{- .v.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $name := default .chart .v.nameOverride -}}
+{{- if contains $name .release -}}
+{{- .release | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .release $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- define "podiumd.kissEck.imageBlock" -}}
 {{- $img := deepCopy .image -}}
 {{- $registry := (((index .values "eck-operator") | default dict).config | default dict).containerRegistry | default "" -}}
 {{- if and $registry (ne $registry "docker.elastic.co") (hasPrefix "docker.elastic.co/" ($img.repository | default "")) -}}
 {{- $_ := set $img "repository" (printf "%s/%s" (trimSuffix "/" $registry) (trimPrefix "docker.elastic.co/" $img.repository)) -}}
 {{- end -}}
-{{- include "podiumd.image" $img -}}
+{{- toYaml $img -}}
 {{- end -}}
 {{- $root := index .Values "kiss-eck" | default dict }}
 {{- if $root.enabled }}
@@ -32,12 +49,18 @@ that registry (their ACR), so their KISS Elastic images keep coming from it.
   (dict "key" "eck-elasticsearch")
   (dict "key" "eck-kibana")
   (dict "key" "eck-enterprise-search") }}
+{{- if $root.extraObjects }}
+{{- fail "kiss-eck.extraObjects is no longer supported since PodiumD renders the KISS Elastic resources itself; deploy extra objects separately" }}
+{{- end }}
 {{- $versions := dict }}
 {{- range $components }}
 {{- $v := index $root .key | default dict }}
 {{- if $v.enabled }}
 {{- if or ($v.ingress).enabled $v.extraObjects }}
 {{- fail (printf "kiss-eck.%s: ingress and extraObjects are not supported since PodiumD renders these resources itself; route Kibana/Elasticsearch through the platform Gateway" .key) }}
+{{- end }}
+{{- if $v.spec }}
+{{- fail (printf "kiss-eck.%s.spec is no longer read (eck-stack let it override the other keys): move its settings one level up, to kiss-eck.%s.<key>" .key .key) }}
 {{- end }}
 {{- if hasKey $v "version" }}
 {{- fail (printf "kiss-eck.%s.version is no longer used: set kiss-eck.%s.image.tag (\"<version>@sha256:<digest>\"); spec.version is taken from it" .key .key) }}
@@ -58,7 +81,7 @@ that registry (their ACR), so their KISS Elastic images keep coming from it.
 apiVersion: elasticsearch.k8s.elastic.co/v1
 kind: Elasticsearch
 metadata:
-  name: {{ default (printf "%s-eck-elasticsearch" $.Release.Name) $es.fullnameOverride | trunc 63 | trimSuffix "-" }}
+  name: {{ include "podiumd.kissEck.fullname" (dict "v" $es "chart" "eck-elasticsearch" "release" $.Release.Name) }}
   labels:
     helm.sh/chart: {{ include "podiumd.chart" $ }}
     app.kubernetes.io/name: eck-elasticsearch
@@ -74,7 +97,8 @@ metadata:
     {{- end }}
 spec:
   version: {{ index $versions "eck-elasticsearch" | quote }}
-  image: {{ include "podiumd.kissEck.image" (dict "image" $es.image "values" $.Values) }}
+  {{- $image := include "podiumd.kissEck.imageBlock" (dict "image" $es.image "values" $.Values) | fromYaml }}
+  image: {{ include "podiumd.image" $image }}
   {{- with $es.auth }}
   auth:
     {{- toYaml . | nindent 4 }}
@@ -142,7 +166,7 @@ spec:
 apiVersion: kibana.k8s.elastic.co/v1
 kind: Kibana
 metadata:
-  name: {{ default (printf "%s-eck-kibana" $.Release.Name) $kb.fullnameOverride | trunc 63 | trimSuffix "-" }}
+  name: {{ include "podiumd.kissEck.fullname" (dict "v" $kb "chart" "eck-kibana" "release" $.Release.Name) }}
   labels:
     helm.sh/chart: {{ include "podiumd.chart" $ }}
     app.kubernetes.io/name: eck-kibana
@@ -158,7 +182,8 @@ metadata:
     {{- end }}
 spec:
   version: {{ index $versions "eck-kibana" | quote }}
-  image: {{ include "podiumd.kissEck.image" (dict "image" $kb.image "values" $.Values) }}
+  {{- $image := include "podiumd.kissEck.imageBlock" (dict "image" $kb.image "values" $.Values) | fromYaml }}
+  image: {{ include "podiumd.image" $image }}
   {{- if hasKey $kb "count" }}
   {{- /* hasKey, not with: count 0 must render (with would drop it, as eck-stack 0.20.0 did) */}}
   count: {{ $kb.count }}
@@ -209,7 +234,7 @@ spec:
 apiVersion: enterprisesearch.k8s.elastic.co/v1
 kind: EnterpriseSearch
 metadata:
-  name: {{ default (printf "%s-eck-enterprise-search" $.Release.Name) $ent.fullnameOverride | trunc 63 | trimSuffix "-" }}
+  name: {{ include "podiumd.kissEck.fullname" (dict "v" $ent "chart" "eck-enterprise-search" "release" $.Release.Name) }}
   labels:
     helm.sh/chart: {{ include "podiumd.chart" $ }}
     app.kubernetes.io/name: eck-enterprise-search
@@ -225,7 +250,8 @@ metadata:
     {{- end }}
 spec:
   version: {{ index $versions "eck-enterprise-search" | quote }}
-  image: {{ include "podiumd.kissEck.image" (dict "image" $ent.image "values" $.Values) }}
+  {{- $image := include "podiumd.kissEck.imageBlock" (dict "image" $ent.image "values" $.Values) | fromYaml }}
+  image: {{ include "podiumd.image" $image }}
   count: {{ required "kiss-eck.eck-enterprise-search.count is required" $ent.count }}
   {{- with $ent.serviceAccountName }}
   serviceAccountName: {{ . }}
