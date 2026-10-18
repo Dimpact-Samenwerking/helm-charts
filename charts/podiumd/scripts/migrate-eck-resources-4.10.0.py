@@ -228,12 +228,12 @@ def _fitted(resources: dict, current) -> dict:
 
 def _ensure_container(spec: CommentedMap, spec_line: int, spec_col: int, name: str, resources: dict,
                       ins: Inserts, offset: int) -> None:
-    containers = spec.get("containers")
-    if containers is None:
+    if "containers" not in spec:
         _ensure(spec, spec_line, spec_col, {"containers": [{"name": name, "resources": resources}]}, ins, offset)
         return
-    if not isinstance(containers, CommentedSeq):
-        raise MigrationError("podTemplate.spec.containers is not a block list; add the resources by hand")
+    containers = spec["containers"]
+    if not isinstance(containers, CommentedSeq) or not containers or containers.fa.flow_style():
+        raise MigrationError("podTemplate.spec.containers is empty or not a block list; add the resources by hand")
     for index, container in enumerate(containers):
         if isinstance(container, CommentedMap) and container.get("name") == name:
             line, col = containers.lc.item(index)
@@ -312,8 +312,11 @@ def migrate_text(text: str) -> tuple[str, list[str]]:
 
 
 def process(path: str, dry_run: bool) -> tuple[str, list[str]]:
-    with open(path, encoding="utf-8") as f:
-        text = f.read()
+    # Read and write without newline translation, so the file keeps its own line endings on every OS.
+    with open(path, encoding="utf-8", newline="") as f:
+        raw = f.read()
+    crlf = "\r\n" in raw
+    text = raw.replace("\r\n", "\n") if crlf else raw
     try:
         new, notes = migrate_text(text)
     except MigrationError as e:
@@ -326,8 +329,8 @@ def process(path: str, dry_run: bool) -> tuple[str, list[str]]:
         sys.stdout.write("".join(difflib.unified_diff(text.splitlines(True), new.splitlines(True),
                                                       f"a/{path}", f"b/{path}")))
     else:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(new)
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            f.write(new.replace("\n", "\r\n") if crlf else new)
     return "migrated", notes
 
 
