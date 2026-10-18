@@ -57,7 +57,7 @@
 {{- if hasKey $item $k -}}{{- $flat = append $flat $k -}}{{- end -}}
 {{- end -}}
 {{- if or $flat (not (has $item.oidc_provider_identifier $providerIds)) -}}
-{{- fail (printf "openinwoner.configuration.data: oidc_db_config_admin_auth item %q must use the providers schema: a providers entry named in oidc_provider_identifier%s. Migrate the values with scripts/migrate-openinwoner-admin-oidc.py; see docs/_UPGRADE_PATHS/4.9.4-to-4.10.0-values-deltas.md, \"Open Inwoner admin OIDC: the providers schema\"" ($item.identifier | toString) (ternary (printf ", and no old flat fields (found: %s)" (join ", " $flat)) "" (gt (len $flat) 0))) -}}
+{{- fail (printf "openinwoner.configuration.data: oidc_db_config_admin_auth item %q must use the providers schema: a providers entry named in oidc_provider_identifier%s. Migrate the values with scripts/migrate-openinwoner-admin-oidc.py; see docs/_UPGRADE_PATHS/4.9.5-to-4.10.0-values-deltas.md, \"Admin OIDC login: the providers schema\"" ($item.identifier | toString) (ternary (printf ", and no old flat fields (found: %s)" (join ", " $flat)) "" (gt (len $flat) 0))) -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}

@@ -15,8 +15,8 @@ make_users_staff, ... directly in the item) fails validation:
 Up to PodiumD 4.9.x the openinwoner-config Job then fails on its own. From
 PodiumD 4.10.0 (openinwoner chart 2.6.0) that Job is a post-install/post-upgrade
 Helm hook, so the whole helm upgrade fails. See
-docs/_UPGRADE_PATHS/4.9.4-to-4.10.0-values-deltas.md, "Open Inwoner admin
-OIDC: the providers schema".
+docs/_UPGRADE_PATHS/4.9.5-to-4.10.0-values-deltas.md, "Admin OIDC login: the
+providers schema".
 
 For every flat item in openinwoner.configuration.data, this script:
 
