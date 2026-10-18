@@ -29,9 +29,9 @@ that registry (their ACR), so their KISS Elastic images keep coming from it.
 {{- $root := index .Values "kiss-eck" | default dict }}
 {{- if $root.enabled }}
 {{- $components := list
-  (dict "key" "eck-elasticsearch" "name" "eck-elasticsearch")
-  (dict "key" "eck-kibana" "name" "eck-kibana")
-  (dict "key" "eck-enterprise-search" "name" "eck-enterprise-search") }}
+  (dict "key" "eck-elasticsearch")
+  (dict "key" "eck-kibana")
+  (dict "key" "eck-enterprise-search") }}
 {{- $versions := dict }}
 {{- range $components }}
 {{- $v := index $root .key | default dict }}
@@ -159,8 +159,9 @@ metadata:
 spec:
   version: {{ index $versions "eck-kibana" | quote }}
   image: {{ include "podiumd.kissEck.image" (dict "image" $kb.image "values" $.Values) }}
-  {{- with $kb.count }}
-  count: {{ . }}
+  {{- if hasKey $kb "count" }}
+  {{- /* hasKey, not with: count 0 must render (with would drop it, as eck-stack 0.20.0 did) */}}
+  count: {{ $kb.count }}
   {{- end }}
   elasticsearchRef:
     {{- toYaml $kb.elasticsearchRef | nindent 4 }}
