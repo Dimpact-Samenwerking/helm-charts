@@ -57,7 +57,8 @@ commands below only behave as described from 3.5.10 on.
 **NOTE: this cannot be easily reverted for large forms, these should be copied first!**
 
 ```bash
-# Dry run — lists forms with cyclic rules that cannot be auto-converted:
+# Dry run (Open Forms 3.5.10 and later only; on 3.5.9 and earlier this
+# command converts every form) — lists forms with cyclic rules:
 kubectl exec -n <ns> <openformulieren-pod> -- \
   python /app/src/manage.py enable_new_logic_evaluation_for_all_forms
 
