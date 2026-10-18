@@ -109,8 +109,8 @@
 
 - name: maykinmedia/open-inwoner
   url: docker.io/maykinmedia/open-inwoner
-  version: "2.4.6"
-  digest: "sha256:ef686923eb1d046343288a26fae654a0333545c331cf8bedd2e809009acb0b3c"
+  version: "2.4.7"
+  digest: "sha256:f78563302f20a0b8f8f156e5328aae4343261c3b91994f6e1b964104ed66d58e"
 
 - name: maykinmedia/referentielijsten-api
   url: docker.io/maykinmedia/referentielijsten-api
