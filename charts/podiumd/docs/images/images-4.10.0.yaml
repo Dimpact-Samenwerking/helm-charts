@@ -85,6 +85,12 @@
   version: "4.0.2"
   digest: "sha256:e1cad4bcf2319a3eb106e51156bf69c6be83da9dd070e977f52ec1079455b8e3"
 
+# referentielijsten 0.7.4 -> 0.7.5
+- name: maykinmedia/referentielijsten-api
+  url: docker.io/maykinmedia/referentielijsten-api
+  version: "0.7.5"
+  digest: "sha256:d4d86ff802eec5272724e7f9ad7db3cb32ed667bd268e9b92c07630d8a3325f1"
+
 # openvtb 0.2.0 (new optional component, Open VTB)
 - name: maykinmedia/open-vtb
   url: docker.io/maykinmedia/open-vtb
