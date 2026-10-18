@@ -127,6 +127,10 @@ def _move_options(item) -> None:
         raise MigrationError(f"item {item['identifier']} has both the flat fields and options; migrate it by hand")
     claims = CommentedMap(username=item.pop("username_claim", USER_DEFAULTS["username_claim"]))
     for name, value in item.pop("claim_mapping", USER_DEFAULTS["claim_mapping"]).items():
+        if name == "username" and value != claims["username"]:
+            raise MigrationError(
+                f"item {item['identifier']}: both username_claim and claim_mapping.username are set; migrate it by hand"
+            )
         claims[name] = value
     groups = CommentedMap((key, item.pop(field, default)) for field, key, default in GROUP_FIELDS)
     item["options"] = CommentedMap(user_settings=CommentedMap(claim_mappings=claims), groups_settings=groups)
@@ -163,7 +167,9 @@ def migrate_block(block) -> tuple[object, list[str]]:
                 providers = CommentedSeq()
             providers.append(provider)
             notes.append(f"{item['identifier']}: provider {ident} added")
-        elif (endpoint_config is not None and endpoint_config != existing.get("endpoint_config")) or provider_fields:
+        elif (endpoint_config is not None and endpoint_config != existing.get("endpoint_config")) or any(
+            existing.get(k) != v for k, v in provider_fields
+        ):
             raise MigrationError(
                 f"item {item['identifier']}: provider {ident} exists with other settings; merge by hand"
             )
@@ -176,6 +182,8 @@ def migrate_block(block) -> tuple[object, list[str]]:
         for k, v in new.items():
             reordered[k] = v
         new = reordered
+    elif providers is not None:  # an explicit "providers:" (null) or an existing list
+        new["providers"] = providers
     return new, notes
 
 
@@ -280,8 +288,11 @@ def _diff(path: str, old: str, new: str) -> str:
 
 
 def process(path: str, args) -> tuple[str, list[str]]:
-    with open(path, encoding="utf-8") as f:
-        text = f.read()
+    # Read and write without newline translation, so the file keeps its own line endings on every OS.
+    with open(path, encoding="utf-8", newline="") as f:
+        raw = f.read()
+    crlf = "\r\n" in raw
+    text = raw.replace("\r\n", "\n") if crlf else raw
     try:
         new, notes = migrate_text(text)
     except MigrationError as e:
@@ -296,8 +307,8 @@ def process(path: str, args) -> tuple[str, list[str]]:
     if args.dry_run:
         sys.stdout.write(_diff(path, text, new))
     elif not args.check:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(new)
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            f.write(new.replace("\n", "\r\n") if crlf else new)
     return ("needs migration" if args.check else "migrated"), notes
 
 
