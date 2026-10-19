@@ -30,7 +30,17 @@ Wat gemeenten zelf moeten doen staat op de [releasepagina in de wiki](https://di
 - **{Live of deploytest}:** {omgeving, wat gecontroleerd, resultaat}.
 - **Chartcontroles:** {welke `verify-podiumd`-checks}.
 - **Niet getest:** {wat alleen met chartcontroles is gevalideerd, of uitgesteld}.
-- **Bekende problemen buiten deze release:** {indien van toepassing}.
+- **Bekende problemen buiten deze release:** {indien van toepassing}, zie
+  [Bekende problemen](#bekende-problemen).
+
+## Bekende problemen
+
+<!-- Alleen als er bekende fouten in de applicaties zijn. Bron:
+     charts/podiumd/docs/misc/upstream-known-issues.md; noem alleen wat gemeenten of SSC merken. -->
+
+| Probleem | Component | Gevolg / workaround |
+| --- | --- | --- |
+| {wat er misgaat} | {component en versie} | {wat gemeenten merken, en de workaround of de versie met de fix} |
 
 ## Nog open voor {version}
 
