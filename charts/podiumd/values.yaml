@@ -2491,10 +2491,6 @@ referentielijsten:
     repository: maykinmedia/referentielijsten-api
     pullPolicy: IfNotPresent
     tag: "0.7.4@sha256:5501b48fe9b988a72adba14308748e6b5928f851ec66d108bab2fe625eb831a3"
-  resources:
-    requests:
-      cpu: 100m
-      memory: 320Mi
 
   settings:
     allowedHosts: ".svc.cluster.local"
