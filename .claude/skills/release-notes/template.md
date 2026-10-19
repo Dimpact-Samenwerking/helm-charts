@@ -35,12 +35,14 @@ Wat gemeenten zelf moeten doen staat op de [releasepagina in de wiki](https://di
 
 ## Bekende problemen
 
-<!-- Alleen als er bekende fouten in de applicaties zijn. Bron:
-     charts/podiumd/docs/misc/upstream-known-issues.md; noem alleen wat gemeenten of SSC merken. -->
+<!-- Alleen als er bekende fouten in de applicaties zijn. Bron: de tabel in README.md van
+     infonl/podiumd-known-issues (privé), zie "Bekende problemen" in SKILL.md. Noem alleen wat
+     gemeenten of SSC merken; geen reproductiestappen, en beveiligingsfouten die nog niet gemeld
+     zijn alleen als telling per component. -->
 
-| Probleem | Component | Gevolg / workaround |
-| --- | --- | --- |
-| {wat er misgaat} | {component en versie} | {wat gemeenten merken, en de workaround of de versie met de fix} |
+| Ernst | Probleem | Component | Gevolg | Oplossing |
+| --- | --- | --- | --- | --- |
+| {Kritiek, Hoog, Middel of Opgelost} | {wat er misgaat} | {component en versie} | {wat gemeenten of SSC merken} | {upstream-versie met de fix, onze PR of Jira-issue, workaround, of "Nog geen"} |
 
 ## Nog open voor {version}
 

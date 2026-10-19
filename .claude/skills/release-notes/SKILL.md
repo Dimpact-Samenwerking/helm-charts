@@ -58,7 +58,44 @@ Audience: stakeholders and municipalities. Language: **Dutch**, plain and short.
    For a release that is not tagged yet, the target tag does not exist: run
    it against the release branch head instead (adapt `tag` in `main()`), or
    rely on sources 1–3.
-5. **Review statistics** for "Review en kwaliteit": run
+5. **Known issues** for "Bekende problemen": the private repository
+   [infonl/podiumd-known-issues](https://github.com/infonl/podiumd-known-issues)
+   (access: the PodiumD team). Read it with
+   `gh api repos/infonl/podiumd-known-issues/contents/README.md -H 'Accept: application/vnd.github.raw'`,
+   or clone it.
+   - **The index:** the table in `README.md`, with one row per issue: Severity,
+     report, product and version, the status of the last verification round,
+     and the Fix column (scheduled or open).
+   - **The detail:** each report in `issues/<id>-*.md`. Line 1 is an HTML
+     comment with the upstream repository, the status, what was checked, and
+     the last verification with its severity. Read the report before you judge
+     the impact: the reports are more precise than the summary in
+     `charts/podiumd/docs/misc/upstream-known-issues.md`, which can be out of
+     date (it had omc-1 as fixed by Open Notificaties 1.17.0, and the
+     2026-10-19 round still reproduced it).
+   - **Which rows go in:** issues in a component version this release ships,
+     with severity Critical or High, or with an impact that municipalities or
+     SSC notice. Also include issues fixed in this release (status "Opgelost"
+     with the PR). Leave out issues that only concern the QA estate or the
+     tests.
+   - **Impact:** say what a municipality or SSC notices, and when (for
+     example only with OMC enabled, only with `wait_for_payment_to_register`,
+     only during an SMTP outage). Take that from the report's "Impact",
+     "Expected" and "Actual" sections, not from the title.
+   - **Fix:** document every fix that is scheduled or open: the upstream
+     release that contains it (and whether this release ships it), our PR, the
+     Jira issue, or the workaround (for example the ingress for HSTS and
+     nosniff). Write "Nog geen" when the Fix column is "-".
+   - **Disclosure:** the notes are public, the reports are not. Never copy
+     reproduction steps, environment names, hostnames or request bodies. A
+     finding with security impact that is not reported upstream yet appears
+     only as a count per component ("fouten in de API's van …, waarvan een
+     deel gevolgen heeft voor de beveiliging"), never with its mechanism.
+     Never link the private repository from the notes; call it "het interne
+     overzicht van bekende problemen".
+   - **Date:** put the date of the verification round and of the Fix column
+     in the section.
+6. **Review statistics** for "Review en kwaliteit": run
    `python3 -I .claude/skills/release-notes/review_stats.py <version> <out.json>`.
    - It reads every open or merged PR into `feature/podiumd-<version>`, the
      open PRs into `feature/podiumd-<version>-*` (they still need a second
@@ -70,7 +107,7 @@ Audience: stakeholders and municipalities. Language: **Dutch**, plain and short.
      the approvals next to it, never the count alone.
    - Name a merged PR without a review when it is large or risky, and say what
      testing covered it. Small docs fixes only get a count.
-6. **The Jira build story** for a release that is not out yet:
+7. **The Jira build story** for a release that is not out yet:
    `PodiumD <version> bouwen` (for 4.10.0: IN-2971). Read its subtasks with the
    Jira tools (`parent = <key>`), once for the open ones
    (`statusCategory != Done`) and once for the done ones. Group the open
@@ -119,8 +156,8 @@ Rules:
 - **Configuration changes** that are not version bumps go in their own table.
 - **Links:** to the PRs and Jira issues as given in the PRs, and at the end
   to the SSC docs and the images manifest.
-- **Not released yet:** add `Nog open voor <version>` (source 6, one table per
-  status) and keep "Review en kwaliteit" (source 5). After the release, drop
+- **Not released yet:** add `Nog open voor <version>` (source 7, one table per
+  status) and keep "Review en kwaliteit" (source 6). After the release, drop
   "Nog open" and keep the review section with the final numbers.
 
 ## Check and hand over
