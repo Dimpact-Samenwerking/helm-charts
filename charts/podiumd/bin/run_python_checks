@@ -10,8 +10,9 @@ usage() {
 Usage: run_python_checks [-h|--help]
 
 Runs ruff check, shellcheck, ruff format --check, jscpd, pymarkdown,
-vulture, bandit, basedpyright, pylint and pytest on charts/podiumd/bin/,
-fastest first. Stops at the first failure. Run from charts/podiumd/bin/.
+vulture, bandit, basedpyright, pylint and pytest with coverage on
+charts/podiumd/bin/, fastest first. Stops at the first failure. Run from
+charts/podiumd/bin/.
 HELP
 }
 
@@ -84,6 +85,7 @@ step "basedpyright (type checking)" basedpyright "${code[@]}" tests
 step "pylint (lib + scripts)" pylint "${code[@]}"
 # PYTHONPATH lets pylint resolve lib.* imports without analyzing lib.
 step "pylint (tests)" env PYTHONPATH=. pylint --disable="$tests_pylint_disable" "${test_files[@]}"
-step "pytest" python3 -m pytest -q
+# The threshold is [tool.coverage.report] fail_under in pyproject.toml.
+step "pytest (with coverage)" python3 -m pytest -q --cov --cov-report=term-missing:skip-covered
 
 echo "=== all checks passed ==="
