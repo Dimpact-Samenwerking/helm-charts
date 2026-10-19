@@ -439,6 +439,9 @@ kube-prometheus-stack:
       repository: prometheus/node-exporter
       pullPolicy: IfNotPresent
       tag: v1.9.1
+      # -- kube-prometheus-stack 90 turns distroless on, which appends "-distroless" to the tag;
+      # v1.9.1 has no distroless variant (they start at v1.11.0). Turn it on with a tag that has one.
+      distroless: false
   # -- kube-state-metrics image settings
   # registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.17.0
   kube-state-metrics:
