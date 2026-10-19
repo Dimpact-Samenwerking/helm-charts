@@ -110,6 +110,10 @@ Rules:
 - **Facts only.** Every claim about testing names the environment or check and
   comes from a PR or a recorded result. If something was only checked with
   `verify-podiumd`, say so, and say what was not tested.
+- **QA environments by role, not by name.** Write "QA" for our own test
+  environments (johnb00, jim00, kees00 and the other podiumd-infra
+  environments) and "minikube" for a minikube install; never the
+  environment's own name. SSC environments (ontw-*, test-*) keep their names.
 - **Components:** one row per component or sub-image from the component
   table. Sub-images and rebuilds can share a row in the deck.
 - **Configuration changes** that are not version bumps go in their own table.
