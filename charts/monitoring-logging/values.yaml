@@ -218,9 +218,6 @@ grafana:
       enabled: false  
     security:
       cookie_secure: true
-      # HSTS: Grafana sends it only with this setting (IN-3162).
-      strict_transport_security: true
-      strict_transport_security_max_age_seconds: "31536000"
       cookie_samesite: lax
       content_security_policy: true
       content_security_policy_template: "script-src 'self' 'unsafe-eval' 'unsafe-inline' 'strict-dynamic' $NONCE;object-src 'none';font-src 'self';style-src 'self' 'unsafe-inline' blob:;img-src * data:;base-uri 'self';connect-src 'self' grafana.com ws://$ROOT_PATH wss://$ROOT_PATH;manifest-src 'self';media-src 'none';form-action 'self';"
