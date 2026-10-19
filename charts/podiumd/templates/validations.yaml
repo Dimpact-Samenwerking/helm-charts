@@ -38,6 +38,30 @@
 {{- end -}}
 {{- end -}}
 
+{{- /* Open Inwoner's admin OIDC needs the providers schema (mozilla-django-oidc-db 2.x,
+     since Open Inwoner 2.4.0). An item without oidc_provider_identifier, or with
+     the old flat fields, fails setup-configuration; since openinwoner chart 2.6.0
+     that is a post-upgrade hook, so it would fail the whole helm upgrade. */ -}}
+{{- $oip := .Values.openinwoner | default dict -}}
+{{- $oipConfig := $oip.configuration | default dict -}}
+{{- if and (or $oip.enabled (not (hasKey $oip "enabled"))) $oipConfig.enabled $oipConfig.data -}}
+{{- $oipData := $oipConfig.data | fromYaml -}}
+{{- $adminAuth := index $oipData "oidc_db_config_admin_auth" | default dict -}}
+{{- $providerIds := list -}}
+{{- range $p := $adminAuth.providers | default list -}}
+{{- $providerIds = append $providerIds $p.identifier -}}
+{{- end -}}
+{{- range $item := $adminAuth.items | default list -}}
+{{- $flat := list -}}
+{{- range $k := list "endpoint_config" "claim_mapping" "username_claim" "groups_claim" "sync_groups" "sync_groups_glob_pattern" "make_users_staff" "superuser_group_names" "default_groups" "oidc_token_use_basic_auth" "oidc_use_nonce" "oidc_nonce_size" "oidc_state_size" -}}
+{{- if hasKey $item $k -}}{{- $flat = append $flat $k -}}{{- end -}}
+{{- end -}}
+{{- if or $flat (not (has $item.oidc_provider_identifier $providerIds)) -}}
+{{- fail (printf "openinwoner.configuration.data: oidc_db_config_admin_auth item %q must use the providers schema: a providers entry named in oidc_provider_identifier%s. Migrate the values with scripts/migrate-openinwoner-admin-oidc.py; see docs/_UPGRADE_PATHS/4.9.5-to-4.10.0-values-deltas.md, \"Admin OIDC login: the providers schema\"" ($item.identifier | toString) (ternary (printf ", and no old flat fields (found: %s)" (join ", " $flat)) "" (gt (len $flat) 0))) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{- /* PABC 2.1.0 zaaktype import: with any of these empty PABC starts fine and
      only fails when someone presses the import button. */ -}}
 {{- if .Values.pabc.enabled -}}
