@@ -24,7 +24,7 @@ metadata:
     {{- include "podiumd.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: openinwoner
   annotations:
-    checksum/kvk-api-key: {{ printf "%s|%s|%s" $kvk.apiKey $kvk.existingSecret $kvk.existingSecretKey | sha256sum | trunc 16 }}
+    checksum/kvk-api-key: {{ printf "%s|%s|%s" $kvk.apiKey $kvk.existingSecret $kvk.existingSecretKey | sha256sum | trunc 16 | quote }}
 spec:
   serviceAccountName: {{ include "podiumd.serviceAccountName" . }}
   restartPolicy: OnFailure
