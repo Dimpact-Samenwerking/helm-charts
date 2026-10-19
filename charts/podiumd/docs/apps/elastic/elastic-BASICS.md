@@ -165,7 +165,10 @@ custom resource (the Open Inwoner pattern).
    PodiumD template with an image block (as `templates/kiss-eck.yaml` does). Set `fullnameOverride` /
    CR name deliberately — it determines the StatefulSet, PVC, Service and
    Secret names (`<name>-es-<nodeset>`, `elasticsearch-data-<name>-es-<nodeset>-N`,
-   `<name>-es-http`, `<name>-es-elastic-user`) — and pin `version` explicitly.
+   `<name>-es-http`, `<name>-es-elastic-user`) — and pin the version explicitly:
+   `version` for an `eck-elasticsearch` dependency, or `image.tag`
+   (`<version>@sha256:<digest>`) for a template like `kiss-eck.yaml`, which
+   takes `spec.version` from the tag and refuses a `version` key.
 3. **Configure `nodeSets` per environment**: `count` (1 for dev, 3 for
    production HA), `node.roles`, `node.store.allow_mmap: false` (required on
    AKS without vm.max_map_count tuning), pod resources + `ES_JAVA_OPTS` heap in
