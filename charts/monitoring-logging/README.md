@@ -1,6 +1,6 @@
 # monitoring-logging
 
-![Version: 1.0.18](https://img.shields.io/badge/Version-1.0.18-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0.18](https://img.shields.io/badge/AppVersion-1.0.18-informational?style=flat-square)
+![Version: 1.0.19](https://img.shields.io/badge/Version-1.0.19-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0.19](https://img.shields.io/badge/AppVersion-1.0.19-informational?style=flat-square)
 
 A monitoring stack using Loki, Prometheus, Grafana Alloy, OpenTelemetry Collector, and Grafana. Optionally includes Grafana Tempo for distributed tracing.
 
@@ -92,6 +92,8 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 | grafana."grafana.ini".security.cookie_samesite | string | `"lax"` |  |
 | grafana."grafana.ini".security.cookie_secure | bool | `true` |  |
 | grafana."grafana.ini".security.hide_version | bool | `true` |  |
+| grafana."grafana.ini".security.strict_transport_security | bool | `true` |  |
+| grafana."grafana.ini".security.strict_transport_security_max_age_seconds | string | `"31536000"` |  |
 | grafana."grafana.ini".server.domain | string | `"logs.test.nl"` |  |
 | grafana."grafana.ini".server.enforce_domain | bool | `true` |  |
 | grafana."grafana.ini".server.root_url | string | `"https://logs.test.nl/"` |  |
