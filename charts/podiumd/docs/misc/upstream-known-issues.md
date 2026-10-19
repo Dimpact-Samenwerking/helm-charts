@@ -87,7 +87,7 @@ open-formulieren-4 and 5 need `of_wait_for_payment` in the environment profile.
 | zac-1 | An expired `temporaryPersonId` is still handed out, so adding a betrokkene answers 410. #7138 only improved the error. | Adding a betrokkene fails after a while; the user must search the person again. |
 | zac-2 | Creating a zaak without `startdatum` answers 500 (`NullPointerException` in `calculateDoorlooptijden`). | No validation error for API clients. |
 | zac-3 | Mail is sent straight over SMTP: during an outage ZAC logs "Failed to send mail" and drops it, without a queue or retry. | Lost mails after an SMTP outage. |
-| zac-4 | The readiness check includes `PabcReadinessHealthCheck`: while PABC is down ZAC leaves its Service and every page fails (IN-3177). | A PABC restart takes ZAC down. |
+| zac-4 | The readiness check includes `PabcReadinessHealthCheck`: while PABC is down ZAC leaves its Service and every page fails. **By design, won't fix** (IN-3177, Won't do): ZAC deliberately stops serving when a service it depends on is unavailable. | A PABC restart takes ZAC down; shorten PABC outages instead (more replicas and a PDB). |
 | zac-5 | The ZGW API client has no connect or read timeout, so stale connections hang health checks after a long Open Zaak outage. | The chart points the liveness probe at `/health/ready` with `failureThreshold: 16` so Kubernetes restarts ZAC; return to `/health/live` once ZAC has timeouts. |
 
 zac-3 runs only in the podiumd-tests `chaos` tier.
