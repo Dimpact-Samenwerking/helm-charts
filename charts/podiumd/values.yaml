@@ -522,6 +522,14 @@ redis-operator:
       image:
         repository: quay.io/opstree/redis-exporter
         tag: "v1.89.0@sha256:00a3628bdd3bb3423a15c5daefa328c471ee609798eed1744fe578c906d20cab"
+      # -- Resources of the redis_exporter sidecar.
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
       # -- PodMonitor for the redis_exporter sidecar (port 9121).
       # Requires Prometheus Operator CRDs (monitoring.coreos.com/v1).
       # Enable via values-enable-observability.yaml.
@@ -2975,6 +2983,16 @@ kiss-eck:
       podTemplate:
         spec:
           nodeSelector: {}
+          containers:
+          # Memory as ECK's default (the heap is half of it); ECK sets no CPU.
+          - name: elasticsearch
+            resources:
+              requests:
+                cpu: 250m
+                memory: 2Gi
+              limits:
+                cpu: 2000m
+                memory: 2Gi
       # volumeClaimTemplates:
       # - metadata:
       #     name: elasticsearch-data
@@ -3027,6 +3045,16 @@ kiss-eck:
     podTemplate:
       spec:
         nodeSelector: {}
+        containers:
+        # Memory as ECK's default; ECK sets no CPU.
+        - name: kibana
+          resources:
+            requests:
+              cpu: 100m
+              memory: 2Gi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
 
 kiss:
   # Security review 4.10.0 WH-10: no PDB for kiss. Its selector
