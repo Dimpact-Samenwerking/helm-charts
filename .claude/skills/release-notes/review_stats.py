@@ -41,6 +41,12 @@ def search(q):
     return json.loads(out)["data"]["search"]["nodes"]
 
 
+def side_branches(branch):
+    out = subprocess.run(["gh", "api", "--paginate", f"repos/{OWNER}/{NAME}/branches?per_page=100",
+                          "--jq", ".[].name"], capture_output=True, text=True, check=True).stdout
+    return [b for b in out.split() if b.startswith(branch + "-")]
+
+
 def is_bot(login):
     return not login or "copilot" in login or login.endswith("[bot]")
 
@@ -102,8 +108,10 @@ def main(target, out_path):
     sub = [pr_entry(p) for p in search(f"{repo} base:{branch} is:open")
            + search(f"{repo} base:{branch} is:merged")
            if p["baseRefName"] == branch]  # search's base: also matches longer names
-    side = [pr_entry(p) for p in search(f"{repo} is:open")
-            if p["baseRefName"].startswith(branch + "-")]
+    # Search cannot prefix-match base:, so search each feature/podiumd-<target>-* branch.
+    side = [pr_entry(p) for b in side_branches(branch)
+            for p in search(f"{repo} base:{b} is:open") + search(f"{repo} base:{b} is:merged")
+            if p["baseRefName"] == b]
     release = [pr_entry(p) for p in search(f"{repo} base:main head:{branch}")
                if p["state"] != "CLOSED"]
     bundle = {"target": target, "branch": branch, "summary": summary(sub),
@@ -129,4 +137,6 @@ def main(target, out_path):
 
 
 if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        sys.exit(__doc__)
     main(*sys.argv[1:3])

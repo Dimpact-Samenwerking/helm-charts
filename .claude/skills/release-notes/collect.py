@@ -201,7 +201,7 @@ def releases(repo, old, new, tag_prefix=""):
             out.append(rel)
     if not tag_prefix:
         have = {SEMVER.search(x["tag"]).group(0) for x in out}
-        tags = sh("gh", "api", f"repos/{repo}/tags?per_page=100", "--jq", ".[].name").stdout.split()
+        tags = sh("gh", "api", f"repos/{repo}/tags?per_page=100", "--paginate", "--jq", ".[].name").stdout.split()
         missing = sorted({SEMVER.search(t).group(0) for t in tags
                           if re.fullmatch(r"v?\d+\.\d+\.\d+", t) and in_range(t, old, new)} - have,
                          key=vkey)
@@ -212,7 +212,7 @@ def releases(repo, old, new, tag_prefix=""):
                             "body": section(log, v) if log else "", "source": "changelog" if log else "tag-only"})
     out = sorted(out, key=lambda x: vkey(x["tag"]))
     if not tag_prefix:
-        tags = sh("gh", "api", f"repos/{repo}/tags?per_page=100", "--jq", ".[].name").stdout.split()
+        tags = sh("gh", "api", f"repos/{repo}/tags?per_page=100", "--paginate", "--jq", ".[].name").stdout.split()
         # Final releases only: v2.4.6, not v2.4.6-rc1.
         by_version = {SEMVER.search(t).group(0): t for t in tags if re.fullmatch(r"v?\d+\.\d+\.\d+", t)}
         prev = by_version.get(old)
@@ -254,4 +254,6 @@ def main(baseline, target, out_path):
 
 
 if __name__ == "__main__":
+    if len(sys.argv) != 4:
+        sys.exit(__doc__)
     main(*sys.argv[1:4])
