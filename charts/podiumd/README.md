@@ -891,7 +891,8 @@ PodiumD Helm chart
 | openbeheer.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openbeheer.persistentVolume.volumeAttributeShareName | string | `"openbeheer"` |  |
 | openbeheer.replicaCount | int | `2` |  |
-| openbeheer.resources | object | `{}` |  |
+| openbeheer.resources.requests.cpu | string | `"100m"` |  |
+| openbeheer.resources.requests.memory | string | `"256Mi"` |  |
 | openbeheer.securityContext.capabilities.drop[0] | string | `"ALL"` |  |
 | openbeheer.securityContext.readOnlyRootFilesystem | bool | `false` |  |
 | openbeheer.securityContext.runAsNonRoot | bool | `true` |  |

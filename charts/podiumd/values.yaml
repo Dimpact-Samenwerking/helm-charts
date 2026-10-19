@@ -2651,7 +2651,10 @@ openbeheer:
     readOnlyRootFilesystem: false
     runAsNonRoot: true
     runAsUser: 1000
-  resources: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
   persistence:
     enabled: true
     size: 1Gi
