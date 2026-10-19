@@ -19,5 +19,6 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+.coverage
 .ruff_cache/
 .envrc
