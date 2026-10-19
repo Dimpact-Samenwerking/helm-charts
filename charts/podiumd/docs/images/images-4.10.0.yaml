@@ -16,9 +16,9 @@
 #   10. referentielijsten 0.7.4 -> 0.7.5.
 #   11. openvtb 0.2.0 (new optional component, image maykinmedia/open-vtb,
 #      disabled by default).
-#   12. kiss-eck.eck-elasticsearch.image 8.19.19 (unchanged).
-#   13. kiss-eck.eck-enterprise-search.image 8.19.19 (unchanged).
-#   14. kiss-eck.eck-kibana.image 8.19.19 (unchanged).
+#   12. kiss-eck.eck-elasticsearch.image 8.19.19 -> 8.19.23.
+#   13. kiss-eck.eck-enterprise-search.image 8.19.19 -> 8.19.23.
+#   14. kiss-eck.eck-kibana.image 8.19.19 -> 8.19.23.
 #   15. kiss 3.1.3 -> 3.2.0 (chart 3.1.3 -> 3.2.0).
 #   16. kiss - crawler 1.0.0 -> 1.1.0.
 #   17. zac 5.4.5 -> 5.9.1 (chart 1.0.297 -> 1.0.338).
@@ -105,21 +105,21 @@
   version: "0.2.0"
   digest: "sha256:b382b2fdeb052994d6a785864f1277bffb2490e61de2a0222ad74379dede2f01"
 
-# kiss-eck.eck-elasticsearch.image 8.19.19 (unchanged)
+# kiss-eck.eck-elasticsearch.image 8.19.19 -> 8.19.23
 - name: elasticsearch/elasticsearch
   url: docker.elastic.co/elasticsearch/elasticsearch
-  version: "8.19.19"
-  digest: "sha256:5dbf405a97e008f3024cf6f8f4a314d91b765d82954530893dcc13f8e87d21f4"
-# kiss-eck.eck-enterprise-search.image 8.19.19 (unchanged)
+  version: "8.19.23"
+  digest: "sha256:4d0724bb8d78d7a2330693623e26ca4d621079d062ecc8a30b3e1fc180ec14c1"
+# kiss-eck.eck-enterprise-search.image 8.19.19 -> 8.19.23
 - name: enterprise-search/enterprise-search
   url: docker.elastic.co/enterprise-search/enterprise-search
-  version: "8.19.19"
-  digest: "sha256:83e75654a20826027829a072197698358c6ee6e53c3305558a69f7d89992ab16"
-# kiss-eck.eck-kibana.image 8.19.19 (unchanged)
+  version: "8.19.23"
+  digest: "sha256:08d6d698cdd2a0d00f463def05200bfeb0e3c123bfc4a1a799a2577f36ca2bc6"
+# kiss-eck.eck-kibana.image 8.19.19 -> 8.19.23
 - name: kibana/kibana
   url: docker.elastic.co/kibana/kibana
-  version: "8.19.19"
-  digest: "sha256:cc1f9f8c09e2fe0869965ccbf4008a4af0b2691b370fe189dfb8e19f516215c7"
+  version: "8.19.23"
+  digest: "sha256:920b24f689833d34205f426f5359864378a572e829c53016073f0a6837c2e995"
 
 # kiss 3.1.3 -> 3.2.0
 - name: klantinteractie-servicesysteem/kiss-frontend
