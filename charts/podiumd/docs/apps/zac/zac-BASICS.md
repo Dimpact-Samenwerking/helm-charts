@@ -37,6 +37,8 @@ peak load.
     Since 4.10.0 Solr requires basic auth: the operator keeps the `admin`
     password in the Secret `zac-solr-solrcloud-security-bootstrap`, and every
     call to the Solr API or admin UI needs it.
+    An external Solr (`zac.solr.url`) needs `zac.solr.username` and
+    `zac.solr.password` instead; the render fails without them.
 
 ## Required resources
 
