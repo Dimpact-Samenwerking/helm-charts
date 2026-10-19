@@ -107,7 +107,8 @@ def _last_line(node, start_line: int) -> int:
 
 
 def _block_seq(node, what: str) -> CommentedSeq:
-    if not isinstance(node, CommentedSeq) or (node and node.fa.flow_style()):
+    # An empty list can only be written in flow style ([]), so it is refused too.
+    if not isinstance(node, CommentedSeq) or not node or node.fa.flow_style():
         raise MigrationError(f"{what} is not a block list; add the headers by hand")
     return node
 
@@ -176,7 +177,7 @@ def _migrate_rule(rule: CommentedMap, rule_line: int, rule_col: int, want_rule: 
     if NO_BACKEND_FILTERS & set(types) or not rule.get("backendRefs"):
         return "skipped (redirect or no backendRefs)"
 
-    if filters is None:
+    if "filters" not in rule:
         ins.after(_last_line(rule, rule_line),
                   [" " * rule_col + "filters:", *_filter_lines(wanted, rule_col + offset, offset)])
         want_rule["filters"] = [{"type": HEADER_FILTER, "responseHeaderModifier": {"set": copy.deepcopy(wanted)}}]
@@ -269,7 +270,7 @@ def process(path: str, args) -> tuple[str, list[str]]:
         return "error", [str(e)]
     except Exception as e:  # unexpected file shape: report, never write half a migration
         return "error", [f"unexpected {type(e).__name__}: {str(e).splitlines()[0][:200]}"]
-    changes = [n for n in notes if not n.endswith("skipped (redirect or no backendRefs)")]
+    changes = [n for n in notes if " added" in n or " completed" in n or n.endswith((": added", ": completed"))]
     if new == text:
         return "unchanged", notes
     if args.check:
