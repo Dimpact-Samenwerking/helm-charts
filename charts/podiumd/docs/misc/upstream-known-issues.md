@@ -6,7 +6,7 @@ podiumd chart cannot fix. Each one was found by
 as a known defect (`xfail`) under the ID in the first column. A test that passes
 again shows that the defect is gone.
 
-Status: checked on johnb00 with chart 4.10.0 (podiumd-tests `full` run of
+Status: checked on QA with chart 4.10.0 (podiumd-tests `full` run of
 2026-10-17, rev 83; later checks are dated in the row). **None is reported
 upstream yet**; the "Upstream" column names where to report it. Update a row
 when it is reported, fixed or worked around.
@@ -39,7 +39,7 @@ Versions are the image tags `values.yaml` pins in 4.10.0.
 | open-archiefbeheer-3 | A review response cannot empty the archiefactiedatum ("Dit veld mag niet leeg zijn"). | A proposal to keep a zaak forever cannot be taken over. |
 | open-archiefbeheer-5 | The app sends no HSTS and no `X-Content-Type-Options: nosniff`. | Set them at the ingress. |
 
-Not tested on johnb00 (Open Archiefbeheer is not deployed there).
+Not tested on QA (Open Archiefbeheer is not deployed there).
 
 ### Open Notificaties 1.17.0 — [open-zaak/open-notificaties](https://github.com/open-zaak/open-notificaties/issues)
 
