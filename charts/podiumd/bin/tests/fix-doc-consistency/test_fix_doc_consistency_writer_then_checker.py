@@ -6,6 +6,8 @@ requires that it changes nothing.
 
 import pytest
 
+from pymarkdown.api import PyMarkdownApi
+
 UPGRADE = "_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md"
 DELTAS = "_UPGRADE_PATHS/4.8.5-to-4.9.0-values-deltas.md"
 MANIFEST = "images/images-4.9.0.yaml"
@@ -86,6 +88,31 @@ def test_a_second_bump_keeps_the_user_text_of_the_section(writer_then_checker):
     assert "### zac 5.4.4 → 5.4.6 (chart 1.0.297, unchanged)" in docs[UPGRADE]
     assert "5.4.5" not in docs[UPGRADE]
     assert note in docs[UPGRADE]
+
+
+def test_a_link_to_a_renamed_heading_follows_it(writer_then_checker):
+    """pymarkdown's MD051 (verify-podiumd's markdown step) accepts the link after the heading is renamed."""
+    earlier_doc = (
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "Read [zac below](#zac-544--545-chart-10297-unchanged) first.\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| zac | 5.4.4 → 5.4.5 | 1.0.297 (unchanged) | - |\n\n"
+        "## Changes\n\n"
+        "### zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)\n\n"
+        "PodiumD 4.9.0 upgrades **zac** from app version 5.4.4\nto 5.4.5.\n\n"
+        "- Image tag pin `zac.image.tag` `5.4.4` → `5.4.5` in\n  `charts/podiumd/values.yaml`.\n\n"
+        "- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).\n"
+    )
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC], "values": {"zac": zac("5.4.4")}},
+        {"version": "4.9.0", "deps": [ZAC], "values": {"zac": zac("5.4.6")}, "files": {f"docs/{UPGRADE}": earlier_doc}},
+    )
+
+    assert "Read [zac below](#zac-544--546-chart-10297-unchanged) first." in docs[UPGRADE]
+    failures = PyMarkdownApi().scan_string(docs[UPGRADE]).scan_failures
+    assert [f.rule_id for f in failures if f.rule_id == "MD051"] == []
 
 
 def test_a_new_component(writer_then_checker):

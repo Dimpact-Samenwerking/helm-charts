@@ -4,6 +4,7 @@ import re
 
 from pathlib import Path
 
+from lib.component_docs.owned_parts import generated_heading_name
 from lib.procutil import run
 from lib.upgradedoc.doc_names import title_arrow_re
 from lib.upgradedoc.string_and_parsing_basics import fenced_line_flags
@@ -14,6 +15,8 @@ from lib.version_numbers import BARE_VERSION_PATTERN
 COMPONENT_VERSIONS_RE_TMPL = rf"Component versions \({{target}}\s+vs\s+(?P<baseline>{BARE_VERSION_PATTERN})\)"
 
 HEADING_LINE_RE = re.compile(r"^#{1,6}\s")
+_HEADING_RE = re.compile(r"^(?P<marks>#{1,6})\s+(?P<text>.*?)\s*$")
+_LINK_FRAGMENT_RE = re.compile(r"\]\(#(?P<fragment>[^)\s]+)\)")
 
 
 def find_collisions(by_suffix: dict[str, list[tuple[str, Path]]]):
@@ -108,3 +111,64 @@ def collapse_multiple_blank_lines(text: str):
     text = ensure_blank_lines_around_headings(text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return re.sub(r"\n+\Z", "\n", text)
+
+
+def heading_slug(heading: str):
+    """The anchor GitHub gives a heading, which pymarkdown's MD051 checks "(#...)" links against."""
+    return "".join(c for c in heading.lower() if c.isalnum() or c in " -_").replace(" ", "-")
+
+
+def _headings(text: str) -> list[tuple[str, str]]:
+    """(marks, text) of each "#" heading outside fenced code blocks."""
+    lines = text.splitlines()
+    fenced = fenced_line_flags(lines)
+    return [
+        (m.group("marks"), m.group("text"))
+        for line, in_fence in zip(lines, fenced, strict=True)
+        if not in_fence and (m := _HEADING_RE.match(line))
+    ]
+
+
+def _generated_headings(headings: list[tuple[str, str]]) -> dict[tuple[str, str], str]:
+    """(marks, component name) -> text of each generated heading; a name on two headings is left out."""
+    by_name: dict[tuple[str, str], list[str]] = {}
+    for marks, heading in headings:
+        name = generated_heading_name(heading)
+        if name is not None:
+            by_name.setdefault((marks, name), []).append(heading)
+    return {key: texts[0] for key, texts in by_name.items() if len(texts) == 1}
+
+
+def retarget_heading_links(old_text: str, new_text: str) -> tuple[str, list[str]]:
+    """Point "(#...)" links at a generated heading the writers renamed between old_text and new_text.
+
+    A heading is the same one when its level and component name are. Returns
+    (new_text, ["#old -> #new", ...]).
+    """
+    new_headings = _headings(new_text)
+    old_generated = _generated_headings(_headings(old_text))
+    new_generated = _generated_headings(new_headings)
+    current = {heading_slug(heading) for _marks, heading in new_headings}
+    moves = {
+        heading_slug(old_generated[key]): heading_slug(new_generated[key])
+        for key in old_generated.keys() & new_generated.keys()
+        if heading_slug(old_generated[key]) not in current
+    }
+    if not moves:
+        return new_text, []
+    retargeted: list[str] = []
+
+    def retarget(m: re.Match[str]):
+        target = moves.get(m.group("fragment"))
+        if target is None:
+            return m.group(0)
+        retargeted.append(f"#{m.group('fragment')} -> #{target}")
+        return f"](#{target})"
+
+    lines = new_text.splitlines(keepends=True)
+    fenced = fenced_line_flags(lines)
+    text = "".join(
+        line if in_fence else _LINK_FRAGMENT_RE.sub(retarget, line)
+        for line, in_fence in zip(lines, fenced, strict=True)
+    )
+    return text, retargeted
