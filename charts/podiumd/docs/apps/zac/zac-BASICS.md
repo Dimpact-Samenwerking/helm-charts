@@ -31,8 +31,12 @@ peak load.
   - `signaleren` CronJob — periodic signalling job.
   - Search: `solr-operator` + `zookeeper-operator` (both watch namespace `podiumd`)
     managing `zac-solr-solrcloud` (SolrCloud, 3 nodes) and its ZooKeeper ensemble
-    (1 node by default; accp runs 3). `zac.solr-operator.solr.jobs.createZacCore: true`
-    creates the `zac` core.
+    (1 node by default; accp runs 3). The `init-solr-zac-core` init container
+    of the ZAC Deployment creates the `zac` core when it is missing
+    (`zac.solr.createZacCore`, default `true`). No separate job is needed.
+    Since 4.10.0 Solr requires basic auth: the operator keeps the `admin`
+    password in the Secret `zac-solr-solrcloud-security-bootstrap`, and every
+    call to the Solr API or admin UI needs it.
 
 ## Required resources
 
