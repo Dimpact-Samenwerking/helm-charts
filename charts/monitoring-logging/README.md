@@ -94,6 +94,8 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 | grafana."grafana.ini".security.cookie_samesite | string | `"lax"` |  |
 | grafana."grafana.ini".security.cookie_secure | bool | `true` |  |
 | grafana."grafana.ini".security.hide_version | bool | `true` |  |
+| grafana."grafana.ini".security.strict_transport_security | bool | `true` |  |
+| grafana."grafana.ini".security.strict_transport_security_max_age_seconds | string | `"31536000"` |  |
 | grafana."grafana.ini".server.domain | string | `"logs.test.nl"` |  |
 | grafana."grafana.ini".server.enforce_domain | bool | `true` |  |
 | grafana."grafana.ini".server.root_url | string | `"https://logs.test.nl/"` |  |
