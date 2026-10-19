@@ -79,7 +79,7 @@ Redis HA runs **3 replicas** by default (StatefulSet).
 |-----------|-------------|-------------|-----------|-----------|-------|
 | redis-operator | 100m | 128Mi | 500m | 256Mi | |
 | redis-ha `(op)` | 100m | 256Mi | 500m | 512Mi | Set via `redis-operator.redis-ha.resources` → RedisReplication CRD |
-| redis-ha exporter `(op)` | 100m | 128Mi | 500m | 256Mi | Set via `redis-operator.redis-ha.resources` → RedisReplication CRD |
+| redis-ha exporter `(op)` | 10m | 32Mi | 100m | 64Mi | Set via `redis-operator.redis-ha.redisExporter.resources` → RedisReplication CRD (only with `redisExporter.enabled`) |
 | redis-ha init busybox `(op)` | 10m | 16Mi | 50m | 32Mi | Set via `redis-operator.redis-ha.initContainerResources` → RedisReplication CRD |
 
 > ⚠️ **Increase for production**: Redis holds all Celery task queues and Django caches. Under production load 128Mi per pod may be tight if many tasks are queued simultaneously. Suggested: memory request `256Mi`, limit `512Mi`.
@@ -205,7 +205,7 @@ Default replicas: **2** (web), **1** (worker, beat, celery-monitor, nginx)
 
 ### Open Inwoner — Elasticsearch (ECK, per environment)
 
-Configured per environment via `openinwoner.eck-elasticsearch.nodeSets`.
+Configured per environment via `openinwoner.eck-elasticsearch.nodeSets`. The nodeSets come from the environment's values, so the chart sets no resources: give the `elasticsearch` container CPU and memory requests and limits in its `podTemplate` (example in `values.yaml`). Without them ECK sets only 2Gi memory and no CPU.
 
 | Environment | Replicas | CPU Request | Mem Request | CPU Limit | Mem Limit | Notes |
 |-------------|----------|-------------|-------------|-----------|-----------|-------|
@@ -223,14 +223,14 @@ Configured per environment via `openinwoner.eck-elasticsearch.nodeSets`.
 | Container | CPU Request | Mem Request | CPU Limit | Mem Limit | Notes |
 |-----------|-------------|-------------|-----------|-----------|-------|
 | elastic-operator (manager) | 100m | 150Mi | 1000m | 1Gi | |
-| elasticsearch `(op)` | — | 2Gi | — | 2Gi | Set by ECK operator; configure via `kiss-elastic` Elasticsearch CR |
-| kibana `(op)` | — | 1Gi | — | 1Gi | Set by ECK operator; configure via Kibana CR |
+| elasticsearch | 250m | 2Gi | 2000m | 2Gi | `kiss-eck.eck-elasticsearch.nodeSets[].podTemplate`; memory as the ECK default |
+| kibana | 100m | 2Gi | 1000m | 2Gi | `kiss-eck.eck-kibana.podTemplate`; memory as the ECK default |
 | enterprise-search `(op)` | — | 4Gi | — | 4Gi | Set by ECK operator; configure via EnterpriseSearch CR |
 | elastic-internal-init-filesystem (init) `(op)` | 100m | 50Mi | 100m | 50Mi | Set by ECK operator |
 
-*Elasticsearch, Kibana and Enterprise Search CPU requests not set — needs settings.*
+*Enterprise Search (disabled since KISS 3.0.0) has no CPU request. An environment that overrides `kiss-eck.eck-elasticsearch.nodeSets` must repeat the `podTemplate` containers, because a list replaces the chart default: `scripts/migrate-eck-resources-4.10.0.py` adds them.*
 
-> ⚠️ **Increase for production**: KISS Elasticsearch defaults have only limits with no requests — this puts pods in the Burstable QoS class and makes them eviction candidates under node pressure. Suggested for production: ES `500m / 4Gi` (request = limit for Guaranteed QoS), Kibana `200m / 1Gi`, Enterprise Search `500m / 4Gi`.
+> ⚠️ **Increase for production**: the KISS Elasticsearch and Kibana defaults above set CPU requests below their limits, which puts the pods in the Burstable QoS class (eviction candidates under node pressure). Suggested for production: ES `500m / 4Gi` (request = limit for Guaranteed QoS), Kibana `200m / 2Gi`, Enterprise Search `500m / 4Gi`.
 
 **PDB**: ECK manages the PDB automatically (`minAvailable: 1` for the 3-node ES cluster).
 
