@@ -58,6 +58,7 @@ from lib.fix_doc_consistency.text_helpers_and_repo_rename import find_collisions
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import git_mv
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import join_and
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import remaining_mentions
+from lib.fix_doc_consistency.text_helpers_and_repo_rename import retarget_heading_links
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import update_component_versions_heading
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import update_title_line
 from lib.gitutil import baseline_ref_candidates
@@ -575,11 +576,18 @@ def _reorder_upgrade_doc(text: str, upgrade_path: Path, state: RebaseState):
     return text, bool(moved_rows or moved_blocks)
 
 
+def _retarget_heading_links(original: str, text: str, doc_path: Path):
+    """Point links at the headings this run renamed in `doc_path`. Returns (text, changed)."""
+    text, retargeted = retarget_heading_links(original, text)
+    return text, print_section_items(f"Updating link(s) to renamed heading(s) in {doc_path.name}", retargeted)
+
+
 def _fix_upgrade_doc(state: RebaseState, upgrade_path: Path, actual_changed_keys: set[str]):
     """Fix the upgrade doc; writes only if something changed."""
     if not upgrade_path.is_file():
         return
-    text = upgrade_path.read_text(encoding="utf-8")
+    original = upgrade_path.read_text(encoding="utf-8")
+    text = original
 
     changed: list[bool] = []
     text, step_changed = _remove_unchanged_component_rows(text, upgrade_path, state)
@@ -600,6 +608,8 @@ def _fix_upgrade_doc(state: RebaseState, upgrade_path: Path, actual_changed_keys
     text, step_changed = _fix_pointer_issues(text, upgrade_path, state)
     changed.append(step_changed)
     text, step_changed = _reorder_upgrade_doc(text, upgrade_path, state)
+    changed.append(step_changed)
+    text, step_changed = _retarget_heading_links(original, text, upgrade_path)
     changed.append(step_changed)
 
     # Also collapse double blank lines that predate this run.
@@ -927,7 +937,8 @@ def _fix_values_deltas(state: RebaseState, upgrade_path: Path, values_deltas_pat
         state.baseline_values,
         chart_dir=state.paths.chart_dir,
     )
-    text = values_deltas_path.read_text(encoding="utf-8")
+    original = values_deltas_path.read_text(encoding="utf-8")
+    text = original
     canonical_names = state.resolution.target_index.canonical_names
 
     text, sections_changed = _sync_values_delta_sections(text, state, values_deltas_path, changed_keys, canonical_names)
@@ -935,13 +946,14 @@ def _fix_values_deltas(state: RebaseState, upgrade_path: Path, values_deltas_pat
     text, dropped = _drop_removed_values_delta_sections(text, state, values_deltas_path)
     text, pruned = _prune_empty_values_delta_sections(text, values_deltas_path)
     text, reordered = _sort_values_delta_sections(text, state, values_deltas_path, canonical_names)
+    text, links_retargeted = _retarget_heading_links(original, text, values_deltas_path)
 
     collapsed_text = collapse_multiple_blank_lines(text)
     blank_lines_fixed = collapsed_text != text
     if blank_lines_fixed:
         print_section(f"Collapsing multiple consecutive blank line(s) in {values_deltas_path.name}")
 
-    if any([sections_changed, headings_changed, dropped, pruned, reordered, blank_lines_fixed]):
+    if any([sections_changed, headings_changed, dropped, pruned, reordered, links_retargeted, blank_lines_fixed]):
         values_deltas_path.write_text(collapsed_text, encoding="utf-8")
 
 
