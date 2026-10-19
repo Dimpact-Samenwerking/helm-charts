@@ -894,8 +894,9 @@ opennotificaties:
   # "notificaties") never see it.
   # NOTE: a gemeente that sets its own opennotificaties.extraEnvVars REPLACES
   # this list and silently loses the fix — keep this entry when overriding.
-  # The clean fix is enableServiceLinks: false, as the openzaak subchart
-  # (1.14.2) does; the opennotificaties subchart (2.0.0) has no such value yet.
+  # The opennotificaties subchart sets enableServiceLinks: false since 2.1.0,
+  # so Kubernetes no longer injects the variable; this entry stays as a
+  # safeguard for an environment that turns service links back on.
   extraEnvVars:
     - name: OPENNOTIFICATIES_PORT
       value: "8000"
@@ -907,7 +908,6 @@ opennotificaties:
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
     secrets:
@@ -1091,7 +1091,7 @@ opennotificaties:
     volumeAttributeShareName: opennotificaties
     storageClassName: podiumd-standard
   image:
-    tag: "1.16.2@sha256:2988d538b30db30487ed89873877e1d22e12f80dfa42d80ec1a5c97265c7e4cd"
+    tag: "1.17.0@sha256:5200540e78eb67993760bd9ad98d6c7f174ce61f5122b3e20627a690cbf3dfe0"
   resources:
     requests:
       cpu: 100m
@@ -2111,7 +2111,6 @@ openinwoner:
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
     data: ""
@@ -2539,7 +2538,11 @@ referentielijsten:
   image:
     repository: maykinmedia/referentielijsten-api
     pullPolicy: IfNotPresent
-    tag: "0.7.4@sha256:5501b48fe9b988a72adba14308748e6b5928f851ec66d108bab2fe625eb831a3"
+    tag: "0.7.5@sha256:d4d86ff802eec5272724e7f9ad7db3cb32ed667bd268e9b92c07630d8a3325f1"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 320Mi
 
   settings:
     allowedHosts: ".svc.cluster.local"
