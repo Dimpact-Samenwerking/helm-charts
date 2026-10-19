@@ -415,6 +415,9 @@ PodiumD Helm chart
 | keycloak.name | string | `"keycloak"` |  |
 | keycloak.networkPolicy.extraFrom.http | list | `[]` | Extra NetworkPolicyPeer entries allowed on Keycloak's http/https ports under namespace isolation, e.g. `[{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: monitoring}}}]` for a Grafana that calls Keycloak in-cluster. |
 | keycloak.networkPolicy.extraFrom.management | list | `[]` | Extra NetworkPolicyPeer entries allowed on Keycloak's management port (9000) under namespace isolation. |
+| keycloak.podDisruptionBudget.enabled | bool | `false` | Render a PodDisruptionBudget for the Keycloak pods (only when instances is more than 1). |
+| keycloak.podDisruptionBudget.maxUnavailable | int | `1` | Keycloak pods a node drain may evict at the same time. |
+| keycloak.podDisruptionBudget.unhealthyPodEvictionPolicy | string | `"AlwaysAllow"` | Lets a drain evict a Keycloak pod that is not Ready. |
 | keycloak.podTemplate.metadata.labels.app | string | `"keycloak"` |  |
 | keycloak.podTemplate.metadata.labels.version | string | `"26.8.1"` |  |
 | keycloak.podTemplate.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.labelSelector.matchExpressions[0].key | string | `"app"` |  |
@@ -487,6 +490,7 @@ PodiumD Helm chart
 | keycloak.resources.requests.cpu | string | `"500m"` |  |
 | keycloak.resources.requests.memory | string | `"1700Mi"` |  |
 | keycloak.secretsName | string | `"keycloak-secrets"` |  |
+| keycloak.update.strategy | string | `"Auto"` | Keycloak operator update strategy: Auto, Explicit or RecreateOnImageChange. |
 | kiss-eck.eck-elasticsearch.enabled | bool | `true` |  |
 | kiss-eck.eck-elasticsearch.fullnameOverride | string | `"kiss"` |  |
 | kiss-eck.eck-elasticsearch.nodeSets | list | `[{"config":{"node.roles":["data","ingest","master"],"node.store.allow_mmap":false},"count":3,"name":"default","podTemplate":{"spec":{"nodeSelector":{}}}}]` | default sizing, kept equal to the previous release (kiss-elastic used elasticsearchCount: 3). Environments can override nodeSets (e.g. nodeSelector, count, storage), the same way openinwoner.eck-elasticsearch.nodeSets is set. Note: volumeClaimTemplates is immutable — during a migration keep it equal to the existing PVCs; changing the size needs a manual recreate (see docs/apps/elastic/migrating-to-eck-stack.md). |

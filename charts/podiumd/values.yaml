@@ -152,6 +152,28 @@ keycloak:
     sha: &keycloakImageDigest "79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244"
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
+  # How the Keycloak operator applies a change of the Keycloak CR (IN-3176).
+  # Its default, RecreateOnImageChange, stops every pod on an image change, so
+  # all logins fail until Keycloak is back. Auto first runs an update Job that
+  # checks whether the old and new versions can run side by side; if so it
+  # replaces the pods one at a time, otherwise it still recreates them. That
+  # rolls a patch release or the same version from another registry; a minor
+  # or major upgrade is still recreated. Any
+  # field of the CR's spec.update (strategy, revision, labels, scheduling) can
+  # be set here.
+  update:
+    # -- Keycloak operator update strategy: Auto, Explicit or RecreateOnImageChange.
+    strategy: Auto
+  # The Keycloak operator cannot create a PodDisruptionBudget (its CR has no
+  # field for it), so the chart offers one. Off by default: without it a node
+  # drain only takes Keycloak down when both pods share the drained node.
+  podDisruptionBudget:
+    # -- Render a PodDisruptionBudget for the Keycloak pods (only when instances is more than 1).
+    enabled: false
+    # -- Keycloak pods a node drain may evict at the same time.
+    maxUnavailable: 1
+    # -- Lets a drain evict a Keycloak pod that is not Ready.
+    unhealthyPodEvictionPolicy: AlwaysAllow
   ingress:
     enabled: false
   # The Keycloak operator renders its own NetworkPolicy (keycloak-network-policy)
