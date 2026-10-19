@@ -90,20 +90,6 @@ def _text_list_map(chart_dir: Path, section: str, key: str, default: dict[str, l
     return {k: [item for item in v if isinstance(item, str)] for k, v in value.items() if isinstance(v, list)}
 
 
-def _text_map_map(
-    chart_dir: Path, section: str, key: str, default: dict[str, dict[str, str]]
-) -> dict[str, dict[str, str]]:
-    value = _checked(chart_dir, section, key, dict, "a mapping of string mappings")
-    if not isinstance(value, dict):
-        return default
-    result: dict[str, dict[str, str]] = {}
-    for k, v in value.items():
-        if not isinstance(v, dict) or not all(isinstance(item, str) for item in v.values()):
-            _wrong_type(section, key, "a mapping of string mappings")
-        result[k] = {ik: iv for ik, iv in v.items() if isinstance(iv, str)}
-    return result
-
-
 def cve_max_cves_per_package_before_summarizing(chart_dir: Path):
     """cve_scan.max_cves_per_package_before_summarizing."""
     return _int(chart_dir, "cve_scan", "max_cves_per_package_before_summarizing", 5)
@@ -321,7 +307,9 @@ def component_resolution_chart_version_lockstep_components(chart_dir: Path):
 
 def component_resolution_native_components(chart_dir: Path):
     """component_resolution.native_components."""
-    return frozenset(_text_list(chart_dir, "component_resolution", "native_components", ["frankgateway", "keycloak"]))
+    return frozenset(
+        _text_list(chart_dir, "component_resolution", "native_components", ["frankgateway", "keycloak", "kiss-eck"])
+    )
 
 
 def component_resolution_version_repository_paths(chart_dir: Path):
@@ -330,22 +318,6 @@ def component_resolution_version_repository_paths(chart_dir: Path):
         _text_map(
             chart_dir, "component_resolution", "version_repository_paths", {"redis-operator": "redisOperator.imageName"}
         )
-    )
-
-
-def component_resolution_version_path_nested_subcharts(chart_dir: Path):
-    """component_resolution.version_path_nested_subcharts."""
-    return _text_map_map(
-        chart_dir,
-        "component_resolution",
-        "version_path_nested_subcharts",
-        {
-            "eck-stack": {
-                "eck-elasticsearch.version": "eck-elasticsearch",
-                "eck-kibana.version": "eck-kibana",
-                "eck-enterprise-search.version": "eck-enterprise-search",
-            },
-        },
     )
 
 
@@ -374,6 +346,7 @@ def component_resolution_image_paths(chart_dir: Path):
                 "kiss-chart": ["image", "settings.syncJobs.image"],
                 "pabc": ["image", "migrations.image"],
                 "eck-operator": ["image"],
+                "kiss-eck": ["eck-elasticsearch.image", "eck-kibana.image", "eck-enterprise-search.image"],
             },
         )
     )
@@ -392,7 +365,7 @@ def component_resolution_version_paths(chart_dir: Path):
             "component_resolution",
             "version_paths",
             {
-                "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"],
+                "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version", "eck-enterprise-search.version"],
                 "redis-operator": ["redisOperator.imageTag", "redisOperator.initContainerImageTag"],
             },
         )

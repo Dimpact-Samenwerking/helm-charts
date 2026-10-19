@@ -8,7 +8,6 @@ from typing import Literal
 from typing import overload
 
 from lib.chart.chart_yaml import ChartDependency
-from lib.chart.nested_subchart_identity import nested_subchart_registered_paths
 from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.pull_and_subchart_resolution import subchart_app_version
 from lib.chart.registered_paths import component_image_paths
@@ -105,12 +104,10 @@ def find_component_version_tags(values: YamlMapping, deps: list[ChartDependency]
     """(path, value) for every registered bare version field pinned in `values`.
 
     Covers flat scalar fields find_image_tag_paths can't see (e.g.
-    "redisOperator.imageTag"). Unions version_paths_for with the nested-subchart
-    registry, which also lists fields excluded from the single-app-version list."""
+    "redisOperator.imageTag")."""
     for dep in deps:
         values_key = values_key_of(dep)
-        rels = set(version_paths_for(dep["name"])) | set(nested_subchart_registered_paths(dep["name"]))
-        for rel in rels:
+        for rel in version_paths_for(dep["name"]):
             value = get_path(values, f"{values_key}.{rel}")
             if isinstance(value, str) and value:
                 yield tuple(values_key.split(".")) + tuple(rel.split(".")), value

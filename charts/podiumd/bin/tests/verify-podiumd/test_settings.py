@@ -60,7 +60,6 @@ FULL_SETTINGS = {
         "chart_version_lockstep_components": ["kiss-chart", "pabc"],
         "native_components": ["other-native"],
         "version_repository_paths": {"redis-operator": "redisOperator.imageName", "foo-op": "fooOperator.imageName"},
-        "version_path_nested_subcharts": {"eck-stack": {"eck-elasticsearch.version": "eck-elasticsearch"}},
         "image_paths": {"widget": ["image"]},
         "default_image_paths": ["custom-default-image"],
         "version_paths": {"widget-b": ["version"]},
@@ -135,7 +134,7 @@ ACCESSOR_CASES = [
     ),
     (
         "component_resolution_native_components",
-        frozenset({"frankgateway", "keycloak"}),
+        frozenset({"frankgateway", "keycloak", "kiss-eck"}),
         frozenset({"other-native"}),
         frozenset,
     ),
@@ -143,18 +142,6 @@ ACCESSOR_CASES = [
         "component_resolution_version_repository_paths",
         {"redis-operator": "redisOperator.imageName"},
         {"redis-operator": "redisOperator.imageName", "foo-op": "fooOperator.imageName"},
-        dict,
-    ),
-    (
-        "component_resolution_version_path_nested_subcharts",
-        {
-            "eck-stack": {
-                "eck-elasticsearch.version": "eck-elasticsearch",
-                "eck-kibana.version": "eck-kibana",
-                "eck-enterprise-search.version": "eck-enterprise-search",
-            }
-        },
-        {"eck-stack": {"eck-elasticsearch.version": "eck-elasticsearch"}},
         dict,
     ),
     (
@@ -167,6 +154,7 @@ ACCESSOR_CASES = [
             "kiss-chart": ["image", "settings.syncJobs.image"],
             "pabc": ["image", "migrations.image"],
             "eck-operator": ["image"],
+            "kiss-eck": ["eck-elasticsearch.image", "eck-kibana.image", "eck-enterprise-search.image"],
         },
         {"widget": ["image"]},
         dict,
@@ -175,7 +163,7 @@ ACCESSOR_CASES = [
     (
         "component_resolution_version_paths",
         {
-            "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"],
+            "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version", "eck-enterprise-search.version"],
             "redis-operator": ["redisOperator.imageTag", "redisOperator.initContainerImageTag"],
         },
         {"widget-b": ["version"]},

@@ -31,9 +31,8 @@ regression, even when the tests pass.
    Established fallback chains are reused, not rebuilt:
    - `image_paths_for` → `version_paths_for` for a dependency's own primary
      image (`actual_app_version`, `is_primary_rel_path`)
-   - own values.yaml override → vendored subchart default →
-     nested-subchart-documented default for a repository
-     (`paths_by_repository`)
+   - own values.yaml override → vendored subchart default for a repository
+     (`paths_by_repository`, through `RepositoryResolver`)
    - `repo_map` exact match → `resolve_entry_path` word match
      (`resolve_entry_image_path`)
 4. Name resolution is deterministic: a name maps to a component, path or
