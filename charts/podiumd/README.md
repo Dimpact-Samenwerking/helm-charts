@@ -1401,6 +1401,8 @@ PodiumD Helm chart
 | referentielijsten.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | referentielijsten.persistentVolume.volumeAttributeShareName | string | `"referentielijsten"` |  |
 | referentielijsten.replicaCount | int | `1` |  |
+| referentielijsten.resources.requests.cpu | string | `"100m"` |  |
+| referentielijsten.resources.requests.memory | string | `"320Mi"` |  |
 | referentielijsten.settings.allowedHosts | string | `".svc.cluster.local"` |  |
 | referentielijsten.settings.cache.axes | string | `"redis-ha-master:6379/15"` |  |
 | referentielijsten.settings.cache.default | string | `"redis-ha-master:6379/15"` |  |
