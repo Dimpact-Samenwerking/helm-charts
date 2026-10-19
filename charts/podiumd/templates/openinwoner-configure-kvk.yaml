@@ -87,11 +87,11 @@ spec:
 {{- if and (or .Values.openinwoner.enabled (not (hasKey .Values.openinwoner "enabled"))) $kvk.apiRoot }}
 {{- /* Open Inwoner's own validate_api_root: the root must not contain a version or endpoint. */ -}}
 {{- if regexMatch "(?i)/api/[0-9a-z]" $kvk.apiRoot }}
-{{- fail (printf "openinwoner.kvk.apiRoot %q includes a version or endpoint; use the API root, e.g. http://api-proxy/api/" $kvk.apiRoot) }}
+{{- fail (printf "openinwoner.kvk.apiRoot %q includes a version or endpoint; use the API root, e.g. http://api-proxy.podiumd.svc.cluster.local/api/" $kvk.apiRoot) }}
 {{- end }}
-{{- /* KvKConfig.api_root is a URLField(max_length=128): fail here, not in a Job that retries backoffLimit times. */ -}}
-{{- if or (not (regexMatch "^https?://[^/\\s]+" $kvk.apiRoot)) (gt (len $kvk.apiRoot) 128) }}
-{{- fail (printf "openinwoner.kvk.apiRoot %q must be an http(s) URL of at most 128 characters" $kvk.apiRoot) }}
+{{- /* KvKConfig.api_root is a URLField(max_length=128), and Django's URLValidator only accepts a dotted host or localhost: fail here, not in a Job that retries backoffLimit times. */ -}}
+{{- if or (not (regexMatch "^https?://([^/\\s]+\\.[^/\\s]+|localhost)([:/]|$)" $kvk.apiRoot)) (gt (len $kvk.apiRoot) 128) }}
+{{- fail (printf "openinwoner.kvk.apiRoot %q must be an http(s) URL with a dotted host name or localhost (Django's URLField rejects http://api-proxy/), at most 128 characters" $kvk.apiRoot) }}
 {{- end }}
 {{- if and $kvk.apiKey (not $kvk.existingSecret) }}
 apiVersion: v1

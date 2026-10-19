@@ -2277,7 +2277,7 @@ openinwoner:
   # writes the singleton through `manage.py shell`. KISS (kiss.settings.kvk) and
   # ZAC (zac.kvkApi) use the same KvK endpoint.
   kvk:
-    # -- KvK API root without version or endpoint, e.g. `http://api-proxy/api/`. Empty: the chart leaves KvKConfig alone (configure it in the admin).
+    # -- KvK API root without version or endpoint, e.g. `http://api-proxy.podiumd.svc.cluster.local/api/` (a dotted host name or localhost: Django's URLField rejects `http://api-proxy/api/`). Empty: the chart leaves KvKConfig alone (configure it in the admin).
     apiRoot: ""
     # -- KvK API key. Empty when a proxy adds the key; when set, the chart stores it in the Secret `openinwoner-kvk`. With apiRoot set, the Job writes this value, also when empty.
     apiKey: ""
