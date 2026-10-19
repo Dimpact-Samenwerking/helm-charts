@@ -312,11 +312,9 @@ def migrate_text(text: str) -> tuple[str, list[str]]:
 
 
 def process(path: str, dry_run: bool) -> tuple[str, list[str]]:
-    # Read and write without newline translation, so the file keeps its own line endings on every OS.
-    with open(path, encoding="utf-8", newline="") as f:
-        raw = f.read()
-    crlf = "\r\n" in raw
-    text = raw.replace("\r\n", "\n") if crlf else raw
+    # Universal newlines read CRLF as LF; a migrated file is written with LF only, on every OS.
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
     try:
         new, notes = migrate_text(text)
     except MigrationError as e:
@@ -329,8 +327,8 @@ def process(path: str, dry_run: bool) -> tuple[str, list[str]]:
         sys.stdout.write("".join(difflib.unified_diff(text.splitlines(True), new.splitlines(True),
                                                       f"a/{path}", f"b/{path}")))
     else:
-        with open(path, "w", encoding="utf-8", newline="") as f:
-            f.write(new.replace("\n", "\r\n") if crlf else new)
+        with open(path, "w", encoding="utf-8", newline="\n") as f:
+            f.write(new)
     return "migrated", notes
 
 
