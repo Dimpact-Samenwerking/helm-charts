@@ -36,6 +36,11 @@
       "id": "7812ceb0-90de-54fc-8321-f24057b56e06",
       "name": "recordmanager",
       "applicationId": "adb10d06-0fc6-5020-9fe8-7e008371ec1b"
+    },
+    {
+      "id": "8693fd1f-b19f-5f4e-86a0-c9032d1ba659",
+      "name": "brp_zoeken",
+      "applicationId": "adb10d06-0fc6-5020-9fe8-7e008371ec1b"
     }
   ],
   "functionalRoles": [
@@ -347,6 +352,41 @@
       "functionalRoleId": "563171db-6356-55c9-8562-b9fc1e08b09d",
       "applicationRoleId": "9846a820-6bcc-5a08-b061-31fc4456ad17",
       "isAllEntityTypes": true
+    },
+    {
+      "id": "3580e23f-2ddf-5349-95c6-f7ceb473c95b",
+      "functionalRoleId": "ee005f5c-dcd9-55de-8d47-a0a02f8f4dd0",
+      "domainId": null,
+      "applicationRoleId": "8693fd1f-b19f-5f4e-86a0-c9032d1ba659",
+      "isAllEntityTypes": false
+    },
+    {
+      "id": "aade0697-213f-5001-97f0-8f56b3b2cb58",
+      "functionalRoleId": "6678fa35-b94a-54db-ad46-795a5e00a56b",
+      "domainId": null,
+      "applicationRoleId": "8693fd1f-b19f-5f4e-86a0-c9032d1ba659",
+      "isAllEntityTypes": false
+    },
+    {
+      "id": "533997de-5491-5d3c-8f93-850ffa2be190",
+      "functionalRoleId": "1a93609a-9cb4-50b1-b208-cef68c957cfe",
+      "domainId": null,
+      "applicationRoleId": "8693fd1f-b19f-5f4e-86a0-c9032d1ba659",
+      "isAllEntityTypes": false
+    },
+    {
+      "id": "53877510-e789-5f6f-a1b2-c47bf1d049ba",
+      "functionalRoleId": "4eb4eb89-0d50-5a72-9191-d82c0f9b1151",
+      "domainId": null,
+      "applicationRoleId": "8693fd1f-b19f-5f4e-86a0-c9032d1ba659",
+      "isAllEntityTypes": false
+    },
+    {
+      "id": "ff7ee4e6-dbe9-562d-8556-901945d59cb3",
+      "functionalRoleId": "5accd347-6989-5bc3-a6d3-2b317bded9e8",
+      "domainId": null,
+      "applicationRoleId": "8693fd1f-b19f-5f4e-86a0-c9032d1ba659",
+      "isAllEntityTypes": false
     }
   ]
 }
