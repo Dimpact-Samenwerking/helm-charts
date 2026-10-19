@@ -87,10 +87,14 @@ Audience: stakeholders and municipalities. Language: **Dutch**, plain and short.
      Jira issue, or the workaround (for example the ingress for HSTS and
      nosniff). Write "Nog geen" when the Fix column is "-".
    - **Disclosure:** the notes are public, the reports are not. Never copy
-     reproduction steps, environment names, hostnames or request bodies. A
-     finding with security impact that is not reported upstream yet appears
-     only as a count per component ("fouten in de API's van …, waarvan een
-     deel gevolgen heeft voor de beveiliging"), never with its mechanism.
+     reproduction steps, environment names, hostnames or request bodies.
+   - **Security findings** (authorization, authentication, data exposure,
+     missing security headers, and the like) never get a row of their own,
+     not even with a vague title. They appear only in a "Beveiligingsbevindingen"
+     table, like the CVEs: the number per severity (Kritiek, Hoog, Middel,
+     Laag) and how many have a fix or workaround, with the PR or Jira issue
+     of that fix. No component names, no mechanism. They get a row of their
+     own only once they are fixed and the fix is public.
      Never link the private repository from the notes; call it "het interne
      overzicht van bekende problemen".
    - **Date:** put the date of the verification round and of the Fix column
