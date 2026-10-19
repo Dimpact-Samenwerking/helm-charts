@@ -29,7 +29,10 @@ Per rule:
     last filter (or as a new `filters:` list when the rule has none);
   - a ResponseHeaderModifier already there: only the missing headers are added to
     its `set` list. A header that is already set, added or removed there keeps the
-    environment's choice (e.g. its own HSTS max-age with includeSubDomains);
+    environment's choice (e.g. its own HSTS max-age with includeSubDomains).
+    A choice weaker than the script's own gets a warning (in every mode, without
+    changing the exit code): HSTS removed, without max-age or with a max-age
+    below --hsts-max-age, and X-Content-Type-Options removed or not nosniff;
   - a rule that redirects (RequestRedirect) or has no backendRefs is skipped: no
     backend answers it, so no response headers can be modified.
 
@@ -55,6 +58,7 @@ import copy
 import difflib
 import glob
 import os
+import re
 import sys
 
 try:
@@ -66,6 +70,7 @@ except ImportError:  # pragma: no cover
 DEFAULT_HSTS_MAX_AGE = 31536000
 HEADER_FILTER = "ResponseHeaderModifier"
 NO_BACKEND_FILTERS = {"RequestRedirect"}
+WARNING = "warning: "
 
 
 class MigrationError(Exception):
@@ -169,9 +174,40 @@ def _named(items, name: str) -> bool:
     return any(isinstance(i, dict) and str(i.get("name", "")).lower() == name.lower() for i in items or [])
 
 
+def _value(items, name: str) -> str | None:
+    for i in items or []:
+        if isinstance(i, dict) and str(i.get("name", "")).lower() == name.lower():
+            return str(i.get("value", ""))
+    return None
+
+
+def _weaker(present: list, removed: list, hsts_max_age: int) -> list[str]:
+    """What an existing ResponseHeaderModifier sets weaker than the script would."""
+    found = []
+    removed_names = {str(r).lower() for r in removed}
+    if "strict-transport-security" in removed_names:
+        found.append("removes Strict-Transport-Security")
+    hsts = _value(present, "Strict-Transport-Security")
+    if hsts is not None:
+        age = re.search(r"max-age\s*=\s*\"?(\d+)", hsts, re.IGNORECASE)
+        if not age:
+            found.append(f"Strict-Transport-Security has no max-age ({hsts!r})")
+        elif int(age.group(1)) < hsts_max_age:
+            found.append(f"Strict-Transport-Security max-age={age.group(1)} is below {hsts_max_age}")
+    if "x-content-type-options" in removed_names:
+        found.append("removes X-Content-Type-Options")
+    nosniff = _value(present, "X-Content-Type-Options")
+    if nosniff is not None and nosniff.strip().lower() != "nosniff":
+        found.append(f"X-Content-Type-Options is {nosniff!r}, not nosniff")
+    return found
+
+
 def _migrate_rule(rule: CommentedMap, rule_line: int, rule_col: int, want_rule: dict, wanted: list[dict],
-                  offset: int, ins: Inserts) -> str | None:
-    """Plan the inserts for one rule and apply the same change to want_rule. Returns a note or None."""
+                  offset: int, ins: Inserts, warnings: list[str], hsts_max_age: int) -> str | None:
+    """Plan the inserts for one rule and apply the same change to want_rule. Returns a note or None.
+
+    A header the rule already sets weaker than wanted is appended to warnings; it is kept as it is.
+    """
     filters = rule.get("filters")
     types = [f.get("type") for f in filters or [] if isinstance(f, dict)]
     if NO_BACKEND_FILTERS & set(types) or not rule.get("backendRefs"):
@@ -198,6 +234,7 @@ def _migrate_rule(rule: CommentedMap, rule_line: int, rule_col: int, want_rule: 
         raise MigrationError("a ResponseHeaderModifier filter has no responseHeaderModifier mapping; fix it by hand")
     present = [*(modifier.get("set") or []), *(modifier.get("add") or [])]
     removed = modifier.get("remove") or []
+    warnings.extend(_weaker(present, removed, hsts_max_age))
     missing = [h for h in wanted if not _named(present, h["name"])
                and not any(str(r).lower() == h["name"].lower() for r in removed)]
     if not missing:
@@ -239,11 +276,14 @@ def migrate_text(text: str, hsts_max_age: int = DEFAULT_HSTS_MAX_AGE) -> tuple[s
             if not isinstance(rule, CommentedMap):
                 raise MigrationError(f"HTTPRoute {name} rule {index + 1} is not a mapping")
             line, col = rules.lc.item(index)
+            weak: list[str] = []
             try:
                 results.append(_migrate_rule(rule, line, col, want_doc["spec"]["rules"][index], wanted,
-                                             _seq_offset(rules, doc["spec"].lc.key("rules")[1], 2), ins))
+                                             _seq_offset(rules, doc["spec"].lc.key("rules")[1], 2), ins,
+                                             weak, hsts_max_age))
             except MigrationError as e:
                 raise MigrationError(f"HTTPRoute {name} rule {index + 1}: {e}") from None
+            notes.extend(f"{WARNING}{name} rule {index + 1} {w}; kept" for w in weak)
         done = [r for r in results if r]
         if not done:
             continue
@@ -270,7 +310,8 @@ def process(path: str, args) -> tuple[str, list[str]]:
         return "error", [str(e)]
     except Exception as e:  # unexpected file shape: report, never write half a migration
         return "error", [f"unexpected {type(e).__name__}: {str(e).splitlines()[0][:200]}"]
-    changes = [n for n in notes if " added" in n or " completed" in n or n.endswith((": added", ": completed"))]
+    changes = [n for n in notes if n.startswith(WARNING)
+               or " added" in n or " completed" in n or n.endswith((": added", ": completed"))]
     if new == text:
         return "unchanged", notes
     if args.check:
@@ -305,13 +346,17 @@ def main() -> int:
         return 1
     counts: dict[str, int] = {"migrated": 0, "needs migration": 0, "unchanged": 0, "error": 0}
     out = sys.stderr if args.dry_run else sys.stdout
+    warned = 0
     for path in files:
         status, notes = process(path, args)
         counts[status] += 1
+        warned += any(n.startswith(WARNING) for n in notes)
         print(f"[{status}] {path}", file=out)
         for note in notes:
             print(f"    - {note}", file=out)
     summary = ", ".join(f"{v} {k}" for k, v in counts.items() if v or k in ("unchanged", "error"))
+    if warned:
+        summary += f"; {warned} with weaker headers kept (warnings above)"
     print(f"\n{summary}", file=out)
     return 1 if counts["error"] or counts["needs migration"] else 0
 
