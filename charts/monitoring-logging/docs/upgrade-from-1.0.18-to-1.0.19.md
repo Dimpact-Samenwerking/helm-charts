@@ -125,3 +125,6 @@ an environment that sets only `limits` gets these requests as well.
   Low blast radius (only the collector's own health metrics, not the
   log/metric/trace pipeline itself), but needs an explicit values.yaml fix to
   preserve parity before bumping.
+- **Verify this chart with verify-podiumd**: the podiumd chart's verify script
+  does not check this chart yet. Assessment, plan and effort (about 1.5 to 2.5
+  days) in [verify-tooling-assessment.md](verify-tooling-assessment.md).
