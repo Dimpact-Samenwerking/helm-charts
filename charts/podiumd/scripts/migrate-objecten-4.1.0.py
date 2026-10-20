@@ -38,7 +38,7 @@ that change:
   Token rewrite (every string value outside objecten's own tokenauth)
   - A consumer that called the Objecttypen API with the objecttypen token of
     an identifier that also exists in objecten (zgw_consumers header_value
-    `Token ...`, zac.objecttypenApi, omc, ...) now sends the objecten token of
+    `Token ...`, omc, ...) now sends the objecten token of
     that identifier. Without this it gets 403 after the upgrade. A
     `value_from: {env: ...}` token is resolved through the component's
     configuration.secrets, so its REP_..._REP placeholder is rewritten; a token
@@ -46,13 +46,14 @@ that change:
 
   Consumers (every string value, including embedded configuration.data)
   - The public objecttypen hostname and `objecttypen.<ns>.svc.cluster.local`
-    are replaced by the objecten ones: ita.*.type, zac.objecttypenApi.url,
-    kiss objectTypeUrl's, omc endpoints, openformulieren's objecttypen-api
+    are replaced by the objecten ones: ita.*.type, kiss objectTypeUrl's, omc endpoints, openformulieren's objecttypen-api
     service api_root, ... (only objecten.settings.allowedHosts keeps the old
     hostname, see above).
   - kiss.adapter.objecttypen is folded into kiss.adapter.objecten (its token
     is dropped: the adapter uses the objecten token).
   - mi.targets entries for component objecttypen are removed.
+  - zac.objecttypenApi is removed: ZAC reads only zac.objectenApi since the
+    merge, and podiumd 4.10.0 no longer has the key.
 
   objecten.image.repository
   - An override `<registry>/maykinmedia/objects-api` (a mirror of the old
@@ -424,6 +425,8 @@ def expected_values(doc: dict, hosts: Hosts, image_repo: str | None) -> dict:
     mi = out.get("mi") or {}
     if isinstance(mi.get("targets"), list):
         mi["targets"] = [t for t in mi["targets"] if not (isinstance(t, dict) and t.get("component") == "objecttypen")]
+    if isinstance(out.get("zac"), dict):
+        out["zac"].pop("objecttypenApi", None)
     return out
 
 
@@ -670,6 +673,12 @@ def migrate_text(text: str, image_repo: str | None) -> tuple[str, list[str]]:
         for idx, t in enumerate(mi["targets"]):
             if isinstance(t, dict) and t.get("component") == "objecttypen":
                 ed.delete(*item_range(lines, mi["targets"], idx, tg_e))
+
+    # zac.objecttypenApi: drop (ZAC reads only objectenApi)
+    zac = root.get("zac")
+    if isinstance(zac, dict) and "objecttypenApi" in zac:
+        z_s, z_e = key_range(lines, root, "zac", total)
+        ed.delete(*key_range(lines, zac, "objecttypenApi", z_e))
 
     out = "\n".join(ed.apply(lines))
     out = hosts.rewrite(out).replace("__KEEP_OLD_OBJECTTYPEN_HOST__", old)

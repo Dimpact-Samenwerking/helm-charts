@@ -124,8 +124,9 @@ zac:
 
 # ---------------------------------------------------------------------------
 # Keycloak — two-part wiring:
-#   1. keycloak-operator.enableServiceMonitor grants RBAC so the operator can
-#      create the ServiceMonitor (see templates/keycloak-operator-servicemonitor-rbac.yaml).
+#   1. keycloak-operator.enableServiceMonitor (default true since 4.10.0) grants
+#      RBAC so the operator can create the ServiceMonitor (see
+#      templates/keycloak-operator-servicemonitor-rbac.yaml); set here explicitly.
 #   2. keycloak.serviceMonitor renders spec.serviceMonitor on the Keycloak CR,
 #      which the operator uses as its cue to generate the actual ServiceMonitor
 #      for the Keycloak pods (port 9000, /metrics, enabled via additionalOptions

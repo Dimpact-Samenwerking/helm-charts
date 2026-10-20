@@ -324,7 +324,7 @@ PodiumD Helm chart
 | ita.web.resources.requests.memory | string | `"128Mi"` |  |
 | ita.web.service.port | int | `80` |  |
 | ita.web.service.type | string | `"ClusterIP"` |  |
-| keycloak-operator.enableServiceMonitor | bool | `false` |  |
+| keycloak-operator.enableServiceMonitor | bool | `true` | Render the write Role and RoleBinding the Keycloak operator needs to manage the ServiceMonitor for Keycloak metrics (templates/keycloak-operator-servicemonitor-rbac.yaml). On by default. Set false on a cluster without Prometheus (no monitoring.coreos.com ServiceMonitor CRD) to leave out that Role. With the CRD installed the Role is rendered anyway: the operator then manages a ServiceMonitor whatever this value says, and without the Role the Keycloak CR stays InProgress. |
 | keycloak-operator.enabled | bool | `true` |  |
 | keycloak-operator.fullnameOverride | string | `"keycloak"` |  |
 | keycloak-operator.jobs.configCliResources | object | `{"limits":{"cpu":"200m","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources for the kc-config-cli containers (Spring Boot JVM app) in import-podiumd-realm and import-master-realm jobs. |
@@ -1504,8 +1504,6 @@ PodiumD Helm chart
 | zac.notificationsSecretKey | string | `"changeme"` |  |
 | zac.objectenApi.token | string | `"objectentoken"` |  |
 | zac.objectenApi.url | string | `"https://objecten.example.nl"` |  |
-| zac.objecttypenApi.token | string | `"objectentoken"` |  |
-| zac.objecttypenApi.url | string | `"https://objecten.example.nl"` |  |
 | zac.office_converter.image.tag | string | `"8.37.0@sha256:f29984bd1e226bf1b93ba90af06000afa8b315853e99d27b9aaa41b93f15c769"` |  |
 | zac.office_converter.password | string | `"dummy"` | Basic auth password for the office converter; see username. |
 | zac.office_converter.securityContext.runAsNonRoot | bool | `true` |  |
@@ -1544,7 +1542,7 @@ PodiumD Helm chart
 | zac.solr-operator.solr.enabled | bool | `true` | set enabled to provision solrcloud as well |
 | zac.solr-operator.solr.image.tag | string | `"9.10.1-slim@sha256:d25d25a0d0c9e5a917ebad1a1c42f8109f049b628fc7a730027c97b6b98b5386"` |  |
 | zac.solr-operator.solr.javaMem | string | `"-Xms512m -Xmx768m"` | define memory settings for solr in the solrcloud |
-| zac.solr-operator.solr.jobs.createZacCore | bool | `true` |  |
+| zac.solr-operator.solr.jobs | object | `{}` |  |
 | zac.solr-operator.solr.resources.limits.cpu | string | `"2000m"` |  |
 | zac.solr-operator.solr.resources.limits.memory | string | `"2Gi"` |  |
 | zac.solr-operator.solr.resources.requests.cpu | string | `"500m"` |  |
