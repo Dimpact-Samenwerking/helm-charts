@@ -211,6 +211,7 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 | grafana.sidecar.dashboards.label | string | `"grafana_dashboard"` |  |
 | grafana.sidecar.dashboards.labelValue | string | `"1"` |  |
 | grafana.sidecar.datasources.enabled | bool | `true` |  |
+| grafana.sidecar.resources | object | `{"requests":{"cpu":"10m","memory":"96Mi"}}` | grafana-sc-dashboard and grafana-sc-datasources: about 70Mi each measured on QA |
 | grafana.testFramework.image | object | `{"tag":"1.12.0"}` | bats image settings docker.io/bats/bats:1.12.0 |
 | grafana.testFramework.imagePullPolicy | string | `"IfNotPresent"` |  |
 | kube-prometheus-stack.alertmanager.enabled | bool | `false` |  |
@@ -249,6 +250,7 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 | loki.chunksCache.defaultValidity | string | `"6h"` |  |
 | loki.chunksCache.enabled | bool | `true` |  |
 | loki.compactor.replicas | int | `1` |  |
+| loki.compactor.resources | object | `{"requests":{"cpu":"50m","memory":"128Mi"}}` | Requests only (Distributed mode); the scheduler otherwise reserves nothing. |
 | loki.deploymentMode | string | `"Distributed"` |  |
 | loki.distributor.maxUnavailable | int | `2` |  |
 | loki.distributor.replicas | int | `3` |  |
@@ -335,6 +337,7 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 | loki.memcached.image.tag | string | `"alpine3.22"` |  |
 | loki.memcachedExporter.image.pullPolicy | string | `"IfNotPresent"` |  |
 | loki.memcachedExporter.image.tag | string | `"v0.15.3"` |  |
+| loki.memcachedExporter.resources | object | `{"requests":{"cpu":"10m","memory":"32Mi"}}` | Requests for the exporter next to chunks-cache and results-cache. |
 | loki.minio.enabled | bool | `true` |  |
 | loki.minio.global | string | `nil` |  |
 | loki.minio.image.pullPolicy | string | `"IfNotPresent"` |  |
@@ -367,8 +370,10 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 | loki.read.replicas | int | `0` |  |
 | loki.resultsCache.defaultValidity | string | `"6h"` |  |
 | loki.resultsCache.enabled | bool | `true` |  |
+| loki.ruler.resources | object | `{"requests":{"cpu":"20m","memory":"128Mi"}}` | Requests only (Distributed mode). |
 | loki.sidecar.image.pullPolicy | string | `"IfNotPresent"` |  |
 | loki.sidecar.image.tag | string | `"1.30.10"` |  |
+| loki.sidecar.resources | object | `{"requests":{"cpu":"10m","memory":"96Mi"}}` | loki-sc-rules: about 82Mi measured on QA |
 | loki.test.enabled | bool | `false` |  |
 | loki.write.replicas | int | `0` |  |
 | opentelemetry-collector | object | `{"command":{"name":"otelcol-contrib"},"config":{"exporters":{"otlphttp/loki":{"endpoint":"http://${env:RELEASE_NAME}-loki-gateway/otlp","headers":{"X-Scope-OrgID":"1"}},"prometheusremotewrite":{"endpoint":"http://${env:RELEASE_NAME}-kube-prometheus-prometheus:9090/api/v1/write","tls":{"insecure":true}}},"extensions":{"bearertokenauth":{"token":"${env:OTEL_HTTP_AUTH_TOKEN}"},"health_check":{"endpoint":"0.0.0.0:13133"}},"processors":{"batch":{"send_batch_size":1000,"timeout":"5s"},"memory_limiter":{"check_interval":"1s","limit_percentage":80,"spike_limit_percentage":25}},"receivers":{"otlp":{"protocols":{"grpc":{"endpoint":"0.0.0.0:4317"},"http":{"auth":{"authenticator":"bearertokenauth"},"endpoint":"0.0.0.0:4318"}}}},"service":{"extensions":["health_check","bearertokenauth"],"pipelines":{"logs":{"exporters":["otlphttp/loki"],"processors":["memory_limiter","batch"],"receivers":["otlp"]},"metrics":{"exporters":["prometheusremotewrite"],"processors":["memory_limiter","batch"],"receivers":["otlp"]}},"telemetry":{"metrics":{"address":"0.0.0.0:8888"}}}},"enabled":true,"extraEnvs":[{"name":"RELEASE_NAME","valueFrom":{"fieldRef":{"fieldPath":"metadata.labels['app.kubernetes.io/instance']"}}},{"name":"OTEL_HTTP_AUTH_TOKEN","value":"REP_OTEL_HTTP_AUTH_TOKEN_REP"}],"image":{"pullPolicy":"IfNotPresent","repository":"ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib"},"mode":"deployment","podAnnotations":{"prometheus.io/path":"/metrics","prometheus.io/port":"8888","prometheus.io/scrape":"true"},"ports":{"metrics":{"containerPort":8888,"enabled":true,"protocol":"TCP","servicePort":8888},"otlp":{"containerPort":4317,"enabled":true,"protocol":"TCP","servicePort":4317},"otlp-http":{"containerPort":4318,"enabled":true,"protocol":"TCP","servicePort":4318}},"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"128Mi"}}}` | OpenTelemetry Collector: gateway deployment receiving OTLP from applications. Exports: logs → Loki, metrics → Prometheus, traces → Tempo (when enabled). Applications should send OTLP to <release-name>-opentelemetry-collector:4317 (gRPC) or <release-name>-opentelemetry-collector:4318 (HTTP). See otel.md for per-service instrumentation config. #OTel instrumentation |

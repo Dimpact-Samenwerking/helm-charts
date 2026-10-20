@@ -291,6 +291,11 @@ grafana:
       - kubernetes.io/pvc-protection
 
   sidecar:
+    # -- grafana-sc-dashboard and grafana-sc-datasources: about 70Mi each measured on QA
+    resources:
+      requests:
+        cpu: 10m
+        memory: 96Mi
     datasources:
       enabled: true
     dashboards:
@@ -640,6 +645,11 @@ loki:
       pullPolicy: IfNotPresent
       tag: alpine3.22
   memcachedExporter:
+    # -- Requests for the exporter next to chunks-cache and results-cache.
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
     # memcached-exporter image settings
     # docker.io/prom/memcached-exporter:v0.15.3
     image:
@@ -656,6 +666,11 @@ loki:
     image:
       pullPolicy: IfNotPresent
       tag: 1.30.10
+    # -- loki-sc-rules: about 82Mi measured on QA
+    resources:
+      requests:
+        cpu: 10m
+        memory: 96Mi
 
 
   chunksCache:
@@ -783,6 +798,17 @@ loki:
     replicas: 0
   compactor:
     replicas: 1
+    # -- Requests only (Distributed mode); the scheduler otherwise reserves nothing.
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  ruler:
+    # -- Requests only (Distributed mode).
+    resources:
+      requests:
+        cpu: 20m
+        memory: 128Mi
   loki:
     auth_enabled: false
     schemaConfig:
