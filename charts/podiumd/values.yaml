@@ -76,6 +76,9 @@ keycloak:
     #        metadataDescriptorUrl: "https://login.microsoftonline.com/organizations/v2.0/.well-known/openid-configuration"
     #        authorizationUrl: "https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize"
     #        logoutUrl: "https://login.microsoftonline.com/organizations/oauth2/v2.0/logout"
+    #        # Keycloak 26.8+ (CVE-2026-12388) refuses a mapper that grants an admin
+    #        # role, such as admin-group-mapper below, unless this is "true".
+    #        allowAdminRoleMapping: "true"
     # -- identity providers for the admin realm (usually master)
     #adminIdentityProviders: {}
     # Example configuration
