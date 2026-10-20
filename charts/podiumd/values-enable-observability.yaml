@@ -72,6 +72,36 @@ openinwoner:
       metricExportInterval: 60000
       metricExportTimeout: 10000
 
+openarchiefbeheer:
+  settings:
+    otel:
+      disabled: false
+      exporterOtlpEndpoint: *otelEndpoint
+      exporterOtlpProtocol: grpc
+      exporterOtlpMetricsInsecure: true
+      metricExportInterval: 60000
+      metricExportTimeout: 10000
+
+referentielijsten:
+  settings:
+    otel:
+      disabled: false
+      exporterOtlpEndpoint: *otelEndpoint
+      exporterOtlpProtocol: grpc
+      exporterOtlpMetricsInsecure: true
+      metricExportInterval: 60000
+      metricExportTimeout: 10000
+
+openvtb:
+  settings:
+    otel:
+      disabled: false
+      exporterOtlpEndpoint: *otelEndpoint
+      exporterOtlpProtocol: grpc
+      exporterOtlpMetricsInsecure: true
+      metricExportInterval: 60000
+      metricExportTimeout: 10000
+
 # ---------------------------------------------------------------------------
 # ZAC — Quarkus OTEL via chart-managed env + shared monitoring collector
 #
@@ -192,12 +222,45 @@ clamav:
 # the podiumd chart grants the elastic-operator SA permission to also create
 # PodMonitors for managed Elasticsearch/Kibana instances at runtime.
 # Requires: eck-operator.enabled: true and Prometheus Operator CRDs installed.
+#
+# eck-operator 3.x reads config.metrics.port before config.metricsPort, and
+# its default for config.metrics.port is the string "0", which wins. Set both:
+# with only metricsPort the operator exposes no metrics and no PodMonitor is
+# rendered.
 # ---------------------------------------------------------------------------
 
 eck-operator:
   config:
     metricsPort: "8080"
+    metrics:
+      port: "8080"
   podMonitor:
     enabled: true
     interval: 1m
     scrapeTimeout: 30s
+
+# ---------------------------------------------------------------------------
+# Frank!Gateway — APISIX prometheus exporter on the frankgateway Service, the
+# prometheus plugin as a global rule (per-route metrics) and a ServiceMonitor.
+# Requires: frankgateway.enabled: true.
+# ---------------------------------------------------------------------------
+
+frankgateway:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+
+# ---------------------------------------------------------------------------
+# OpenBao — ServiceMonitor for /v1/sys/metrics. The chart's server config
+# (openbao.server.ha.config) already enables telemetry and unauthenticated
+# metrics access on the 8200 listener. Requires: openbao.enabled: true.
+# ---------------------------------------------------------------------------
+
+openbao:
+  serverTelemetry:
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      scrapeTimeout: 10s
