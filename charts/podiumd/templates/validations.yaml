@@ -29,6 +29,33 @@
 {{- end -}}
 {{- end -}}
 
+{{- /* Keycloak 26.8 (CVE-2026-12388, IN-3203) refuses an identity provider
+     mapper that grants an admin role unless the identity provider has
+     config.allowAdminRoleMapping "true": the master realm import then fails
+     with 403 on every run. The chart leaves enabling it to the environment,
+     so the escalation path the CVE closes stays closed unless chosen.
+     Detects only roles that are admin by name (master realm admin and
+     create-realm, client roles of realm-management and <realm>-realm), not
+     composites, and only identity providers defined in these values. */ -}}
+{{- if and (index .Values "keycloak-operator").enabled (index .Values "keycloak-operator").jobs.importMasterRealm.enabled -}}
+{{- $idps := dict -}}
+{{- range $idp := (.Values.keycloak.config.adminIdentityProviders | default dict).identityProviders -}}
+{{- $_ := set $idps $idp.alias (eq (toString (($idp.config | default dict).allowAdminRoleMapping)) "true") -}}
+{{- end -}}
+{{- $blocked := list -}}
+{{- range $m := (.Values.keycloak.config.adminIdentityProviderMappers | default dict).identityProviderMappers -}}
+{{- $role := toString (($m.config | default dict).role) -}}
+{{- $client := ternary (first (splitList "." $role)) "" (contains "." $role) -}}
+{{- $adminRole := or (has $role (list "admin" "create-realm")) (eq $client "realm-management") (hasSuffix "-realm" $client) -}}
+{{- if and (eq (toString $m.identityProviderMapper) "oidc-hardcoded-role-idp-mapper") $adminRole (hasKey $idps (toString $m.identityProviderAlias)) (not (get $idps (toString $m.identityProviderAlias))) -}}
+{{- $blocked = append $blocked (printf "mapper %q grants %q through identity provider %q" $m.name $role $m.identityProviderAlias) -}}
+{{- end -}}
+{{- end -}}
+{{- if $blocked -}}
+{{- fail (printf "Keycloak 26.8 refuses identity provider mappers that grant admin roles (CVE-2026-12388). Set config.allowAdminRoleMapping: \"true\" on the identity provider in keycloak.config.adminIdentityProviders.identityProviders, or remove the mapper:\n  %s" (join "\n  " $blocked)) -}}
+{{- end -}}
+{{- end -}}
+
 {{- /* ITA 3.2.0 requires the Medewerker-objecttype: ita.medewerker.type must be set
      (gemeente-specific objecttype URL) whenever ITA is enabled. */ -}}
 {{- if .Values.ita.enabled -}}
