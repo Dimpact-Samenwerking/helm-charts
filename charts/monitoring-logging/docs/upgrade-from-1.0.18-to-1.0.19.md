@@ -84,3 +84,15 @@ before.
   Low blast radius (only the collector's own health metrics, not the
   log/metric/trace pipeline itself), but needs an explicit values.yaml fix to
   preserve parity before bumping.
+
+## Traefik PodMonitor off by default
+
+`traefikMonitor.enabled` now defaults to `false`. The PodiumD edge is NGINX
+Gateway Fabric, so the PodMonitor found no Traefik pods and left Prometheus
+with an empty scrape pool (`podMonitor/<namespace>/<release>-traefik`). The
+`kubernetes-pods` job already scrapes NGF through its pod annotations (port
+9113). See `docs/prometheus-scraping.md` § NGINX Gateway Fabric.
+
+Action for an environment that still runs Traefik at the edge: set
+`traefikMonitor.enabled: true`, or the Traefik metrics and the Traefik
+dashboard stop receiving data.

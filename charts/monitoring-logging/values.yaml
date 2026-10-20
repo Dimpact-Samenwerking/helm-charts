@@ -1051,11 +1051,14 @@ opentelemetry-collector:
 # -- PodMonitor for Traefik. Scrapes the Traefik metrics endpoint (port 9100)
 # from pods in the configured namespace. Requires Traefik's Prometheus metrics
 # (`metrics.prometheus`, on by default in the standard Traefik Helm chart).
+# Off by default: the PodiumD edge is NGINX Gateway Fabric, which the
+# `kubernetes-pods` job scrapes through its pod annotations, and a PodMonitor
+# without Traefik pods leaves Prometheus with an empty scrape pool.
 # Keep this the only monitor on Traefik: a second ServiceMonitor or PodMonitor on
 # the same pods (such as the Traefik chart's own `metrics.prometheus.serviceMonitor`)
 # stores every Traefik series twice. Add labels with `metricRelabelings` instead.
 traefikMonitor:
-  enabled: true
+  enabled: false
   # -- Namespace where Traefik pods run. Leave empty to search all namespaces.
   namespace: ""
   # -- Prometheus scrape interval.
@@ -1080,6 +1083,9 @@ otelCollectorMonitor:
 
 # -- Ingress for the OTLP HTTP endpoint (port 4318).
 # Exposes the collector externally via Traefik with an ip-allowlist middleware.
+# Traefik only: on an NGINX Gateway Fabric edge leave this off and route the
+# host to Service `<release>-opentelemetry-collector:4318` deploy-side, like the
+# other HTTPRoutes (see docs/otel.md).
 # Requires cert-manager for TLS. Disabled by default — set hostname to enable.
 # The middleware must be pre-created in the same namespace (e.g. a Traefik Middleware CRD).
 otelIngress:
