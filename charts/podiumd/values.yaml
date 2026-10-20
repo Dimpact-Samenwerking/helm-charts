@@ -3506,14 +3506,10 @@ zac:
         cpu: 50m
         memory: 64Mi
   notificationsSecretKey: "changeme"
-  # Since the objecten/objecttypen merge: both point at the same merged
-  # host/token now — ZAC's own chart schema still expects two distinct keys,
-  # even though there's only one app and likely one tokenauth item behind
-  # them now.
+  # Since the objecten/objecttypen merge ZAC reads only objectenApi: the merged
+  # Objecten app serves the Objecttypen API too. zac.objecttypenApi is gone in
+  # 4.10.0; an environment may drop it.
   objectenApi:
-    url: https://objecten.example.nl
-    token: objectentoken
-  objecttypenApi:
     url: https://objecten.example.nl
     token: objectentoken
   office_converter:
@@ -3602,8 +3598,6 @@ zac:
         tag: 9.10.1-slim@sha256:d25d25a0d0c9e5a917ebad1a1c42f8109f049b628fc7a730027c97b6b98b5386
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
-      jobs:
-        createZacCore: true
       resources:
         requests:
           cpu: 500m
