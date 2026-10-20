@@ -761,6 +761,34 @@ def _diff(path: str, old: str, new: str) -> str:
     return "".join(difflib.unified_diff(old.splitlines(True), new.splitlines(True), f"a/{path}", f"b/{path}"))
 
 
+def duplicate_api_roots(doc) -> list[tuple[str, str, list[str]]]:
+    """(component, api_root, identifiers) for every configuration.data whose
+    zgw_consumers services share an api_root. After the merge the objecttypen
+    services point at the objecten api_root; when a component also has an
+    objecten service there, its config job fails on zgw_consumers' unique
+    api_root. Which service and token to keep is a judgement call (the token
+    must be a valid objecten token with the right permissions), so report it
+    instead of merging."""
+    found = []
+    if not isinstance(doc, dict):
+        return found
+    for component, cfg in doc.items():
+        data = ((cfg or {}).get("configuration") or {}).get("data") if isinstance(cfg, dict) else None
+        if not isinstance(data, str):
+            continue
+        try:
+            inner = _safe_load(data)
+        except Exception:
+            continue
+        services = ((inner or {}).get("zgw_consumers") or {}).get("services") or [] if isinstance(inner, dict) else []
+        by_root: dict[str, list[str]] = {}
+        for svc in services:
+            if isinstance(svc, dict) and svc.get("api_root"):
+                by_root.setdefault(str(svc["api_root"]).rstrip("/") + "/", []).append(str(svc.get("identifier")))
+        found += [(component, root, ids) for root, ids in by_root.items() if len(ids) > 1]
+    return found
+
+
 def process(path: str, args) -> tuple[str, list[str]]:
     with open(path, encoding="utf-8") as f:
         text = f.read()
@@ -772,6 +800,11 @@ def process(path: str, args) -> tuple[str, list[str]]:
         return "error", [f"unexpected {type(e).__name__}: {str(e).splitlines()[0][:200]}"]
     changes = [(path, text, new)] if new != text else []
     migrated_doc = _safe_load(new)
+    for component, root, ids in duplicate_api_roots(migrated_doc):
+        notes.append(f"ACTION {component}: zgw_consumers services {', '.join(ids)} share api_root {root}; "
+                     "its config job fails on the unique api_root. Keep one service, point every "
+                     "*_service_identifier at it and give it a working objecten token (values-deltas.md, "
+                     "'One zgw_consumers service per api_root')")
     has_objecten = isinstance(migrated_doc, dict) and "objecten" in migrated_doc \
         and "objecttypen" not in migrated_doc
     if not args.no_gateway and not has_objecten:
