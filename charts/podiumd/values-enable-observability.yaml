@@ -253,9 +253,10 @@ frankgateway:
       interval: 30s
 
 # ---------------------------------------------------------------------------
-# OpenBao — ServiceMonitor for /v1/sys/metrics. The chart's server config
-# (openbao.server.ha.config) already enables telemetry and unauthenticated
-# metrics access on the 8200 listener. Requires: openbao.enabled: true.
+# OpenBao — ServiceMonitor for /v1/sys/metrics. The same flag adds the
+# telemetry stanza and unauthenticated metrics access on the 8200 listener to
+# the chart's server config (openbao.server.ha.config); changing it restarts
+# the OpenBao pods. Requires: openbao.enabled: true.
 # ---------------------------------------------------------------------------
 
 openbao:
