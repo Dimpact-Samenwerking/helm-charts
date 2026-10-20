@@ -397,8 +397,9 @@ redirect-URI/client-name churn for existing gemeente realms.
 
 ### F. Downstream consumer config changes
 
-- **zac** (`zac.objectenApi.*`, `zac.objecttypenApi.*`) — repoint both to the
-  same merged host; no podiumd template change (ZAC is an external subchart).
+- **zac** (`zac.objectenApi.*`) — repoint to the merged host. ZAC reads only
+  `objectenApi`; the migration script removes `zac.objecttypenApi`, which 4.10.0
+  no longer has.
 - **ita** (`ita.apiConnections.object.baseUrl`, `ita.{logboek,afdeling,groep,medewerker}.type`)
   — repoint the `-objecttypen` hostname in all four `type` URLs to the merged host.
 - **kiss** (`kiss.adapter.objecten.*`, `kiss.adapter.objecttypen.*`, various
@@ -650,7 +651,7 @@ All H.1–H.7 design decisions are now resolved; nothing left in this category.
       is ≥3.4.0 before relying on that migration having already happened —
       needs checking live deployments outside this repo.
 - [x] ~~Inventory per-gemeente overrides for the section-F downstream
-      consumers (`zac.objectenApi`/`.objecttypenApi`, `ita.*.type`,
+      consumers (`zac.objectenApi`, `ita.*.type`,
       `kiss.adapter.*`/`kiss.settings.*.objectTypeUrl`)~~ — the values
       migration script rewrites these per environment; environments that need
       more than the script are listed in

@@ -364,8 +364,13 @@ keycloak-operator:
   # for the security fixes in 26.7.5, 26.8.0 and 26.8.1; the operator CRDs come
   # from upstream 26.8.1 (scripts/install-keycloak-operator-crds.sh), not from
   # the chart. Bump the chart dependency again once adfinis catches up.
-  # override: values-enable-observability.yaml sets enableServiceMonitor: true
-  enableServiceMonitor: false
+  # -- Render the write Role and RoleBinding the Keycloak operator needs to manage the
+  # ServiceMonitor for Keycloak metrics (templates/keycloak-operator-servicemonitor-rbac.yaml).
+  # On by default. Set false on a cluster without Prometheus (no monitoring.coreos.com
+  # ServiceMonitor CRD) to leave out that Role. With the CRD installed the Role is rendered
+  # anyway: the operator then manages a ServiceMonitor whatever this value says, and
+  # without the Role the Keycloak CR stays InProgress.
+  enableServiceMonitor: true
   fullnameOverride: keycloak
   operator:
     image:
@@ -3598,6 +3603,8 @@ zac:
         tag: 9.10.1-slim@sha256:d25d25a0d0c9e5a917ebad1a1c42f8109f049b628fc7a730027c97b6b98b5386
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
+      # Solr jobs (affinity, annotations, nodeSelector, tolerations): ZAC chart defaults.
+      jobs: {}
       resources:
         requests:
           cpu: 500m
