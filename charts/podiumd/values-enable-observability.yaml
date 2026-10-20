@@ -8,99 +8,54 @@
 
 _otelEndpoint: &otelEndpoint "http://monitoring-opentelemetry-collector.monitoring.svc.cluster.local:4317"
 
+# The settings.otel block every Maykin app below shares; change it here once.
+_maykinOtel: &maykinOtel
+  disabled: false
+  exporterOtlpEndpoint: *otelEndpoint
+  exporterOtlpProtocol: grpc
+  exporterOtlpMetricsInsecure: true
+  metricExportInterval: 60000
+  metricExportTimeout: 10000
+
 # ---------------------------------------------------------------------------
 # Maykin apps — Django-based, all share the same settings.otel schema
 # ---------------------------------------------------------------------------
 
 openzaak:
   settings:
-    otel:
-      disabled: false
-      exporterOtlpEndpoint: *otelEndpoint
-      exporterOtlpProtocol: grpc
-      exporterOtlpMetricsInsecure: true
-      metricExportInterval: 60000
-      metricExportTimeout: 10000
+    otel: *maykinOtel
 
 openklant:
   settings:
-    otel:
-      disabled: false
-      exporterOtlpEndpoint: *otelEndpoint
-      exporterOtlpProtocol: grpc
-      exporterOtlpMetricsInsecure: true
-      metricExportInterval: 60000
-      metricExportTimeout: 10000
+    otel: *maykinOtel
 
 openformulieren:
   settings:
-    otel:
-      disabled: false
-      exporterOtlpEndpoint: *otelEndpoint
-      exporterOtlpProtocol: grpc
-      exporterOtlpMetricsInsecure: true
-      metricExportInterval: 60000
-      metricExportTimeout: 10000
+    otel: *maykinOtel
 
 opennotificaties:
   settings:
-    otel:
-      disabled: false
-      exporterOtlpEndpoint: *otelEndpoint
-      exporterOtlpProtocol: grpc
-      exporterOtlpMetricsInsecure: true
-      metricExportInterval: 60000
-      metricExportTimeout: 10000
+    otel: *maykinOtel
 
 objecten:
   settings:
-    otel:
-      disabled: false
-      exporterOtlpEndpoint: *otelEndpoint
-      exporterOtlpProtocol: grpc
-      exporterOtlpMetricsInsecure: true
-      metricExportInterval: 60000
-      metricExportTimeout: 10000
+    otel: *maykinOtel
 
 openinwoner:
   settings:
-    otel:
-      disabled: false
-      exporterOtlpEndpoint: *otelEndpoint
-      exporterOtlpProtocol: grpc
-      exporterOtlpMetricsInsecure: true
-      metricExportInterval: 60000
-      metricExportTimeout: 10000
+    otel: *maykinOtel
 
 openarchiefbeheer:
   settings:
-    otel:
-      disabled: false
-      exporterOtlpEndpoint: *otelEndpoint
-      exporterOtlpProtocol: grpc
-      exporterOtlpMetricsInsecure: true
-      metricExportInterval: 60000
-      metricExportTimeout: 10000
+    otel: *maykinOtel
 
 referentielijsten:
   settings:
-    otel:
-      disabled: false
-      exporterOtlpEndpoint: *otelEndpoint
-      exporterOtlpProtocol: grpc
-      exporterOtlpMetricsInsecure: true
-      metricExportInterval: 60000
-      metricExportTimeout: 10000
+    otel: *maykinOtel
 
 openvtb:
   settings:
-    otel:
-      disabled: false
-      exporterOtlpEndpoint: *otelEndpoint
-      exporterOtlpProtocol: grpc
-      exporterOtlpMetricsInsecure: true
-      metricExportInterval: 60000
-      metricExportTimeout: 10000
+    otel: *maykinOtel
 
 # ---------------------------------------------------------------------------
 # ZAC — Quarkus OTEL via chart-managed env + shared monitoring collector
@@ -223,15 +178,15 @@ clamav:
 # PodMonitors for managed Elasticsearch/Kibana instances at runtime.
 # Requires: eck-operator.enabled: true and Prometheus Operator CRDs installed.
 #
-# eck-operator 3.x reads config.metrics.port before config.metricsPort, and
-# its default for config.metrics.port is the string "0", which wins. Set both:
-# with only metricsPort the operator exposes no metrics and no PodMonitor is
-# rendered.
+# eck-operator 3.x reads config.metrics.port and ignores the deprecated
+# config.metricsPort whenever metrics.port is set; its default for
+# config.metrics.port is the string "0", which counts as set. So set
+# config.metrics.port: with only metricsPort the operator exposes no metrics
+# and no PodMonitor is rendered.
 # ---------------------------------------------------------------------------
 
 eck-operator:
   config:
-    metricsPort: "8080"
     metrics:
       port: "8080"
   podMonitor:
@@ -256,8 +211,12 @@ frankgateway:
 # OpenBao — ServiceMonitor for /v1/sys/metrics on the metrics-only listener
 # (port 9101, Service port "metrics"). The same flag adds the telemetry stanza
 # and that listener to the chart's server config (openbao.server.ha.config);
-# the API listener on 8200 keeps requiring a token for metrics. Changing it
-# restarts the OpenBao pods. Requires: openbao.enabled: true.
+# the API listener on 8200 keeps requiring a token for metrics. A PodMonitor
+# (templates/openbao-podmonitor.yaml) also scrapes the standby pods.
+# Turning this on restarts all OpenBao pods. With the Shamir seal (no
+# openbao.seal.static.key) every pod comes back SEALED while readiness reports
+# it ready: run `bao operator unseal` on each pod right after the deploy.
+# Requires: openbao.enabled: true.
 # ---------------------------------------------------------------------------
 
 openbao:

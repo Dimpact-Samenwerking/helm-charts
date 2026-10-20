@@ -1,0 +1,47 @@
+{{- /*
+OpenBao standby metrics. In HA mode the openbao subchart's ServiceMonitor
+selects only the openbao-active Service, so only the active node is scraped and
+a standby that sealed itself after a failed failover raises nothing until it
+becomes active. This PodMonitor scrapes the standbys (openbao-active: "false",
+set by service_registration "kubernetes") on the metrics-only listener (port
+"metrics", 9101); the active node stays with the subchart's ServiceMonitor, so
+no pod is scraped twice. Rendered under the same condition as that listener
+and the subchart's ServiceMonitor.
+*/ -}}
+{{- $bao := .Values.openbao | default dict }}
+{{- $telemetry := $bao.serverTelemetry | default dict }}
+{{- $sm := $telemetry.serviceMonitor | default dict }}
+{{- $global := (($bao.global | default dict).serverTelemetry) | default dict }}
+{{- if and $bao.enabled (or $global.prometheusOperator $sm.enabled) }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: openbao-standby
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: openbao
+    {{- with $sm.selectors }}
+    {{- toYaml . | nindent 4 }}
+    {{- else }}
+    release: prometheus
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: openbao
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      openbao-active: "false"
+  podMetricsEndpoints:
+    - port: metrics
+      path: /v1/sys/metrics
+      params:
+        format:
+          - prometheus
+      interval: {{ $sm.interval | default "30s" }}
+      scrapeTimeout: {{ $sm.scrapeTimeout | default "10s" }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+{{- end }}

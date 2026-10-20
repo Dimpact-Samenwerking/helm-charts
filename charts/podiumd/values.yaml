@@ -2939,7 +2939,7 @@ eck-operator:
   # adoption: deploy with `--take-ownership` (helm >= 3.17) or annotate the CRDs
   # once — see docs/apps/elastic/migrating-to-eck-stack.md section 4b. Installers without
   # cluster-scope RBAC: set false and apply the CRDs manually (same doc).
-  # override: values-enable-observability.yaml sets config.metricsPort and enables podMonitor
+  # override: values-enable-observability.yaml sets config.metrics.port and enables podMonitor
   installCRDs: true
   image:
     tag: "3.5.0"
@@ -5234,7 +5234,14 @@ openbao:
   # --- openbao subchart values (upstream server.* keys) -------------------------
   # Metrics-only listener (port 9101, opened only with
   # serverTelemetry.serviceMonitor.enabled, see server.ha.config): the container
-  # port and the "metrics" port on the Services, which the ServiceMonitor scrapes.
+  # port and the "metrics" port on the Services. The subchart's ServiceMonitor
+  # scrapes the active node; templates/openbao-podmonitor.yaml scrapes the
+  # standbys, so a standby that sealed itself shows up too.
+  # Turning the flag on changes the server config, so all OpenBao pods restart
+  # (RollingUpdate). With the default Shamir seal (openbao.seal.static.key empty)
+  # every pod comes back sealed while readiness still reports it ready
+  # (sealedcode=200): run `bao operator unseal` on each pod right after the
+  # deploy. With the static seal the pods unseal themselves.
   serverTelemetry:
     serviceMonitor:
       port: metrics
@@ -5384,11 +5391,12 @@ openbao:
       # #29717), and workload identity is not wanted for this anyway.
       config: |
         ui = true
-        {{- if .Values.serverTelemetry.serviceMonitor.enabled }}
+        {{- if or (.Values.global.serverTelemetry).prometheusOperator .Values.serverTelemetry.serviceMonitor.enabled }}
 
-        # Prometheus metrics on /v1/sys/metrics?format=prometheus. Only with
-        # openbao.serverTelemetry.serviceMonitor.enabled (see
-        # values-enable-observability.yaml). They are served without a token,
+        # Prometheus metrics on /v1/sys/metrics?format=prometheus. Only when the
+        # subchart renders its ServiceMonitor: openbao.serverTelemetry.serviceMonitor.enabled
+        # (see values-enable-observability.yaml) or
+        # openbao.global.serverTelemetry.prometheusOperator. They are served without a token,
         # but only on the metrics-only listener on 9101 below; the API listener
         # on 8200 keeps requiring a token for them.
         telemetry {
@@ -5402,7 +5410,7 @@ openbao:
           address         = "[::]:8200"
           cluster_address = "[::]:8201"
         }
-        {{- if .Values.serverTelemetry.serviceMonitor.enabled }}
+        {{- if or (.Values.global.serverTelemetry).prometheusOperator .Values.serverTelemetry.serviceMonitor.enabled }}
 
         # Metrics-only listener for the ServiceMonitor (Service port "metrics").
         # metrics_only blocks every other API path on it.

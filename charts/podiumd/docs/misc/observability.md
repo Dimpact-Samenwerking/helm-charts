@@ -14,6 +14,9 @@ This document describes how metrics and tracing are configured across the podium
 | opennotificaties | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
 | objecten | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
 | openinwoner | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
+| openarchiefbeheer | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
+| referentielijsten | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
+| openvtb | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
 | zac | `opentelemetry-collector.enabled` (trigger) + `opentelemetry_zaakafhandelcomponent.endpoint` + `javaOptions` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
 | keycloak | `additionalOptions: metrics-enabled` | ✅ ServiceMonitor port 9000 `/metrics` (auto by keycloak-operator) | built-in |
 | redis-operator | — | ✅ pod annotations port 8080 `/metrics` | `values-enable-observability.yaml` |
@@ -21,11 +24,12 @@ This document describes how metrics and tracing are configured across the podium
 | solr-operator | — | ✅ pod annotations port 8080 `/metrics` | `values-enable-observability.yaml` |
 | zookeeper-operator | — | ✅ pod annotations port 6000 `/metrics` | `values-enable-observability.yaml` |
 | clamav | clamav_exporter sidecar | ✅ port 9906 + ServiceMonitor | `values-enable-observability.yaml` |
-| eck-operator | `config.metricsPort` + `podMonitor.enabled` | ✅ PodMonitor port 8080 `/metrics` | `values-enable-observability.yaml` |
+| eck-operator | `config.metrics.port` + `podMonitor.enabled` | ✅ PodMonitor port 8080 `/metrics` | `values-enable-observability.yaml` |
+| frankgateway (APISIX) | `frankgateway.metrics.enabled` + `metrics.serviceMonitor.enabled` | ✅ ServiceMonitor, prometheus plugin as global rule | `values-enable-observability.yaml` |
+| openbao | `openbao.serverTelemetry.serviceMonitor.enabled` | ✅ metrics-only listener port 9101 `/v1/sys/metrics`: ServiceMonitor (active) + PodMonitor `openbao-standby` | `values-enable-observability.yaml` |
 | traefik | — | ✅ PodMonitor port 9100 `/metrics` (monitoring chart) | `monitoring-logging` chart |
 | otel-collector | — | ✅ ServiceMonitor port 8888 `/metrics` (monitoring chart) | `monitoring-logging` chart |
 | api-proxy | — | ❌ plain nginx, no metrics endpoint | requires template changes |
-| openarchiefbeheer | — | ❌ no OTEL support in chart | — |
 | solr (SolrCloud) | — | ❌ not yet configured | see todo below |
 | zookeeper (cluster) | — | ❌ not yet configured | see todo below |
 | elasticsearch (ECK) | — | ❌ no native endpoint | see todo below |
@@ -268,12 +272,36 @@ The ECK operator is a root-level dependency. Configured via `values-enable-obser
 ```yaml
 eck-operator:
   config:
-    metricsPort: "8080"
+    metrics:
+      port: "8080"
   podMonitor:
     enabled: true
     interval: 1m
     scrapeTimeout: 30s
 ```
+
+---
+
+eck-operator 3.x reads `config.metrics.port` and ignores the deprecated `config.metricsPort`
+once `metrics.port` is set (its default is the string `"0"`): with only `metricsPort` the operator
+exposes no metrics and no PodMonitor is rendered.
+
+---
+
+## Prometheus Scraping — OpenBao
+
+`openbao.serverTelemetry.serviceMonitor.enabled: true` (in `values-enable-observability.yaml`) adds a
+`telemetry` stanza and a metrics-only listener on port 9101 (`metrics_only`,
+`unauthenticated_metrics_access`) to `openbao.server.ha.config`. The listener serves only
+`/v1/sys/metrics`; the API listener on 8200 keeps requiring a token for metrics, so a public OpenBao
+route does not expose them. The subchart's ServiceMonitor scrapes the active node; the PodMonitor
+`openbao-standby` (`templates/openbao-podmonitor.yaml`) scrapes the standbys, so a standby that sealed
+itself is visible too. With `networkPolicies.enabled`, the monitoring namespace may reach 9101 only.
+
+> Turning the flag on changes the server config, so all OpenBao pods restart. With the Shamir seal
+> (`openbao.seal.static.key` empty) every pod comes back **sealed** while its readiness probe still
+> reports ready (`sealedcode=200`): run `bao operator unseal` on each pod right after the deploy.
+> With the static seal the pods unseal themselves.
 
 ---
 
