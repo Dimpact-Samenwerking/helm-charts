@@ -13,21 +13,16 @@ when it is reported, fixed or worked around.
 
 Versions are the image tags `values.yaml` pins in 4.10.0.
 
-## Fixed upstream, not in 4.10.0 yet
+## Fixed upstream (in 4.10.0, or in a later release)
 
 | ID | Component | What happens | Fix |
 |---|---|---|---|
+| omc-1 | OMC 2.3.1 | Notifications from Open Notificaties 1.16.2 are rejected because of the `source` root property (206 with an inner 422), so OMC sends no mail. | Fixed for PodiumD by Open Notificaties 1.17.0 (in 4.10.0, #591), which no longer sends `source`: OMC mails again on QA and minikube (2026-10-20). OMC 2.3.1 itself still rejects unknown root properties. |
 | open-zaak-1 | Open Zaak 1.29.3 | `DELETE` of a zaak with a resultaat answers 500, although the zaak is deleted (the ETag is recalculated for the deleted resultaat). | [open-zaak#2484](https://github.com/open-zaak/open-zaak/issues/2484), fixed in 1.31.0. Upgrade notes must include the 1.31.0 warning: documents may have lost their content; run `python src/manage.py detect_overwritten_documents`. |
 | open-archiefbeheer-4 | Open Archiefbeheer 2.0.0 | A destruction list never reaches "deleted" and files no report: Open Archiefbeheer marks each zaak failed because of open-zaak-1. | Same as open-zaak-1. |
 | mozilla-django-oidc-db-1 | mozilla-django-oidc-db 2.0.1 (Open Inwoner 2.4.7) | `setup_configuration` writes `group_settings` on the deprecated flat admin-OIDC config, but the login reads `groups_settings`: every admin login gives 500 `KeyError: 'groups_settings'`. | Worked around in PodiumD: use the `providers` schema with `options` (`charts/podiumd/scripts/migrate-openinwoner-admin-oidc.py`, see the 4.10.0 upgrade notes). Upstream should still fix the flat path. |
 
 ## Open
-
-### OMC 2.3.1 — [Worth-NL/NotifyNL-OMC](https://github.com/Worth-NL/NotifyNL-OMC/issues)
-
-| ID | What happens | Impact |
-|---|---|---|
-| omc-1 | OMC rejects the notifications of Open Notificaties (206 with an inner 422) because of an unknown root property, so it sends no mail. Re-checked on 2026-10-19 with Open Notificaties 1.17.0: still reproduced. | Only with OMC enabled. |
 
 ### Open Zaak 1.29.3 — [open-zaak/open-zaak](https://github.com/open-zaak/open-zaak/issues)
 
