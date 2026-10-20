@@ -315,6 +315,18 @@ kube-prometheus-stack:
   # Alertmanager disabled — no alert routing configured
   alertmanager:
     enabled: false
+  # AKS manages the control plane, so controller-manager, etcd and scheduler cannot
+  # be scraped; Cilium environments run without kube-proxy. Their ServiceMonitors
+  # would only have no scrape targets. 14 of 22 SSC monitoring values already turn
+  # these off; re-enable per environment on a cluster where they are reachable.
+  kubeControllerManager:
+    enabled: false
+  kubeEtcd:
+    enabled: false
+  kubeScheduler:
+    enabled: false
+  kubeProxy:
+    enabled: false
   prometheus:
     prometheusSpec:
       # -- prometheus image settings

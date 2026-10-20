@@ -219,6 +219,10 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 | kube-prometheus-stack.enabled | bool | `true` |  |
 | kube-prometheus-stack.grafana.enabled | bool | `false` |  |
 | kube-prometheus-stack.kube-state-metrics | object | `{"image":{"pullPolicy":"IfNotPresent","registry":"registry.k8s.io","repository":"kube-state-metrics/kube-state-metrics","tag":"v2.17.0"},"resources":{"limits":{"cpu":"100m","memory":"128Mi"},"requests":{"cpu":"10m","memory":"64Mi"}}}` | kube-state-metrics image settings registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.17.0 |
+| kube-prometheus-stack.kubeControllerManager.enabled | bool | `false` |  |
+| kube-prometheus-stack.kubeEtcd.enabled | bool | `false` |  |
+| kube-prometheus-stack.kubeProxy.enabled | bool | `false` |  |
+| kube-prometheus-stack.kubeScheduler.enabled | bool | `false` |  |
 | kube-prometheus-stack.prometheus-node-exporter | object | `{"image":{"distroless":false,"pullPolicy":"IfNotPresent","registry":"quay.io","repository":"prometheus/node-exporter","tag":"v1.9.1"},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}}}` | node-exporter image settings quay.io/prometheus/node-exporter:v1.9.1 |
 | kube-prometheus-stack.prometheus-node-exporter.image.distroless | bool | `false` | kube-prometheus-stack 90 turns distroless on, which appends "-distroless" to the tag; v1.9.1 has no distroless variant (they start at v1.11.0). Turn it on with a tag that has one. |
 | kube-prometheus-stack.prometheus.prometheusSpec.additionalArgs | list | `[{"name":"web.enable-remote-write-receiver","value":""}]` | Enable remote-write receiver so the OTel Collector can push metrics |
