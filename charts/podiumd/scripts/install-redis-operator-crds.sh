@@ -87,10 +87,16 @@ if [[ "${DRY_RUN}" == "true" ]]; then
   exit 0
 fi
 
+# --force-conflicts: on a cluster where Helm installed these CRDs with
+# server-side apply (helm upgrade --server-side), the field manager "helm"
+# owns .spec.versions and a plain server-side apply fails with
+# 'conflict with "helm": .spec.versions'. Helm never updates CRDs from a
+# chart's crds/ directory after the first install, so taking over the
+# fields loses nothing. Same as install-keycloak-operator-crds.sh.
 echo "==> Applying CRDs (server-side apply)..."
 echo "${CRD_YAML}" \
   | awk '/^apiVersion:/ && NR>1 { print "---" } { print }' \
-  | kubectl ${CONTEXT_ARG} apply --server-side -f -
+  | kubectl ${CONTEXT_ARG} apply --server-side --force-conflicts -f -
 
 echo "==> Waiting for CRDs to reach Established condition..."
 CRD_NAMES=$(echo "${CRD_YAML}" | grep '^  name:' | awk '{print $2}')
