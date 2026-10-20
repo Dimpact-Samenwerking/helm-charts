@@ -81,10 +81,9 @@ peak load.
 - **Open Notificaties**: `zac.notificationsSecretKey` secures the notification
   callback endpoint.
 - **Open Klant**: `zac.klantinteractiesApi.url` + token.
-- **Objecten / Objecttypen**: `zac.objectenApi` / `zac.objecttypenApi` (url + token) —
-  since the objecten/objecttypen merge (`docs/apps/objecten/openobject-migration.md`) both point
-  at the same merged host/token; ZAC's own chart schema still expects two
-  distinct keys even though there's only one app behind them now.
+- **Objecten**: `zac.objectenApi` (url + token). Since the objecten/objecttypen merge
+  (`docs/apps/objecten/openobject-migration.md`) ZAC reads only this key; the merged
+  Objecten app also serves the Objecttypen API. `zac.objecttypenApi` is gone in 4.10.0.
 - **Open Formulieren**: `zac.openForms.url`.
 - **PABC**: `zac.pabcApi.url` + `apiKey` (role/authorisation component).
 - **External APIs**: BRP (`zac.brpApi`, optional protocollering — see related doc),
@@ -150,7 +149,7 @@ managed); the single-replica ZAC pod should not get a PDB.
    client `zac-admin-client` (`zac.keycloak.adminClient.secret`).
 5. **ZGW registrations**: register client id/secret from `zac.zgwApis` in the
    Open Zaak Autorisaties API; set `zac.notificationsSecretKey` for Open
-   Notificaties callbacks; set tokens for `zac.objectenApi`, `zac.objecttypenApi`,
+   Notificaties callbacks; set tokens for `zac.objectenApi` and
    `zac.klantinteractiesApi`.
 6. **External APIs and mail**: configure `zac.brpApi` (plus protocollering if the
    BRP gateway requires it), `zac.bagApi`, `zac.kvkApi`, `zac.pabcApi`, and

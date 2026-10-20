@@ -82,6 +82,17 @@ and `keycloak.proxy.headers: xforwarded`. Hostnames are set via
 `keycloak.config.adminFrontendUrl`); the realm frontend URL is
 `keycloak.config.realmFrontendUrl`.
 
+On a **fresh install**, set `keycloak.hostname.hostname` to the public realm
+host (the host of `keycloak.config.realmFrontendUrl`). Without it, the public
+hostname falls back to the admin host, and OIDC discovery hands out
+`keycloak-admin` endpoints until the realm import sets the podiumd realm's
+`frontendUrl`. Anything that reads discovery before that (the Django
+setup-configuration Jobs, PABC and ITA at startup) keeps the admin host, and a
+login then fails with "Restart login cookie not found". An existing
+environment is not affected, because its realm already has the `frontendUrl`.
+Changing the chart default would move the public hostname of every
+environment that doesn't set it, so that waits for a later release.
+
 ### Other dependencies
 
 - **SMTP** — realm mail settings under `keycloak.config.smtp` (password reset,

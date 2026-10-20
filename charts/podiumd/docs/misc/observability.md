@@ -147,10 +147,13 @@ Rendered when `keycloak-operator.enabled: true`.
 | Resource | Scope | Verbs | Purpose |
 |---|---|---|---|
 | `ClusterRole` + `ClusterRoleBinding` | cluster-wide | `get/list/watch` on `servicemonitors` | Allows the operator to probe whether the `monitoring.coreos.com` CRD is installed. Without this, the operator receives HTTP 403 instead of 404 when the CRD is absent and aborts reconciliation — no Keycloak pods start. |
-| `Role` + `RoleBinding` | release namespace | `create/patch/update/delete` on `servicemonitors` | Allows the operator to create and manage the `ServiceMonitor` for Keycloak metrics when `enableServiceMonitor: true`. |
+| `Role` + `RoleBinding` | release namespace | `create/patch/update/delete` on `servicemonitors` | Allows the operator to create and manage the `ServiceMonitor` for Keycloak metrics. |
 
-The `Role` + `RoleBinding` are only rendered when `keycloak-operator.enableServiceMonitor: true` (set by
-`values-enable-observability.yaml`).
+The `Role` + `RoleBinding` are rendered by default (`keycloak-operator.enableServiceMonitor: true`, since
+4.10.0). A cluster without Prometheus (no `monitoring.coreos.com` ServiceMonitor CRD) can set
+`keycloak-operator.enableServiceMonitor: false` to leave them out. When the CRD is installed they are
+rendered regardless: the operator then manages a ServiceMonitor, and without the Role the Keycloak CR
+stays `InProgress`.
 
 ### `eck-operator-podmonitor-rbac.yaml`
 
