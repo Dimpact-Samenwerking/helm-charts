@@ -241,7 +241,8 @@ spec:
           port: 8200
         - protocol: TCP
           port: 8201
-    {{- include "podiumd.networkPolicy.monitoring" (dict "np" $np "ports" (list 8200)) }}
+    {{- /* Prometheus scrapes the metrics-only listener (openbao.serverTelemetry). */ -}}
+    {{- include "podiumd.networkPolicy.monitoring" (dict "np" $np "ports" (list 9101)) }}
     {{- include "podiumd.networkPolicy.extra" (dict "peers" $extra.openbao "ports" (list 8200)) }}
 {{- end }}
 {{- if get $on "etcd" }}

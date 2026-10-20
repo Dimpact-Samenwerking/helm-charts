@@ -837,10 +837,12 @@ PodiumD Helm chart
 | openbao.server.dataStorage.enabled | bool | `false` |  |
 | openbao.server.extraArgs | string | `"-config=/openbao/seal"` | Loads the static-seal config directory (see openbao.seal) as a second `-config`; keep it in any override. |
 | openbao.server.extraLabels."azure.workload.identity/use" | string | `"true"` |  |
+| openbao.server.extraPorts[0].containerPort | int | `9101` |  |
+| openbao.server.extraPorts[0].name | string | `"metrics"` |  |
 | openbao.server.extraSecretEnvironmentVars[0].envName | string | `"BAO_PG_CONNECTION_URL"` |  |
 | openbao.server.extraSecretEnvironmentVars[0].secretKey | string | `"connection-url"` |  |
 | openbao.server.extraSecretEnvironmentVars[0].secretName | string | `"openbao-db"` |  |
-| openbao.server.ha.config | string | `"ui = true\n{{- if .Values.serverTelemetry.serviceMonitor.enabled }}\n\n# Prometheus metrics on /v1/sys/metrics?format=prometheus, readable\n# without a token so the ServiceMonitor can scrape them. Only with\n# openbao.serverTelemetry.serviceMonitor.enabled (see\n# values-enable-observability.yaml). The metrics carry no secrets.\ntelemetry {\n  prometheus_retention_time = \"30s\"\n  disable_hostname          = true\n}\n{{- end }}\n\nlistener \"tcp\" {\n  tls_disable     = 1\n  address         = \"[::]:8200\"\n  cluster_address = \"[::]:8201\"\n  {{- if .Values.serverTelemetry.serviceMonitor.enabled }}\n  telemetry {\n    unauthenticated_metrics_access = true\n  }\n  {{- end }}\n}\n\n# Loopback-only listener for break-glass root-token generation from the\n# recovery/unseal key. OpenBao >= 2.5.3 disables the unauthenticated\n# generate-root endpoints by default, and they must stay off on the\n# listener the Service exposes. This one is reachable only from inside\n# the pod (kubectl exec); scripts/openbao-activate.sh uses it on the\n# active pod to mint tokens on an initialised vault.\nlistener \"tcp\" {\n  tls_disable                              = 1\n  address                                  = \"127.0.0.1:8210\"\n  cluster_address                          = \"127.0.0.1:8211\"\n  disable_unauthed_generate_root_endpoints = false\n}\n\nstorage \"postgresql\" {\n  table      = \"openbao_kv_store\"\n  ha_enabled = \"true\"\n  ha_table   = \"openbao_ha_locks\"\n}\n\nservice_registration \"kubernetes\" {}\n"` |  |
+| openbao.server.ha.config | string | `"ui = true\n{{- if .Values.serverTelemetry.serviceMonitor.enabled }}\n\n# Prometheus metrics on /v1/sys/metrics?format=prometheus. Only with\n# openbao.serverTelemetry.serviceMonitor.enabled (see\n# values-enable-observability.yaml). They are served without a token,\n# but only on the metrics-only listener on 9101 below; the API listener\n# on 8200 keeps requiring a token for them.\ntelemetry {\n  prometheus_retention_time = \"30s\"\n  disable_hostname          = true\n}\n{{- end }}\n\nlistener \"tcp\" {\n  tls_disable     = 1\n  address         = \"[::]:8200\"\n  cluster_address = \"[::]:8201\"\n}\n{{- if .Values.serverTelemetry.serviceMonitor.enabled }}\n\n# Metrics-only listener for the ServiceMonitor (Service port \"metrics\").\n# metrics_only blocks every other API path on it.\nlistener \"tcp\" {\n  tls_disable = 1\n  address     = \"[::]:9101\"\n  telemetry {\n    metrics_only                   = true\n    unauthenticated_metrics_access = true\n  }\n}\n{{- end }}\n\n# Loopback-only listener for break-glass root-token generation from the\n# recovery/unseal key. OpenBao >= 2.5.3 disables the unauthenticated\n# generate-root endpoints by default, and they must stay off on the\n# listener the Service exposes. This one is reachable only from inside\n# the pod (kubectl exec); scripts/openbao-activate.sh uses it on the\n# active pod to mint tokens on an initialised vault.\nlistener \"tcp\" {\n  tls_disable                              = 1\n  address                                  = \"127.0.0.1:8210\"\n  cluster_address                          = \"127.0.0.1:8211\"\n  disable_unauthed_generate_root_endpoints = false\n}\n\nstorage \"postgresql\" {\n  table      = \"openbao_kv_store\"\n  ha_enabled = \"true\"\n  ha_table   = \"openbao_ha_locks\"\n}\n\nservice_registration \"kubernetes\" {}\n"` |  |
 | openbao.server.ha.enabled | bool | `true` |  |
 | openbao.server.ha.raft.enabled | bool | `false` |  |
 | openbao.server.ha.replicas | int | `3` |  |
@@ -855,6 +857,9 @@ PodiumD Helm chart
 | openbao.server.resources.limits.memory | string | `"512Mi"` |  |
 | openbao.server.resources.requests.cpu | string | `"100m"` |  |
 | openbao.server.resources.requests.memory | string | `"256Mi"` |  |
+| openbao.server.service.extraPorts[0].name | string | `"metrics"` |  |
+| openbao.server.service.extraPorts[0].port | int | `9101` |  |
+| openbao.server.service.extraPorts[0].targetPort | int | `9101` |  |
 | openbao.server.serviceAccount.annotations."azure.workload.identity/client-id" | string | `""` |  |
 | openbao.server.serviceAccount.create | bool | `true` |  |
 | openbao.server.serviceAccount.name | string | `"openbao"` |  |
@@ -863,6 +868,7 @@ PodiumD Helm chart
 | openbao.server.updateStrategyType | string | `"RollingUpdate"` |  |
 | openbao.server.volumeMounts | list | `[{"mountPath":"/openbao/seal","name":"openbao-seal-config","readOnly":true},{"mountPath":"/openbao/seal-key","name":"openbao-seal-key","readOnly":true}]` | Mount points of the openbao-seal volumes; `seal.hcl` in /openbao/seal, the key in /openbao/seal-key. |
 | openbao.server.volumes | list | `[{"name":"openbao-seal-config","secret":{"items":[{"key":"seal.hcl","path":"seal.hcl"}],"optional":true,"secretName":"openbao-seal"}},{"name":"openbao-seal-key","secret":{"defaultMode":288,"items":[{"key":"key","path":"key"},{"key":"previous-key","path":"previous-key"}],"optional":true,"secretName":"openbao-seal"}}]` | Mounts the optional openbao-seal Secret (see openbao.seal); keep both entries in any override. |
+| openbao.serverTelemetry.serviceMonitor.port | string | `"metrics"` |  |
 | openbao.snapshotAgent.image.repository | string | `"ghcr.io/openbao/openbao-snapshot-agent"` |  |
 | openbao.snapshotAgent.image.tag | string | `"0.4.5@sha256:ef2c80770e30bba3fcf4d7911cb829607efcea7e7c1a917210c9fa1ba55a8249"` |  |
 | openbeheer.configuration.data | string | `""` |  |

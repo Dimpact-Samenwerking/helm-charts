@@ -5232,7 +5232,21 @@ openbao:
       secretName: openbao-seal
 
   # --- openbao subchart values (upstream server.* keys) -------------------------
+  # Metrics-only listener (port 9101, opened only with
+  # serverTelemetry.serviceMonitor.enabled, see server.ha.config): the container
+  # port and the "metrics" port on the Services, which the ServiceMonitor scrapes.
+  serverTelemetry:
+    serviceMonitor:
+      port: metrics
   server:
+    extraPorts:
+      - containerPort: 9101
+        name: metrics
+    service:
+      extraPorts:
+        - name: metrics
+          port: 9101
+          targetPort: 9101
     # RollingUpdate (not the chart default OnDelete) so a helm upgrade recreates
     # the server pods to pick up config changes (e.g. seal/readiness). With OnDelete
     # a crashing/old pod is never replaced automatically, and a `helm --wait` deploy
@@ -5372,10 +5386,11 @@ openbao:
         ui = true
         {{- if .Values.serverTelemetry.serviceMonitor.enabled }}
 
-        # Prometheus metrics on /v1/sys/metrics?format=prometheus, readable
-        # without a token so the ServiceMonitor can scrape them. Only with
+        # Prometheus metrics on /v1/sys/metrics?format=prometheus. Only with
         # openbao.serverTelemetry.serviceMonitor.enabled (see
-        # values-enable-observability.yaml). The metrics carry no secrets.
+        # values-enable-observability.yaml). They are served without a token,
+        # but only on the metrics-only listener on 9101 below; the API listener
+        # on 8200 keeps requiring a token for them.
         telemetry {
           prometheus_retention_time = "30s"
           disable_hostname          = true
@@ -5386,12 +5401,20 @@ openbao:
           tls_disable     = 1
           address         = "[::]:8200"
           cluster_address = "[::]:8201"
-          {{- if .Values.serverTelemetry.serviceMonitor.enabled }}
+        }
+        {{- if .Values.serverTelemetry.serviceMonitor.enabled }}
+
+        # Metrics-only listener for the ServiceMonitor (Service port "metrics").
+        # metrics_only blocks every other API path on it.
+        listener "tcp" {
+          tls_disable = 1
+          address     = "[::]:9101"
           telemetry {
+            metrics_only                   = true
             unauthenticated_metrics_access = true
           }
-          {{- end }}
         }
+        {{- end }}
 
         # Loopback-only listener for break-glass root-token generation from the
         # recovery/unseal key. OpenBao >= 2.5.3 disables the unauthenticated
