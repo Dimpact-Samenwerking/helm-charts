@@ -100,6 +100,12 @@ environment that doesn't set it, so that waits for a later release.
 - **Microsoft Entra ID (optional)** — identity brokering via
   `keycloak.config.identityProviders` / `adminIdentityProviders` (commented
   examples in values.yaml); per-gemeente values supply clientId/clientSecret.
+  Since Keycloak 26.8 (CVE-2026-12388), a mapper that grants an admin role
+  (such as an `oidc-hardcoded-role-idp-mapper` with role `admin` in
+  `adminIdentityProviderMappers`) or adds users to a group with admin roles
+  needs `allowAdminRoleMapping: "true"` in its identity provider's `config`.
+  Without it Keycloak refuses the mapper with 403, and the render fails for an
+  admin-role mapper of that type.
 - **No Redis, no ClamAV, no Elasticsearch.** Clustering uses Infinispan
   (`cache: ispn`) between the two instances.
 - Everything else depends on **it**: the podiumd realm import provisions OIDC
