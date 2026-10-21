@@ -175,7 +175,7 @@ This updates just a container image version in a release.
 
 - `fix-doc-consistency`: rebase the upgrade docs onto the `upgrade_docs` baseline and repair their content (run by `change-podiumd-baseline`)
 - `fix-helm-doc`: re-generate `charts/podiumd/README.md` using `helm-docs`
-- `fix-image-digests`: refresh stale image digests, for one image or all
+- `fix-image-digests`: refresh stale image digests, for one image or all; on an unscoped run also stale `# host/repo:tag` reference comments
 - `fix-markdown`: apply pymarkdown's safe fixes
 - `fix-node-selector`: add the required `nodeSelector` to own templates
 - `fix-oidc-url-coverage`: add missing `$oidcClients` entries for Keycloak redirect URI values
@@ -209,7 +209,7 @@ Tools:
 - `export-confluence-release-table`: fetch release data from Confluence and store it in `charts/podiumd/etc/release-table.csv`
 - `fix-doc-consistency`: rebase the upgrade docs onto the `upgrade_docs` baseline, repair their content and create missing ones
 - `fix-helm-doc`: re-generate `charts/podiumd/README.md` using `helm-docs`
-- `fix-image-digests`: refresh stale image digests, for one image or all
+- `fix-image-digests`: refresh stale image digests, for one image or all; on an unscoped run also stale `# host/repo:tag` reference comments
 - `fix-markdown`: apply pymarkdown's safe fixes
 - `fix-node-selector`: add the required `nodeSelector` to own templates
 - `fix-oidc-url-coverage`: add missing `$oidcClients` entries for Keycloak redirect URI values

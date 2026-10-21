@@ -9,6 +9,7 @@ from datetime import datetime
 from datetime import timezone
 from pathlib import Path
 from typing import Literal
+from typing import NamedTuple
 from typing import TypedDict
 from typing import TypeVar
 
@@ -59,8 +60,11 @@ COMMENTED_REPO_RE = re.compile(r'^\s*#\s*repository:\s*"?(?P<repo>[\w][\w.\-]*(?
 # the "image:" block for the same override components. Tolerates a stray
 # "@" right after the colon, seen on one existing comment in values.yaml.
 REF_COMMENT_RE = re.compile(
-    r"^\s*#\s*(?P<repo>[a-zA-Z0-9][\w.\-]*(?:/[\w.\-]+)*):@?[\w][\w.\-]*(?:@sha256:[0-9a-f]{64})?\s*$"
+    r"^(?P<indent>\s*)#\s*(?P<repo>[a-zA-Z0-9][\w.\-]*(?:/[\w.\-]+)*):@?(?P<version>[\w][\w.\-]*)"
+    r"(?:@sha256:(?P<digest>[0-9a-f]{64}))?\s*$"
 )
+# How far above its pin resolve_pin_repo looks for a reference comment or "#repository:".
+_COMMENT_LOOKBACK = 6
 
 
 class DigestPin(TypedDict):
@@ -173,16 +177,96 @@ def resolve_pin_repo(lines: list[str], tag_line_index: int, tag_indent: int) -> 
     if repo is not None:
         registry = find_sibling_registry(lines, tag_line_index, tag_indent)
         return f"{registry}/{repo}" if registry else repo
-    for i in range(tag_line_index - 1, max(tag_line_index - 6, -1), -1):
-        m = REF_COMMENT_RE.match(lines[i])
-        if m:
-            return m.group("repo")
-    for i in range(tag_line_index - 1, max(tag_line_index - 6, -1), -1):
+    found = _reference_comment_above(lines, tag_line_index)
+    if found is not None:
+        return found[1].group("repo")
+    for i in range(tag_line_index - 1, max(tag_line_index - _COMMENT_LOOKBACK, -1), -1):
         raw = lines[i]
         m = COMMENTED_REPO_RE.match(raw)
         if m and len(raw) - len(raw.lstrip(" ")) == tag_indent:
             return m.group("repo")
     return None
+
+
+def _reference_comment_above(lines: list[str], tag_line_index: int) -> tuple[int, re.Match[str]] | None:
+    """(index, match) of the nearest reference comment above the pin, within the lookback, or None."""
+    for i in range(tag_line_index - 1, max(tag_line_index - _COMMENT_LOOKBACK, -1), -1):
+        m = REF_COMMENT_RE.match(lines[i])
+        if m:
+            return i, m
+    return None
+
+
+def _reference_comment(lines: list[str], tag_line_index: int, tag_indent: int) -> tuple[int, re.Match[str]] | None:
+    """(index, match) of the "# host/repo:tag[@sha256:...]" comment resolve_pin_repo reads for this pin, or None.
+
+    None when the pin has an active sibling "repository:" (the comment, if any, is then
+    only decoration) or no reference comment within the lines resolve_pin_repo looks at.
+    """
+    if _sibling_field(lines, tag_line_index, tag_indent, ACTIVE_REPO_RE) is not None:
+        return None
+    return _reference_comment_above(lines, tag_line_index)
+
+
+def reference_comment_text(comment_line: str, version: str, digest: str | None) -> str:
+    """comment_line with its tag and digest replaced by version and digest ("sha256:<hex>" or None)."""
+    m = REF_COMMENT_RE.match(comment_line.rstrip("\r\n"))
+    if m is None:
+        return comment_line
+    ending = comment_line[len(comment_line.rstrip("\r\n")) :]
+    pin = f"{version}@{digest}" if digest else version
+    return f"{m.group('indent')}# {m.group('repo')}:{pin}{ending}"
+
+
+class StaleReferenceComment(NamedTuple):
+    """A reference comment that disagrees with the pin below it; lines are 1-based."""
+
+    line: int
+    pin_line: int
+    written: str
+    expected: str
+
+
+def find_stale_reference_comments(lines: list[str]) -> list[StaleReferenceComment]:
+    """Reference comments whose tag or digest differs from the pin below them.
+
+    `expected` is the comment as it should read. A comment without a digest is only
+    compared on its tag, and stays without one.
+    """
+    stale: list[StaleReferenceComment] = []
+    for i, raw in enumerate(lines):
+        pin = VERSION_PIN_RE.match(raw)
+        if pin is None or pin.group("digest") is None:
+            continue
+        found = _reference_comment(lines, i, len(pin.group("indent")))
+        if found is None:
+            continue
+        idx, ref = found
+        if ref.group("version") == pin.group("version") and ref.group("digest") in (None, pin.group("digest")):
+            continue
+        digest = f"sha256:{pin.group('digest')}" if ref.group("digest") else None
+        expected = reference_comment_text(lines[idx], pin.group("version"), digest).rstrip("\r\n")
+        stale.append(StaleReferenceComment(idx + 1, i + 1, lines[idx].rstrip("\r\n"), expected))
+    return stale
+
+
+def sync_reference_comments(text: str, pin_lines: set[int] | None = None) -> tuple[str, list[StaleReferenceComment]]:
+    """`text` with every stale reference comment rewritten to its pin, and the comments it rewrote.
+
+    `pin_lines` (1-based) limits it to the comments of those pins. The writers
+    (update-image-version, fix-image-digests) use this, the Digest pinning check
+    uses find_stale_reference_comments: the same detection.
+    """
+    lines = text.splitlines(keepends=True)
+    stale = [
+        s
+        for s in find_stale_reference_comments([line.rstrip("\r\n") for line in lines])
+        if pin_lines is None or s.pin_line in pin_lines
+    ]
+    for s in stale:
+        raw = lines[s.line - 1]
+        lines[s.line - 1] = s.expected + raw[len(raw.rstrip("\r\n")) :]
+    return "".join(lines), stale
 
 
 def scan_digest_pins(lines: list[str]) -> list[DigestPin]:
