@@ -1911,18 +1911,11 @@ openformulieren:
     #   zgw_consumers_config_enable: true
     #   zgw_consumers:
     #     services:
-    #     # Since the objecten/objecttypen merge: both identifiers below now point
-    #     # at the same merged host (docs/apps/objecten/openobject-migration.md, F) — Open Formulieren's
-    #     # own config schema still expects two distinct service identifiers, even
-    #     # though there's only one app behind them now.
-    #     - identifier: objecttypen-api
-    #       label: Objecttypen API
-    #       api_root: https://objecten.example.nl/api/v2/
-    #       api_type: orc
-    #       auth_type: api_key
-    #       header_key: Authorization
-    #       header_value: Token {value_from: {env: openformulieren_objecten_token}}
-
+    #     # Since the objecten/objecttypen merge one service serves both the
+    #     # Objects and the Objecttypen API (docs/apps/objecten/openobject-migration.md, F).
+    #     # zgw_consumers allows an api_root only once, so there is no separate
+    #     # objecttypen service: objects_api.groups[].objecttypes_service_identifier
+    #     # below points at objecten-api too.
     #     - identifier: objecten-api
     #       label: Objecten API test
     #       api_root: https://objecten.example.nl/api/v2/
@@ -1982,7 +1975,7 @@ openformulieren:
     #     - name: Objects APIs
     #       identifier: objects-api
     #       objects_service_identifier: objecten-api
-    #       objecttypes_service_identifier: objecttypen-api
+    #       objecttypes_service_identifier: objecten-api
     #       documenten_service_identifier: documenten-api
     #       catalogi_service_identifier: catalogus-api
     #       organisatie_rsin: "001876387"
