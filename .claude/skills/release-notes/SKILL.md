@@ -111,7 +111,20 @@ Audience: stakeholders and municipalities. Language: **Dutch**, plain and short.
      the approvals next to it, never the count alone.
    - Name a merged PR without a review when it is large or risky, and say what
      testing covered it. Small docs fixes only get a count.
-7. **The Jira build story** for a release that is not out yet:
+7. **QA deploys** for "Wat wij hebben gecontroleerd": run
+   `python3 -I .claude/skills/release-notes/qa_deploys.py <version> <out.json>`
+   (kubectl access to the QA environment; default context
+   `podiumd-johnb00-aks`, `--since`/`--until` to limit the period).
+   - It counts the podiumd Helm deploys recorded in the env-coordination
+     ledger: entries, first and last revision, the revisions reported as
+     failed, and the PRs into `feature/podiumd-<version>` that were on QA.
+   - Helm keeps only the last 10 revisions, so the ledger is the record. It
+     starts on 12 October 2026: say so for a release whose QA work started
+     earlier.
+   - Write it as one line ("Deploys op QA: …"), with the period. A failed
+     revision is not a failed test: the deploy script retries it, so say
+     "mislukt en opnieuw uitgevoerd".
+8. **The Jira build story** for a release that is not out yet:
    `PodiumD <version> bouwen` (for 4.10.0: IN-2971). Read its subtasks with the
    Jira tools (`parent = <key>`), once for the open ones
    (`statusCategory != Done`) and once for the done ones. Group the open
@@ -160,7 +173,7 @@ Rules:
 - **Configuration changes** that are not version bumps go in their own table.
 - **Links:** to the PRs and Jira issues as given in the PRs, and at the end
   to the SSC docs and the images manifest.
-- **Not released yet:** add `Nog open voor <version>` (source 7, one table per
+- **Not released yet:** add `Nog open voor <version>` (source 8, one table per
   status) and keep "Review en kwaliteit" (source 6). After the release, drop
   "Nog open" and keep the review section with the final numbers.
 
