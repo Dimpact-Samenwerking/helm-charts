@@ -2939,7 +2939,7 @@ eck-operator:
   # adoption: deploy with `--take-ownership` (helm >= 3.17) or annotate the CRDs
   # once — see docs/apps/elastic/migrating-to-eck-stack.md section 4b. Installers without
   # cluster-scope RBAC: set false and apply the CRDs manually (same doc).
-  # override: values-enable-observability.yaml sets config.metricsPort and enables podMonitor
+  # override: values-enable-observability.yaml sets config.metrics.port and enables podMonitor
   installCRDs: true
   image:
     tag: "3.5.0"
@@ -5232,6 +5232,23 @@ openbao:
       secretName: openbao-seal
 
   # --- openbao subchart values (upstream server.* keys) -------------------------
+  # Metrics-only listener on 9101 (see server.ha.config). It is opened, and the
+  # subchart's ServiceMonitor plus templates/openbao-podmonitor.yaml are rendered,
+  # when serverTelemetry.serviceMonitor.enabled or
+  # global.serverTelemetry.prometheusOperator is true. That same switch needs the
+  # "metrics" port on the container and the Services: set server.extraPorts and
+  # server.service.extraPorts as in values-enable-observability.yaml (the render
+  # fails without them). They are not set here, so the pod spec of an environment
+  # without OpenBao metrics does not change. The ServiceMonitor scrapes the active
+  # node, the PodMonitor the standbys.
+  # Turning the flag on changes the server config, so all OpenBao pods restart
+  # (RollingUpdate). With the default Shamir seal (openbao.seal.static.key empty)
+  # every pod comes back sealed while readiness still reports it ready
+  # (sealedcode=200): run `bao operator unseal` on each pod right after the
+  # deploy. With the static seal the pods unseal themselves.
+  serverTelemetry:
+    serviceMonitor:
+      port: metrics
   server:
     # RollingUpdate (not the chart default OnDelete) so a helm upgrade recreates
     # the server pods to pick up config changes (e.g. seal/readiness). With OnDelete
@@ -5370,12 +5387,38 @@ openbao:
       # #29717), and workload identity is not wanted for this anyway.
       config: |
         ui = true
+        {{- if or (.Values.global.serverTelemetry).prometheusOperator .Values.serverTelemetry.serviceMonitor.enabled }}
+
+        # Prometheus metrics on /v1/sys/metrics?format=prometheus. Only when the
+        # subchart renders its ServiceMonitor: openbao.serverTelemetry.serviceMonitor.enabled
+        # (see values-enable-observability.yaml) or
+        # openbao.global.serverTelemetry.prometheusOperator. They are served without a token,
+        # but only on the metrics-only listener on 9101 below; the API listener
+        # on 8200 keeps requiring a token for them.
+        telemetry {
+          prometheus_retention_time = "30s"
+          disable_hostname          = true
+        }
+        {{- end }}
 
         listener "tcp" {
           tls_disable     = 1
           address         = "[::]:8200"
           cluster_address = "[::]:8201"
         }
+        {{- if or (.Values.global.serverTelemetry).prometheusOperator .Values.serverTelemetry.serviceMonitor.enabled }}
+
+        # Metrics-only listener for the ServiceMonitor (Service port "metrics").
+        # metrics_only blocks every other API path on it.
+        listener "tcp" {
+          tls_disable = 1
+          address     = "[::]:9101"
+          telemetry {
+            metrics_only                   = true
+            unauthenticated_metrics_access = true
+          }
+        }
+        {{- end }}
 
         # Loopback-only listener for break-glass root-token generation from the
         # recovery/unseal key. OpenBao >= 2.5.3 disables the unauthenticated

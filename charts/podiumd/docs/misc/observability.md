@@ -14,18 +14,22 @@ This document describes how metrics and tracing are configured across the podium
 | opennotificaties | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
 | objecten | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
 | openinwoner | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
-| zac | `opentelemetry-collector.enabled` (trigger) + `opentelemetry_zaakafhandelcomponent.endpoint` + `javaOptions` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
+| openarchiefbeheer | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
+| referentielijsten | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
+| openvtb | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
+| zac | `javaOptions`: `-Dotel.sdk.disabled=false`, `-Dotel.exporter.otlp.endpoint`, `-Dotel.metrics.exporter=otlp`, `-Dotel.service.name` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
 | keycloak | `additionalOptions: metrics-enabled` | ✅ ServiceMonitor port 9000 `/metrics` (auto by keycloak-operator) | built-in |
 | redis-operator | — | ✅ pod annotations port 8080 `/metrics` | `values-enable-observability.yaml` |
 | redis-ha | redis_exporter sidecar | ✅ PodMonitor port 9121 | `values-enable-observability.yaml` |
 | solr-operator | — | ✅ pod annotations port 8080 `/metrics` | `values-enable-observability.yaml` |
-| zookeeper-operator | — | ✅ pod annotations port 6000 `/metrics` | `values-enable-observability.yaml` |
+| zookeeper-operator | — | ❌ metrics bound to `127.0.0.1:6000` (not scrapeable from outside the pod; the chart cannot set `--metrics-bind-address`) | — |
 | clamav | clamav_exporter sidecar | ✅ port 9906 + ServiceMonitor | `values-enable-observability.yaml` |
-| eck-operator | `config.metricsPort` + `podMonitor.enabled` | ✅ PodMonitor port 8080 `/metrics` | `values-enable-observability.yaml` |
+| eck-operator | `config.metrics.port` + `podMonitor.enabled` | ✅ PodMonitor port 8080 `/metrics` | `values-enable-observability.yaml` |
+| frankgateway (APISIX) | `frankgateway.metrics.enabled` + `metrics.serviceMonitor.enabled` | ✅ ServiceMonitor, prometheus plugin as global rule | `values-enable-observability.yaml` |
+| openbao | `openbao.serverTelemetry.serviceMonitor.enabled` | ✅ metrics-only listener port 9101 `/v1/sys/metrics`: ServiceMonitor (active) + PodMonitor `openbao-standby` | `values-enable-observability.yaml` |
 | traefik | — | ✅ PodMonitor port 9100 `/metrics` (monitoring chart) | `monitoring-logging` chart |
 | otel-collector | — | ✅ ServiceMonitor port 8888 `/metrics` (monitoring chart) | `monitoring-logging` chart |
 | api-proxy | — | ❌ plain nginx, no metrics endpoint | requires template changes |
-| openarchiefbeheer | — | ❌ no OTEL support in chart | — |
 | solr (SolrCloud) | — | ❌ not yet configured | see todo below |
 | zookeeper (cluster) | — | ❌ not yet configured | see todo below |
 | elasticsearch (ECK) | — | ❌ no native endpoint | see todo below |
@@ -82,7 +86,7 @@ clamav:
 
 > **Note:** `clamav.metrics.image.repository` embeds the registry (no separate `registry` field). Prefix with `<acr>/` and omit the original `docker.io/` prefix.
 
-No new images are introduced by enabling OTEL for the Maykin apps, ZAC, keycloak-operator, solr-operator, zookeeper-operator, or eck-operator — they all reuse images already pulled by the base install. The ZAC bundled `opentelemetry-collector` subchart is enabled only to trigger env var emission (`replicaCount: 0`); no collector pod is scheduled, so no image is pulled.
+No new images are introduced by enabling OTEL for the Maykin apps, ZAC, keycloak-operator, solr-operator, zookeeper-operator, or eck-operator — they all reuse images already pulled by the base install. ZAC's bundled `opentelemetry-collector` subchart stays off: ZAC (WildFly, MicroProfile Telemetry) gets its OTel settings as system properties in `javaOptions`. Enabling that subchart would deploy a collector pod, because its chart ignores `replicaCount: 0`.
 
 The shared receiving collector (`monitoring-opentelemetry-collector.monitoring.svc.cluster.local:4317`) lives in the `monitoring-logging` chart. Its ACR overrides are documented in `charts/monitoring-logging/docs/upgrade-from-<prev>-to-<version>.md`.
 
@@ -220,29 +224,23 @@ All Maykin subcharts share the same `settings.otel` schema:
 
 ## OTEL Configuration — ZAC
 
-ZAC is a Quarkus app. Its chart only emits the OTEL env vars (`OTEL_SDK_DISABLED`, `OTEL_EXPORTER_OTLP_ENDPOINT`, etc.) when the bundled `opentelemetry-collector` subchart flag is enabled. We enable the flag to trigger the envs but set `replicaCount: 0` so no collector pod is deployed — traces/metrics flow to the shared collector in the `monitoring` namespace.
+ZAC runs on WildFly with MicroProfile Telemetry, which reads the OpenTelemetry settings as system properties. `values-enable-observability.yaml` sets them in `javaOptions` and sends traces and metrics to the shared collector in the `monitoring` namespace:
 
 ```yaml
 zac:
-  # Trigger the chart to emit OTEL_* envs; no sidecar pod deployed.
-  opentelemetry-collector:
-    enabled: true
-    replicaCount: 0
-
-  # Target endpoint read by the chart's OTEL_EXPORTER_OTLP_ENDPOINT env.
-  opentelemetry_zaakafhandelcomponent:
-    endpoint: "http://monitoring-opentelemetry-collector.monitoring.svc.cluster.local:4317"
-
-  # Only -Dotel.service.name needs to be set here. Other OTEL_* vars are
-  # exported by the chart via env when opentelemetry-collector.enabled: true.
-  # Do NOT duplicate -Dotel.exporter.otlp.* here — env takes precedence and
-  # duplicates risk drifting out of sync.
+  # javaOptions replaces the zac chart's default, so repeat -XX:MaxRAMPercentage=75.0 and -Xlog
+  # (without the percentage the JVM takes 25% of the memory limit); no -Xmx/-Xms.
   javaOptions: >-
-    -Xmx1024m -Xms1024m -Xlog:gc::time,uptime
+    -XX:MaxRAMPercentage=75.0 -Xlog:gc::time,uptime
+    -Dotel.sdk.disabled=false
+    -Dotel.exporter.otlp.endpoint=http://monitoring-opentelemetry-collector.monitoring.svc.cluster.local:4317
+    -Dotel.metrics.exporter=otlp
     -Dotel.service.name=zac
 ```
 
-> **Why not just set `-Dotel.exporter.otlp.endpoint` in `javaOptions`?** That was the previous approach. The ZAC chart gates OTEL env emission on `opentelemetry-collector.enabled`; without the flag, the Quarkus runtime never picks up the otel SDK, so `-D` flags alone were insufficient. See `values-enable-observability.yaml` and commit `08382f8` for the migration.
+- Keep the ZAC chart's bundled `opentelemetry-collector` subchart off. Its chart ignores `replicaCount: 0` and deploys a collector pod anyway.
+- Without `-Dotel.metrics.exporter=otlp`, ZAC exports traces only.
+- What arrives in Prometheus (checked on QA): `job="zac"` (the service name becomes the `job` label, there is no `service_name` label), JVM metrics (`jvm_memory_*`, `jvm_gc_duration_seconds_*`, `jvm_thread_count`, `jvm_class_loaded_total`) and `http_client_request_duration_seconds_*` for ZAC's outgoing calls. ZAC exports no HTTP server metrics (`http_server_*`) with these settings.
 
 ---
 
@@ -268,12 +266,36 @@ The ECK operator is a root-level dependency. Configured via `values-enable-obser
 ```yaml
 eck-operator:
   config:
-    metricsPort: "8080"
+    metrics:
+      port: "8080"
   podMonitor:
     enabled: true
     interval: 1m
     scrapeTimeout: 30s
 ```
+
+---
+
+eck-operator 3.x reads `config.metrics.port` and always ignores the deprecated `config.metricsPort`,
+because `metrics.port` always has a value (its default is the string `"0"`): with only `metricsPort` the operator
+exposes no metrics and no PodMonitor is rendered.
+
+---
+
+## Prometheus Scraping — OpenBao
+
+`openbao.serverTelemetry.serviceMonitor.enabled: true` (or `openbao.global.serverTelemetry.prometheusOperator`), together with the `metrics` port in `openbao.server.extraPorts` and `openbao.server.service.extraPorts` (both in `values-enable-observability.yaml`; the render fails when the port is missing), adds a
+`telemetry` stanza and a metrics-only listener on port 9101 (`metrics_only`,
+`unauthenticated_metrics_access`) to `openbao.server.ha.config`. The listener serves only
+`/v1/sys/metrics`; the API listener on 8200 keeps requiring a token for metrics, so a public OpenBao
+route does not expose them. The subchart's ServiceMonitor scrapes the active node; the PodMonitor
+`openbao-standby` (`templates/openbao-podmonitor.yaml`) scrapes the standbys, so a standby that sealed
+itself is visible too. With `networkPolicies.enabled`, the monitoring namespace may reach 9101 only.
+
+> Turning the flag on changes the server config, so all OpenBao pods restart. With the Shamir seal
+> (`openbao.seal.static.key` empty) every pod comes back **sealed** while its readiness probe still
+> reports ready (`sealedcode=200`): run `bao operator unseal` on each pod right after the deploy.
+> With the static seal the pods unseal themselves.
 
 ---
 
