@@ -8,9 +8,11 @@ import re
 
 from dataclasses import dataclass
 
+from lib.chart.values_tree_primitives import text_at
 from lib.component_docs.changes_section import ALIAS_NOTE
 from lib.upgradedoc.sorting_and_ordering import changes_blocks_with_lines
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
+from lib.yaml_types import YamlValue
 
 # "- `<path>` ..." (image block, under "pinned at:") or "- Image tag pin `<path>` ..." /
 # "- Version pin `<path>` ..." (component block).
@@ -80,6 +82,21 @@ def _headings_by_line(text: str) -> dict[int, str]:
 def _missing_pin_bullets(text: str, found: list[tuple[_Bullet, list[str]]]) -> list[MissingPinBullet]:
     headings = _headings_by_line(text)
     return [MissingPinBullet(headings[b.start], b.path, p) for b, missing in found for p in missing]
+
+
+def same_baseline_alias_groups(
+    groups: dict[str, tuple[str, ...]], baseline_values: YamlValue
+) -> dict[str, tuple[str, ...]]:
+    """`groups` without the aliases whose baseline value differs from the path's own.
+
+    A copied bullet repeats the documented path's "old → new", which is only true for an
+    alias that had the same old value. A path that joins an existing anchor (e.g. a pin
+    moved onto another component's anchor) keeps its own history and gets no copy.
+    """
+    return {
+        path: tuple(a for a in aliases if text_at(baseline_values, a) == text_at(baseline_values, path))
+        for path, aliases in groups.items()
+    }
 
 
 def add_missing_pin_bullets(text: str, alias_groups: dict[str, tuple[str, ...]]) -> tuple[str, list[MissingPinBullet]]:

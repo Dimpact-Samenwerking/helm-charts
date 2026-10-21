@@ -1,27 +1,25 @@
 {{- if (index .Values "keycloak-operator").enabled -}}
 {{- if (index .Values "keycloak-operator").jobs.importPodiumdRealm.enabled -}}
-{{- /* PKCE consistency validation: if pkceEnabled=true on the Keycloak client and configuration.data
-     is non-empty, the application must also have oidc_use_pkce: true in configuration.data.
-     If configuration.data is empty, validation is skipped — it is the responsibility of the
-     configuration maintainer to ensure oidc_use_pkce: true is set when data is filled in.
+{{- /* PKCE on a Django app's Keycloak client breaks its login: the app cannot send
+     `code_challenge` yet. mozilla_django_oidc sends PKCE only while OIDC_USE_PKCE is true, and
+     mozilla-django-oidc-db has no field for it, so an `oidc_use_pkce` key in configuration.data is
+     not read (checked 2026-10-21, PodiumD 4.10.0). Fail the render instead of the first login.
      See docs/apps/keycloak/keycloak-security-updates.md § PKCE Enforcement. */ -}}
 {{- $djangoApps := list
-  (dict "name" "openzaak"         "pkce" .Values.openzaak.configuration.pkceEnabled         "data" .Values.openzaak.configuration.data)
-  (dict "name" "openarchiefbeheer" "pkce" .Values.openarchiefbeheer.configuration.pkceEnabled "data" .Values.openarchiefbeheer.configuration.data)
-  (dict "name" "opennotificaties"  "pkce" .Values.opennotificaties.configuration.pkceEnabled  "data" .Values.opennotificaties.configuration.data)
-  (dict "name" "objecten"          "pkce" .Values.objecten.configuration.pkceEnabled          "data" .Values.objecten.configuration.data)
-  (dict "name" "openklant"         "pkce" .Values.openklant.configuration.pkceEnabled         "data" .Values.openklant.configuration.data)
-  (dict "name" "openformulieren"   "pkce" .Values.openformulieren.configuration.pkceEnabled   "data" .Values.openformulieren.configuration.data)
-  (dict "name" "openinwoner"       "pkce" .Values.openinwoner.configuration.pkceEnabled       "data" .Values.openinwoner.configuration.data)
-  (dict "name" "referentielijsten" "pkce" .Values.referentielijsten.configuration.pkceEnabled "data" .Values.referentielijsten.configuration.data)
-  (dict "name" "openbeheer"        "pkce" .Values.openbeheer.configuration.pkceEnabled        "data" .Values.openbeheer.configuration.data)
-  (dict "name" "openvtb"           "pkce" .Values.openvtb.configuration.pkceEnabled           "data" .Values.openvtb.configuration.data)
+  (dict "name" "openzaak"          "pkce" .Values.openzaak.configuration.pkceEnabled)
+  (dict "name" "openarchiefbeheer" "pkce" .Values.openarchiefbeheer.configuration.pkceEnabled)
+  (dict "name" "opennotificaties"  "pkce" .Values.opennotificaties.configuration.pkceEnabled)
+  (dict "name" "objecten"          "pkce" .Values.objecten.configuration.pkceEnabled)
+  (dict "name" "openklant"         "pkce" .Values.openklant.configuration.pkceEnabled)
+  (dict "name" "openformulieren"   "pkce" .Values.openformulieren.configuration.pkceEnabled)
+  (dict "name" "openinwoner"       "pkce" .Values.openinwoner.configuration.pkceEnabled)
+  (dict "name" "referentielijsten" "pkce" .Values.referentielijsten.configuration.pkceEnabled)
+  (dict "name" "openbeheer"        "pkce" .Values.openbeheer.configuration.pkceEnabled)
+  (dict "name" "openvtb"           "pkce" .Values.openvtb.configuration.pkceEnabled)
 -}}
 {{- range $djangoApps }}
-{{- if .pkce }}
-{{- if and (ne .data "") (not (contains "oidc_use_pkce: true" .data)) }}
-{{- fail (printf "%s: pkceEnabled is true but oidc_use_pkce: true is missing from configuration.data. Both must be enabled together — see docs/apps/keycloak/keycloak-security-updates.md § PKCE Enforcement." .name) }}
-{{- end }}
+{{- if eq (toString .pkce) "true" }}
+{{- fail (printf "%s.configuration.pkceEnabled: true breaks the %s login: the Django apps cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE field, so oidc_use_pkce in configuration.data is not read). Keep it false; see docs/apps/keycloak/keycloak-security-updates.md § PKCE Enforcement." .name .name) }}
 {{- end }}
 {{- end -}}
 {{- /* oidcUrl validation: every component whose Keycloak client is rendered below must carry a
@@ -830,10 +828,10 @@ data:
         name: Zaakafhandelcomponent
         enabled: true
         clientAuthenticatorType: client-secret
-{{- if .Values.zac.auth.pkceEnabled }}
+        # Always rendered: an empty value clears S256 that an earlier import set,
+        # so zac.auth.enablePkce: false also turns PKCE off on the client.
         attributes:
-          pkce.code.challenge.method: S256
-{{- end }}
+          pkce.code.challenge.method: {{ ternary "S256" "" .Values.zac.auth.enablePkce | quote }}
         redirectUris:
           - "{{ .Values.zac.contextUrl | trimSuffix "/" }}/*"
         webOrigins:

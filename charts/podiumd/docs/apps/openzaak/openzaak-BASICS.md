@@ -94,9 +94,10 @@ default is only the namespace-agnostic in-cluster wildcard `.svc.cluster.local`)
 - **Keycloak** — OIDC client in the `podiumd` realm for Django admin login,
   configured through `configuration.data` (`oidc_db_config_*`) with the secret
   in `openzaak.configuration.secrets.keycloak_client_secret`;
-  `openzaak.configuration.oidcUrl` is the public Open Zaak URL. PKCE via
-  `openzaak.configuration.pkceEnabled` (requires `oidc_use_pkce: true` in the
-  config data and PKCE on the Keycloak client).
+  `openzaak.configuration.oidcUrl` is the public Open Zaak URL. Keep
+  `openzaak.configuration.pkceEnabled` false: Open Zaak cannot send PKCE yet, and
+  the render fails when it is true (see
+  [keycloak-security-updates.md](../keycloak/keycloak-security-updates.md#pkce-enforcement)).
 - **Open Notificaties** — Open Zaak publishes notifications
   (`configuration.notificaties.enabled: true`) using
   `openzaak_opennotificaties_secret`, and authorizes Open Notificaties against
@@ -159,7 +160,7 @@ the web deployment.
    (`filesystem` default, or `azure_blob_storage` + `azureBlobStorage` block).
 4. **Keycloak client.** Create the Open Zaak client in the `podiumd` realm and
    put its secret in `openzaak.configuration.secrets.keycloak_client_secret`
-   (enable PKCE on both sides if using `pkceEnabled: true`).
+   (no PKCE: keep `pkceEnabled: false`).
 5. **Wire up notifications.** Generate the
    `openzaak_opennotificaties_secret` and
    `opennotificaties_autorisatie_api_secret` pairs and configure the same

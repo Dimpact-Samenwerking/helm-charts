@@ -2,6 +2,7 @@
 
 from lib.component_docs.aliased_pin_bullets import MissingPinBullet
 from lib.component_docs.aliased_pin_bullets import add_missing_pin_bullets
+from lib.component_docs.aliased_pin_bullets import same_baseline_alias_groups
 
 K8S: tuple[str, ...] = ("redis-operator.cron.image.tag", "redis-operator.pre.image.tag")
 BAO: tuple[str, ...] = ("openbao.job.image.tag", "openbao.server.image.tag")
@@ -74,3 +75,18 @@ def test_a_hand_written_bullet_for_the_aliased_path_counts():
 def test_bullets_outside_changes_and_unaliased_paths_are_ignored():
     doc = "## Notes\n\n- `redis-operator.cron.image.tag` `1` → `2`\n\n## Changes\n\n### zac 1 → 2\n\n- `zac.image.tag` `1` → `2`\n"
     assert not add_missing_pin_bullets(doc, GROUPS)[1]
+
+
+def test_an_alias_with_another_baseline_value_gets_no_copied_bullet():
+    baseline = {"redis-operator": {"cron": {"image": {"tag": "1.37.0"}}, "pre": {"image": {"tag": "v1.25.4"}}}}
+    groups = same_baseline_alias_groups(GROUPS, baseline)
+    assert K8S[1] not in groups[K8S[0]]
+    assert K8S[0] not in groups[K8S[1]]
+    assert add_missing_pin_bullets(DOC, groups)[1] == [
+        MissingPinBullet("openbao 2.5.4 → 2.5.5 (chart 0.28.4, unchanged)", BAO[1], BAO[0]),
+    ]
+
+
+def test_an_alias_with_the_same_baseline_value_keeps_its_copied_bullet():
+    baseline = {"redis-operator": {"cron": {"image": {"tag": "1.37.0"}}, "pre": {"image": {"tag": "1.37.0"}}}}
+    assert K8S[1] in same_baseline_alias_groups(GROUPS, baseline)[K8S[0]]

@@ -655,7 +655,7 @@ PodiumD Helm chart
 | objecten.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | objecten.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
 | objecten.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://objecten.example.nl`. |
-| objecten.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
+| objecten.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement. |
 | objecten.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | objecten.create_required_objecttypen_job.activeDeadlineSeconds | int | `900` |  |
 | objecten.create_required_objecttypen_job.backoffLimit | int | `10` |  |
@@ -876,7 +876,7 @@ PodiumD Helm chart
 | openbeheer.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
 | openbeheer.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openbeheer.example.nl`. |
 | openbeheer.configuration.overwrite | bool | `false` |  |
-| openbeheer.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
+| openbeheer.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement. |
 | openbeheer.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | openbeheer.configuration.secrets.objecttypen_openbeheer_token | string | `""` |  |
 | openbeheer.configuration.secrets.openzaak_openbeheer_secret | string | `""` |  |
@@ -943,7 +943,7 @@ PodiumD Helm chart
 | openbeheer.tags.redis | bool | `false` |  |
 | openformulieren.beat.resources.requests.cpu | string | `"10m"` |  |
 | openformulieren.beat.resources.requests.memory | string | `"160Mi"` |  |
-| openformulieren.clamavConfigJob | object | `{"activeDeadlineSeconds":1200,"backoffLimit":15,"clamavHost":"clamav","clamavPort":3310,"clamavTimeout":30,"enabled":false,"resources":{"limits":{"cpu":"200m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"128Mi"}},"ttlSecondsAfterFinished":600}` | Seeds Open Forms' GlobalConfiguration singleton (enable_virus_scan, clamav_host/port/timeout) via `manage.py shell`. Open Forms has no declarative setup-configuration step for this — upstream only exposes it through the admin UI (docs/configuration/general/virus_scan.rst) — so this Job writes the same fields directly, verifying the ClamAV connection first the same way GlobalConfiguration.clean() does. Off by default: opt-in per gemeente. See templates/openformulieren-configure-clamav.yaml and docs/apps/openforms/openforms-BASICS.md. |
+| openformulieren.clamavConfigJob | object | `{"activeDeadlineSeconds":1200,"backoffLimit":15,"clamavHost":"clamav","clamavPort":3310,"clamavTimeout":30,"enabled":true,"resources":{"limits":{"cpu":"200m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"128Mi"}},"ttlSecondsAfterFinished":600}` | Seeds Open Forms' GlobalConfiguration singleton (enable_virus_scan, clamav_host/port/timeout) via `manage.py shell`. Open Forms has no declarative setup-configuration step for this — upstream only exposes it through the admin UI (docs/configuration/general/virus_scan.rst) — so this Job writes the same fields directly, verifying the ClamAV connection first the same way GlobalConfiguration.clean() does. On by default since 4.10.0. Rendered while ClamAV itself is deployed (clamav.enabled), or when clamavHost points at a clamd outside this chart (anything other than the default "clamav"). Set false to opt out. See templates/openformulieren-configure-clamav.yaml and docs/apps/openforms/openforms-BASICS.md. |
 | openformulieren.clamavConfigJob.backoffLimit | int | `15` | Retries generously: on first deploy this Job can race both the openformulieren DB migration (image entrypoint) and ClamAV's own cold-start (up to ~5 minutes to load its signature database, see docs/apps/clamav/clamav-BASICS.md) — it fails fast and lets Kubernetes' Job backoff retry until both are ready, rather than needing a wait container or Helm hook ordering. |
 | openformulieren.configuration.data | string | `""` |  |
 | openformulieren.configuration.enabled | bool | `true` |  |
@@ -951,7 +951,7 @@ PodiumD Helm chart
 | openformulieren.configuration.job.enabled | bool | `true` |  |
 | openformulieren.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | openformulieren.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openformulieren.example.nl`. |
-| openformulieren.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
+| openformulieren.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement. |
 | openformulieren.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | openformulieren.customerInteractionsConfigJob | object | `{"activeDeadlineSeconds":1200,"backoffLimit":15,"enabled":false,"groupIdentifier":"open-klant","groupName":"Open Klant","resources":{"limits":{"cpu":"200m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"128Mi"}},"serviceIdentifier":"openklant-api","ttlSecondsAfterFinished":600}` | Creates/updates the "Customer interactions API group" that the Communication preferences prefill plugin and the Profile (customerProfile) component use to reach Open Klant, via `manage.py shell`. Open Forms has no setup-configuration step for this model (CustomerInteractionsAPIGroupConfig) — upstream only exposes it through the admin UI (docs/configuration/prefill/communication_preferences.rst). The Klanten API service itself (`api_type: kc`) IS declarative: define it under configuration.data -> zgw_consumers.services with identifier `serviceIdentifier`. Off by default: opt-in per gemeente. See templates/openformulieren-configure-customer-interactions.yaml and docs/_UPGRADE_PATHS/4.9.1-to-4.9.2-gemeente-specific.md. |
 | openformulieren.customerInteractionsConfigJob.backoffLimit | int | `15` | Retries generously: this Job can race the openformulieren DB migration (image entrypoint) and the setup-configuration Job that creates the service — it fails fast and lets Kubernetes' Job backoff retry until both are done, rather than needing a wait container or Helm hook ordering. |
@@ -981,6 +981,7 @@ PodiumD Helm chart
 | openformulieren.resources.requests.cpu | string | `"250m"` |  |
 | openformulieren.resources.requests.memory | string | `"1Gi"` |  |
 | openformulieren.securityContext.allowPrivilegeEscalation | bool | `false` |  |
+| openformulieren.securityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | openformulieren.settings.allowedHosts | string | `".svc.cluster.local"` |  |
 | openformulieren.settings.cache.axes | string | `"redis-ha-master:6379/9"` |  |
 | openformulieren.settings.cache.default | string | `"redis-ha-master:6379/9"` |  |
@@ -1001,7 +1002,7 @@ PodiumD Helm chart
 | openinwoner.beat.resources.requests.memory | string | `"128Mi"` |  |
 | openinwoner.celeryMonitor.resources.requests.cpu | string | `"50m"` |  |
 | openinwoner.celeryMonitor.resources.requests.memory | string | `"64Mi"` |  |
-| openinwoner.clamavConfigJob | object | `{"activeDeadlineSeconds":1200,"backoffLimit":15,"clamavHost":"clamav","clamavPort":3310,"clamavTimeout":30,"enabled":false,"resources":{"limits":{"cpu":"200m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"128Mi"}},"ttlSecondsAfterFinished":600}` | Seeds Open Inwoner's SiteConfiguration singleton (enable_virus_scan, clamav_host/port/timeout) via `manage.py shell`. Unlike most SiteConfiguration fields, these four are NOT managed by the site_config_enable/site_config: setup-configuration step — upstream's SiteConfigurationStep omits them from both its required_settings and optional_settings, so setting them under configuration.data is silently ignored. This Job writes them directly and pings clamd itself first (SiteConfiguration.clean() only checks clamav_host is non-empty, it doesn't test connectivity). Off by default: opt-in per gemeente. See templates/openinwoner-configure-clamav.yaml and docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-gemeente-specific.md. |
+| openinwoner.clamavConfigJob | object | `{"activeDeadlineSeconds":1200,"backoffLimit":15,"clamavHost":"clamav","clamavPort":3310,"clamavTimeout":30,"enabled":true,"resources":{"limits":{"cpu":"200m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"128Mi"}},"ttlSecondsAfterFinished":600}` | Seeds Open Inwoner's SiteConfiguration singleton (enable_virus_scan, clamav_host/port/timeout) via `manage.py shell`. Unlike most SiteConfiguration fields, these four are NOT managed by the site_config_enable/site_config: setup-configuration step — upstream's SiteConfigurationStep omits them from both its required_settings and optional_settings, so setting them under configuration.data is silently ignored. This Job writes them directly and pings clamd itself first (SiteConfiguration.clean() only checks clamav_host is non-empty, it doesn't test connectivity). On by default since 4.10.0. Rendered while ClamAV itself is deployed (clamav.enabled), or when clamavHost points at a clamd outside this chart (anything other than the default "clamav"). Set false to opt out. See templates/openinwoner-configure-clamav.yaml and docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-gemeente-specific.md. |
 | openinwoner.clamavConfigJob.backoffLimit | int | `15` | Retries generously: on first deploy this Job can race both the openinwoner DB migration (image entrypoint) and ClamAV's own cold-start (up to ~5 minutes to load its signature database, see docs/apps/clamav/clamav-BASICS.md) — it fails fast and lets Kubernetes' Job backoff retry until both are ready, rather than needing a wait container or Helm hook ordering. |
 | openinwoner.configuration.data | string | `""` |  |
 | openinwoner.configuration.enabled | bool | `true` |  |
@@ -1011,7 +1012,7 @@ PodiumD Helm chart
 | openinwoner.configuration.job.resources | object | `{}` |  |
 | openinwoner.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | openinwoner.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openinwoner.example.nl`. |
-| openinwoner.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
+| openinwoner.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement. |
 | openinwoner.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | openinwoner.eck-elasticsearch.enabled | bool | `true` |  |
 | openinwoner.eck-elasticsearch.http | object | `{"tls":{"selfSignedCertificate":{"disabled":true}}}` | image: overrides the Elasticsearch image. ECK does NOT append :version when spec.image is set — include the full tag. For ACR: image: acrprodmgmt.azurecr.io/elasticsearch/elasticsearch:9.2.0 |
@@ -1053,6 +1054,7 @@ PodiumD Helm chart
 | openinwoner.resources.requests.cpu | string | `"200m"` |  |
 | openinwoner.resources.requests.memory | string | `"1Gi"` |  |
 | openinwoner.securityContext.allowPrivilegeEscalation | bool | `false` |  |
+| openinwoner.securityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | openinwoner.settings.allowedHosts | string | `".svc.cluster.local"` |  |
 | openinwoner.settings.brpVersion | string | `""` |  |
 | openinwoner.settings.cache.axes | string | `"redis-ha-master:6379/11"` |  |
@@ -1086,7 +1088,7 @@ PodiumD Helm chart
 | openklant.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | openklant.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
 | openklant.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openklant.example.nl`. |
-| openklant.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
+| openklant.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement. |
 | openklant.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | openklant.fullnameOverride | string | `"openklant"` |  |
 | openklant.image.repository | string | `"maykinmedia/open-klant"` |  |
@@ -1139,7 +1141,7 @@ PodiumD Helm chart
 | opennotificaties.configuration.job.resources | object | `{}` |  |
 | opennotificaties.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | opennotificaties.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://opennotificaties.example.nl`. |
-| opennotificaties.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
+| opennotificaties.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement. |
 | opennotificaties.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | opennotificaties.extraEnvVars | list | `[{"name":"OPENNOTIFICATIES_PORT","value":"8000"}]` | Override OPENNOTIFICATIES_PORT to prevent Kubernetes service-discovery injection (tcp://<ip>:80) from being passed to uwsgi as the port number. Since Open Notificaties 1.16.2 the app reads OPENNOTIFICATIES_PORT for uwsgi_port; K8s auto-injects OPENNOTIFICATIES_PORT=tcp://<svc-ip>:80 for the opennotificaties Service, so uwsgi binds on the Service ClusterIP instead of the pod and both probes get "connection refused". Same defect as OPENZAAK_PORT above (Open Zaak 1.27.3). Only bites when the release's Service is named "opennotificaties", i.e. the chart default: environments that set fullnameOverride (the QA rigs use "notificaties") never see it. NOTE: a gemeente that sets its own opennotificaties.extraEnvVars REPLACES this list and silently loses the fix — keep this entry when overriding. The opennotificaties subchart sets enableServiceLinks: false since 2.1.0, so Kubernetes no longer injects the variable; this entry stays as a safeguard for an environment that turns service links back on. |
 | opennotificaties.flower.enabled | bool | `false` |  |
@@ -1191,7 +1193,7 @@ PodiumD Helm chart
 | openvtb.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
 | openvtb.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openvtb.example.nl`. |
 | openvtb.configuration.overwrite | bool | `false` |  |
-| openvtb.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
+| openvtb.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement. |
 | openvtb.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | openvtb.enabled | bool | `false` |  |
 | openvtb.extraEnvVars[0].name | string | `"OPENVTB_PORT"` |  |
@@ -1259,7 +1261,7 @@ PodiumD Helm chart
 | openzaak.configuration.notificaties.enabled | bool | `true` |  |
 | openzaak.configuration.notificatiesAuthorization.enabled | bool | `true` |  |
 | openzaak.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openzaak.example.nl`. |
-| openzaak.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
+| openzaak.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement. |
 | openzaak.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | openzaak.create_required_catalogi_job.activeDeadlineSeconds | int | `900` |  |
 | openzaak.create_required_catalogi_job.backoffLimit | int | `10` |  |
@@ -1395,7 +1397,7 @@ PodiumD Helm chart
 | referentielijsten.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | referentielijsten.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
 | referentielijsten.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://referentielijsten.example.nl`. |
-| referentielijsten.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
+| referentielijsten.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement. |
 | referentielijsten.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | referentielijsten.enabled | bool | `false` |  |
 | referentielijsten.fullnameOverride | string | `"referentielijsten"` |  |
@@ -1437,7 +1439,7 @@ PodiumD Helm chart
 | zaakbrug.frank | object | `{"zakenApi":{"jwt":{"password":"","username":"zaakbrug"}}}` | ------------------------------------------------------------------------- |
 | zaakbrug.oauthRoleMapping | object | `{"IbisAdmin":"administrators","IbisDataAdmin":"dataadmin","IbisTester":"zaakbrug_admin"}` | ------------------------------------------------------------------------- |
 | zac.auth.clientId | string | `"zac"` |  |
-| zac.auth.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. NOTE: ZAC does not currently support PKCE; this switch is reserved for when PKCE support is added to the ZAC OIDC client. |
+| zac.auth.enablePkce | bool | `true` | PKCE (S256) for ZAC's login. One switch for both sides: the ZAC sub-chart reads it as AUTH_ENABLE_PKCE (oidc.json `enable-pkce`, ZAC 5.4.5 and later), and keycloak-podiumd-realm-config sets `pkce.code.challenge.method: S256` on the zac client, so Keycloak requires it. Replaces zac.auth.pkceEnabled (Keycloak side only), which now fails the render. |
 | zac.auth.realm | string | `"podiumd"` |  |
 | zac.auth.secret | string | `"changeme"` |  |
 | zac.auth.server | string | `"https://keycloak.example.nl"` |  |
@@ -1550,7 +1552,7 @@ PodiumD Helm chart
 | zac.solr-operator.solr.resources.requests.cpu | string | `"500m"` |  |
 | zac.solr-operator.solr.resources.requests.memory | string | `"1Gi"` |  |
 | zac.solr-operator.watchNamespaces | string | `"podiumd"` | Namespaces to watch for solr-operator. MUST equal the namespace the chart is deployed into (Helm cannot template values.yaml with `.Release.Namespace`). Default assumes `podiumd`; override when deploying elsewhere (e.g. `--set zac.solr-operator.watchNamespaces=<namespace>` or ci/values-namespace-scope.example.yaml). Empty ("") watches ALL namespaces and needs cluster-scoped RBAC — avoided by design. See docs/misc/deploying-to-a-custom-namespace.md. |
-| zac.solr-operator.zookeeper-operator | object | `{"crd":{"create":false},"hooks":{"image":{"tag":"v1.25.4@sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc"}},"image":{"tag":"0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e"},"resources":{"limits":{"cpu":"200m","memory":"128Mi"},"requests":{"cpu":"50m","memory":"64Mi"}},"watchNamespace":"podiumd","zookeeper":{"image":{"tag":"0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8"},"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"256Mi"}},"storage":{"reclaimPolicy":"Retain"}}}` | install crds using https://github.com/pravega/zookeeper-operator/blob/master/charts/zookeeper-operator/templates/zookeeper.pravega.io_zookeeperclusters_crd.yaml |
+| zac.solr-operator.zookeeper-operator | object | `{"crd":{"create":false},"hooks":{"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"},"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"seccompProfile":{"type":"RuntimeDefault"}}},"image":{"tag":"0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e"},"resources":{"limits":{"cpu":"200m","memory":"128Mi"},"requests":{"cpu":"50m","memory":"64Mi"}},"watchNamespace":"podiumd","zookeeper":{"image":{"tag":"0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8"},"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"256Mi"}},"storage":{"reclaimPolicy":"Retain"}}}` | install crds using https://github.com/pravega/zookeeper-operator/blob/master/charts/zookeeper-operator/templates/zookeeper.pravega.io_zookeeperclusters_crd.yaml |
 | zac.solr-operator.zookeeper-operator.watchNamespace | string | `"podiumd"` | Namespaces to watch for zookeeper-operator. MUST equal the namespace the chart is deployed into (Helm cannot template values.yaml with `.Release.Namespace`). Default assumes `podiumd`; override when deploying elsewhere (e.g. `--set zac.solr-operator.zookeeper-operator.watchNamespace=<namespace>` or ci/values-namespace-scope.example.yaml). Empty ("") watches ALL namespaces and needs cluster-scoped RBAC — avoided by design. See docs/misc/deploying-to-a-custom-namespace.md. |
 | zac.solr-operator.zookeeper-operator.zookeeper.storage.reclaimPolicy | string | `"Retain"` | Retain PVCs when the operator scales down ZooKeeper (e.g. during node rotation). The default "Delete" causes the operator to destroy PVC data on scale-down, which prevents the cluster from recovering quorum after a node replacement event. |
 | zac.solr.password | string | `""` | Basic auth password of the external Solr; required when url is set. |

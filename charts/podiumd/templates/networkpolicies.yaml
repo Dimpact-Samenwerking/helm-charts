@@ -100,7 +100,7 @@
   "etcd" (and $protect.enabled $fg.enabled)
   "elasticsearch" (and $protect.enabled (or $kissEck.enabled $kiss.enabled $oi.enabled))
   "solr" (and $protect.enabled $zac.enabled)
-  "clamav" (and $protect.enabled $clamav.enabled)
+  "clamav" (and $protect.enabled (include "podiumd.clamav.enabled" $root))
 }}
 {{- if get $on "redis" }}
 ---

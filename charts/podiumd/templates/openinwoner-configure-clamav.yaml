@@ -102,7 +102,7 @@ spec:
       emptyDir: {}
 {{- end }}
 
-{{- if and (or .Values.openinwoner.enabled (not (hasKey .Values.openinwoner "enabled"))) .Values.openinwoner.clamavConfigJob.enabled }}
+{{- if and (or .Values.openinwoner.enabled (not (hasKey .Values.openinwoner "enabled"))) (include "podiumd.clamavConfigJob.enabled" (dict "root" $ "job" .Values.openinwoner.clamavConfigJob)) }}
 {{- $podTemplate := include "podiumd.openinwonerClamavJob.podTemplate" . }}
 {{- $jobSuffix := $podTemplate | sha256sum | trunc 10 }}
 apiVersion: batch/v1
