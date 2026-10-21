@@ -28,6 +28,7 @@ Wat gemeenten zelf moeten doen staat op de [releasepagina in de wiki](https://di
 ## Wat wij hebben gecontroleerd
 
 - **{Live of deploytest}:** {omgeving, wat gecontroleerd, resultaat}.
+- **Deploys op QA:** {n} deploys (rev {eerste}–{laatste}, {datum}–{datum}), waarvan {n} mislukt en opnieuw uitgevoerd; {n} PR's zijn op QA geweest.
 - **Chartcontroles:** {welke `verify-podiumd`-checks}.
 - **Niet getest:** {wat alleen met chartcontroles is gevalideerd, of uitgesteld}.
 - **Bekende problemen buiten deze release:** {indien van toepassing}, zie

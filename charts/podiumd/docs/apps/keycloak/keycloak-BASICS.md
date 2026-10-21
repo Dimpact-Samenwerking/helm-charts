@@ -82,6 +82,17 @@ and `keycloak.proxy.headers: xforwarded`. Hostnames are set via
 `keycloak.config.adminFrontendUrl`); the realm frontend URL is
 `keycloak.config.realmFrontendUrl`.
 
+On a **fresh install**, set `keycloak.hostname.hostname` to the public realm
+host (the host of `keycloak.config.realmFrontendUrl`). Without it, the public
+hostname falls back to the admin host, and OIDC discovery hands out
+`keycloak-admin` endpoints until the realm import sets the podiumd realm's
+`frontendUrl`. Anything that reads discovery before that (the Django
+setup-configuration Jobs, PABC and ITA at startup) keeps the admin host, and a
+login then fails with "Restart login cookie not found". An existing
+environment is not affected, because its realm already has the `frontendUrl`.
+Changing the chart default would move the public hostname of every
+environment that doesn't set it, so that waits for a later release.
+
 ### Other dependencies
 
 - **SMTP** — realm mail settings under `keycloak.config.smtp` (password reset,
@@ -89,6 +100,12 @@ and `keycloak.proxy.headers: xforwarded`. Hostnames are set via
 - **Microsoft Entra ID (optional)** — identity brokering via
   `keycloak.config.identityProviders` / `adminIdentityProviders` (commented
   examples in values.yaml); per-gemeente values supply clientId/clientSecret.
+  Since Keycloak 26.8 (CVE-2026-12388), a mapper that grants an admin role
+  (such as an `oidc-hardcoded-role-idp-mapper` with role `admin` in
+  `adminIdentityProviderMappers`) or adds users to a group with admin roles
+  needs `allowAdminRoleMapping: "true"` in its identity provider's `config`.
+  Without it Keycloak refuses the mapper with 403, and the render fails for an
+  admin-role mapper of that type.
 - **No Redis, no ClamAV, no Elasticsearch.** Clustering uses Infinispan
   (`cache: ispn`) between the two instances.
 - Everything else depends on **it**: the podiumd realm import provisions OIDC

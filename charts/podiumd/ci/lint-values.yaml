@@ -54,8 +54,6 @@ zac:
     token: "placeholder"
   objectenApi:
     token: "placeholder"
-  objecttypenApi:
-    token: "placeholder"
 
 # zgw-office-addin: the chart values.yaml provides the URL fields
 # (common.frontendUrl, backend.zgwApis.url); only the MSAL/secret placeholders
