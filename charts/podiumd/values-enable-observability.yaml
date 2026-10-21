@@ -62,8 +62,9 @@ openvtb:
 #
 # ZAC runs on WildFly (MicroProfile Telemetry), which reads otel.* from
 # MicroProfile Config; system properties rank above environment variables.
-# javaOptions therefore turns the SDK on and points it at the shared
-# collector. The zac chart's own route (opentelemetry-collector.enabled: true
+# javaOptions therefore turns the SDK on, points it at the shared collector,
+# and turns the OTLP metrics exporter on (without it ZAC sent no metrics on
+# QA, only spans). The zac chart's own route (opentelemetry-collector.enabled: true
 # to make it emit OTEL_SDK_DISABLED/OTEL_EXPORTER_OTLP_ENDPOINT) also deploys
 # a bundled collector: its chart ignores replicaCount: 0 (the template only
 # writes replicas when the value is truthy), its image path is not in the
@@ -77,6 +78,7 @@ zac:
     -Xmx1024m -Xms1024m -Xlog:gc::time,uptime
     -Dotel.sdk.disabled=false
     -Dotel.exporter.otlp.endpoint=http://monitoring-opentelemetry-collector.monitoring.svc.cluster.local:4317
+    -Dotel.metrics.exporter=otlp
     -Dotel.service.name=zac
   # Solr Operator — hardcodes prometheus.io/scrape: "true" in its deployment template already.
   # Only port and path need to be added via annotations (port 8080).
