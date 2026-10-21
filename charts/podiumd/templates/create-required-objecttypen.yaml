@@ -1,4 +1,5 @@
-{{- if .Values.objecten.enabled }}
+{{- /* Like the chart dependency (condition: objecten.enabled): unset means enabled. */ -}}
+{{- if ne (toString .Values.objecten.enabled) "false" }}
 {{- if .Values.objecten.configuration.enabled }}
 {{- if .Values.objecten.create_required_objecttypen_job.enabled }}
 apiVersion: v1

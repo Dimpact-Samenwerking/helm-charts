@@ -1,4 +1,5 @@
-{{- if .Values.openzaak.enabled }}
+{{- /* Like the chart dependency (condition: openzaak.enabled): unset means enabled. */ -}}
+{{- if ne (toString .Values.openzaak.enabled) "false" }}
 {{- if .Values.openzaak.configuration.enabled }}
 {{- if .Values.openzaak.create_required_catalogi_job.enabled }}
 apiVersion: v1
