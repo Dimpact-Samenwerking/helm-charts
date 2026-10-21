@@ -72,12 +72,25 @@ that change:
     read_and_write, that header becomes the formulier token (SWITCHED); this
     assumes the formulier token's Key Vault secret exists.
   - Open Zaak's objecten-api (api_type orc, zaakobject validation) often
-    sends the same old objecttypen token. When objecten has a tokenauth item
-    `zaak`, that header becomes the zaak token (SWITCHED, with the item's
-    permissions); a zaak item without permissions is a CHECK, no zaak item an
-    ACTION. This assumes the zaak token's Key Vault secret exists.
-  - Both switches also apply to a service at the objecten api_root that was
-    merged before (by an earlier version of this script or by hand).
+    sends the same old objecttypen token. Open Zaak keeps it, and objecten
+    gets a tokenauth item `openzaak` with that token (ADDED): not a
+    superuser, read_only on the objecttypes of the `zaak` item (ZAC's own
+    token, which Open Zaak should not share). The token is written in the
+    same form as the `zaak` item's: plainly, or as `value_from` env
+    objecten_credentials_openzaak_token, added to objecten.configuration.secrets.
+    The secret name still says OBJECTTYPEN; no new Key Vault secret is needed,
+    but its value must differ from every other objecten token (Open Object
+    refuses duplicates). An `openzaak` item with another token, or no `zaak`
+    item with permissions, is an ACTION. An Open Zaak objecten-api that sends
+    the `zaak` token (switched by an earlier version of this script) is a
+    CHECK: set it back to the old objecttypen token and run again.
+  - The formulier switch also applies to a service at the objecten api_root
+    that was merged before (by an earlier version of this script or by hand).
+  - Any other component that still sends the old objecttypen token to the
+    objecten api_root is an ACTION: no switch is defined for it.
+  - After a merge, the self-check refuses the file when the removed service's
+    identifier still appears as a value anywhere in that component's
+    configuration.data (only `*_service_identifier` keys are repointed).
   - Otherwise, when the two services sent different tokens, the kept service's
     token is an ACTION: whether it is an objecten token with the permissions
     the component needs cannot be checked here (values-deltas.md, 'One
@@ -841,9 +854,15 @@ def _get_path(node, path):
 # 401. Per component, the objecten identifier whose token replaces it, and the
 # permission mode that item must have (None: switch anyway, report a CHECK when
 # the item has no permissions).
-OBJECTTYPEN_TOKEN_HEADER = "Token REP_OBJECTEN_CREDENTIALS_OBJECTTYPEN_TOKEN_REP"
-SWITCH_IDENTIFIER = {"openformulieren": "formulier", "openzaak": "zaak"}
-SWITCH_REQUIRED_MODE = {"openformulieren": "read_and_write", "openzaak": None}
+OBJECTTYPEN_TOKEN = "REP_OBJECTEN_CREDENTIALS_OBJECTTYPEN_TOKEN_REP"
+OBJECTTYPEN_TOKEN_HEADER = f"Token {OBJECTTYPEN_TOKEN}"
+SWITCH_IDENTIFIER = {"openformulieren": "formulier"}
+SWITCH_REQUIRED_MODE = {"openformulieren": "read_and_write"}
+# Open Zaak keeps that token: objecten gets a read-only tokenauth item for it
+# instead (zaak, the other candidate, is ZAC's own token). The secret name still
+# says OBJECTTYPEN; no new Key Vault secret is needed.
+OPENZAAK_ITEM = "openzaak"
+OPENZAAK_SECRET_ENV = "objecten_credentials_openzaak_token"
 
 
 def _permission_summary(item: dict) -> str:
@@ -905,6 +924,104 @@ def _switched_note(objecten: dict, component: str, sid: str, new_header: str) ->
     return f"SWITCHED {component}: {sid} token objecttypen -> {ident} ({new_header}; {ident}: {perms})"
 
 
+def _objecten_tokens(objecten: dict) -> tuple[list[dict], dict]:
+    """(objecten's tokenauth items, objecten's configuration.secrets). Raises YAMLError."""
+    conf = objecten.get("configuration") or {}
+    items = ((_safe_load(conf.get("data") or "") or {}).get("tokenauth") or {}).get("items") or []
+    return [i for i in items if isinstance(i, dict)], conf.get("secrets") or {}
+
+
+def _is_objecten_token(objecten: dict, token: str) -> bool:
+    try:
+        items, secrets = _objecten_tokens(objecten)
+    except YAMLError:
+        return False
+    return any(_plain_token(i.get("token"), secrets) == token for i in items)
+
+
+def _plan_openzaak_item(objecten: dict, header) -> tuple[dict | None, str | None]:
+    """Plan objecten's read-only tokenauth item 'openzaak' for Open Zaak's old objecttypen token.
+
+    Returns:
+      (plan, None): `header` is the old objecttypen token, no objecten item has
+        it yet, and the 'zaak' item gives the objecttypes to copy (read_only);
+      (None, reason): it is the old objecttypen token, but the item can't be
+        added (an ACTION);
+      (None, None): nothing to do, because `header` is not the old objecttypen
+        token, or that token is already an objecten token (the 'openzaak' item
+        from an earlier run, or another item)."""
+    if header != OBJECTTYPEN_TOKEN_HEADER:
+        return None, None
+    try:
+        items, secrets = _objecten_tokens(objecten)
+    except YAMLError:
+        return None, "objecten's configuration.data does not parse"
+    if any(_plain_token(i.get("token"), secrets) == OBJECTTYPEN_TOKEN for i in items):
+        return None, None
+    if any(i.get("identifier") == OPENZAAK_ITEM for i in items):
+        return None, (f"objecten has a tokenauth item '{OPENZAAK_ITEM}' with another token; give it "
+                      f"{OBJECTTYPEN_TOKEN} or point Open Zaak's objecten-api at its token")
+    zaak = next((i for i in items if i.get("identifier") == "zaak"), None)
+    object_types = [p["object_type"] for p in (zaak or {}).get("permissions") or []
+                    if isinstance(p, dict) and p.get("object_type") is not None]
+    if not object_types:
+        return None, (f"objecten has no 'zaak' tokenauth item with objecttype permissions to copy; add a "
+                      f"read_only item '{OPENZAAK_ITEM}' with token {OBJECTTYPEN_TOKEN} by hand")
+    value_from = isinstance(zaak.get("token"), dict)
+    if value_from and secrets.get(OPENZAAK_SECRET_ENV) not in (None, OBJECTTYPEN_TOKEN):
+        return None, (f"objecten.configuration.secrets.{OPENZAAK_SECRET_ENV} exists with another value; add the "
+                      f"'{OPENZAAK_ITEM}' item by hand")
+    return {"value_from": value_from, "add_secret": value_from and OPENZAAK_SECRET_ENV not in secrets,
+            "contact_person": zaak.get("contact_person"), "email": zaak.get("email"),
+            "object_types": object_types}, None
+
+
+def _flow(value) -> str:
+    """A scalar or a {value_from: {env: ...}} mapping as one YAML line."""
+    if isinstance(value, dict):
+        return "{" + ", ".join(f"{k}: {_flow(v)}" for k, v in value.items()) + "}"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, str) and re.fullmatch(r"[A-Za-z][\w.@ -]*", value) and not value.endswith(" "):
+        return value
+    return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def _openzaak_item(plan: dict) -> dict:
+    token = {"value_from": {"env": OPENZAAK_SECRET_ENV}} if plan["value_from"] else OBJECTTYPEN_TOKEN
+    item = {"identifier": OPENZAAK_ITEM, "token": token}
+    for key in ("contact_person", "email"):
+        if plan[key] is not None:
+            item[key] = plan[key]
+    item["is_superuser"] = False
+    item["permissions"] = [{"object_type": ot, "mode": "read_only"} for ot in plan["object_types"]]
+    return item
+
+
+def _openzaak_item_lines(plan: dict, dash_col: int) -> list[str]:
+    item = _openzaak_item(plan)
+    pad = " " * dash_col
+    out = [f"{pad}- identifier: {item['identifier']}",
+           f"{pad}  token: " + (_flow(item["token"]) if isinstance(item["token"], dict) else f'"{item["token"]}"')]
+    out += [f"{pad}  {key}: {_flow(item[key])}" for key in ("contact_person", "email") if key in item]
+    out += [f"{pad}  is_superuser: false", f"{pad}  permissions:"]
+    for perm in item["permissions"]:
+        out += [f"{pad}    - object_type: {_flow(perm['object_type'])}", f"{pad}      mode: read_only"]
+    return out
+
+
+def _value_paths(node, value, path=()):
+    """Paths of every scalar equal to `value` in a parsed configuration.data."""
+    if isinstance(node, dict):
+        for key, child in node.items():
+            yield from _value_paths(child, value, path + (key,))
+    elif isinstance(node, list):
+        for idx, child in enumerate(node):
+            yield from _value_paths(child, value, path + (idx,))
+    elif node == value:
+        yield path
+
+
 def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
     """Return (new_text, notes, actions) for the duplicate zgw_consumers api_root
     the objecttypen merge leaves behind.
@@ -918,13 +1035,15 @@ def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
     removed and every *_service_identifier that named it is repointed at the
     other one. Open Formulieren's old objecttypen token on the kept service is
     switched to objecten's `formulier` token (see _switch_header); a single
-    service at the objecten api_root that sends it (Open Zaak's objecten-api,
-    or one merged before) is switched too (Open Zaak: to `zaak`). Otherwise,
-    only when their tokens differ is the token left as an ACTION: whether the
-    kept token is an objecten token with the right permissions cannot be
-    checked here. Any other duplicate at an objecten api_root is an
-    ACTION to fix by hand. Duplicates at other api_roots are not this
-    migration's and are left alone."""
+    service at the objecten api_root that sends it (one merged before) is
+    switched too. Open Zaak keeps the old objecttypen token on its
+    objecten-api: objecten gets a read-only tokenauth item `openzaak` with that
+    token instead (see _plan_openzaak_item). Any other component that still
+    sends it is an ACTION. Otherwise, only when their tokens differ is the
+    token left as an ACTION: whether the kept token is an objecten token with
+    the right permissions cannot be checked here. Any other duplicate at an
+    objecten api_root is an ACTION to fix by hand. Duplicates at other
+    api_roots are not this migration's and are left alone."""
     notes: list[str] = []
     actions: list[str] = []
     doc = _safe_load(text)
@@ -934,6 +1053,39 @@ def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
     plans: dict[str, list[tuple[str | None, str, str | None]]] = {}
     merged: set[tuple[str, str]] = set()
     single: list[tuple[str, dict]] = []
+    openzaak_plan: dict | None = None
+
+    def old_token_left(component: str, sid: str, header) -> None:
+        """Open Zaak: plan the 'openzaak' item. Any other component without a
+        switch that still sends the old objecttypen token: an ACTION."""
+        nonlocal openzaak_plan
+        if component == "openzaak":
+            plan, reason = _plan_openzaak_item(doc["objecten"], header)
+            if plan and openzaak_plan is None:
+                openzaak_plan = plan
+                n = len(plan["object_types"])
+                notes.append(f"ADDED objecten: tokenauth item '{OPENZAAK_ITEM}' (read_only on {n} objecttype(s)) "
+                             f"for Open Zaak's {sid} token")
+            elif reason:
+                actions.append(f"{ACTION}openzaak: {sid} sends the old objecttypen token, which is not an objecten "
+                               f"token: {reason} ({DUPLICATE_DOC})")
+            elif header != OBJECTTYPEN_TOKEN_HEADER:
+                try:
+                    items, secrets = _objecten_tokens(doc["objecten"])
+                except YAMLError:
+                    items, secrets = [], {}
+                zaak = next((i for i in items if i.get("identifier") == "zaak"), None)
+                if zaak and header == f"Token {_plain_token(zaak.get('token'), secrets)}":
+                    notes.append(f"CHECK openzaak: {sid} sends ZAC's 'zaak' token, so Open Zaak and ZAC share one "
+                                 f"credential. If an earlier version of this script switched it, set its "
+                                 f"header_value back to {OBJECTTYPEN_TOKEN_HEADER} and run the script again: it "
+                                 f"then adds a read-only '{OPENZAAK_ITEM}' item ({DUPLICATE_DOC})")
+        elif header == OBJECTTYPEN_TOKEN_HEADER and component not in SWITCH_IDENTIFIER \
+                and not _is_objecten_token(doc["objecten"], OBJECTTYPEN_TOKEN):
+            actions.append(f"{ACTION}{component}: {sid} sends the old objecttypen token, which is not an objecten "
+                           f"token, and this script defines no switch for {component}. Give it a working objecten "
+                           f"token ({DUPLICATE_DOC})")
+
     for component, cfg in doc.items():
         if component == "objecten" or not isinstance(cfg, dict):
             continue
@@ -978,6 +1130,8 @@ def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
                 continue
             if no_switch:
                 notes.append(f"{component}: {keep_id} sends the old objecttypen token and is not switched: {no_switch}")
+            else:
+                old_token_left(component, keep_id, keep_token)
             if old_token != keep_token:
                 actions.append(f"{ACTION}{component}: {keep_id} now serves the Objects and the Objecttypen API with "
                                f"its own token ({keep_token}); the removed {old_id} sent {old_token}. Check that "
@@ -999,7 +1153,9 @@ def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
             actions.append(f"{ACTION}{component}: {sid} sends the old objecttypen token, which is not an objecten "
                            f"token, and is not switched: {no_switch}. Give it a working objecten token "
                            f"({DUPLICATE_DOC})")
-    if not plans:
+        else:
+            old_token_left(component, str(sid), svc.get("header_value"))
+    if not plans and openzaak_plan is None:
         return text, notes, actions
 
     lines = text.split("\n")
@@ -1041,14 +1197,48 @@ def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
                 line = parent.lc.key(path[-1])[0]
                 i_ed.replace(line, line + 1, [_scalar_line(i_lines[line], keep_id)])
                 _get_path(plain, path[:-1])[path[-1]] = keep_id
+        # Only *_service_identifier keys are repointed: a reference under any
+        # other key would still name the removed service.
+        for old_id, _, _ in merges:
+            left = next(_value_paths(plain, old_id), None) if old_id is not None else None
+            if left is not None:
+                raise MigrationError(f"{component}: the removed zgw_consumers service {old_id} is still referenced "
+                                     f"at {'.'.join(map(str, left))}; point it at the kept service by hand")
         new_inner = "\n".join(i_ed.apply(i_lines))
         ed.replace(d_s + 1, d_e, [(" " * ind + line) if line.strip() else "" for line in new_inner.split("\n")])
         expected_inner[component] = plain
+    want = copy.deepcopy(doc)
+    if openzaak_plan is not None:
+        comp = root["objecten"]
+        _, c_e = key_range(lines, root, "objecten", len(lines))
+        _, cf_e = key_range(lines, comp, "configuration", c_e)
+        d_s, d_e = key_range(lines, comp["configuration"], "data", cf_e)
+        if not re.search(r":\s*\|[-+]?\s*(#.*)?$", lines[d_s]):
+            raise MigrationError("objecten.configuration.data is not a literal block (|)")
+        content = lines[d_s + 1:d_e]
+        ind = min((_indent(c) for c in content if c.strip()), default=_indent(lines[d_s]) + 2)
+        inner_text = "\n".join(c[ind:] if c.strip() else "" for c in content)
+        i_lines = inner_text.split("\n")
+        i_root = _rt_yaml().load(inner_text)
+        items = i_root["tokenauth"]["items"]
+        _, items_e = path_range(i_lines, i_root, ["tokenauth", "items"], len(i_lines))
+        i_ed = Edits()
+        i_ed.insert(items_e, _openzaak_item_lines(openzaak_plan, items.lc.item(0)[1] - 2))
+        new_inner = "\n".join(i_ed.apply(i_lines))
+        ed.replace(d_s + 1, d_e, [(" " * ind + line) if line.strip() else "" for line in new_inner.split("\n")])
+        plain = _safe_load(inner_text)
+        plain["tokenauth"]["items"].append(_openzaak_item(openzaak_plan))
+        expected_inner["objecten"] = plain
+        if openzaak_plan["add_secret"]:
+            s_s, s_e = key_range(lines, comp["configuration"], "secrets", cf_e)
+            if not comp["configuration"]["secrets"]:
+                raise MigrationError("objecten.configuration.secrets is empty or a flow mapping")
+            ed.insert(s_e, [" " * child_indent(lines, s_s, s_e) + f'{OPENZAAK_SECRET_ENV}: "{OBJECTTYPEN_TOKEN}"'])
+            want["objecten"]["configuration"]["secrets"][OPENZAAK_SECRET_ENV] = OBJECTTYPEN_TOKEN
     out = "\n".join(ed.apply(lines))
 
     # Check: only the planned configuration.data blocks changed, exactly as intended
     got = _safe_load(out)
-    want = copy.deepcopy(doc)
     for component, plain in expected_inner.items():
         got_inner = _safe_load(got[component]["configuration"]["data"])
         if got_inner != plain:
@@ -1118,6 +1308,7 @@ def main() -> int:
         return 1
     counts = {"migrated": 0, "unchanged": 0, "error": 0}
     pending: list[tuple[str, str]] = []
+    added = False
     for path in files:
         status, notes = process(path, args)
         counts[status] += 1
@@ -1126,6 +1317,7 @@ def main() -> int:
         for n in notes:
             print(f"    - {n}", file=out)
         pending += [(path, n) for n in notes if n.startswith(ACTION)]
+        added = added or any(n.startswith("ADDED objecten") for n in notes)
     out = sys.stderr if args.dry_run else sys.stdout
     need_action = len({p for p, _ in pending})
     print(f"\n{counts['migrated']} migrated, {counts['unchanged']} unchanged, {counts['error']} error(s), "
@@ -1136,6 +1328,10 @@ def main() -> int:
             print(f"  {p}: {n[len(ACTION):]}", file=out)
     print("Before deploying an environment: run `import_objecttypes` in its objecten (3.6.x) - see "
           "docs/apps/objecten/openobject-migration.md.", file=out)
+    if added:
+        print(f"Where the '{OPENZAAK_ITEM}' item was added: check that the secret behind {OBJECTTYPEN_TOKEN} differs "
+              "from every other objecten token of that environment (Open Object refuses a duplicate token).",
+              file=out)
     if counts["error"]:
         return 1
     return 2 if pending else 0
