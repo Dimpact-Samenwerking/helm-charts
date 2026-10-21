@@ -66,11 +66,17 @@ that change:
     `objecttypes_service_identifier`, Open Beheer
     `objecttypen_service_identifier`) points at the kept service. This also
     runs on files migrated before (no objecttypen block any more).
-  - When the two services sent different tokens, the kept service's token is an
-    ACTION: whether it is an objecten token with the permissions the component
-    needs cannot be checked here (values-deltas.md, 'One zgw_consumers service
-    per api_root'). Any other duplicate at an objecten api_root is an ACTION to
-    fix by hand; duplicates at other api_roots are left alone.
+  - Open Formulieren's kept objecten-api often sends the old objecttypen token
+    (Token REP_OBJECTEN_CREDENTIALS_OBJECTTYPEN_TOKEN_REP), which no objecten
+    tokenauth item has. When objecten has a tokenauth item `formulier` with
+    read_and_write, that header becomes the formulier token (SWITCHED); this
+    assumes the formulier token's Key Vault secret exists.
+  - Otherwise, when the two services sent different tokens, the kept service's
+    token is an ACTION: whether it is an objecten token with the permissions
+    the component needs cannot be checked here (values-deltas.md, 'One
+    zgw_consumers service per api_root'). Any other duplicate at an objecten
+    api_root is an ACTION to fix by hand; duplicates at other api_roots are
+    left alone.
   - A configuration.data that does not parse is reported (CHECK), not merged.
 
   objecten.image.repository
@@ -135,6 +141,7 @@ from dataclasses import dataclass, field
 
 try:
     from ruamel.yaml import YAML
+    from ruamel.yaml.error import YAMLError
 except ImportError:
     print("ERROR: ruamel.yaml is required. Install with: pip install ruamel.yaml", file=sys.stderr)
     sys.exit(1)
@@ -822,6 +829,40 @@ def _get_path(node, path):
     return node
 
 
+# The old objecttypen token that Open Formulieren's objecten service often
+# sends: no objecten tokenauth item has it, so after the merge every call
+# answers 401. Per component, the objecten identifier whose token replaces it.
+OBJECTTYPEN_TOKEN_HEADER = "Token REP_OBJECTEN_CREDENTIALS_OBJECTTYPEN_TOKEN_REP"
+SWITCH_IDENTIFIER = {"openformulieren": "formulier"}
+
+
+def _switch_header(objecten: dict, component: str, header) -> tuple[str | None, str | None]:
+    """(new header_value, None) when `header` is the old objecttypen token and
+    objecten has a read_and_write token for this component; else (None, reason)
+    or (None, None) when the header is not the old objecttypen token."""
+    ident = SWITCH_IDENTIFIER.get(component)
+    if header != OBJECTTYPEN_TOKEN_HEADER or ident is None:
+        return None, None
+    conf = objecten.get("configuration") or {}
+    secrets = conf.get("secrets") or {}
+    try:
+        items = ((_safe_load(conf.get("data") or "") or {}).get("tokenauth") or {}).get("items") or []
+    except YAMLError:
+        return None, "objecten's configuration.data does not parse"
+    tokens = {_plain_token(i.get("token"), secrets) for i in items if isinstance(i, dict)}
+    if header[len("Token "):] in tokens:
+        return None, None  # an objecten token after all: nothing to switch
+    item = next((i for i in items if isinstance(i, dict) and i.get("identifier") == ident), None)
+    if item is None:
+        return None, f"objecten has no tokenauth item '{ident}'"
+    if not any(isinstance(p, dict) and p.get("mode") == "read_and_write" for p in item.get("permissions") or []):
+        return None, f"objecten's tokenauth item '{ident}' has no read_and_write permission"
+    token = _plain_token(item.get("token"), secrets)
+    if not token:
+        return None, f"the token of objecten's tokenauth item '{ident}' cannot be resolved"
+    return f"Token {token}", None
+
+
 def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
     """Return (new_text, notes, actions) for the duplicate zgw_consumers api_root
     the objecttypen merge leaves behind.
@@ -833,9 +874,11 @@ def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
     api_root (compared exactly, as the database does): with exactly one
     objecttypen service and one other service, the objecttypen service is
     removed and every *_service_identifier that named it is repointed at the
-    other one. Only when their tokens differ is the token left as an ACTION:
-    whether the kept token is an objecten token with the right permissions
-    cannot be checked here. Any other duplicate at an objecten api_root is an
+    other one. Open Formulieren's old objecttypen token on the kept service is
+    switched to objecten's `formulier` token (see _switch_header). Otherwise,
+    only when their tokens differ is the token left as an ACTION: whether the
+    kept token is an objecten token with the right permissions cannot be
+    checked here. Any other duplicate at an objecten api_root is an
     ACTION to fix by hand. Duplicates at other api_roots are not this
     migration's and are left alone."""
     notes: list[str] = []
@@ -877,10 +920,17 @@ def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
                                f"every *_service_identifier at it and give it a working objecten token ({DUPLICATE_DOC})")
                 continue
             old_id, keep_id = str(ot[0]["identifier"]), str(keep[0]["identifier"])
-            plans.setdefault(component, []).append((old_id, keep_id))
             old_token, keep_token = ot[0].get("header_value"), keep[0].get("header_value")
+            new_header, no_switch = _switch_header(doc["objecten"], component, keep_token)
+            plans.setdefault(component, []).append((old_id, keep_id, new_header))
             notes.append(f"{component}: removed zgw_consumers service {old_id} (same api_root {api_root} as "
                          f"{keep_id}) and pointed its *_service_identifier references at {keep_id}")
+            if new_header:
+                notes.append(f"SWITCHED {component}: {keep_id} token objecttypen -> "
+                             f"{SWITCH_IDENTIFIER[component]} ({new_header})")
+                continue
+            if no_switch:
+                notes.append(f"{component}: {keep_id} sends the old objecttypen token and is not switched: {no_switch}")
             if old_token != keep_token:
                 actions.append(f"{ACTION}{component}: {keep_id} now serves the Objects and the Objecttypen API with "
                                f"its own token ({keep_token}); the removed {old_id} sent {old_token}. Check that "
@@ -910,7 +960,14 @@ def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
         i_ed = Edits()
         services = i_root["zgw_consumers"]["services"]
         _, s_e = path_range(i_lines, i_root, ["zgw_consumers", "services"], len(i_lines))
-        for old_id, keep_id in merges:
+        for old_id, keep_id, new_header in merges:
+            if new_header:
+                k_idx = next(n for n, s in enumerate(services)
+                             if isinstance(s, dict) and str(s.get("identifier")) == keep_id)
+                line = services[k_idx].lc.key("header_value")[0]
+                i_ed.replace(line, line + 1, [_scalar_line(i_lines[line], new_header)])
+                next(s for s in plain["zgw_consumers"]["services"]
+                     if isinstance(s, dict) and str(s.get("identifier")) == keep_id)["header_value"] = new_header
             idx = next(n for n, s in enumerate(services) if isinstance(s, dict) and str(s.get("identifier")) == old_id)
             i_ed.delete(*item_range(i_lines, services, idx, s_e))
             plain["zgw_consumers"]["services"] = [s for s in plain["zgw_consumers"]["services"]
