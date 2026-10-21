@@ -84,7 +84,7 @@ spec:
 {{- end }}
 
 {{- $kvk := .Values.openinwoner.kvk | default dict }}
-{{- if and (or .Values.openinwoner.enabled (not (hasKey .Values.openinwoner "enabled"))) $kvk.apiRoot }}
+{{- if and (include "podiumd.dependencyEnabled" .Values.openinwoner) $kvk.apiRoot }}
 {{- /* Open Inwoner's own validate_api_root: the root must not contain a version or endpoint. */ -}}
 {{- if regexMatch "(?i)/api/[0-9a-z]" $kvk.apiRoot }}
 {{- fail (printf "openinwoner.kvk.apiRoot %q includes a version or endpoint; use the API root, e.g. http://api-proxy.podiumd.svc.cluster.local/api/" $kvk.apiRoot) }}

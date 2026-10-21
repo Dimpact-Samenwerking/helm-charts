@@ -91,6 +91,10 @@ openzaak:
     oidcUrl: https://openzaak.ci.podiumd.test
     secrets:
       keycloak_client_secret: "placeholder"
+  # The create-required-catalogi Job fails the render on the <...> defaults.
+  create_required_catalogi_job:
+    client_id: ci-catalogi-client
+    secret: ci-catalogi-secret
 
 # Prevents nil pointer in objecten/templates/secret.yaml; also provides realm secret.
 objecten:
@@ -100,6 +104,8 @@ objecten:
       enabled: false
     secrets:
       keycloak_client_secret: "placeholder"
+      # The create-required-objecttypen Job fails the render without it.
+      create_required_objecttypen_token: ci-objecttypen-superuser-token
 
 # allowInsecureImages bypasses the Bitnami image-check template for rabbitmq.
 opennotificaties:

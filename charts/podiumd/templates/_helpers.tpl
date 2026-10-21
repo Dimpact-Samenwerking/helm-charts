@@ -1212,3 +1212,15 @@ for i in $(seq 1 60); do
   sleep 10
 done
 {{- end }}
+
+{{/*
+Whether a subchart dependency is enabled, decided the way Helm decides its
+`condition: <component>.enabled`: only a boolean false turns it off. An unset,
+null or non-boolean value leaves the subchart enabled (Helm warns and ignores
+a non-boolean condition). Templates that belong to a subchart use this, so they
+render exactly when the subchart does.
+Usage: {{- if include "podiumd.dependencyEnabled" .Values.openzaak }}
+*/}}
+{{- define "podiumd.dependencyEnabled" -}}
+{{- if not (and (kindIs "bool" .enabled) (not .enabled)) -}}true{{- end -}}
+{{- end -}}
