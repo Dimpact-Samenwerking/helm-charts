@@ -38,14 +38,14 @@ Wat gemeenten zelf moeten doen staat op de [releasepagina in de wiki](https://di
 
 <!-- Alleen als er bekende fouten in de applicaties zijn. Bron: de tabel in README.md van
      infonl/podiumd-known-issues (privé), zie "Bekende problemen" in SKILL.md. Noem alleen wat
-     gemeenten of SSC merken; geen reproductiestappen. Beveiligingsbevindingen alleen als aantal
+     gemeenten of SSC merken; geen reproductiestappen. Security findings alleen als aantal
      per ernst in de tabel hieronder. -->
 
 | Ernst | Probleem | Component | Gevolg | Oplossing |
 | --- | --- | --- | --- | --- |
 | {Kritiek, Hoog, Middel of Opgelost} | {wat er misgaat} | {component en versie} | {wat gemeenten of SSC merken} | {upstream-versie met de fix, onze PR of Jira-issue, workaround, of "Nog geen"} |
 
-### Beveiligingsbevindingen
+### Security findings
 
 Bevindingen met gevolgen voor de beveiliging noemen we alleen als aantal per
 ernst, net als de CVE's: de details maken we pas bekend nadat ze bij de
