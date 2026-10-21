@@ -1,0 +1,208 @@
+#!/usr/bin/env python3
+"""Point the ZooKeeper operator hooks' image override at alpine/k8s in gemeente values (PodiumD 4.10.0).
+
+PodiumD 4.10.0 runs the hooks of zac.solr-operator.zookeeper-operator with
+docker.io/alpine/k8s 1.37.1 (pinned by digest) instead of the sub-chart's
+lachlanevenson/k8s-kubectl v1.25.4. The chart sets only the tag; an
+environment that overrides
+
+  zac.solr-operator.zookeeper-operator.hooks.image.repository
+
+with its mirror of k8s-kubectl keeps that repository and gets the new tag:
+<mirror>/lachlanevenson/k8s-kubectl:1.37.1@sha256:..., which does not exist.
+The hook Job then fails to pull, and the helm upgrade fails.
+
+This script rewrites such a repository to the same registry's alpine/k8s:
+
+  acrprodmgmt.azurecr.io/lachlanevenson/k8s-kubectl  ->  acrprodmgmt.azurecr.io/alpine/k8s
+  acrprodmgmt.azurecr.io/k8s-kubectl                 ->  acrprodmgmt.azurecr.io/alpine/k8s
+  lachlanevenson/k8s-kubectl (no registry)           ->  docker.io/alpine/k8s
+
+A repository that already ends in alpine/k8s, or names another image, is left
+alone. An environment that also overrides hooks.image.tag is reported (the tag
+must then be 1.37.1 with the chart's digest, or be removed); the script does not
+change a tag. The registry must hold alpine/k8s:1.37.1 by digest: redis-ha's
+label-master Job already uses the same image.
+
+The file is edited line by line: only the repository value changes, so
+comments, quoting and REP_..._REP placeholders stay as they are. Before
+writing, the script checks that the edited file parses to exactly the original
+values with only that value changed; it refuses to write a file that does not.
+Running it twice is safe: the second run changes nothing.
+
+Exit code: 1 when a file has an error, else 0.
+
+Usage:
+  pip install ruamel.yaml
+  python3 migrate-zookeeper-hooks-image-4.10.0.py --dry-run --gemeenten-dir <SSCHostingSync>/applications/gemeenten
+  python3 migrate-zookeeper-hooks-image-4.10.0.py --gemeenten-dir <SSCHostingSync>/applications/gemeenten
+  python3 migrate-zookeeper-hooks-image-4.10.0.py path/to/podiumd.yml ...
+"""
+
+from __future__ import annotations
+
+import argparse
+import copy
+import difflib
+import glob
+import os
+import re
+import sys
+
+try:
+    from ruamel.yaml import YAML
+except ImportError:  # pragma: no cover
+    sys.exit("ruamel.yaml is required: pip install ruamel.yaml")
+
+HOOKS_PATH = ("zac", "solr-operator", "zookeeper-operator", "hooks", "image")
+NEW_IMAGE = "alpine/k8s"
+# <registry>/[lachlanevenson/]k8s-kubectl, the registry part optional.
+OLD_REPO = re.compile(r"^(?P<registry>(?:[^/]+/)*?)(?:lachlanevenson/)?k8s-kubectl$")
+
+
+class MigrationError(Exception):
+    pass
+
+
+def _load_safe(text: str):
+    return YAML(typ="safe", pure=True).load(text)
+
+
+def _load_rt(text: str):
+    return YAML(typ="rt").load(text)
+
+
+def new_repository(repo: str) -> str | None:
+    """The alpine/k8s repository for an old k8s-kubectl one, or None when nothing changes."""
+    m = OLD_REPO.match(repo.strip())
+    if not m:
+        return None
+    registry = m.group("registry")
+    if not registry or registry == "docker.io/":
+        return f"docker.io/{NEW_IMAGE}"
+    return f"{registry}{NEW_IMAGE}"
+
+
+def migrate_text(text: str) -> tuple[str, list[str]]:
+    doc = _load_rt(text)
+    notes: list[str] = []
+    node = doc
+    for key in HOOKS_PATH:
+        if not isinstance(node, dict) or key not in node:
+            return text, notes
+        node = node[key]
+    if not isinstance(node, dict):
+        return text, notes
+    path = ".".join(HOOKS_PATH)
+    if "tag" in node:
+        notes.append(
+            f"CHECK {path}.tag is set ({node['tag']!r}): it must be the chart's 1.37.1 pin, or be removed"
+        )
+    repo = node.get("repository")
+    if not isinstance(repo, str):
+        return text, notes
+    new = new_repository(repo)
+    if new is None or new == repo:
+        return text, notes
+
+    line, col = node.lc.value("repository")
+    lines = text.split("\n")
+    old_line = lines[line]
+    # The value starts at col; keep its quoting.
+    value_text = old_line[col:]
+    quote = value_text[:1] if value_text[:1] in "'\"" else ""
+    if not value_text.startswith(f"{quote}{repo}{quote}"):
+        raise MigrationError(
+            f"{path}.repository: unexpected value layout on line {line + 1}; nothing written"
+        )
+    lines[line] = (
+        old_line[:col]
+        + f"{quote}{new}{quote}"
+        + value_text[len(repo) + 2 * len(quote) :]
+    )
+    out = "\n".join(lines)
+
+    want = copy.deepcopy(_load_safe(text))
+    target = want
+    for key in HOOKS_PATH:
+        target = target[key]
+    target["repository"] = new
+    if _load_safe(out) != want:
+        raise MigrationError(
+            "self-check failed: the edited file does not match the intended values; nothing written"
+        )
+    notes.append(f"{path}.repository: {repo} -> {new}")
+    return out, notes
+
+
+def process(path: str, dry_run: bool) -> tuple[str, list[str]]:
+    # Universal newlines read CRLF as LF; a migrated file is written with LF only, on every OS.
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    try:
+        new, notes = migrate_text(text)
+    except MigrationError as e:
+        return "error", [str(e)]
+    except Exception as e:  # noqa: BLE001 -- unexpected file shape: report, never write half a migration
+        return "error", [
+            f"unexpected {type(e).__name__}: {str(e).splitlines()[0][:200]}"
+        ]
+    if new == text:
+        return "unchanged", notes
+    if dry_run:
+        sys.stdout.write(
+            "".join(
+                difflib.unified_diff(
+                    text.splitlines(True),
+                    new.splitlines(True),
+                    f"a/{path}",
+                    f"b/{path}",
+                )
+            )
+        )
+    else:
+        with open(path, "w", encoding="utf-8", newline="\n") as f:
+            f.write(new)
+    return "migrated", notes
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "files",
+        nargs="*",
+        help="podiumd.yml files (default: all under --gemeenten-dir)",
+    )
+    parser.add_argument(
+        "--gemeenten-dir", help="SSCHostingSync applications/gemeenten directory"
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="print a unified diff, write nothing"
+    )
+    args = parser.parse_args()
+    files = list(args.files)
+    if args.gemeenten_dir:
+        files += sorted(
+            glob.glob(os.path.join(args.gemeenten_dir, "*", "*", "podiumd.yml"))
+        )
+    if not files:
+        parser.error("give podiumd.yml files or --gemeenten-dir")
+    counts = {"migrated": 0, "unchanged": 0, "error": 0}
+    for path in files:
+        status, notes = process(path, args.dry_run)
+        counts[status] += 1
+        if status != "unchanged" or notes:
+            print(f"[{status}] {path}", file=sys.stderr)
+            for note in notes:
+                print(f"    - {note}", file=sys.stderr)
+    print(
+        f"{counts['migrated']} migrated, {counts['unchanged']} unchanged, {counts['error']} error(s)",
+        file=sys.stderr,
+    )
+    return 1 if counts["error"] else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
