@@ -3528,7 +3528,7 @@ zac:
     username: "dummy"
     # -- Basic auth password for the office converter; see username.
     password: "dummy"
-    # gotenberg/gotenberg:8.37.0@sha256:f29984bd1e226bf1b93ba90af06000afa8b315853e99d27b9aaa41b93f15c769
+    # gotenberg/gotenberg:8.38.1@sha256:aa552cc115db488e0f0bcb07446aac13071ad51505b642c84bb894500907b42b
     image:
       # repository: gotenberg/gotenberg
       tag: "8.38.1@sha256:aa552cc115db488e0f0bcb07446aac13071ad51505b642c84bb894500907b42b"
@@ -3537,7 +3537,7 @@ zac:
       runAsNonRoot: true
       runAsUser: 1000
     sidecar: true
-    # openpolicyagent/opa:1.21.1-static@sha256:4675ab04ad1627f74741d2d9c5142698c79e18b7b09f192587d31d6dba20838e
+    # openpolicyagent/opa:1.21.3-static@sha256:bf27411c17e72f3d16063725a74c69f711fb267eb9a4cebdae78028b72adc847
     image:
       #repository: openpolicyagent/opa
       tag: "1.21.3-static@sha256:bf27411c17e72f3d16063725a74c69f711fb267eb9a4cebdae78028b72adc847"
