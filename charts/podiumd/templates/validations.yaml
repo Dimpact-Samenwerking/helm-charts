@@ -310,3 +310,10 @@
 {{- if and $redisHaCheck.enabled ($redisHaCheck.masterReadinessCheck | default dict).enabled (not ($redisHaCheck.labelMasterCronJob | default dict).enabled) -}}
 {{- fail "redis-operator.redis-ha.masterReadinessCheck.enabled needs redis-operator.redis-ha.labelMasterCronJob.enabled: an old master that comes back as a replica keeps its redis-role=master label and stays NotReady, and only the label-master CronJob removes that label. Turn the CronJob on, or turn masterReadinessCheck off." -}}
 {{- end -}}
+{{- /* zac.auth.pkceEnabled only set PKCE on the Keycloak client, not in ZAC
+     itself, so turning it on alone broke the login. zac.auth.enablePkce (the
+     ZAC sub-chart's own key) now drives both sides. Only `true` is refused:
+     a left-over `pkceEnabled: false` changes nothing. */ -}}
+{{- if and .Values.zac.enabled (eq (toString (index .Values.zac.auth "pkceEnabled")) "true") -}}
+{{- fail "zac.auth.pkceEnabled is replaced by zac.auth.enablePkce (default true), which enables PKCE in ZAC and on its Keycloak client together. Remove zac.auth.pkceEnabled; set zac.auth.enablePkce: false to opt out. See \"ZAC: PKCE on by default\" in docs/_UPGRADE_PATHS/4.9.5-to-4.10.0-upgrade.md" -}}
+{{- end -}}
