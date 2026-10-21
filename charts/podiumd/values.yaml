@@ -3392,11 +3392,9 @@ kiss:
       isDefault: true
 
 zac:
-  # Security review 4.10.0 WH-05: UIDs checked on the running images
-  # (ZAC 1001, OPA 1000, gotenberg 1001, curl init 100).
-  securityContext:
-    runAsNonRoot: true
-    runAsUser: 1001
+  # The zac chart (1.0.354) runs ZAC, OPA, the office converter and the init
+  # container as non-root UID/GID 10001 itself, so no securityContext overrides here:
+  # a runAsUser override would mix with the chart's runAsGroup 10001.
   # Every "changeme"/"dummy" credential below is a placeholder: the render fails
   # (templates/validations.yaml) until each one is set per environment.
   auth:
@@ -3463,7 +3461,7 @@ zac:
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 5.9.1@sha256:d2b43634c21205183ed7ce9591791fa0112501bb2e4b04baff0362da9e001da4
+    tag: 5.10.0@sha256:952e89644169d7bb3125a163412455145a1f4adcca370fb29b569bef334a88a0
   # Liveness probe uses /health/ready (not /health/live) with a high failureThreshold so
   # Kubernetes automatically restarts ZAC after extended OpenZaak/catalogus unavailability.
   # The ZGW-API-Client has no connectTimeout/readTimeout, causing stale TCP connections
@@ -3475,9 +3473,6 @@ zac:
     periodSeconds: 30
     timeoutSeconds: 1
   initContainer:
-    securityContext:
-      runAsNonRoot: true
-      runAsUser: 100
     enabled: true
     resources:
       requests:
@@ -3521,9 +3516,6 @@ zac:
     url: https://objecten.example.nl
     token: objectentoken
   office_converter:
-    securityContext:
-      runAsNonRoot: true
-      runAsUser: 1001
     # -- Basic auth user shared by ZAC and its office converter (Gotenberg). Override per environment: the converter Service is reachable from any pod in the cluster.
     username: "dummy"
     # -- Basic auth password for the office converter; see username.
@@ -3533,9 +3525,6 @@ zac:
       # repository: gotenberg/gotenberg
       tag: "8.37.0@sha256:f29984bd1e226bf1b93ba90af06000afa8b315853e99d27b9aaa41b93f15c769"
   opa:
-    securityContext:
-      runAsNonRoot: true
-      runAsUser: 1000
     sidecar: true
     # openpolicyagent/opa:1.21.1-static@sha256:4675ab04ad1627f74741d2d9c5142698c79e18b7b09f192587d31d6dba20838e
     image:
@@ -3553,7 +3542,7 @@ zac:
     # check_digest_pinning (charts/podiumd's own values.yaml only) noticing.
     image:
       repository: otel/opentelemetry-collector-contrib
-      tag: "0.161.0@sha256:fd328de2552466ad78385e1b1289c3f2402b1c45f265b252aab1955b42845ac1"
+      tag: "0.163.1@sha256:1175b03003053962012f5a231f5567f66a3e8fdb960c7835c0e48f7aa1555806"
   organizations:
     bron:
       rsin: "000000000"

@@ -169,8 +169,8 @@
 
 - name: infonl/zaakafhandelcomponent
   url: ghcr.io/infonl/zaakafhandelcomponent
-  version: "5.9.1"
-  digest: "sha256:d2b43634c21205183ed7ce9591791fa0112501bb2e4b04baff0362da9e001da4"
+  version: "5.10.0"
+  digest: "sha256:952e89644169d7bb3125a163412455145a1f4adcca370fb29b569bef334a88a0"
 
 - name: gotenberg/gotenberg
   url: docker.io/gotenberg/gotenberg
@@ -184,8 +184,8 @@
 
 - name: otel/opentelemetry-collector-contrib
   url: docker.io/otel/opentelemetry-collector-contrib
-  version: "0.161.0"
-  digest: "sha256:fd328de2552466ad78385e1b1289c3f2402b1c45f265b252aab1955b42845ac1"
+  version: "0.163.1"
+  digest: "sha256:1175b03003053962012f5a231f5567f66a3e8fdb960c7835c0e48f7aa1555806"
 
 - name: apache/solr-operator
   url: docker.io/apache/solr-operator
