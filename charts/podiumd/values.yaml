@@ -1150,6 +1150,14 @@ opennotificaties:
 # "objecten" and "objecttypen" blocks into one: objecten now also covers what
 # used to be objecttypen's functionality (local objecttypes), per the upstream
 # Open Object 4.0 Objects+Objecttypes API merge.
+# -- Service `objecttypen` that sends the old objecttypen Service name to the
+# objecten pods (Objecten 4 serves the Objecttypen API). Keeps gateway
+# ExternalNames to objecttypen.<namespace>.svc working after the upgrade, so
+# the old objecttypen hostname has no 502 window before the gateway is
+# repointed. Turn off once every gateway points at objecten.
+objecttypenCompatService:
+  enabled: true
+
 objecten:
   # Security review 4.10.0 WH-02: merged into the chart defaults (drop ALL,
   # runAsNonRoot, runAsUser 1000, fsGroup 1000).

@@ -702,6 +702,7 @@ PodiumD Helm chart
 | objecten.worker.replicaCount | int | `1` |  |
 | objecten.worker.resources.requests.cpu | string | `"50m"` |  |
 | objecten.worker.resources.requests.memory | string | `"192Mi"` |  |
+| objecttypenCompatService | object | `{"enabled":true}` | Service `objecttypen` that sends the old objecttypen Service name to the objecten pods (Objecten 4 serves the Objecttypen API). Keeps gateway ExternalNames to objecttypen.<namespace>.svc working after the upgrade, so the old objecttypen hostname has no 502 window before the gateway is repointed. Turn off once every gateway points at objecten. |
 | omc.enabled | bool | `false` |  |
 | omc.fullnameOverride | string | `"omc"` |  |
 | omc.image.tag | string | `"2.3.1"` |  |

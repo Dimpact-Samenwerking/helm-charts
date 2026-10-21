@@ -1,0 +1,29 @@
+{{- /*
+Objecten 4 (Open Object) serves the Objecttypen API itself and the separate
+objecttypen chart is gone, so 4.10.0 removes its Service. Gateways route the
+old objecttypen hostname through an ExternalName to
+objecttypen.<namespace>.svc, which then fails until the gateway is repointed
+(a 502 window right after the deploy). This Service keeps that name and sends
+it to the objecten pods, so the old hostname keeps working without a gateway
+change. Same selector and ports as the objecten Service.
+*/ -}}
+{{- if and (ne (toString .Values.objecten.enabled) "false") .Values.objecttypenCompatService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: objecttypen
+  labels:
+    app.kubernetes.io/name: objecttypen
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/part-of: objecten
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8000
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: objecten
+{{- end }}
