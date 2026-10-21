@@ -31,7 +31,7 @@ Audience: stakeholders and municipalities. Language: **Dutch**, plain and short.
 
 Keep established English technical terms in English instead of translating
 them. In particular, write "mirror" ("Nieuwe images mirroren", "image
-mirroren"), never "spiegelen", and "triaged" (the known-issue group), never "getrieerd".
+mirroren"), never "spiegelen", "triaged" (the known-issue group), never "getrieerd", and "security findings", never "beveiligingsbevindingen".
 
 ## Sources, in this order
 
@@ -94,7 +94,7 @@ mirroren"), never "spiegelen", and "triaged" (the known-issue group), never "get
      reproduction steps, environment names, hostnames or request bodies.
    - **Security findings** (authorization, authentication, data exposure,
      missing security headers, and the like) never get a row of their own,
-     not even with a vague title. They appear only in a "Beveiligingsbevindingen"
+     not even with a vague title. They appear only in a "Security findings"
      table, like the CVEs: the number per severity (Kritiek, Hoog, Middel,
      Laag) and how many have a fix or workaround, with the PR or Jira issue
      of that fix. No component names, no mechanism. They get a row of their
