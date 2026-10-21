@@ -17,10 +17,9 @@ from lib.chart.values_tree_primitives import values_key_of
 from lib.image.digests import DigestPin
 from lib.image.digests import ImagePin
 from lib.image.digests import VersionPin
-from lib.image.digests import reference_comment_index
-from lib.image.digests import reference_comment_text
 from lib.image.digests import scan_digest_pins
 from lib.image.digests import scan_version_pins
+from lib.image.digests import sync_reference_comments
 from lib.registry import TagCheck
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
@@ -266,17 +265,12 @@ def write_pin_updates(values_path: Path, updates: list[PinUpdate]) -> None:
     if not updates:
         return
     lines = values_path.read_text(encoding="utf-8").splitlines(keepends=True)
-    bare = [line.rstrip("\r\n") for line in lines]
     for u in updates:
         i = u["line"] - 1
         lines[i] = replace_scalar_value(lines[i], f"{u['new_version']}@{u['new_digest']}")
-        # The "# host/repo:tag@sha256:..." reference comment above the image block
-        # names the same pin; keep it in step (fix-image-digests does the same).
-        idx = reference_comment_index(bare, i, len(bare[i]) - len(bare[i].lstrip(" ")))
-        if idx is not None:
-            has_digest = "@sha256:" in bare[idx]
-            lines[idx] = reference_comment_text(lines[idx], u["new_version"], u["new_digest"] if has_digest else None)
-    values_path.write_text("".join(lines), encoding="utf-8")
+    # The "# host/repo:tag[@sha256:...]" reference comment above a bumped pin names the same pin.
+    text, _ = sync_reference_comments("".join(lines), {u["line"] for u in updates})
+    values_path.write_text(text, encoding="utf-8")
 
 
 def update_image_version(values_path: Path, key: str, basename: str, new_version: str) -> list[PinUpdate]:

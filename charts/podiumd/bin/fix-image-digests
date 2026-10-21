@@ -9,7 +9,9 @@ For each "<repository>:<tag>@sha256:<digest>" pin, and each digest in a
 registered sibling field (keycloak's "sha:"), fetches the tag's current
 digest from the registry. When it differs (the tag was
 re-published), replaces every occurrence of the old digest. Tags labelled
-"(sliding)" float by design; they are refreshed too.
+"(sliding)" float by design; they are refreshed too. Without a target it
+also rewrites every "# host/repo:tag[@sha256:...]" reference comment that
+disagrees with the pin below it (no registry needed for that).
 
 After a write it runs fix-helm-doc (README.md) and fix-doc-consistency
 (docs/images/images-<target>.yaml), which contain the same digests.
@@ -53,7 +55,9 @@ from lib.dependencies import check_dependencies as vendor_dependencies
 from lib.dependencies import ensure_repos_configured
 from lib.image.digests import ImagePin
 from lib.image.digests import ImageTarget
+from lib.image.digests import StaleReferenceComment
 from lib.image.digests import digest_pin_targets
+from lib.image.digests import sync_reference_comments
 from lib.image.version import resolve_scoped_image_pins
 from lib.procutil import run_script
 from lib.registry import is_sliding_tag
@@ -193,6 +197,17 @@ def _apply_stale_digests(text: str, to_update: list[StaleDigest], *, dry_run: bo
     return text
 
 
+def _sync_reference_comments(text: str, *, dry_run: bool) -> tuple[str, list[StaleReferenceComment]]:
+    """Print the stale reference comments; return `text` with them rewritten (unchanged when dry_run) and the list."""
+    new_text, stale = sync_reference_comments(text)
+    if stale:
+        print(f"\n{len(stale)} stale reference comment(s){' (dry-run, not writing)' if dry_run else ''}:")
+        for s in stale:
+            print(f"  values.yaml:{s.line}: {s.written.strip()}")
+            print(f"    new: {s.expected.strip()}")
+    return (text if dry_run else new_text), stale
+
+
 def _regenerate_docs():
     """Run fix-helm-doc and fix-doc-consistency, which embed the digests; exit on failure."""
     print_section("Regenerating README.md (fix-helm-doc)")
@@ -219,18 +234,25 @@ def main():
     _report_unresolved_and_errors(unresolved, fetch_errors)
 
     to_update = stale
-    if not to_update:
+    if to_update:
+        text = _apply_stale_digests(text, to_update, dry_run=dry_run)
+    # Offline, so only on an unscoped run: a scoped run touches its own image only.
+    stale_comments: list[StaleReferenceComment] = []
+    if scope is None:
+        text, stale_comments = _sync_reference_comments(text, dry_run=dry_run)
+    if not to_update and not stale_comments:
         if scope is not None:
             print(f"\n'{key}' '{basename}' has no stale digest to update — nothing to do.")
         else:
-            print("\nNo stale digests found — nothing to do.")
+            print("\nNo stale digests or reference comments found — nothing to do.")
         sys.exit(1 if fetch_errors else 0)
-
-    text = _apply_stale_digests(text, to_update, dry_run=dry_run)
 
     if not dry_run:
         VALUES_PATH.write_text(text, encoding="utf-8")
-        print(f"\nWrote {len(to_update)} updated digest(s) to {VALUES_PATH}.")
+        print(
+            f"\nWrote {len(to_update)} updated digest(s) and {len(stale_comments)} reference comment(s) "
+            f"to {VALUES_PATH}."
+        )
         print("Re-render the chart to confirm (verify-podiumd or /helm-render-all) before committing.")
         _regenerate_docs()
 

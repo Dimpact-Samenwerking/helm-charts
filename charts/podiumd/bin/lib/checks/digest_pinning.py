@@ -187,7 +187,7 @@ def _print_shared_image_usage(
 
 def check_digest_pinning(chart_dir: Path):
     """Fail if any non-exempt values.yaml image tag lacks an "@sha256:<64 hex>" suffix,
-    or a "# host/repo:tag@sha256:..." reference comment disagrees with the pin below it."""
+    or a "# host/repo:tag[@sha256:...]" reference comment disagrees with the pin below it."""
     values_path = chart_dir / "values.yaml"
     if not values_path.is_file():
         print("OK: no values.yaml found — nothing to check")
@@ -209,10 +209,13 @@ def check_digest_pinning(chart_dir: Path):
         for path, tag in sorted(missing):
             print(f"  {'.'.join(path)}.tag: {tag!r}")
     if stale:
-        print(f"Found {len(stale)} reference comment(s) that don't match the pin below them:")
-        for line, written, expected in stale:
-            print(f"  values.yaml:{line}: {written}")
-            print(f"    expected: {expected}")
+        print(
+            f"Found {len(stale)} reference comment(s) that don't match the pin below them "
+            "(fix-image-digests rewrites them):"
+        )
+        for s in stale:
+            print(f"  values.yaml:{s.line}: {s.written.strip()}")
+            print(f"    expected: {s.expected.strip()}")
 
     parts: list[str] = []
     if missing:
