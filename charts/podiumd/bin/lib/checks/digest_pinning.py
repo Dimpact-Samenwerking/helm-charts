@@ -28,6 +28,7 @@ from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import resolve_values_path_source
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
+from lib.image.digests import find_stale_reference_comments
 from lib.render_scope import CHART_NAME
 from lib.render_scope import render_chart
 from lib.render_scope import rendered_chart_paths
@@ -185,7 +186,8 @@ def _print_shared_image_usage(
 
 
 def check_digest_pinning(chart_dir: Path):
-    """Fail if any non-exempt values.yaml image tag lacks an "@sha256:<64 hex>" suffix."""
+    """Fail if any non-exempt values.yaml image tag lacks an "@sha256:<64 hex>" suffix,
+    or a "# host/repo:tag@sha256:..." reference comment disagrees with the pin below it."""
     values_path = chart_dir / "values.yaml"
     if not values_path.is_file():
         print("OK: no values.yaml found — nothing to check")
@@ -196,16 +198,28 @@ def check_digest_pinning(chart_dir: Path):
     exceptions = digest_pinning_exceptions(chart_dir)
 
     missing = [(path, tag) for path, tag in images if path not in exceptions and not DIGEST_SUFFIX_RE.search(tag)]
+    stale = find_stale_reference_comments(values_path.read_text(encoding="utf-8").splitlines())
 
-    if not missing:
+    if not missing and not stale:
         print(f"OK: all {len(images)} image tag(s) in values.yaml are digest-pinned ({len(exceptions)} exempt)")
         return True, f"{len(images)} pin(s), 0 unpinned"
 
-    print(f'Found {len(missing)} image tag(s) not digest-pinned (missing "@sha256:<64 hex chars>"):')
-    for path, tag in sorted(missing):
-        print(f"  {'.'.join(path)}.tag: {tag!r}")
+    if missing:
+        print(f'Found {len(missing)} image tag(s) not digest-pinned (missing "@sha256:<64 hex chars>"):')
+        for path, tag in sorted(missing):
+            print(f"  {'.'.join(path)}.tag: {tag!r}")
+    if stale:
+        print(f"Found {len(stale)} reference comment(s) that don't match the pin below them:")
+        for line, written, expected in stale:
+            print(f"  values.yaml:{line}: {written}")
+            print(f"    expected: {expected}")
 
-    return False, f"{len(missing)}/{len(images)} image(s) not digest-pinned"
+    parts: list[str] = []
+    if missing:
+        parts.append(f"{len(missing)}/{len(images)} image(s) not digest-pinned")
+    if stale:
+        parts.append(f"{len(stale)} stale reference comment(s)")
+    return False, ", ".join(parts)
 
 
 def check_shared_image_usage(chart_dir: Path, extra_args: list[str]):

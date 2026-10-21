@@ -63,6 +63,13 @@ REF_COMMENT_RE = re.compile(
 )
 
 
+# The same reference comment split into its parts, for keeping it in step with its pin.
+REF_COMMENT_PARTS_RE = re.compile(
+    r"^(?P<indent>\s*)#\s*(?P<repo>[a-zA-Z0-9][\w.\-]*(?:/[\w.\-]+)*):@?(?P<version>[\w][\w.\-]*)"
+    r"(?:@sha256:(?P<digest>[0-9a-f]{64}))?\s*$"
+)
+
+
 class DigestPin(TypedDict):
     """One "tag: <version>@sha256:<digest>" line of values.yaml; line is 1-based."""
 
@@ -183,6 +190,55 @@ def resolve_pin_repo(lines: list[str], tag_line_index: int, tag_indent: int) -> 
         if m and len(raw) - len(raw.lstrip(" ")) == tag_indent:
             return m.group("repo")
     return None
+
+
+def reference_comment_index(lines: list[str], tag_line_index: int, tag_indent: int) -> int | None:
+    """The index of the "# host/repo:tag" comment resolve_pin_repo reads for this pin, or None.
+
+    None when the pin has an active sibling "repository:" (the comment, if any, is then
+    only decoration) or no reference comment within the lines resolve_pin_repo looks at.
+    """
+    if _sibling_field(lines, tag_line_index, tag_indent, ACTIVE_REPO_RE) is not None:
+        return None
+    for i in range(tag_line_index - 1, max(tag_line_index - 6, -1), -1):
+        if REF_COMMENT_RE.match(lines[i]):
+            return i
+    return None
+
+
+def reference_comment_text(comment_line: str, version: str, digest: str | None) -> str:
+    """comment_line with its tag and digest replaced by version and digest ("sha256:<hex>" or None)."""
+    m = REF_COMMENT_PARTS_RE.match(comment_line.rstrip("\r\n"))
+    if m is None:
+        return comment_line
+    ending = comment_line[len(comment_line.rstrip("\r\n")) :]
+    pin = f"{version}@{digest}" if digest else version
+    return f"{m.group('indent')}# {m.group('repo')}:{pin}{ending}"
+
+
+def find_stale_reference_comments(lines: list[str]) -> list[tuple[int, str, str]]:
+    """Reference comments whose tag or digest differs from the pin below them.
+
+    One (comment line, 1-based; comment as written; comment as it should read) per stale
+    comment. A comment without a digest is only compared on its tag.
+    """
+    stale: list[tuple[int, str, str]] = []
+    for i, raw in enumerate(lines):
+        pin = VERSION_PIN_RE.match(raw)
+        if pin is None or pin.group("digest") is None:
+            continue
+        idx = reference_comment_index(lines, i, len(pin.group("indent")))
+        if idx is None:
+            continue
+        ref = REF_COMMENT_PARTS_RE.match(lines[idx])
+        if ref is None:
+            continue
+        if ref.group("version") == pin.group("version") and ref.group("digest") in (None, pin.group("digest")):
+            continue
+        digest = f"sha256:{pin.group('digest')}" if ref.group("digest") else None
+        expected = reference_comment_text(lines[idx], pin.group("version"), digest).strip()
+        stale.append((idx + 1, lines[idx].strip(), expected))
+    return stale
 
 
 def scan_digest_pins(lines: list[str]) -> list[DigestPin]:

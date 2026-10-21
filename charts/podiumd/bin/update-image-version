@@ -7,7 +7,8 @@ Bump every values.yaml image tag pin sharing an image basename, scoped to
 <key>, to a new version.
 
 Checks the version exists upstream and resolves its digest before
-writing. Then runs fix-helm-doc and fix-doc-consistency, which writes
+writing. A "# host/repo:tag@sha256:..." reference comment above the pin's
+image block is rewritten with it. Then runs fix-helm-doc and fix-doc-consistency, which writes
 the target version's docs (upgrade doc, values-deltas,
 images-<target>.yaml, images-baseline.yaml).
 Fails when <key> <image-basename> does not match exactly one repository.
