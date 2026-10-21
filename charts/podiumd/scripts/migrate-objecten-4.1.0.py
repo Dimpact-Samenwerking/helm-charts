@@ -71,6 +71,13 @@ that change:
     tokenauth item has. When objecten has a tokenauth item `formulier` with
     read_and_write, that header becomes the formulier token (SWITCHED); this
     assumes the formulier token's Key Vault secret exists.
+  - Open Zaak's objecten-api (api_type orc, zaakobject validation) often
+    sends the same old objecttypen token. When objecten has a tokenauth item
+    `zaak`, that header becomes the zaak token (SWITCHED, with the item's
+    permissions); a zaak item without permissions is a CHECK, no zaak item an
+    ACTION. This assumes the zaak token's Key Vault secret exists.
+  - Both switches also apply to a service at the objecten api_root that was
+    merged before (by an earlier version of this script or by hand).
   - Otherwise, when the two services sent different tokens, the kept service's
     token is an ACTION: whether it is an objecten token with the permissions
     the component needs cannot be checked here (values-deltas.md, 'One
@@ -829,17 +836,31 @@ def _get_path(node, path):
     return node
 
 
-# The old objecttypen token that Open Formulieren's objecten service often
-# sends: no objecten tokenauth item has it, so after the merge every call
-# answers 401. Per component, the objecten identifier whose token replaces it.
+# The old objecttypen token that Open Formulieren's and Open Zaak's objecten
+# services often send: no objecten tokenauth item has it, so every call answers
+# 401. Per component, the objecten identifier whose token replaces it, and the
+# permission mode that item must have (None: switch anyway, report a CHECK when
+# the item has no permissions).
 OBJECTTYPEN_TOKEN_HEADER = "Token REP_OBJECTEN_CREDENTIALS_OBJECTTYPEN_TOKEN_REP"
-SWITCH_IDENTIFIER = {"openformulieren": "formulier"}
+SWITCH_IDENTIFIER = {"openformulieren": "formulier", "openzaak": "zaak"}
+SWITCH_REQUIRED_MODE = {"openformulieren": "read_and_write", "openzaak": None}
 
 
-def _switch_header(objecten: dict, component: str, header) -> tuple[str | None, str | None]:
+def _permission_summary(item: dict) -> str:
+    modes = [p.get("mode") for p in item.get("permissions") or [] if isinstance(p, dict)]
+    if not modes:
+        return "no permissions"
+    counts = {m: modes.count(m) for m in sorted(set(modes), key=str)}
+    return ", ".join(f"{n} objecttype(s) {m}" for m, n in counts.items())
+
+
+def _switch_header(objecten: dict, component: str, header,
+                   checks: list[str] | None = None) -> tuple[str | None, str | None]:
     """(new header_value, None) when `header` is the old objecttypen token and
-    objecten has a read_and_write token for this component; else (None, reason)
-    or (None, None) when the header is not the old objecttypen token."""
+    objecten has a token for this component (with the required permission mode);
+    else (None, reason) or (None, None) when the header is not the old
+    objecttypen token. A switched item without permissions adds a CHECK line to
+    `checks`."""
     ident = SWITCH_IDENTIFIER.get(component)
     if header != OBJECTTYPEN_TOKEN_HEADER or ident is None:
         return None, None
@@ -855,12 +876,28 @@ def _switch_header(objecten: dict, component: str, header) -> tuple[str | None, 
     item = next((i for i in items if isinstance(i, dict) and i.get("identifier") == ident), None)
     if item is None:
         return None, f"objecten has no tokenauth item '{ident}'"
-    if not any(isinstance(p, dict) and p.get("mode") == "read_and_write" for p in item.get("permissions") or []):
-        return None, f"objecten's tokenauth item '{ident}' has no read_and_write permission"
+    mode = SWITCH_REQUIRED_MODE.get(component)
+    if mode and not any(isinstance(p, dict) and p.get("mode") == mode for p in item.get("permissions") or []):
+        return None, f"objecten's tokenauth item '{ident}' has no {mode} permission"
     token = _plain_token(item.get("token"), secrets)
     if not token:
         return None, f"the token of objecten's tokenauth item '{ident}' cannot be resolved"
+    if checks is not None and not item.get("is_superuser") and not item.get("permissions"):
+        checks.append(f"CHECK {component}: objecten's tokenauth item '{ident}' has no permissions; give it read "
+                      f"access to the objecttypes {component} uses")
     return f"Token {token}", None
+
+
+def _switched_note(objecten: dict, component: str, sid: str, new_header: str) -> str:
+    ident = SWITCH_IDENTIFIER[component]
+    try:
+        items = ((_safe_load((objecten.get("configuration") or {}).get("data") or "") or {})
+                 .get("tokenauth") or {}).get("items") or []
+    except YAMLError:
+        items = []
+    item = next((i for i in items if isinstance(i, dict) and i.get("identifier") == ident), {})
+    perms = "superuser" if item.get("is_superuser") else _permission_summary(item)
+    return f"SWITCHED {component}: {sid} token objecttypen -> {ident} ({new_header}; {ident}: {perms})"
 
 
 def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
@@ -875,7 +912,9 @@ def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
     objecttypen service and one other service, the objecttypen service is
     removed and every *_service_identifier that named it is repointed at the
     other one. Open Formulieren's old objecttypen token on the kept service is
-    switched to objecten's `formulier` token (see _switch_header). Otherwise,
+    switched to objecten's `formulier` token (see _switch_header); a single
+    service at the objecten api_root that sends it (Open Zaak's objecten-api,
+    or one merged before) is switched too (Open Zaak: to `zaak`). Otherwise,
     only when their tokens differ is the token left as an ACTION: whether the
     kept token is an objecten token with the right permissions cannot be
     checked here. Any other duplicate at an objecten api_root is an
@@ -887,7 +926,9 @@ def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
     if not isinstance(doc, dict) or not isinstance(doc.get("objecten"), dict) or "objecttypen" in doc:
         return text, notes, actions
     hosts = _objecten_hosts(doc["objecten"])
-    plans: dict[str, list[tuple[str, str]]] = {}
+    plans: dict[str, list[tuple[str | None, str, str | None]]] = {}
+    merged: set[tuple[str, str]] = set()
+    single: list[tuple[str, dict]] = []
     for component, cfg in doc.items():
         if component == "objecten" or not isinstance(cfg, dict):
             continue
@@ -910,6 +951,7 @@ def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
                 by_root.setdefault(str(svc["api_root"]), []).append(svc)
         for api_root, svcs in by_root.items():
             if len(svcs) < 2:
+                single.extend((component, svc) for svc in svcs)
                 continue
             ids = [str(s["identifier"]) if s.get("identifier") else "<no identifier>" for s in svcs]
             ot = [s for s in svcs if s.get("identifier") and "objecttype" in str(s["identifier"])]
@@ -921,13 +963,13 @@ def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
                 continue
             old_id, keep_id = str(ot[0]["identifier"]), str(keep[0]["identifier"])
             old_token, keep_token = ot[0].get("header_value"), keep[0].get("header_value")
-            new_header, no_switch = _switch_header(doc["objecten"], component, keep_token)
+            new_header, no_switch = _switch_header(doc["objecten"], component, keep_token, notes)
             plans.setdefault(component, []).append((old_id, keep_id, new_header))
+            merged.add((component, keep_id))
             notes.append(f"{component}: removed zgw_consumers service {old_id} (same api_root {api_root} as "
                          f"{keep_id}) and pointed its *_service_identifier references at {keep_id}")
             if new_header:
-                notes.append(f"SWITCHED {component}: {keep_id} token objecttypen -> "
-                             f"{SWITCH_IDENTIFIER[component]} ({new_header})")
+                notes.append(_switched_note(doc["objecten"], component, keep_id, new_header))
                 continue
             if no_switch:
                 notes.append(f"{component}: {keep_id} sends the old objecttypen token and is not switched: {no_switch}")
@@ -937,6 +979,21 @@ def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
                                f"{keep_id}'s token is an objecten token with the permissions {component} needs; a "
                                f"value_from env token comes from the {component}-configuration-secrets Secret "
                                f"({component}.configuration.secrets) ({DUPLICATE_DOC})")
+    # A service at the objecten api_root that was not merged (Open Zaak's
+    # objecten-api, or Open Formulieren's when merged by an earlier version of
+    # this script) can still send the old objecttypen token.
+    for component, svc in single:
+        sid = svc.get("identifier")
+        if not sid or (component, str(sid)) in merged:
+            continue
+        new_header, no_switch = _switch_header(doc["objecten"], component, svc.get("header_value"), notes)
+        if new_header:
+            plans.setdefault(component, []).append((None, str(sid), new_header))
+            notes.append(_switched_note(doc["objecten"], component, str(sid), new_header))
+        elif no_switch:
+            actions.append(f"{ACTION}{component}: {sid} sends the old objecttypen token, which is not an objecten "
+                           f"token, and is not switched: {no_switch}. Give it a working objecten token "
+                           f"({DUPLICATE_DOC})")
     if not plans:
         return text, notes, actions
 
@@ -968,6 +1025,8 @@ def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
                 i_ed.replace(line, line + 1, [_scalar_line(i_lines[line], new_header)])
                 next(s for s in plain["zgw_consumers"]["services"]
                      if isinstance(s, dict) and str(s.get("identifier")) == keep_id)["header_value"] = new_header
+            if old_id is None:  # token switch only
+                continue
             idx = next(n for n, s in enumerate(services) if isinstance(s, dict) and str(s.get("identifier")) == old_id)
             i_ed.delete(*item_range(i_lines, services, idx, s_e))
             plain["zgw_consumers"]["services"] = [s for s in plain["zgw_consumers"]["services"]
