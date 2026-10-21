@@ -107,6 +107,18 @@ No action required. The pods restart once with the new requests. An environment
 that sets its own `resources` for these keys keeps them; Helm merges the maps, so
 an environment that sets only `limits` gets these requests as well.
 
+## Traefik PodMonitor off by default
+
+`traefikMonitor.enabled` now defaults to `false`. The PodiumD edge is NGINX
+Gateway Fabric, so the PodMonitor found no Traefik pods and left Prometheus
+with an empty scrape pool (`podMonitor/<namespace>/<release>-traefik`). The
+`kubernetes-pods` job already scrapes NGF through its pod annotations (port
+9113). See `docs/prometheus-scraping.md` § NGINX Gateway Fabric.
+
+Action for an environment that still runs Traefik at the edge: set
+`traefikMonitor.enabled: true`, or the Traefik metrics and the Traefik
+dashboard stop receiving data.
+
 ## Deferred (tracked as backlog items, not folded in here)
 
 - **`loki` 6.55.0 → 7.3.0**: the chart's default MinIO images silently

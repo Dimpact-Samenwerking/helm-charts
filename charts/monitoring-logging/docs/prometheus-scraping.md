@@ -38,7 +38,8 @@ These are scraped by the Prometheus chart itself — no ServiceMonitor resources
 | node-exporter | DaemonSet | 9100 | `/metrics` |
 | pushgateway | Deployment | 9091 | `/metrics` |
 | Alloy (log agent) | DaemonSet | 12345 | `/metrics` |
-| **Traefik** | PodMonitor (monitoring chart) | 9100 | `/metrics` |
+| **NGINX Gateway Fabric** | `kubernetes-pods` job (pod annotations) | 9113 | `/metrics` |
+| **Traefik** (off by default) | PodMonitor (monitoring chart) | 9100 | `/metrics` |
 | **OTel Collector** | ServiceMonitor (monitoring chart) | 8888 | `/metrics` |
 | **Django apps** | OTel remote write | — | pushes to `/api/v1/write` |
 
@@ -55,16 +56,31 @@ These are scraped by the Prometheus chart itself — no ServiceMonitor resources
 
 ---
 
-### Traefik ✅
+### NGINX Gateway Fabric ✅
 
-Traefik is deployed with `--metrics.prometheus=true` and exposes metrics on a dedicated pod port (9100). The monitoring chart deploys a `PodMonitor` that discovers Traefik pods across all namespaces.
+The PodiumD edge is NGINX Gateway Fabric (NGF). Both the controller pods (`nginx-gateway-fabric`) and the nginx data-plane pods of each Gateway (`<gateway>-nginx`) carry `prometheus.io/scrape: "true"` and expose metrics on port 9113. The `kubernetes-pods` job in `kube-prometheus-stack.prometheus.prometheusSpec.additionalScrapeConfigs` scrapes them.
+
+| Field | Value |
+|---|---|
+| Port | `9113` |
+| Path | `/metrics` |
+| Monitor | none: the `kubernetes-pods` scrape job |
+| Config key | none in this chart; the annotations come from the NGF chart |
+
+Do not add a ServiceMonitor or PodMonitor on the NGF pods: the `kubernetes-pods` job already scrapes them, and a second monitor stores every series twice.
+
+---
+
+### Traefik (off by default)
+
+For an environment that still runs Traefik at the edge. Traefik is deployed with `--metrics.prometheus=true` and exposes metrics on a dedicated pod port (9100). With `traefikMonitor.enabled: true` the monitoring chart deploys a `PodMonitor` that discovers Traefik pods across all namespaces. Leave it off without Traefik: a PodMonitor without matching pods leaves an empty scrape pool.
 
 | Field | Value |
 |---|---|
 | Port | `9100` (pod port name: `metrics`) |
 | Path | `/metrics` |
 | Monitor | `PodMonitor/monitoring-traefik` (created by `monitoring-logging` chart) |
-| Config key | `traefikMonitor.enabled` (default: `true`) |
+| Config key | `traefikMonitor.enabled` (default: `false`) |
 | Relabeling | `traefikMonitor.relabelings` / `traefikMonitor.metricRelabelings` (default: none) |
 
 No action needed in `podiumd/values-enable-observability.yaml` — the PodMonitor is owned by the monitoring chart.
@@ -490,7 +506,8 @@ kube-prometheus-stack:
 | node-exporter | ✅ | ✅ auto | — | — |
 | Alloy | ✅ | ✅ auto | — | — |
 | **OTel Collector** | ✅ | ✅ `ServiceMonitor/monitoring-otel-collector` | monitoring chart | ✅ done |
-| **Traefik** | ✅ | ✅ `PodMonitor/monitoring-traefik` | monitoring chart | ✅ done |
+| **NGINX Gateway Fabric** | ✅ | ✅ `kubernetes-pods` job (pod annotations) | NGF chart | ✅ done |
+| **Traefik** | ✅ | `PodMonitor/monitoring-traefik`, off by default (`traefikMonitor.enabled`) | monitoring chart | only with a Traefik edge |
 | **Keycloak** | ✅ | ✅ `ServiceMonitor/keycloak` (auto by operator) | keycloak-operator | ✅ done |
 | **Redis HA** | ✅ | ✅ `serviceMonitor.enabled: true` (redis-ha subchart) | podiumd chart | ✅ done |
 | **ClamAV** | ✅ | ✅ `serviceMonitor.enabled: true` (clamav subchart) | podiumd chart | ✅ done |
