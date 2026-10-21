@@ -297,3 +297,16 @@
 {{- if $placeholderPaths -}}
 {{- fail (printf "placeholder credentials (\"changeme\", \"dummy\", \"openklanttoken\", \"objectentoken\", \"<token>\", \"<kiss>\" or an unreplaced REP_..._REP marker) must be replaced with real values before deploying:\n  %s" (join "\n  " (sortAlpha $placeholderPaths))) -}}
 {{- end -}}
+
+{{- /* The redis-operator builds the redis-ha PodDisruptionBudget's selector from the CR
+     name (app: redis-ha), but the pods get app: <serviceName>. With another serviceName
+     the PDB selects no pods, so a drain can evict every Redis pod at once. */ -}}
+{{- $redisHaCheck := default (dict) (index (index .Values "redis-operator" | default dict) "redis-ha") -}}
+{{- if and $redisHaCheck.enabled ($redisHaCheck.pdb | default dict).enabled $redisHaCheck.serviceName (ne (toString $redisHaCheck.serviceName) "redis-ha") -}}
+{{- fail (printf "redis-operator.redis-ha.pdb.enabled needs redis-operator.redis-ha.serviceName \"redis-ha\" (or empty): the redis-operator selects the PodDisruptionBudget's pods with app: redis-ha, the CR name, so with serviceName %q it would protect no pod" (toString $redisHaCheck.serviceName)) -}}
+{{- end -}}
+{{- /* The master-only readiness check makes a stale master label permanent unless the
+     label-master CronJob removes it (the operator skips a NotReady pod). */ -}}
+{{- if and $redisHaCheck.enabled ($redisHaCheck.masterReadinessCheck | default dict).enabled (not ($redisHaCheck.labelMasterCronJob | default dict).enabled) -}}
+{{- fail "redis-operator.redis-ha.masterReadinessCheck.enabled needs redis-operator.redis-ha.labelMasterCronJob.enabled: an old master that comes back as a replica keeps its redis-role=master label and stays NotReady, and only the label-master CronJob removes that label. Turn the CronJob on, or turn masterReadinessCheck off." -}}
+{{- end -}}
