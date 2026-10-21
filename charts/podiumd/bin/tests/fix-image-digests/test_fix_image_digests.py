@@ -829,3 +829,26 @@ def test_main_scoped_unknown_basename_exits_with_error(
     monkeypatch.setattr("sys.argv", ["fix-image-digests", "a", "nope"])
     with pytest.raises(SystemExit, match="no image pin with image basename 'nope' found under 'a'"):
         sid.main()
+
+
+def test_main_rewrites_a_stale_reference_comment_without_a_digest_change(
+    sid: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """An unscoped run repairs a hand-edited pin's reference comment even when no digest is stale."""
+    values_path = tmp_path / "values.yaml"
+    digest = "a" * 64
+    write_values(
+        values_path,
+        f'a:\n  # org/repo:1.0.0@sha256:{digest}\n  image:\n    tag: "1.1.0@sha256:{digest}"\n',
+    )
+    monkeypatch.setattr(sid, "VALUES_PATH", values_path)
+    monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{digest}"))
+    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
+    monkeypatch.setattr("sys.argv", ["fix-image-digests"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        sid.main()
+    assert exc_info.value.code == 0
+    assert values_path.read_text(encoding="utf-8") == (
+        f'a:\n  # org/repo:1.1.0@sha256:{digest}\n  image:\n    tag: "1.1.0@sha256:{digest}"\n'
+    )
