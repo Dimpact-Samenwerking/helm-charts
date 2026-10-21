@@ -31,7 +31,7 @@ Audience: stakeholders and municipalities. Language: **Dutch**, plain and short.
 
 Keep established English technical terms in English instead of translating
 them. In particular, write "mirror" ("Nieuwe images mirroren", "image
-mirroren"), never "spiegelen".
+mirroren"), never "spiegelen", and "triaged" (the known-issue group), never "getrieerd".
 
 ## Sources, in this order
 
