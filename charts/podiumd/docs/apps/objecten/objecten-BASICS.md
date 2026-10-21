@@ -97,8 +97,8 @@ ClusterIP service. In-cluster the app answers on
 - **Keycloak** — admin OIDC login: client in the `podiumd` realm, secret in
   `objecten.configuration.secrets.keycloak_client_secret`, provider settings in the
   `oidc_db_config_*` block of `objecten.configuration.data`;
-  `objecten.configuration.pkceEnabled: true` enables PKCE (requires `pkceEnabled:
-  true` on the Keycloak client and `oidc_use_pkce: true` in the config data).
+  keep `objecten.configuration.pkceEnabled` false: Objecten cannot send PKCE yet,
+  and the render fails when it is true (see [keycloak-security-updates.md](../keycloak/keycloak-security-updates.md#pkce-enforcement)).
 - **API consumers** — token-auth items in `objecten.configuration.data`
   (`tokenauth_config_enable`), e.g. `openformulieren_objecten_token` for Open
   Formulieren and a token for Open Archiefbeheer; add one item per consuming app
@@ -142,7 +142,7 @@ it as a floor, not a peak. `resource-overview.md` recommends a PodDisruptionBudg
 4. **Keycloak client.** Create an OIDC client for Objecten in the `podiumd` realm and
    put its secret in `objecten.configuration.secrets.keycloak_client_secret`; fill the
    `oidc_db_config_*` section of `objecten.configuration.data` (discovery endpoint,
-   client id, claim mappings). Enable PKCE on both sides if required.
+   client id, claim mappings). No PKCE: keep `configuration.pkceEnabled` false.
 5. **Wire the ZGW services.** In `objecten.configuration.data`, define the
    zgw-consumers service for Open Notificaties (`object_notificaties_token`),
    enable `notifications_config_enable`, and add `tokenauth` items for each

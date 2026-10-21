@@ -1224,3 +1224,25 @@ Usage: {{- if include "podiumd.dependencyEnabled" .Values.openzaak }}
 {{- define "podiumd.dependencyEnabled" -}}
 {{- if not (and (kindIs "bool" .enabled) (not .enabled)) -}}true{{- end -}}
 {{- end -}}
+
+{{/*
+ClamAV — whether this chart deploys ClamAV (clamav.enabled; a missing key
+counts as off). Used by networkpolicies.yaml and by the configure-clamav Jobs.
+*/}}
+{{- define "podiumd.clamav.enabled" -}}
+{{- if (.Values.clamav | default dict).enabled -}}true{{- end -}}
+{{- end -}}
+
+{{/*
+ClamAV — whether a component's configure-clamav Job renders: the Job is
+enabled, and its clamavHost is reachable: this chart's ClamAV is deployed, or
+clamavHost points at a clamd outside this chart (anything other than the
+default "clamav"). So the default-on Job is left out where no ClamAV runs,
+without dropping a Job that an environment enabled for an external clamd.
+
+Usage: {{ include "podiumd.clamavConfigJob.enabled" (dict "root" $ "job" .Values.openformulieren.clamavConfigJob) }}
+*/}}
+{{- define "podiumd.clamavConfigJob.enabled" -}}
+{{- $job := .job | default dict -}}
+{{- if and $job.enabled (or (include "podiumd.clamav.enabled" .root) (ne (toString ($job.clamavHost | default "clamav")) "clamav")) -}}true{{- end -}}
+{{- end -}}

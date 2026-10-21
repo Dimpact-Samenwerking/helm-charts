@@ -126,8 +126,8 @@ CPU is negligible at dev/accp load; treat these as baseline, not peak.
    `opennotificaties.configuration.secrets.keycloak_client_secret` and the
    `oidc_db_config_*` block in `opennotificaties.configuration.data`; the
    umbrella realm template creates the `opennotificaties` client in the
-   `podiumd` realm. Enable PKCE with `configuration.pkceEnabled: true` plus
-   `oidc_use_pkce: true` in the data if desired.
+   `podiumd` realm. Keep `configuration.pkceEnabled: false`: Open
+   Notificaties cannot send PKCE yet, and the render fails when it is true ([keycloak-security-updates.md](../keycloak/keycloak-security-updates.md#pkce-enforcement)).
 4. **Register with Open Zaak.** Set the shared secrets
    (`opennotificaties_autorisatie_api_secret`,
    `opennotificaties_opennotificaties_secret`,

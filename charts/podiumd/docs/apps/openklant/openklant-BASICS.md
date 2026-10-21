@@ -70,8 +70,9 @@ worker and an nginx sidecar.
   - Allocation table: `docs/apps/redis/redis-ha-databases.md`.
 - **Keycloak**: OIDC client in the `podiumd` realm for admin login
   (`openklant.configuration.secrets.keycloak_client_secret`,
-  `openklant.configuration.oidcUrl`; set `openklant.configuration.pkceEnabled:
-  true` plus `oidc_use_pkce: true` in `configuration.data` for PKCE).
+  `openklant.configuration.oidcUrl`; keep `openklant.configuration.pkceEnabled`
+  false: Open Klant cannot send PKCE yet, and the render fails when it is true,
+  see [keycloak-security-updates.md](../keycloak/keycloak-security-updates.md#pkce-enforcement)).
 - **API tokens for consumers**: token-auth entries in
   `openklant.configuration.data` (`tokenauth` items) give KISS, OMC,
   Open Inwoner (`openklant_openinwoner_token`), Open Archiefbeheer and ZAC

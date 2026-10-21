@@ -104,7 +104,7 @@ spec:
     {{- end }}
 {{- end }}
 
-{{- if and (or .Values.openformulieren.enabled (not (hasKey .Values.openformulieren "enabled"))) .Values.openformulieren.clamavConfigJob.enabled }}
+{{- if and (include "podiumd.dependencyEnabled" .Values.openformulieren) (include "podiumd.clamavConfigJob.enabled" (dict "root" $ "job" .Values.openformulieren.clamavConfigJob)) }}
 {{- $podTemplate := include "podiumd.openformulierenClamavJob.podTemplate" . }}
 {{- $jobSuffix := $podTemplate | sha256sum | trunc 10 }}
 apiVersion: batch/v1

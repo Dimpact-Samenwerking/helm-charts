@@ -211,6 +211,7 @@ spec:
           runAsNonRoot: true
           runAsUser: 1000
           allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
           capabilities:
             drop: ["ALL"]
           seccompProfile:
@@ -229,6 +230,7 @@ spec:
           runAsNonRoot: true
           runAsUser: 999
           allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
           capabilities:
             drop: ["ALL"]
           seccompProfile:
@@ -272,6 +274,8 @@ spec:
         volumeMounts:
         - name: work
           mountPath: /work
+        - name: skip-flag
+          mountPath: /skip
         - name: tmp
           mountPath: /tmp
       volumes:
