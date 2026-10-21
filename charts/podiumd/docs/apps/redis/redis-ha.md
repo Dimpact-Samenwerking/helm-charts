@@ -71,6 +71,65 @@ kubectl label pod redis-ha-2 -n podiumd redis-role=slave --overwrite
 
 ---
 
+## Known Bug: redis-operator 0.26.x — replication loop after an unreachable pod
+
+**Affects:** `redis-operator` v0.26.0 (PodiumD 4.9.x).
+
+**Upstream fix:** [PR #1843](https://github.com/OT-CONTAINER-KIT/redis-operator/pull/1843)
+("skip unreachable RedisReplication pods during role discovery", issue #1842), released in
+`0.27.0`, the version in PodiumD 4.10.0.
+
+**Symptoms:** the operator logs these two lines about every 16 seconds, for hours or days:
+
+```text
+"Skipping replication reconfiguration because the current master could not be identified"
+"Creating redis replication by executing replication creation commands"
+```
+
+Every round re-runs `REPLICAOF` on the pods. Each Celery worker blocked on its broker (all
+Maykin workers use `redis-ha-master`) then exits with:
+
+```text
+Unrecoverable error: ResponseError('UNBLOCKED force unblock from blocking operation, instance state changed (master -> replica?)')
+```
+
+So all workers restart over and over. On test-rott (4.9.5, operator v0.26.0) this ran from
+17 October 2026 06:58 UTC until the `redis-ha` pods were recreated on 20 October: the
+Objecten worker restarted 637 times, Open Archiefbeheer 502, Open Klant 495, Open Zaak 436
+and Open Notificaties 131.
+
+**Root cause:** in v0.26.0 one Redis pod that Kubernetes reports as Ready but that does not
+answer over Redis (for example after a node fault) makes the role discovery fail, so the
+operator never finds the master and keeps reconfiguring replication.
+
+**Mitigation in 4.9.x:** delete the `redis-ha` pods so they restart together, or upgrade to
+4.10.0.
+
+---
+
+## Failover safeguards (since 4.10.0)
+
+Three settings under `redis-operator.redis-ha` limit what a failover does to the apps:
+
+| Value | Default | Effect |
+| --- | --- | --- |
+| `topologySpreadConstraints` | `maxSkew: 1` on `kubernetes.io/hostname`, `ScheduleAnyway` | The Redis pods go to different nodes where possible, so one node fault or drain takes out at most one of them. |
+| `pdb` | `enabled: true`, `maxUnavailable: 1` | The operator creates a PodDisruptionBudget: a node drain evicts one Redis pod at a time. |
+| `masterReadinessCheck.enabled` | `true` | A pod labelled `redis-role=master` that reports `role:slave` itself is NotReady, so it drops out of the `redis-ha-master` Service (IN-2961). |
+
+Why the readiness check: the operator sets the new `redis-role=master` label before it removes
+the old one. For about half a minute the `redis-ha-master` Service then also points at a
+replica, and apps that connect in that window write to a read-only replica (IN-2869). The
+check reads the pod's own labels from a downward API volume (`/etc/podinfo/labels`, refreshed
+by the kubelet) and compares them with `INFO replication`. A correctly labelled replica is never
+NotReady, so StatefulSet rolling updates are not blocked. Without any genuine master the
+Service has no endpoints, and apps get a connection error instead of a rejected write.
+
+Not covered here: a connection an app already holds to a replica stays there until the app
+reconnects or restarts (IN-2962, for Maykin).
+
+---
+
 ## Upgrade path
 
 The `redis-operator` subchart has carried PR #1720 since `0.25.0` (see above) — the chart is now on `0.26.1`, so this is no longer pending. The label-master CronJob is a **candidate for removal**

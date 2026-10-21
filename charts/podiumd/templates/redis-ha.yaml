@@ -34,9 +34,26 @@ spec:
     resources:
       {{- toYaml . | nindent 6 }}
     {{- end }}
-  {{- with $redisHa.storage }}
+  {{- if or $redisHa.storage ($redisHa.masterReadinessCheck | default dict).enabled }}
   storage:
+    {{- with $redisHa.storage }}
     {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if ($redisHa.masterReadinessCheck | default dict).enabled }}
+    {{- /* The pod's own labels for the readiness check below; kubelet refreshes them. */}}
+    volumeMount:
+      volume:
+        - name: podinfo
+          downwardAPI:
+            items:
+              - path: labels
+                fieldRef:
+                  fieldPath: metadata.labels
+      mountPath:
+        - name: podinfo
+          mountPath: /etc/podinfo
+          readOnly: true
+    {{- end }}
   {{- end }}
   {{- if $redisHa.redisConfig.additionalRedisConfig }}
   redisConfig:
@@ -52,6 +69,45 @@ spec:
   {{- with $redisHa.podSecurityContext }}
   podSecurityContext:
     {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $redisHa.topologySpreadConstraints }}
+  topologySpreadConstraints:
+    {{- range . }}
+    - {{ toYaml . | indent 6 | trim }}
+      labelSelector:
+        matchLabels:
+          app: {{ $redisHa.serviceName | default "redis-ha" | quote }}
+    {{- end }}
+  {{- end }}
+  {{- with $redisHa.pdb }}
+  {{- if .enabled }}
+  pdb:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- end }}
+  {{- if ($redisHa.masterReadinessCheck | default dict).enabled }}
+  {{- /* IN-2961: NotReady when labelled master but the server reports role:slave.
+       The image has no grep/awk/cat, so the labels file is read with shell builtins. */}}
+  readinessProbe:
+    exec:
+      command:
+        - sh
+        - -ec
+        - |
+          if [ -n "${REDISCLI_AUTH:-}" ]; then REDISCLI_AUTH="$(printf %s "$REDISCLI_AUTH" | tr -d '\r\n')"; export REDISCLI_AUTH; fi
+          [ "$(redis-cli -h "$(hostname)" -p "${REDIS_PORT}" ping)" = "PONG" ]
+          LABELLED_MASTER=0
+          while IFS= read -r LINE || [ -n "$LINE" ]; do
+            [ "$LINE" = 'redis-role="master"' ] && LABELLED_MASTER=1
+          done < /etc/podinfo/labels
+          [ "$LABELLED_MASTER" = 1 ] || exit 0
+          case "$(redis-cli -h "$(hostname)" -p "${REDIS_PORT}" info replication)" in
+            *role:slave*) echo "labelled master but role:slave"; exit 1 ;;
+          esac
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 2
+    successThreshold: 1
   {{- end }}
   {{- if $redisHa.nodeSelector }}
   nodeSelector:
