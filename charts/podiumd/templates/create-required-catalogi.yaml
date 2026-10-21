@@ -1,6 +1,14 @@
-{{- if .Values.openzaak.enabled }}
+{{- /* Renders exactly when the openzaak subchart does (podiumd.dependencyEnabled). */ -}}
+{{- if include "podiumd.dependencyEnabled" .Values.openzaak }}
 {{- if .Values.openzaak.configuration.enabled }}
 {{- if .Values.openzaak.create_required_catalogi_job.enabled }}
+{{- $job := .Values.openzaak.create_required_catalogi_job }}
+{{- range $key := list "client_id" "secret" }}
+{{- $v := trim (toString (index $job $key | default "")) }}
+{{- if or (not $v) (regexMatch "^<.*>$" $v) }}
+{{- fail (printf "openzaak.create_required_catalogi_job.%s is not set (found %q). The create-required-catalogi Job would get 401 from Open Zaak until its deadline. Set openzaak.create_required_catalogi_job.client_id and .secret to an Open Zaak API client with rights on the catalogi, or set openzaak.create_required_catalogi_job.enabled: false." $key $v) }}
+{{- end }}
+{{- end }}
 apiVersion: v1
 kind: Secret
 metadata:

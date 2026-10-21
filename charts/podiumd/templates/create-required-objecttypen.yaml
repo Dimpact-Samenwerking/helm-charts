@@ -1,6 +1,11 @@
-{{- if .Values.objecten.enabled }}
+{{- /* Renders exactly when the objecten subchart does (podiumd.dependencyEnabled). */ -}}
+{{- if include "podiumd.dependencyEnabled" .Values.objecten }}
 {{- if .Values.objecten.configuration.enabled }}
 {{- if .Values.objecten.create_required_objecttypen_job.enabled }}
+{{- $token := trim (toString (.Values.objecten.configuration.secrets.create_required_objecttypen_token | default "")) }}
+{{- if or (not $token) (regexMatch "^<.*>$" $token) }}
+{{- fail (printf "objecten.configuration.secrets.create_required_objecttypen_token is not set (found %q). The create-required-objecttypen Job would get 401 from objecten until its deadline. Set it to the token of an objecten tokenauth item with is_superuser: true (migrate-objecten-4.1.0.py sets it), or set objecten.create_required_objecttypen_job.enabled: false." $token) }}
+{{- end }}
 apiVersion: v1
 kind: Secret
 metadata:
