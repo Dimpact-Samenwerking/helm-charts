@@ -5232,11 +5232,15 @@ openbao:
       secretName: openbao-seal
 
   # --- openbao subchart values (upstream server.* keys) -------------------------
-  # Metrics-only listener (port 9101, opened only with
-  # serverTelemetry.serviceMonitor.enabled, see server.ha.config): the container
-  # port and the "metrics" port on the Services. The subchart's ServiceMonitor
-  # scrapes the active node; templates/openbao-podmonitor.yaml scrapes the
-  # standbys, so a standby that sealed itself shows up too.
+  # Metrics-only listener on 9101 (see server.ha.config). It is opened, and the
+  # subchart's ServiceMonitor plus templates/openbao-podmonitor.yaml are rendered,
+  # when serverTelemetry.serviceMonitor.enabled or
+  # global.serverTelemetry.prometheusOperator is true. That same switch needs the
+  # "metrics" port on the container and the Services: set server.extraPorts and
+  # server.service.extraPorts as in values-enable-observability.yaml (the render
+  # fails without them). They are not set here, so the pod spec of an environment
+  # without OpenBao metrics does not change. The ServiceMonitor scrapes the active
+  # node, the PodMonitor the standbys.
   # Turning the flag on changes the server config, so all OpenBao pods restart
   # (RollingUpdate). With the default Shamir seal (openbao.seal.static.key empty)
   # every pod comes back sealed while readiness still reports it ready
@@ -5246,14 +5250,6 @@ openbao:
     serviceMonitor:
       port: metrics
   server:
-    extraPorts:
-      - containerPort: 9101
-        name: metrics
-    service:
-      extraPorts:
-        - name: metrics
-          port: 9101
-          targetPort: 9101
     # RollingUpdate (not the chart default OnDelete) so a helm upgrade recreates
     # the server pods to pick up config changes (e.g. seal/readiness). With OnDelete
     # a crashing/old pod is never replaced automatically, and a `helm --wait` deploy

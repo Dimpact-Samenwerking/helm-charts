@@ -113,6 +113,20 @@
      fallback any more, so a gateway without OpenBao cannot authenticate to
      BAG, KVK or any other upstream that needs a key — and it would fail at
      request time, per call, rather than at deploy time. Couple them here. */ -}}
+{{- /* OpenBao metrics: the metrics-only listener on 9101 is scraped through the
+     "metrics" port, which the environment declares with the flag (see
+     values-enable-observability.yaml). Without it the ServiceMonitor and the
+     PodMonitor point at a port that does not exist. */ -}}
+{{- $bao := .Values.openbao | default dict -}}
+{{- $baoMetrics := or (dig "global" "serverTelemetry" "prometheusOperator" false $bao) (dig "serverTelemetry" "serviceMonitor" "enabled" false $bao) -}}
+{{- if and $bao.enabled $baoMetrics -}}
+{{- $ports := concat (dig "server" "extraPorts" list $bao) (dig "server" "service" "extraPorts" list $bao) -}}
+{{- $named := 0 -}}
+{{- range $ports }}{{- if eq (toString .name) "metrics" }}{{- $named = add1 $named }}{{- end }}{{- end -}}
+{{- if lt $named 2 -}}
+{{- fail "openbao metrics are on (serverTelemetry.serviceMonitor.enabled or global.serverTelemetry.prometheusOperator), but the \"metrics\" port (9101) is missing: set openbao.server.extraPorts and openbao.server.service.extraPorts as in values-enable-observability.yaml." -}}
+{{- end -}}
+{{- end -}}
 {{- if and .Values.frankgateway.enabled (not .Values.openbao.enabled) -}}
 {{- fail "frankgateway requires openbao: external-API keys are fetched from OpenBao at request time and there is no other key path. Set openbao.enabled=true, or frankgateway.enabled=false." -}}
 {{- end -}}

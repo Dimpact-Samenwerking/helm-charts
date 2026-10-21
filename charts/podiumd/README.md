@@ -837,8 +837,6 @@ PodiumD Helm chart
 | openbao.server.dataStorage.enabled | bool | `false` |  |
 | openbao.server.extraArgs | string | `"-config=/openbao/seal"` | Loads the static-seal config directory (see openbao.seal) as a second `-config`; keep it in any override. |
 | openbao.server.extraLabels."azure.workload.identity/use" | string | `"true"` |  |
-| openbao.server.extraPorts[0].containerPort | int | `9101` |  |
-| openbao.server.extraPorts[0].name | string | `"metrics"` |  |
 | openbao.server.extraSecretEnvironmentVars[0].envName | string | `"BAO_PG_CONNECTION_URL"` |  |
 | openbao.server.extraSecretEnvironmentVars[0].secretKey | string | `"connection-url"` |  |
 | openbao.server.extraSecretEnvironmentVars[0].secretName | string | `"openbao-db"` |  |
@@ -857,9 +855,6 @@ PodiumD Helm chart
 | openbao.server.resources.limits.memory | string | `"512Mi"` |  |
 | openbao.server.resources.requests.cpu | string | `"100m"` |  |
 | openbao.server.resources.requests.memory | string | `"256Mi"` |  |
-| openbao.server.service.extraPorts[0].name | string | `"metrics"` |  |
-| openbao.server.service.extraPorts[0].port | int | `9101` |  |
-| openbao.server.service.extraPorts[0].targetPort | int | `9101` |  |
 | openbao.server.serviceAccount.annotations."azure.workload.identity/client-id" | string | `""` |  |
 | openbao.server.serviceAccount.create | bool | `true` |  |
 | openbao.server.serviceAccount.name | string | `"openbao"` |  |

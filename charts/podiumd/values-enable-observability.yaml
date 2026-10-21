@@ -208,3 +208,13 @@ openbao:
       enabled: true
       interval: 30s
       scrapeTimeout: 10s
+  # The metrics listener's port on the container and the Services.
+  server:
+    extraPorts:
+      - containerPort: 9101
+        name: metrics
+    service:
+      extraPorts:
+        - name: metrics
+          port: 9101
+          targetPort: 9101

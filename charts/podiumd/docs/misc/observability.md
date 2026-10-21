@@ -290,7 +290,7 @@ exposes no metrics and no PodMonitor is rendered.
 
 ## Prometheus Scraping — OpenBao
 
-`openbao.serverTelemetry.serviceMonitor.enabled: true` (in `values-enable-observability.yaml`) adds a
+`openbao.serverTelemetry.serviceMonitor.enabled: true` (or `openbao.global.serverTelemetry.prometheusOperator`), together with the `metrics` port in `openbao.server.extraPorts` and `openbao.server.service.extraPorts` (both in `values-enable-observability.yaml`; the render fails when the port is missing), adds a
 `telemetry` stanza and a metrics-only listener on port 9101 (`metrics_only`,
 `unauthenticated_metrics_access`) to `openbao.server.ha.config`. The listener serves only
 `/v1/sys/metrics`; the API listener on 8200 keeps requiring a token for metrics, so a public OpenBao
