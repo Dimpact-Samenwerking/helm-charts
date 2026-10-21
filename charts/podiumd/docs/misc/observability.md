@@ -228,9 +228,10 @@ ZAC runs on WildFly with MicroProfile Telemetry, which reads the OpenTelemetry s
 
 ```yaml
 zac:
-  # javaOptions replaces the chart default, so repeat -Xmx/-Xms and -Xlog.
+  # javaOptions replaces the zac chart's default, so repeat -XX:MaxRAMPercentage=75.0 and -Xlog
+  # (without the percentage the JVM takes 25% of the memory limit); no -Xmx/-Xms.
   javaOptions: >-
-    -Xmx1024m -Xms1024m -Xlog:gc::time,uptime
+    -XX:MaxRAMPercentage=75.0 -Xlog:gc::time,uptime
     -Dotel.sdk.disabled=false
     -Dotel.exporter.otlp.endpoint=http://monitoring-opentelemetry-collector.monitoring.svc.cluster.local:4317
     -Dotel.metrics.exporter=otlp
@@ -275,8 +276,8 @@ eck-operator:
 
 ---
 
-eck-operator 3.x reads `config.metrics.port` and ignores the deprecated `config.metricsPort`
-once `metrics.port` is set (its default is the string `"0"`): with only `metricsPort` the operator
+eck-operator 3.x reads `config.metrics.port` and always ignores the deprecated `config.metricsPort`,
+because `metrics.port` always has a value (its default is the string `"0"`): with only `metricsPort` the operator
 exposes no metrics and no PodMonitor is rendered.
 
 ---

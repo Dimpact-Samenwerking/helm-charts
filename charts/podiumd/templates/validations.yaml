@@ -118,13 +118,13 @@
      values-enable-observability.yaml). Without it the ServiceMonitor and the
      PodMonitor point at a port that does not exist. */ -}}
 {{- $bao := .Values.openbao | default dict -}}
-{{- $baoMetrics := or (dig "global" "serverTelemetry" "prometheusOperator" false $bao) (dig "serverTelemetry" "serviceMonitor" "enabled" false $bao) -}}
+{{- $baoMetrics := or (dig "global" "serverTelemetry" "prometheusOperator" false $bao) (dig "serverTelemetry" "prometheusOperator" false (.Values.global | default dict)) (dig "serverTelemetry" "serviceMonitor" "enabled" false $bao) -}}
 {{- if and $bao.enabled $baoMetrics -}}
 {{- $ports := concat (dig "server" "extraPorts" list $bao) (dig "server" "service" "extraPorts" list $bao) -}}
 {{- $named := 0 -}}
 {{- range $ports }}{{- if eq (toString .name) "metrics" }}{{- $named = add1 $named }}{{- end }}{{- end -}}
 {{- if lt $named 2 -}}
-{{- fail "openbao metrics are on (serverTelemetry.serviceMonitor.enabled or global.serverTelemetry.prometheusOperator), but the \"metrics\" port (9101) is missing: set openbao.server.extraPorts and openbao.server.service.extraPorts as in values-enable-observability.yaml." -}}
+{{- fail "openbao metrics are on (openbao.serverTelemetry.serviceMonitor.enabled, or global.serverTelemetry.prometheusOperator in openbao or at the top level), but the \"metrics\" port (9101) is missing: set openbao.server.extraPorts and openbao.server.service.extraPorts as in values-enable-observability.yaml." -}}
 {{- end -}}
 {{- end -}}
 {{- if and .Values.frankgateway.enabled (not .Values.openbao.enabled) -}}

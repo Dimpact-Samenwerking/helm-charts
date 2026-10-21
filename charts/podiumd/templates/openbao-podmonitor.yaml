@@ -6,13 +6,17 @@ becomes active. This PodMonitor scrapes the standbys (openbao-active: "false",
 set by service_registration "kubernetes") on the metrics-only listener (port
 "metrics", 9101); the active node stays with the subchart's ServiceMonitor, so
 no pod is scraped twice. Rendered under the same condition as that listener
-and the subchart's ServiceMonitor.
+and the subchart's ServiceMonitor (podiumd's top-level global: is merged into
+the subchart's .Values.global, so that flag counts too), and only with more than
+one HA replica: a single server has no standby to scrape.
 */ -}}
 {{- $bao := .Values.openbao | default dict }}
 {{- $telemetry := $bao.serverTelemetry | default dict }}
 {{- $sm := $telemetry.serviceMonitor | default dict }}
-{{- $global := (($bao.global | default dict).serverTelemetry) | default dict }}
-{{- if and $bao.enabled (or $global.prometheusOperator $sm.enabled) }}
+{{- $global := or (dig "global" "serverTelemetry" "prometheusOperator" false $bao) (dig "serverTelemetry" "prometheusOperator" false (.Values.global | default dict)) }}
+{{- $ha := dig "server" "ha" dict $bao }}
+{{- $standbys := and $ha.enabled (gt (int ($ha.replicas | default 1)) 1) }}
+{{- if and $bao.enabled (or $global $sm.enabled) $standbys }}
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor

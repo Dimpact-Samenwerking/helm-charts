@@ -73,9 +73,11 @@ openvtb:
 # ---------------------------------------------------------------------------
 
 zac:
-  # javaOptions extends the chart default (-Xmx1024m -Xms1024m -Xlog:gc::time,uptime).
+  # javaOptions replaces the zac chart's default (-XX:MaxRAMPercentage=75.0 -Xlog:gc::time,uptime),
+  # so both are repeated here. Without MaxRAMPercentage the JVM sizes the heap at 25% of the
+  # memory limit. No -Xmx/-Xms: since 4.10.0 the heap follows the limit (see the upgrade guide).
   javaOptions: >-
-    -Xmx1024m -Xms1024m -Xlog:gc::time,uptime
+    -XX:MaxRAMPercentage=75.0 -Xlog:gc::time,uptime
     -Dotel.sdk.disabled=false
     -Dotel.exporter.otlp.endpoint=http://monitoring-opentelemetry-collector.monitoring.svc.cluster.local:4317
     -Dotel.metrics.exporter=otlp
