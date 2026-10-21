@@ -21,6 +21,7 @@ from lib.chart.yaml_alias_groups import alias_groups
 from lib.cli import print_section
 from lib.cli import print_section_items
 from lib.component_docs.aliased_pin_bullets import add_missing_pin_bullets
+from lib.component_docs.aliased_pin_bullets import same_baseline_alias_groups
 from lib.component_docs.baseline_doc_stubs import IMAGES_STUB_TEMPLATE
 from lib.component_docs.baseline_doc_stubs import STUB_TEMPLATES
 from lib.component_docs.baseline_doc_stubs import existing_doc_baselines
@@ -523,9 +524,11 @@ def _fix_upgrade_doc_headings(text: str, state: RebaseState, upgrade_path: Path)
     return text, changed
 
 
-def _add_missing_pin_bullets(text: str, upgrade_path: Path, values_yaml: Path) -> tuple[str, bool]:
-    """Add a pin bullet for each path sharing a YAML anchor with a documented one. Returns (text, changed)."""
-    text, added = add_missing_pin_bullets(text, alias_groups(values_yaml))
+def _add_missing_pin_bullets(text: str, upgrade_path: Path, state: RebaseState) -> tuple[str, bool]:
+    """Add a pin bullet for each path sharing a YAML anchor with a documented one and the same
+    baseline value. Returns (text, changed)."""
+    groups = same_baseline_alias_groups(alias_groups(state.paths.values_yaml), state.baseline_values)
+    text, added = add_missing_pin_bullets(text, groups)
     items = [f"'### {m.heading}': {m.missing_path} (shares an anchor with {m.documented_path})" for m in added]
     return text, print_section_items(
         f"Adding pin bullet(s) for paths sharing a YAML anchor in {upgrade_path.name}", items
@@ -603,7 +606,7 @@ def _fix_upgrade_doc(state: RebaseState, upgrade_path: Path, actual_changed_keys
     changed += [bool(added_names), bool(added_sidecar_names)]
     text, step_changed = _fix_upgrade_doc_headings(text, state, upgrade_path)
     changed.append(step_changed)
-    text, step_changed = _add_missing_pin_bullets(text, upgrade_path, state.paths.values_yaml)
+    text, step_changed = _add_missing_pin_bullets(text, upgrade_path, state)
     changed.append(step_changed)
     text, step_changed = _fix_pointer_issues(text, upgrade_path, state)
     changed.append(step_changed)

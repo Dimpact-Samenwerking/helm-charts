@@ -344,8 +344,10 @@ Disabled by default. First provision everything in the [§ Resources](#resources
    > tokens (e.g. the `Token` header) are pipeline-substituted. Mixing them is intentional — see
    > the Declarative configuration note above.
 
-5. **Optional — enable PKCE** with `configuration.pkceEnabled: true` (sets `S256` on the Keycloak
-   client; also add `oidc_use_pkce: true` to `configuration.data`).
+5. **PKCE: keep `configuration.pkceEnabled: false`.** Open Beheer cannot send PKCE yet
+   (`oidc_use_pkce` in `configuration.data` is not read), so PKCE on its Keycloak client only breaks
+   the login, and the render fails when it is true. See
+   [keycloak-security-updates.md](../keycloak/keycloak-security-updates.md#pkce-enforcement).
 
 ## Validation
 

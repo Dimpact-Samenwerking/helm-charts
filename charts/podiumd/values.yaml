@@ -746,6 +746,7 @@ openzaak:
     #     - identifier: pabc
     #       secret: {value_from: {env: openzaak_pabc_secret}}
     #   oidc_db_config_enable: true
+    #   oidc_use_pkce: false -- not read by the app yet (mozilla-django-oidc-db has no OIDC_USE_PKCE field); keep configuration.pkceEnabled false
     #   oidc_db_config_admin_auth:
     #     providers:
     #     - identifier: keycloak-provider
@@ -766,8 +767,9 @@ openzaak:
     #       oidc_rp_sign_algo: RS256
     #       oidc_provider_identifier: keycloak-provider
     #       userinfo_claims_source: id_token
-    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
-    #       oidc_use_pkce: true
+    #       # Not read by the app yet (mozilla-django-oidc-db has no OIDC_USE_PKCE field):
+    #       # keep false, and keep configuration.pkceEnabled false.
+    #       oidc_use_pkce: false
     #       options:
     #         user_settings:
     #           claim_mappings:
@@ -797,7 +799,7 @@ openzaak:
       # openzaak_pabc_secret: "<pabc.settings.zgwZaakregister.clientSecret>"
     # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openzaak.example.nl`.
     oidcUrl: ""
-    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    # -- Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement.
     pkceEnabled: false
   create_required_catalogi_job:
     client_id: "<openzaak_client_id>"
@@ -959,6 +961,7 @@ opennotificaties:
     # e.g.
     # data: |-
     #   oidc_db_config_enable: true
+    #   oidc_use_pkce: false -- not read by the app yet (mozilla-django-oidc-db has no OIDC_USE_PKCE field); keep configuration.pkceEnabled false
     #   oidc_db_config_admin_auth:
     #     providers:
     #     - identifier: keycloak-provider
@@ -979,8 +982,9 @@ opennotificaties:
     #       oidc_rp_sign_algo: RS256
     #       oidc_provider_identifier: keycloak-provider
     #       userinfo_claims_source: id_token
-    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
-    #       oidc_use_pkce: true
+    #       # Not read by the app yet (mozilla-django-oidc-db has no OIDC_USE_PKCE field):
+    #       # keep false, and keep configuration.pkceEnabled false.
+    #       oidc_use_pkce: false
     #       options:
     #         user_settings:
     #           claim_mappings:
@@ -1085,7 +1089,7 @@ opennotificaties:
     #         name: Open Notificaties
     # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://opennotificaties.example.nl`.
     oidcUrl: ""
-    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    # -- Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement.
     pkceEnabled: false
   settings:
     database:
@@ -1288,6 +1292,7 @@ objecten:
     #         name: demo
     #         # NOTE: `service_identifier` removed upstream in 4.0.0 — objecttypes are local now
     #   oidc_db_config_enable: true
+    #   oidc_use_pkce: false -- not read by the app yet (mozilla-django-oidc-db has no OIDC_USE_PKCE field); keep configuration.pkceEnabled false
     #   oidc_db_config_admin_auth:
     #     providers:
     #     - identifier: keycloak-provider
@@ -1308,8 +1313,9 @@ objecten:
     #       oidc_rp_sign_algo: RS256
     #       oidc_provider_identifier: keycloak-provider
     #       userinfo_claims_source: id_token
-    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
-    #       oidc_use_pkce: true
+    #       # Not read by the app yet (mozilla-django-oidc-db has no OIDC_USE_PKCE field):
+    #       # keep false, and keep configuration.pkceEnabled false.
+    #       oidc_use_pkce: false
     #       options:
     #         user_settings:
     #           claim_mappings:
@@ -1334,7 +1340,7 @@ objecten:
     # django.contrib.sites; use `settings.siteDomain` below instead (now required).
     # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://objecten.example.nl`.
     oidcUrl: ""
-    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    # -- Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement.
     pkceEnabled: false
   settings:
     database:
@@ -1531,6 +1537,7 @@ openarchiefbeheer:
     #       - objecten-api
 
     #   oidc_db_config_enable: true
+    #   oidc_use_pkce: false -- not read by the app yet (mozilla-django-oidc-db has no OIDC_USE_PKCE field); keep configuration.pkceEnabled false
     #   oidc_db_config_admin_auth:
     #     providers:
     #     - identifier: admin-oidc-provider
@@ -1713,6 +1720,7 @@ openklant:
     #         email: person-1@example.com
 
     #   oidc_db_config_enable: true
+    #   oidc_use_pkce: false -- not read by the app yet (mozilla-django-oidc-db has no OIDC_USE_PKCE field); keep configuration.pkceEnabled false
     #   oidc_db_config_admin_auth:
     #     providers:
     #       - identifier: admin-oidc-provider
@@ -1735,8 +1743,9 @@ openklant:
     #       - roles
     #       oidc_rp_sign_algo: RS256
     #       userinfo_claims_source: id_token
-    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
-    #       oidc_use_pkce: true
+    #       # Not read by the app yet (mozilla-django-oidc-db has no OIDC_USE_PKCE field):
+    #       # keep false, and keep configuration.pkceEnabled false.
+    #       oidc_use_pkce: false
     #       options:
     #         user_settings:
     #           claim_mappings:
@@ -1760,7 +1769,7 @@ openklant:
     #           default_groups: []
     # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openklant.example.nl`.
     oidcUrl: ""
-    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    # -- Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement.
     pkceEnabled: false
   settings:
     database:
@@ -1823,9 +1832,14 @@ openklant:
 
 openformulieren:
   # Security review 4.10.0 WH-02: merged into the chart defaults (drop ALL,
-  # runAsNonRoot, runAsUser 1000, fsGroup 1000).
+  # runAsNonRoot, runAsUser 1000, fsGroup 1000). Helm merges the sub-chart's
+  # defaults into this block, so the umbrella's own Jobs
+  # (templates/openformulieren-configure-*.yaml) already get runAsNonRoot, runAsUser
+  # 1000 and drop ALL; seccompProfile is the one key added here.
   securityContext:
     allowPrivilegeEscalation: false
+    seccompProfile:
+      type: RuntimeDefault
   podSecurityContext:
     seccompProfile:
       type: RuntimeDefault
@@ -1848,6 +1862,7 @@ openformulieren:
     data: ""
     # data: |-
     #   oidc_db_config_enable: true
+    #   oidc_use_pkce: false -- not read by the app yet (mozilla-django-oidc-db has no OIDC_USE_PKCE field); keep configuration.pkceEnabled false
     #   oidc_db_config_admin_auth:
     #     providers:
     #     - identifier: keycloak-provider
@@ -1868,8 +1883,9 @@ openformulieren:
     #       oidc_rp_sign_algo: RS256
     #       oidc_provider_identifier: keycloak-provider
     #       userinfo_claims_source: id_token
-    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
-    #       oidc_use_pkce: true
+    #       # Not read by the app yet (mozilla-django-oidc-db has no OIDC_USE_PKCE field):
+    #       # keep false, and keep configuration.pkceEnabled false.
+    #       oidc_use_pkce: false
     #       options:
     #         user_settings:
     #           claim_mappings:
@@ -2001,7 +2017,7 @@ openformulieren:
     #         }
     # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openformulieren.example.nl`.
     oidcUrl: ""
-    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    # -- Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement.
     pkceEnabled: false
   # -- Seeds Open Forms' GlobalConfiguration singleton (enable_virus_scan,
   # clamav_host/port/timeout) via `manage.py shell`. Open Forms has no
@@ -2009,11 +2025,13 @@ openformulieren:
   # it through the admin UI (docs/configuration/general/virus_scan.rst) —
   # so this Job writes the same fields directly, verifying the ClamAV
   # connection first the same way GlobalConfiguration.clean() does.
-  # Off by default: opt-in per gemeente. See
+  # On by default since 4.10.0. Rendered while ClamAV itself is deployed
+  # (clamav.enabled), or when clamavHost points at a clamd outside this chart
+  # (anything other than the default "clamav"). Set false to opt out. See
   # templates/openformulieren-configure-clamav.yaml and
   # docs/apps/openforms/openforms-BASICS.md.
   clamavConfigJob:
-    enabled: false
+    enabled: true
     clamavHost: clamav
     clamavPort: 3310
     clamavTimeout: 30
@@ -2137,9 +2155,14 @@ openformulieren:
 
 openinwoner:
   # Security review 4.10.0 WH-02: merged into the chart defaults (drop ALL,
-  # runAsNonRoot, runAsUser 1000, fsGroup 1000).
+  # runAsNonRoot, runAsUser 1000, fsGroup 1000). Helm merges the sub-chart's
+  # defaults into this block, so the umbrella's own Jobs
+  # (templates/openinwoner-configure-*.yaml) already get runAsNonRoot, runAsUser
+  # 1000 and drop ALL; seccompProfile is the one key added here.
   securityContext:
     allowPrivilegeEscalation: false
+    seccompProfile:
+      type: RuntimeDefault
   podSecurityContext:
     seccompProfile:
       type: RuntimeDefault
@@ -2161,6 +2184,7 @@ openinwoner:
     data: ""
     # data: |-
     #   oidc_db_config_enable: true
+    #   oidc_use_pkce: false -- not read by the app yet (mozilla-django-oidc-db has no OIDC_USE_PKCE field); keep configuration.pkceEnabled false
     #   oidc_db_config_admin_auth:
     #     items:
     #     - identifier: admin-oidc
@@ -2194,8 +2218,9 @@ openinwoner:
     #       oidc_nonce_size: 32
     #       oidc_state_size: 32
     #       userinfo_claims_source: id_token
-    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
-    #       oidc_use_pkce: true
+    #       # Not read by the app yet (mozilla-django-oidc-db has no OIDC_USE_PKCE field):
+    #       # keep false, and keep configuration.pkceEnabled false.
+    #       oidc_use_pkce: false
     #   zgw_consumers_config_enable: true
     #   zgw_consumers:
     #     services:
@@ -2280,7 +2305,7 @@ openinwoner:
       # openklant_openinwoner_token: "<openklant_openinwoner_token>"
     # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openinwoner.example.nl`.
     oidcUrl: ""
-    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    # -- Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement.
     pkceEnabled: false
   # -- Seeds Open Inwoner's SiteConfiguration singleton (enable_virus_scan,
   # clamav_host/port/timeout) via `manage.py shell`. Unlike most
@@ -2290,11 +2315,13 @@ openinwoner:
   # optional_settings, so setting them under configuration.data is silently
   # ignored. This Job writes them directly and pings clamd itself first
   # (SiteConfiguration.clean() only checks clamav_host is non-empty, it
-  # doesn't test connectivity). Off by default: opt-in per gemeente. See
+  # doesn't test connectivity). On by default since 4.10.0. Rendered while ClamAV itself is deployed
+  # (clamav.enabled), or when clamavHost points at a clamd outside this chart
+  # (anything other than the default "clamav"). Set false to opt out. See
   # templates/openinwoner-configure-clamav.yaml and
   # docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-gemeente-specific.md.
   clamavConfigJob:
-    enabled: false
+    enabled: true
     clamavHost: clamav
     clamavPort: 3310
     clamavTimeout: 30.0
@@ -2462,11 +2489,12 @@ openinwoner:
     #     - data
     #     - ingest
     #     node.store.allow_mmap: false
-    #     xpack.security.authc:
-    #       anonymous:
-    #         username: anonymous
-    #         roles: superuser
-    #         authz_exception: false
+    #     # Do NOT grant the anonymous user the superuser role
+    #     # (xpack.security.authc.anonymous.roles: superuser): every pod that
+    #     # reaches port 9200 could then read, change or delete the search index
+    #     # of the citizen portal Let Open Inwoner log in
+    #     # with a least-privilege user instead (openinwoner.settings.elasticsearch
+    #     # .username/.password).
     #   podTemplate:
     #     spec:
     #       terminationGracePeriodSeconds: 60
@@ -2526,6 +2554,7 @@ referentielijsten:
     data: ""
     # data: |-
     #   oidc_db_config_enable: true
+    #   oidc_use_pkce: false -- not read by the app yet (mozilla-django-oidc-db has no OIDC_USE_PKCE field); keep configuration.pkceEnabled false
     #   oidc_db_config_admin_auth:
     #     providers:
     #     - identifier: admin-oidc-provider
@@ -2569,7 +2598,7 @@ referentielijsten:
     #             - administrators
     # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://referentielijsten.example.nl`.
     oidcUrl: ""
-    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    # -- Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement.
     pkceEnabled: false
   replicaCount: 1
   persistence:
@@ -2640,6 +2669,7 @@ openbeheer:
     data: ""
     # data: |-
     #   oidc_db_config_enable: true
+    #   oidc_use_pkce: false -- not read by the app yet (mozilla-django-oidc-db has no OIDC_USE_PKCE field); keep configuration.pkceEnabled false
     #   oidc_db_config_admin_auth:
     #     providers:
     #     - identifier: keycloak-provider
@@ -2710,7 +2740,7 @@ openbeheer:
     #     objecttypen_service_identifier: objecttypen-service
     # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openbeheer.example.nl`.
     oidcUrl: ""
-    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    # -- Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement.
     pkceEnabled: false
   replicaCount: 2
   image:
@@ -2822,6 +2852,7 @@ openvtb:
     data: ""
     # data: |-
     #   oidc_db_config_enable: true
+    #   oidc_use_pkce: false -- not read by the app yet (mozilla-django-oidc-db has no OIDC_USE_PKCE field); keep configuration.pkceEnabled false
     #   oidc_db_config_admin_auth:
     #     providers:
     #     - identifier: keycloak-provider
@@ -2865,7 +2896,7 @@ openvtb:
     #             - administrators
     # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openvtb.example.nl`.
     oidcUrl: ""
-    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    # -- Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement.
     pkceEnabled: false
   replicaCount: 2
   image:
@@ -3435,9 +3466,13 @@ zac:
     realm: podiumd
     clientId: zac
     secret: changeme
-    # -- Enable PKCE (S256) on the Keycloak client. NOTE: ZAC does not currently support PKCE;
-    # this switch is reserved for when PKCE support is added to the ZAC OIDC client.
-    pkceEnabled: false
+    # -- PKCE (S256) for ZAC's login. One switch for
+    # both sides: the ZAC sub-chart reads it as AUTH_ENABLE_PKCE (oidc.json
+    # `enable-pkce`, ZAC 5.4.5 and later), and keycloak-podiumd-realm-config sets
+    # `pkce.code.challenge.method: S256` on the zac client, so Keycloak requires
+    # it. Replaces zac.auth.pkceEnabled (Keycloak side only), which now fails
+    # the render.
+    enablePkce: true
   bagApi:
     url: https://bag.example.nl
     apiKey: "dummy"
@@ -3670,10 +3705,24 @@ zac:
       crd:
         create: false
       hooks:
-        # lachlanevenson/k8s-kubectl:@v1.25.4@sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc
-        image:
-          #repository:
-          tag: v1.25.4@sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc
+        # The post-install/upgrade and pre-delete hooks only run sh, kubectl and
+        # grep. Same image and tag as redis-ha's label-master Job, instead of the
+        # sub-chart default lachlanevenson/k8s-kubectl (unofficial, Kubernetes
+        # 1.25, end of life). Environments that override hooks.image.repository
+        # must point it at their mirror of alpine/k8s. The redisHaK8sImage anchor
+        # keeps both on one pin.
+        image: *redisHaK8sImage
+        # alpine/k8s runs as root (no USER in the image) and kubectl writes its
+        # cache under $HOME=/root, which this sub-chart cannot redirect; so no
+        # runAsNonRoot here until that is tested. The rest cannot break sh,
+        # kubectl or grep.
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          seccompProfile:
+            type: RuntimeDefault
       # pravega/zookeeper-operator:0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e
       image:
         #repository:

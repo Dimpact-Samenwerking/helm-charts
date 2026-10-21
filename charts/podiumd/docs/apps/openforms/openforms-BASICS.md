@@ -168,8 +168,8 @@ baseline (dev/accp), not peak.
    `openformulieren.configuration.secrets.keycloak_client_secret`, set
    `configuration.oidcUrl` to the public URL, and fill
    `configuration.data` (`oidc_db_config_admin_auth`) following the commented
-   example in `values.yaml`. Enable `pkceEnabled: true` plus
-   `oidc_use_pkce: true` if the Keycloak client enforces PKCE. Add DigiD /
+   example in `values.yaml`. Keep `pkceEnabled: false`: Open
+   Formulieren cannot send PKCE yet, and the render fails when it is true ([keycloak-security-updates.md](../keycloak/keycloak-security-updates.md#pkce-enforcement)). Add DigiD /
    eHerkenning OIDC providers the same way if citizen login is required.
 5. **Register with Open Zaak / Objecten**: add an application `open-formulieren`
    (client id + secret) in Open Zaak's Autorisaties API; define the
