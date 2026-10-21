@@ -188,7 +188,12 @@ grafana:
       allow_assign_grafana_admin: true
       client_id: "monitoring"
       client_secret: ""
-      # No offline_access: Keycloak rejects it (invalid_scope). See docs/grafana-auth.md.
+      # offline_access removed: podiumd's `monitoring` Keycloak client no longer
+      # grants it (see podiumd chart PR #441 / docs/apps/keycloak/keycloak-security-updates.md
+      # "Offline Access Disabled") — Keycloak would silently drop the scope from
+      # the auth request anyway. Session length is now governed by the
+      # `login_maximum_inactive_lifetime_duration` / `login_maximum_lifetime_duration`
+      # settings below instead of a persistent refresh token. See docs/grafana-auth.md.
       scopes: openid email profile roles
       email_attribute_path: email
       login_attribute_path: username
@@ -201,7 +206,8 @@ grafana:
       org_mapping: "*:Viewer"
       skip_org_role_sync: false
       groups_attribute_path: groups
-      use_refresh_token: true
+      # No offline_access grant to refresh from — see the scopes comment above.
+      use_refresh_token: false
       sync_ttl: 60
       use_pkce: true
     auth:
@@ -210,6 +216,14 @@ grafana:
       disable_login_form: true
       disable_signout_menu: false
       allow_sign_up: true
+      # Grafana's own session cookie now bounds how long a user stays logged in
+      # without re-authenticating via Keycloak (independent of offline_access /
+      # use_refresh_token above). These are Grafana's own defaults, set
+      # explicitly so the knob is visible — raise them if operators are being
+      # re-prompted to log in more often than acceptable. See docs/grafana-auth.md
+      # "Session lifetime" for details.
+      login_maximum_inactive_lifetime_duration: 7d
+      login_maximum_lifetime_duration: 30d
     server:
       domain: "logs.test.nl"
       enforce_domain: true
@@ -218,6 +232,10 @@ grafana:
       enabled: false  
     security:
       cookie_secure: true
+      # HSTS: Grafana sends it only with this setting (IN-3162). Quoted: unquoted,
+      # the Grafana chart renders the number as 3.1536e+07.
+      strict_transport_security: true
+      strict_transport_security_max_age_seconds: "31536000"
       cookie_samesite: lax
       content_security_policy: true
       content_security_policy_template: "script-src 'self' 'unsafe-eval' 'unsafe-inline' 'strict-dynamic' $NONCE;object-src 'none';font-src 'self';style-src 'self' 'unsafe-inline' blob:;img-src * data:;base-uri 'self';connect-src 'self' grafana.com ws://$ROOT_PATH wss://$ROOT_PATH;manifest-src 'self';media-src 'none';form-action 'self';"
@@ -273,6 +291,11 @@ grafana:
       - kubernetes.io/pvc-protection
 
   sidecar:
+    # -- grafana-sc-dashboard and grafana-sc-datasources: about 70Mi each measured on QA
+    resources:
+      requests:
+        cpu: 10m
+        memory: 96Mi
     datasources:
       enabled: true
     dashboards:
@@ -291,6 +314,18 @@ kube-prometheus-stack:
     enabled: false
   # Alertmanager disabled — no alert routing configured
   alertmanager:
+    enabled: false
+  # AKS manages the control plane, so controller-manager, etcd and scheduler cannot
+  # be scraped; Cilium environments run without kube-proxy. Their ServiceMonitors
+  # would only have no scrape targets. 14 of 22 SSC monitoring values already turn
+  # these off; re-enable per environment on a cluster where they are reachable.
+  kubeControllerManager:
+    enabled: false
+  kubeEtcd:
+    enabled: false
+  kubeScheduler:
+    enabled: false
+  kubeProxy:
     enabled: false
   prometheus:
     prometheusSpec:
@@ -385,11 +420,11 @@ kube-prometheus-stack:
         pullPolicy: IfNotPresent
       patch:
         # -- kube-webhook-certgen image for admission webhook TLS certificate provisioning
-        # ghcr.io/jkroepke/kube-webhook-certgen:1.8.0
+        # ghcr.io/jkroepke/kube-webhook-certgen:1.8.8
         image:
           registry: ghcr.io
           repository: jkroepke/kube-webhook-certgen
-          tag: "1.8.0"
+          tag: "1.8.8"
           pullPolicy: IfNotPresent
     # -- prometheus-config-reloader image settings (injected into Prometheus StatefulSet by the operator)
     # quay.io/prometheus-operator/prometheus-config-reloader:v0.90.1
@@ -421,6 +456,9 @@ kube-prometheus-stack:
       repository: prometheus/node-exporter
       pullPolicy: IfNotPresent
       tag: v1.9.1
+      # -- kube-prometheus-stack 90 turns distroless on, which appends "-distroless" to the tag;
+      # v1.9.1 has no distroless variant (they start at v1.11.0). Turn it on with a tag that has one.
+      distroless: false
   # -- kube-state-metrics image settings
   # registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.17.0
   kube-state-metrics:
@@ -438,7 +476,7 @@ kube-prometheus-stack:
       tag: v2.17.0
 
 # -- Pushgateway: separate dependency (not bundled in kube-prometheus-stack).
-# quay.io/prometheus/pushgateway:v1.11.1
+# quay.io/prometheus/pushgateway:v1.11.3
 prometheus-pushgateway:
   enabled: true
   resources:
@@ -451,7 +489,7 @@ prometheus-pushgateway:
   image:
     repository: quay.io/prometheus/pushgateway
     pullPolicy: IfNotPresent
-    tag: v1.11.1
+    tag: v1.11.3
 
 alloy:
   enabled: true
@@ -581,11 +619,11 @@ alloy:
         cpu: 100m
         memory: 256Mi
   # -- alloy image settings
-  # docker.io/grafana/alloy:v1.14.0
+  # docker.io/grafana/alloy:v1.19.2
   image:
     registry: docker.io
     repository: grafana/alloy
-    tag: v1.14.0
+    tag: v1.19.2
     pullPolicy: IfNotPresent
   configReloader:
     # -- config-reloader sidecar image settings (Alloy hot-reload, separate from the operator's config-reloader)
@@ -619,6 +657,11 @@ loki:
       pullPolicy: IfNotPresent
       tag: alpine3.22
   memcachedExporter:
+    # -- Requests for the exporter next to chunks-cache and results-cache.
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
     # memcached-exporter image settings
     # docker.io/prom/memcached-exporter:v0.15.3
     image:
@@ -635,6 +678,11 @@ loki:
     image:
       pullPolicy: IfNotPresent
       tag: 1.30.10
+    # -- loki-sc-rules: about 82Mi measured on QA
+    resources:
+      requests:
+        cpu: 10m
+        memory: 96Mi
 
 
   chunksCache:
@@ -762,6 +810,17 @@ loki:
     replicas: 0
   compactor:
     replicas: 1
+    # -- Requests only (Distributed mode); the scheduler otherwise reserves nothing.
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  ruler:
+    # -- Requests only (Distributed mode).
+    resources:
+      requests:
+        cpu: 20m
+        memory: 128Mi
   loki:
     auth_enabled: false
     schemaConfig:
@@ -1002,14 +1061,30 @@ opentelemetry-collector:
         # Apply values-enable-tempo.yaml to enable traces → Tempo.
 
 # -- PodMonitor for Traefik. Scrapes the Traefik metrics endpoint (port 9100)
-# from pods in the configured namespace. Requires Traefik to be deployed with
-# --metrics.prometheus=true (default in the standard Traefik Helm chart).
+# from pods in the configured namespace. Requires Traefik's Prometheus metrics
+# (`metrics.prometheus`, on by default in the standard Traefik Helm chart).
+# Off by default: the PodiumD edge is NGINX Gateway Fabric, which the
+# `kubernetes-pods` job scrapes through its pod annotations, and a PodMonitor
+# without Traefik pods leaves Prometheus with an empty scrape pool.
+# Keep this the only monitor on Traefik: a second ServiceMonitor or PodMonitor on
+# the same pods (such as the Traefik chart's own `metrics.prometheus.serviceMonitor`)
+# stores every Traefik series twice. Add labels with `metricRelabelings` instead.
 traefikMonitor:
-  enabled: true
+  enabled: false
   # -- Namespace where Traefik pods run. Leave empty to search all namespaces.
   namespace: ""
   # -- Prometheus scrape interval.
   scrapeInterval: 30s
+  # -- Relabelings applied to the target before it is scraped (PodMonitor
+  # `podMetricsEndpoints[].relabelings`), e.g. to add a static `cluster` label.
+  relabelings: []
+  # -- Relabelings applied to every scraped sample (PodMonitor
+  # `podMetricsEndpoints[].metricRelabelings`). Traefik's `service` label is
+  # `<namespace>-<name>-<port>@<provider>` and its `router` label (only with
+  # Traefik's `metrics.prometheus.addRoutersLabels`) starts with `<namespace>-`
+  # too, so a rule can lift the namespace into a label of its own, for dashboards
+  # per namespace or tenant. See docs/prometheus-scraping.md for an example.
+  metricRelabelings: []
 
 # -- ServiceMonitor for the OpenTelemetry Collector internal metrics endpoint
 # (port 8888). Allows Prometheus to scrape otelcol_* health/pipeline metrics.
@@ -1020,6 +1095,9 @@ otelCollectorMonitor:
 
 # -- Ingress for the OTLP HTTP endpoint (port 4318).
 # Exposes the collector externally via Traefik with an ip-allowlist middleware.
+# Traefik only: on an NGINX Gateway Fabric edge leave this off and route the
+# host to Service `<release>-opentelemetry-collector:4318` deploy-side, like the
+# other HTTPRoutes (see docs/otel.md).
 # Requires cert-manager for TLS. Disabled by default — set hostname to enable.
 # The middleware must be pre-created in the same namespace (e.g. a Traefik Middleware CRD).
 otelIngress:

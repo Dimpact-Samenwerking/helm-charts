@@ -725,7 +725,7 @@
       },
       "id": 126,
       "panels": [],
-      "title": "Alerts",
+      "title": "Other numbers",
       "type": "row"
     },
     {
@@ -794,7 +794,72 @@
           "refId": "A"
         }
       ],
-      "title": "OF failure rate for 1h",
+      "title": "OF fails for 1h",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 3,
+        "y": 8
+      },
+      "id": 134,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0-17814087142",
+      "targets": [
+        {
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "sum(\n  count_over_time(\n    {app=\"openformulieren-worker\"} \n    |= `email_status_change`\n    |= `Failed`\n    | json\n    | event=\"email_status_change\"\n    | status_label=\"Failed\"\n    [$__range]\n  )\n)\nor vector(0)\n",
+          "queryType": "instant",
+          "refId": "A"
+        }
+      ],
+      "title": "OF email fails",
       "type": "stat"
     },
     {
@@ -1187,336 +1252,508 @@
         "y": 29
       },
       "id": 69,
-      "panels": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "custom": {
-                "align": "auto",
-                "cellOptions": {
-                  "type": "auto"
-                },
-                "footer": {
-                  "reducers": []
-                },
-                "inspect": false
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Reference"
-                },
-                "properties": [
-                  {
-                    "id": "custom.width",
-                    "value": 212
-                  }
-                ]
-              }
-            ]
-          },
-          "gridPos": {
-            "h": 5,
-            "w": 24,
-            "x": 0,
-            "y": 30
-          },
-          "id": 61,
-          "options": {
-            "cellHeight": "sm",
-            "showHeader": true,
-            "sortBy": []
-          },
-          "pluginVersion": "12.3.0-17814087142",
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "{app=\"openformulieren-worker\"}\n|= \"registration_success\"\n| json \n| event=\"registration_success\"\n| action=\"registrations.main_registration\"",
-              "queryType": "range",
-              "refId": "B"
-            }
-          ],
-          "title": "Successes",
-          "transformations": [
-            {
-              "id": "extractFields",
-              "options": {
-                "delimiter": ",",
-                "format": "json",
-                "jsonPaths": [
-                  {
-                    "alias": "Plugin",
-                    "path": "plugin"
-                  },
-                  {
-                    "alias": "Reference",
-                    "path": "public_reference"
-                  },
-                  {
-                    "alias": "Form",
-                    "path": "form"
-                  },
-                  {
-                    "alias": "Submission UUID",
-                    "path": "submission_uuid"
-                  }
-                ],
-                "source": "labels"
-              }
-            },
-            {
-              "id": "organize",
-              "options": {
-                "excludeByName": {
-                  "Line": true,
-                  "id": true,
-                  "labelTypes": true,
-                  "labels": true,
-                  "tsNs": true
-                },
-                "includeByName": {},
-                "indexByName": {
-                  "Form": 8,
-                  "Line": 2,
-                  "Plugin": 9,
-                  "Reference": 7,
-                  "Submission UUID": 6,
-                  "Time": 1,
-                  "id": 5,
-                  "labelTypes": 4,
-                  "labels": 0,
-                  "tsNs": 3
-                },
-                "renameByName": {}
-              }
-            }
-          ],
-          "type": "table"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "description": "Detected registration failures",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "custom": {
-                "align": "auto",
-                "cellOptions": {
-                  "type": "auto"
-                },
-                "footer": {
-                  "reducers": []
-                },
-                "inspect": false
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Submission UUID"
-                },
-                "properties": [
-                  {
-                    "id": "custom.width",
-                    "value": 320
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Reference"
-                },
-                "properties": [
-                  {
-                    "id": "custom.width",
-                    "value": 210
-                  }
-                ]
-              }
-            ]
-          },
-          "gridPos": {
-            "h": 6,
-            "w": 24,
-            "x": 0,
-            "y": 47
-          },
-          "id": 89,
-          "options": {
-            "cellHeight": "sm",
-            "showHeader": true,
-            "sortBy": []
-          },
-          "pluginVersion": "12.3.0-17814087142",
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "{app=\"openformulieren-worker\"} | json | event=\"registration_failure\"",
-              "queryType": "range",
-              "refId": "A"
-            }
-          ],
-          "title": "Failures",
-          "transformations": [
-            {
-              "id": "extractFields",
-              "options": {
-                "delimiter": ",",
-                "format": "json",
-                "jsonPaths": [
-                  {
-                    "alias": "Reference",
-                    "path": "public_reference"
-                  },
-                  {
-                    "alias": "Form",
-                    "path": "form"
-                  },
-                  {
-                    "alias": "Submission UUID",
-                    "path": "submission_uuid"
-                  },
-                  {
-                    "alias": "Action",
-                    "path": "action"
-                  },
-                  {
-                    "alias": "Trigger type",
-                    "path": "trigger"
-                  },
-                  {
-                    "alias": "Plugin",
-                    "path": "plugin"
-                  },
-                  {
-                    "alias": "Event",
-                    "path": "event"
-                  },
-                  {
-                    "alias": "Exception",
-                    "path": "exception"
-                  }
-                ],
-                "source": "labels"
-              }
-            },
-            {
-              "id": "organize",
-              "options": {
-                "excludeByName": {
-                  "Action": true,
-                  "Event": true,
-                  "Exception": true,
-                  "Line": true,
-                  "Trigger type": false,
-                  "id": true,
-                  "labelTypes": true,
-                  "labels": true,
-                  "tsNs": true
-                },
-                "includeByName": {},
-                "indexByName": {
-                  "Action": 11,
-                  "Event": 6,
-                  "Form": 9,
-                  "Line": 2,
-                  "Plugin": 10,
-                  "Reference": 8,
-                  "Submission UUID": 7,
-                  "Time": 1,
-                  "Trigger type": 12,
-                  "id": 5,
-                  "labelTypes": 4,
-                  "labels": 0,
-                  "tsNs": 3
-                },
-                "renameByName": {}
-              }
-            },
-            {
-              "id": "sortBy",
-              "options": {
-                "fields": {},
-                "sort": [
-                  {
-                    "desc": true,
-                    "field": "Time"
-                  }
-                ]
-              }
-            },
-            {
-              "id": "sortBy",
-              "options": {
-                "fields": {},
-                "sort": [
-                  {
-                    "desc": false,
-                    "field": "Reference"
-                  }
-                ]
-              }
-            }
-          ],
-          "type": "table"
-        }
-      ],
+      "panels": [],
       "title": "Open Forms",
       "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Reference"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 212
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 30
+      },
+      "id": 61,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.3.0-17814087142",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{app=\"openformulieren-worker\"}\n|= \"registration_success\"\n| json \n| event=\"registration_success\"\n| action=\"registrations.main_registration\"",
+          "queryType": "range",
+          "refId": "B"
+        }
+      ],
+      "title": "Successes",
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "delimiter": ",",
+            "format": "json",
+            "jsonPaths": [
+              {
+                "alias": "Plugin",
+                "path": "plugin"
+              },
+              {
+                "alias": "Reference",
+                "path": "public_reference"
+              },
+              {
+                "alias": "Form",
+                "path": "form"
+              },
+              {
+                "alias": "Submission UUID",
+                "path": "submission_uuid"
+              }
+            ],
+            "source": "labels"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Line": true,
+              "id": true,
+              "labelTypes": true,
+              "labels": true,
+              "tsNs": true
+            },
+            "includeByName": {},
+            "indexByName": {
+              "Form": 8,
+              "Line": 2,
+              "Plugin": 9,
+              "Reference": 7,
+              "Submission UUID": 6,
+              "Time": 1,
+              "id": 5,
+              "labelTypes": 4,
+              "labels": 0,
+              "tsNs": 3
+            },
+            "renameByName": {}
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "description": "Detected registration failures",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Submission UUID"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 320
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Reference"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 210
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 35
+      },
+      "id": 89,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.3.0-17814087142",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{app=\"openformulieren-worker\"} | json | event=\"registration_failure\"",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Failures",
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "delimiter": ",",
+            "format": "json",
+            "jsonPaths": [
+              {
+                "alias": "Reference",
+                "path": "public_reference"
+              },
+              {
+                "alias": "Form",
+                "path": "form"
+              },
+              {
+                "alias": "Submission UUID",
+                "path": "submission_uuid"
+              },
+              {
+                "alias": "Action",
+                "path": "action"
+              },
+              {
+                "alias": "Trigger type",
+                "path": "trigger"
+              },
+              {
+                "alias": "Plugin",
+                "path": "plugin"
+              },
+              {
+                "alias": "Event",
+                "path": "event"
+              },
+              {
+                "alias": "Exception",
+                "path": "exception"
+              }
+            ],
+            "source": "labels"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Action": true,
+              "Event": true,
+              "Exception": true,
+              "Line": true,
+              "Trigger type": false,
+              "id": true,
+              "labelTypes": true,
+              "labels": true,
+              "tsNs": true
+            },
+            "includeByName": {},
+            "indexByName": {
+              "Action": 11,
+              "Event": 6,
+              "Form": 9,
+              "Line": 2,
+              "Plugin": 10,
+              "Reference": 8,
+              "Submission UUID": 7,
+              "Time": 1,
+              "Trigger type": 12,
+              "id": 5,
+              "labelTypes": 4,
+              "labels": 0,
+              "tsNs": 3
+            },
+            "renameByName": {}
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": true,
+                "field": "Time"
+              }
+            ]
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": false,
+                "field": "Reference"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [
+            {
+              "options": {
+                "Not Found": {
+                  "index": 0,
+                  "text": "-"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 41
+      },
+      "id": 133,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0-17814087142",
+      "targets": [
+        {
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{app=\"openformulieren-worker\"} \n|= `email_status_change`\n| json",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Emails",
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "delimiter": ",",
+            "format": "json",
+            "jsonPaths": [
+              {
+                "alias": "Message",
+                "path": "message_id"
+              },
+              {
+                "alias": "Status",
+                "path": "status_label"
+              },
+              {
+                "alias": "Form",
+                "path": "form"
+              },
+              {
+                "alias": "Email type",
+                "path": "email_event"
+              },
+              {
+                "alias": "Public reference",
+                "path": "public_reference"
+              }
+            ],
+            "source": "labels"
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Email type": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "aggregate"
+              },
+              "Form": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "aggregate"
+              },
+              "Message": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "Public reference": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "aggregate"
+              },
+              "Status": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "aggregate"
+              },
+              "Time": {
+                "aggregations": [
+                  "firstNotNull",
+                  "lastNotNull"
+                ],
+                "operation": "aggregate"
+              }
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "includeByName": {},
+            "indexByName": {
+              "Email type (lastNotNull)": 6,
+              "Form (lastNotNull)": 5,
+              "Message": 0,
+              "Public reference (lastNotNull)": 4,
+              "Status (lastNotNull)": 3,
+              "Time (firstNotNull)": 2,
+              "Time (lastNotNull)": 1
+            },
+            "renameByName": {
+              "Email type (firstNotNull)": "Email type",
+              "Email type (lastNotNull)": "Email type",
+              "Form (firstNotNull)": "Form",
+              "Form (lastNotNull)": "Form",
+              "Public reference (firstNotNull)": "Public reference",
+              "Public reference (lastNotNull)": "Public reference",
+              "Status (firstNotNull)": "Status",
+              "Status (lastNotNull)": "Status",
+              "Time (firstNotNull)": "Created",
+              "Time (lastNotNull)": "Updated"
+            }
+          }
+        }
+      ],
+      "type": "table"
     },
     {
       "collapsed": true,
@@ -1524,7 +1761,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 30
+        "y": 50
       },
       "id": 81,
       "panels": [
@@ -1569,7 +1806,7 @@
             "h": 6,
             "w": 24,
             "x": 0,
-            "y": 62
+            "y": 114
           },
           "id": 85,
           "options": {
@@ -1721,7 +1958,7 @@
             "h": 9,
             "w": 24,
             "x": 0,
-            "y": 68
+            "y": 120
           },
           "id": 90,
           "options": {
@@ -1872,7 +2109,7 @@
             "h": 8,
             "w": 24,
             "x": 0,
-            "y": 77
+            "y": 129
           },
           "id": 127,
           "options": {
@@ -1988,7 +2225,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 31
+        "y": 51
       },
       "id": 82,
       "panels": [
@@ -2033,7 +2270,7 @@
             "h": 5,
             "w": 24,
             "x": 0,
-            "y": 86
+            "y": 52
           },
           "id": 98,
           "options": {
@@ -2141,7 +2378,7 @@
             "h": 4,
             "w": 24,
             "x": 0,
-            "y": 91
+            "y": 57
           },
           "id": 97,
           "options": {
@@ -2246,241 +2483,242 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 32
+        "y": 52
       },
       "id": 94,
-      "panels": [],
+      "panels": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "footer": {
+                  "reducers": []
+                },
+                "inspect": false
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 24,
+            "x": 0,
+            "y": 53
+          },
+          "id": 75,
+          "options": {
+            "cellHeight": "sm",
+            "showHeader": true
+          },
+          "pluginVersion": "12.3.0-17814087142",
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "direction": "backward",
+              "editorMode": "code",
+              "expr": "{app=\"openzaak\"} \n|= \"zaak_created\"\n| json event=\"event\", identificatie=\"identificatie\", zaaktype=\"zaaktype\"\n| event=\"zaak_created\"",
+              "queryType": "range",
+              "refId": "E"
+            }
+          ],
+          "title": "Successes (created zaken)",
+          "transformations": [
+            {
+              "id": "extractFields",
+              "options": {
+                "format": "json",
+                "jsonPaths": [
+                  {
+                    "alias": "Identificatie",
+                    "path": "identificatie"
+                  },
+                  {
+                    "alias": "Zaaktype",
+                    "path": "zaaktype"
+                  }
+                ],
+                "source": "labels"
+              }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Line": true,
+                  "id": true,
+                  "labelTypes": true,
+                  "labels": true,
+                  "tsNs": true
+                },
+                "includeByName": {},
+                "indexByName": {},
+                "renameByName": {}
+              }
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "footer": {
+                  "reducers": []
+                },
+                "inspect": false
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 24,
+            "x": 0,
+            "y": 60
+          },
+          "id": 91,
+          "options": {
+            "cellHeight": "sm",
+            "showHeader": true
+          },
+          "pluginVersion": "12.3.0-17814087142",
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "direction": "backward",
+              "editorMode": "code",
+              "expr": "{app=\"openzaak\"}\n|= \"POST /zaken/api/v1/zaken\"\n| json event=\"event\", request=\"request\", code=\"code\", request_id=\"request_id\"\n| event = \"request_finished\"\n| request = \"POST /zaken/api/v1/zaken\"\n| code >= 400",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Failures",
+          "transformations": [
+            {
+              "id": "extractFields",
+              "options": {
+                "delimiter": ",",
+                "format": "json",
+                "jsonPaths": [
+                  {
+                    "alias": "Code",
+                    "path": "code"
+                  },
+                  {
+                    "alias": "Request Id",
+                    "path": "request_id"
+                  },
+                  {
+                    "alias": "Request",
+                    "path": "request"
+                  }
+                ],
+                "source": "labels"
+              }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Line": true,
+                  "Request Id": true,
+                  "app": true,
+                  "client": true,
+                  "code": false,
+                  "container": true,
+                  "detected_level": true,
+                  "event": true,
+                  "id": true,
+                  "instance": true,
+                  "labelTypes": true,
+                  "labels": true,
+                  "level": true,
+                  "logger": true,
+                  "logstream": true,
+                  "request": true,
+                  "service_name": true,
+                  "target": true,
+                  "timestamp": true,
+                  "tsNs": true
+                },
+                "includeByName": {},
+                "indexByName": {
+                  "Code": 7,
+                  "Line": 2,
+                  "Request": 6,
+                  "Request Id": 8,
+                  "Time": 1,
+                  "id": 5,
+                  "labelTypes": 4,
+                  "labels": 0,
+                  "tsNs": 3
+                },
+                "renameByName": {}
+              }
+            }
+          ],
+          "type": "table"
+        }
+      ],
       "title": "Open Zaak",
       "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "description": "",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "footer": {
-              "reducers": []
-            },
-            "inspect": false
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 24,
-        "x": 0,
-        "y": 33
-      },
-      "id": 75,
-      "options": {
-        "cellHeight": "sm",
-        "showHeader": true
-      },
-      "pluginVersion": "12.3.0-17814087142",
-      "targets": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "{app=\"openzaak\"} \n|= \"zaak_created\"\n| json event=\"event\", identificatie=\"identificatie\", zaaktype=\"zaaktype\"\n| event=\"zaak_created\"",
-          "queryType": "range",
-          "refId": "E"
-        }
-      ],
-      "title": "Successes (created zaken)",
-      "transformations": [
-        {
-          "id": "extractFields",
-          "options": {
-            "format": "json",
-            "jsonPaths": [
-              {
-                "alias": "Identificatie",
-                "path": "identificatie"
-              },
-              {
-                "alias": "Zaaktype",
-                "path": "zaaktype"
-              }
-            ],
-            "source": "labels"
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Line": true,
-              "id": true,
-              "labelTypes": true,
-              "labels": true,
-              "tsNs": true
-            },
-            "includeByName": {},
-            "indexByName": {},
-            "renameByName": {}
-          }
-        }
-      ],
-      "type": "table"
-    },
-    {
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "footer": {
-              "reducers": []
-            },
-            "inspect": false
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 24,
-        "x": 0,
-        "y": 40
-      },
-      "id": 91,
-      "options": {
-        "cellHeight": "sm",
-        "showHeader": true
-      },
-      "pluginVersion": "12.3.0-17814087142",
-      "targets": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "{app=\"openzaak\"}\n|= \"POST /zaken/api/v1/zaken\"\n| json event=\"event\", request=\"request\", code=\"code\", request_id=\"request_id\"\n| event = \"request_finished\"\n| request = \"POST /zaken/api/v1/zaken\"\n| code >= 400",
-          "queryType": "range",
-          "refId": "A"
-        }
-      ],
-      "title": "Failures",
-      "transformations": [
-        {
-          "id": "extractFields",
-          "options": {
-            "delimiter": ",",
-            "format": "json",
-            "jsonPaths": [
-              {
-                "alias": "Code",
-                "path": "code"
-              },
-              {
-                "alias": "Request Id",
-                "path": "request_id"
-              },
-              {
-                "alias": "Request",
-                "path": "request"
-              }
-            ],
-            "source": "labels"
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Line": true,
-              "Request Id": true,
-              "app": true,
-              "client": true,
-              "code": false,
-              "container": true,
-              "detected_level": true,
-              "event": true,
-              "id": true,
-              "instance": true,
-              "labelTypes": true,
-              "labels": true,
-              "level": true,
-              "logger": true,
-              "logstream": true,
-              "request": true,
-              "service_name": true,
-              "target": true,
-              "timestamp": true,
-              "tsNs": true
-            },
-            "includeByName": {},
-            "indexByName": {
-              "Code": 7,
-              "Line": 2,
-              "Request": 6,
-              "Request Id": 8,
-              "Time": 1,
-              "id": 5,
-              "labelTypes": 4,
-              "labels": 0,
-              "tsNs": 3
-            },
-            "renameByName": {}
-          }
-        }
-      ],
-      "type": "table"
     },
     {
       "collapsed": false,
@@ -2488,204 +2726,205 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 45
-      },
-      "id": 130,
-      "panels": [],
-      "title": "eSuite",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "footer": {
-              "reducers": []
-            },
-            "inspect": false
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 24,
-        "x": 0,
-        "y": 46
-      },
-      "id": 131,
-      "options": {
-        "cellHeight": "sm",
-        "showHeader": true
-      },
-      "pluginVersion": "12.3.0-17814087142",
-      "targets": [
-        {
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "{app=\"esuite\"} \n|= `ZAAK_CREATED`\n| json",
-          "queryType": "range",
-          "refId": "A"
-        }
-      ],
-      "title": "Successes",
-      "transformations": [
-        {
-          "id": "extractFields",
-          "options": {
-            "delimiter": ",",
-            "format": "json",
-            "jsonPaths": [
-              {
-                "alias": "OF public_reference",
-                "path": "formulierIdentificatie"
-              },
-              {
-                "alias": "Zaak ID",
-                "path": "zaakIdentificatie"
-              }
-            ],
-            "source": "labels"
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Line": true,
-              "id": true,
-              "labelTypes": true,
-              "labels": true,
-              "tsNs": true
-            },
-            "includeByName": {},
-            "indexByName": {},
-            "renameByName": {}
-          }
-        }
-      ],
-      "type": "table"
-    },
-    {
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "footer": {
-              "reducers": []
-            },
-            "inspect": false
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 24,
-        "x": 0,
         "y": 53
       },
-      "id": 132,
-      "options": {
-        "cellHeight": "sm",
-        "showHeader": true
-      },
-      "pluginVersion": "12.3.0-17814087142",
-      "targets": [
+      "id": 130,
+      "panels": [
         {
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "{app=\"esuite\"} \n|= `PRODUCTAANVRAAG_PROCESSING_FAILURE`\n| json",
-          "queryType": "range",
-          "refId": "A"
-        }
-      ],
-      "title": "Failures",
-      "transformations": [
-        {
-          "id": "extractFields",
-          "options": {
-            "delimiter": ",",
-            "format": "json",
-            "jsonPaths": [
-              {
-                "alias": "OF public_reference",
-                "path": "formulierIdentificatie"
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
               },
-              {
-                "alias": "Message",
-                "path": "message"
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "footer": {
+                  "reducers": []
+                },
+                "inspect": false
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
               }
-            ],
-            "source": "labels"
-          }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 24,
+            "x": 0,
+            "y": 54
+          },
+          "id": 131,
+          "options": {
+            "cellHeight": "sm",
+            "showHeader": true
+          },
+          "pluginVersion": "12.3.0-17814087142",
+          "targets": [
+            {
+              "direction": "backward",
+              "editorMode": "code",
+              "expr": "{app=\"esuite\"} \n|= `ZAAK_CREATED`\n| json",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Successes",
+          "transformations": [
+            {
+              "id": "extractFields",
+              "options": {
+                "delimiter": ",",
+                "format": "json",
+                "jsonPaths": [
+                  {
+                    "alias": "OF public_reference",
+                    "path": "formulierIdentificatie"
+                  },
+                  {
+                    "alias": "Zaak ID",
+                    "path": "zaakIdentificatie"
+                  }
+                ],
+                "source": "labels"
+              }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Line": true,
+                  "id": true,
+                  "labelTypes": true,
+                  "labels": true,
+                  "tsNs": true
+                },
+                "includeByName": {},
+                "indexByName": {},
+                "renameByName": {}
+              }
+            }
+          ],
+          "type": "table"
         },
         {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Line": true,
-              "id": true,
-              "labelTypes": true,
-              "labels": true,
-              "tsNs": true
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "footer": {
+                  "reducers": []
+                },
+                "inspect": false
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              }
             },
-            "includeByName": {},
-            "indexByName": {},
-            "renameByName": {}
-          }
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 24,
+            "x": 0,
+            "y": 61
+          },
+          "id": 132,
+          "options": {
+            "cellHeight": "sm",
+            "showHeader": true
+          },
+          "pluginVersion": "12.3.0-17814087142",
+          "targets": [
+            {
+              "direction": "backward",
+              "editorMode": "code",
+              "expr": "{app=\"esuite\"} \n|= `PRODUCTAANVRAAG_PROCESSING_FAILURE`\n| json",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Failures",
+          "transformations": [
+            {
+              "id": "extractFields",
+              "options": {
+                "delimiter": ",",
+                "format": "json",
+                "jsonPaths": [
+                  {
+                    "alias": "OF public_reference",
+                    "path": "formulierIdentificatie"
+                  },
+                  {
+                    "alias": "Message",
+                    "path": "message"
+                  }
+                ],
+                "source": "labels"
+              }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Line": true,
+                  "id": true,
+                  "labelTypes": true,
+                  "labels": true,
+                  "tsNs": true
+                },
+                "includeByName": {},
+                "indexByName": {},
+                "renameByName": {}
+              }
+            }
+          ],
+          "type": "table"
         }
       ],
-      "type": "table"
+      "title": "eSuite",
+      "type": "row"
     }
   ],
   "preload": false,

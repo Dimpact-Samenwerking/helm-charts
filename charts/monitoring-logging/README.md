@@ -1,6 +1,6 @@
 # monitoring-logging
 
-![Version: 1.0.18](https://img.shields.io/badge/Version-1.0.18-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0.18](https://img.shields.io/badge/AppVersion-1.0.18-informational?style=flat-square)
+![Version: 1.0.19](https://img.shields.io/badge/Version-1.0.19-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0.19](https://img.shields.io/badge/AppVersion-1.0.19-informational?style=flat-square)
 
 A monitoring stack using Loki, Prometheus, Grafana Alloy, OpenTelemetry Collector, and Grafana. Optionally includes Grafana Tempo for distributed tracing.
 
@@ -51,13 +51,13 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 
 | Repository | Name | Version |
 |------------|------|---------|
-| @grafana | alloy | 1.6.2 |
+| @grafana | alloy | 1.12.1 |
 | @grafana | grafana | 10.5.15 |
 | @grafana | loki | 6.55.0 |
 | @grafana | tempo | 1.24.4 |
 | @opentelemetry | opentelemetry-collector | 0.147.1 |
-| @prometheus-community | kube-prometheus-stack | 83.0.0 |
-| @prometheus-community | prometheus-pushgateway | 3.6.0 |
+| @prometheus-community | kube-prometheus-stack | 90.0.0 |
+| @prometheus-community | prometheus-pushgateway | 3.8.0 |
 
 ## Values
 
@@ -75,14 +75,16 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 | alloy.configReloader.image | object | `{"pullPolicy":"IfNotPresent","registry":"quay.io","repository":"prometheus-operator/prometheus-config-reloader","tag":"v0.81.0"}` | config-reloader sidecar image settings (Alloy hot-reload, separate from the operator's config-reloader) quay.io/prometheus-operator/prometheus-config-reloader:v0.81.0 |
 | alloy.controller | object | `{"nodeSelector":{"kubernetes.azure.com/agentpool":"userpool"}}` | DaemonSet scheduling. Pin Alloy to the user pool because the discovery.kubernetes namespaces filter below scopes log capture to podiumd + monitoring, both of which run on the user pool. See docs/upgrade-from-1.0.12-to-1.0.13.md for why this overrides the 1.0.11→1.0.12 guidance to leave Alloy without a nodeSelector. |
 | alloy.enabled | bool | `true` |  |
-| alloy.image | object | `{"pullPolicy":"IfNotPresent","registry":"docker.io","repository":"grafana/alloy","tag":"v1.14.0"}` | alloy image settings docker.io/grafana/alloy:v1.14.0 |
+| alloy.image | object | `{"pullPolicy":"IfNotPresent","registry":"docker.io","repository":"grafana/alloy","tag":"v1.19.2"}` | alloy image settings docker.io/grafana/alloy:v1.19.2 |
 | alloy.logCollectionNamespaces | list | `["podiumd","monitoring"]` | Namespaces Alloy collects pod logs from. This is a server-side namespace filter on the Kubernetes pod discovery (see configMap.content below). Override this if your workloads run in a different namespace, e.g. set to ["default", "monitoring"] when deploying apps to "default". |
 | grafana."grafana.ini"."auth.anonymous".enabled | bool | `false` |  |
 | grafana."grafana.ini"."auth.anonymous".hide_version | bool | `true` |  |
-| grafana."grafana.ini"."auth.generic_oauth" | object | `{"allow_assign_grafana_admin":true,"allow_sign_up":true,"api_url":"https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/userinfo","auth_url":"https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/auth","client_id":"monitoring","client_secret":"","email_attribute_path":"email","enabled":true,"groups_attribute_path":"groups","login_attribute_path":"username","name":"Keycloak-podiumd","name_attribute_path":"name","org_mapping":"*:Viewer","role_attribute_path":"contains(monitoring_roles[*], 'admin') && 'Admin' || contains(monitoring_roles[*], 'editor') && 'Editor' || 'Viewer'","role_attribute_strict":false,"scopes":"openid email profile roles","skip_org_role_sync":false,"sync_ttl":60,"token_url":"https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/token","use_pkce":true,"use_refresh_token":true}` | Authentication and Authorization with Keycloak |
+| grafana."grafana.ini"."auth.generic_oauth" | object | `{"allow_assign_grafana_admin":true,"allow_sign_up":true,"api_url":"https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/userinfo","auth_url":"https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/auth","client_id":"monitoring","client_secret":"","email_attribute_path":"email","enabled":true,"groups_attribute_path":"groups","login_attribute_path":"username","name":"Keycloak-podiumd","name_attribute_path":"name","org_mapping":"*:Viewer","role_attribute_path":"contains(monitoring_roles[*], 'admin') && 'Admin' || contains(monitoring_roles[*], 'editor') && 'Editor' || 'Viewer'","role_attribute_strict":false,"scopes":"openid email profile roles","skip_org_role_sync":false,"sync_ttl":60,"token_url":"https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/token","use_pkce":true,"use_refresh_token":false}` | Authentication and Authorization with Keycloak |
 | grafana."grafana.ini".auth.allow_sign_up | bool | `true` |  |
 | grafana."grafana.ini".auth.disable_login_form | bool | `true` |  |
 | grafana."grafana.ini".auth.disable_signout_menu | bool | `false` |  |
+| grafana."grafana.ini".auth.login_maximum_inactive_lifetime_duration | string | `"7d"` |  |
+| grafana."grafana.ini".auth.login_maximum_lifetime_duration | string | `"30d"` |  |
 | grafana."grafana.ini".auth.oauth_auto_login | bool | `true` |  |
 | grafana."grafana.ini".auth.oauth_skip_org_role_update_sync | bool | `false` |  |
 | grafana."grafana.ini".feature_toggles | object | `{"grafanaAdvisor":true}` | Grafana Advisor surfaces recommendations in the Grafana UI |
@@ -92,6 +94,8 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 | grafana."grafana.ini".security.cookie_samesite | string | `"lax"` |  |
 | grafana."grafana.ini".security.cookie_secure | bool | `true` |  |
 | grafana."grafana.ini".security.hide_version | bool | `true` |  |
+| grafana."grafana.ini".security.strict_transport_security | bool | `true` |  |
+| grafana."grafana.ini".security.strict_transport_security_max_age_seconds | string | `"31536000"` |  |
 | grafana."grafana.ini".server.domain | string | `"logs.test.nl"` |  |
 | grafana."grafana.ini".server.enforce_domain | bool | `true` |  |
 | grafana."grafana.ini".server.root_url | string | `"https://logs.test.nl/"` |  |
@@ -207,6 +211,7 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 | grafana.sidecar.dashboards.label | string | `"grafana_dashboard"` |  |
 | grafana.sidecar.dashboards.labelValue | string | `"1"` |  |
 | grafana.sidecar.datasources.enabled | bool | `true` |  |
+| grafana.sidecar.resources | object | `{"requests":{"cpu":"10m","memory":"96Mi"}}` | grafana-sc-dashboard and grafana-sc-datasources: about 70Mi each measured on QA |
 | grafana.testFramework.image | object | `{"tag":"1.12.0"}` | bats image settings docker.io/bats/bats:1.12.0 |
 | grafana.testFramework.imagePullPolicy | string | `"IfNotPresent"` |  |
 | kube-prometheus-stack.alertmanager.enabled | bool | `false` |  |
@@ -214,7 +219,12 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 | kube-prometheus-stack.enabled | bool | `true` |  |
 | kube-prometheus-stack.grafana.enabled | bool | `false` |  |
 | kube-prometheus-stack.kube-state-metrics | object | `{"image":{"pullPolicy":"IfNotPresent","registry":"registry.k8s.io","repository":"kube-state-metrics/kube-state-metrics","tag":"v2.17.0"},"resources":{"limits":{"cpu":"100m","memory":"128Mi"},"requests":{"cpu":"10m","memory":"64Mi"}}}` | kube-state-metrics image settings registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.17.0 |
-| kube-prometheus-stack.prometheus-node-exporter | object | `{"image":{"pullPolicy":"IfNotPresent","registry":"quay.io","repository":"prometheus/node-exporter","tag":"v1.9.1"},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}}}` | node-exporter image settings quay.io/prometheus/node-exporter:v1.9.1 |
+| kube-prometheus-stack.kubeControllerManager.enabled | bool | `false` |  |
+| kube-prometheus-stack.kubeEtcd.enabled | bool | `false` |  |
+| kube-prometheus-stack.kubeProxy.enabled | bool | `false` |  |
+| kube-prometheus-stack.kubeScheduler.enabled | bool | `false` |  |
+| kube-prometheus-stack.prometheus-node-exporter | object | `{"image":{"distroless":false,"pullPolicy":"IfNotPresent","registry":"quay.io","repository":"prometheus/node-exporter","tag":"v1.9.1"},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}}}` | node-exporter image settings quay.io/prometheus/node-exporter:v1.9.1 |
+| kube-prometheus-stack.prometheus-node-exporter.image.distroless | bool | `false` | kube-prometheus-stack 90 turns distroless on, which appends "-distroless" to the tag; v1.9.1 has no distroless variant (they start at v1.11.0). Turn it on with a tag that has one. |
 | kube-prometheus-stack.prometheus.prometheusSpec.additionalArgs | list | `[{"name":"web.enable-remote-write-receiver","value":""}]` | Enable remote-write receiver so the OTel Collector can push metrics |
 | kube-prometheus-stack.prometheus.prometheusSpec.additionalScrapeConfigs | list | `[{"job_name":"kubernetes-pods","kubernetes_sd_configs":[{"role":"pod"}],"relabel_configs":[{"action":"keep","regex":"true","source_labels":["__meta_kubernetes_pod_annotation_prometheus_io_scrape"]},{"action":"replace","regex":"(.+)","source_labels":["__meta_kubernetes_pod_annotation_prometheus_io_path"],"target_label":"__metrics_path__"},{"action":"replace","regex":"([^:]+)(?::\\d+)?;(\\d+)","replacement":"$1:$2","source_labels":["__address__","__meta_kubernetes_pod_annotation_prometheus_io_port"],"target_label":"__address__"},{"action":"labelmap","regex":"__meta_kubernetes_pod_label_(.+)"},{"source_labels":["__meta_kubernetes_namespace"],"target_label":"namespace"},{"source_labels":["__meta_kubernetes_pod_name"],"target_label":"pod"},{"action":"keep","regex":"Running","source_labels":["__meta_kubernetes_pod_phase"]}]}]` | Scrape pods carrying prometheus.io/scrape annotations. Needed for components whose charts don't ship a ServiceMonitor/PodMonitor (e.g. solr-operator, zookeeper-operator, redis-operator) but do set the standard `prometheus.io/{scrape,port,path}` pod annotations. |
 | kube-prometheus-stack.prometheus.prometheusSpec.image | object | `{"registry":"quay.io","repository":"prometheus/prometheus","tag":"v3.6.0"}` | prometheus image settings quay.io/prometheus/prometheus:v3.6.0 |
@@ -232,7 +242,7 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 | kube-prometheus-stack.prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.resources.requests.storage | string | `"20Gi"` |  |
 | kube-prometheus-stack.prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.storageClassName | string | `"managed-csi"` |  |
 | kube-prometheus-stack.prometheusOperator.admissionWebhooks.image | object | `{"pullPolicy":"IfNotPresent","registry":"quay.io","repository":"prometheus-operator/admission-webhook","tag":"v0.90.1"}` | admission-webhook image settings (same release as the operator) quay.io/prometheus-operator/admission-webhook:v0.90.1 |
-| kube-prometheus-stack.prometheusOperator.admissionWebhooks.patch.image | object | `{"pullPolicy":"IfNotPresent","registry":"ghcr.io","repository":"jkroepke/kube-webhook-certgen","tag":"1.8.0"}` | kube-webhook-certgen image for admission webhook TLS certificate provisioning ghcr.io/jkroepke/kube-webhook-certgen:1.8.0 |
+| kube-prometheus-stack.prometheusOperator.admissionWebhooks.patch.image | object | `{"pullPolicy":"IfNotPresent","registry":"ghcr.io","repository":"jkroepke/kube-webhook-certgen","tag":"1.8.8"}` | kube-webhook-certgen image for admission webhook TLS certificate provisioning ghcr.io/jkroepke/kube-webhook-certgen:1.8.8 |
 | kube-prometheus-stack.prometheusOperator.image | object | `{"pullPolicy":"IfNotPresent","registry":"quay.io","repository":"prometheus-operator/prometheus-operator","tag":"v0.90.1"}` | prometheus-operator image settings quay.io/prometheus-operator/prometheus-operator:v0.90.1 |
 | kube-prometheus-stack.prometheusOperator.prometheusConfigReloader | object | `{"image":{"pullPolicy":"IfNotPresent","registry":"quay.io","repository":"prometheus-operator/prometheus-config-reloader","tag":"v0.90.1"},"resources":{"limits":{"cpu":"50m","memory":"32Mi"},"requests":{"cpu":"5m","memory":"16Mi"}}}` | prometheus-config-reloader image settings (injected into Prometheus StatefulSet by the operator) quay.io/prometheus-operator/prometheus-config-reloader:v0.90.1 |
 | kube-prometheus-stack.prometheusOperator.resources.limits.cpu | string | `"200m"` |  |
@@ -244,6 +254,7 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 | loki.chunksCache.defaultValidity | string | `"6h"` |  |
 | loki.chunksCache.enabled | bool | `true` |  |
 | loki.compactor.replicas | int | `1` |  |
+| loki.compactor.resources | object | `{"requests":{"cpu":"50m","memory":"128Mi"}}` | Requests only (Distributed mode); the scheduler otherwise reserves nothing. |
 | loki.deploymentMode | string | `"Distributed"` |  |
 | loki.distributor.maxUnavailable | int | `2` |  |
 | loki.distributor.replicas | int | `3` |  |
@@ -330,6 +341,7 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 | loki.memcached.image.tag | string | `"alpine3.22"` |  |
 | loki.memcachedExporter.image.pullPolicy | string | `"IfNotPresent"` |  |
 | loki.memcachedExporter.image.tag | string | `"v0.15.3"` |  |
+| loki.memcachedExporter.resources | object | `{"requests":{"cpu":"10m","memory":"32Mi"}}` | Requests for the exporter next to chunks-cache and results-cache. |
 | loki.minio.enabled | bool | `true` |  |
 | loki.minio.global | string | `nil` |  |
 | loki.minio.image.pullPolicy | string | `"IfNotPresent"` |  |
@@ -362,8 +374,10 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 | loki.read.replicas | int | `0` |  |
 | loki.resultsCache.defaultValidity | string | `"6h"` |  |
 | loki.resultsCache.enabled | bool | `true` |  |
+| loki.ruler.resources | object | `{"requests":{"cpu":"20m","memory":"128Mi"}}` | Requests only (Distributed mode). |
 | loki.sidecar.image.pullPolicy | string | `"IfNotPresent"` |  |
 | loki.sidecar.image.tag | string | `"1.30.10"` |  |
+| loki.sidecar.resources | object | `{"requests":{"cpu":"10m","memory":"96Mi"}}` | loki-sc-rules: about 82Mi measured on QA |
 | loki.test.enabled | bool | `false` |  |
 | loki.write.replicas | int | `0` |  |
 | opentelemetry-collector | object | `{"command":{"name":"otelcol-contrib"},"config":{"exporters":{"otlphttp/loki":{"endpoint":"http://${env:RELEASE_NAME}-loki-gateway/otlp","headers":{"X-Scope-OrgID":"1"}},"prometheusremotewrite":{"endpoint":"http://${env:RELEASE_NAME}-kube-prometheus-prometheus:9090/api/v1/write","tls":{"insecure":true}}},"extensions":{"bearertokenauth":{"token":"${env:OTEL_HTTP_AUTH_TOKEN}"},"health_check":{"endpoint":"0.0.0.0:13133"}},"processors":{"batch":{"send_batch_size":1000,"timeout":"5s"},"memory_limiter":{"check_interval":"1s","limit_percentage":80,"spike_limit_percentage":25}},"receivers":{"otlp":{"protocols":{"grpc":{"endpoint":"0.0.0.0:4317"},"http":{"auth":{"authenticator":"bearertokenauth"},"endpoint":"0.0.0.0:4318"}}}},"service":{"extensions":["health_check","bearertokenauth"],"pipelines":{"logs":{"exporters":["otlphttp/loki"],"processors":["memory_limiter","batch"],"receivers":["otlp"]},"metrics":{"exporters":["prometheusremotewrite"],"processors":["memory_limiter","batch"],"receivers":["otlp"]}},"telemetry":{"metrics":{"address":"0.0.0.0:8888"}}}},"enabled":true,"extraEnvs":[{"name":"RELEASE_NAME","valueFrom":{"fieldRef":{"fieldPath":"metadata.labels['app.kubernetes.io/instance']"}}},{"name":"OTEL_HTTP_AUTH_TOKEN","value":"REP_OTEL_HTTP_AUTH_TOKEN_REP"}],"image":{"pullPolicy":"IfNotPresent","repository":"ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib"},"mode":"deployment","podAnnotations":{"prometheus.io/path":"/metrics","prometheus.io/port":"8888","prometheus.io/scrape":"true"},"ports":{"metrics":{"containerPort":8888,"enabled":true,"protocol":"TCP","servicePort":8888},"otlp":{"containerPort":4317,"enabled":true,"protocol":"TCP","servicePort":4317},"otlp-http":{"containerPort":4318,"enabled":true,"protocol":"TCP","servicePort":4318}},"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"128Mi"}}}` | OpenTelemetry Collector: gateway deployment receiving OTLP from applications. Exports: logs → Loki, metrics → Prometheus, traces → Tempo (when enabled). Applications should send OTLP to <release-name>-opentelemetry-collector:4317 (gRPC) or <release-name>-opentelemetry-collector:4318 (HTTP). See otel.md for per-service instrumentation config. #OTel instrumentation |
@@ -375,12 +389,14 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 | opentelemetry-collector.ports | object | `{"metrics":{"containerPort":8888,"enabled":true,"protocol":"TCP","servicePort":8888},"otlp":{"containerPort":4317,"enabled":true,"protocol":"TCP","servicePort":4317},"otlp-http":{"containerPort":4318,"enabled":true,"protocol":"TCP","servicePort":4318}}` | Expose OTLP gRPC, HTTP and self-metrics ports |
 | otelCollectorMonitor | object | `{"enabled":true,"scrapeInterval":"30s"}` | ServiceMonitor for the OpenTelemetry Collector internal metrics endpoint (port 8888). Allows Prometheus to scrape otelcol_* health/pipeline metrics. |
 | otelCollectorMonitor.scrapeInterval | string | `"30s"` | Prometheus scrape interval. |
-| otelIngress | object | `{"clusterIssuer":"letsencrypt-prod","enabled":false,"hostname":"","middleware":"{{ .Release.Namespace }}-otel-ip-allowlist@kubernetescrd","tlsSecretName":"otel-tls"}` | Ingress for the OTLP HTTP endpoint (port 4318). Exposes the collector externally via Traefik with an ip-allowlist middleware. Requires cert-manager for TLS. Disabled by default — set hostname to enable. The middleware must be pre-created in the same namespace (e.g. a Traefik Middleware CRD). |
+| otelIngress | object | `{"clusterIssuer":"letsencrypt-prod","enabled":false,"hostname":"","middleware":"{{ .Release.Namespace }}-otel-ip-allowlist@kubernetescrd","tlsSecretName":"otel-tls"}` | Ingress for the OTLP HTTP endpoint (port 4318). Exposes the collector externally via Traefik with an ip-allowlist middleware. Traefik only: on an NGINX Gateway Fabric edge leave this off and route the host to Service `<release>-opentelemetry-collector:4318` deploy-side, like the other HTTPRoutes (see docs/otel.md). Requires cert-manager for TLS. Disabled by default — set hostname to enable. The middleware must be pre-created in the same namespace (e.g. a Traefik Middleware CRD). |
 | otelIngress.hostname | string | `""` | External hostname, e.g. otel.example.nl |
 | otelIngress.middleware | string | `"{{ .Release.Namespace }}-otel-ip-allowlist@kubernetescrd"` | Traefik middleware reference (namespace/name@kubernetescrd). Set to "" to disable. |
-| prometheus-pushgateway | object | `{"enabled":true,"image":{"pullPolicy":"IfNotPresent","repository":"quay.io/prometheus/pushgateway","tag":"v1.11.1"},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}}}` | Pushgateway: separate dependency (not bundled in kube-prometheus-stack). quay.io/prometheus/pushgateway:v1.11.1 |
+| prometheus-pushgateway | object | `{"enabled":true,"image":{"pullPolicy":"IfNotPresent","repository":"quay.io/prometheus/pushgateway","tag":"v1.11.3"},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}}}` | Pushgateway: separate dependency (not bundled in kube-prometheus-stack). quay.io/prometheus/pushgateway:v1.11.3 |
 | tempo | object | `{"enabled":false,"persistence":{"enabled":true,"size":"10Gi","storageClassName":"managed-csi"},"tempo":{"image":{"pullPolicy":"IfNotPresent"},"receivers":{"otlp":{"protocols":{"grpc":{"endpoint":"0.0.0.0:4317"},"http":{"endpoint":"0.0.0.0:4318"}}}},"storage":{"trace":{"backend":"local","local":{"path":"/var/tempo/traces"},"wal":{"path":"/var/tempo/wal"}}}}}` | Grafana Tempo: distributed tracing backend. Disabled by default. Enable with: tempo.enabled=true Requires opentelemetry-collector.enabled=true to receive traces via OTLP. |
 | tempo.tempo.image | object | `{"pullPolicy":"IfNotPresent"}` | tempo image settings docker.io/grafana/tempo:2.9.0 |
-| traefikMonitor | object | `{"enabled":true,"namespace":"","scrapeInterval":"30s"}` | metrics.prometheus=true (default in the standard Traefik Helm chart). |
+| traefikMonitor | object | `{"enabled":false,"metricRelabelings":[],"namespace":"","relabelings":[],"scrapeInterval":"30s"}` | PodMonitor for Traefik. Scrapes the Traefik metrics endpoint (port 9100) from pods in the configured namespace. Requires Traefik's Prometheus metrics (`metrics.prometheus`, on by default in the standard Traefik Helm chart). Off by default: the PodiumD edge is NGINX Gateway Fabric, which the `kubernetes-pods` job scrapes through its pod annotations, and a PodMonitor without Traefik pods leaves Prometheus with an empty scrape pool. Keep this the only monitor on Traefik: a second ServiceMonitor or PodMonitor on the same pods (such as the Traefik chart's own `metrics.prometheus.serviceMonitor`) stores every Traefik series twice. Add labels with `metricRelabelings` instead. |
+| traefikMonitor.metricRelabelings | list | `[]` | Relabelings applied to every scraped sample (PodMonitor `podMetricsEndpoints[].metricRelabelings`). Traefik's `service` label is `<namespace>-<name>-<port>@<provider>` and its `router` label (only with Traefik's `metrics.prometheus.addRoutersLabels`) starts with `<namespace>-` too, so a rule can lift the namespace into a label of its own, for dashboards per namespace or tenant. See docs/prometheus-scraping.md for an example. |
 | traefikMonitor.namespace | string | `""` | Namespace where Traefik pods run. Leave empty to search all namespaces. |
+| traefikMonitor.relabelings | list | `[]` | Relabelings applied to the target before it is scraped (PodMonitor `podMetricsEndpoints[].relabelings`), e.g. to add a static `cluster` label. |
 | traefikMonitor.scrapeInterval | string | `"30s"` | Prometheus scrape interval. |
