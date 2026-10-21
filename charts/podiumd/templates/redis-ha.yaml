@@ -89,7 +89,7 @@ spec:
   {{- end }}
   {{- if ($redisHa.masterReadinessCheck | default dict).enabled }}
   {{- /* IN-2961: NotReady when labelled master but the server reports role:slave.
-       The script uses only shell builtins and tr. It replaces the operator's default
+       The script uses shell builtins, tr, hostname and redis-cli (all in the redis image). It replaces the operator's default
        probe, which adds --tls when TLS is on: with TLS, add the same flags here. */}}
   readinessProbe:
     exec:
