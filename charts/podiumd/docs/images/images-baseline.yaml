@@ -25,7 +25,7 @@
 - name: curlimages/curl
   url: docker.io/curlimages/curl
   version: "8.23.0"
-  digest: "sha256:a134550be58ab783810e613ae96fd253c38f7bdd16d9bf9be350700c7a29ac06"
+  digest: "sha256:11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac"
 
 - name: library/busybox
   url: docker.io/library/busybox
@@ -195,7 +195,7 @@
 - name: library/solr
   url: docker.io/library/solr
   version: "9.10.1-slim"
-  digest: "sha256:d25d25a0d0c9e5a917ebad1a1c42f8109f049b628fc7a730027c97b6b98b5386"
+  digest: "sha256:60a9e227831513ec25615cd1b501bf273170c320f7587f6e3fb1624b4d025d00"
 
 - name: lachlanevenson/k8s-kubectl
   url: docker.io/lachlanevenson/k8s-kubectl
@@ -225,7 +225,7 @@
 - name: clamav/clamav
   url: docker.io/clamav/clamav
   version: "1.5.4"
-  digest: "sha256:638d90201ee7ee6a82d249a2fc23b132e578673b5f1f2766852b127676ca1ef6"
+  digest: "sha256:e19130cdebaeacc71fa46eab3ed6f69941f2f22aa5e08d55e9197f8edf43ce5e"
 
 - name: sergeymakinen/clamav_exporter
   url: docker.io/sergeymakinen/clamav_exporter

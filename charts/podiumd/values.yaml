@@ -18,7 +18,7 @@ global:
       pullPolicy: IfNotPresent
     curl: &curlImage
       repository: curlimages/curl
-      tag: "8.23.0@sha256:a134550be58ab783810e613ae96fd253c38f7bdd16d9bf9be350700c7a29ac06"
+      tag: "8.23.0@sha256:11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac"
       pullPolicy: IfNotPresent
     busybox: &busyboxImage
       repository: library/busybox
@@ -3600,10 +3600,10 @@ zac:
       busyBoxImage: *busyboxImage
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.10.1-slim@sha256:d25d25a0d0c9e5a917ebad1a1c42f8109f049b628fc7a730027c97b6b98b5386
+      # library/solr:9.10.1-slim@sha256:60a9e227831513ec25615cd1b501bf273170c320f7587f6e3fb1624b4d025d00
       image:
         #repository:
-        tag: 9.10.1-slim@sha256:d25d25a0d0c9e5a917ebad1a1c42f8109f049b628fc7a730027c97b6b98b5386
+        tag: 9.10.1-slim@sha256:60a9e227831513ec25615cd1b501bf273170c320f7587f6e3fb1624b4d025d00
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       # Solr jobs (affinity, annotations, nodeSelector, tolerations): ZAC chart defaults.
@@ -3736,7 +3736,7 @@ clamav:
   # serviceMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 ServiceMonitor).
   image:
     repository: clamav/clamav
-    tag: "1.5.4@sha256:638d90201ee7ee6a82d249a2fc23b132e578673b5f1f2766852b127676ca1ef6"
+    tag: "1.5.4@sha256:e19130cdebaeacc71fa46eab3ed6f69941f2f22aa5e08d55e9197f8edf43ce5e"
   metrics:
     enabled: false
     image:
