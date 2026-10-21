@@ -17,12 +17,12 @@ This document describes how metrics and tracing are configured across the podium
 | openarchiefbeheer | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
 | referentielijsten | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
 | openvtb | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
-| zac | `opentelemetry-collector.enabled` (trigger) + `opentelemetry_zaakafhandelcomponent.endpoint` + `javaOptions` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
+| zac | `javaOptions`: `-Dotel.sdk.disabled=false`, `-Dotel.exporter.otlp.endpoint`, `-Dotel.service.name` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
 | keycloak | `additionalOptions: metrics-enabled` | ✅ ServiceMonitor port 9000 `/metrics` (auto by keycloak-operator) | built-in |
 | redis-operator | — | ✅ pod annotations port 8080 `/metrics` | `values-enable-observability.yaml` |
 | redis-ha | redis_exporter sidecar | ✅ PodMonitor port 9121 | `values-enable-observability.yaml` |
 | solr-operator | — | ✅ pod annotations port 8080 `/metrics` | `values-enable-observability.yaml` |
-| zookeeper-operator | — | ✅ pod annotations port 6000 `/metrics` | `values-enable-observability.yaml` |
+| zookeeper-operator | — | ❌ metrics bound to `127.0.0.1:6000` (not scrapeable from outside the pod; the chart cannot set `--metrics-bind-address`) | — |
 | clamav | clamav_exporter sidecar | ✅ port 9906 + ServiceMonitor | `values-enable-observability.yaml` |
 | eck-operator | `config.metrics.port` + `podMonitor.enabled` | ✅ PodMonitor port 8080 `/metrics` | `values-enable-observability.yaml` |
 | frankgateway (APISIX) | `frankgateway.metrics.enabled` + `metrics.serviceMonitor.enabled` | ✅ ServiceMonitor, prometheus plugin as global rule | `values-enable-observability.yaml` |
@@ -86,7 +86,7 @@ clamav:
 
 > **Note:** `clamav.metrics.image.repository` embeds the registry (no separate `registry` field). Prefix with `<acr>/` and omit the original `docker.io/` prefix.
 
-No new images are introduced by enabling OTEL for the Maykin apps, ZAC, keycloak-operator, solr-operator, zookeeper-operator, or eck-operator — they all reuse images already pulled by the base install. The ZAC bundled `opentelemetry-collector` subchart is enabled only to trigger env var emission (`replicaCount: 0`); no collector pod is scheduled, so no image is pulled.
+No new images are introduced by enabling OTEL for the Maykin apps, ZAC, keycloak-operator, solr-operator, zookeeper-operator, or eck-operator — they all reuse images already pulled by the base install. ZAC's bundled `opentelemetry-collector` subchart stays off: ZAC (WildFly, MicroProfile Telemetry) gets its OTel settings as system properties in `javaOptions`. Enabling that subchart would deploy a collector pod, because its chart ignores `replicaCount: 0`.
 
 The shared receiving collector (`monitoring-opentelemetry-collector.monitoring.svc.cluster.local:4317`) lives in the `monitoring-logging` chart. Its ACR overrides are documented in `charts/monitoring-logging/docs/upgrade-from-<prev>-to-<version>.md`.
 
