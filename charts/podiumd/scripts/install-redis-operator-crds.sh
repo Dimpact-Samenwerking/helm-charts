@@ -15,7 +15,9 @@
 # Options:
 #   --version VERSION   Chart version to fetch CRDs from (default: 0.27.0, the
 #                       redis-operator chart PodiumD 4.10.0 ships)
-#   --allow-downgrade   Allow a --version older than the default. The apply takes
+#   --allow-downgrade   Allow a --version older than the default (the default of
+#                       this script, not the CRDs on the cluster: chart-installed
+#                       CRDs carry no version). The apply takes
 #                       over the CRD fields (--force-conflicts), so an older
 #                       version replaces the schema and prunes newer fields from
 #                       the Redis CRs on their next write.
@@ -78,6 +80,14 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Helm accepts "v0.26.0" for chart 0.26.0, but sort -V orders it after 0.27.0, so
+# a v prefix would get past the downgrade guard below: compare the bare version.
+CHART_VERSION="${CHART_VERSION#v}"
+if [[ ! "${CHART_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "ERROR: --version must be a chart version X.Y.Z (got '${CHART_VERSION}')." >&2
+  exit 1
+fi
+
 if [[ "${ALLOW_DOWNGRADE}" != "true" && "${CHART_VERSION}" != "${DEFAULT_VERSION}" ]] \
   && [[ "$(printf '%s\n%s\n' "${CHART_VERSION}" "${DEFAULT_VERSION}" | sort -V | head -1)" == "${CHART_VERSION}" ]]; then
   echo "ERROR: --version ${CHART_VERSION} is older than ${DEFAULT_VERSION}. The forced apply would replace" >&2
@@ -100,18 +110,19 @@ if [[ -z "${CRD_YAML}" ]]; then
   exit 1
 fi
 
+# One YAML stream: a "---" before every document that doesn't already have one.
+CRD_STREAM=$(echo "${CRD_YAML}" | awk '/^apiVersion:/ && NR>1 && prev != "---" { print "---" } { print; prev = $0 }')
+
 if [[ "${DRY_RUN}" == "true" ]]; then
   echo "==> [dry-run] CRDs that would be applied:"
-  echo "${CRD_YAML}" | awk '/^apiVersion:/ && NR>1 && prev != "---" { print "---" } { print; prev = $0 }'
+  echo "${CRD_STREAM}"
   exit 0
 fi
 
 # --force-conflicts takes the CRD fields over from Helm (or a GitOps tool);
 # why that is safe here: docs/_UPGRADE_PATHS/4.9.5-to-4.10.0-operators-crds.md.
 echo "==> Applying CRDs (server-side apply)..."
-echo "${CRD_YAML}" \
-  | awk '/^apiVersion:/ && NR>1 && prev != "---" { print "---" } { print; prev = $0 }' \
-  | "${KUBECTL[@]}" apply --server-side --force-conflicts -f -
+echo "${CRD_STREAM}" | "${KUBECTL[@]}" apply --server-side --force-conflicts -f -
 
 echo "==> Waiting for CRDs to reach Established condition..."
 CRD_NAMES=$(echo "${CRD_YAML}" | grep '^  name:' | awk '{print $2}')
