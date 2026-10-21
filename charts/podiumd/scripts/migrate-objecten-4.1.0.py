@@ -856,11 +856,16 @@ def _permission_summary(item: dict) -> str:
 
 def _switch_header(objecten: dict, component: str, header,
                    checks: list[str] | None = None) -> tuple[str | None, str | None]:
-    """(new header_value, None) when `header` is the old objecttypen token and
-    objecten has a token for this component (with the required permission mode);
-    else (None, reason) or (None, None) when the header is not the old
-    objecttypen token. A switched item without permissions adds a CHECK line to
-    `checks`."""
+    """Switch `header` from the old objecttypen token to this component's objecten token.
+
+    Returns:
+      (new header_value, None): `header` is the old objecttypen token and objecten
+        has a token for this component (with the required permission mode);
+      (None, reason): it is the old objecttypen token, but it can't be switched;
+      (None, None): nothing to switch, because `header` is not the old
+        objecttypen token, the component has no switch, or the old objecttypen
+        token is also the token of an objecten tokenauth item.
+    A switched item without permissions adds a CHECK line to `checks`."""
     ident = SWITCH_IDENTIFIER.get(component)
     if header != OBJECTTYPEN_TOKEN_HEADER or ident is None:
         return None, None
