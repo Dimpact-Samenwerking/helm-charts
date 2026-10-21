@@ -55,6 +55,24 @@ that change:
   - zac.objecttypenApi is removed: ZAC reads only zac.objectenApi since the
     merge, and podiumd 4.10.0 no longer has the key.
 
+  zgw_consumers: one service per api_root (every component's configuration.data)
+  - zgw_consumers allows an api_root only once. After the host rewrite a
+    component's objecttypen service (Open Formulieren `objecttypen-api`, Open
+    Beheer `objecttypen-service`) has the same api_root as its objecten
+    service, and its config job would fail on the unique key. Per component
+    and objecten api_root (compared exactly, as the database does), with one
+    objecttypen service and one other service: the objecttypen service is
+    removed, and every `*_service_identifier` that named it (Open Formulieren
+    `objecttypes_service_identifier`, Open Beheer
+    `objecttypen_service_identifier`) points at the kept service. This also
+    runs on files migrated before (no objecttypen block any more).
+  - When the two services sent different tokens, the kept service's token is an
+    ACTION: whether it is an objecten token with the permissions the component
+    needs cannot be checked here (values-deltas.md, 'One zgw_consumers service
+    per api_root'). Any other duplicate at an objecten api_root is an ACTION to
+    fix by hand; duplicates at other api_roots are left alone.
+  - A configuration.data that does not parse is reported (CHECK), not merged.
+
   objecten.image.repository
   - An override `<registry>/maykinmedia/objects-api` (a mirror of the old
     image), or a mirror under the legacy component name `<registry>/objecten`,
@@ -77,6 +95,9 @@ as they are. The objecttypen hostnames and the rewritten tokens are replaced
 everywhere in the file, comments included. Before writing, the script checks that the edited file parses to
 exactly the intended values; it refuses to write a file that does not.
 
+Exit code: 1 when a file has an error, 2 when a file needs an ACTION (listed
+again after the summary), else 0.
+
 Not done by this script (reported as reminders):
   - Per environment, before deploying: run `import_objecttypes` in the old
     objecten (3.6.x; PodiumD 4.9.x ships 3.6.2) so every objecttype exists
@@ -85,6 +106,8 @@ Not done by this script (reported as reminders):
   - Clients outside these values (external parties, services configured by
     hand in an admin) that call the Objecttypen API with an objecttypen token
     must switch to the objecten token of the same identifier.
+  - The token of a merged zgw_consumers service (ACTION above), and a
+    configuration.data that does not parse (CHECK).
 
 Requires: ruamel.yaml (pip install ruamel.yaml)
 
@@ -761,32 +784,160 @@ def _diff(path: str, old: str, new: str) -> str:
     return "".join(difflib.unified_diff(old.splitlines(True), new.splitlines(True), f"a/{path}", f"b/{path}"))
 
 
-def duplicate_api_roots(doc) -> list[tuple[str, str, list[str]]]:
-    """(component, api_root, identifiers) for every configuration.data whose
-    zgw_consumers services share an api_root. After the merge the objecttypen
-    services point at the objecten api_root; when a component also has an
-    objecten service there, its config job fails on zgw_consumers' unique
-    api_root. Which service and token to keep is a judgement call (the token
-    must be a valid objecten token with the right permissions), so report it
-    instead of merging."""
-    found = []
-    if not isinstance(doc, dict):
-        return found
+ACTION = "ACTION "
+DUPLICATE_DOC = "values-deltas.md, 'One zgw_consumers service per api_root'"
+
+
+def _objecten_hosts(objecten: dict) -> set[str]:
+    """Hostnames objecten answers on: siteDomain, allowedHosts and the oidcUrl host."""
+    settings = objecten.get("settings") or {}
+    hosts = {h.strip() for h in str(settings.get("allowedHosts") or "").split(",") if h.strip()}
+    for value in (settings.get("siteDomain"), _host_of((objecten.get("configuration") or {}).get("oidcUrl"))):
+        if value:
+            hosts.add(str(value).strip())
+    return hosts
+
+
+def _is_objecten_root(api_root: str, hosts: set[str]) -> bool:
+    host = _host_of(api_root)
+    return bool(host) and (host in hosts or re.fullmatch(r"objecten\.[a-z0-9-]+\.svc\.cluster\.local", host) is not None)
+
+
+def _service_identifier_refs(node, old: str, path=()):
+    """Paths of every `*_service_identifier: <old>` in a parsed configuration.data."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if str(key).endswith("_service_identifier") and value == old:
+                yield path + (key,)
+            else:
+                yield from _service_identifier_refs(value, old, path + (key,))
+    elif isinstance(node, list):
+        for idx, value in enumerate(node):
+            yield from _service_identifier_refs(value, old, path + (idx,))
+
+
+def _get_path(node, path):
+    for step in path:
+        node = node[step]
+    return node
+
+
+def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
+    """Return (new_text, notes, actions) for the duplicate zgw_consumers api_root
+    the objecttypen merge leaves behind.
+
+    After the merge a component's objecttypen service (objecttypen-api in Open
+    Formulieren, objecttypen-service in Open Beheer) points at the objecten
+    api_root. When the component also has an objecten service there, its config
+    job fails on zgw_consumers' unique api_root. Per component and objecten
+    api_root (compared exactly, as the database does): with exactly one
+    objecttypen service and one other service, the objecttypen service is
+    removed and every *_service_identifier that named it is repointed at the
+    other one. Only when their tokens differ is the token left as an ACTION:
+    whether the kept token is an objecten token with the right permissions
+    cannot be checked here. Any other duplicate at an objecten api_root is an
+    ACTION to fix by hand. Duplicates at other api_roots are not this
+    migration's and are left alone."""
+    notes: list[str] = []
+    actions: list[str] = []
+    doc = _safe_load(text)
+    if not isinstance(doc, dict) or not isinstance(doc.get("objecten"), dict) or "objecttypen" in doc:
+        return text, notes, actions
+    hosts = _objecten_hosts(doc["objecten"])
+    plans: dict[str, list[tuple[str, str]]] = {}
     for component, cfg in doc.items():
-        data = ((cfg or {}).get("configuration") or {}).get("data") if isinstance(cfg, dict) else None
-        if not isinstance(data, str):
+        if component == "objecten" or not isinstance(cfg, dict):
+            continue
+        conf = cfg.get("configuration")
+        if not isinstance(conf, dict) or not isinstance(conf.get("data"), str):
             continue
         try:
-            inner = _safe_load(data)
-        except Exception:
+            inner = _safe_load(conf["data"])
+        except Exception as e:  # templated or broken YAML: report, do not guess
+            notes.append(f"CHECK {component}: configuration.data does not parse ({type(e).__name__}); "
+                         "check its zgw_consumers api_roots by hand")
             continue
-        services = ((inner or {}).get("zgw_consumers") or {}).get("services") or [] if isinstance(inner, dict) else []
-        by_root: dict[str, list[str]] = {}
+        zc = inner.get("zgw_consumers") if isinstance(inner, dict) else None
+        services = zc.get("services") if isinstance(zc, dict) else None
+        if not isinstance(services, list):
+            continue
+        by_root: dict[str, list[dict]] = {}
         for svc in services:
-            if isinstance(svc, dict) and svc.get("api_root"):
-                by_root.setdefault(str(svc["api_root"]).rstrip("/") + "/", []).append(str(svc.get("identifier")))
-        found += [(component, root, ids) for root, ids in by_root.items() if len(ids) > 1]
-    return found
+            if isinstance(svc, dict) and svc.get("api_root") and _is_objecten_root(str(svc["api_root"]), hosts):
+                by_root.setdefault(str(svc["api_root"]), []).append(svc)
+        for api_root, svcs in by_root.items():
+            if len(svcs) < 2:
+                continue
+            ids = [str(s["identifier"]) if s.get("identifier") else "<no identifier>" for s in svcs]
+            ot = [s for s in svcs if s.get("identifier") and "objecttype" in str(s["identifier"])]
+            keep = [s for s in svcs if s.get("identifier") and "objecttype" not in str(s["identifier"])]
+            if len(ot) != 1 or len(keep) != 1 or len(svcs) != 2:
+                actions.append(f"{ACTION}{component}: zgw_consumers services {', '.join(ids)} share api_root "
+                               f"{api_root}; its config job fails on the unique api_root. Keep one service, point "
+                               f"every *_service_identifier at it and give it a working objecten token ({DUPLICATE_DOC})")
+                continue
+            old_id, keep_id = str(ot[0]["identifier"]), str(keep[0]["identifier"])
+            plans.setdefault(component, []).append((old_id, keep_id))
+            old_token, keep_token = ot[0].get("header_value"), keep[0].get("header_value")
+            notes.append(f"{component}: removed zgw_consumers service {old_id} (same api_root {api_root} as "
+                         f"{keep_id}) and pointed its *_service_identifier references at {keep_id}")
+            if old_token != keep_token:
+                actions.append(f"{ACTION}{component}: {keep_id} now serves the Objects and the Objecttypen API with "
+                               f"its own token ({keep_token}); the removed {old_id} sent {old_token}. Check that "
+                               f"{keep_id}'s token is an objecten token with the permissions {component} needs; a "
+                               f"value_from env token comes from the {component}-configuration-secrets Secret "
+                               f"({component}.configuration.secrets) ({DUPLICATE_DOC})")
+    if not plans:
+        return text, notes, actions
+
+    lines = text.split("\n")
+    root = _rt_yaml().load(text)
+    ed = Edits()
+    expected_inner: dict[str, object] = {}
+    for component, merges in plans.items():
+        comp = root[component]
+        _, c_e = key_range(lines, root, component, len(lines))
+        _, cf_e = key_range(lines, comp, "configuration", c_e)
+        d_s, d_e = key_range(lines, comp["configuration"], "data", cf_e)
+        if not re.search(r":\s*\|[-+]?\s*(#.*)?$", lines[d_s]):
+            raise MigrationError(f"{component}.configuration.data is not a literal block (|)")
+        content = lines[d_s + 1:d_e]
+        ind = min((_indent(c) for c in content if c.strip()), default=_indent(lines[d_s]) + 2)
+        inner_text = "\n".join(c[ind:] if c.strip() else "" for c in content)
+        i_lines = inner_text.split("\n")
+        i_root = _rt_yaml().load(inner_text)
+        plain = _safe_load(inner_text)
+        i_ed = Edits()
+        services = i_root["zgw_consumers"]["services"]
+        _, s_e = path_range(i_lines, i_root, ["zgw_consumers", "services"], len(i_lines))
+        for old_id, keep_id in merges:
+            idx = next(n for n, s in enumerate(services) if isinstance(s, dict) and str(s.get("identifier")) == old_id)
+            i_ed.delete(*item_range(i_lines, services, idx, s_e))
+            plain["zgw_consumers"]["services"] = [s for s in plain["zgw_consumers"]["services"]
+                                                  if not (isinstance(s, dict) and str(s.get("identifier")) == old_id)]
+            for path in list(_service_identifier_refs(_safe_load(inner_text), old_id)):
+                parent = _get_path(i_root, path[:-1])
+                line = parent.lc.key(path[-1])[0]
+                i_ed.replace(line, line + 1, [_scalar_line(i_lines[line], keep_id)])
+                _get_path(plain, path[:-1])[path[-1]] = keep_id
+        new_inner = "\n".join(i_ed.apply(i_lines))
+        ed.replace(d_s + 1, d_e, [(" " * ind + line) if line.strip() else "" for line in new_inner.split("\n")])
+        expected_inner[component] = plain
+    out = "\n".join(ed.apply(lines))
+
+    # Check: only the planned configuration.data blocks changed, exactly as intended
+    got = _safe_load(out)
+    want = copy.deepcopy(doc)
+    for component, plain in expected_inner.items():
+        got_inner = _safe_load(got[component]["configuration"]["data"])
+        if got_inner != plain:
+            raise MigrationError(f"self-check failed for {component} zgw_consumers merge "
+                                 f"({_first_difference(plain, got_inner)}); nothing written")
+        got[component]["configuration"]["data"] = want[component]["configuration"]["data"] = None
+    if got != want:
+        raise MigrationError(f"self-check failed: the zgw_consumers merge changed more than intended "
+                             f"({_first_difference(want, got)}); nothing written")
+    return out, notes, actions
 
 
 def process(path: str, args) -> tuple[str, list[str]]:
@@ -794,17 +945,14 @@ def process(path: str, args) -> tuple[str, list[str]]:
         text = f.read()
     try:
         new, notes = migrate_text(text, args.objecten_image_repository)
+        new, merge_notes, actions = merge_objecttypen_services(new)
     except MigrationError as e:
         return "error", [str(e)]
     except Exception as e:  # unexpected file shape: report, never write half a migration
         return "error", [f"unexpected {type(e).__name__}: {str(e).splitlines()[0][:200]}"]
+    notes += merge_notes + actions
     changes = [(path, text, new)] if new != text else []
     migrated_doc = _safe_load(new)
-    for component, root, ids in duplicate_api_roots(migrated_doc):
-        notes.append(f"ACTION {component}: zgw_consumers services {', '.join(ids)} share api_root {root}; "
-                     "its config job fails on the unique api_root. Keep one service, point every "
-                     "*_service_identifier at it and give it a working objecten token (values-deltas.md, "
-                     "'One zgw_consumers service per api_root')")
     has_objecten = isinstance(migrated_doc, dict) and "objecten" in migrated_doc \
         and "objecttypen" not in migrated_doc
     if not args.no_gateway and not has_objecten:
@@ -848,6 +996,7 @@ def main() -> int:
         print("No podiumd.yml files found.", file=sys.stderr)
         return 1
     counts = {"migrated": 0, "unchanged": 0, "error": 0}
+    pending: list[tuple[str, str]] = []
     for path in files:
         status, notes = process(path, args)
         counts[status] += 1
@@ -855,11 +1004,20 @@ def main() -> int:
         print(f"[{status}] {path}", file=out)
         for n in notes:
             print(f"    - {n}", file=out)
+        pending += [(path, n) for n in notes if n.startswith(ACTION)]
     out = sys.stderr if args.dry_run else sys.stdout
-    print(f"\n{counts['migrated']} migrated, {counts['unchanged']} unchanged, {counts['error']} error(s)", file=out)
+    need_action = len({p for p, _ in pending})
+    print(f"\n{counts['migrated']} migrated, {counts['unchanged']} unchanged, {counts['error']} error(s), "
+          f"{need_action} need action", file=out)
+    if pending:
+        print("\nNeeds action before the deploy (the config job fails otherwise):", file=out)
+        for p, n in pending:
+            print(f"  {p}: {n[len(ACTION):]}", file=out)
     print("Before deploying an environment: run `import_objecttypes` in its objecten (3.6.x) - see "
           "docs/apps/objecten/openobject-migration.md.", file=out)
-    return 1 if counts["error"] else 0
+    if counts["error"]:
+        return 1
+    return 2 if pending else 0
 
 
 if __name__ == "__main__":
