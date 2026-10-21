@@ -4,10 +4,22 @@ objecttypen chart is gone, so 4.10.0 removes its Service. Gateways route the
 old objecttypen hostname through an ExternalName to
 objecttypen.<namespace>.svc, which then fails until the gateway is repointed
 (a 502 window right after the deploy). This Service keeps that name and sends
-it to the objecten pods, so the old hostname keeps working without a gateway
-change. Same selector and ports as the objecten Service.
+it to the objecten web pods, so the old hostname keeps working without a
+gateway change. Selector, port and target port mirror the openobject chart's
+own Service: app.kubernetes.io/name from objecten.nameOverride (the chart name
+"openobject" when unset), port from objecten.service.port, and the web
+container's named port `http`.
+Only a boolean objecten.enabled: false turns it off, as for the dependency.
 */ -}}
-{{- if and (ne (toString .Values.objecten.enabled) "false") .Values.objecttypenCompatService.enabled }}
+{{- $objectenEnabled := not (and (kindIs "bool" .Values.objecten.enabled) (not .Values.objecten.enabled)) }}
+{{- if and $objectenEnabled .Values.objecttypenCompatService.enabled }}
+{{- $existing := lookup "v1" "Service" .Release.Namespace "objecttypen" }}
+{{- if $existing }}
+{{- $owner := index ($existing.metadata.annotations | default dict) "meta.helm.sh/release-name" }}
+{{- if ne (toString $owner) .Release.Name }}
+{{- fail (printf "objecttypenCompatService: a Service objecttypen already exists in namespace %s and does not belong to release %s (meta.helm.sh/release-name: %q). Set objecttypenCompatService.enabled: false if something else provides the objecttypen Service." .Release.Namespace .Release.Name (toString $owner)) }}
+{{- end }}
+{{- end }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -20,10 +32,10 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: 80
-      targetPort: 8000
+    - port: {{ .Values.objecten.service.port | default 80 }}
+      targetPort: http
       protocol: TCP
       name: http
   selector:
-    app.kubernetes.io/name: objecten
+    app.kubernetes.io/name: {{ .Values.objecten.nameOverride | default "openobject" | trunc 63 | trimSuffix "-" }}
 {{- end }}
