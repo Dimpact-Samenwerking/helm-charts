@@ -384,6 +384,13 @@ keycloak-operator:
   enableServiceMonitor: true
   fullnameOverride: keycloak
   operator:
+    # -- The operator image runs as uid 1000; enforce non-root (runAsNonRoot audit 2026-10-21).
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
     image:
       repository: quay.io/keycloak/keycloak-operator
       # IMPORTANT: do NOT embed @sha256 in this tag. Unlike podiumd's own
@@ -490,6 +497,13 @@ redis-operator:
     # override explicitly so the init container is digest-pinned like every other image here.
     # It runs the operator image, so it aliases imageTag (a lockstep pair).
     initContainerImageTag: *redisOperatorImageTag
+  # -- The operator image runs as uid 65532; enforce non-root (runAsNonRoot audit 2026-10-21).
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: [ALL]
   resources:
     requests:
       cpu: 100m
@@ -588,9 +602,16 @@ redis-operator:
         cpu: 50m
         memory: 32Mi
     # -- Pod security context for Redis pods. fsGroup must match the redis container's GID (1000)
-    # so that mounted PVC data directories are writable by the redis process.
+    # so that mounted PVC data directories are writable by the redis process. runAsUser 1000 also
+    # covers the operator's init-config, the busybox init and the redis-exporter (their images
+    # default to root or 65532); they only write the /etc/redis emptyDir and /data.
     podSecurityContext:
       fsGroup: 1000
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      seccompProfile:
+        type: RuntimeDefault
     # -- Spread the Redis pods over the nodes, so one node failure or drain takes out at most one
     # of them. ScheduleAnyway: on a cluster with fewer nodes than replicas the pods still start.
     # The template adds the selector (app: redis-ha) to an item without its own labelSelector.
@@ -3121,6 +3142,11 @@ kiss-eck:
     podTemplate:
       spec:
         nodeSelector: {}
+        # The Kibana image runs as uid 1000; enforce non-root (runAsNonRoot audit 2026-10-21).
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          fsGroup: 1000
         containers:
         # Memory as ECK's default; ECK sets no CPU.
         - name: kibana
@@ -4173,7 +4199,12 @@ pabc:
   # vendor fix; these merge into the main container defaults.
   securityContext:
     allowPrivilegeEscalation: false
+  # Pod level, so it also covers the pabc-wait-for-migrations init container, whose
+  # k8s-wait-for image runs as root by default; 1000 as the chart's main container.
   podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
     seccompProfile:
       type: RuntimeDefault
   enabled: true
