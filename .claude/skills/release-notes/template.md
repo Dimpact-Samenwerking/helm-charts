@@ -15,7 +15,7 @@ Wat gemeenten zelf moeten doen staat op de [releasepagina in de wiki](https://di
 
 | Component | Versie | Omvang | Impact helm-charts | Impact SSC |
 | --- | --- | --- | --- | --- |
-| {component} | {oud} → {nieuw} (chart {oud} → {nieuw}) | **{Klein|Middel|Groot}**: {reden} | {wat wij in de chart hebben aangepast} | {wat SSC moet doen, of: Nieuwe image spiegelen} |
+| {component} | {oud} → {nieuw} (chart {oud} → {nieuw}) | **{Klein|Middel|Groot}**: {reden} | {wat wij in de chart hebben aangepast} | {wat SSC moet doen, of: Nieuwe image mirroren} |
 
 {Nieuwe digests voor dezelfde tags, als die er zijn.}
 
