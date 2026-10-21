@@ -74,9 +74,11 @@ spec:
   topologySpreadConstraints:
     {{- range . }}
     - {{ toYaml . | indent 6 | trim }}
+      {{- if not .labelSelector }}
       labelSelector:
         matchLabels:
           app: {{ $redisHa.serviceName | default "redis-ha" | quote }}
+      {{- end }}
     {{- end }}
   {{- end }}
   {{- with $redisHa.pdb }}
@@ -87,7 +89,8 @@ spec:
   {{- end }}
   {{- if ($redisHa.masterReadinessCheck | default dict).enabled }}
   {{- /* IN-2961: NotReady when labelled master but the server reports role:slave.
-       The image has no grep/awk/cat, so the labels file is read with shell builtins. */}}
+       The script uses only shell builtins and tr. It replaces the operator's default
+       probe, which adds --tls when TLS is on: with TLS, add the same flags here. */}}
   readinessProbe:
     exec:
       command:

@@ -110,9 +110,12 @@ spec:
                   fi
 
                   # Check whether labels already reflect the CR — skip API writes if so.
+                  # All master-labelled pods, not just the first: after a failover the old
+                  # master can keep the label, and once the master-only readiness check makes
+                  # it NotReady the operator skips it, so only this job removes the label.
                   CURRENT=$(kubectl get pod -l "app=redis-ha,redis-role=master" \
                     -n "$NAMESPACE" \
-                    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+                    -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
 
                   if [ "$CURRENT" = "$MASTER" ]; then
                     echo "Labels correct: $MASTER is master. Nothing to do."

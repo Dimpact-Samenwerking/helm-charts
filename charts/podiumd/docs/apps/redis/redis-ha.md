@@ -35,9 +35,14 @@ stacktrace: getRedisServerIP @ internal/k8sutils/redis.go:50
 `templates/redis-ha-label-master.yaml` defines a CronJob that runs every 2 minutes. Each run:
 
 1. Reads the authoritative master from `RedisReplication.status.masterNode`
-2. Compares it to the pod currently carrying `redis-role=master`
-3. If they match — exits immediately (`Labels correct: <pod> is master. Nothing to do.`)
+2. Compares it to every pod currently carrying `redis-role=master`
+3. If exactly that pod carries it — exits immediately (`Labels correct: <pod> is master. Nothing to do.`)
 4. If they differ — applies `redis-role=master` to the CR master pod and `redis-role=slave` to the others
+
+With `masterReadinessCheck` on (the default since 4.10.0) the CronJob is also the only thing that
+removes a stale master label. After a failover the old master can keep `redis-role=master` for a
+while; the readiness check makes it NotReady, and redis-operator v0.27.0 skips pods that aren't
+Ready when it fixes role labels. Keep the CronJob enabled as long as the readiness check is on.
 
 Unlike the previous one-shot Job, the CronJob:
 
@@ -142,5 +147,8 @@ practice yet: before disabling it, confirm in a test environment that the operat
 correctly after a simultaneous pod restart of all three `redis-ha` pods (e.g. during a Helm upgrade
 that touches the StatefulSet). Once verified, disable the CronJob and remove this doc's "Known Bug"
 framing (fold the historical context into a changelog note instead).
+
+With `masterReadinessCheck` enabled the CronJob must stay: it is what removes the master label
+from an old master that the readiness check made NotReady (see above).
 
 Track: [https://github.com/OT-CONTAINER-KIT/redis-operator/releases](https://github.com/OT-CONTAINER-KIT/redis-operator/releases)
