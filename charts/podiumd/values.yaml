@@ -583,6 +583,31 @@ redis-operator:
     # so that mounted PVC data directories are writable by the redis process.
     podSecurityContext:
       fsGroup: 1000
+    # -- Spread the Redis pods over the nodes, so one node failure or drain takes out at most one
+    # of them. ScheduleAnyway: on a cluster with fewer nodes than replicas the pods still start.
+    # The template adds the selector (app: redis-ha) to an item without its own labelSelector.
+    # Set to [] to schedule freely.
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+    # -- PodDisruptionBudget the redis-operator creates for the Redis pods: a node drain evicts
+    # one Redis pod at a time, so a replica is always left to take over as master. The operator
+    # selects the pods with `app: redis-ha` (the CR name), so the render fails when it is enabled
+    # with another `serviceName`.
+    pdb:
+      enabled: true
+      maxUnavailable: 1
+    # -- Readiness check that keeps the `redis-ha-master` Service on the real master (IN-2961).
+    # During a failover the operator sets the new `redis-role=master` label before it removes the
+    # old one, so for some seconds the Service also points at a replica, and clients that connect
+    # then write to a read-only replica (IN-2869). With this check a pod labelled master that
+    # reports `role:slave` itself is NotReady and drops out of the Service. The pod reads its own
+    # labels through a downward API volume (/etc/podinfo). A correctly labelled replica is never
+    # NotReady, so rolling updates are not blocked. Disable to fall back to the operator's PING
+    # probe.
+    masterReadinessCheck:
+      enabled: true
     redisConfig:
       # -- Optional extra redis.conf directives for runtime-configurable parameters.
       # Note: startup-only parameters (e.g. databases) will NOT take effect here due to an operator

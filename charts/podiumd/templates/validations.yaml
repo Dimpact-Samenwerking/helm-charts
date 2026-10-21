@@ -305,3 +305,11 @@
 {{- if and .Values.zac.enabled (eq (toString (index .Values.zac.auth "pkceEnabled")) "true") -}}
 {{- fail "zac.auth.pkceEnabled is replaced by zac.auth.enablePkce (default true), which enables PKCE in ZAC and on its Keycloak client together. Remove zac.auth.pkceEnabled; set zac.auth.enablePkce: false to opt out. See \"ZAC: PKCE on by default\" in docs/_UPGRADE_PATHS/4.9.5-to-4.10.0-upgrade.md" -}}
 {{- end -}}
+
+{{- /* The redis-operator builds the redis-ha PodDisruptionBudget's selector from the CR
+     name (app: redis-ha), but the pods get app: <serviceName>. With another serviceName
+     the PDB selects no pods, so a drain can evict every Redis pod at once. */ -}}
+{{- $redisHaCheck := default (dict) (index (index .Values "redis-operator" | default dict) "redis-ha") -}}
+{{- if and $redisHaCheck.enabled ($redisHaCheck.pdb | default dict).enabled $redisHaCheck.serviceName (ne (toString $redisHaCheck.serviceName) "redis-ha") -}}
+{{- fail (printf "redis-operator.redis-ha.pdb.enabled needs redis-operator.redis-ha.serviceName \"redis-ha\" (or empty): the redis-operator selects the PodDisruptionBudget's pods with app: redis-ha, the CR name, so with serviceName %q it would protect no pod" (toString $redisHaCheck.serviceName)) -}}
+{{- end -}}
