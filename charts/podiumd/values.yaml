@@ -3663,6 +3663,20 @@ zac:
         image:
           #repository:
           tag: v1.25.4@sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc
+        # The hooks only run sh, kubectl and grep (`kubectl api-resources | grep
+        # ZookeeperCluster`). The image has no USER, so run them as nobody: kubectl
+        # works without a writable $HOME, it then just skips its discovery cache
+        # (checked 2026-10-21). Same block as helm-charts #629, plus the run-as fields.
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          seccompProfile:
+            type: RuntimeDefault
       # pravega/zookeeper-operator:0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e
       image:
         #repository:
