@@ -66,6 +66,59 @@ deploying a second monitor on Traefik (which stores every series twice). See
 No action required: both default to `[]`, which renders the PodMonitor exactly as
 before.
 
+## Grafana sends HSTS
+
+Grafana now sends `Strict-Transport-Security: max-age=31536000` (IN-3162):
+`grafana."grafana.ini".security.strict_transport_security: true` with
+`strict_transport_security_max_age_seconds: "31536000"`. The value is quoted on
+purpose: unquoted, the Grafana chart renders it as `3.1536e+07`.
+
+No action required. An environment whose edge already sets HSTS keeps working:
+the edge's value replaces Grafana's.
+
+## node-exporter: no distroless image
+
+`kube-prometheus-stack` 90.0.0 turns on node-exporter's distroless image, which
+appends `-distroless` to the tag. The pinned `v1.9.1` has no distroless variant
+(those start at v1.11.0), so without a fix node-exporter cannot pull its image
+(`ImagePullBackOff` on every node). The chart sets
+`kube-prometheus-stack.prometheus-node-exporter.image.distroless: false`.
+
+No action required. When you raise the node-exporter tag to v1.11.0 or later, you
+can turn distroless back on.
+
+## Resource requests for sidecars and Loki components
+
+These containers had no CPU or memory requests, so the scheduler reserved nothing
+for them:
+
+| Values key | Container(s) | Requests |
+|---|---|---|
+| `grafana.sidecar.resources` | `grafana-sc-dashboard`, `grafana-sc-datasources` | 10m / 96Mi |
+| `loki.sidecar.resources` | `loki-sc-rules` | 10m / 96Mi |
+| `loki.memcachedExporter.resources` | the exporter next to chunks-cache and results-cache | 10m / 32Mi |
+| `loki.compactor.resources` | compactor (Distributed mode) | 50m / 128Mi |
+| `loki.ruler.resources` | ruler (Distributed mode) | 20m / 128Mi |
+
+The sidecar values follow the use measured on QA (about 70Mi for each Grafana
+sidecar, 82Mi for `loki-sc-rules`). Only requests are set, no limits.
+
+No action required. The pods restart once with the new requests. An environment
+that sets its own `resources` for these keys keeps them; Helm merges the maps, so
+an environment that sets only `limits` gets these requests as well.
+
+## Traefik PodMonitor off by default
+
+`traefikMonitor.enabled` now defaults to `false`. The PodiumD edge is NGINX
+Gateway Fabric, so the PodMonitor found no Traefik pods and left Prometheus
+with an empty scrape pool (`podMonitor/<namespace>/<release>-traefik`). The
+`kubernetes-pods` job already scrapes NGF through its pod annotations (port
+9113). See `docs/prometheus-scraping.md` § NGINX Gateway Fabric.
+
+Action for an environment that still runs Traefik at the edge: set
+`traefikMonitor.enabled: true`, or the Traefik metrics and the Traefik
+dashboard stop receiving data.
+
 ## Deferred (tracked as backlog items, not folded in here)
 
 - **`loki` 6.55.0 → 7.3.0**: the chart's default MinIO images silently
@@ -84,15 +137,6 @@ before.
   Low blast radius (only the collector's own health metrics, not the
   log/metric/trace pipeline itself), but needs an explicit values.yaml fix to
   preserve parity before bumping.
-
-## Traefik PodMonitor off by default
-
-`traefikMonitor.enabled` now defaults to `false`. The PodiumD edge is NGINX
-Gateway Fabric, so the PodMonitor found no Traefik pods and left Prometheus
-with an empty scrape pool (`podMonitor/<namespace>/<release>-traefik`). The
-`kubernetes-pods` job already scrapes NGF through its pod annotations (port
-9113). See `docs/prometheus-scraping.md` § NGINX Gateway Fabric.
-
-Action for an environment that still runs Traefik at the edge: set
-`traefikMonitor.enabled: true`, or the Traefik metrics and the Traefik
-dashboard stop receiving data.
+- **Verify this chart with verify-podiumd**: the podiumd chart's verify script
+  does not check this chart yet. Assessment, plan and effort (about 1.5 to 2.5
+  days) in [verify-tooling-assessment.md](verify-tooling-assessment.md).
