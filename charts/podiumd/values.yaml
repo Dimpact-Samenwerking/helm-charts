@@ -3433,6 +3433,8 @@ zac:
   securityContext:
     runAsNonRoot: true
     runAsUser: 1001
+    # null cancels the zac chart's runAsGroup 10001 (1.0.354 and later): the 5.9.1 image runs with its own group, as tested.
+    runAsGroup: null
   # Every "changeme"/"dummy" credential below is a placeholder: the render fails
   # (templates/validations.yaml) until each one is set per environment.
   auth:
@@ -3518,6 +3520,8 @@ zac:
     securityContext:
       runAsNonRoot: true
       runAsUser: 100
+      # null cancels the zac chart's runAsGroup 10001 (1.0.354 and later): the 5.9.1 image runs with its own group, as tested.
+      runAsGroup: null
     enabled: true
     resources:
       requests:
@@ -3564,6 +3568,8 @@ zac:
     securityContext:
       runAsNonRoot: true
       runAsUser: 1001
+      # null cancels the zac chart's runAsGroup 10001 (1.0.354 and later): the 5.9.1 image runs with its own group, as tested.
+      runAsGroup: null
     # -- Basic auth user shared by ZAC and its office converter (Gotenberg). Override per environment: the converter Service is reachable from any pod in the cluster.
     username: "dummy"
     # -- Basic auth password for the office converter; see username.
@@ -3576,6 +3582,8 @@ zac:
     securityContext:
       runAsNonRoot: true
       runAsUser: 1000
+      # null cancels the zac chart's runAsGroup 10001 (1.0.354 and later): the 5.9.1 image runs with its own group, as tested.
+      runAsGroup: null
     sidecar: true
     # openpolicyagent/opa:1.21.1-static@sha256:4675ab04ad1627f74741d2d9c5142698c79e18b7b09f192587d31d6dba20838e
     image:

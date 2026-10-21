@@ -23,7 +23,7 @@ PodiumD Helm chart
 | @opstree | redis-operator | 0.27.0 |
 | @wiremind | clamav | 3.7.3 |
 | @worth-nl | omc(notifynl-omc-nodep) | 0.17.4 |
-| @zac | zac(zaakafhandelcomponent) | 1.0.338 |
+| @zac | zac(zaakafhandelcomponent) | 1.0.355 |
 | @zgw-office-addin | zgw-office-addin | 0.0.93 |
 | file://../mi-data | mi(mi-data) | 1.1.0 |
 | https://helm.elastic.co | eck-operator | 3.5.0 |
@@ -1481,6 +1481,7 @@ PodiumD Helm chart
 | zac.initContainer.enabled | bool | `true` |  |
 | zac.initContainer.resources.requests.cpu | string | `"50m"` |  |
 | zac.initContainer.resources.requests.memory | string | `"256Mi"` |  |
+| zac.initContainer.securityContext.runAsGroup | string | `nil` |  |
 | zac.initContainer.securityContext.runAsNonRoot | bool | `true` |  |
 | zac.initContainer.securityContext.runAsUser | int | `100` |  |
 | zac.keycloak.adminClient.id | string | `"zac-admin-client"` |  |
@@ -1510,12 +1511,14 @@ PodiumD Helm chart
 | zac.objectenApi.url | string | `"https://objecten.example.nl"` |  |
 | zac.office_converter.image.tag | string | `"8.37.0@sha256:f29984bd1e226bf1b93ba90af06000afa8b315853e99d27b9aaa41b93f15c769"` |  |
 | zac.office_converter.password | string | `"dummy"` | Basic auth password for the office converter; see username. |
+| zac.office_converter.securityContext.runAsGroup | string | `nil` |  |
 | zac.office_converter.securityContext.runAsNonRoot | bool | `true` |  |
 | zac.office_converter.securityContext.runAsUser | int | `1001` |  |
 | zac.office_converter.username | string | `"dummy"` | Basic auth user shared by ZAC and its office converter (Gotenberg). Override per environment: the converter Service is reachable from any pod in the cluster. |
 | zac.opa.image.tag | string | `"1.21.1-static@sha256:4675ab04ad1627f74741d2d9c5142698c79e18b7b09f192587d31d6dba20838e"` |  |
 | zac.opa.resources.requests.cpu | string | `"10m"` |  |
 | zac.opa.resources.requests.memory | string | `"20Mi"` |  |
+| zac.opa.securityContext.runAsGroup | string | `nil` |  |
 | zac.opa.securityContext.runAsNonRoot | bool | `true` |  |
 | zac.opa.securityContext.runAsUser | int | `1000` |  |
 | zac.opa.sidecar | bool | `true` |  |
@@ -1526,6 +1529,7 @@ PodiumD Helm chart
 | zac.organizations.verantwoordelijke.rsin | string | `"000000000"` |  |
 | zac.pabcApi.apiKey | string | `""` |  |
 | zac.pabcApi.url | string | `""` |  |
+| zac.securityContext.runAsGroup | string | `nil` |  |
 | zac.securityContext.runAsNonRoot | bool | `true` |  |
 | zac.securityContext.runAsUser | int | `1001` |  |
 | zac.smartDocuments.authentication | string | `""` |  |
