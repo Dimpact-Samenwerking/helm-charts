@@ -128,6 +128,10 @@ Service has no endpoints, and apps get a connection error instead of a rejected 
 Not covered here: a connection an app already holds to a replica stays there until the app
 reconnects or restarts (IN-2962, for Maykin).
 
+The spread only applies where the scheduler has a choice. The Redis volumes are zonal disks, so
+an existing pod restarts in the zone of its disk; to move a replica, recreate it with a new volume
+as described in the 4.10.0 upgrade guide ("Redis HA: failover safeguards").
+
 ---
 
 ## Upgrade path
