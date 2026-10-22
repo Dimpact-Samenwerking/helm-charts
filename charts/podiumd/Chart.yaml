@@ -32,12 +32,12 @@ dependencies:
     repository: "@maykinmedia"
     condition: opennotificaties.enabled
   - name: openobject
-    version: 1.1.1
+    version: 1.2.0
     repository: "@maykinmedia"
     condition: objecten.enabled
     alias: objecten
   - name: openarchiefbeheer
-    version: 2.0.0
+    version: 2.1.0
     repository: "@maykinmedia"
     condition: openarchiefbeheer.enabled
   - name: openklant
