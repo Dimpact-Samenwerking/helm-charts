@@ -5,8 +5,6 @@ given upgrade_docs_baseline, every component changed since it must appear in the
 doc. Uses only upgrade_docs_baseline, never release_table_baseline.
 """
 
-import re
-
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -71,6 +69,7 @@ from lib.upgradedoc.resolve_component_row import ResolvedRow
 from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
 from lib.upgradedoc.resolve_component_row import resolve_component_row
 from lib.upgradedoc.resolve_component_row import resolved_row_unchanged
+from lib.upgradedoc.resolve_component_row import strip_chart_clause
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.string_and_parsing_basics import TableRow
@@ -419,7 +418,7 @@ def _check_changes_heading_correspondence(
 
         if ctx.baseline_ref and identity in rows_result.baseline_app_by_identity:
             expected_app_heading = component_version_cell(rows_result.baseline_app_by_identity[identity], actual_app)
-            without_chart_clause = re.sub(r"\(chart[^)]*\)", "", heading)
+            without_chart_clause = strip_chart_clause(heading)
             if expected_app_heading is not None and expected_app_heading not in without_chart_clause:
                 mismatches.append(
                     f'{scan.doc_path.name}: "## Changes" section "### {heading}" shows the wrong '

@@ -70,6 +70,11 @@ class ResolutionContext:
         return ChartImageIndex(self.chart_dir, self.target.deps, self.target.values)
 
 
+def strip_chart_clause(heading: str):
+    """The heading without its "(chart ...)" clause, which repeats the app side's version markers."""
+    return re.sub(r"\s*\(chart[^)]*\)", "", heading)
+
+
 def changes_heading_has_app_version(heading: str):
     """Whether a "### ..." Changes heading shows an app-version pair.
 
@@ -77,7 +82,7 @@ def changes_heading_has_app_version(heading: str):
     The "(chart ...)" clause uses the same markers for the chart side, so it is stripped first:
     "openbao v2.5.5 (new) (chart 0.28.4, unchanged)". A chart-only stub heading
     ("### openbao 0.28.4") has none of the markers."""
-    without_chart_clause = re.sub(r"\(chart[^)]*\)", "", heading)
+    without_chart_clause = strip_chart_clause(heading)
     return (
         "→" in without_chart_clause
         or "->" in without_chart_clause
