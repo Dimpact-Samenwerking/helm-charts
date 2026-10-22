@@ -26,7 +26,7 @@ global:
       pullPolicy: IfNotPresent
     postgres: &postgresImage
       repository: library/postgres
-      tag: "16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea"
+      tag: "16.15-alpine@sha256:deb28ee471183cb0c303113dac9b2433c51eeeeb678def7af9a9ec5820367815"
       pullPolicy: IfNotPresent
 
 tags:
@@ -1390,7 +1390,7 @@ objecten:
   image:
     repository: maykinmedia/open-object
     # Precondition already completed (was objecten 3.6.2 before this swap).
-    tag: "4.1.0@sha256:7738cb8161d221d0a286d39d9d270c35024ff78123c296ceb46f3d9dda7208f9"
+    tag: "4.3.0@sha256:502b75f194c15efe673d62648e1f5199589dace3368e16ba2af4b99b2a7c3847"
   resources:
     requests:
       cpu: 100m
@@ -3672,10 +3672,10 @@ zac:
       busyBoxImage: *busyboxImage
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.10.1-slim@sha256:60a9e227831513ec25615cd1b501bf273170c320f7587f6e3fb1624b4d025d00
+      # library/solr:9.11.0-slim@sha256:3b70e899b1cca19729c49c110a1aa8e937f727be4cca3ad07ea67f151f5cc07d
       image:
         #repository:
-        tag: 9.10.1-slim@sha256:60a9e227831513ec25615cd1b501bf273170c320f7587f6e3fb1624b4d025d00
+        tag: 9.11.0-slim@sha256:3b70e899b1cca19729c49c110a1aa8e937f727be4cca3ad07ea67f151f5cc07d
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       # Solr jobs (affinity, annotations, nodeSelector, tolerations): ZAC chart defaults.
@@ -4789,7 +4789,7 @@ frankgateway:
   etcd:
     image:
       repository: quay.io/coreos/etcd
-      tag: "v3.5.34@sha256:2c029095680c13c2b36116cc3935e1b0cddc0f5af78004457fd863616d8d072b"
+      tag: "v3.6.15@sha256:7cf6622cb09b111289eed8a0cce3478e4f01d5048b0e0a1ed208299f3419334d"
     # THREE members, and do not set this to 2. etcd is raft: quorum of a
     # 3-member cluster is 2, so it survives losing one; quorum of a 2-member
     # cluster is also 2, so it survives losing none — worse than a single
@@ -5151,7 +5151,7 @@ mi:
   image:
     registry: "mcr.microsoft.com"
     repository: azure-cli
-    tag: "2.90.0@sha256:e3768dde8142efa45d8f356a317aaac77abd7da15ba3719b0a150e9453f251db"
+    tag: "2.91.0@sha256:933eb8dcb81aecb6f77e03c5b8660f0a1dfa9e1d16525763a27f86ff3b83a044"
 
 openbao:
   # OpenBao (openbao.org) — secrets vault. Postgres-backed like the other apps,

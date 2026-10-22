@@ -35,7 +35,7 @@
 - name: library/postgres
   url: docker.io/library/postgres
   version: "16.15-alpine"
-  digest: "sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea"
+  digest: "sha256:deb28ee471183cb0c303113dac9b2433c51eeeeb678def7af9a9ec5820367815"
 
 - name: keycloak/keycloak
   url: quay.io/keycloak/keycloak
@@ -84,8 +84,8 @@
 
 - name: maykinmedia/open-object
   url: docker.io/maykinmedia/open-object
-  version: "4.1.0"
-  digest: "sha256:7738cb8161d221d0a286d39d9d270c35024ff78123c296ceb46f3d9dda7208f9"
+  version: "4.3.0"
+  digest: "sha256:502b75f194c15efe673d62648e1f5199589dace3368e16ba2af4b99b2a7c3847"
 
 - name: maykinmedia/open-archiefbeheer
   url: docker.io/maykinmedia/open-archiefbeheer
@@ -189,8 +189,8 @@
 
 - name: library/solr
   url: docker.io/library/solr
-  version: "9.10.1-slim"
-  digest: "sha256:60a9e227831513ec25615cd1b501bf273170c320f7587f6e3fb1624b4d025d00"
+  version: "9.11.0-slim"
+  digest: "sha256:3b70e899b1cca19729c49c110a1aa8e937f727be4cca3ad07ea67f151f5cc07d"
 
 - name: alpine/k8s
   url: docker.io/alpine/k8s
@@ -264,8 +264,8 @@
 
 - name: coreos/etcd
   url: quay.io/coreos/etcd
-  version: "v3.5.34"
-  digest: "sha256:2c029095680c13c2b36116cc3935e1b0cddc0f5af78004457fd863616d8d072b"
+  version: "v3.6.15"
+  digest: "sha256:7cf6622cb09b111289eed8a0cce3478e4f01d5048b0e0a1ed208299f3419334d"
 
 - name: apache/apisix-dashboard
   url: docker.io/apache/apisix-dashboard
@@ -289,8 +289,8 @@
 
 - name: azure-cli
   url: mcr.microsoft.com/azure-cli
-  version: "2.90.0"
-  digest: "sha256:e3768dde8142efa45d8f356a317aaac77abd7da15ba3719b0a150e9453f251db"
+  version: "2.91.0"
+  digest: "sha256:933eb8dcb81aecb6f77e03c5b8660f0a1dfa9e1d16525763a27f86ff3b83a044"
 
 - name: openbao/openbao
   url: quay.io/openbao/openbao
