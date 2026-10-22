@@ -3,9 +3,9 @@ parsing in lib.checks.cve, and the image-upgrade cache's same-major target."""
 
 import json
 
+from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
-from datetime import timezone
 from pathlib import Path
 
 from lib.checks.cve import is_cve_entry
@@ -72,7 +72,7 @@ def test_is_cve_entry():
 
 
 def test_same_major_upgrade_is_the_newer_tag_in_the_pins_major():
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     cache: dict[str, UpgradeEntry] = {
         cache_key("library/postgres", "16.15-alpine"): {"checked_at": now, "newer": ["16.17-alpine", "18.3-alpine"]},
         cache_key("library/postgres", "16.17-alpine"): {"checked_at": now, "newer": ["18.3-alpine"]},
@@ -83,7 +83,7 @@ def test_same_major_upgrade_is_the_newer_tag_in_the_pins_major():
 
 
 def test_same_major_upgrade_ignores_a_stale_entry():
-    stale = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
+    stale = (datetime.now(UTC) - timedelta(days=2)).isoformat()
     cache: dict[str, UpgradeEntry] = {
         cache_key("library/postgres", "16.15-alpine"): {"checked_at": stale, "newer": ["16.17-alpine"]}
     }

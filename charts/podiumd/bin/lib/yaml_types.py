@@ -5,7 +5,7 @@ lib.chart.chart_yaml), so the Any that yaml.safe_load returns stays in
 this module."""
 
 import copy
-import datetime
+import datetime as dt
 
 from collections.abc import Callable
 from collections.abc import Mapping
@@ -18,7 +18,7 @@ import yaml
 # datetime.date (or datetime.datetime, a subclass). Mapping keys can be
 # non-str in YAML (1:, on:); the checks below reject those, so every
 # mapping here has str keys.
-YamlScalar = str | int | float | bool | datetime.date | None
+YamlScalar = str | int | float | bool | dt.date | None
 YamlValue = YamlScalar | list["YamlValue"] | dict[str, "YamlValue"]
 YamlMapping = dict[str, YamlValue]
 
@@ -63,7 +63,7 @@ def yaml_problem(value: object, where: str = "") -> str | None:
     """None if `value` is a YamlValue, else a description of the first
     node that is not (a non-str mapping key, or a type safe_load does not
     produce), located by its dotted path."""
-    if value is None or isinstance(value, str | int | float | bool | datetime.date):
+    if value is None or isinstance(value, str | int | float | bool | dt.date):
         return None
     if is_object_list(value):
         return _list_problem(value, where)

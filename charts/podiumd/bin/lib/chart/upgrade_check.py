@@ -15,8 +15,8 @@ import urllib.request
 
 from dataclasses import dataclass
 from dataclasses import field
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from pathlib import Path
 from typing import TypeGuard
 
@@ -179,7 +179,7 @@ def _scan(chart_dir: Path, sources: list[ChartSource], ttl_days: int) -> ChartUp
                 scan.fetch_errors.append(source)
                 continue
             entry: ChartUpgradeEntry = {
-                "checked_at": datetime.now(timezone.utc).isoformat(),
+                "checked_at": datetime.now(UTC).isoformat(),
                 "newer": newer,
                 "app_versions": app_versions,
             }

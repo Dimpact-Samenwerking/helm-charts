@@ -14,9 +14,9 @@ fail, so candidates default to "own". Bucket-split tests override both."""
 
 import urllib.error
 
+from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
-from datetime import timezone
 from pathlib import Path
 from types import ModuleType
 from types import SimpleNamespace
@@ -59,11 +59,11 @@ def vuln(severity, cve, pkg):
 
 
 def fresh_upgrade_entry(*newer):
-    return {"checked_at": datetime.now(timezone.utc).isoformat(), "newer": list(newer)}
+    return {"checked_at": datetime.now(UTC).isoformat(), "newer": list(newer)}
 
 
 def stale_upgrade_entry(*newer):
-    return {"checked_at": (datetime.now(timezone.utc) - timedelta(days=30)).isoformat(), "newer": list(newer)}
+    return {"checked_at": (datetime.now(UTC) - timedelta(days=30)).isoformat(), "newer": list(newer)}
 
 
 def make_run_trivy(vulns_by_ref, calls=None):
@@ -416,7 +416,7 @@ zac:
         tmp_path,
         {
             libcvecheck.cache_key("ghcr.io/infonl/zac", DIGEST_A): {
-                "scanned_at": datetime.now(timezone.utc).isoformat(),
+                "scanned_at": datetime.now(UTC).isoformat(),
                 "vulnerabilities": [],
             },
         },

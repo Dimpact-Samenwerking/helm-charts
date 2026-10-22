@@ -7,9 +7,9 @@ The image-upgrade cache is read (read-only) to annotate "upgradable" findings.""
 import json
 import urllib.error
 
+from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
-from datetime import timezone
 from pathlib import Path
 from types import ModuleType
 from types import SimpleNamespace
@@ -206,7 +206,7 @@ def test_scan_cached_reports_a_hit_and_never_calls_run_trivy(
 ):
     key = libcvecheck.cache_key("org/repo", DIGEST_A)
     cached_entry = {
-        "scanned_at": datetime.now(timezone.utc).isoformat(),
+        "scanned_at": datetime.now(UTC).isoformat(),
         "vulnerabilities": [trimmed(vuln("CRITICAL", cve="CVE-CACHED"))],
     }
     old_cache = {key: cached_entry}
@@ -260,7 +260,7 @@ def test_scan_cached_reports_a_fresh_scan_and_writes_the_cache(
 
 def test_scan_cached_stale_entry_is_not_used(libcvecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     key = libcvecheck.cache_key("org/repo", DIGEST_A)
-    stale = datetime.now(timezone.utc) - timedelta(days=CVE_CACHE_TTL_DAYS + 1)
+    stale = datetime.now(UTC) - timedelta(days=CVE_CACHE_TTL_DAYS + 1)
     old_cache = {key: {"scanned_at": stale.isoformat(), "vulnerabilities": [trimmed(vuln("CRITICAL"))]}}
     fresh_vulns = [trimmed(vuln("HIGH", cve="CVE-FRESH"))]
     monkeypatch.setattr(libcvecheck, "run_trivy", lambda ref: fresh_vulns)
@@ -334,7 +334,7 @@ def test_scan_cached_default_label_is_this_image(
 
 def test_open_cache_session_new_cache_is_a_separate_copy(libcvecheck: ModuleType, tmp_path: Path):
     key = libcvecheck.cache_key("org/repo", DIGEST_A)
-    entry = {"scanned_at": datetime.now(timezone.utc).isoformat(), "vulnerabilities": []}
+    entry = {"scanned_at": datetime.now(UTC).isoformat(), "vulnerabilities": []}
     libcvecheck.save_cache(tmp_path, {key: entry})
 
     old_cache, new_cache = libcvecheck.open_cache_session(tmp_path)
@@ -590,7 +590,7 @@ def test_check_cves_marks_upgradable_from_image_upgrade_cache(
         chart_dir,
         {
             libimageupgradecache.cache_key("ghcr.io/wearefrank/frank-gateway", "104"): {
-                "checked_at": datetime.now(timezone.utc).isoformat(),
+                "checked_at": datetime.now(UTC).isoformat(),
                 "newer": ["105"],
             },
         },
@@ -626,7 +626,7 @@ def test_check_cves_stale_upgrade_cache_entry_not_marked_upgradable(
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
 
-    stale = datetime.now(timezone.utc) - timedelta(days=1 + 1)
+    stale = datetime.now(UTC) - timedelta(days=1 + 1)
     libimageupgradecache.save_cache(
         chart_dir,
         {
@@ -865,7 +865,7 @@ def test_check_cves_cache_hit_skips_scanning(
         chart_dir,
         {
             key: {
-                "scanned_at": datetime.now(timezone.utc).isoformat(),
+                "scanned_at": datetime.now(UTC).isoformat(),
                 "vulnerabilities": [trimmed(vuln("CRITICAL", cve="CVE-CACHED"))],
             },
         },
@@ -897,7 +897,7 @@ def test_check_cves_expired_cache_entry_rescans(
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
     key = libcvecheck.cache_key("ghcr.io/wearefrank/frank-gateway", DIGEST_A)
-    stale = datetime.now(timezone.utc) - timedelta(days=CVE_CACHE_TTL_DAYS + 1)
+    stale = datetime.now(UTC) - timedelta(days=CVE_CACHE_TTL_DAYS + 1)
     libcvecheck.save_cache(
         chart_dir,
         {
@@ -925,7 +925,7 @@ def test_check_cves_preserves_entries_for_unpinned_images(
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
     unrelated_key = "org/proposed-candidate@sha256:" + "e" * 64
     unrelated_entry = {
-        "scanned_at": datetime.now(timezone.utc).isoformat(),
+        "scanned_at": datetime.now(UTC).isoformat(),
         "vulnerabilities": [trimmed(vuln("CRITICAL", cve="CVE-PROPOSED"))],
     }
     libcvecheck.save_cache(chart_dir, {unrelated_key: unrelated_entry})
