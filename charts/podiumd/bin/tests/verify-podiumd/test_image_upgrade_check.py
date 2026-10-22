@@ -2,9 +2,9 @@
 digest-pinned image, split into own/partner-vendor/other-vendor buckets.
 `run` and `find_newer_same_variant_tags` are mocked."""
 
+from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
-from datetime import timezone
 from pathlib import Path
 from types import ModuleType
 from types import SimpleNamespace
@@ -113,12 +113,12 @@ def newer_tags_for(**by_repo_path):
 
 
 def test_cache_entry_is_fresh_within_ttl(libimageupgradecheck: ModuleType):
-    entry = {"checked_at": datetime.now(timezone.utc).isoformat()}
+    entry = {"checked_at": datetime.now(UTC).isoformat()}
     assert libimageupgradecheck.cache_entry_is_fresh(entry, 1) is True
 
 
 def test_cache_entry_is_stale_past_ttl(libimageupgradecheck: ModuleType):
-    stale = datetime.now(timezone.utc) - timedelta(days=1 + 1)
+    stale = datetime.now(UTC) - timedelta(days=1 + 1)
     assert libimageupgradecheck.cache_entry_is_fresh({"checked_at": stale.isoformat()}, 1) is False
 
 
@@ -306,7 +306,7 @@ def test_check_image_upgrades_cache_hit_skips_registry_call(
     libimageupgradecheck.save_cache(
         chart_dir,
         {
-            key: {"checked_at": datetime.now(timezone.utc).isoformat(), "newer": ["999"]},
+            key: {"checked_at": datetime.now(UTC).isoformat(), "newer": ["999"]},
         },
     )
 
@@ -336,7 +336,7 @@ def test_check_image_upgrades_expired_cache_entry_rechecks(
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr("lib.checks.cve.render_chart", template_run())
     key = libimageupgradecheck.cache_key("ghcr.io/wearefrank/frank-gateway", "104")
-    stale = datetime.now(timezone.utc) - timedelta(days=1 + 1)
+    stale = datetime.now(UTC) - timedelta(days=1 + 1)
     libimageupgradecheck.save_cache(
         chart_dir,
         {
@@ -362,7 +362,7 @@ def test_check_image_upgrades_prunes_entries_for_unpinned_images(
     libimageupgradecheck.save_cache(
         chart_dir,
         {
-            stale_key: {"checked_at": datetime.now(timezone.utc).isoformat(), "newer": []},
+            stale_key: {"checked_at": datetime.now(UTC).isoformat(), "newer": []},
         },
     )
 

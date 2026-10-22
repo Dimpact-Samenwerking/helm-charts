@@ -11,8 +11,8 @@ import urllib.parse
 import urllib.request
 
 from dataclasses import dataclass
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from pathlib import Path
 from typing import Literal
 from typing import TypedDict
@@ -245,7 +245,7 @@ def _probe_entry(config: ProbeConfig, entry: AccessEntry) -> ProbeResult:
     if not ok:
         return "failure", kind, description, error
     if test_kind == "http":
-        cache[key] = {"checked_at": datetime.now(timezone.utc).isoformat()}
+        cache[key] = {"checked_at": datetime.now(UTC).isoformat()}
         save_cache(config.chart_dir, cache)
     return ("ok",)
 

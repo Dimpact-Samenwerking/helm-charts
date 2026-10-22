@@ -5,8 +5,8 @@ import urllib.error
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from pathlib import Path
 from typing import Literal
 from typing import NamedTuple
@@ -428,7 +428,7 @@ def cached_tag_exists(
     exists, digest = result
     if exists:
         disk_cache[disk_key] = {
-            "checked_at": datetime.now(timezone.utc).isoformat(),
+            "checked_at": datetime.now(UTC).isoformat(),
             "digest": digest,
         }
         save_repo_access_cache(chart_dir, disk_cache)

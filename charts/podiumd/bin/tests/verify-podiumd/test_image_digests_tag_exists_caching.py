@@ -5,9 +5,9 @@ registry_tag_exists is monkeypatched; no network needed.
 
 import urllib.error
 
+from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
-from datetime import timezone
 from pathlib import Path
 from types import ModuleType
 
@@ -97,7 +97,7 @@ def testcached_tag_exists_reads_a_fresh_disk_entry_without_a_network_call(
     repo_access_cache.save_cache(
         tmp_path,
         {
-            key: {"checked_at": datetime.now(timezone.utc).isoformat(), "digest": f"sha256:{digest_a}"},
+            key: {"checked_at": datetime.now(UTC).isoformat(), "digest": f"sha256:{digest_a}"},
         },
     )
 
@@ -130,7 +130,7 @@ def testcached_tag_exists_writes_a_disk_entry_readable_by_repo_access_cache(
 def testcached_tag_exists_ignores_a_stale_disk_entry(
     libimagedigests: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    stale = datetime.now(timezone.utc) - timedelta(minutes=30 + 1)
+    stale = datetime.now(UTC) - timedelta(minutes=30 + 1)
     key = repo_access_cache.cache_key("registry", ("docker.io", "org/repo", "1.0.0"))
     repo_access_cache.save_cache(
         tmp_path,

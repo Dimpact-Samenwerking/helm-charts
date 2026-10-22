@@ -3,8 +3,8 @@
 import json
 import urllib.error
 
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from email.message import Message
 from pathlib import Path
 from types import ModuleType
@@ -630,7 +630,7 @@ def test_cache_key_http_and_registry_shapes_differ(librepoaccesscache: ModuleTyp
 
 
 def test_cache_entry_is_fresh_true_for_recent_timestamp(librepoaccesscache: ModuleType):
-    entry = {"checked_at": datetime.now(timezone.utc).isoformat()}
+    entry = {"checked_at": datetime.now(UTC).isoformat()}
     assert librepoaccesscache.cache_entry_is_fresh(entry, 30) is True
 
 

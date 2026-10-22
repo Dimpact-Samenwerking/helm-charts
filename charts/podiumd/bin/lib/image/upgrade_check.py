@@ -17,8 +17,8 @@ since a new tag can appear any moment. Never fails on findings.
 import urllib.error
 
 from dataclasses import dataclass
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from pathlib import Path
 from typing import TypedDict
 
@@ -115,7 +115,7 @@ def _fetch_target_upgrade(i: int, total: int, info: _TargetResolveInfo) -> _Targ
         print(f"  [FETCH-ERR] {info.image_ref}  {e}")
         return _TargetResult(info.image_ref, error=True)
 
-    cache_entry: UpgradeEntry = {"checked_at": datetime.now(timezone.utc).isoformat(), "newer": newer}
+    cache_entry: UpgradeEntry = {"checked_at": datetime.now(UTC).isoformat(), "newer": newer}
     return _TargetResult(info.image_ref, info.key, cache_entry, _upgrade_info(info.label, newer))
 
 

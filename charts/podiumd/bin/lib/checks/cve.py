@@ -26,9 +26,9 @@ import urllib.error
 from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
-from datetime import timezone
 from pathlib import Path
 from typing import TypedDict
 from typing import TypeGuard
@@ -260,7 +260,7 @@ def scan_cached(chart_dir: Path, target: ScanTarget, session: CacheSession, ttl_
         return None, False
 
     if key is not None:
-        session.new_cache[key] = {"scanned_at": datetime.now(timezone.utc).isoformat(), "vulnerabilities": vulns}
+        session.new_cache[key] = {"scanned_at": datetime.now(UTC).isoformat(), "vulnerabilities": vulns}
         save_cache(chart_dir, session.new_cache)  # persist incrementally — a scan sweep can be slow
     return vulns, False
 
