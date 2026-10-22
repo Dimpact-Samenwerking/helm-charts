@@ -13,6 +13,7 @@ from lib.upgradedoc.resolve_component_row import ResolvedRow
 from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
 from lib.upgradedoc.resolve_component_row import resolve_component_row
 from lib.upgradedoc.resolve_component_row import resolved_row_unchanged
+from lib.upgradedoc.resolve_component_row import strip_chart_clause
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
@@ -204,8 +205,10 @@ def _heading_replacement(
     expected_app_heading = component_version_cell(old_app, resolved["target_app"])
     if expected_app_heading is None:
         return None  # no app version on either side to write into the heading
-    without_chart_clause = re.sub(r"\(chart[^)]*\)", "", heading)
-    current_name = header_name_segment(heading)
+    without_chart_clause = strip_chart_clause(heading)
+    # The name ends at the app version, so it is read without the chart clause:
+    # "x 2.4.7 (unchanged) (chart 2.4.0 → 2.6.0)" has a version pair only there.
+    current_name = header_name_segment(without_chart_clause)
     # Replace the name only if it is still the auto-written bare name; a
     # hand-customized heading name is an editorial choice and must be kept.
     corrected_name = row_name if current_name == expected_bare_name else current_name

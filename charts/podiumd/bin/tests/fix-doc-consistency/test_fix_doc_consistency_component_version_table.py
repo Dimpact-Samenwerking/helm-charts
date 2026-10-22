@@ -813,6 +813,31 @@ def test_fix_values_delta_heading_app_versions_already_correct_heading_untouched
     assert new_text == values_deltas_text
 
 
+def test_fix_values_delta_heading_app_versions_unchanged_app_with_chart_bump_is_rewritten_once(cdb: ModuleType):
+    """An "(unchanged)" app version has no version pair; the chart clause's pair is not taken as the
+    name's end, so the heading is rewritten whole and a second run changes nothing."""
+    values_deltas_text = (
+        "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\n"
+        "## mi 2.71.0 (unchanged) (chart 1.0.0 → 1.1.0)\n\n"
+        "- Key `mi.transfer.noEpsv` (optional) added.\n"
+    )
+    deps: list[ChartDependency] = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
+    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+    resolution = ResolutionContext(
+        None, ComponentState(deps, target_values), BaselineState([], {}), upgrade_docs_baseline=None
+    )
+
+    new_text, updated_headings = fix_values_delta_heading_app_versions(
+        MI_UPGRADE_DOC_TEXT, values_deltas_text, resolution
+    )
+    again_text, again_headings = fix_values_delta_heading_app_versions(MI_UPGRADE_DOC_TEXT, new_text, resolution)
+
+    assert updated_headings == ["mi 2.71.0 (unchanged) (chart 1.0.0 → 1.1.0)"]
+    assert "## mi-data (MI-data exports) 2.90.0 (new) (chart 1.0.0 → 1.1.0)\n" in new_text
+    assert again_headings == []
+    assert again_text == new_text
+
+
 def test_fix_values_delta_heading_app_versions_corrects_stale_sidecar_heading(cdb: ModuleType):
     """A stale sidecar "## ..." heading in -values-deltas.md is corrected via the shared core."""
     redis_upgrade_doc_text = (
