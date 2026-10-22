@@ -30,8 +30,9 @@ global:
       pullPolicy: IfNotPresent
     # kubectl for the redis-ha Jobs and the zookeeper-operator hooks. No template
     # reads this key: the anchor is resolved in this file only, so overriding it
-    # in an environment changes nothing. Do not override the three image paths
-    # that use it either; Docker Hub serves this digest-pinned image.
+    # in an environment changes nothing. Environments set their ACR mirror on
+    # each of the three image paths that use it (global.imageRegistry does not
+    # apply to them).
     alpineK8s: &alpineK8sImage
       repository: docker.io/alpine/k8s
       tag: "1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"
@@ -3713,7 +3714,8 @@ zac:
         # The post-install/upgrade and pre-delete hooks only run sh, kubectl and
         # grep. global.images.alpineK8s, shared with the redis-ha Jobs, instead of
         # the sub-chart default lachlanevenson/k8s-kubectl (unofficial, Kubernetes
-        # 1.25, end of life). Environments should not override hooks.image.
+        # 1.25, end of life). Environments point hooks.image.repository at their
+        # ACR mirror of alpine/k8s.
         image: *alpineK8sImage
         # alpine/k8s runs as root (no USER in the image) and kubectl writes its
         # cache under $HOME=/root, which this sub-chart cannot redirect; so no

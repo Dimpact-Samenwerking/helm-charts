@@ -27,17 +27,17 @@
 #   20. zac - opa 1.19.1-static -> 1.21.3-static.
 #   21. zac - opentelemetry-collector-contrib 0.158.0 -> 0.161.0.
 #   22. zac - solr 9.10.1-slim -> 9.11.0-slim.
-#   23. zac - k8s v1.25.4 -> 1.37.1.
-#   24. zgw-office-addin 0.11.0 -> 0.12.0 (chart 0.0.89 -> 0.0.93).
-#   25. clamav 1.5.4 (unchanged) (chart 3.7.2 -> 3.7.3).
-#   26. clamav - clamav_exporter v2.1.8 -> v2.1.9.
-#   27. pabc 1.1.1 -> 2.1.0 (chart 1.1.1 -> 2.1.0).
-#   28. omc 1.17.19 -> 2.3.1 (chart 0.14.1 -> 0.17.4).
-#   29. frankgateway.image 1.1.0 -> 1.1.4.
-#   30. frankgateway - etcd v3.5.16 -> v3.6.15.
-#   31. frankgateway - oauth2-proxy v7.7.1 -> v7.15.5.
-#   32. mi 2.90.0 -> 2.91.0.
-#   33. openbao 2.6.3 -> 2.7.1 (chart 0.29.6 -> 0.30.3).
+#   23. zgw-office-addin 0.11.0 -> 0.12.0 (chart 0.0.89 -> 0.0.93).
+#   24. clamav 1.5.4 (unchanged) (chart 3.7.2 -> 3.7.3).
+#   25. clamav - clamav_exporter v2.1.8 -> v2.1.9.
+#   26. pabc 1.1.1 -> 2.1.0 (chart 1.1.1 -> 2.1.0).
+#   27. omc 1.17.19 -> 2.3.1 (chart 0.14.1 -> 0.17.4).
+#   28. frankgateway.image 1.1.0 -> 1.1.4.
+#   29. frankgateway - etcd v3.5.16 -> v3.6.15.
+#   30. frankgateway - oauth2-proxy v7.7.1 -> v7.15.5.
+#   31. mi 2.90.0 -> 2.91.0.
+#   32. openbao 2.6.3 -> 2.7.1 (chart 0.29.6 -> 0.30.3).
+#   33. zac - k8s v1.25.4 -> 1.37.1.
 #
 # See docs/_UPGRADE_PATHS/4.9.5-to-4.10.0-upgrade.md for the operator upgrade notes.
 #
@@ -170,11 +170,6 @@
   url: docker.io/library/solr
   version: "9.11.0-slim"
   digest: "sha256:3b70e899b1cca19729c49c110a1aa8e937f727be4cca3ad07ea67f151f5cc07d"
-#   sidecar: zac - k8s v1.25.4 -> 1.37.1
-- name: alpine/k8s
-  url: docker.io/alpine/k8s
-  version: "1.37.1"
-  digest: "sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"
 
 # zgw-office-addin 0.11.0 -> 0.12.0
 - name: infonl/zgw-office-addin-frontend
