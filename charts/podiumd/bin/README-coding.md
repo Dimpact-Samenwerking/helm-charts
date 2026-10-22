@@ -165,8 +165,8 @@ cd charts/podiumd/bin
 ./run_python_checks
 ```
 
-Runs everything above, fastest first, stopping at the first failure. By
-hand, in the same order (`pymarkdown` lints this directory's `*.md` with the
+Upgrades the tools in `requirements.txt` first, then runs everything above,
+fastest first, stopping at the first failure. By hand, in the same order (`pymarkdown` lints this directory's `*.md` with the
 rules of `verify-podiumd`'s markdown check, which skips `bin/`):
 
 ```bash
