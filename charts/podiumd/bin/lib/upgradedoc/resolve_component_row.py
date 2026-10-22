@@ -13,8 +13,8 @@ from lib.chart.chart_state import BaselineState
 from lib.chart.chart_state import ComponentState
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.historical_baselines import BaselineLookup
-from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
 from lib.chart.historical_baselines import historical_app_version_for_path
+from lib.chart.historical_baselines import sidecar_baseline_version
 from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.registered_paths import is_primary_rel_path
 from lib.chart.registered_paths import native_components
@@ -184,10 +184,7 @@ def _target_result(chart_dir: Path | None, values: YamlMapping, match: RowMatch)
 
 
 def _sidecar_baseline_app(resolution: ResolutionContext, sidecar_path: tuple[str, ...]) -> str | None:
-    """A sidecar's baseline app version.
-
-    Tries baseline_tag_for_sidecar_path (exact path, then same repository), then past
-    images-<version>.yaml manifests."""
+    """A sidecar's baseline app version (sidecar_baseline_version)."""
     chart_dir, deps, values = resolution.chart_dir, resolution.target.deps, resolution.target.values
     baseline_values = resolution.baseline.values
     baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
@@ -195,16 +192,11 @@ def _sidecar_baseline_app(resolution: ResolutionContext, sidecar_path: tuple[str
     baseline_repo_groups = (
         paths_by_repository(chart_dir, deps, baseline_values, baseline_paths.keys()) if baseline_values else {}
     )
-    baseline_app = baseline_tag_for_sidecar_path(
-        BaselineLookup(chart_dir, deps, values, baseline_values, baseline_paths, baseline_repo_groups), sidecar_path
+    return sidecar_baseline_version(
+        BaselineLookup(chart_dir, deps, values, baseline_values, baseline_paths, baseline_repo_groups),
+        sidecar_path,
+        resolution.upgrade_docs_baseline,
     )
-    if baseline_app is None and baseline_values:
-        # Not in baseline_values at all: the repository may still appear in a past
-        # committed images-<version>.yaml manifest before it counts as new.
-        baseline_app = historical_app_version_for_path(
-            chart_dir, deps, values, sidecar_path, resolution.upgrade_docs_baseline
-        )
-    return baseline_app
 
 
 def _historical_dependency_app(resolution: ResolutionContext, values_key: str, chart_name: str) -> str | None:

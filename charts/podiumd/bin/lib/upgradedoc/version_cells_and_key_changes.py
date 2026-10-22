@@ -62,6 +62,13 @@ def chart_version_suffix(old_chart: str | None, new_chart: str | None) -> str:
     return f" (chart {new_chart}, unchanged)"
 
 
+# pin_version_text's shapes: "`old` → `new`", or "`new` (<pin_status>)" (pin_kept).
+PIN_TEXT_PATTERN = (
+    r"`(?P<pin_old>[^`]+)` → `(?P<pin_new>[^`]+)`"
+    r"|`(?P<pin_kept>[^`]+)` \((?P<pin_status>new|unchanged|digest changed)\)"
+)
+
+
 def pin_version_text(old: str | None, new: str | None) -> str:
     """Upgrade-doc pin bullet version text: "`1.2` → `1.3`", "`1.3` (new)" or "`1.3` (unchanged)"."""
     suffix = version_change_suffix(old, new)
