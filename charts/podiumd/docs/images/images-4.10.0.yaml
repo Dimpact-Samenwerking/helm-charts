@@ -37,7 +37,6 @@
 #   30. frankgateway - oauth2-proxy v7.7.1 -> v7.15.5.
 #   31. mi 2.90.0 -> 2.91.0.
 #   32. openbao 2.6.3 -> 2.7.1 (chart 0.29.6 -> 0.30.3).
-#   33. zac - k8s v1.25.4 -> 1.37.1.
 #
 # See docs/_UPGRADE_PATHS/4.9.5-to-4.10.0-upgrade.md for the operator upgrade notes.
 #
