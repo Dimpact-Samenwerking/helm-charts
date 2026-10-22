@@ -10,13 +10,13 @@ PodiumD Helm chart
 |------------|------|---------|
 | @adfinis | keycloak-operator | 1.13.1 |
 | @dimpact | brppersonenmock(brp-personen-mock) | 1.2.9 |
-| @maykinmedia | openarchiefbeheer | 2.0.0 |
+| @maykinmedia | openarchiefbeheer | 2.1.0 |
 | @maykinmedia | openbeheer | 0.1.3 |
 | @maykinmedia | openformulieren(openforms) | 1.13.0 |
 | @maykinmedia | openinwoner | 2.6.0 |
 | @maykinmedia | openklant | 1.11.0 |
 | @maykinmedia | opennotificaties | 2.1.0 |
-| @maykinmedia | objecten(openobject) | 1.1.1 |
+| @maykinmedia | objecten(openobject) | 1.2.0 |
 | @maykinmedia | openvtb | 0.2.0 |
 | @maykinmedia | openzaak | 1.14.2 |
 | @maykinmedia | referentielijsten(referentielijsten) | 0.2.0 |
@@ -168,7 +168,7 @@ PodiumD Helm chart
 | frankgateway.dashboard.resources.requests.memory | string | `"128Mi"` |  |
 | frankgateway.enabled | bool | `false` |  |
 | frankgateway.etcd.image.repository | string | `"quay.io/coreos/etcd"` |  |
-| frankgateway.etcd.image.tag | string | `"v3.5.34@sha256:2c029095680c13c2b36116cc3935e1b0cddc0f5af78004457fd863616d8d072b"` |  |
+| frankgateway.etcd.image.tag | string | `"v3.6.15@sha256:7cf6622cb09b111289eed8a0cce3478e4f01d5048b0e0a1ed208299f3419334d"` |  |
 | frankgateway.etcd.nodeSelector | object | `{}` |  |
 | frankgateway.etcd.podDisruptionBudget.enabled | bool | `true` |  |
 | frankgateway.etcd.podDisruptionBudget.maxUnavailable | int | `1` |  |
@@ -263,7 +263,7 @@ PodiumD Helm chart
 | global.images.nginx.tag | string | `"1.31.7@sha256:09b0d3eda2aa592d2487f284519419015cab010d7df16cd0fe224b585fc60eb6"` |  |
 | global.images.postgres.pullPolicy | string | `"IfNotPresent"` |  |
 | global.images.postgres.repository | string | `"library/postgres"` |  |
-| global.images.postgres.tag | string | `"16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea"` |  |
+| global.images.postgres.tag | string | `"16.15-alpine@sha256:deb28ee471183cb0c303113dac9b2433c51eeeeb678def7af9a9ec5820367815"` |  |
 | global.settings.databaseHost | string | `""` |  |
 | ita.afdeling.type | string | `"https://ontw-objecten.example.nl/api/v2/objecttypes/REP_CONTACT_AFDELING_UUID_REP"` |  |
 | ita.afdeling.typeVersion | int | `1` |  |
@@ -336,7 +336,7 @@ PodiumD Helm chart
 | keycloak-operator.jobs.ensurePodiumdAdminUser.enabled | bool | `true` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.image.pullPolicy | string | `"IfNotPresent"` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.image.repository | string | `"library/postgres"` |  |
-| keycloak-operator.jobs.ensurePodiumdAdminUser.image.tag | string | `"16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea"` |  |
+| keycloak-operator.jobs.ensurePodiumdAdminUser.image.tag | string | `"16.15-alpine@sha256:deb28ee471183cb0c303113dac9b2433c51eeeeb678def7af9a9ec5820367815"` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.registry | string | `""` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.repository | string | `"python"` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.tag | string | `"3.14.7-slim@sha256:51dafde81dbdb6ebde285137a295cf18a47ca95234fe388a343719cb97305b3d"` |  |
@@ -629,7 +629,7 @@ PodiumD Helm chart
 | mi.enabled | bool | `false` |  |
 | mi.image.registry | string | `"mcr.microsoft.com"` |  |
 | mi.image.repository | string | `"azure-cli"` |  |
-| mi.image.tag | string | `"2.90.0@sha256:e3768dde8142efa45d8f356a317aaac77abd7da15ba3719b0a150e9453f251db"` |  |
+| mi.image.tag | string | `"2.91.0@sha256:933eb8dcb81aecb6f77e03c5b8660f0a1dfa9e1d16525763a27f86ff3b83a044"` |  |
 | networkPolicies.enabled | bool | `false` |  |
 | networkPolicies.ingressControllerNamespace | string | `""` |  |
 | networkPolicies.monitoringNamespace | string | `"monitoring"` |  |
@@ -667,7 +667,7 @@ PodiumD Helm chart
 | objecten.flower.enabled | bool | `false` |  |
 | objecten.fullnameOverride | string | `"objecten"` |  |
 | objecten.image.repository | string | `"maykinmedia/open-object"` |  |
-| objecten.image.tag | string | `"4.1.0@sha256:7738cb8161d221d0a286d39d9d270c35024ff78123c296ceb46f3d9dda7208f9"` |  |
+| objecten.image.tag | string | `"4.3.0@sha256:502b75f194c15efe673d62648e1f5199589dace3368e16ba2af4b99b2a7c3847"` |  |
 | objecten.nameOverride | string | `"objecten"` |  |
 | objecten.otel.disabled | bool | `true` |  |
 | objecten.pdb.create | bool | `true` |  |
@@ -814,7 +814,7 @@ PodiumD Helm chart
 | openbao.database.schemaJob.backoffLimit | int | `6` |  |
 | openbao.database.schemaJob.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openbao.database.schemaJob.image.repository | string | `"library/postgres"` |  |
-| openbao.database.schemaJob.image.tag | string | `"16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea"` |  |
+| openbao.database.schemaJob.image.tag | string | `"16.15-alpine@sha256:deb28ee471183cb0c303113dac9b2433c51eeeeb678def7af9a9ec5820367815"` |  |
 | openbao.database.schemaJob.nodeSelector | object | `{}` |  |
 | openbao.database.schemaJob.resources.limits.cpu | string | `"250m"` |  |
 | openbao.database.schemaJob.resources.limits.memory | string | `"128Mi"` |  |
@@ -1551,7 +1551,7 @@ PodiumD Helm chart
 | zac.solr-operator.solr.busyBoxImage.tag | string | `"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"` |  |
 | zac.solr-operator.solr.dataStorage.persistent.reclaimPolicy | string | `"Retain"` | Retain PVCs when the operator scales down Solr (e.g. during node rotation). The default "Delete" causes the operator to destroy PVC data on scale-down, which requires a full index resync from another replica. |
 | zac.solr-operator.solr.enabled | bool | `true` | set enabled to provision solrcloud as well |
-| zac.solr-operator.solr.image.tag | string | `"9.10.1-slim@sha256:60a9e227831513ec25615cd1b501bf273170c320f7587f6e3fb1624b4d025d00"` |  |
+| zac.solr-operator.solr.image.tag | string | `"9.11.0-slim@sha256:3b70e899b1cca19729c49c110a1aa8e937f727be4cca3ad07ea67f151f5cc07d"` |  |
 | zac.solr-operator.solr.javaMem | string | `"-Xms512m -Xmx768m"` | define memory settings for solr in the solrcloud |
 | zac.solr-operator.solr.jobs | object | `{}` |  |
 | zac.solr-operator.solr.resources.limits.cpu | string | `"2000m"` |  |
