@@ -37,6 +37,11 @@
   version: "16.15-alpine"
   digest: "sha256:deb28ee471183cb0c303113dac9b2433c51eeeeb678def7af9a9ec5820367815"
 
+- name: alpine/k8s
+  url: docker.io/alpine/k8s
+  version: "1.37.1"
+  digest: "sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"
+
 - name: keycloak/keycloak
   url: quay.io/keycloak/keycloak
   version: "26.8.1"
@@ -191,11 +196,6 @@
   url: docker.io/library/solr
   version: "9.11.0-slim"
   digest: "sha256:3b70e899b1cca19729c49c110a1aa8e937f727be4cca3ad07ea67f151f5cc07d"
-
-- name: alpine/k8s
-  url: docker.io/alpine/k8s
-  version: "1.37.1"
-  digest: "sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"
 
 - name: pravega/zookeeper-operator
   url: docker.io/pravega/zookeeper-operator
