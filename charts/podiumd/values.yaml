@@ -32,6 +32,7 @@ global:
     alpineK8s: &alpineK8sImage
       repository: docker.io/alpine/k8s
       tag: "1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"
+      pullPolicy: IfNotPresent
 
 tags:
   eck-operator.enabled: false
