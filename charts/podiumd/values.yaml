@@ -1456,6 +1456,8 @@ openarchiefbeheer:
     pkceEnabled: false
     job:
       enabled: true
+      # Chart 2.1.0 runs this Job as a post-install/post-upgrade hook (defaults 0 and
+      # Never): retries keep a Keycloak that is not ready yet from failing the release.
       backoffLimit: 6
       restartPolicy: OnFailure
     secrets:
