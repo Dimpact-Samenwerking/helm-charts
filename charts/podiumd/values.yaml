@@ -28,11 +28,13 @@ global:
       repository: library/postgres
       tag: "16.15-alpine@sha256:deb28ee471183cb0c303113dac9b2433c51eeeeb678def7af9a9ec5820367815"
       pullPolicy: IfNotPresent
-    # kubectl for the redis-ha Jobs and the zookeeper-operator hooks.
+    # kubectl for the redis-ha Jobs and the zookeeper-operator hooks. No template
+    # reads this key: the anchor is resolved in this file only, so overriding it
+    # in an environment changes nothing. Do not override the three image paths
+    # that use it either; Docker Hub serves this digest-pinned image.
     alpineK8s: &alpineK8sImage
       repository: docker.io/alpine/k8s
       tag: "1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"
-      pullPolicy: IfNotPresent
 
 tags:
   eck-operator.enabled: false
@@ -1454,7 +1456,6 @@ openarchiefbeheer:
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
     secrets:
       keycloak_client_secret: ""
@@ -1662,7 +1663,8 @@ openarchiefbeheer:
       # -- Set to debug for test/acceptance environments
       logLevel: warning
       brokerUrl: redis://redis-ha-master:6379/14
-      resultBackendl: redis://redis-ha-master:6379/14
+      # The openarchiefbeheer chart 2.1.0 reads resultBackend; the misspelled resultBackendl left it empty.
+      resultBackend: redis://redis-ha-master:6379/14
 
   persistence:
     size: 10Gi
@@ -3711,8 +3713,7 @@ zac:
         # The post-install/upgrade and pre-delete hooks only run sh, kubectl and
         # grep. global.images.alpineK8s, shared with the redis-ha Jobs, instead of
         # the sub-chart default lachlanevenson/k8s-kubectl (unofficial, Kubernetes
-        # 1.25, end of life). Environments that override hooks.image.repository
-        # must point it at their mirror of alpine/k8s.
+        # 1.25, end of life). Environments should not override hooks.image.
         image: *alpineK8sImage
         # alpine/k8s runs as root (no USER in the image) and kubectl writes its
         # cache under $HOME=/root, which this sub-chart cannot redirect; so no
