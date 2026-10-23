@@ -8,7 +8,7 @@ The Redis HA setup uses the [OT-CONTAINER-KIT redis-operator](https://github.com
 
 **Affects:** `redis-operator` v0.24.0 and earlier.
 
-**Upstream fix:** [PR #1720](https://github.com/OT-CONTAINER-KIT/redis-operator/pull/1720) — merged 2026-03-26, **released in `0.25.0`** (2026-05-13) and confirmed still present in `0.26.1`, the version currently pinned in `Chart.yaml`.
+**Upstream fix:** [PR #1720](https://github.com/OT-CONTAINER-KIT/redis-operator/pull/1720) — merged 2026-03-26, **released in `0.25.0`** (2026-05-13) and confirmed still present in `0.27.0`, the version currently pinned in `Chart.yaml`.
 
 **Symptoms:** The operator logs repeat every ~60 seconds:
 
@@ -141,7 +141,7 @@ as described in the 4.10.0 upgrade guide ("Redis HA: failover safeguards").
 
 ## Upgrade path
 
-The `redis-operator` subchart has carried PR #1720 since `0.25.0` (see above) — the chart is now on `0.26.1`, so this is no longer pending. The label-master CronJob is a **candidate for removal**
+The `redis-operator` subchart has carried PR #1720 since `0.25.0` (see above) — the chart is now on `0.27.0`, so this is no longer pending. The label-master CronJob is a **candidate for removal**
 (`redis-operator.redis-ha.labelMasterCronJob.enabled: false`), but this has not been verified in
 practice yet: before disabling it, confirm in a test environment that the operator self-heals
 correctly after a simultaneous pod restart of all three `redis-ha` pods (e.g. during a Helm upgrade
