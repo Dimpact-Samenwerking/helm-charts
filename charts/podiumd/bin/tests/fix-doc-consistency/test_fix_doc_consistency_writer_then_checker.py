@@ -541,6 +541,123 @@ def test_a_shared_image_absent_at_the_baseline_is_new(writer_then_checker):
     assert "#   1. curl 8.2.0 (new)." in docs[MANIFEST]
 
 
+def test_a_sidecar_switched_onto_a_new_shared_image_documents_each_pin(writer_then_checker):
+    """zac.hooks leaves k8s-kubectl v1.25.4 for the alpine/k8s 1.37.1 that zac.labeler already pinned.
+
+    The shared image's own repository kept its version; the row is changed because one
+    path using it was on another version, and each path's bullet shows its own baseline.
+    """
+    alpine_k8s = image("docker.io/alpine/k8s", "1.37.1")
+    baseline = {
+        "zac": {
+            **zac("5.4.4"),
+            "labeler": {"image": image("docker.io/alpine/k8s", "1.37.1")},
+            "hooks": {"image": image("docker.io/lachlanevenson/k8s-kubectl", "v1.25.4", "b")},
+        }
+    }
+    target = {
+        "global": {"images": {"alpineK8s": alpine_k8s}},
+        "zac": {**zac("5.4.4"), "labeler": {"image": alpine_k8s}, "hooks": {"image": alpine_k8s}},
+    }
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC], "values": baseline},
+        {"version": "4.9.0", "deps": [ZAC], "values": target},
+    )
+
+    assert "| k8s | v1.25.4 → 1.37.1 | - | - |" in docs[UPGRADE]
+    assert "upgrades the shared **k8s** image to 1.37.1," in docs[UPGRADE]
+    assert "- `global.images.alpineK8s.tag` `v1.25.4` → `1.37.1`" in docs[UPGRADE]
+    assert (
+        "- `zac.hooks.image.tag` `v1.25.4` → `1.37.1` (shares a YAML anchor with `global.images.alpineK8s.tag`)"
+        in docs[UPGRADE]
+    )
+    assert (
+        "- `zac.labeler.image.tag` `1.37.1` (unchanged) (shares a YAML anchor with `global.images.alpineK8s.tag`)"
+        in docs[UPGRADE]
+    )
+    assert "(unchanged) | - | - |" not in docs[UPGRADE]
+
+
+def test_a_sidecar_joining_an_existing_unchanged_shared_image_keeps_each_paths_version(writer_then_checker):
+    """global.images.alpineK8s stays at 1.37.1; zac.hooks joins it from k8s-kubectl v1.25.4.
+
+    The row shows the switch; each bullet shows its own path's old version.
+    """
+    alpine_k8s = image("docker.io/alpine/k8s", "1.37.1")
+    hooks_baseline = image("docker.io/lachlanevenson/k8s-kubectl", "v1.25.4", "b")
+    docs = writer_then_checker(
+        {
+            "version": "4.8.5",
+            "deps": [ZAC],
+            "values": {
+                "global": {"images": {"alpineK8s": alpine_k8s}},
+                "zac": {**zac("5.4.4"), "labeler": {"image": alpine_k8s}, "hooks": {"image": hooks_baseline}},
+            },
+        },
+        {
+            "version": "4.9.0",
+            "deps": [ZAC],
+            "values": {
+                "global": {"images": {"alpineK8s": alpine_k8s}},
+                "zac": {**zac("5.4.4"), "labeler": {"image": alpine_k8s}, "hooks": {"image": alpine_k8s}},
+            },
+        },
+    )
+
+    assert "| k8s | v1.25.4 → 1.37.1 | - | - |" in docs[UPGRADE]
+    assert "- `zac.labeler.image.tag` `1.37.1` (unchanged) (shares a YAML anchor" in docs[UPGRADE]
+    assert "- `zac.hooks.image.tag` `v1.25.4` → `1.37.1` (shares a YAML anchor" in docs[UPGRADE]
+
+
+def test_a_shared_image_bump_keeps_its_own_old_version_when_a_sidecar_joins_it(writer_then_checker):
+    """global.images.alpineK8s goes 1.36.0 → 1.37.1 while zac.hooks, earlier in values.yaml, joins it."""
+    old_k8s = image("docker.io/alpine/k8s", "1.36.0")
+    new_k8s = image("docker.io/alpine/k8s", "1.37.1")
+    hooks_baseline = image("docker.io/lachlanevenson/k8s-kubectl", "v1.25.4", "b")
+    docs = writer_then_checker(
+        {
+            "version": "4.8.5",
+            "deps": [ZAC],
+            "values": {
+                "global": {"images": {"alpineK8s": old_k8s}},
+                "zac": {**zac("5.4.4"), "hooks": {"image": hooks_baseline}, "labeler": {"image": old_k8s}},
+            },
+        },
+        {
+            "version": "4.9.0",
+            "deps": [ZAC],
+            "values": {
+                "global": {"images": {"alpineK8s": new_k8s}},
+                "zac": {**zac("5.4.4"), "hooks": {"image": new_k8s}, "labeler": {"image": new_k8s}},
+            },
+        },
+    )
+
+    assert "| k8s | 1.36.0 → 1.37.1 | - | - |" in docs[UPGRADE]
+    assert "- `global.images.alpineK8s.tag` `1.36.0` → `1.37.1`" in docs[UPGRADE]
+    assert "- `zac.labeler.image.tag` `1.36.0` → `1.37.1` (shares a YAML anchor" in docs[UPGRADE]
+    assert "- `zac.hooks.image.tag` `v1.25.4` → `1.37.1` (shares a YAML anchor" in docs[UPGRADE]
+    assert "v1.25.4" not in docs[MANIFEST]
+
+
+def test_a_sidecar_moved_onto_a_new_shared_image_at_its_version_leaves_no_docs(writer_then_checker):
+    """An anchor new in global.images whose paths all kept their version changes nothing to document."""
+    alpine_k8s = image("docker.io/alpine/k8s", "1.37.1")
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC], "values": {"zac": {**zac("5.4.4"), "labeler": {"image": alpine_k8s}}}},
+        {
+            "version": "4.9.0",
+            "deps": [ZAC],
+            "values": {
+                "global": {"images": {"alpineK8s": alpine_k8s}},
+                "zac": {**zac("5.4.4"), "labeler": {"image": alpine_k8s}},
+            },
+        },
+    )
+
+    assert "k8s" not in docs[UPGRADE]
+
+
 def test_a_sidecar_bump_keeps_its_parents_own_row(writer_then_checker):
     opa = image("openpolicyagent/opa", "1.4.1")
     docs = writer_then_checker(

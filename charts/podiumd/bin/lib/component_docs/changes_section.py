@@ -49,6 +49,7 @@ from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.string_and_parsing_basics import set_row_cells
 from lib.upgradedoc.string_and_parsing_basics import text_names
+from lib.upgradedoc.version_cells_and_key_changes import PIN_TEXT_PATTERN
 from lib.upgradedoc.version_cells_and_key_changes import chart_version_suffix
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
 from lib.upgradedoc.version_cells_and_key_changes import pin_version_text
@@ -186,7 +187,7 @@ _FIELD_PATTERNS = {
     "path": r"[^`\s]+",
     # pin_version_text, optionally followed by the aliased-pin note.
     "pin": (
-        r"(?:`[^`]+` → `[^`]+`|`[^`]+` \((?:new|unchanged|digest changed)\))"
+        rf"(?:{PIN_TEXT_PATTERN})"
         r"(?: \(shares a YAML anchor with `[^`]+`\))?"
     ),
 }
