@@ -87,7 +87,11 @@ without the form. Two causes are common:
   that points at a Catalogi without a configured service, for example a URL of
   another environment. This is often on old copies of a form in the trash.
 
-Check for both first, read-only, with
+Check for both first, on Open Forms 3.5.10 (PodiumD 4.9.5), after the logic
+conversion (section 3) and before the migration tool. The two scripts below
+ship with PodiumD 4.10.0 (`charts/podiumd/scripts`); run them from a
+helm-charts checkout of 4.10.0 against the environment that is still on 4.9.5.
+They read from stdin, so `kubectl exec` needs `-i`. The check is read-only:
 [`scripts/openforms-check-registration-options.py`](../../../scripts/openforms-check-registration-options.py).
 It prints one line per problem: `V1_KEYS` (with the keys to remove),
 `NO_SERVICE` (with the URL), or `INVALID` (any other error), and a summary
@@ -95,7 +99,7 @@ line. 0 problems means the migration tool won't stop on these:
 
 ```bash
 kubectl exec -i -n <ns> deploy/openformulieren -c openformulieren -- \
-  python src/manage.py shell < charts/podiumd/scripts/openforms-check-registration-options.py
+  python /app/src/manage.py shell < charts/podiumd/scripts/openforms-check-registration-options.py
 ```
 
 Remove the v1-only keys with
@@ -107,10 +111,11 @@ save that output. Without `APPLY=1` it is a dry run that rolls back:
 ```bash
 # Dry run:
 kubectl exec -i -n <ns> deploy/openformulieren -c openformulieren -- \
-  python src/manage.py shell < charts/podiumd/scripts/openforms-fix-registration-options.py
-# Apply:
+  python /app/src/manage.py shell < charts/podiumd/scripts/openforms-fix-registration-options.py
+# Apply, keeping the output (BACKUP_JSON):
 kubectl exec -i -n <ns> deploy/openformulieren -c openformulieren -- \
-  env APPLY=1 python src/manage.py shell < charts/podiumd/scripts/openforms-fix-registration-options.py
+  env APPLY=1 python /app/src/manage.py shell < charts/podiumd/scripts/openforms-fix-registration-options.py \
+  | tee openforms-registration-options-<ns>.log
 ```
 
 Fix `NO_SERVICE` references by hand (correct or clear the URL, or delete the

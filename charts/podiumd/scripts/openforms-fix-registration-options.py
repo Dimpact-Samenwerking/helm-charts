@@ -18,10 +18,10 @@ The match on "niet van toepassing in v2" assumes Open Forms' Dutch messages
 (LANGUAGE_CODE nl, the PodiumD default).
 
 Run on Open Forms 3.5.10, before migrate_catalogi_api_urls:
-  kubectl exec -i deploy/openformulieren -c openformulieren -- \
-    python src/manage.py shell < openforms-fix-registration-options.py
-  kubectl exec -i deploy/openformulieren -c openformulieren -- \
-    env APPLY=1 python src/manage.py shell < openforms-fix-registration-options.py
+  kubectl exec -i -n <ns> deploy/openformulieren -c openformulieren -- \
+    python /app/src/manage.py shell < charts/podiumd/scripts/openforms-fix-registration-options.py
+  kubectl exec -i -n <ns> deploy/openformulieren -c openformulieren -- \
+    env APPLY=1 python /app/src/manage.py shell < charts/podiumd/scripts/openforms-fix-registration-options.py
 """
 
 import json

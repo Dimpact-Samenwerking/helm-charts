@@ -5,8 +5,9 @@ whole run on the first invalid one, printing only "The registration options
 are not valid.". This script prints the reason per form, so they can be fixed
 first. It changes nothing.
 
-Run: kubectl exec -i deploy/openformulieren -c openformulieren -- \
-       python src/manage.py shell < openforms-check-registration-options.py
+Run on Open Forms 3.5.10, from a helm-charts checkout of 4.10.0:
+  kubectl exec -i -n <ns> deploy/openformulieren -c openformulieren -- \
+    python /app/src/manage.py shell < charts/podiumd/scripts/openforms-check-registration-options.py
 """
 
 import json
