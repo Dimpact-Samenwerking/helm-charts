@@ -771,11 +771,15 @@ PodiumD Helm chart
 | openarchiefbeheer.settings.cache.choices | string | `"redis-ha-master:6379/14"` |  |
 | openarchiefbeheer.settings.cache.default | string | `"redis-ha-master:6379/13"` |  |
 | openarchiefbeheer.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/14"` |  |
-| openarchiefbeheer.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
+| openarchiefbeheer.settings.celery.logLevel | string | `"info"` | Log level of the celery worker and beat. On warning beat logs only its startup banner and the worker a few lines a day, so they hardly show in Grafana. Set to debug for test/acceptance environments. |
 | openarchiefbeheer.settings.celery.resultBackend | string | `"redis://redis-ha-master:6379/14"` |  |
 | openarchiefbeheer.settings.environment | string | `""` | Name of the environment (used for displaying purposes) |
-| openarchiefbeheer.settings.frontend | object | `{"apiPath":"/api/v1","apiUrl":"","zaakUrlTemplate":""}` | Controls the log levels of project code and of the OIDC library. Possible values: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL.   level: INFO |
+| openarchiefbeheer.settings.frontend.apiPath | string | `"/api/v1"` |  |
+| openarchiefbeheer.settings.frontend.apiUrl | string | `""` |  |
+| openarchiefbeheer.settings.frontend.zaakUrlTemplate | string | `""` |  |
 | openarchiefbeheer.settings.frontendUrl | string | `""` |  |
+| openarchiefbeheer.settings.logging.level | string | `"INFO"` | Log level of project code and of the OIDC library. Possible values: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL. |
+| openarchiefbeheer.settings.logging.toStdout | bool | `true` | Write the application logs to stdout (true) or to a file in the container (false, subchart default). Grafana only collects container stdout/stderr, so the logs are only visible there with true. |
 | openarchiefbeheer.settings.oidcRenewIdTokenExpirySeconds | int | `1800` |  |
 | openarchiefbeheer.settings.postDestructionVisibilityPeriod | int | `7` | Number of days for which destruction lists will be visible after successful destruction. Defaults to 7. |
 | openarchiefbeheer.settings.relatedCountDisabled | bool | `false` | If true, the inline presentation of related objects is disabled, reducing load on external registers. |
