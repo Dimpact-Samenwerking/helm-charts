@@ -4,6 +4,8 @@
      `code_challenge` yet. mozilla_django_oidc sends PKCE only while OIDC_USE_PKCE is true, and
      mozilla-django-oidc-db has no field for it, so an `oidc_use_pkce` key in configuration.data is
      not read (checked 2026-10-21, PodiumD 4.10.0). Fail the render instead of the first login.
+     The per-client `pkceEnabled` branches below (openzaak through openvtb) stay on purpose: once
+     an app can send PKCE, take it out of $djangoApps and its branch sets S256 on the client.
      See docs/apps/keycloak/keycloak-security-updates.md § PKCE Enforcement. */ -}}
 {{- $djangoApps := list
   (dict "name" "openzaak"          "pkce" .Values.openzaak.configuration.pkceEnabled)
