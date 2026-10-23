@@ -38,6 +38,9 @@ script checks that the edited file parses to exactly the original values plus
 the added keys; it refuses to write a file that does not. Running it twice is
 safe: the second run changes nothing.
 
+Exit code: 1 when a file has an error, or under --check when a file needs
+migrating; else 0.
+
 Usage:
   pip install ruamel.yaml
   python3 migrate-eck-resources-4.10.0.py --dry-run --gemeenten-dir <SSCHostingSync>/applications/gemeenten
@@ -49,16 +52,13 @@ from __future__ import annotations
 
 import argparse
 import copy
-import difflib
-import glob
-import os
 import sys
 
-try:
-    from ruamel.yaml import YAML
-    from ruamel.yaml.comments import CommentedMap, CommentedSeq
-except ImportError:  # pragma: no cover
-    sys.exit("ruamel.yaml is required: pip install ruamel.yaml")
+from migrate_common import MigrationError
+from migrate_common import load_rt
+from migrate_common import load_safe
+from migrate_common import run
+from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 ELASTICSEARCH = {"requests": {"cpu": "250m", "memory": "2Gi"}, "limits": {"cpu": "2000m", "memory": "2Gi"}}
 KIBANA = {"requests": {"cpu": "100m", "memory": "2Gi"}, "limits": {"cpu": "1000m", "memory": "2Gi"}}
@@ -72,20 +72,6 @@ NODESET_TARGETS = [
 PODTEMPLATE_TARGETS = [
     (("kiss-eck", "eck-kibana", "podTemplate"), "kibana", KIBANA),
 ]
-
-
-class MigrationError(Exception):
-    pass
-
-
-def _load_rt(text: str):
-    yaml = YAML()
-    yaml.preserve_quotes = True
-    return yaml.load(text)
-
-
-def _load_safe(text: str):
-    return YAML(typ="safe").load(text)
 
 
 def _get(node, path):
@@ -258,12 +244,12 @@ def _expected_container(spec: dict, name: str, resources: dict) -> None:
             target.setdefault(key, value)
 
 
-def migrate_text(text: str) -> tuple[str, list[str]]:
+def migrate_text(text: str, _args: argparse.Namespace | None = None) -> tuple[str, list[str]]:
     """Return (new_text, notes). Raises MigrationError."""
-    doc = _load_rt(text)
+    doc = load_rt(text)
     if not isinstance(doc, CommentedMap):
         return text, []
-    want = copy.deepcopy(_load_safe(text))
+    want = load_safe(text)
     offset = _seq_offset(doc)
     ins = Inserts()
     notes: list[str] = []
@@ -306,54 +292,10 @@ def migrate_text(text: str) -> tuple[str, list[str]]:
     if not ins.ops:
         return text, []
     out = "\n".join(ins.apply(text.split("\n")))
-    if _load_safe(out) != want:
+    if load_safe(out) != want:
         raise MigrationError("self-check failed: the edited file does not match the intended values; nothing written")
     return out, notes
 
 
-def process(path: str, dry_run: bool) -> tuple[str, list[str]]:
-    # Universal newlines read CRLF as LF; a migrated file is written with LF only, on every OS.
-    with open(path, encoding="utf-8") as f:
-        text = f.read()
-    try:
-        new, notes = migrate_text(text)
-    except MigrationError as e:
-        return "error", [str(e)]
-    except Exception as e:  # unexpected file shape: report, never write half a migration
-        return "error", [f"unexpected {type(e).__name__}: {str(e).splitlines()[0][:200]}"]
-    if new == text:
-        return "unchanged", notes
-    if dry_run:
-        sys.stdout.write("".join(difflib.unified_diff(text.splitlines(True), new.splitlines(True),
-                                                      f"a/{path}", f"b/{path}")))
-    else:
-        with open(path, "w", encoding="utf-8", newline="\n") as f:
-            f.write(new)
-    return "migrated", notes
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("files", nargs="*", help="podiumd.yml files (default: all under --gemeenten-dir)")
-    parser.add_argument("--gemeenten-dir", help="SSCHostingSync applications/gemeenten directory")
-    parser.add_argument("--dry-run", action="store_true", help="print a unified diff, write nothing")
-    args = parser.parse_args()
-    files = list(args.files)
-    if args.gemeenten_dir:
-        files += sorted(glob.glob(os.path.join(args.gemeenten_dir, "*", "*", "podiumd.yml")))
-    if not files:
-        parser.error("give podiumd.yml files or --gemeenten-dir")
-    counts = {"migrated": 0, "unchanged": 0, "error": 0}
-    for path in files:
-        status, notes = process(path, args.dry_run)
-        counts[status] += 1
-        if status != "unchanged" or notes:
-            print(f"[{status}] {path}", file=sys.stderr)
-            for note in notes:
-                print(f"    - {note}", file=sys.stderr)
-    print(f"{counts['migrated']} migrated, {counts['unchanged']} unchanged, {counts['error']} error(s)", file=sys.stderr)
-    return 1 if counts["error"] else 0
-
-
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run(__doc__, migrate_text))

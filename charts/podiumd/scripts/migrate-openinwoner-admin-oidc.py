@@ -67,19 +67,15 @@ from __future__ import annotations
 
 import argparse
 import copy
-import difflib
-import glob
 import io
-import os
 import sys
 
-try:
-    from ruamel.yaml import YAML
-    from ruamel.yaml.comments import CommentedMap
-    from ruamel.yaml.comments import CommentedSeq
-except ImportError:
-    print("ERROR: ruamel.yaml is required. Install with: pip install ruamel.yaml", file=sys.stderr)
-    sys.exit(1)
+from migrate_common import MigrationError
+from migrate_common import load_safe
+from migrate_common import rt_yaml
+from migrate_common import run
+from ruamel.yaml.comments import CommentedMap
+from ruamel.yaml.comments import CommentedSeq
 
 KEY = "oidc_db_config_admin_auth"
 PROVIDER_KEYS = ("oidc_token_use_basic_auth", "oidc_use_nonce", "oidc_nonce_size", "oidc_state_size")
@@ -97,20 +93,6 @@ GROUP_FIELDS = (  # (flat field, options.groups_settings key, default)
     ("default_groups", "default_groups", []),
 )
 FLAT_KEYS = ("endpoint_config", *PROVIDER_KEYS, *USER_DEFAULTS, *(f for f, _, _ in GROUP_FIELDS))
-
-
-class MigrationError(Exception):
-    """The file cannot be migrated automatically."""
-
-
-def _rt_yaml() -> YAML:
-    y = YAML()
-    y.preserve_quotes = True
-    return y
-
-
-def _safe_load(text: str):
-    return YAML(typ="safe", pure=True).load(text)
 
 
 def is_flat(item) -> bool:
@@ -189,11 +171,11 @@ def migrate_block(block) -> tuple[object, list[str]]:
 
 def _plain(node):
     """Round-trip data as plain Python (for comparing)."""
-    return _safe_load(_dump(node, 0, 2))
+    return load_safe(_dump(node, 0, 2))
 
 
 def _dump(node, indent: int, seq_offset: int) -> str:
-    y = _rt_yaml()
+    y = rt_yaml()
     y.indent(mapping=2, sequence=seq_offset + 2, offset=seq_offset)
     y.width = 4096
     buf = io.StringIO()
@@ -220,9 +202,9 @@ def _seq_offset(block_rt, key_col: int) -> int:
     return 2
 
 
-def migrate_text(text: str) -> tuple[str, list[str]]:
+def migrate_text(text: str, _args: argparse.Namespace | None = None) -> tuple[str, list[str]]:
     """Return (new text, notes). Raises MigrationError when the file cannot be migrated safely."""
-    doc = _safe_load(text)
+    doc = load_safe(text)
     if not isinstance(doc, dict):
         raise MigrationError("not a YAML mapping")
     if isinstance(doc.get(KEY), dict):  # a setup-configuration data file
@@ -233,19 +215,19 @@ def migrate_text(text: str) -> tuple[str, list[str]]:
         return text, ["no openinwoner.configuration.data"]
     if not isinstance(data, str):
         raise MigrationError("openinwoner.configuration.data is not a block scalar string")
-    inner = _safe_load(data)
+    inner = load_safe(data)
     if not isinstance(inner, dict) or not isinstance(inner.get(KEY), dict):
         return text, []
     if not any(is_flat(i) for i in inner[KEY].get("items") or []):
         return text, []
 
     lines = text.splitlines(keepends=True)
-    rt = _rt_yaml().load(text)
+    rt = rt_yaml().load(text)
     data_line = rt["openinwoner"]["configuration"].lc.key("data")[0]
     if not lines[data_line].split(" #", 1)[0].rstrip().endswith(("|", "|-", "|+")):
         raise MigrationError(f"line {data_line + 1}: openinwoner.configuration.data is not a literal block (|)")
     start = data_line + 1
-    inner_rt = _rt_yaml().load(data)
+    inner_rt = rt_yaml().load(data)
     key_line, key_col = inner_rt.lc.key(KEY)
     block_indent = len(lines[start]) - len(lines[start].lstrip(" "))
     abs_key = start + key_line
@@ -258,8 +240,8 @@ def migrate_text(text: str) -> tuple[str, list[str]]:
     expected_inner = copy.deepcopy(inner)
     expected_inner[KEY] = _plain(migrate_block(inner[KEY])[0])
     expected["openinwoner"]["configuration"]["data"] = expected_inner
-    got = _safe_load(new)
-    got["openinwoner"]["configuration"]["data"] = _safe_load(got["openinwoner"]["configuration"]["data"])
+    got = load_safe(new)
+    got["openinwoner"]["configuration"]["data"] = load_safe(got["openinwoner"]["configuration"]["data"])
     if got != expected:
         raise MigrationError("edited file does not parse to the intended values; not written")
     return new, notes
@@ -270,7 +252,7 @@ def _migrate_data_file(text: str, doc: dict) -> tuple[str, list[str]]:
     if not any(is_flat(i) for i in doc[KEY].get("items") or []):
         return text, []
     lines = text.splitlines(keepends=True)
-    rt = _rt_yaml().load(text)
+    rt = rt_yaml().load(text)
     key_line, key_col = rt.lc.key(KEY)
     end = _value_end(lines, key_line, len(lines))
     migrated, notes = migrate_block(rt[KEY])
@@ -278,69 +260,10 @@ def _migrate_data_file(text: str, doc: dict) -> tuple[str, list[str]]:
     new = "".join(lines[:key_line]) + body + "".join(lines[end:])
     expected = copy.deepcopy(doc)
     expected[KEY] = _plain(migrate_block(doc[KEY])[0])
-    if _safe_load(new) != expected:
+    if load_safe(new) != expected:
         raise MigrationError("edited file does not parse to the intended values; not written")
     return new, notes
 
 
-def _diff(path: str, old: str, new: str) -> str:
-    return "".join(difflib.unified_diff(old.splitlines(True), new.splitlines(True), f"a/{path}", f"b/{path}"))
-
-
-def process(path: str, args) -> tuple[str, list[str]]:
-    # Universal newlines read CRLF as LF; a migrated file is written with LF only, on every OS.
-    with open(path, encoding="utf-8") as f:
-        text = f.read()
-    try:
-        new, notes = migrate_text(text)
-    except MigrationError as e:
-        return "error", [str(e)]
-    except Exception as e:  # unexpected file shape: report, never write half a migration
-        mark = getattr(e, "problem_mark", None)
-        where = f" at line {mark.line + 1}" if mark else ""
-        problem = getattr(e, "problem", None) or str(e).splitlines()[0]
-        return "error", [f"unexpected {type(e).__name__}{where}: {problem[:200]}"]
-    if new == text:
-        return "unchanged", notes
-    if args.dry_run:
-        sys.stdout.write(_diff(path, text, new))
-    elif not args.check:
-        with open(path, "w", encoding="utf-8", newline="\n") as f:
-            f.write(new)
-    return ("needs migration" if args.check else "migrated"), notes
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("files", nargs="*", help="podiumd.yml or data files (default: all under --gemeenten-dir)")
-    parser.add_argument(
-        "--gemeenten-dir", help="directory with <gemeente>/<env>/podiumd.yml (used when no files are given)"
-    )
-    mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--dry-run", action="store_true", help="print a unified diff, write nothing")
-    mode.add_argument("--check", action="store_true", help="write nothing; exit 1 when a file needs migrating")
-    args = parser.parse_args()
-
-    if not args.files and not args.gemeenten_dir:
-        parser.error("give files or --gemeenten-dir")
-    files = args.files or sorted(
-        glob.glob(os.path.join(os.path.expanduser(args.gemeenten_dir), "*", "*", "podiumd.yml"))
-    )
-    if not files:
-        print("No podiumd.yml files found.", file=sys.stderr)
-        return 1
-    counts: dict[str, int] = {"migrated": 0, "needs migration": 0, "unchanged": 0, "error": 0}
-    out = sys.stderr if args.dry_run else sys.stdout
-    for path in files:
-        status, notes = process(path, args)
-        counts[status] += 1
-        print(f"[{status}] {path}", file=out)
-        for n in notes:
-            print(f"    - {n}", file=out)
-    summary = ", ".join(f"{v} {k}" for k, v in counts.items() if v or k in ("unchanged", "error"))
-    print(f"\n{summary}", file=out)
-    return 1 if counts["error"] or counts["needs migration"] else 0
-
-
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run(__doc__, migrate_text, files_help="podiumd.yml or data files"))

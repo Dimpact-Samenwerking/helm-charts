@@ -30,7 +30,8 @@ writing, the script checks that the edited file parses to exactly the original
 values with only that value changed; it refuses to write a file that does not.
 Running it twice is safe: the second run changes nothing.
 
-Exit code: 1 when a file has an error, else 0.
+Exit code: 1 when a file has an error, or under --check when a file needs
+migrating; else 0.
 
 Usage:
   pip install ruamel.yaml
@@ -42,34 +43,18 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import copy
-import difflib
-import glob
-import os
 import re
 import sys
 
-try:
-    from ruamel.yaml import YAML
-except ImportError:  # pragma: no cover
-    sys.exit("ruamel.yaml is required: pip install ruamel.yaml")
+from migrate_common import MigrationError
+from migrate_common import load_rt
+from migrate_common import load_safe
+from migrate_common import run
 
 HOOKS_PATH = ("zac", "solr-operator", "zookeeper-operator", "hooks", "image")
 NEW_IMAGE = "alpine/k8s"
 # <registry>/[lachlanevenson/]k8s-kubectl, the registry part optional.
 OLD_REPO = re.compile(r"^(?P<registry>(?:[^/]+/)*?)(?:lachlanevenson/)?k8s-kubectl$")
-
-
-class MigrationError(Exception):
-    pass
-
-
-def _load_safe(text: str):
-    return YAML(typ="safe", pure=True).load(text)
-
-
-def _load_rt(text: str):
-    return YAML(typ="rt").load(text)
 
 
 def new_repository(repo: str) -> str | None:
@@ -83,8 +68,8 @@ def new_repository(repo: str) -> str | None:
     return f"{registry}{NEW_IMAGE}"
 
 
-def migrate_text(text: str) -> tuple[str, list[str]]:
-    doc = _load_rt(text)
+def migrate_text(text: str, _args: argparse.Namespace | None = None) -> tuple[str, list[str]]:
+    doc = load_rt(text)
     notes: list[str] = []
     node = doc
     for key in HOOKS_PATH:
@@ -102,7 +87,7 @@ def migrate_text(text: str) -> tuple[str, list[str]]:
     if not isinstance(repo, str):
         return text, notes
     new = new_repository(repo)
-    if new is None or new == repo:
+    if new is None:
         return text, notes
 
     line, col = node.lc.value("repository")
@@ -122,12 +107,12 @@ def migrate_text(text: str) -> tuple[str, list[str]]:
     )
     out = "\n".join(lines)
 
-    want = copy.deepcopy(_load_safe(text))
+    want = load_safe(text)
     target = want
     for key in HOOKS_PATH:
         target = target[key]
     target["repository"] = new
-    if _load_safe(out) != want:
+    if load_safe(out) != want:
         raise MigrationError(
             "self-check failed: the edited file does not match the intended values; nothing written"
         )
@@ -135,74 +120,5 @@ def migrate_text(text: str) -> tuple[str, list[str]]:
     return out, notes
 
 
-def process(path: str, dry_run: bool) -> tuple[str, list[str]]:
-    # Universal newlines read CRLF as LF; a migrated file is written with LF only, on every OS.
-    with open(path, encoding="utf-8") as f:
-        text = f.read()
-    try:
-        new, notes = migrate_text(text)
-    except MigrationError as e:
-        return "error", [str(e)]
-    except Exception as e:  # noqa: BLE001 -- unexpected file shape: report, never write half a migration
-        return "error", [
-            f"unexpected {type(e).__name__}: {str(e).splitlines()[0][:200]}"
-        ]
-    if new == text:
-        return "unchanged", notes
-    if dry_run:
-        sys.stdout.write(
-            "".join(
-                difflib.unified_diff(
-                    text.splitlines(True),
-                    new.splitlines(True),
-                    f"a/{path}",
-                    f"b/{path}",
-                )
-            )
-        )
-    else:
-        with open(path, "w", encoding="utf-8", newline="\n") as f:
-            f.write(new)
-    return "migrated", notes
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-    parser.add_argument(
-        "files",
-        nargs="*",
-        help="podiumd.yml files (default: all under --gemeenten-dir)",
-    )
-    parser.add_argument(
-        "--gemeenten-dir", help="SSCHostingSync applications/gemeenten directory"
-    )
-    parser.add_argument(
-        "--dry-run", action="store_true", help="print a unified diff, write nothing"
-    )
-    args = parser.parse_args()
-    files = list(args.files)
-    if args.gemeenten_dir:
-        files += sorted(
-            glob.glob(os.path.join(args.gemeenten_dir, "*", "*", "podiumd.yml"))
-        )
-    if not files:
-        parser.error("give podiumd.yml files or --gemeenten-dir")
-    counts = {"migrated": 0, "unchanged": 0, "error": 0}
-    for path in files:
-        status, notes = process(path, args.dry_run)
-        counts[status] += 1
-        if status != "unchanged" or notes:
-            print(f"[{status}] {path}", file=sys.stderr)
-            for note in notes:
-                print(f"    - {note}", file=sys.stderr)
-    print(
-        f"{counts['migrated']} migrated, {counts['unchanged']} unchanged, {counts['error']} error(s)",
-        file=sys.stderr,
-    )
-    return 1 if counts["error"] else 0
-
-
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run(__doc__, migrate_text))

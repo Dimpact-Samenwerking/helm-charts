@@ -152,42 +152,32 @@ from __future__ import annotations
 
 import argparse
 import copy
-import difflib
 import glob
 import os
 import re
 import sys
 from dataclasses import dataclass, field
 
-try:
-    from ruamel.yaml import YAML
-    from ruamel.yaml.error import YAMLError
-except ImportError:
-    print("ERROR: ruamel.yaml is required. Install with: pip install ruamel.yaml", file=sys.stderr)
-    sys.exit(1)
+from migrate_common import MigrationError
+from migrate_common import error_note
+from migrate_common import load_safe
+from migrate_common import rt_yaml
+from migrate_common import unified_diff
+from migrate_common import write_lf
+from ruamel.yaml.error import YAMLError
 
 # A token value is only rewritten in consumers when it is long enough not to
 # match by accident (REP_..._REP placeholders and real tokens both are).
 MIN_REWRITE_TOKEN_LEN = 12
 
 
-class MigrationError(Exception):
-    """The file cannot be migrated automatically."""
-
-
 # --------------------------------------------------------------------------- #
 # YAML helpers
 # --------------------------------------------------------------------------- #
 
-def _rt_yaml() -> YAML:
-    y = YAML()
-    y.preserve_quotes = True
-    y.width = 4096
-    return y
-
-
-def _safe_load(text: str):
-    return YAML(typ="safe", pure=True).load(text)
+def _rt_yaml():
+    # Wide lines: ruamel would otherwise re-wrap long values it dumps.
+    return rt_yaml(width=4096)
 
 
 def _indent(line: str) -> int:
@@ -443,8 +433,8 @@ def expected_values(doc: dict, hosts: Hosts, image_repo: str | None) -> dict:
     ot = out.pop("objecttypen")
     out = _rewrite_strings(out, hosts)
     ob = out["objecten"]
-    od = _safe_load(doc["objecten"]["configuration"]["data"]) or {}
-    td = _safe_load(ot["configuration"].get("data") or "") or {}
+    od = load_safe(doc["objecten"]["configuration"]["data"]) or {}
+    td = load_safe(ot["configuration"].get("data") or "") or {}
     sites = (od.get("sites_config") or {}).get("items") or []
     settings = ob.setdefault("settings", {})
     settings["siteDomain"] = sites[0]["domain"] if sites else hosts.new_public
@@ -485,7 +475,7 @@ def normalise(doc: dict) -> dict:
     doc = copy.deepcopy(doc)
     cfg = ((doc.get("objecten") or {}).get("configuration") or {})
     if isinstance(cfg.get("data"), str):
-        cfg["data"] = _safe_load(cfg["data"]) or {}
+        cfg["data"] = load_safe(cfg["data"]) or {}
     return doc
 
 
@@ -543,8 +533,8 @@ def edit_data(inner: str, objecttypen_inner: str) -> str:
     dash_col = items.lc.item(0)[1] - 2 if items else _indent(lines[items_s]) + 2
 
     t_items = (t_root.get("tokenauth") or {}).get("items") or []
-    plain_items = _safe_load(inner)["tokenauth"]["items"]
-    plain_t_items = (_safe_load(objecttypen_inner) or {}).get("tokenauth", {}).get("items") or []
+    plain_items = load_safe(inner)["tokenauth"]["items"]
+    plain_t_items = (load_safe(objecttypen_inner) or {}).get("tokenauth", {}).get("items") or []
     planned = {id(i) for i in plan_tokenauth(plain_items, plain_t_items)}
     moved: list[str] = []
     t_total = len(t_lines)
@@ -574,7 +564,7 @@ def migrate_text(text: str, image_repo: str | None) -> tuple[str, list[str]]:
     lines = text.split("\n")
     total = len(lines)
     root = _rt_yaml().load(text)
-    doc = _safe_load(text)
+    doc = load_safe(text)
     if not isinstance(doc, dict) or "objecttypen" not in doc:
         return text, notes
     if "objecten" not in doc:
@@ -596,8 +586,8 @@ def migrate_text(text: str, image_repo: str | None) -> tuple[str, list[str]]:
             image_repo = f"{m.group(1) or ''}maykinmedia/open-object"
             image_note = (f"objecten.image.repository {current_repo} -> {image_repo}: "
                           "mirror maykinmedia/open-object there before deploying")
-    od_plain = _safe_load(doc["objecten"]["configuration"].get("data") or "") or {}
-    td_plain = _safe_load((doc["objecttypen"].get("configuration") or {}).get("data") or "") or {}
+    od_plain = load_safe(doc["objecten"]["configuration"].get("data") or "") or {}
+    td_plain = load_safe((doc["objecttypen"].get("configuration") or {}).get("data") or "") or {}
     ob_tokens = (od_plain.get("tokenauth") or {}).get("items") or []
     ot_tokens = (td_plain.get("tokenauth") or {}).get("items") or []
     hosts.tokens, manual_clashes = token_remap(
@@ -735,7 +725,7 @@ def migrate_text(text: str, image_repo: str | None) -> tuple[str, list[str]]:
 
     # Check: the edited file must parse to exactly the intended values
     want = normalise(expected_values(doc, hosts, image_repo))
-    got = normalise(_safe_load(out))
+    got = normalise(load_safe(out))
     if want != got:
         raise MigrationError("self-check failed: the edited file does not match the intended values "
                              f"({_first_difference(want, got)}); nothing written")
@@ -806,10 +796,6 @@ def migrate_gateway(text: str) -> str:
 # --------------------------------------------------------------------------- #
 # CLI
 # --------------------------------------------------------------------------- #
-
-def _diff(path: str, old: str, new: str) -> str:
-    return "".join(difflib.unified_diff(old.splitlines(True), new.splitlines(True), f"a/{path}", f"b/{path}"))
-
 
 ACTION = "ACTION "
 DUPLICATE_DOC = "values-deltas.md, 'One zgw_consumers service per api_root'"
@@ -891,7 +877,7 @@ def _switch_header(objecten: dict, component: str, header,
     conf = objecten.get("configuration") or {}
     secrets = conf.get("secrets") or {}
     try:
-        items = ((_safe_load(conf.get("data") or "") or {}).get("tokenauth") or {}).get("items") or []
+        items = ((load_safe(conf.get("data") or "") or {}).get("tokenauth") or {}).get("items") or []
     except YAMLError:
         return None, "objecten's configuration.data does not parse"
     tokens = {_plain_token(i.get("token"), secrets) for i in items if isinstance(i, dict)}
@@ -915,7 +901,7 @@ def _switch_header(objecten: dict, component: str, header,
 def _switched_note(objecten: dict, component: str, sid: str, new_header: str) -> str:
     ident = SWITCH_IDENTIFIER[component]
     try:
-        items = ((_safe_load((objecten.get("configuration") or {}).get("data") or "") or {})
+        items = ((load_safe((objecten.get("configuration") or {}).get("data") or "") or {})
                  .get("tokenauth") or {}).get("items") or []
     except YAMLError:
         items = []
@@ -927,7 +913,7 @@ def _switched_note(objecten: dict, component: str, sid: str, new_header: str) ->
 def _objecten_tokens(objecten: dict) -> tuple[list[dict], dict]:
     """(objecten's tokenauth items, objecten's configuration.secrets). Raises YAMLError."""
     conf = objecten.get("configuration") or {}
-    items = ((_safe_load(conf.get("data") or "") or {}).get("tokenauth") or {}).get("items") or []
+    items = ((load_safe(conf.get("data") or "") or {}).get("tokenauth") or {}).get("items") or []
     return [i for i in items if isinstance(i, dict)], conf.get("secrets") or {}
 
 
@@ -1046,7 +1032,7 @@ def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
     api_roots are not this migration's and are left alone."""
     notes: list[str] = []
     actions: list[str] = []
-    doc = _safe_load(text)
+    doc = load_safe(text)
     if not isinstance(doc, dict) or not isinstance(doc.get("objecten"), dict) or "objecttypen" in doc:
         return text, notes, actions
     hosts = _objecten_hosts(doc["objecten"])
@@ -1093,7 +1079,7 @@ def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
         if not isinstance(conf, dict) or not isinstance(conf.get("data"), str):
             continue
         try:
-            inner = _safe_load(conf["data"])
+            inner = load_safe(conf["data"])
         except Exception as e:  # templated or broken YAML: report, do not guess
             notes.append(f"CHECK {component}: configuration.data does not parse ({type(e).__name__}); "
                          "check its zgw_consumers api_roots by hand")
@@ -1174,7 +1160,7 @@ def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
         inner_text = "\n".join(c[ind:] if c.strip() else "" for c in content)
         i_lines = inner_text.split("\n")
         i_root = _rt_yaml().load(inner_text)
-        plain = _safe_load(inner_text)
+        plain = load_safe(inner_text)
         i_ed = Edits()
         services = i_root["zgw_consumers"]["services"]
         _, s_e = path_range(i_lines, i_root, ["zgw_consumers", "services"], len(i_lines))
@@ -1192,7 +1178,7 @@ def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
             i_ed.delete(*item_range(i_lines, services, idx, s_e))
             plain["zgw_consumers"]["services"] = [s for s in plain["zgw_consumers"]["services"]
                                                   if not (isinstance(s, dict) and str(s.get("identifier")) == old_id)]
-            for path in list(_service_identifier_refs(_safe_load(inner_text), old_id)):
+            for path in list(_service_identifier_refs(load_safe(inner_text), old_id)):
                 parent = _get_path(i_root, path[:-1])
                 line = parent.lc.key(path[-1])[0]
                 i_ed.replace(line, line + 1, [_scalar_line(i_lines[line], keep_id)])
@@ -1226,7 +1212,7 @@ def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
         i_ed.insert(items_e, _openzaak_item_lines(openzaak_plan, items.lc.item(0)[1] - 2))
         new_inner = "\n".join(i_ed.apply(i_lines))
         ed.replace(d_s + 1, d_e, [(" " * ind + line) if line.strip() else "" for line in new_inner.split("\n")])
-        plain = _safe_load(inner_text)
+        plain = load_safe(inner_text)
         plain["tokenauth"]["items"].append(_openzaak_item(openzaak_plan))
         expected_inner["objecten"] = plain
         if openzaak_plan["add_secret"]:
@@ -1238,9 +1224,9 @@ def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
     out = "\n".join(ed.apply(lines))
 
     # Check: only the planned configuration.data blocks changed, exactly as intended
-    got = _safe_load(out)
+    got = load_safe(out)
     for component, plain in expected_inner.items():
-        got_inner = _safe_load(got[component]["configuration"]["data"])
+        got_inner = load_safe(got[component]["configuration"]["data"])
         if got_inner != plain:
             raise MigrationError(f"self-check failed for {component} zgw_consumers merge "
                                  f"({_first_difference(plain, got_inner)}); nothing written")
@@ -1257,13 +1243,11 @@ def process(path: str, args) -> tuple[str, list[str]]:
     try:
         new, notes = migrate_text(text, args.objecten_image_repository)
         new, merge_notes, actions = merge_objecttypen_services(new)
-    except MigrationError as e:
-        return "error", [str(e)]
-    except Exception as e:  # unexpected file shape: report, never write half a migration
-        return "error", [f"unexpected {type(e).__name__}: {str(e).splitlines()[0][:200]}"]
+    except Exception as e:  # noqa: BLE001 -- unexpected file shape: report, never write half a migration
+        return "error", [error_note(e)]
     notes += merge_notes + actions
     changes = [(path, text, new)] if new != text else []
-    migrated_doc = _safe_load(new)
+    migrated_doc = load_safe(new)
     has_objecten = isinstance(migrated_doc, dict) and "objecten" in migrated_doc \
         and "objecttypen" not in migrated_doc
     if not args.no_gateway and not has_objecten:
@@ -1282,10 +1266,9 @@ def process(path: str, args) -> tuple[str, list[str]]:
         return "unchanged", notes
     for p, old, new in changes:
         if args.dry_run:
-            sys.stdout.write(_diff(p, old, new))
+            sys.stdout.write(unified_diff(p, old, new))
         else:
-            with open(p, "w", encoding="utf-8") as f:
-                f.write(new)
+            write_lf(p, new)
     return "migrated", notes
 
 
