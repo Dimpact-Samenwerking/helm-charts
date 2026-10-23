@@ -446,6 +446,10 @@ def expected_values(doc: dict, hosts: Hosts, image_repo: str | None) -> dict:
     cfg = ob["configuration"]
     secrets = cfg.get("secrets") or {}
     for k, v in _rewrite_strings(ot["configuration"].get("secrets") or {}, hosts).items():
+        # keycloak_client_secret differs by design: after the merge only objecten's Keycloak client is left.
+        if k in secrets and secrets[k] != v and k != "keycloak_client_secret":
+            raise MigrationError(f"objecten and objecttypen both define configuration.secrets.{k} with "
+                                 f"different values; rename one of them by hand first")
         secrets.setdefault(k, v)
     su = _superuser_token((od.get("tokenauth") or {}).get("items") or [])
     secrets["create_required_objecttypen_token"] = superuser_token_value(

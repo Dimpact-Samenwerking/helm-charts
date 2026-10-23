@@ -1227,10 +1227,11 @@ Usage: {{- if include "podiumd.dependencyEnabled" .Values.openzaak }}
 
 {{/*
 ClamAV — whether this chart deploys ClamAV (clamav.enabled; a missing key
-counts as off). Used by networkpolicies.yaml and by the configure-clamav Jobs.
+counts as on, like the subchart condition in Chart.yaml). Used by
+networkpolicies.yaml and by the configure-clamav Jobs.
 */}}
 {{- define "podiumd.clamav.enabled" -}}
-{{- if (.Values.clamav | default dict).enabled -}}true{{- end -}}
+{{- include "podiumd.dependencyEnabled" (.Values.clamav | default dict) -}}
 {{- end -}}
 
 {{/*
