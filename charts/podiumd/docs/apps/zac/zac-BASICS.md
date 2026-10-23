@@ -96,7 +96,7 @@ peak load.
   APIs/ZAC environment.
 - **Redis**: not used by ZAC (no entry in the redis-ha database allocation).
 - **Solr operator CRDs**: must be installed cluster-wide before enabling
-  (`all-with-dependencies.yaml` v0.10.0-prerelease per the `values.yaml` comment;
+  (`https://solr.apache.org/operator/downloads/crds/v0.9.1/all-with-dependencies.yaml`, as the `values.yaml` comment says;
   `zookeeper-operator.crd.create: false`).
 
 ## CPU and memory

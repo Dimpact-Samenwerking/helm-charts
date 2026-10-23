@@ -26,7 +26,7 @@ From the chart's own README:
 Jumping straight from an older `objects-api` to `openobject` is **not**
 supported — see section A below for the concrete precondition sequence.
 
-### Where PodiumD currently stands
+### Where PodiumD stood before 4.10.0 (4.9.x)
 
 | Chart (in `charts/podiumd/Chart.yaml`) | Pinned chart version | App version |
 |---|---|---|
@@ -45,8 +45,8 @@ implying A.2/A.3 are also done. `objecttypen` has no further role once the
 merge happens; its object-type data moves in via the import migration
 described in A.6 below.
 
-The `openobject` chart itself is at the latest available version, **1.1.1**
-(appVersion 4.1.0), as of this check.
+These notes were written against `openobject` chart **1.1.1** (appVersion 4.1.0).
+PodiumD 4.10.0 ships chart **1.2.0** with Open Object **4.3.0**.
 
 ## Chart structure
 
@@ -253,7 +253,7 @@ chart's own docs).
    | **4.0.0** | 2026-04-13 | **Major release, breaking changes** (see below) |
    | 4.0.1 / 4.0.2 / 4.1.0 | 2026-05-22 / 2026-07-16 / 2026-06-17 | Minor fixes/security patch; no further data migrations of note |
 
-   **PodiumD's current pin is appVersion 3.6.0** — meaning the
+   **PodiumD 4.9.x pins appVersion 3.6.2** (the starting point; 4.10.0 ships 4.3.0) — meaning the
    3.2.0/3.4.0/3.5.0 migrations above have *already run* for any environment
    that has kept the chart current. Worth explicitly confirming
    per-gemeente: that production is actually running ≥3.4.0 (not just that
@@ -294,8 +294,8 @@ chart's own docs).
    - Bugfix: 500 error on duplicate UUID when creating objects.
 
    **Consequences**: Objecten's own upgrade path is standard
-   Django-migration risk (mostly already absorbed at the current 3.6.0
-   pin), **not** a second data-copy operation — the real per-environment
+   Django-migration risk (mostly already absorbed at the 3.6.2
+   pin of 4.9.x), **not** a second data-copy operation — the real per-environment
    risk is entirely in the 4.0.0 breaking-changes list above. Add an
    explicit Celery smoke test to the rollout plan (the broker/result-backend
    wiring bug fix above, not to be confused with the uwsgi tuning question

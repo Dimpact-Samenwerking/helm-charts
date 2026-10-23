@@ -144,8 +144,9 @@ def migrate_kiss(old):
         }
 
     # objecten + objecttypen → afdelingen / groepen / logboek  (settings side)
-    old_objecten = old.get('objecten', {})
-    old_objecttypen = old.get('objecttypen', {})
+    # `objecten:` / `objecttypen:` present but empty (YAML null) counts as absent.
+    old_objecten = old.get('objecten') or {}
+    old_objecttypen = old.get('objecttypen') or {}
     objecten_baseurl = old_objecten.get('baseUrl', '')
     objecten_token = old_objecten.get('token', '')
     objecttypen_base = old_objecttypen.get('baseUrlIntern', '')

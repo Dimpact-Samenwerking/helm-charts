@@ -3661,7 +3661,7 @@ zac:
     password: ""
   # solr operator settings
   solr-operator:
-    # -- install crds using https://solr.apache.org/operator/downloads/crds/v0.10.0-prerelease/all-with-dependencies.yaml
+    # -- install crds using https://solr.apache.org/operator/downloads/crds/v0.9.1/all-with-dependencies.yaml
     # -- turn functionality on/off
     enabled: true
     # apache/solr-operator:v0.9.1@sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2
