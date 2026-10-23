@@ -98,6 +98,8 @@ openzaak:
 
 # Prevents nil pointer in objecten/templates/secret.yaml; also provides realm secret.
 objecten:
+  settings:
+    siteDomain: objecten.ci.podiumd.test
   configuration:
     oidcUrl: https://objecten.ci.podiumd.test
     demo:
