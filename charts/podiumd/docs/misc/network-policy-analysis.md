@@ -4,7 +4,7 @@
 > default); egress (phase 3) is still analysis only. First test environment:
 > johnb00, after its switch to the Cilium dataplane.
 > Last updated: 2026-10-12. Source finding: NW-01 in
-> [security-review-4.10.0.md](security-review-4.10.0.md).
+> [security-review.md](security-review.md).
 
 The matrix below was derived from the rendered chart (johnb00 values plus
 openarchiefbeheer, openvtb, clamav and openbao switched on): the hosts and
