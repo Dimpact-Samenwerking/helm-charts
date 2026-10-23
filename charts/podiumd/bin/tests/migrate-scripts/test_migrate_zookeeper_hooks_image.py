@@ -55,12 +55,32 @@ def test_a_second_run_changes_nothing(zookeeper: ModuleType):
     assert zookeeper.migrate_text(new) == (new, [])
 
 
-def test_a_tag_override_is_reported(zookeeper: ModuleType):
-    _, notes = zookeeper.migrate_text(hooks_image("repository: acrprodmgmt.azurecr.io/k8s-kubectl", "tag: v1.25.4"))
+@pytest.mark.parametrize("repository", ["acrprodmgmt.azurecr.io/k8s-kubectl", "acrprodmgmt.azurecr.io/alpine/k8s"])
+def test_a_k8s_kubectl_tag_is_an_error(zookeeper: ModuleType, repository: str):
+    """alpine/k8s has no v-prefixed tags: neither repository works with v1.25.4."""
+    with pytest.raises(zookeeper.MigrationError, match=r"hooks\.image\.tag is 'v1\.25\.4', a k8s-kubectl tag"):
+        zookeeper.migrate_text(hooks_image(f"repository: {repository}", "tag: v1.25.4"))
+
+
+def test_another_tag_than_the_charts_is_reported(zookeeper: ModuleType):
+    _, notes = zookeeper.migrate_text(hooks_image("repository: acrprodmgmt.azurecr.io/k8s-kubectl", "tag: 1.36.0"))
     assert notes[0] == (
-        "CHECK zac.solr-operator.zookeeper-operator.hooks.image.tag is set ('v1.25.4'): "
+        "CHECK zac.solr-operator.zookeeper-operator.hooks.image.tag is set ('1.36.0'): "
         "it must be the chart's 1.37.1 pin, or be removed"
     )
+
+
+@pytest.mark.parametrize(
+    "tag", ["1.37.1", '"1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"']
+)
+def test_the_charts_tag_gets_no_note(zookeeper: ModuleType, tag: str):
+    _, notes = zookeeper.migrate_text(hooks_image("repository: acrprodmgmt.azurecr.io/k8s-kubectl", f"tag: {tag}"))
+    assert notes == [
+        (
+            "zac.solr-operator.zookeeper-operator.hooks.image.repository: "
+            "acrprodmgmt.azurecr.io/k8s-kubectl -> acrprodmgmt.azurecr.io/alpine/k8s"
+        )
+    ]
 
 
 @pytest.mark.parametrize(
