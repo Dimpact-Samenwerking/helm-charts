@@ -317,3 +317,11 @@
 {{- if and .Values.zac.enabled (eq (toString (index .Values.zac.auth "pkceEnabled")) "true") -}}
 {{- fail "zac.auth.pkceEnabled is replaced by zac.auth.enablePkce (default true), which enables PKCE in ZAC and on its Keycloak client together. Remove zac.auth.pkceEnabled; set zac.auth.enablePkce: false to opt out. See \"ZAC: PKCE on by default\" in docs/_UPGRADE_PATHS/4.9.5-to-4.10.0-upgrade.md" -}}
 {{- end -}}
+{{- /* ZooKeeper operator hooks: 4.10.0 pins alpine/k8s 1.37.1 by tag. An
+     environment that still overrides the repository with its mirror of the old
+     lachlanevenson/k8s-kubectl gets <mirror>/k8s-kubectl:1.37.1@sha256:..., which
+     does not exist: the hook Job fails to pull and the helm upgrade fails. */ -}}
+{{- $zkHooksImage := dig "solr-operator" "zookeeper-operator" "hooks" "image" (dict) (.Values.zac | default dict) -}}
+{{- if and .Values.zac.enabled (regexMatch "(^|/)k8s-kubectl$" (toString ($zkHooksImage.repository | default ""))) (not (hasPrefix "v" (toString ($zkHooksImage.tag | default "")))) -}}
+{{- fail (printf "zac.solr-operator.zookeeper-operator.hooks.image.repository is %q, the old k8s-kubectl image, but 4.10.0 pins alpine/k8s %s. Point it at the same registry's alpine/k8s (scripts/migrate-zookeeper-hooks-image-4.10.0.py does that), and mirror alpine/k8s:1.37.1 by digest. See \"alpine/k8s: set the ACR mirror on all three image paths\" in docs/_UPGRADE_PATHS/4.9.5-to-4.10.0-upgrade.md" (toString $zkHooksImage.repository) (toString $zkHooksImage.tag)) -}}
+{{- end -}}

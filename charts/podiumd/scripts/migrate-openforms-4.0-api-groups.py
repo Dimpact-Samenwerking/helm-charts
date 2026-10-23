@@ -57,16 +57,12 @@ from __future__ import annotations
 
 import argparse
 import copy
-import difflib
-import glob
-import os
 import sys
 
-try:
-    from ruamel.yaml import YAML
-except ImportError:
-    print("ERROR: ruamel.yaml is required. Install with: pip install ruamel.yaml", file=sys.stderr)
-    sys.exit(1)
+from migrate_common import MigrationError
+from migrate_common import load_rt
+from migrate_common import load_safe
+from migrate_common import run
 
 DOCUMENT_TYPE_KEYS = ("document_type_submission_report", "document_type_submission_csv", "document_type_attachment")
 REMOVED_KEYS = {
@@ -75,20 +71,6 @@ REMOVED_KEYS = {
     # too because 4.0 rejects any unknown key.
     "zgw_api": ("catalogue_domain", "catalogue_rsin", *DOCUMENT_TYPE_KEYS),
 }
-
-
-class MigrationError(Exception):
-    """The file cannot be migrated automatically."""
-
-
-def _rt_load(text: str):
-    y = YAML()
-    y.preserve_quotes = True
-    return y.load(text)
-
-
-def _safe_load(text: str):
-    return YAML(typ="safe", pure=True).load(text)
 
 
 def removals(data) -> list[tuple[str, int, str, object]]:
@@ -136,9 +118,9 @@ def _drop(lines: list[str], starts: list[int], end: int) -> list[str]:
     return [ln for n, ln in enumerate(lines) if n not in drop]
 
 
-def migrate_text(text: str) -> tuple[str, list[str]]:
+def migrate_text(text: str, _args: argparse.Namespace | None = None) -> tuple[str, list[str]]:
     """Return (new text, notes). Raises MigrationError when the file cannot be migrated safely."""
-    doc = _safe_load(text)
+    doc = load_safe(text)
     if not isinstance(doc, dict):
         raise MigrationError("not a YAML mapping")
     lines = text.splitlines(keepends=True)
@@ -150,11 +132,11 @@ def migrate_text(text: str) -> tuple[str, list[str]]:
             return text, ["no openformulieren.configuration.data"]
         if not isinstance(data, str):
             raise MigrationError("openformulieren.configuration.data is not a block scalar string")
-        inner = _safe_load(data)
+        inner = load_safe(data)
         found = removals(inner)
         if not found:
             return text, []
-        rt = _rt_load(text)
+        rt = load_rt(text)
         cfg = rt["openformulieren"]["configuration"]
         data_line = cfg.lc.key("data")[0]
         if not lines[data_line].rstrip().endswith(("|", "|-", "|+")):
@@ -165,19 +147,19 @@ def migrate_text(text: str) -> tuple[str, list[str]]:
         while block_end < len(lines) and (not lines[block_end].strip()
                                           or lines[block_end].startswith(" " * (len(lines[start]) - len(lines[start].lstrip(" "))))):
             block_end += 1
-        starts = _key_lines(_rt_load(data), start)
+        starts = _key_lines(load_rt(data), start)
         new_lines = _drop(lines, starts, block_end)
         new = "".join(new_lines)
         expected = copy.deepcopy(doc)
         expected["openformulieren"]["configuration"]["data"] = strip_data(inner)
-        got = _safe_load(new)
-        got["openformulieren"]["configuration"]["data"] = _safe_load(got["openformulieren"]["configuration"]["data"])
+        got = load_safe(new)
+        got["openformulieren"]["configuration"]["data"] = load_safe(got["openformulieren"]["configuration"]["data"])
     elif any(k in doc for k in REMOVED_KEYS):
         found = removals(doc)
         if not found:
             return text, []
-        new = "".join(_drop(lines, _key_lines(_rt_load(text), 0), len(lines)))
-        expected, got = strip_data(doc), _safe_load(new)
+        new = "".join(_drop(lines, _key_lines(load_rt(text), 0), len(lines)))
+        expected, got = strip_data(doc), load_safe(new)
     else:
         return text, ["no openformulieren block and no objects_api/zgw_api data"]
 
@@ -189,67 +171,18 @@ def migrate_text(text: str) -> tuple[str, list[str]]:
 
 def _ident(doc, section, i):
     of = doc.get("openformulieren")
-    data = _safe_load(of["configuration"]["data"]) if isinstance(of, dict) else doc
+    data = load_safe(of["configuration"]["data"]) if isinstance(of, dict) else doc
     return data[section]["groups"][i].get("identifier", "?")
 
 
-def _diff(path: str, old: str, new: str) -> str:
-    return "".join(difflib.unified_diff(old.splitlines(True), new.splitlines(True), f"a/{path}", f"b/{path}"))
-
-
-def process(path: str, args) -> tuple[str, list[str]]:
-    with open(path, encoding="utf-8") as f:
-        text = f.read()
-    try:
-        new, notes = migrate_text(text)
-    except MigrationError as e:
-        return "error", [str(e)]
-    except Exception as e:  # unexpected file shape: report, never write half a migration
-        # A YAML error (e.g. a duplicate key elsewhere in the file) names its line and problem.
-        mark = getattr(e, "problem_mark", None)
-        where = f" at line {mark.line + 1}" if mark else ""
-        problem = getattr(e, "problem", None) or str(e).splitlines()[0]
-        return "error", [f"unexpected {type(e).__name__}{where}: {problem[:200]}"]
-    if new == text:
-        return "unchanged", notes
-    if args.dry_run:
-        sys.stdout.write(_diff(path, text, new))
-    elif not args.check:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(new)
-    return ("needs migration" if args.check else "migrated"), notes
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("files", nargs="*", help="podiumd.yml or data files (default: all under --gemeenten-dir)")
-    parser.add_argument("--gemeenten-dir", help="directory with <gemeente>/<env>/podiumd.yml (used when no files are given)")
-    mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--dry-run", action="store_true", help="print a unified diff, write nothing")
-    mode.add_argument("--check", action="store_true", help="write nothing; exit 1 when a file needs migrating")
-    args = parser.parse_args()
-
-    if not args.files and not args.gemeenten_dir:
-        parser.error("give files or --gemeenten-dir")
-    files = args.files or sorted(glob.glob(os.path.join(os.path.expanduser(args.gemeenten_dir), "*", "*", "podiumd.yml")))
-    if not files:
-        print("No podiumd.yml files found.", file=sys.stderr)
-        return 1
-    counts: dict[str, int] = {"migrated": 0, "needs migration": 0, "unchanged": 0, "error": 0}
-    out = sys.stderr if args.dry_run else sys.stdout
-    for path in files:
-        status, notes = process(path, args)
-        counts[status] += 1
-        print(f"[{status}] {path}", file=out)
-        for n in notes:
-            print(f"    - {n}", file=out)
-    summary = ", ".join(f"{v} {k}" for k, v in counts.items() if v or k in ("unchanged", "error"))
-    print(f"\n{summary}", file=out)
-    if counts["migrated"] or counts["needs migration"]:
-        print("The removed values stay in the Open Forms database on an upgrade. On a new environment, set the "
-              "catalogue and document types in the admin on the API group, or per form.", file=out)
-    return 1 if counts["error"] or counts["needs migration"] else 0
+def _database_note(counts: dict[str, int], _notes: list[list[str]]) -> str:
+    if not (counts["migrated"] or counts["needs migration"]):
+        return ""
+    return (
+        "\nThe removed values stay in the Open Forms database on an upgrade. On a new environment, set the "
+        "catalogue and document types in the admin on the API group, or per form."
+    )
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run(__doc__, migrate_text, files_help="podiumd.yml or data files", summary_suffix=_database_note))

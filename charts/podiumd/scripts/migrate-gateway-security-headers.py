@@ -55,17 +55,15 @@ from __future__ import annotations
 
 import argparse
 import copy
-import difflib
-import glob
-import os
 import re
 import sys
 
-try:
-    from ruamel.yaml import YAML
-    from ruamel.yaml.comments import CommentedMap, CommentedSeq
-except ImportError:  # pragma: no cover
-    sys.exit("ruamel.yaml is required: pip install ruamel.yaml")
+from migrate_common import MigrationError
+from migrate_common import load_rt_all
+from migrate_common import load_safe
+from migrate_common import load_safe_all
+from migrate_common import run
+from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 DEFAULT_HSTS_MAX_AGE = 31536000
 HEADER_FILTER = "ResponseHeaderModifier"
@@ -73,25 +71,11 @@ NO_BACKEND_FILTERS = {"RequestRedirect"}
 WARNING = "warning: "
 
 
-class MigrationError(Exception):
-    pass
-
-
 def headers(hsts_max_age: int) -> list[dict]:
     return [
         {"name": "Strict-Transport-Security", "value": f"max-age={hsts_max_age}"},
         {"name": "X-Content-Type-Options", "value": "nosniff"},
     ]
-
-
-def _load_rt_all(text: str) -> list:
-    yaml = YAML()
-    yaml.preserve_quotes = True
-    return list(yaml.load_all(text))
-
-
-def _load_safe_all(text: str) -> list:
-    return list(YAML(typ="safe").load_all(text))
 
 
 def _last_line(node, start_line: int) -> int:
@@ -121,7 +105,7 @@ def _block_seq(node, what: str) -> CommentedSeq:
 def _scalar(value) -> str:
     """A header value as a plain scalar, quoted only when YAML would read it differently."""
     text = str(value)
-    safe = YAML(typ="safe").load(f"k: {text}")
+    safe = load_safe(f"k: {text}")
     return text if safe == {"k": text} else "'" + text.replace("'", "''") + "'"
 
 
@@ -257,8 +241,8 @@ def _migrate_rule(rule: CommentedMap, rule_line: int, rule_col: int, want_rule: 
 
 def migrate_text(text: str, hsts_max_age: int = DEFAULT_HSTS_MAX_AGE) -> tuple[str, list[str]]:
     """Return (new_text, notes). Raises MigrationError."""
-    docs = _load_rt_all(text)
-    want = copy.deepcopy(_load_safe_all(text))
+    docs = load_rt_all(text)
+    want = load_safe_all(text)
     wanted = headers(hsts_max_age)
     ins = Inserts()
     notes: list[str] = []
@@ -295,71 +279,53 @@ def migrate_text(text: str, hsts_max_age: int = DEFAULT_HSTS_MAX_AGE) -> tuple[s
     if not ins.ops:
         return text, notes
     out = "\n".join(ins.apply(text.split("\n")))
-    if _load_safe_all(out) != want:
+    if load_safe_all(out) != want:
         raise MigrationError("self-check failed: the edited file does not match the intended routes; nothing written")
     return out, notes
 
 
-def process(path: str, args) -> tuple[str, list[str]]:
-    # Universal newlines read CRLF as LF; a migrated file is written with LF only, on every OS.
-    with open(path, encoding="utf-8") as f:
-        text = f.read()
-    try:
-        new, notes = migrate_text(text, args.hsts_max_age)
-    except MigrationError as e:
-        return "error", [str(e)]
-    except Exception as e:  # unexpected file shape: report, never write half a migration
-        return "error", [f"unexpected {type(e).__name__}: {str(e).splitlines()[0][:200]}"]
-    changes = [n for n in notes if n.startswith(WARNING)
-               or " added" in n or " completed" in n or n.endswith((": added", ": completed"))]
-    if new == text:
-        return "unchanged", notes
-    if args.check:
-        return "needs migration", changes
-    if args.dry_run:
-        sys.stdout.write("".join(difflib.unified_diff(text.splitlines(True), new.splitlines(True),
-                                                      f"a/{path}", f"b/{path}")))
-    else:
-        with open(path, "w", encoding="utf-8", newline="\n") as f:
-            f.write(new)
-    return "migrated", notes
+def _change_notes(notes: list[str]) -> list[str]:
+    """The notes --check shows: warnings and the headers added or completed."""
+    return [
+        n
+        for n in notes
+        if n.startswith(WARNING) or " added" in n or " completed" in n or n.endswith((": added", ": completed"))
+    ]
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("files", nargs="*", help="ssl-gateway.yml files (default: all under --gemeenten-dir)")
-    parser.add_argument("--gemeenten-dir", help="directory with <gemeente>/<env>/ssl-gateway.yml (used when no files are given)")
-    parser.add_argument("--hsts-max-age", type=int, default=DEFAULT_HSTS_MAX_AGE,
-                        help=f"HSTS max-age in seconds (default {DEFAULT_HSTS_MAX_AGE}, one year)")
-    mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--dry-run", action="store_true", help="print a unified diff, write nothing")
-    mode.add_argument("--check", action="store_true", help="write nothing; exit 1 when a file needs migrating")
-    args = parser.parse_args()
+def _positive_int(value: str) -> int:
+    number = int(value)
+    if number <= 0:
+        raise argparse.ArgumentTypeError("must be positive")
+    return number
 
-    if not args.files and not args.gemeenten_dir:
-        parser.error("give ssl-gateway.yml files or --gemeenten-dir")
-    if args.hsts_max_age <= 0:
-        parser.error("--hsts-max-age must be positive")
-    files = args.files or sorted(glob.glob(os.path.join(os.path.expanduser(args.gemeenten_dir), "*", "*", "ssl-gateway.yml")))
-    if not files:
-        print("No ssl-gateway.yml files found.", file=sys.stderr)
-        return 1
-    counts: dict[str, int] = {"migrated": 0, "needs migration": 0, "unchanged": 0, "error": 0}
-    out = sys.stderr if args.dry_run else sys.stdout
-    warned = 0
-    for path in files:
-        status, notes = process(path, args)
-        counts[status] += 1
-        warned += any(n.startswith(WARNING) for n in notes)
-        print(f"[{status}] {path}", file=out)
-        for note in notes:
-            print(f"    - {note}", file=out)
-    summary = ", ".join(f"{v} {k}" for k, v in counts.items() if v or k in ("unchanged", "error"))
-    if warned:
-        summary += f"; {warned} with weaker headers kept (warnings above)"
-    print(f"\n{summary}", file=out)
-    return 1 if counts["error"] or counts["needs migration"] else 0
+
+def _add_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--hsts-max-age",
+        type=_positive_int,
+        default=DEFAULT_HSTS_MAX_AGE,
+        help=f"HSTS max-age in seconds (default {DEFAULT_HSTS_MAX_AGE}, one year)",
+    )
+
+
+def _migrate(text: str, args: argparse.Namespace) -> tuple[str, list[str]]:
+    return migrate_text(text, args.hsts_max_age)
+
+
+def _warned(_counts: dict[str, int], notes: list[list[str]]) -> str:
+    warned = sum(any(n.startswith(WARNING) for n in file_notes) for file_notes in notes)
+    return f"; {warned} with weaker headers kept (warnings above)" if warned else ""
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(
+        run(
+            __doc__,
+            _migrate,
+            file_name="ssl-gateway.yml",
+            add_arguments=_add_arguments,
+            check_notes=_change_notes,
+            summary_suffix=_warned,
+        )
+    )
