@@ -19,9 +19,10 @@ This script rewrites such a repository to the same registry's alpine/k8s:
   lachlanevenson/k8s-kubectl (no registry)           ->  docker.io/alpine/k8s
 
 A repository that already ends in alpine/k8s, or names another image, is left
-alone. An environment that also overrides hooks.image.tag is reported (the tag
-must then be 1.37.1 with the chart's digest, or be removed); the script does not
-change a tag. The registry must hold alpine/k8s:1.37.1 by digest: redis-ha's
+alone. The script does not change a tag. A hooks.image.tag override with
+k8s-kubectl's "v" prefix (e.g. v1.25.4) is an error: alpine/k8s has no such
+tag, so the file is not written and must be fixed by hand (remove the tag, the
+chart pins 1.37.1 by digest). Any other tag than 1.37.1 is reported. The registry must hold alpine/k8s:1.37.1 by digest: redis-ha's
 label-master Job already uses the same image.
 
 The file is edited line by line: only the repository value changes, so
@@ -53,6 +54,8 @@ from migrate_common import run
 
 HOOKS_PATH = ("zac", "solr-operator", "zookeeper-operator", "hooks", "image")
 NEW_IMAGE = "alpine/k8s"
+# The version values.yaml pins (global.images.alpineK8s), digest left out.
+CHART_VERSION = "1.37.1"
 # <registry>/[lachlanevenson/]k8s-kubectl, the registry part optional.
 OLD_REPO = re.compile(r"^(?P<registry>(?:[^/]+/)*?)(?:lachlanevenson/)?k8s-kubectl$")
 
@@ -79,10 +82,16 @@ def migrate_text(text: str, _args: argparse.Namespace | None = None) -> tuple[st
     if not isinstance(node, dict):
         return text, notes
     path = ".".join(HOOKS_PATH)
-    if "tag" in node:
-        notes.append(
-            f"CHECK {path}.tag is set ({node['tag']!r}): it must be the chart's 1.37.1 pin, or be removed"
-        )
+    tag = node.get("tag")
+    if tag is not None:
+        version = str(tag).split("@", 1)[0].strip()
+        if version.startswith("v"):
+            raise MigrationError(
+                f"{path}.tag is {tag!r}, a k8s-kubectl tag that alpine/k8s does not have; "
+                f"remove it (the chart pins {CHART_VERSION}) and run again; nothing written"
+            )
+        if version != CHART_VERSION:
+            notes.append(f"CHECK {path}.tag is set ({tag!r}): it must be the chart's {CHART_VERSION} pin, or be removed")
     repo = node.get("repository")
     if not isinstance(repo, str):
         return text, notes
