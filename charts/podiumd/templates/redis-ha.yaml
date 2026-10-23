@@ -39,6 +39,9 @@ spec:
     {{- with $redisHa.storage }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
+    {{- if and ($redisHa.masterReadinessCheck | default dict).enabled (hasKey ($redisHa.storage | default dict) "volumeMount") }}
+    {{- fail "redis-operator.redis-ha.storage.volumeMount can't be combined with redis-operator.redis-ha.masterReadinessCheck.enabled: both set storage.volumeMount" }}
+    {{- end }}
     {{- if ($redisHa.masterReadinessCheck | default dict).enabled }}
     {{- /* The pod's own labels for the readiness check below; kubelet refreshes them. */}}
     volumeMount:
