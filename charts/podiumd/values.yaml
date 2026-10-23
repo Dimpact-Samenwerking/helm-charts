@@ -3745,11 +3745,13 @@ zac:
         # 1.25, end of life). Environments point hooks.image.repository at their
         # ACR mirror of alpine/k8s.
         image: *alpineK8sImage
-        # alpine/k8s runs as root (no USER in the image) and kubectl writes its
-        # cache under $HOME=/root, which this sub-chart cannot redirect; so no
-        # runAsNonRoot here until that is tested. The rest cannot break sh,
-        # kubectl or grep.
+        # alpine/k8s has no USER in the image, so run the hooks as nobody. kubectl
+        # cannot write its cache under $HOME=/root then; it works without it and
+        # only skips its discovery cache.
         securityContext:
+          runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
           allowPrivilegeEscalation: false
           capabilities:
             drop:
