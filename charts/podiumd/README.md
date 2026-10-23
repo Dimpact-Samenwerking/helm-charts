@@ -252,6 +252,8 @@ PodiumD Helm chart
 | global.configuration.organization | string | `"Example gemeente"` |  |
 | global.configuration.overwrite | bool | `true` |  |
 | global.imageRegistry | string | `""` |  |
+| global.images.alpineK8s.repository | string | `"docker.io/alpine/k8s"` |  |
+| global.images.alpineK8s.tag | string | `"1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"` |  |
 | global.images.busybox.pullPolicy | string | `"IfNotPresent"` |  |
 | global.images.busybox.repository | string | `"library/busybox"` |  |
 | global.images.busybox.tag | string | `"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"` |  |
@@ -731,7 +733,6 @@ PodiumD Helm chart
 | openarchiefbeheer.configuration.job.backoffLimit | int | `6` |  |
 | openarchiefbeheer.configuration.job.enabled | bool | `true` |  |
 | openarchiefbeheer.configuration.job.restartPolicy | string | `"OnFailure"` |  |
-| openarchiefbeheer.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
 | openarchiefbeheer.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://abc.example.nl`. |
 | openarchiefbeheer.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. |
 | openarchiefbeheer.configuration.secrets.keycloak_client_secret | string | `""` |  |
@@ -767,7 +768,7 @@ PodiumD Helm chart
 | openarchiefbeheer.settings.cache.default | string | `"redis-ha-master:6379/13"` |  |
 | openarchiefbeheer.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/14"` |  |
 | openarchiefbeheer.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
-| openarchiefbeheer.settings.celery.resultBackendl | string | `"redis://redis-ha-master:6379/14"` |  |
+| openarchiefbeheer.settings.celery.resultBackend | string | `"redis://redis-ha-master:6379/14"` |  |
 | openarchiefbeheer.settings.environment | string | `""` | Name of the environment (used for displaying purposes) |
 | openarchiefbeheer.settings.frontend | object | `{"apiPath":"/api/v1","apiUrl":"","zaakUrlTemplate":""}` | Controls the log levels of project code and of the OIDC library. Possible values: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL.   level: INFO |
 | openarchiefbeheer.settings.frontendUrl | string | `""` |  |

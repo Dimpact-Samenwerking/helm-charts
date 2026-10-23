@@ -28,6 +28,14 @@ global:
       repository: library/postgres
       tag: "16.15-alpine@sha256:deb28ee471183cb0c303113dac9b2433c51eeeeb678def7af9a9ec5820367815"
       pullPolicy: IfNotPresent
+    # kubectl for the redis-ha Jobs and the zookeeper-operator hooks. No template
+    # reads this key: the anchor is resolved in this file only, so overriding it
+    # in an environment changes nothing. Environments set their ACR mirror on
+    # each of the three image paths that use it (global.imageRegistry does not
+    # apply to them).
+    alpineK8s: &alpineK8sImage
+      repository: docker.io/alpine/k8s
+      tag: "1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"
 
 tags:
   eck-operator.enabled: false
@@ -627,9 +635,7 @@ redis-operator:
       # For test environments that are suspended outside business hours, use:
       #   schedule: "* 7-18 * * 1-5"   # every minute, Mon–Fri 07:00–18:59 only
       schedule: "*/2 * * * *"
-      image: &redisHaK8sImage
-        repository: docker.io/alpine/k8s
-        tag: "1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"
+      image: *alpineK8sImage
       nodeSelector: {}
       resources:
         requests:
@@ -641,7 +647,7 @@ redis-operator:
     # -- pre-delete hook Job (templates/redis-ha-pre-delete.yaml) that drains the
     # RedisReplication CR before the redis-operator's Deployment is torn down.
     preDeleteJob:
-      image: *redisHaK8sImage
+      image: *alpineK8sImage
       nodeSelector: {}
 
 openzaak:
@@ -1450,8 +1456,9 @@ openarchiefbeheer:
     pkceEnabled: false
     job:
       enabled: true
+      # Chart 2.1.0 runs this Job as a post-install/post-upgrade hook (defaults 0 and
+      # Never): retries keep a Keycloak that is not ready yet from failing the release.
       backoffLimit: 6
-      ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
     secrets:
       keycloak_client_secret: ""
@@ -1659,7 +1666,8 @@ openarchiefbeheer:
       # -- Set to debug for test/acceptance environments
       logLevel: warning
       brokerUrl: redis://redis-ha-master:6379/14
-      resultBackendl: redis://redis-ha-master:6379/14
+      # The openarchiefbeheer chart 2.1.0 reads resultBackend; the misspelled resultBackendl left it empty.
+      resultBackend: redis://redis-ha-master:6379/14
 
   persistence:
     size: 10Gi
@@ -3706,12 +3714,11 @@ zac:
         create: false
       hooks:
         # The post-install/upgrade and pre-delete hooks only run sh, kubectl and
-        # grep. Same image and tag as redis-ha's label-master Job, instead of the
-        # sub-chart default lachlanevenson/k8s-kubectl (unofficial, Kubernetes
-        # 1.25, end of life). Environments that override hooks.image.repository
-        # must point it at their mirror of alpine/k8s. The redisHaK8sImage anchor
-        # keeps both on one pin.
-        image: *redisHaK8sImage
+        # grep. global.images.alpineK8s, shared with the redis-ha Jobs, instead of
+        # the sub-chart default lachlanevenson/k8s-kubectl (unofficial, Kubernetes
+        # 1.25, end of life). Environments point hooks.image.repository at their
+        # ACR mirror of alpine/k8s.
+        image: *alpineK8sImage
         # alpine/k8s runs as root (no USER in the image) and kubectl writes its
         # cache under $HOME=/root, which this sub-chart cannot redirect; so no
         # runAsNonRoot here until that is tested. The rest cannot break sh,
