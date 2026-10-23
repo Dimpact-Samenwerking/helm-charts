@@ -74,7 +74,48 @@ ZGW APIs and Objects API registration backends that use direct
 catalogue + type description format before 4.0. Open Forms 4.0 will refuse
 to start if it detects legacy configuration.
 
-A migration tool is available since 3.5.3:
+A migration tool is available since 3.5.3. It stops the whole run, and
+migrates nothing, on the first registration it can't validate. It then prints
+only "The registration options are not valid." or "No service configured",
+without the form. Two causes are common:
+
+- Objects API registrations at options version 2 that still hold keys of
+  version 1 (`content_json`, `productaanvraag_type`). Open Forms reports them
+  as "niet van toepassing in v2" and doesn't use them. Saving the
+  registration once in the form designer removes them.
+- A registration, or a `file` component's `registration.informatieobjecttype`,
+  that points at a Catalogi without a configured service, for example a URL of
+  another environment. This is often on old copies of a form in the trash.
+
+Check for both first, read-only, with
+[`scripts/openforms-check-registration-options.py`](../../../scripts/openforms-check-registration-options.py).
+It prints one line per problem: `V1_KEYS` (with the keys to remove),
+`NO_SERVICE` (with the URL), or `INVALID` (any other error), and a summary
+line. 0 problems means the migration tool won't stop on these:
+
+```bash
+kubectl exec -i -n <ns> deploy/openformulieren -c openformulieren -- \
+  python src/manage.py shell < charts/podiumd/scripts/openforms-check-registration-options.py
+```
+
+Remove the v1-only keys with
+[`scripts/openforms-fix-registration-options.py`](../../../scripts/openforms-fix-registration-options.py).
+It only touches registrations whose every error is a v1-only key, does all
+changes in one transaction, and prints the original options as `BACKUP_JSON`:
+save that output. Without `APPLY=1` it is a dry run that rolls back:
+
+```bash
+# Dry run:
+kubectl exec -i -n <ns> deploy/openformulieren -c openformulieren -- \
+  python src/manage.py shell < charts/podiumd/scripts/openforms-fix-registration-options.py
+# Apply:
+kubectl exec -i -n <ns> deploy/openformulieren -c openformulieren -- \
+  env APPLY=1 python src/manage.py shell < charts/podiumd/scripts/openforms-fix-registration-options.py
+```
+
+Fix `NO_SERVICE` references by hand (correct or clear the URL, or delete the
+trashed form), and run the check again until it reports 0. Then run the
+migration tool:
 
 ```bash
 # Dry run (reports issues without making changes):

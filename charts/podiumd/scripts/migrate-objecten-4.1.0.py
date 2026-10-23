@@ -966,15 +966,27 @@ def _plan_openzaak_item(objecten: dict, header) -> tuple[dict | None, str | None
             "object_types": object_types}, None
 
 
+# Words YAML 1.1 reads as a boolean or null when they are unquoted.
+YAML_WORDS = {"y", "n", "yes", "no", "on", "off", "true", "false", "null", "nil", "none"}
+
+
 def _flow(value) -> str:
     """A scalar or a {value_from: {env: ...}} mapping as one YAML line."""
     if isinstance(value, dict):
         return "{" + ", ".join(f"{k}: {_flow(v)}" for k, v in value.items()) + "}"
     if isinstance(value, bool):
         return "true" if value else "false"
-    if isinstance(value, str) and re.fullmatch(r"[A-Za-z][\w.@ -]*", value) and not value.endswith(" "):
+    if (isinstance(value, str) and re.fullmatch(r"[A-Za-z][\w.@ -]*", value) and not value.endswith(" ")
+            and value.lower() not in YAML_WORDS):
         return value
     return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def _quoted(value) -> str:
+    """A string scalar in double quotes, as the environment values write object type UUIDs and placeholders."""
+    if not isinstance(value, str):
+        return _flow(value)
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 def _openzaak_item(plan: dict) -> dict:
@@ -996,7 +1008,9 @@ def _openzaak_item_lines(plan: dict, dash_col: int) -> list[str]:
     out += [f"{pad}  {key}: {_flow(item[key])}" for key in ("contact_person", "email") if key in item]
     out += [f"{pad}  is_superuser: false", f"{pad}  permissions:"]
     for perm in item["permissions"]:
-        out += [f"{pad}    - object_type: {_flow(perm['object_type'])}", f"{pad}      mode: read_only"]
+        # Quoted like the environment values write object types: an unquoted
+        # placeholder (REP_..._REP) fails the SSC quoting check.
+        out += [f"{pad}    - object_type: {_quoted(perm['object_type'])}", f"{pad}      mode: read_only"]
     return out
 
 
