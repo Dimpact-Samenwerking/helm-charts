@@ -65,6 +65,24 @@
 {{- end -}}
 {{- end -}}
 
+{{- /* 4.10.0 no longer ships an example htpasswd user for Open Inwoner's nginx
+     basic auth. With basicAuth on and no users, the .basicauth Secret is empty
+     and nginx refuses everyone. */ -}}
+{{- $oipBasicAuth := ((.Values.openinwoner.nginx | default dict).config | default dict).basicAuth | default dict -}}
+{{- if and .Values.openinwoner.enabled $oipBasicAuth.enabled (not (trim (toString ($oipBasicAuth.users | default "")))) -}}
+{{- fail "openinwoner.nginx.config.basicAuth.enabled needs openinwoner.nginx.config.basicAuth.users (htpasswd lines): 4.10.0 no longer ships an example user. See openinwoner in docs/_UPGRADE_PATHS/4.9.5-to-4.10.0-upgrade.md" -}}
+{{- end -}}
+
+{{- /* The openobject chart's own required check never fires on the shipped
+     objecten.example.nl default, so an environment that keeps it runs with
+     SITE_DOMAIN=objecten.example.nl. */ -}}
+{{- if .Values.objecten.enabled -}}
+{{- $siteDomain := toString ((.Values.objecten.settings | default dict).siteDomain | default "") -}}
+{{- if contains "example.nl" $siteDomain -}}
+{{- fail (printf "objecten.settings.siteDomain is still the example.nl placeholder (found %q): set it to this environment's public Open Object hostname (the migrate-objecten-4.1.0.py script sets it from the old objecten values)" $siteDomain) -}}
+{{- end -}}
+{{- end -}}
+
 {{- /* Open Inwoner's admin OIDC needs the providers schema (mozilla-django-oidc-db 2.x,
      since Open Inwoner 2.4.0). An item without oidc_provider_identifier, or with
      the old flat fields, fails setup-configuration; since openinwoner chart 2.6.0
