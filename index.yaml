@@ -853,6 +853,129 @@ entries:
     version: 1.0.0
   podiumd:
   - apiVersion: v2
+    appVersion: 4.10.0
+    created: "2026-10-23T13:15:55.412450578Z"
+    dependencies:
+    - condition: keycloak-operator.enabled
+      name: keycloak-operator
+      repository: '@adfinis'
+      version: 1.13.1
+    - condition: clamav.enabled
+      name: clamav
+      repository: '@wiremind'
+      version: 3.7.3
+    - alias: brppersonenmock
+      condition: brppersonenmock.enabled
+      name: brp-personen-mock
+      repository: '@dimpact'
+      version: 1.2.9
+    - alias: mi
+      condition: mi.enabled
+      name: mi-data
+      repository: file://../mi-data
+      version: 1.1.0
+    - condition: openzaak.enabled
+      name: openzaak
+      repository: '@maykinmedia'
+      version: 1.14.2
+    - condition: opennotificaties.enabled
+      name: opennotificaties
+      repository: '@maykinmedia'
+      version: 2.1.0
+    - alias: objecten
+      condition: objecten.enabled
+      name: openobject
+      repository: '@maykinmedia'
+      version: 1.2.0
+    - condition: openarchiefbeheer.enabled
+      name: openarchiefbeheer
+      repository: '@maykinmedia'
+      version: 2.1.0
+    - condition: openklant.enabled
+      name: openklant
+      repository: '@maykinmedia'
+      version: 1.11.0
+    - alias: openformulieren
+      condition: openformulieren.enabled
+      name: openforms
+      repository: '@maykinmedia'
+      version: 1.13.0
+    - condition: openinwoner.enabled
+      name: openinwoner
+      repository: '@maykinmedia'
+      version: 2.6.0
+    - alias: referentielijsten
+      condition: referentielijsten.enabled
+      name: referentielijsten
+      repository: '@maykinmedia'
+      version: 0.2.0
+    - condition: openbeheer.enabled
+      name: openbeheer
+      repository: '@maykinmedia'
+      version: 0.1.3
+    - condition: openvtb.enabled
+      name: openvtb
+      repository: '@maykinmedia'
+      version: 0.2.0
+    - alias: zac
+      condition: zac.enabled
+      name: zaakafhandelcomponent
+      repository: '@zac'
+      tags:
+      - zaak
+      version: 1.0.355
+    - condition: zaakbrug.enabled
+      name: zaakbrug
+      repository: https://wearefrank.github.io/charts
+      tags:
+      - zaak
+      version: 2.3.33
+    - condition: zgw-office-addin.enabled
+      name: zgw-office-addin
+      repository: '@zgw-office-addin'
+      version: 0.0.93
+    - alias: ita
+      condition: ita.enabled
+      name: internetaakafhandeling
+      repository: oci://ghcr.io/interne-taak-afhandeling
+      version: 3.3.4
+    - alias: kiss
+      condition: kiss.enabled
+      name: kiss-chart
+      repository: oci://ghcr.io/klantinteractie-servicesysteem
+      version: 3.2.0
+    - alias: pabc
+      condition: pabc.enabled
+      name: pabc
+      repository: oci://ghcr.io/platform-autorisatie-beheer-component
+      version: 2.1.0
+    - alias: omc
+      condition: omc.enabled
+      name: notifynl-omc-nodep
+      repository: '@worth-nl'
+      version: 0.17.4
+    - condition: redis-operator.enabled
+      name: redis-operator
+      repository: '@opstree'
+      version: 0.27.0
+    - condition: eck-operator.enabled
+      name: eck-operator
+      repository: https://helm.elastic.co
+      tags:
+      - eck-operator
+      version: 3.5.0
+    - condition: openbao.enabled
+      name: openbao
+      repository: https://openbao.github.io/openbao-helm
+      version: 0.30.3
+    description: PodiumD Helm chart
+    digest: ea731ef0d94372f736d918a51e0809d37250228cf5a4a36fb245bf833b3b4d93
+    name: podiumd
+    type: application
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/podiumd-4.10.0-feature-podiumd-4.10.0-snapshot/podiumd-4.10.0-feature-podiumd-4.10.0-snapshot.tgz
+    version: 4.10.0-feature-podiumd-4.10.0-snapshot
+  - apiVersion: v2
     appVersion: 4.9.5
     created: "2026-10-15T15:43:24.948928267Z"
     dependencies:
@@ -26479,4 +26602,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.0.0/zac-1.0.0.tgz
     version: 1.0.0
-generated: "2026-10-15T15:43:24.950194387Z"
+generated: "2026-10-23T13:15:55.413890725Z"
