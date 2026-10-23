@@ -3,15 +3,13 @@ missing entries and removing stale ones."""
 
 from collections.abc import Collection
 from dataclasses import dataclass
+from dataclasses import field
 from functools import cached_property
 from pathlib import Path
 from typing import Literal
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.historical_baselines import baseline_lookup
-from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
-from lib.chart.historical_baselines import historical_app_version_for_path
-from lib.chart.nested_subchart_identity import documented_repository_for_path
 from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
 from lib.chart.registered_paths import is_primary_image_path
 from lib.chart.repo_and_path_resolution import full_repository_for_path
@@ -26,6 +24,8 @@ from lib.component_docs.images_manifest_changes_header import find_images_manife
 from lib.component_docs.images_manifest_changes_header import images_manifest_changes_block
 from lib.component_docs.images_manifest_changes_header import insert_images_manifest_header_item
 from lib.component_docs.images_manifest_changes_header import remove_changes_item
+from lib.fix_doc_consistency.manifest_entries_core import BaselineRelease
+from lib.fix_doc_consistency.manifest_entries_core import entry_baseline_version
 from lib.image.repository_check import find_images_without_repository
 from lib.images_manifest import ENTRY_NAME_RE
 from lib.images_manifest import ENTRY_URL_RE
@@ -34,8 +34,6 @@ from lib.images_manifest import entry_field_line
 from lib.images_manifest import entry_line_indices
 from lib.images_manifest import parse_manifest_lines
 from lib.images_manifest import try_parse_images_manifest
-from lib.registry import parse_repo
-from lib.registry import registry_tag_exists
 from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
@@ -80,7 +78,7 @@ class MissingEntriesContext:
     target_values: YamlMapping
     baseline_values: YamlMapping | None
     allow_pull: bool = False
-    upgrade_docs_baseline: str | None = None
+    baseline_release: BaselineRelease = field(default_factory=BaselineRelease)
     indexes: StateImageIndexes | None = None
 
     @cached_property
@@ -257,7 +255,7 @@ def _manifest_list_diff(
             context=ManifestDiffContext(
                 chart_dir=context.chart_dir,
                 deps=context.deps,
-                upgrade_docs_baseline=context.upgrade_docs_baseline,
+                upgrade_docs_baseline=context.baseline_release.name,
                 values=context.target_values,
                 baseline_values=context.baseline_values,
             ),
@@ -283,36 +281,6 @@ def _entries_resolution(context: MissingEntriesContext) -> MissingEntriesResolut
     )
 
 
-def _pinned_tag_for_path(
-    path: tuple[str, ...],
-    context: MissingEntriesContext,
-    resolution: MissingEntriesResolution,
-    current_tag: str,
-    name: str,
-) -> str | None:
-    """Digest-pinned tag for `path`. With allow_pull and no local digest
-    (e.g. eck-stack's bare "version:" fields), asks the registry; else
-    None."""
-    pinned_tag = resolved_digest_pin(context.target_values, path, current_tag, resolution.sibling_fields)
-    if pinned_tag is not None or not context.allow_pull:
-        return pinned_tag
-    full_repo = documented_repository_for_path(context.chart_dir, context.deps, path)
-    if not full_repo:
-        return None
-    host, repo_path = parse_repo(full_repo)
-    print(f"  fetching digest for {full_repo}:{current_tag} from the registry...")
-    try:
-        # OSError covers urllib errors and non-JSON responses; a registry
-        # hiccup must skip the entry, not abort a partial rewrite.
-        exists, digest_hex = registry_tag_exists(host, repo_path, current_tag)
-    except OSError as e:
-        print(f"  registry lookup failed ({e}) — skipping {name}")
-        exists, digest_hex = False, None
-    if exists and digest_hex:
-        return f"{current_tag}@{digest_hex}"
-    return None
-
-
 def _entry_fields_for_missing_path(
     path: tuple[str, ...], context: MissingEntriesContext, resolution: MissingEntriesResolution
 ) -> tuple[str, AddedEntryFields | None]:
@@ -328,7 +296,7 @@ def _entry_fields_for_missing_path(
     )
     current_tag = resolution.current_paths[path]
     name = path_display_name(path, context.deps, resolution.canonical_names)
-    pinned_tag = _pinned_tag_for_path(path, context, resolution, current_tag, name)
+    pinned_tag = resolved_digest_pin(context.target_values, path, current_tag, resolution.sibling_fields)
     if repo is None or pinned_tag is None:
         return name, None
     return name, AddedEntryFields(name, repo, full_repo_url, pinned_tag)
@@ -343,8 +311,7 @@ def _entry_old_version_and_digest_change(
 ) -> tuple[str | None, bool]:
     """(old_version, digest_only_change) for a new entry's comment: from the
     baseline path (flagging a same-version re-pin so it doesn't render
-    "<v> -> <v>"), else baseline_tag_for_sidecar_path, else past
-    manifests."""
+    "<v> -> <v>"), else entry_baseline_version."""
     baseline_tag = resolution.baseline.baseline_paths.get(path)
     if baseline_tag:
         old_version = version_of(baseline_tag)
@@ -357,16 +324,13 @@ def _entry_old_version_and_digest_change(
                 digest_only_change = pinned_tag.split("@", 1)[1] != baseline_pinned_tag.split("@", 1)[1]
         return old_version, digest_only_change
 
-    old_version = baseline_tag_for_sidecar_path(
+    old_version = entry_baseline_version(
         baseline_lookup(
             context.chart_dir, context.deps, context.target_values, context.baseline_values, resolution.baseline
         ),
         path,
+        context.baseline_release,
     )
-    if old_version is None:
-        old_version = historical_app_version_for_path(
-            context.chart_dir, context.deps, context.target_values, path, context.upgrade_docs_baseline
-        )
     return old_version, False
 
 
@@ -491,8 +455,8 @@ def add_missing_images_manifest_entries(
     Inserted in values.yaml component order; unresolvable existing items
     sort last without moving. "name:" is the stripped repository, not the
     curated ACR mirror slug (no mechanical formula; a human corrects it).
-    version/digest come from the pinned tag in target_values;
-    context.allow_pull lets an undigested tag be looked up in the registry.
+    version/digest come from the pinned tag in target_values; context.allow_pull
+    lets the "url:" repository come from a pulled chart when it isn't vendored.
     Paths without a digest or repository are reported as skipped, never
     written incomplete.
 

@@ -44,6 +44,7 @@ from lib.fix_doc_consistency.component_version_table import remove_unchanged_com
 from lib.fix_doc_consistency.manifest_changes_items import correct_stale_changes_items
 from lib.fix_doc_consistency.manifest_changes_items import dedupe_images_manifest_changes_items
 from lib.fix_doc_consistency.manifest_changes_items import sort_images_manifest_changes_items
+from lib.fix_doc_consistency.manifest_entries_core import BaselineRelease
 from lib.fix_doc_consistency.manifest_entries_core import ManifestEntriesContext
 from lib.fix_doc_consistency.manifest_entries_core import fix_images_manifest_entries
 from lib.fix_doc_consistency.manifest_entries_new_and_urls import MissingEntriesContext
@@ -57,6 +58,7 @@ from lib.fix_doc_consistency.text_helpers_and_repo_rename import find_collisions
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import git_mv
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import join_and
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import remaining_mentions
+from lib.fix_doc_consistency.text_helpers_and_repo_rename import retarget_heading_links
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import update_component_versions_heading
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import update_title_line
 from lib.gitutil import baseline_ref_candidates
@@ -208,7 +210,7 @@ class RebaseState:
             self.target_values,
             self.baseline_values,
             allow_pull=True,
-            upgrade_docs_baseline=self.new_baseline,
+            baseline_release=BaselineRelease(self.new_baseline, self.baseline_deps),
             indexes=self.image_indexes,
         )
 
@@ -521,9 +523,9 @@ def _fix_upgrade_doc_headings(text: str, state: RebaseState, upgrade_path: Path)
     return text, changed
 
 
-def _add_missing_pin_bullets(text: str, upgrade_path: Path, values_yaml: Path) -> tuple[str, bool]:
+def _add_missing_pin_bullets(text: str, upgrade_path: Path, state: RebaseState) -> tuple[str, bool]:
     """Add a pin bullet for each path sharing a YAML anchor with a documented one. Returns (text, changed)."""
-    text, added = add_missing_pin_bullets(text, alias_groups(values_yaml))
+    text, added = add_missing_pin_bullets(text, alias_groups(state.paths.values_yaml), state.baseline_values)
     items = [f"'### {m.heading}': {m.missing_path} (shares an anchor with {m.documented_path})" for m in added]
     return text, print_section_items(
         f"Adding pin bullet(s) for paths sharing a YAML anchor in {upgrade_path.name}", items
@@ -574,11 +576,18 @@ def _reorder_upgrade_doc(text: str, upgrade_path: Path, state: RebaseState):
     return text, bool(moved_rows or moved_blocks)
 
 
+def _retarget_heading_links(original: str, text: str, doc_path: Path):
+    """Point links at the headings this run renamed in `doc_path`. Returns (text, changed)."""
+    text, retargeted = retarget_heading_links(original, text)
+    return text, print_section_items(f"Updating link(s) to renamed heading(s) in {doc_path.name}", retargeted)
+
+
 def _fix_upgrade_doc(state: RebaseState, upgrade_path: Path, actual_changed_keys: set[str]):
     """Fix the upgrade doc; writes only if something changed."""
     if not upgrade_path.is_file():
         return
-    text = upgrade_path.read_text(encoding="utf-8")
+    original = upgrade_path.read_text(encoding="utf-8")
+    text = original
 
     changed: list[bool] = []
     text, step_changed = _remove_unchanged_component_rows(text, upgrade_path, state)
@@ -594,11 +603,13 @@ def _fix_upgrade_doc(state: RebaseState, upgrade_path: Path, actual_changed_keys
     changed += [bool(added_names), bool(added_sidecar_names)]
     text, step_changed = _fix_upgrade_doc_headings(text, state, upgrade_path)
     changed.append(step_changed)
-    text, step_changed = _add_missing_pin_bullets(text, upgrade_path, state.paths.values_yaml)
+    text, step_changed = _add_missing_pin_bullets(text, upgrade_path, state)
     changed.append(step_changed)
     text, step_changed = _fix_pointer_issues(text, upgrade_path, state)
     changed.append(step_changed)
     text, step_changed = _reorder_upgrade_doc(text, upgrade_path, state)
+    changed.append(step_changed)
+    text, step_changed = _retarget_heading_links(original, text, upgrade_path)
     changed.append(step_changed)
 
     # Also collapse double blank lines that predate this run.
@@ -647,7 +658,7 @@ def _correct_images_manifest_entries(images_path: Path, state: RebaseState, repo
             state.target_values,
             state.baseline_values,
             repo_map,
-            upgrade_docs_baseline=state.new_baseline,
+            baseline_release=BaselineRelease(state.new_baseline, state.baseline_deps),
         ),
     )
     if changed_entries:
@@ -824,8 +835,10 @@ def _fix_images_manifest_content(state: RebaseState, images_path: Path, upgrade_
     _remove_removed_images_manifest_entries(images_path, state)
     _correct_images_manifest_entries(images_path, state, repo_map)
     _add_missing_images_manifest_entries(images_path, state)
-    _dedupe_images_manifest_changes_items(images_path)
+    # Correct before deduping: a stale copy ("1.1.0 -> 1.1.3") only becomes a
+    # duplicate of the current item ("1.1.0 -> 1.1.4") once corrected.
     _fix_stale_changes_items(images_path, state, upgrade_path, canonical_names)
+    _dedupe_images_manifest_changes_items(images_path)
     _sort_images_manifest(images_path, state, repo_map, canonical_names)
     _renumber_images_manifest_changes_items(images_path)
 
@@ -918,9 +931,14 @@ def _fix_values_deltas(state: RebaseState, upgrade_path: Path, values_deltas_pat
         return
 
     changed_keys = compute_changed_components(
-        state.target_deps, state.baseline_deps, state.target_values, state.baseline_values
+        state.target_deps,
+        state.baseline_deps,
+        state.target_values,
+        state.baseline_values,
+        chart_dir=state.paths.chart_dir,
     )
-    text = values_deltas_path.read_text(encoding="utf-8")
+    original = values_deltas_path.read_text(encoding="utf-8")
+    text = original
     canonical_names = state.resolution.target_index.canonical_names
 
     text, sections_changed = _sync_values_delta_sections(text, state, values_deltas_path, changed_keys, canonical_names)
@@ -928,13 +946,14 @@ def _fix_values_deltas(state: RebaseState, upgrade_path: Path, values_deltas_pat
     text, dropped = _drop_removed_values_delta_sections(text, state, values_deltas_path)
     text, pruned = _prune_empty_values_delta_sections(text, values_deltas_path)
     text, reordered = _sort_values_delta_sections(text, state, values_deltas_path, canonical_names)
+    text, links_retargeted = _retarget_heading_links(original, text, values_deltas_path)
 
     collapsed_text = collapse_multiple_blank_lines(text)
     blank_lines_fixed = collapsed_text != text
     if blank_lines_fixed:
         print_section(f"Collapsing multiple consecutive blank line(s) in {values_deltas_path.name}")
 
-    if any([sections_changed, headings_changed, dropped, pruned, reordered, blank_lines_fixed]):
+    if any([sections_changed, headings_changed, dropped, pruned, reordered, links_retargeted, blank_lines_fixed]):
         values_deltas_path.write_text(collapsed_text, encoding="utf-8")
 
 
@@ -952,7 +971,13 @@ def fix_docs(paths: FixDocPaths, target: str, new_baseline: str) -> RebaseState:
 
     state = _load_rebase_state(paths, target, new_baseline)
     actual_changed_keys: set[str] = (
-        compute_changed_components(state.target_deps, state.baseline_deps, state.target_values, state.baseline_values)
+        compute_changed_components(
+            state.target_deps,
+            state.baseline_deps,
+            state.target_values,
+            state.baseline_values,
+            chart_dir=state.paths.chart_dir,
+        )
         if state.baseline_deps is not None
         else set()
     )

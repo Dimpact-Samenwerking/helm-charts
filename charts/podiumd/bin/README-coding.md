@@ -165,8 +165,8 @@ cd charts/podiumd/bin
 ./run_python_checks
 ```
 
-Runs everything above, fastest first, stopping at the first failure. By
-hand, in the same order (`pymarkdown` lints this directory's `*.md` with the
+Upgrades the tools in `requirements.txt` first, then runs everything above,
+fastest first, stopping at the first failure. By hand, in the same order (`pymarkdown` lints this directory's `*.md` with the
 rules of `verify-podiumd`'s markdown check, which skips `bin/`):
 
 ```bash
@@ -181,8 +181,9 @@ bandit -c pyproject.toml -r lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -ty
 basedpyright lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)) tests
 pylint lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 PYTHONPATH=. pylint --disable="$tests_disable" $(find tests -name '*.py')  # tests_disable: see pylint above
-python3 -m pytest -q
+python3 -m pytest -q --cov --cov-report=term-missing:skip-covered
 ```
 
-Fix every test failure and new finding your change introduces;
+Coverage of `lib/` and the scripts must stay at or above `fail_under` in
+`pyproject.toml`. Fix every test failure and new finding your change introduces;
 pre-existing findings in code you did not touch may stay.

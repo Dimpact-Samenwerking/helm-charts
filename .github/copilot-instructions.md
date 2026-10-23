@@ -78,7 +78,7 @@ Does NOT define app containers directly. It:
   - `_helpers.tpl` — Shared label/name/image helpers
   - `serviceaccount.yaml` — Shared ServiceAccount for seeding jobs
 
-**Key sub-charts**: OpenZaak, OpenKlant, OpenFormulieren, OpenInwoner, OpenNotificaties, Objecten, Objecttypen, KISS, ZAC, Keycloak Operator, ClamAV, Redis Operator, more.
+**Key sub-charts**: OpenZaak, OpenKlant, OpenFormulieren, OpenInwoner, OpenNotificaties, Objecten (the `openobject` chart, aliased `objecten` — merges the former separate Objecten+Objecttypen), KISS, ZAC, Keycloak Operator, ClamAV, Redis Operator, more.
 
 **Component tags:**
 - `tags.contact: true` — KISS-related

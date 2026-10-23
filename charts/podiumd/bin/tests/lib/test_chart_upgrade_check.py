@@ -1,5 +1,7 @@
 """lib.chart.upgrade_check — version comparison, index parsing, sources, caching and the report."""
 
+import io
+
 from pathlib import Path
 
 import pytest
@@ -9,8 +11,8 @@ from lib.chart.chart_yaml import parse_chart_dependencies
 from lib.chart.upgrade_check import ChartSource
 from lib.chart.upgrade_check import chart_sources
 from lib.chart.upgrade_check import check_chart_upgrades
-from lib.chart.upgrade_check import index_chart_versions
-from lib.chart.upgrade_check import newest_stable_version
+from lib.chart.upgrade_check import index_chart_releases
+from lib.chart.upgrade_check import newer_stable_versions
 
 INDEX = """\
 apiVersion: v1
@@ -24,18 +26,47 @@ entries:
     - version: 9.9.9
 """
 
+INDEX_WITH_APP_VERSIONS = """\
+apiVersion: v1
+entries:
+  zaakafhandelcomponent:
+    - version: 1.0.310
+      appVersion: 5.10.0
+    - version: 1.0.297
+      appVersion: "5.9.1"
+    - version: 1.0.200
+      appVersion: 5.1
+"""
 
-def test_newest_stable_version_compares_numerically_and_skips_prereleases():
-    assert newest_stable_version("1.0.9", ["1.0.10", "1.0.2", "2.0.0-beta.1"]) == "1.0.10"
-    assert newest_stable_version("1.0.9", ["1.0.8"]) == "1.0.9"
+
+def test_newer_stable_versions_compares_numerically_and_skips_prereleases():
+    assert newer_stable_versions("1.0.9", ["1.0.10", "1.0.2", "2.0.0-beta.1"]) == ["1.0.10"]
+    assert newer_stable_versions("1.0.9", ["1.0.8"]) == []
     # A pin that isn't stable semver is never reported as upgradable.
-    assert newest_stable_version("0.0.1-dev", ["1.0.0"]) == "0.0.1-dev"
+    assert newer_stable_versions("0.0.1-dev", ["1.0.0"]) == []
 
 
-def test_index_chart_versions_reads_only_the_named_chart():
-    assert index_chart_versions(INDEX, "zaakafhandelcomponent", "t") == ["1.0.310", "1.1.0-rc.1", "1.0.297"]
-    assert not index_chart_versions(INDEX, "missing", "t")
-    assert not index_chart_versions("apiVersion: v1\n", "zaakafhandelcomponent", "t")
+def test_newer_stable_versions_lists_the_newest_per_major():
+    published = ["1.1.1", "1.1.4", "1.2.0", "2.0.3", "2.1.0", "3.0.0-rc.1"]
+    assert newer_stable_versions("1.1.1", published) == ["1.2.0", "2.1.0"]
+
+
+def test_index_chart_releases_reads_only_the_named_chart():
+    assert index_chart_releases(INDEX, "zaakafhandelcomponent", "t") == {
+        "1.0.310": None,
+        "1.1.0-rc.1": None,
+        "1.0.297": None,
+    }
+    assert not index_chart_releases(INDEX, "missing", "t")
+    assert not index_chart_releases("apiVersion: v1\n", "zaakafhandelcomponent", "t")
+
+
+def test_index_chart_releases_reads_app_versions_as_text():
+    assert index_chart_releases(INDEX_WITH_APP_VERSIONS, "zaakafhandelcomponent", "t") == {
+        "1.0.310": "5.10.0",
+        "1.0.297": "5.9.1",
+        "1.0.200": "5.1",
+    }
 
 
 def test_chart_sources_resolve_aliases_and_skip_file_dependencies(tmp_path: Path):
@@ -71,28 +102,66 @@ dependencies:
 """
 
 
-def test_check_reports_newer_charts_caches_them_and_never_fails(
+class _Response(io.BytesIO):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        self.close()
+
+
+def test_check_reports_newer_charts_with_app_versions_caches_them_and_never_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    """A classic repository's appVersions come from index.yaml, an OCI chart's from its config blob."""
+    (tmp_path / "Chart.yaml").write_text(CHART_YAML)
+    calls: list[str] = []
+
+    def fake_urlopen(url: str, timeout: float) -> _Response:
+        calls.append(url)
+        return _Response(INDEX_WITH_APP_VERSIONS.encode())
+
+    def fake_list_tags(host: str, repo: str) -> list[str]:
+        calls.append(f"{host}/{repo}")
+        return ["2.0.0", "2.1.0", "3.0.0"]
+
+    monkeypatch.setattr(upgrade_check.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(upgrade_check, "list_tags", fake_list_tags)
+    monkeypatch.setattr(upgrade_check, "chart_app_version", lambda host, repo, version, timeout: f"app-{version}")
+    monkeypatch.setattr(upgrade_check, "subchart_app_version", lambda chart_dir, dep: "5.9.1")
+
+    assert check_chart_upgrades(tmp_path) == (True, "upgradable: 2/2 chart(s); 0 fetch error(s)")
+    out = capsys.readouterr().out
+    assert (
+        "zac (zaakafhandelcomponent) app 5.9.1, chart 1.0.297: newest version per major: app 5.10.0, chart 1.0.310"
+        in out
+    )
+    assert (
+        "ita (ita) app 5.9.1, chart 2.0.0: newest version per major: app app-2.1.0, chart 2.1.0 | "
+        "app app-3.0.0, chart 3.0.0" in out
+    )
+
+    # A second run within the TTL is served from the cache, app versions included.
+    assert check_chart_upgrades(tmp_path)[0]
+    assert calls == ["https://example.org/zac/index.yaml", "ghcr.io/org/ita"]
+    out = capsys.readouterr().out
+    assert "2/2 chart(s) served from cache" in out
+    assert "app app-3.0.0, chart 3.0.0" in out
+
+
+def test_check_omits_an_unset_app_version(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
     (tmp_path / "Chart.yaml").write_text(CHART_YAML)
-    published = {"zaakafhandelcomponent": ["1.0.297", "1.0.310"], "ita": ["2.0.0"]}
-    calls: list[str] = []
+    monkeypatch.setattr(upgrade_check.urllib.request, "urlopen", lambda url, timeout: _Response(INDEX.encode()))
+    monkeypatch.setattr(upgrade_check, "list_tags", lambda host, repo: ["2.0.0"])
+    monkeypatch.setattr(upgrade_check, "subchart_app_version", lambda chart_dir, dep: None)
 
-    def fake_versions(_self: object, source: ChartSource) -> list[str]:
-        calls.append(source.chart)
-        return published[source.chart]
-
-    monkeypatch.setattr(upgrade_check._Fetcher, "versions", fake_versions)  # pyright: ignore[reportPrivateUsage]
-
-    assert check_chart_upgrades(tmp_path) == (True, "upgradable: 1/2 chart(s); 0 fetch error(s)")
-    out = capsys.readouterr().out
-    assert "zac (zaakafhandelcomponent 1.0.297): newer chart version available: 1.0.310" in out
-    assert "ita (ita 2.0.0): newer" not in out
-
-    # A second run within the TTL is served from the cache.
-    assert check_chart_upgrades(tmp_path)[0]
-    assert calls == ["zaakafhandelcomponent", "ita"]
-    assert "2/2 chart(s) served from cache" in capsys.readouterr().out
+    check_chart_upgrades(tmp_path)
+    assert (
+        "zac (zaakafhandelcomponent) chart 1.0.297: newest version per major: chart 1.0.310\n"
+        in capsys.readouterr().out
+    )
 
 
 def test_check_reports_a_fetch_error_as_incomplete(
@@ -100,11 +169,11 @@ def test_check_reports_a_fetch_error_as_incomplete(
 ):
     (tmp_path / "Chart.yaml").write_text(CHART_YAML)
 
-    def failing_versions(_self: object, _source: ChartSource) -> list[str]:
+    def failing_newer(_self: object, _source: ChartSource) -> tuple[list[str], list[str | None]]:
         msg = "unreachable"
         raise OSError(msg)
 
-    monkeypatch.setattr(upgrade_check._Fetcher, "versions", failing_versions)  # pyright: ignore[reportPrivateUsage]
+    monkeypatch.setattr(upgrade_check._Fetcher, "newer", failing_newer)  # pyright: ignore[reportPrivateUsage]
 
     assert check_chart_upgrades(tmp_path) == (True, "upgradable: 0/2 chart(s); 2 fetch error(s)")
     out = capsys.readouterr().out

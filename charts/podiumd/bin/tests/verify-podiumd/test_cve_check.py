@@ -5,10 +5,11 @@ treatment; `run` is mocked throughout, so no docker/trivy/registry call happens.
 The image-upgrade cache is read (read-only) to annotate "upgradable" findings."""
 
 import json
+import urllib.error
 
+from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
-from datetime import timezone
 from pathlib import Path
 from types import ModuleType
 from types import SimpleNamespace
@@ -147,6 +148,27 @@ def test_run_trivy_trims_vulnerabilities_to_reporting_fields(libcvecheck: Module
     assert libcvecheck.run_trivy("org/repo:1.0.0") == [trimmed(raw)]
 
 
+def test_run_trivy_uses_the_host_network_and_the_shared_database_cache(
+    libcvecheck: ModuleType, monkeypatch: pytest.MonkeyPatch
+):
+    """No bridge veth per scan (ERR_NETWORK_CHANGED in local browsers), and one database download for all scans."""
+    commands = []
+
+    def run(cmd, **kwargs):
+        commands.append(cmd)
+        return trivy_result(stdout="{}")
+
+    monkeypatch.setattr(libcvecheck, "run", run)
+    libcvecheck.run_trivy("org/repo:1.0.0")
+    assert len(commands) == 1
+    cmd = commands[0]
+    docker_args = cmd[: cmd.index(libcvecheck.TRIVY_IMAGE)]
+    assert docker_args[docker_args.index("--network") + 1] == "host"
+    assert docker_args[docker_args.index("--volume") + 1] == "trivy-cache:/root/.cache/trivy"
+    assert cmd[cmd.index("--cache-backend") + 1] == "memory"
+    assert cmd[-1] == "org/repo:1.0.0"
+
+
 def test_run_trivy_handles_missing_results_and_vulnerabilities_keys(
     libcvecheck: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
@@ -184,7 +206,7 @@ def test_scan_cached_reports_a_hit_and_never_calls_run_trivy(
 ):
     key = libcvecheck.cache_key("org/repo", DIGEST_A)
     cached_entry = {
-        "scanned_at": datetime.now(timezone.utc).isoformat(),
+        "scanned_at": datetime.now(UTC).isoformat(),
         "vulnerabilities": [trimmed(vuln("CRITICAL", cve="CVE-CACHED"))],
     }
     old_cache = {key: cached_entry}
@@ -238,7 +260,7 @@ def test_scan_cached_reports_a_fresh_scan_and_writes_the_cache(
 
 def test_scan_cached_stale_entry_is_not_used(libcvecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     key = libcvecheck.cache_key("org/repo", DIGEST_A)
-    stale = datetime.now(timezone.utc) - timedelta(days=CVE_CACHE_TTL_DAYS + 1)
+    stale = datetime.now(UTC) - timedelta(days=CVE_CACHE_TTL_DAYS + 1)
     old_cache = {key: {"scanned_at": stale.isoformat(), "vulnerabilities": [trimmed(vuln("CRITICAL"))]}}
     fresh_vulns = [trimmed(vuln("HIGH", cve="CVE-FRESH"))]
     monkeypatch.setattr(libcvecheck, "run_trivy", lambda ref: fresh_vulns)
@@ -312,7 +334,7 @@ def test_scan_cached_default_label_is_this_image(
 
 def test_open_cache_session_new_cache_is_a_separate_copy(libcvecheck: ModuleType, tmp_path: Path):
     key = libcvecheck.cache_key("org/repo", DIGEST_A)
-    entry = {"scanned_at": datetime.now(timezone.utc).isoformat(), "vulnerabilities": []}
+    entry = {"scanned_at": datetime.now(UTC).isoformat(), "vulnerabilities": []}
     libcvecheck.save_cache(tmp_path, {key: entry})
 
     old_cache, new_cache = libcvecheck.open_cache_session(tmp_path)
@@ -417,7 +439,7 @@ def test_render_image_labels_own_wins_over_other_sources(libcvecheck: ModuleType
         f"spec:\n  containers:\n    - name: b\n      image: shared/img:1.0@sha256:{DIGEST_A}\n"
     )
     labels = libcvecheck.render_image_labels(rendered, {})
-    assert labels[("shared/img", "1.0", DIGEST_A)] == "own"
+    assert labels[("docker.io/shared/img", "1.0", DIGEST_A)] == "own"
 
 
 # --- per-package grouping/summarization ---
@@ -568,8 +590,8 @@ def test_check_cves_marks_upgradable_from_image_upgrade_cache(
         chart_dir,
         {
             libimageupgradecache.cache_key("ghcr.io/wearefrank/frank-gateway", "104"): {
-                "checked_at": datetime.now(timezone.utc).isoformat(),
-                "newest": "105",
+                "checked_at": datetime.now(UTC).isoformat(),
+                "newer": ["105"],
             },
         },
     )
@@ -604,13 +626,13 @@ def test_check_cves_stale_upgrade_cache_entry_not_marked_upgradable(
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
 
-    stale = datetime.now(timezone.utc) - timedelta(days=1 + 1)
+    stale = datetime.now(UTC) - timedelta(days=1 + 1)
     libimageupgradecache.save_cache(
         chart_dir,
         {
             libimageupgradecache.cache_key("ghcr.io/wearefrank/frank-gateway", "104"): {
                 "checked_at": stale.isoformat(),
-                "newest": "105",
+                "newer": ["105"],
             },
         },
     )
@@ -843,7 +865,7 @@ def test_check_cves_cache_hit_skips_scanning(
         chart_dir,
         {
             key: {
-                "scanned_at": datetime.now(timezone.utc).isoformat(),
+                "scanned_at": datetime.now(UTC).isoformat(),
                 "vulnerabilities": [trimmed(vuln("CRITICAL", cve="CVE-CACHED"))],
             },
         },
@@ -875,7 +897,7 @@ def test_check_cves_expired_cache_entry_rescans(
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
     key = libcvecheck.cache_key("ghcr.io/wearefrank/frank-gateway", DIGEST_A)
-    stale = datetime.now(timezone.utc) - timedelta(days=CVE_CACHE_TTL_DAYS + 1)
+    stale = datetime.now(UTC) - timedelta(days=CVE_CACHE_TTL_DAYS + 1)
     libcvecheck.save_cache(
         chart_dir,
         {
@@ -903,7 +925,7 @@ def test_check_cves_preserves_entries_for_unpinned_images(
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
     unrelated_key = "org/proposed-candidate@sha256:" + "e" * 64
     unrelated_entry = {
-        "scanned_at": datetime.now(timezone.utc).isoformat(),
+        "scanned_at": datetime.now(UTC).isoformat(),
         "vulnerabilities": [trimmed(vuln("CRITICAL", cve="CVE-PROPOSED"))],
     }
     libcvecheck.save_cache(chart_dir, {unrelated_key: unrelated_entry})
@@ -930,3 +952,67 @@ def test_check_cves_still_updates_its_own_currently_pinned_targets(
     assert ok is True
     saved = libcvecheck.load_cache(chart_dir)
     assert libcvecheck.cache_key("ghcr.io/wearefrank/frank-gateway", DIGEST_A) in saved
+
+
+# --- resolve_scan_digest: a cache key for an unpinned tag ---
+
+
+def test_resolve_scan_digest_keeps_a_pinned_digest(libcvecheck: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    def fail_if_called(*_args):
+        pytest.fail("a pinned digest needs no registry lookup")
+
+    monkeypatch.setattr(libcvecheck, "registry_tag_exists", fail_if_called)
+    assert libcvecheck.resolve_scan_digest("org/repo", "1.0.0", DIGEST_A) == DIGEST_A
+
+
+def test_resolve_scan_digest_looks_up_an_unpinned_tag(libcvecheck: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    calls = []
+
+    def live(host, repo, tag):
+        calls.append((host, repo, tag))
+        return True, f"sha256:{DIGEST_B}"
+
+    monkeypatch.setattr(libcvecheck, "registry_tag_exists", live)
+    assert libcvecheck.resolve_scan_digest("docker.elastic.co/elasticsearch/elasticsearch", "8.19.23", None) == DIGEST_B
+    assert calls == [("docker.elastic.co", "elasticsearch/elasticsearch", "8.19.23")]
+
+
+@pytest.mark.parametrize(
+    "lookup",
+    [
+        lambda host, repo, tag: (False, None),
+        lambda host, repo, tag: (_ for _ in ()).throw(urllib.error.URLError("network down")),
+    ],
+    ids=["tag-missing", "network-error"],
+)
+def test_resolve_scan_digest_none_when_the_lookup_fails(
+    libcvecheck: ModuleType, monkeypatch: pytest.MonkeyPatch, lookup
+):
+    monkeypatch.setattr(libcvecheck, "registry_tag_exists", lookup)
+    assert libcvecheck.resolve_scan_digest("org/repo", "1.0.0", None) is None
+
+
+def test_check_cves_scans_an_unpinned_image_once_across_runs(
+    vp: ModuleType, libcvecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """An image without a digest is scanned by the digest its tag resolves to, so the next run is a cache hit."""
+    chart_dir = make_chart_dir(
+        tmp_path,
+        values='kiss-eck:\n  image:\n    repository: docker.elastic.co/kibana/kibana\n    tag: "8.19.23"\n',
+    )
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
+    monkeypatch.setattr(libcvecheck, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{DIGEST_C}"))
+    scanned = []
+
+    def run(cmd, **kwargs):
+        scanned.append(cmd[-1])
+        return trivy_result(stdout="{}")
+
+    monkeypatch.setattr(libcvecheck, "run", run)
+
+    vp.check_cves(chart_dir, [])
+    assert scanned == [f"docker.elastic.co/kibana/kibana@sha256:{DIGEST_C}"]
+
+    scanned.clear()
+    vp.check_cves(chart_dir, [])
+    assert scanned == []

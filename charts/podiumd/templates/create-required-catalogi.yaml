@@ -1,6 +1,14 @@
-{{- if .Values.openzaak.enabled }}
+{{- /* Renders exactly when the openzaak subchart does (podiumd.dependencyEnabled). */ -}}
+{{- if include "podiumd.dependencyEnabled" .Values.openzaak }}
 {{- if .Values.openzaak.configuration.enabled }}
 {{- if .Values.openzaak.create_required_catalogi_job.enabled }}
+{{- $job := .Values.openzaak.create_required_catalogi_job }}
+{{- range $key := list "client_id" "secret" }}
+{{- $v := trim (toString (index $job $key | default "")) }}
+{{- if or (not $v) (regexMatch "^<.*>$" $v) }}
+{{- fail (printf "openzaak.create_required_catalogi_job.%s is not set (found %q). The create-required-catalogi Job would get 401 from Open Zaak until its deadline. Set openzaak.create_required_catalogi_job.client_id and .secret to an Open Zaak API client with rights on the catalogi, or set openzaak.create_required_catalogi_job.enabled: false." $key $v) }}
+{{- end }}
+{{- end }}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -32,6 +40,7 @@ data:
     import time
     import os
     import jwt
+    from datetime import date, timedelta
 
     client_id = os.environ['CLIENT_ID']
     openzaak_url = os.environ['OPENZAAK_URL']
@@ -215,6 +224,7 @@ data:
         "gerelateerdeZaaktypen": []
     }
 
+    new_version_fields=set(zac_zaaktype)
     topublish_zaaktype={}
     response = requests.get(
         catalogi_url+"zaaktypen",
@@ -222,12 +232,40 @@ data:
         headers=headers
     )
     if(response.status_code in [200,201] and response.json()['count']>0):
-        zac_zaaktype=response.json()['results'][0]
+        # The current version: the one without an end date, else the newest.
+        versions=sorted(response.json()['results'], key=lambda z: z['versiedatum'])
+        zac_zaaktype=next((z for z in reversed(versions) if not z.get('eindeGeldigheid')), versions[-1])
 
     if('url' in zac_zaaktype):
         print(f"found zaaktype: {zac_zaaktype}")
         if(zac_zaaktype['concept']==True):
             topublish_zaaktype=zac_zaaktype
+        else:
+            # ZAC 5.6 and later only accept a behandelaar roltype with omschrijving "Behandelaar".
+            # A published zaaktype cannot get a new roltype, so end this version yesterday and
+            # create a new version from today; the steps below complete and publish it.
+            roltype_namen=[requests.get(url, headers=headers).json().get('omschrijving') for url in zac_zaaktype['roltypen']]
+            if "Behandelaar" not in roltype_namen:
+                today=date.today()
+                old_url=zac_zaaktype['url']
+                response=requests.patch(
+                    old_url,
+                    json={"eindeGeldigheid": (today - timedelta(days=1)).isoformat()},
+                    headers=headers
+                )
+                print(f"ending zaaktype version {old_url}: {response.status_code} {response.text}")
+                response.raise_for_status()
+                new_zaaktype={k: v for k, v in zac_zaaktype.items() if k in new_version_fields}
+                new_zaaktype.update({"versiedatum": today.isoformat(), "beginGeldigheid": today.isoformat(), "eindeGeldigheid": None, "besluittypen": existing_besluittypen_url})
+                response=requests.post(
+                    catalogi_url+"zaaktypen",
+                    json=new_zaaktype,
+                    headers=headers
+                )
+                print(f"creating zaaktype version {today}: {response.status_code} {response.text}")
+                response.raise_for_status()
+                zac_zaaktype=response.json()
+                topublish_zaaktype=zac_zaaktype
     else:
         print(f"creating zaaktype: {zac_zaaktype}")
         response=requests.post(
@@ -268,7 +306,7 @@ data:
                 existing_resultaattypen.append(response.json())
 
     zac_roltypen=[
-        { "omschrijving":"Behandelaar e2e","omschrijvingGeneriek": "behandelaar", "beginGeldigheid":"2025-01-01"},
+        { "omschrijving":"Behandelaar","omschrijvingGeneriek": "behandelaar", "beginGeldigheid":"2025-01-01"},
         { "omschrijving":"Melder e2e","omschrijvingGeneriek": "initiator", "beginGeldigheid":"2025-01-01"},
         { "omschrijving":"Belanghebbende e2e","omschrijvingGeneriek": "belanghebbende", "beginGeldigheid":"2025-01-01"},
         { "omschrijving":"Contactpersoon e2e","omschrijvingGeneriek": "belanghebbende", "beginGeldigheid":"2025-01-01"},
@@ -394,6 +432,15 @@ data:
         )
         if(response.status_code in [200,201]):
             print(f"published zaaktype {response.json()}")
+            # Open Zaak sends no notification for /publish, and ZAC ignores the one it got while
+            # the zaaktype was a concept. An update of the published zaaktype notifies ZAC, which
+            # then moves its zaakafhandelparameters from the previous version to this one.
+            response=requests.patch(
+                zac_zaaktype['url'],
+                json={"eindeGeldigheid": None},
+                headers=headers
+            )
+            print(f"notified zaaktype update: {response.status_code}")
 
 ---
 apiVersion: batch/v1
@@ -407,7 +454,7 @@ spec:
   template:
     spec:
       containers:
-        - image: {{ include "podiumd.image" .Values.objecttypen.image }}
+        - image: {{ include "podiumd.image" .Values.objecten.image }}
           command: ["/jobs/create-required-catalogi.py"]
           name: create-required-catalogi
           resources:

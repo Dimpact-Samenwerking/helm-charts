@@ -13,7 +13,14 @@
 #   ./install-redis-operator-crds.sh [OPTIONS]
 #
 # Options:
-#   --version VERSION   Chart version to fetch CRDs from (default: 0.24.0)
+#   --version VERSION   Chart version to fetch CRDs from (default: 0.27.0, the
+#                       redis-operator chart PodiumD 4.10.0 ships)
+#   --allow-downgrade   Allow a --version older than the default (the default of
+#                       this script, not the CRDs on the cluster: chart-installed
+#                       CRDs carry no version). The apply takes
+#                       over the CRD fields (--force-conflicts), so an older
+#                       version replaces the schema and prunes newer fields from
+#                       the Redis CRs on their next write.
 #   --context CONTEXT   kubectl context to use (default: current context)
 #   --dry-run           Print the CRDs YAML without applying them
 #   -h, --help          Show this help message
@@ -24,15 +31,17 @@
 #
 # Example:
 #   ./install-redis-operator-crds.sh
-#   ./install-redis-operator-crds.sh --version 0.16.0
+#   ./install-redis-operator-crds.sh --version 0.27.0
 #   ./install-redis-operator-crds.sh --context my-aks-cluster
 #   ./install-redis-operator-crds.sh --dry-run
 
 set -euo pipefail
 
-CHART_VERSION="0.24.0"
+DEFAULT_VERSION="0.27.0"
+CHART_VERSION="${DEFAULT_VERSION}"
+ALLOW_DOWNGRADE=false
 DRY_RUN=false
-CONTEXT_ARG=""
+KUBECTL=(kubectl)
 REPO_NAME="opstree"
 REPO_URL="https://ot-container-kit.github.io/helm-charts/"
 CHART_NAME="redis-operator"
@@ -48,8 +57,12 @@ while [[ $# -gt 0 ]]; do
       CHART_VERSION="$2"
       shift 2
       ;;
+    --allow-downgrade)
+      ALLOW_DOWNGRADE=true
+      shift
+      ;;
     --context)
-      CONTEXT_ARG="--context $2"
+      KUBECTL=(kubectl --context "$2")
       shift 2
       ;;
     --dry-run)
@@ -67,6 +80,22 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Helm accepts "v0.26.0" for chart 0.26.0, but sort -V orders it after 0.27.0, so
+# a v prefix would get past the downgrade guard below: compare the bare version.
+CHART_VERSION="${CHART_VERSION#v}"
+if [[ ! "${CHART_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "ERROR: --version must be a chart version X.Y.Z (got '${CHART_VERSION}')." >&2
+  exit 1
+fi
+
+if [[ "${ALLOW_DOWNGRADE}" != "true" && "${CHART_VERSION}" != "${DEFAULT_VERSION}" ]] \
+  && [[ "$(printf '%s\n%s\n' "${CHART_VERSION}" "${DEFAULT_VERSION}" | sort -V | head -1)" == "${CHART_VERSION}" ]]; then
+  echo "ERROR: --version ${CHART_VERSION} is older than ${DEFAULT_VERSION}. The forced apply would replace" >&2
+  echo "       the newer CRD schema and prune its fields from the Redis CRs. Pass --allow-downgrade" >&2
+  echo "       if that is really what you want." >&2
+  exit 1
+fi
+
 echo "==> Ensuring Helm repo '${REPO_NAME}' is available..."
 if ! helm repo list 2>/dev/null | grep -q "^${REPO_NAME}\s"; then
   helm repo add "${REPO_NAME}" "${REPO_URL}"
@@ -81,22 +110,25 @@ if [[ -z "${CRD_YAML}" ]]; then
   exit 1
 fi
 
+# One YAML stream: a "---" before every document that doesn't already have one.
+CRD_STREAM=$(echo "${CRD_YAML}" | awk '/^apiVersion:/ && NR>1 && prev != "---" { print "---" } { print; prev = $0 }')
+
 if [[ "${DRY_RUN}" == "true" ]]; then
   echo "==> [dry-run] CRDs that would be applied:"
-  echo "${CRD_YAML}" | awk '/^apiVersion:/ && NR>1 { print "---" } { print }'
+  echo "${CRD_STREAM}"
   exit 0
 fi
 
+# --force-conflicts takes the CRD fields over from Helm (or a GitOps tool);
+# why that is safe here: docs/_UPGRADE_PATHS/4.9.5-to-4.10.0-operators-crds.md.
 echo "==> Applying CRDs (server-side apply)..."
-echo "${CRD_YAML}" \
-  | awk '/^apiVersion:/ && NR>1 { print "---" } { print }' \
-  | kubectl ${CONTEXT_ARG} apply --server-side -f -
+echo "${CRD_STREAM}" | "${KUBECTL[@]}" apply --server-side --force-conflicts -f -
 
 echo "==> Waiting for CRDs to reach Established condition..."
 CRD_NAMES=$(echo "${CRD_YAML}" | grep '^  name:' | awk '{print $2}')
 for crd in ${CRD_NAMES}; do
   echo "    Waiting for CRD: ${crd}"
-  kubectl ${CONTEXT_ARG} wait --for=condition=Established "crd/${crd}" --timeout=60s
+  "${KUBECTL[@]}" wait --for=condition=Established "crd/${crd}" --timeout=60s
 done
 
 echo "==> Redis Operator CRDs installed successfully (version ${CHART_VERSION})."

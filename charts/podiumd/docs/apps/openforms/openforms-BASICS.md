@@ -103,7 +103,12 @@ The HTTPRoute is created by the per-gemeente environment deployment (ADO
   `auth_type: zgw`, client id `open-formulieren` + secret registered in Open
   Zaak's Autorisaties API) and a `zgw_api` registration-backend group.
 - **Objecten / Objecttypen API** — token-authenticated services plus an
-  `objects_api` registration-backend group (productaanvraag flow).
+  `objects_api` registration-backend group (productaanvraag flow). Since the
+  objecten/objecttypen merge (`docs/apps/objecten/openobject-migration.md`) both the
+  `objecten-api` and `objecttypen-api` `zgw_consumers` identifiers in Open
+  Formulieren's own config point at the same merged host — Open Formulieren's
+  own schema still expects two distinct service identifiers even though
+  there's only one app behind them now.
 - **SMTP** — outbound mail for confirmation e-mails (`settings.email`, chart
   defaults `port: 587`, `useTLS: true`; host set per environment).
 - **ClamAV** — the stack ships a `clamav` service (clamd on TCP 3310,
@@ -163,12 +168,13 @@ baseline (dev/accp), not peak.
    `openformulieren.configuration.secrets.keycloak_client_secret`, set
    `configuration.oidcUrl` to the public URL, and fill
    `configuration.data` (`oidc_db_config_admin_auth`) following the commented
-   example in `values.yaml`. Enable `pkceEnabled: true` plus
-   `oidc_use_pkce: true` if the Keycloak client enforces PKCE. Add DigiD /
+   example in `values.yaml`. Keep `pkceEnabled: false`: Open
+   Formulieren cannot send PKCE yet, and the render fails when it is true ([keycloak-security-updates.md](../keycloak/keycloak-security-updates.md#pkce-enforcement)). Add DigiD /
    eHerkenning OIDC providers the same way if citizen login is required.
 5. **Register with Open Zaak / Objecten**: add an application `open-formulieren`
    (client id + secret) in Open Zaak's Autorisaties API; define the
-   `zgw_consumers.services` (zaken/documenten/catalogi/objecten/objecttypen)
+   `zgw_consumers.services` (zaken/documenten/catalogi/objecten/objecttypen —
+   the latter two point at the same merged host, see above)
    and the `objects_api` / `zgw_api` registration groups in
    `configuration.data`, including the informatieobjecttypen for the
    submission PDF/CSV/attachments and `organisatie_rsin`.

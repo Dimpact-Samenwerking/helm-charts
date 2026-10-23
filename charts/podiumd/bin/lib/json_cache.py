@@ -4,9 +4,9 @@ import json
 
 from collections.abc import Callable
 from collections.abc import Mapping
+from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
-from datetime import timezone
 from pathlib import Path
 from typing import TypeGuard
 from typing import TypeVar
@@ -53,6 +53,6 @@ def checked_within(timestamp: object, max_age: timedelta) -> bool:
     if not isinstance(timestamp, str):
         return False
     try:
-        return datetime.now(timezone.utc) - datetime.fromisoformat(timestamp) < max_age
+        return datetime.now(UTC) - datetime.fromisoformat(timestamp) < max_age
     except (ValueError, TypeError):
         return False

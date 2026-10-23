@@ -49,6 +49,25 @@ Upgrade one hop at a time, in order. Each guide covers exactly one hop.
 | `images/images-<ver>.yaml` | The ACR-mirror image set for the hop — hand it to SSC-Hosting before the deploy |
 | Deep-dives linked from the guide | One-time or high-risk procedures too large for the hop guide, e.g. [`migrating-to-eck-stack.md`](apps/elastic/migrating-to-eck-stack.md) (4.8.0) |
 
+### Optional components — an upgrade will not enable these
+
+Ten components ship disabled. An upgrade does not enable them: read its
+enablement doc **before** setting `enabled: true`
+([IN-2847](https://dimpact.atlassian.net/browse/IN-2847)).
+
+| Component | Values key | Enablement doc |
+|---|---|---|
+| Open Beheer | `openbeheer` | [`openbeheer.md`](apps/openbeheer/openbeheer.md); [`openbeheer-BASICS.md`](apps/openbeheer/openbeheer-BASICS.md) for the summary |
+| Open Archiefbeheer | `openarchiefbeheer` | [`openarchiefbeheer-BASICS.md`](apps/openarchiefbeheer/openarchiefbeheer-BASICS.md) |
+| Referentielijsten | `referentielijsten` | [`referentielijsten-BASICS.md`](apps/referentielijsten/referentielijsten-BASICS.md) |
+| API-proxy | `apiproxy` | [`apiproxy-BASICS.md`](apps/apiproxy/apiproxy-BASICS.md) |
+| OMC | `omc` | [`omc-BASICS.md`](apps/omc/omc-BASICS.md) |
+| Frank!Gateway | `frankgateway` | [`frankgateway-BASICS.md`](apps/frankgateway/frankgateway-BASICS.md) |
+| Zaakbrug | `zaakbrug` | [`zaakbrug-BASICS.md`](apps/zaakbrug/zaakbrug-BASICS.md) |
+| MI-data | `mi` | [`mi-BASICS.md`](apps/mi/mi-BASICS.md) |
+| OpenBao | `openbao` | [`openbao-BASICS.md`](apps/openbao/openbao-BASICS.md) |
+| BRP Personen mock | `brppersonenmock` | [`brp-personen-mock-BASICS.md`](apps/brp-personen-mock/brp-personen-mock-BASICS.md) |
+
 ### Environments on 4.6.6
 
 4.6.6 is a supported source baseline. From 4.6.6 there are two equivalent routes

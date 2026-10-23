@@ -99,17 +99,17 @@ def repo_with_new_sidecar_pinned_to_a_known_mirrored_image(tmp_path: Path):
     return doc_dir
 
 
-def test_main_new_sidecar_row_annotated_unchanged_when_known_in_historical_manifest(
+def test_main_new_sidecar_path_at_its_version_in_a_historical_manifest_gets_no_row(
     cdb: ModuleType, repo_with_new_sidecar_pinned_to_a_known_mirrored_image, monkeypatch: pytest.MonkeyPatch
 ):
-    """A new sidecar path whose pin is in an earlier manifest reads
-    "(unchanged)" in its App cell, not "(new)"."""
+    """A new sidecar path whose pin is in an earlier manifest at the same version
+    is unchanged, as the checker resolves it (resolved_row_unchanged): no row."""
     doc_dir = repo_with_new_sidecar_pinned_to_a_known_mirrored_image
     set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
     cdb.main()
 
     upgrade = (doc_dir / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
-    assert "| redis-operator - k8s | 1.36.2 (unchanged) | - | - |" in upgrade
+    assert "redis-operator - k8s" not in upgrade
 
 
 def test_main_adds_missing_changes_section_for_an_existing_dependency_row(

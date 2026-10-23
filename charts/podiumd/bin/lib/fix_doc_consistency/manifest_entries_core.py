@@ -3,13 +3,16 @@
 from collections.abc import Callable
 from collections.abc import Mapping
 from dataclasses import dataclass
+from dataclasses import field
 from pathlib import Path
 
 from lib.chart.chart_yaml import ChartDependency
+from lib.chart.historical_baselines import BaselineLookup
 from lib.chart.historical_baselines import baseline_lookup
 from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
 from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
+from lib.chart.registered_paths import native_components
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.images_manifest import ManifestEntry
 from lib.images_manifest import parse_manifest_lines
@@ -20,10 +23,19 @@ from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment_line
 from lib.upgradedoc.images_manifest_ordering import images_manifest_entries_share_group
+from lib.upgradedoc.resolve_component_row import native_image_baseline_app
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text
 from lib.upgradedoc.version_cells_and_key_changes import replace_version_spec
 from lib.yaml_types import YamlMapping
+
+
+@dataclass(frozen=True)
+class BaselineRelease:
+    """The upgrade_docs_baseline release name and its Chart.yaml dependencies; None when unresolved."""
+
+    name: str | None = None
+    deps: list[ChartDependency] | None = None
 
 
 @dataclass
@@ -35,7 +47,7 @@ class ManifestEntriesContext:
     target_values: YamlMapping
     baseline_values: YamlMapping | None
     repo_map: dict[str, ImagePath] | None = None
-    upgrade_docs_baseline: str | None = None
+    baseline_release: BaselineRelease = field(default_factory=BaselineRelease)
 
 
 @dataclass
@@ -110,24 +122,23 @@ def _manifest_entries_setup(text: str, context: ManifestEntriesContext) -> _Mani
     )
 
 
-def _fallback_actual_baseline(
-    context: ManifestEntriesContext, setup: _ManifestEntriesSetup, path: tuple[str, ...]
-) -> str | None:
-    """Baseline fallback when baseline_paths has no direct match.
+def entry_baseline_version(lookup: BaselineLookup, path: tuple[str, ...], release: BaselineRelease) -> str | None:
+    """A manifest entry's baseline version when baseline_paths has no direct match.
 
-    First the same repository under another path in baseline_values, then
-    this chart's past images-<version>.yaml manifests."""
-    actual_baseline = baseline_tag_for_sidecar_path(
-        baseline_lookup(
-            context.chart_dir, context.deps, context.target_values, context.baseline_values, setup.baseline
-        ),
-        path,
-    )
+    Shared by the writers that add entries and that correct entry comments, so a
+    new entry's comment needs no second run. First the same repository under
+    another path in baseline_values, then, for a native component that was a
+    dependency at the baseline, that dependency's pin of the image
+    (native_image_baseline_app), then this chart's past images-<version>.yaml
+    manifests."""
+    actual_baseline = baseline_tag_for_sidecar_path(lookup, path)
     if actual_baseline is not None:
         return actual_baseline
-    return historical_app_version_for_path(
-        context.chart_dir, context.deps, context.target_values, path, context.upgrade_docs_baseline
-    )
+    if release.deps is not None and path[0] in native_components(lookup.chart_dir):
+        native_baseline = native_image_baseline_app(lookup.chart_dir, release.deps, lookup.baseline_values, path)
+        if native_baseline is not None:
+            return native_baseline
+    return historical_app_version_for_path(lookup.chart_dir, lookup.deps, lookup.target_values, path, release.name)
 
 
 def _manifest_entry_digest_only_change(
@@ -177,7 +188,13 @@ def _process_manifest_entry(
         if not context.baseline_values:
             state.unresolved_names.append(name)
             return
-        actual_baseline = _fallback_actual_baseline(context, setup, path)
+        actual_baseline = entry_baseline_version(
+            baseline_lookup(
+                context.chart_dir, context.deps, context.target_values, context.baseline_values, setup.baseline
+            ),
+            path,
+            context.baseline_release,
+        )
 
     digest_only_change = _manifest_entry_digest_only_change(context, setup, path, actual_baseline, actual_target)
 

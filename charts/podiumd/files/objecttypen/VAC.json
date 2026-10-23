@@ -1,0 +1,127 @@
+{
+  "type": "object",
+  "title": "VAC",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "vraag": {
+      "type": "string",
+      "title": "De vraag",
+      "description": "De vraag waar de VAC antwoord op geeft"
+    },
+    "status": {
+      "enum": [
+        "actief",
+        "non-actief",
+        "te-verwijderen"
+      ],
+      "type": "string",
+      "title": "Status van de VAC",
+      "description": "De actuele status van de VAC, is deze nog actueel of niet"
+    },
+    "antwoord": {
+      "type": "string",
+      "title": "Antwoord op de vraag",
+      "description": "Het antwoord op de bij 'vraag' gestelde vraag"
+    },
+    "doelgroep": {
+      "enum": [
+        "eu-burger",
+        "eu-bedrijf",
+        "eu-burger-bedrijf"
+      ],
+      "type": "string",
+      "title": "Doelgroep",
+      "description": "De doelgroep van de VAC, is deze geicht op burgers en/of ondernemers"
+    },
+    "afdelingen": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "afdelingNaam"
+        ],
+        "properties": {
+          "afdelingId": {
+            "type": "string",
+            "title": "Identifier afdeling",
+            "description": "De unieke identifier van de afdeling"
+          },
+          "afdelingNaam": {
+            "type": "string",
+            "title": "Naam afdeling",
+            "description": "de naam van de afdeling"
+          }
+        }
+      },
+      "title": "Afdelingen",
+      "description": "Afdelingen aan wie de VAC gerelateerd is "
+    },
+    "toelichting": {
+      "type": "string",
+      "title": "Toelichting bij de VAC",
+      "description": "Een toelichting bij de VAC ten behoeve van de medewerker van het contactcentrum"
+    },
+    "trefwoorden": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "trefwoord"
+        ],
+        "properties": {
+          "trefwoord": {
+            "type": "string",
+            "title": "Trefwoord",
+            "description": "Een trefwoord"
+          }
+        }
+      },
+      "title": "Trefwoorden",
+      "description": "Trefwoorden die passen bij de VAC"
+    },
+    "gerelateerdeVACs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "VAC"
+        ],
+        "properties": {
+          "VAC": {
+            "type": "string",
+            "title": "CAV",
+            "format": "uri",
+            "description": "de uri van de VAC"
+          }
+        }
+      },
+      "title": "Gerelateerde VACs",
+      "description": "VACs die gerelateerd zijn aan de VAC"
+    },
+    "gerelateerdeProducten": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "product"
+        ],
+        "properties": {
+          "product": {
+            "type": "string",
+            "title": "Product",
+            "format": "uri",
+            "description": "de uri van het gerelateerde product"
+          }
+        }
+      },
+      "title": "Gerelateerde producten",
+      "description": "Producten die gerelateerd zijn aan de VAC"
+    }
+  },
+  "required": [
+    "doelgroep",
+    "status",
+    "vraag",
+    "antwoord"
+  ]
+}

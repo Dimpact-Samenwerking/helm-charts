@@ -108,7 +108,7 @@ spec:
     {{- end }}
 {{- end }}
 
-{{- if and (or .Values.openformulieren.enabled (not (hasKey .Values.openformulieren "enabled"))) .Values.openformulieren.customerInteractionsConfigJob.enabled }}
+{{- if and (include "podiumd.dependencyEnabled" .Values.openformulieren) .Values.openformulieren.customerInteractionsConfigJob.enabled }}
 {{- $podTemplate := include "podiumd.openformulierenCustomerInteractionsJob.podTemplate" . }}
 {{- $jobSuffix := $podTemplate | sha256sum | trunc 10 }}
 apiVersion: batch/v1

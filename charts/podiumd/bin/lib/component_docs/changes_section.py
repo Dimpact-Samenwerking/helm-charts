@@ -18,8 +18,7 @@ from typing import Literal
 from lib.chart.chart_state import BaselineState
 from lib.chart.chart_state import ComponentState
 from lib.chart.registered_paths import component_chart_versions
-from lib.chart.registered_paths import image_paths_for
-from lib.chart.registered_paths import version_paths_for
+from lib.chart.registered_paths import pin_paths_for
 from lib.component_docs.baseline_doc_stubs import UPGRADE_CHANGES_STUB_TODO_LINE
 from lib.component_docs.baseline_doc_stubs import UPGRADE_INTRO_STUB_TODO_LINE
 from lib.component_docs.doc_lines import is_bare_placeholder_span
@@ -50,6 +49,7 @@ from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.string_and_parsing_basics import set_row_cells
 from lib.upgradedoc.string_and_parsing_basics import text_names
+from lib.upgradedoc.version_cells_and_key_changes import PIN_TEXT_PATTERN
 from lib.upgradedoc.version_cells_and_key_changes import chart_version_suffix
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
 from lib.upgradedoc.version_cells_and_key_changes import pin_version_text
@@ -187,7 +187,7 @@ _FIELD_PATTERNS = {
     "path": r"[^`\s]+",
     # pin_version_text, optionally followed by the aliased-pin note.
     "pin": (
-        r"(?:`[^`]+` → `[^`]+`|`[^`]+` \((?:new|unchanged|digest changed)\))"
+        rf"(?:{PIN_TEXT_PATTERN})"
         r"(?: \(shares a YAML anchor with `[^`]+`\))?"
     ),
 }
@@ -303,8 +303,8 @@ def make_changes_section(
 
     `image_paths` become "Image tag pin `<key>.<path>.tag`" bullets;
     `version_paths` (bare version fields, e.g. eck-stack) become
-    "Version pin `<path>`" bullets. Callers must pick per image_paths_for/
-    version_paths_for, or the bullet names a nonexistent values path.
+    "Version pin `<path>`" bullets. Callers split pin_paths_for by
+    is_image_block, or the bullet names a nonexistent values path.
 
     No "Helm chart" bullet when new_chart is "-" (native component) or
     old_chart is None (heading says "new"). old_app None renders
@@ -571,12 +571,15 @@ def resolve_component_own_version_change(
     if chart_versions is None:
         return None
     dep, chart_name, old_chart, new_chart = chart_versions
-    chart_unchanged = new_chart == "-" or (
-        old_chart is not None and normalize_version(old_chart) == normalize_version(new_chart)
-    )
     # The same resolver as the key's table row, so a row added here can't contradict it.
     resolved = resolve_component_row(
         key, {}, ResolutionContext(chart_dir, target_state, baseline_state, upgrade_docs_baseline)
+    )
+    if resolved["kind"] == "native":
+        # A native component that was a chart at the baseline: that chart going away is a change.
+        old_chart = resolved["baseline_chart"]
+    chart_unchanged = (new_chart == "-" and old_chart is None) or (
+        old_chart is not None and normalize_version(old_chart) == normalize_version(new_chart)
     )
     old_app = resolved["baseline_app"] if resolved["kind"] != "unmatched" else None
     new_app = resolved["target_app"] if resolved["kind"] != "unmatched" else None
@@ -587,13 +590,10 @@ def resolve_component_own_version_change(
 
 
 def component_changes_section(identity: ComponentIdentity, change: VersionChange, doc_context: DocContext) -> str:
-    """make_changes_section for a dependency or native component, with its registered pins.
-
-    version_paths_for wins over image_paths_for: registered bare-version
-    fields (eck-stack) have no image block, so the generic
-    "<key>.image.tag" would name a nonexistent path."""
-    version_paths = version_paths_for(identity.chart_name, doc_context.chart_dir)
-    image_paths = [] if version_paths else image_paths_for(identity.chart_name, doc_context.chart_dir)
+    """make_changes_section for a dependency or native component, with its pin_paths_for pins."""
+    pins = pin_paths_for(identity.chart_name, doc_context.chart_dir)
+    image_paths = [pin.path for pin in pins if pin.is_image_block]
+    version_paths = [pin.path for pin in pins if not pin.is_image_block]
     return make_changes_section(identity, doc_context.target, change, image_paths, version_paths)
 
 
