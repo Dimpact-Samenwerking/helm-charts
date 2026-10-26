@@ -30,10 +30,8 @@ from lib.component_docs.changes_section import fix_pointer_issues
 from lib.component_docs.changes_section import strip_stale_upgrade_placeholders
 from lib.component_docs.images_manifest_changes_header import renumber_images_manifest_changes_items
 from lib.component_docs.removed_item_docs import sync_removed_items
-from lib.component_docs.values_delta_sections import drop_removed_values_delta_sections
 from lib.component_docs.values_delta_sections import prune_empty_values_delta_sections
 from lib.component_docs.values_delta_sections import strip_stale_values_deltas_todo_stub
-from lib.component_docs.values_delta_sections import sync_values_delta_sections
 from lib.fix_doc_consistency.baseline_and_images_manifest_handling import extract_images_baseline
 from lib.fix_doc_consistency.baseline_and_images_manifest_handling import fix_images_manifest_header_lines
 from lib.fix_doc_consistency.baseline_and_images_manifest_handling import update_sibling_doc_refs
@@ -843,30 +841,6 @@ def _fix_images_manifest_content(state: RebaseState, images_path: Path, upgrade_
     _renumber_images_manifest_changes_items(images_path)
 
 
-def _sync_values_delta_sections(
-    text: str,
-    state: RebaseState,
-    values_deltas_path: Path,
-    changed_keys: set[str],
-    canonical_names: dict[str, ImagePath],
-):
-    """Add missing sections and sync key-change mentions. Returns (text, changed)."""
-    text, created_names, updated_names = sync_values_delta_sections(
-        text,
-        state.paths.chart_dir,
-        OrderingContext(state.target_deps, state.target_values, canonical_names),
-        state.baseline_state,
-        changed_keys,
-    )
-    print_section_items(
-        f"Adding new component section(s) to {values_deltas_path.name}", [f"{name}" for name in created_names]
-    )
-    print_section_items(
-        f"Updating key-change mention(s) in {values_deltas_path.name}", [f"{name}" for name in updated_names]
-    )
-    return text, bool(created_names or updated_names)
-
-
 def _fix_values_delta_headings(text: str, state: RebaseState, upgrade_path: Path, values_deltas_path: Path):
     """Align '## ...' headings with the (already fixed) upgrade doc table. Returns (text, changed)."""
     upgrade_doc_text = upgrade_path.read_text(encoding="utf-8") if upgrade_path.is_file() else ""
@@ -883,16 +857,6 @@ def _fix_values_delta_headings(text: str, state: RebaseState, upgrade_path: Path
         for heading in updated_delta_headings:
             print(f"  {heading}")
     return text, bool(updated_delta_headings)
-
-
-def _drop_removed_values_delta_sections(text: str, state: RebaseState, values_deltas_path: Path):
-    """Remove the generated key lines of removed components and images. Returns (text, changed)."""
-    items, ordering = state.removed_items_ordering
-    text, dropped = drop_removed_values_delta_sections(text, items, ordering)
-    return text, print_section_items(
-        f"Removing key-change mention(s) of removed component(s)/image(s) from {values_deltas_path.name}",
-        [f"'## {heading}'" for heading in dropped],
-    )
 
 
 def _prune_empty_values_delta_sections(text: str, values_deltas_path: Path):
@@ -922,28 +886,12 @@ def _fix_values_deltas(state: RebaseState, upgrade_path: Path, values_deltas_pat
     """Fix the values-deltas doc; writes only if something changed."""
     if not values_deltas_path.is_file():
         return
-    if state.baseline_deps is None or state.baseline_values is None:
-        print()
-        print(
-            f"Could not resolve baseline {state.new_baseline} to a git ref — skipping "
-            f"added/removed/renamed key detection for {values_deltas_path.name}."
-        )
-        return
 
-    changed_keys = compute_changed_components(
-        state.target_deps,
-        state.baseline_deps,
-        state.target_values,
-        state.baseline_values,
-        chart_dir=state.paths.chart_dir,
-    )
     original = values_deltas_path.read_text(encoding="utf-8")
     text = original
     canonical_names = state.resolution.target_index.canonical_names
 
-    text, sections_changed = _sync_values_delta_sections(text, state, values_deltas_path, changed_keys, canonical_names)
     text, headings_changed = _fix_values_delta_headings(text, state, upgrade_path, values_deltas_path)
-    text, dropped = _drop_removed_values_delta_sections(text, state, values_deltas_path)
     text, pruned = _prune_empty_values_delta_sections(text, values_deltas_path)
     text, reordered = _sort_values_delta_sections(text, state, values_deltas_path, canonical_names)
     text, links_retargeted = _retarget_heading_links(original, text, values_deltas_path)
@@ -953,7 +901,7 @@ def _fix_values_deltas(state: RebaseState, upgrade_path: Path, values_deltas_pat
     if blank_lines_fixed:
         print_section(f"Collapsing multiple consecutive blank line(s) in {values_deltas_path.name}")
 
-    if any([sections_changed, headings_changed, dropped, pruned, reordered, links_retargeted, blank_lines_fixed]):
+    if any([headings_changed, pruned, reordered, links_retargeted, blank_lines_fixed]):
         values_deltas_path.write_text(collapsed_text, encoding="utf-8")
 
 

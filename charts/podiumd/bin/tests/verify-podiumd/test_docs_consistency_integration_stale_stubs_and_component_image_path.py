@@ -299,7 +299,7 @@ def test_unresolvable_baseline_is_caught(vp: ModuleType, chart_repo):
 def test_undocumented_new_component_is_caught_everywhere(
     vp: ModuleType, assert_would_change, chart_repo, capsys: pytest.CaptureFixture[str]
 ):
-    """An undocumented new component gets its upgrade.md row, values-deltas.md section and manifest item."""
+    """An undocumented new component gets its upgrade.md row and manifest item."""
     (chart_repo / "Chart.yaml").write_text(
         CHART_YAML + '  - name: openformulieren\n    version: "1.12.0"\n    repository: "@openformulieren"\n'
     )
@@ -314,7 +314,6 @@ def test_undocumented_new_component_is_caught_everywhere(
     assert_would_change(
         capsys.readouterr().out,
         "+| openformulieren | 3.5.6 (new) | 1.12.0 (new) | - |",
-        "+## openformulieren 3.5.6 (new) (chart 1.12.0, new)",
         "+#   2. openformulieren 3.5.6 (new).",
     )
 

@@ -73,24 +73,6 @@ def repo_with_unmentioned_component_bump(tmp_path: Path):
     return doc_dir
 
 
-def test_main_adds_missing_values_delta_bullet(
-    cdb: ModuleType,
-    repo_with_unmentioned_component_bump,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-):
-    set_argv_and_dir(cdb, monkeypatch, repo_with_unmentioned_component_bump, "4.8.5")
-    cdb.main()
-
-    deltas = (repo_with_unmentioned_component_bump / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
-    assert "## zaakbrug 1.26.14 → 1.26.15 (chart 2.3.28, unchanged)\n" in deltas
-    assert "- Key `zaakbrug.newFeature` was added.\n" in deltas
-    assert "No unrelated changes." in deltas  # existing content preserved
-    out = capsys.readouterr().out
-    assert "Adding new component section(s)" in out
-    assert "zaakbrug" in out
-
-
 def test_main_collapses_pre_existing_double_blank_line_in_values_deltas(
     cdb: ModuleType, repo_with_unmentioned_component_bump, monkeypatch: pytest.MonkeyPatch
 ):
@@ -102,7 +84,6 @@ def test_main_collapses_pre_existing_double_blank_line_in_values_deltas(
 
     deltas = (repo_with_unmentioned_component_bump / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
     assert "\n\n\n" not in deltas
-    assert "## zaakbrug 1.26.14 → 1.26.15 (chart 2.3.28, unchanged)\n" in deltas  # the real edit still happened
 
 
 def test_main_does_not_duplicate_already_mentioned_component_bullet(
@@ -246,7 +227,7 @@ def repo_with_unmentioned_native_component_bump(tmp_path: Path):
     return doc_dir
 
 
-def test_main_adds_missing_native_component_row_and_bullet(
+def test_main_adds_missing_native_component_row(
     cdb: ModuleType,
     repo_with_unmentioned_native_component_bump,
     monkeypatch: pytest.MonkeyPatch,
@@ -257,52 +238,7 @@ def test_main_adds_missing_native_component_row_and_bullet(
 
     upgrade = (repo_with_unmentioned_native_component_bump / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
     assert "| frankgateway | 100 → 104 | - | - |" in upgrade
-
-    deltas = (repo_with_unmentioned_native_component_bump / "4.8.5-to-4.9.0-values-deltas.md").read_text(
-        encoding="utf-8"
-    )
-    assert "## frankgateway 100 → 104\n" in deltas
-    assert "- Key `frankgateway.nodeSelector` was added.\n" in deltas
-
-    out = capsys.readouterr().out
-    assert "Adding missing component row(s)" in out
-    assert "Adding new component section(s)" in out
-
-
-def test_main_adds_todo_bullet_when_app_version_unresolvable(
-    cdb: ModuleType, repo_with_undocumented_component_bumps, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
-    """Chart-only redis-operator with a new key, for the values-deltas heading
-    (a schema-less chart bump would get no section)."""
-    write(
-        tmp_path / "values.yaml",
-        yaml.safe_dump(
-            {
-                "zac": {"image": {"tag": "5.0.2@sha256:bbbb"}},
-                "openformulieren": {"image": {"tag": "3.5.6@sha256:dddd"}},
-                "keycloak-operator": {"operator": {"config": {"keycloakImage": {"tag": "26.7.3", "sha": "ffff"}}}},
-                "redis-operator": {"redisOperator": {"newFeature": True}},
-            }
-        ),
-    )
-    write(
-        repo_with_undocumented_component_bumps / "4.8.3-to-4.9.0-values-deltas.md",
-        "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\nNo unrelated changes.\n",
-    )
-    git("add", "-A", cwd=repo_with_undocumented_component_bumps)
-    git(
-        "commit",
-        "-q",
-        "-m",
-        "add values-deltas doc + redis-operator schema key",
-        cwd=repo_with_undocumented_component_bumps,
-    )
-    set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_component_bumps, "4.8.5")
-    cdb.main()
-
-    deltas = (repo_with_undocumented_component_bumps / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
-    assert "## redis-operator chart 0.26.1 → 0.27.0 — TODO: describe this component's changes" in deltas
-    assert "- Key `redis-operator.redisOperator` was added.\n" in deltas
+    assert "Adding missing component row(s)" in capsys.readouterr().out
 
 
 # --- main() integration: values-deltas.md missing key-change mentions ---
@@ -362,92 +298,6 @@ def repo_with_undocumented_schema_change(tmp_path: Path):
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "bump zac, schema change undocumented", cwd=tmp_path)
     return doc_dir
-
-
-def test_main_adds_missing_key_change_mention(
-    cdb: ModuleType,
-    repo_with_undocumented_schema_change,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-):
-    set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_schema_change, "4.8.5")
-    cdb.main()
-
-    deltas = (repo_with_undocumented_schema_change / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
-    # No section names zac yet, so a new one carries the key-change line.
-    assert "## zac 5.0.2 → 5.1.0 (chart 1.0.297, unchanged)\n" in deltas
-    assert "- Key `zac.brpApi.protocollering.verwerking.extendWithZaaktype` was removed.\n" in deltas
-    assert "No gemeente podiumd.yml changes are required" in deltas  # existing content preserved
-    out = capsys.readouterr().out
-    assert "Adding new component section(s)" in out
-
-
-def test_main_adds_generated_line_above_user_prose(
-    cdb: ModuleType,
-    repo_with_undocumented_schema_change,
-    monkeypatch: pytest.MonkeyPatch,
-):
-    """A prose mention doesn't replace the generated line: it goes right after the heading, the prose stays."""
-    doc = repo_with_undocumented_schema_change / "4.8.3-to-4.9.0-values-deltas.md"
-    doc.write_text(
-        "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\n"
-        "## zac 5.0.2 → 5.1.0 (chart 1.0.297, unchanged)\n\n"
-        "Removed `zac.brpApi.protocollering.verwerking.extendWithZaaktype` — no longer needed.\n",
-        encoding="utf-8",
-    )
-    set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_schema_change, "4.8.5")
-    cdb.main()
-
-    deltas = (repo_with_undocumented_schema_change / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
-    assert deltas == (
-        "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
-        "## zac 5.0.2 → 5.1.0 (chart 1.0.297, unchanged)\n\n"
-        "- Key `zac.brpApi.protocollering.verwerking.extendWithZaaktype` was removed.\n\n"
-        "Removed `zac.brpApi.protocollering.verwerking.extendWithZaaktype` — no longer needed.\n"
-    )
-
-
-def test_main_does_not_duplicate_generated_key_change_line(
-    cdb: ModuleType,
-    repo_with_undocumented_schema_change,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-):
-    doc = repo_with_undocumented_schema_change / "4.8.3-to-4.9.0-values-deltas.md"
-    doc.write_text(
-        "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\n"
-        "## zac 5.0.2 → 5.1.0 (chart 1.0.297, unchanged)\n\n"
-        "- Key `zac.brpApi.protocollering.verwerking.extendWithZaaktype` was removed.\n\n"
-        "No longer needed.\n",
-        encoding="utf-8",
-    )
-    set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_schema_change, "4.8.5")
-    cdb.main()
-
-    deltas = (repo_with_undocumented_schema_change / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
-    assert deltas.count("extendWithZaaktype") == 1
-    out = capsys.readouterr().out
-    assert "Updating key-change mention(s)" not in out
-
-
-def test_main_adds_key_change_line_shown_only_inside_a_fenced_code_block(
-    cdb: ModuleType,
-    repo_with_undocumented_schema_change,
-    monkeypatch: pytest.MonkeyPatch,
-):
-    """An example of the line in a ``` fence is user text, not the section's generated line."""
-    key_line = "- Key `zac.brpApi.protocollering.verwerking.extendWithZaaktype` was removed.\n"
-    example = "Example:\n\n```markdown\n" + key_line + "```\n"
-    doc = repo_with_undocumented_schema_change / "4.8.3-to-4.9.0-values-deltas.md"
-    doc.write_text(
-        "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\n## zac 5.0.2 → 5.1.0 (chart 1.0.297, unchanged)\n\n" + example,
-        encoding="utf-8",
-    )
-    set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_schema_change, "4.8.5")
-    cdb.main()
-
-    deltas = (repo_with_undocumented_schema_change / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
-    assert "## zac 5.0.2 → 5.1.0 (chart 1.0.297, unchanged)\n\n" + key_line + "\n" + example in deltas
 
 
 # --- main() integration: renumbering a pre-existing "# Changes:" gap ---
@@ -704,3 +554,24 @@ def test_main_new_component_row_annotated_unchanged_when_known_in_historical_man
 
     upgrade_doc = (doc_dir / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
     assert "| brppersonenmock | 2.7.0 (unchanged) | 1.2.9 (new) | - |" in upgrade_doc
+
+
+@pytest.mark.parametrize(
+    "key_line",
+    [
+        "- Key `zac.brpApi.protocollering.verwerking.extendWithZaaktype` was removed.\n",
+        "- Key `zac.notAKey` was added.\n",
+    ],
+)
+def test_main_leaves_key_lines_alone(
+    cdb: ModuleType, repo_with_undocumented_schema_change, monkeypatch: pytest.MonkeyPatch, key_line: str
+):
+    """Key lines are user text: neither checked against values.yaml nor written."""
+    body = "## zac 5.0.2 → 5.1.0 (chart 1.0.297, unchanged)\n\n" + key_line + "\nNo longer needed.\n"
+    doc = repo_with_undocumented_schema_change / "4.8.3-to-4.9.0-values-deltas.md"
+    doc.write_text("# Values deltas — PodiumD 4.8.3 → 4.9.0\n\n" + body, encoding="utf-8")
+    set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_schema_change, "4.8.5")
+    cdb.main()
+
+    deltas = (repo_with_undocumented_schema_change / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
+    assert deltas == "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n" + body

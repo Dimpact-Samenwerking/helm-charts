@@ -1,27 +1,16 @@
-"""Version-transition text ("X -> Y", "(new)", "(unchanged)"), in-place pin rewriters and key-change prose."""
+"""Version-transition text ("X -> Y", "(new)", "(unchanged)") and in-place pin rewriters."""
 
 import re
 
 from typing import overload
 
 from lib.upgradedoc.grouped_comments_and_changes_block import VERSION_SPEC_RE
-from lib.upgradedoc.grouped_comments_and_changes_block import diff_keys
-from lib.upgradedoc.grouped_comments_and_changes_block import pair_renames
-from lib.upgradedoc.string_and_parsing_basics import fenced_line_flags
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
-from lib.yaml_types import YamlMapping
-from lib.yaml_types import YamlValue
 
 VERSION_PAIR_RE = re.compile(r"(?P<source>[A-Za-z0-9][\w.\-]*)\s*(?P<arrow>→|->)\s*(?P<target>[A-Za-z0-9][\w.\-]*)")
 
 
 HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
-
-
-# The key-change lines of a values-deltas.md section; values_delta_body_kinds matches them.
-KEY_ADDED = "- Key `{path}` was added."
-KEY_REMOVED = "- Key `{path}` was removed."
-KEY_RENAMED = "- Key `{path}` was renamed to `{new_path}`."
 
 
 def version_change_suffix(old: str | None, new: str | None, *, digest_only_change: bool = False):
@@ -122,56 +111,8 @@ def replace_version_spec(line: str, new_spec: str):
     return new_line if count else line
 
 
-def describe_key_changes(values_key: str, baseline_subtree: YamlValue, current_subtree: YamlValue):
-    """One "- Key `<dotted>` was added/removed/renamed to `<dotted>`." line per key change.
-
-    Paths given to diff_keys/pair_renames are relative to the subtrees (path=()): a
-    values_key-prefixed path never resolves and pairs unrelated keys as false renames."""
-    diffs = list(diff_keys(baseline_subtree, current_subtree))
-    added = [p for kind, p in diffs if kind == "added"]
-    removed = [p for kind, p in diffs if kind == "removed"]
-    renamed, added, removed = pair_renames(added, removed, baseline_subtree, current_subtree)
-
-    def dotted(path: tuple[str, ...]):
-        return ".".join((values_key, *path))
-
-    lines = [KEY_ADDED.format(path=dotted(path)) + "\n" for path in added]
-    lines.extend(KEY_REMOVED.format(path=dotted(path)) + "\n" for path in removed)
-    lines.extend(
-        KEY_RENAMED.format(path=dotted(old_path), new_path=dotted(new_path)) + "\n" for old_path, new_path in renamed
-    )
-    return lines
-
-
-def key_change_lines(values_key: str, baseline_values: YamlMapping | None, values: YamlMapping | None):
-    """describe_key_changes() for values_key's subtree; a missing subtree counts as empty."""
-    baseline_subtree = baseline_values.get(values_key, {}) if isinstance(baseline_values, dict) else {}
-    current_subtree = values.get(values_key, {}) if isinstance(values, dict) else {}
-    return describe_key_changes(values_key, baseline_subtree, current_subtree)
-
-
-def missing_key_change_lines(section_text: str, key_lines: list[str]):
-    """The key_lines not present as a whole line in section_text, outside fenced code blocks.
-
-    Only the exact generated line counts: a key named in user prose or shown as
-    an example still gets its generated line, so every section lists its key
-    changes in one fixed format."""
-    lines = section_text.splitlines()
-    present = {line.strip() for line, fenced in zip(lines, fenced_line_flags(lines), strict=True) if not fenced}
-    return [line for line in key_lines if line.strip() not in present]
-
-
 def strip_html_comments(text: str):
     """`text` with every <!-- ... --> HTML comment blanked out.
 
     gemeente-specific.md's stub keeps an example "## <gemeente> (<env>)" heading in a comment."""
     return HTML_COMMENT_RE.sub("", text)
-
-
-def append_to_doc(text: str, new_lines: list[str]):
-    """Append new_lines to a doc, separated from existing content by a blank line."""
-    if not new_lines:
-        return text
-    if text and not text.endswith("\n\n"):
-        text = text.rstrip("\n") + "\n\n"
-    return text + "".join(new_lines)
