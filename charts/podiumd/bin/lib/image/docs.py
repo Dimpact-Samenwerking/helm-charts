@@ -59,9 +59,9 @@ from lib.upgradedoc.string_and_parsing_basics import ComponentRef
 from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
-from lib.upgradedoc.version_cells_and_key_changes import pin_version_text
-from lib.upgradedoc.version_cells_and_key_changes import version_change_suffix
-from lib.upgradedoc.version_cells_and_key_changes import version_transition
+from lib.upgradedoc.version_cells import pin_version_text
+from lib.upgradedoc.version_cells import version_change_suffix
+from lib.upgradedoc.version_cells import version_transition
 from lib.yaml_types import YamlMapping
 
 

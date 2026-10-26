@@ -86,30 +86,6 @@ def test_main_collapses_pre_existing_double_blank_line_in_values_deltas(
     assert "\n\n\n" not in deltas
 
 
-def test_main_does_not_duplicate_already_mentioned_component_bullet(
-    cdb: ModuleType,
-    repo_with_unmentioned_component_bump,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-):
-    doc = repo_with_unmentioned_component_bump / "4.8.3-to-4.9.0-values-deltas.md"
-    doc.write_text(
-        "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\n"
-        "## zaakbrug 1.26.14 → 1.26.15 (chart 2.3.28, unchanged)\n\n"
-        "- Key `zaakbrug.newFeature` was added.\n",
-        encoding="utf-8",
-    )
-    set_argv_and_dir(cdb, monkeypatch, repo_with_unmentioned_component_bump, "4.8.5")
-    cdb.main()
-
-    deltas = (repo_with_unmentioned_component_bump / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
-    assert deltas.count("## zaakbrug") == 1
-    assert deltas.count("zaakbrug.newFeature") == 1
-    out = capsys.readouterr().out
-    assert "Adding new component section(s)" not in out
-    assert "Updating key-change mention(s)" not in out
-
-
 @pytest.fixture
 def repo_with_pure_version_bump_and_stale_empty_section(tmp_path: Path):
     """A heading-only section for a schema-less version bump is pruned, not
@@ -146,7 +122,7 @@ def repo_with_pure_version_bump_and_stale_empty_section(tmp_path: Path):
     return doc_dir
 
 
-def test_main_prunes_stale_empty_section_without_recreating_it(
+def test_main_prunes_stale_empty_section(
     cdb: ModuleType,
     repo_with_pure_version_bump_and_stale_empty_section,
     monkeypatch: pytest.MonkeyPatch,
@@ -162,7 +138,6 @@ def test_main_prunes_stale_empty_section_without_recreating_it(
     out = capsys.readouterr().out
     assert "Removing empty section(s)" in out
     assert "'## zaakbrug 1.26.14 → 1.26.15 (chart 2.3.28, unchanged)'" in out
-    assert "Adding new component section(s)" not in out
 
 
 @pytest.fixture
@@ -241,7 +216,7 @@ def test_main_adds_missing_native_component_row(
     assert "Adding missing component row(s)" in capsys.readouterr().out
 
 
-# --- main() integration: values-deltas.md missing key-change mentions ---
+# --- main() integration: values-deltas.md key lines are user text ---
 
 
 @pytest.fixture

@@ -9,7 +9,7 @@ from lib.component_docs.baseline_doc_stubs import VALUES_DELTAS_STUB_TODO_LINE
 from lib.component_docs.doc_lines import is_bare_placeholder_span
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
 from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
-from lib.upgradedoc.version_cells_and_key_changes import strip_html_comments
+from lib.upgradedoc.version_cells import strip_html_comments
 
 
 def _is_bare_values_deltas_todo_stub(lines: list[str]):

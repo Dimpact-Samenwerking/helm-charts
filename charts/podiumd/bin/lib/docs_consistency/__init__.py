@@ -75,7 +75,7 @@ from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows as _parse_upgrade_doc_rows
-from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
+from lib.upgradedoc.version_cells import component_version_cell
 from lib.version_numbers import is_bare_version
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import load_yaml_mapping

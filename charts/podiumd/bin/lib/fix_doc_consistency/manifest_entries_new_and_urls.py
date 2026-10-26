@@ -51,7 +51,7 @@ from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
 from lib.upgradedoc.string_and_parsing_basics import extract_target_version
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
-from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text
+from lib.upgradedoc.version_cells import image_manifest_version_text
 from lib.yaml_types import YamlMapping
 
 

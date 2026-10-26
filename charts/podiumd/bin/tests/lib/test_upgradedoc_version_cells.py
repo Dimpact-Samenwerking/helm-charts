@@ -1,4 +1,4 @@
-"""lib.upgradedoc -- version cells, version-spec replacement, changed components, key-change text."""
+"""lib.upgradedoc -- version cells, version-spec replacement, changed components."""
 
 from types import ModuleType
 

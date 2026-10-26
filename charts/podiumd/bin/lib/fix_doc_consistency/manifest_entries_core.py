@@ -25,8 +25,8 @@ from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_prece
 from lib.upgradedoc.images_manifest_ordering import images_manifest_entries_share_group
 from lib.upgradedoc.resolve_component_row import native_image_baseline_app
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
-from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text
-from lib.upgradedoc.version_cells_and_key_changes import replace_version_spec
+from lib.upgradedoc.version_cells import image_manifest_version_text
+from lib.upgradedoc.version_cells import replace_version_spec
 from lib.yaml_types import YamlMapping
 
 
