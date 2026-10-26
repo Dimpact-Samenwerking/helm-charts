@@ -29,6 +29,8 @@ def compute_changed_components(
     baseline_deps: list[ChartDependency],
     values: YamlMapping,
     baseline_values: YamlMapping | None,
+    *,
+    chart_dir: Path | None = None,
 ) -> set[str]:
     """Top-level component keys (alias or name) that differ from the
     baseline: dependency added/removed, chart version bumped, or an image
@@ -43,7 +45,8 @@ def compute_changed_components(
     baseline_by_key = {values_key_of(dep): dep for dep in baseline_deps}
 
     current_paths = dict(find_all_image_and_version_paths(values, deps))
-    baseline_paths = dict(find_all_image_and_version_paths(baseline_values, deps)) if baseline_values else {}
+    # Baseline pins as the baseline's own dependencies registered them (a chart's bare version fields).
+    baseline_paths = dict(find_all_image_and_version_paths(baseline_values, baseline_deps)) if baseline_values else {}
 
     global_tags = {tag for _path, tag in global_image_paths(values)}
     if baseline_values:
@@ -52,22 +55,21 @@ def compute_changed_components(
     def subtree_paths(key: str, paths: dict[ImagePath, str]):
         return {p: version_of(t) for p, t in paths.items() if p[0] == key and t not in global_tags}
 
-    changed: set[str] = set()
-    natives = native_components()
-    for key in set(current_by_key) | set(baseline_by_key) | set(natives):
+    natives = native_components(chart_dir)
+
+    def differs(key: str) -> bool:
+        if subtree_paths(key, current_paths) != subtree_paths(key, baseline_paths):
+            return True
         if key in natives:
-            if subtree_paths(key, current_paths) != subtree_paths(key, baseline_paths):
-                changed.add(key)
-            continue
+            return False
         cur_dep, base_dep = current_by_key.get(key), baseline_by_key.get(key)
-        if (
+        return (
             cur_dep is None
             or base_dep is None
             or normalize_version(cur_dep["version"]) != normalize_version(base_dep["version"])
-            or subtree_paths(key, current_paths) != subtree_paths(key, baseline_paths)
-        ):
-            changed.add(key)
-    return changed
+        )
+
+    return {key for key in set(current_by_key) | set(baseline_by_key) | set(natives) if differs(key)}
 
 
 @dataclass

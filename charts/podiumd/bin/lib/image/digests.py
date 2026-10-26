@@ -5,17 +5,19 @@ import urllib.error
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from pathlib import Path
 from typing import Literal
+from typing import NamedTuple
 from typing import TypedDict
 from typing import TypeVar
 
-from lib.chart.chart_yaml import ChartDependency
-from lib.chart.chart_yaml import load_chart_dependencies
-from lib.chart.repo_and_path_resolution import SubchartValuesCache
-from lib.chart.repo_and_path_resolution import subchart_default_repository
+from lib.chart.chart_yaml import chart_dir_dependencies
+from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
+from lib.chart.registered_paths import split_version_fields
+from lib.chart.repo_and_path_resolution import RepositoryResolver
+from lib.chart.yaml_alias_groups import scalar_lines_in_text
 from lib.registry import UNVERIFIABLE_HOSTS
 from lib.registry import is_sliding_tag
 from lib.registry import parse_repo
@@ -24,13 +26,25 @@ from lib.repo_access_cache import cache_entry_is_fresh as repo_access_entry_is_f
 from lib.repo_access_cache import cache_key as repo_access_cache_key
 from lib.repo_access_cache import load_cache as load_repo_access_cache
 from lib.repo_access_cache import save_cache as save_repo_access_cache
+from lib.settings import DigestPinningException
+from lib.settings import digest_pinning_exceptions
 from lib.settings import repo_access_cache_ttl_minutes
+from lib.upgradedoc.app_version_and_image_paths import ImagePath
+from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
+from lib.yaml_types import parse_yaml_mapping
 
 # One "tag:" pin, quoted or bare, optionally with an "&anchor"; digest None for a bare
 # tag ("tag: <version>[@sha256:<digest>]"). scan_digest_pins keeps the pins with a digest.
-# An alias ("tag: *anchor") has no value to read and doesn't match.
+# An alias ("tag: *anchor") has no value to read and doesn't match. This line scan serves
+# lib.image.version (update-image-version, the release table); the image checks use
+# scan_image_pins, which also sees sibling digests and version fields without "tag:".
 VERSION_PIN_RE = re.compile(
     r'^(?P<indent>\s*)tag:\s*(?:&\S+\s+)?"?(?P<version>[\w][\w.\-]*)(?:@sha256:(?P<digest>[0-9a-f]{64}))?"?\s*(?:#.*)?$'
+)
+# The same pin under any key, for the registered split fields (see split_version_fields).
+KEYED_VERSION_PIN_RE = re.compile(
+    r'^(?P<indent>\s*)(?P<key>\w+):\s*(?:&\S+\s+)?"?'
+    r'(?P<version>[\w][\w.\-]*)(?:@sha256:(?P<digest>[0-9a-f]{64}))?"?\s*(?:#.*)?$'
 )
 # An active sibling "repository:" key, "&anchor" tolerated.
 ACTIVE_REPO_RE = re.compile(
@@ -46,8 +60,11 @@ COMMENTED_REPO_RE = re.compile(r'^\s*#\s*repository:\s*"?(?P<repo>[\w][\w.\-]*(?
 # the "image:" block for the same override components. Tolerates a stray
 # "@" right after the colon, seen on one existing comment in values.yaml.
 REF_COMMENT_RE = re.compile(
-    r"^\s*#\s*(?P<repo>[a-zA-Z0-9][\w.\-]*(?:/[\w.\-]+)*):@?[\w][\w.\-]*(?:@sha256:[0-9a-f]{64})?\s*$"
+    r"^(?P<indent>\s*)#\s*(?P<repo>[a-zA-Z0-9][\w.\-]*(?:/[\w.\-]+)*):@?(?P<version>[\w][\w.\-]*)"
+    r"(?:@sha256:(?P<digest>[0-9a-f]{64}))?\s*$"
 )
+# How far above its pin resolve_pin_repo looks for a reference comment or "#repository:".
+_COMMENT_LOOKBACK = 6
 
 
 class DigestPin(TypedDict):
@@ -66,6 +83,26 @@ class VersionPin(TypedDict):
     version: str
     digest: str | None
     repository: str | None
+
+
+class ImagePin(TypedDict):
+    """One pinned image of values.yaml (see scan_image_pins).
+
+    `line` (1-based) is where the pin is written: the digest's own field
+    when it is a registered sibling (keycloak's "sha:"), else the version's;
+    an alias reports its anchor's line, 0 means inside a sequence. `digest` is bare hex, None
+    without one; `repository` is host-qualified, None when unresolvable.
+    """
+
+    path: ImagePath
+    line: int
+    version: str
+    digest: str | None
+    repository: str | None
+
+
+# An image to look up once: (repository, version).
+ImageTarget = tuple[str, str]
 
 
 class RepeatedPin(TypedDict):
@@ -99,7 +136,7 @@ def find_sibling_registry(lines: list[str], tag_line_index: int, tag_indent: int
     return _sibling_field(lines, tag_line_index, tag_indent, ACTIVE_REGISTRY_RE)
 
 
-def find_inconsistent_version_pins(pins: list[DigestPin]) -> dict[str, RepeatedPin]:
+def find_inconsistent_version_pins(pins: list[ImagePin]) -> dict[str, RepeatedPin]:
     """Repositories pinned as a literal (non-alias) "tag:" in more than one place; always a problem.
 
     "duplicate": all pins agree, but one should alias the other's anchor or
@@ -107,22 +144,23 @@ def find_inconsistent_version_pins(pins: list[DigestPin]) -> dict[str, RepeatedP
     (a deliberate variant would also have to fail here).
 
     Grouped by the exact repository string, not basename (docker.io/x/tool
-    and ghcr.io/y/tool differ). Returns {repository: {"kind": ...,
-    "pins": [((version, digest), [line, ...]), ...]}}; single pins omitted.
+    and ghcr.io/y/tool differ). Paths sharing one line are one literal pin
+    (aliases of an anchor). Returns {repository: {"kind": ..., "pins":
+    [((version, digest), [line, ...]), ...]}}; single pins omitted.
     """
-    by_repo: dict[str, list[tuple[str, str, int]]] = {}
+    by_repo: dict[str, dict[int, tuple[str, str]]] = {}
     for p in pins:
-        if not p["repository"]:
-            continue
-        by_repo.setdefault(p["repository"], []).append((p["version"], p["digest"], p["line"]))
+        # line 0 (inside a sequence) can't tell pins apart; never collapse those.
+        if p["repository"] and p["digest"] and p["line"]:
+            by_repo.setdefault(p["repository"], {})[p["line"]] = (p["version"], p["digest"])
 
     findings: dict[str, RepeatedPin] = {}
     for repo, entries in by_repo.items():
         if len(entries) < 2:
             continue
         pairs: dict[tuple[str, str], list[int]] = {}
-        for version, digest, line in entries:
-            pairs.setdefault((version, digest), []).append(line)
+        for line, version_digest in sorted(entries.items()):
+            pairs.setdefault(version_digest, []).append(line)
         findings[repo] = {"kind": "duplicate" if len(pairs) == 1 else "drift", "pins": list(pairs.items())}
     return findings
 
@@ -139,16 +177,96 @@ def resolve_pin_repo(lines: list[str], tag_line_index: int, tag_indent: int) -> 
     if repo is not None:
         registry = find_sibling_registry(lines, tag_line_index, tag_indent)
         return f"{registry}/{repo}" if registry else repo
-    for i in range(tag_line_index - 1, max(tag_line_index - 6, -1), -1):
-        m = REF_COMMENT_RE.match(lines[i])
-        if m:
-            return m.group("repo")
-    for i in range(tag_line_index - 1, max(tag_line_index - 6, -1), -1):
+    found = _reference_comment_above(lines, tag_line_index)
+    if found is not None:
+        return found[1].group("repo")
+    for i in range(tag_line_index - 1, max(tag_line_index - _COMMENT_LOOKBACK, -1), -1):
         raw = lines[i]
         m = COMMENTED_REPO_RE.match(raw)
         if m and len(raw) - len(raw.lstrip(" ")) == tag_indent:
             return m.group("repo")
     return None
+
+
+def _reference_comment_above(lines: list[str], tag_line_index: int) -> tuple[int, re.Match[str]] | None:
+    """(index, match) of the nearest reference comment above the pin, within the lookback, or None."""
+    for i in range(tag_line_index - 1, max(tag_line_index - _COMMENT_LOOKBACK, -1), -1):
+        m = REF_COMMENT_RE.match(lines[i])
+        if m:
+            return i, m
+    return None
+
+
+def _reference_comment(lines: list[str], tag_line_index: int, tag_indent: int) -> tuple[int, re.Match[str]] | None:
+    """(index, match) of the "# host/repo:tag[@sha256:...]" comment resolve_pin_repo reads for this pin, or None.
+
+    None when the pin has an active sibling "repository:" (the comment, if any, is then
+    only decoration) or no reference comment within the lines resolve_pin_repo looks at.
+    """
+    if _sibling_field(lines, tag_line_index, tag_indent, ACTIVE_REPO_RE) is not None:
+        return None
+    return _reference_comment_above(lines, tag_line_index)
+
+
+def reference_comment_text(comment_line: str, version: str, digest: str | None) -> str:
+    """comment_line with its tag and digest replaced by version and digest ("sha256:<hex>" or None)."""
+    m = REF_COMMENT_RE.match(comment_line.rstrip("\r\n"))
+    if m is None:
+        return comment_line
+    ending = comment_line[len(comment_line.rstrip("\r\n")) :]
+    pin = f"{version}@{digest}" if digest else version
+    return f"{m.group('indent')}# {m.group('repo')}:{pin}{ending}"
+
+
+class StaleReferenceComment(NamedTuple):
+    """A reference comment that disagrees with the pin below it; lines are 1-based."""
+
+    line: int
+    pin_line: int
+    written: str
+    expected: str
+
+
+def find_stale_reference_comments(lines: list[str]) -> list[StaleReferenceComment]:
+    """Reference comments whose tag or digest differs from the pin below them.
+
+    `expected` is the comment as it should read. A comment without a digest is only
+    compared on its tag, and stays without one.
+    """
+    stale: list[StaleReferenceComment] = []
+    for i, raw in enumerate(lines):
+        pin = VERSION_PIN_RE.match(raw)
+        if pin is None or pin.group("digest") is None:
+            continue
+        found = _reference_comment(lines, i, len(pin.group("indent")))
+        if found is None:
+            continue
+        idx, ref = found
+        if ref.group("version") == pin.group("version") and ref.group("digest") in (None, pin.group("digest")):
+            continue
+        digest = f"sha256:{pin.group('digest')}" if ref.group("digest") else None
+        expected = reference_comment_text(lines[idx], pin.group("version"), digest).rstrip("\r\n")
+        stale.append(StaleReferenceComment(idx + 1, i + 1, lines[idx].rstrip("\r\n"), expected))
+    return stale
+
+
+def sync_reference_comments(text: str, pin_lines: set[int] | None = None) -> tuple[str, list[StaleReferenceComment]]:
+    """`text` with every stale reference comment rewritten to its pin, and the comments it rewrote.
+
+    `pin_lines` (1-based) limits it to the comments of those pins. The writers
+    (update-image-version, fix-image-digests) use this, the Digest pinning check
+    uses find_stale_reference_comments: the same detection.
+    """
+    lines = text.splitlines(keepends=True)
+    stale = [
+        s
+        for s in find_stale_reference_comments([line.rstrip("\r\n") for line in lines])
+        if pin_lines is None or s.pin_line in pin_lines
+    ]
+    for s in stale:
+        raw = lines[s.line - 1]
+        lines[s.line - 1] = s.expected + raw[len(raw.rstrip("\r\n")) :]
+    return "".join(lines), stale
 
 
 def scan_digest_pins(lines: list[str]) -> list[DigestPin]:
@@ -161,67 +279,109 @@ def scan_digest_pins(lines: list[str]) -> list[DigestPin]:
 
 
 def scan_version_pins(lines: list[str]) -> list[VersionPin]:
-    """Every "tag:" pin with its resolved repository, digest None for a bare tag.
+    """Every "tag:" pin, and every registered split-field pin (redis-operator's
+    "imageTag:" next to "imageName:"), with its resolved repository; digest None for a bare tag.
 
     scan_digest_pins keeps the pins that have a digest.
     """
+    split_fields = split_version_fields()
     pins: list[VersionPin] = []
     for i, raw in enumerate(lines):
         m = VERSION_PIN_RE.match(raw)
-        if not m:
-            continue
-        indent = len(m.group("indent"))
+        if m:
+            repository = resolve_pin_repo(lines, i, len(m.group("indent")))
+        else:
+            m = KEYED_VERSION_PIN_RE.match(raw)
+            repository_field = split_fields.get(m.group("key")) if m else None
+            if m is None or repository_field is None:
+                continue
+            repository = _sibling_field(lines, i, len(m.group("indent")), _active_field_re(repository_field))
+            if repository is None:
+                continue
         pins.append(
             {
                 "line": i + 1,
                 "version": m.group("version"),
                 "digest": m.group("digest"),
-                "repository": resolve_pin_repo(lines, i, indent),
+                "repository": repository,
             }
         )
     return pins
 
 
-def unique_digest_pin_targets(values_lines: list[str]) -> dict[tuple[str, str], tuple[str, int]]:
-    """{(repository, version): (digest, line)} of the first pin per target resolvable from values.yaml alone.
+def _active_field_re(field: str) -> re.Pattern[str]:
+    """ACTIVE_REPO_RE for a repository held under another key, e.g. redis-operator's "imageName:"."""
+    return re.compile(ACTIVE_REPO_RE.pattern.replace("repository:", f"{re.escape(field)}:", 1))
 
-    No subchart-default fallback (see resolve_pin_targets for that).
+
+def _pin_line(lines: dict[tuple[str, ...], int], path: ImagePath, digest_sibling: DigestPinningException | None) -> int:
+    """ImagePin.line: the sibling digest field's line when the digest comes from one, else the version's."""
+    version_line = lines.get((*path, "tag"), lines.get(path, 0))
+    field = digest_sibling["sibling_field"] if digest_sibling is not None else None
+    return lines.get((*path, field), version_line) if field else version_line
+
+
+def scan_image_pins(chart_dir: Path, *, allow_pull: bool = False) -> list[ImagePin]:
+    """Every pinned image of chart_dir's values.yaml, in line order.
+
+    The paths are chart_image_paths (image tag blocks, registered version
+    fields such as eck-stack's, global.images); the digest is the tag's own
+    "@sha256:" or its registered sibling field (resolved_digest_pin, e.g.
+    keycloak's "sha:"); the repository comes from RepositoryResolver.
     """
-    return {
-        target: (pins[0]["digest"], pins[0]["line"])
-        for target, pins in group_pins_by_target(scan_digest_pins(values_lines)).items()
-    }
+    text = (chart_dir / "values.yaml").read_text(encoding="utf-8")
+    values = parse_yaml_mapping(text, "values.yaml")
+    deps = chart_dir_dependencies(chart_dir)
+    resolver = RepositoryResolver(chart_dir, deps, values, allow_pull=allow_pull)
+    sibling_fields = digest_pinning_exceptions(chart_dir)
+    lines = scalar_lines_in_text(text)
+
+    pins: list[ImagePin] = []
+    for path, tag in chart_image_paths(values, deps).items():
+        version, _, digest = (resolved_digest_pin(values, path, tag, sibling_fields) or tag).partition("@sha256:")
+        pins.append(
+            {
+                "path": path,
+                "line": _pin_line(lines, path, sibling_fields.get(path) if digest and "@" not in tag else None),
+                "version": version,
+                "digest": digest or None,
+                "repository": resolver.full_repository(path),
+            }
+        )
+    return sorted(pins, key=lambda p: (p["line"], p["path"]))
 
 
-def group_pins_by_target(pins: list[DigestPin]) -> dict[tuple[str, str], list[DigestPin]]:
-    """Pins with a repository, grouped by (repository, version) so each is fetched once."""
-    targets: dict[tuple[str, str], list[DigestPin]] = {}
+def image_targets(pins: list[ImagePin]) -> dict[ImageTarget, list[ImagePin]]:
+    """Pins with a repository, grouped by (repository, version) so each image is looked up once."""
+    targets: dict[ImageTarget, list[ImagePin]] = {}
     for p in pins:
         if p["repository"]:
             targets.setdefault((p["repository"], p["version"]), []).append(p)
     return targets
 
 
-def fill_pin_repositories(
-    chart_dir: Path, lines: list[str], pins: list[DigestPin], deps: list[ChartDependency]
-) -> None:
-    """Set each pin without a repository to its vendored subchart's default one, when there is one."""
-    subchart_cache: SubchartValuesCache = {}
-    for p in pins:
-        if not p["repository"]:
-            p["repository"] = subchart_default_repository(chart_dir, lines, p["line"], deps, subchart_cache)
+def distinct_lines(group: list[ImagePin]) -> list[int]:
+    """The distinct values.yaml lines of `group`, ascending; aliases share their anchor's line."""
+    return sorted({p["line"] for p in group})
 
 
-def resolve_pin_targets(chart_dir: Path) -> tuple[list[DigestPin], dict[tuple[str, str], list[DigestPin]]]:
-    """(pins, {(repository, version): [pin, ...]}), repositories falling back to the subchart default."""
-    values_path = chart_dir / "values.yaml"
-    lines = values_path.read_text(encoding="utf-8").splitlines()
-    pins = scan_digest_pins(lines)
+def unique_image_targets(chart_dir: Path) -> dict[ImageTarget, tuple[str | None, int]]:
+    """{(repository, version): (digest, line)} of the first pin per image, digest or not."""
+    return {
+        target: (group[0]["digest"], group[0]["line"])
+        for target, group in image_targets(scan_image_pins(chart_dir)).items()
+    }
 
-    chart_yaml_path = chart_dir / "Chart.yaml"
-    deps = load_chart_dependencies(chart_yaml_path) if chart_yaml_path.is_file() else []
-    fill_pin_repositories(chart_dir, lines, pins, deps)
-    return pins, group_pins_by_target(pins)
+
+def digest_pin_targets(chart_dir: Path) -> tuple[list[ImagePin], dict[ImageTarget, tuple[str, list[int]]]]:
+    """(digest pins, {(repository, version): (digest, lines)}) for the checks and writers of pinned digests."""
+    pins = [p for p in scan_image_pins(chart_dir) if p["digest"]]
+    targets = {
+        target: (digest, distinct_lines(group))
+        for target, group in image_targets(pins).items()
+        if (digest := group[0]["digest"])
+    }
+    return pins, targets
 
 
 _tag_exists_cache: dict[tuple[str, str], tuple[bool, str | None]] = {}
@@ -268,7 +428,7 @@ def cached_tag_exists(
     exists, digest = result
     if exists:
         disk_cache[disk_key] = {
-            "checked_at": datetime.now(timezone.utc).isoformat(),
+            "checked_at": datetime.now(UTC).isoformat(),
             "digest": digest,
         }
         save_repo_access_cache(chart_dir, disk_cache)
@@ -284,12 +444,11 @@ def find_sliding_pins(chart_dir: Path) -> list[tuple[str, str, str, str]]:
     check_image_digests already announces each pin.
     """
     values_path = chart_dir / "values.yaml"
-    _pins, targets = resolve_pin_targets(chart_dir)
+    _pins, targets = digest_pin_targets(chart_dir)
 
     sliding: list[tuple[str, str, str, str]] = []
-    for (repository, version), group in sorted(targets.items()):
+    for (repository, version), (pinned_digest, _lines) in sorted(targets.items()):
         host, repo_path = parse_repo(repository)
-        pinned_digest = group[0]["digest"]
         try:
             exists, digest = cached_tag_exists(chart_dir, repository, version)
         except (urllib.error.URLError, OSError):  # noqa: S112 -- silent by design, see docstring
@@ -365,12 +524,12 @@ def _call_with_retry(fn: Callable[[], ResultT]) -> tuple[ResultT | None, str | N
 
 
 def _build_pin_context(
-    chart_dir: Path, values_path: Path, repository: str, version: str, group: list[DigestPin]
+    chart_dir: Path, values_path: Path, target: ImageTarget, pinned_digest: str, lines: list[int]
 ) -> PinCheckContext:
-    """The PinCheckContext of one (repository, version) pin group."""
+    """The PinCheckContext of one (repository, version) target."""
+    repository, version = target
     host, repo_path = parse_repo(repository)
-    pinned_digest = group[0]["digest"]
-    lines_str = ", ".join(str(p["line"]) for p in group)
+    lines_str = ", ".join(str(n) for n in lines)
     loc = PinLocation(repository, host, repo_path, version)
     return PinCheckContext(chart_dir, values_path, pinned_digest, lines_str, loc)
 
@@ -460,7 +619,7 @@ def _process_pin(ctx: PinCheckContext, i: int, total: int, acc: DigestCheckAccum
         _confirm_pinned_digest_still_resolvable(ctx, acc)
 
 
-def _print_unresolved_pins(unresolved: list[DigestPin]):
+def _print_unresolved_pins(unresolved: list[ImagePin]):
     """Print pins without a resolvable repository; skipped, not a failure."""
     if not unresolved:
         return
@@ -526,7 +685,7 @@ def _print_drifted_pins(drifted: dict[str, RepeatedPin]):
 
 def _build_digest_check_result(
     acc: DigestCheckAccumulator,
-    targets: dict[tuple[str, str], list[DigestPin]],
+    targets: dict[ImageTarget, tuple[str, list[int]]],
     duplicates: dict[str, RepeatedPin],
     drifted: dict[str, RepeatedPin],
     inconsistent: dict[str, RepeatedPin],
@@ -551,13 +710,13 @@ def check_image_digests(chart_dir: Path):
     a more specific sibling tag has that digest (is_sliding_tag); otherwise
     it fails, since a release tag shouldn't change.
 
-    Pins without a repository fall back to the subchart default, else are
+    Pins come from digest_pin_targets; those without a repository are
     skipped. Fetch errors on UNVERIFIABLE_HOSTS never fail the check.
     Flagged pins are also checked for a gone digest. A repository pinned
     literally more than once fails as [DUPLICATE-PIN] or [VERSION-DRIFT].
     """
     values_path = chart_dir / "values.yaml"
-    pins, targets = resolve_pin_targets(chart_dir)
+    pins, targets = digest_pin_targets(chart_dir)
     unresolved = [p for p in pins if not p["repository"]]
 
     print(
@@ -567,8 +726,8 @@ def check_image_digests(chart_dir: Path):
 
     acc = DigestCheckAccumulator(0, [], [], [], [], [], [])
     sorted_targets = sorted(targets.items())
-    for i, ((repository, version), group) in enumerate(sorted_targets, 1):
-        ctx = _build_pin_context(chart_dir, values_path, repository, version, group)
+    for i, (target, (pinned_digest, lines)) in enumerate(sorted_targets, 1):
+        ctx = _build_pin_context(chart_dir, values_path, target, pinned_digest, lines)
         _process_pin(ctx, i, len(sorted_targets), acc)
 
     print()

@@ -31,8 +31,14 @@ peak load.
   - `signaleren` CronJob — periodic signalling job.
   - Search: `solr-operator` + `zookeeper-operator` (both watch namespace `podiumd`)
     managing `zac-solr-solrcloud` (SolrCloud, 3 nodes) and its ZooKeeper ensemble
-    (1 node by default; accp runs 3). `zac.solr-operator.solr.jobs.createZacCore: true`
-    creates the `zac` core.
+    (1 node by default; accp runs 3). The `init-solr-zac-core` init container
+    of the ZAC Deployment creates the `zac` core when it is missing
+    (`zac.solr.createZacCore`, default `true`). No separate job is needed.
+    Since 4.10.0 Solr requires basic auth: the operator keeps the `admin`
+    password in the Secret `zac-solr-solrcloud-security-bootstrap`, and every
+    call to the Solr API or admin UI needs it.
+    An external Solr (`zac.solr.url`) needs `zac.solr.username` and
+    `zac.solr.password` instead; the render fails without them.
 
 ## Required resources
 
@@ -75,7 +81,9 @@ peak load.
 - **Open Notificaties**: `zac.notificationsSecretKey` secures the notification
   callback endpoint.
 - **Open Klant**: `zac.klantinteractiesApi.url` + token.
-- **Objecten / Objecttypen**: `zac.objectenApi` / `zac.objecttypenApi` (url + token).
+- **Objecten**: `zac.objectenApi` (url + token). Since the objecten/objecttypen merge
+  (`docs/apps/objecten/openobject-migration.md`) ZAC reads only this key; the merged
+  Objecten app also serves the Objecttypen API. `zac.objecttypenApi` is gone in 4.10.0.
 - **Open Formulieren**: `zac.openForms.url`.
 - **PABC**: `zac.pabcApi.url` + `apiKey` (role/authorisation component).
 - **External APIs**: BRP (`zac.brpApi`, optional protocollering — see related doc),
@@ -88,7 +96,7 @@ peak load.
   APIs/ZAC environment.
 - **Redis**: not used by ZAC (no entry in the redis-ha database allocation).
 - **Solr operator CRDs**: must be installed cluster-wide before enabling
-  (`all-with-dependencies.yaml` v0.10.0-prerelease per the `values.yaml` comment;
+  (`https://solr.apache.org/operator/downloads/crds/v0.9.1/all-with-dependencies.yaml`, as the `values.yaml` comment says;
   `zookeeper-operator.crd.create: false`).
 
 ## CPU and memory
@@ -141,7 +149,7 @@ managed); the single-replica ZAC pod should not get a PDB.
    client `zac-admin-client` (`zac.keycloak.adminClient.secret`).
 5. **ZGW registrations**: register client id/secret from `zac.zgwApis` in the
    Open Zaak Autorisaties API; set `zac.notificationsSecretKey` for Open
-   Notificaties callbacks; set tokens for `zac.objectenApi`, `zac.objecttypenApi`,
+   Notificaties callbacks; set tokens for `zac.objectenApi` and
    `zac.klantinteractiesApi`.
 6. **External APIs and mail**: configure `zac.brpApi` (plus protocollering if the
    BRP gateway requires it), `zac.bagApi`, `zac.kvkApi`, `zac.pabcApi`, and

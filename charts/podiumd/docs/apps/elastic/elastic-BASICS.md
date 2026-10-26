@@ -19,15 +19,21 @@ deployed via Elastic's official Helm charts from `https://helm.elastic.co`:
 
 - **`eck-operator`** (chart 3.4.0, image `elastic/eck-operator:3.4.0`) — the
   central operator, one `elastic-operator` StatefulSet (1 pod) that watches the
-  `podiumd` namespace (`eck-operator.managedNamespaces: [podiumd]`) and
+  release namespace (`eck-operator.managedNamespaces`, default `[podiumd]` — set
+  this to the namespace you deploy into; see
+  [deploying-to-a-custom-namespace.md](../../misc/deploying-to-a-custom-namespace.md)) and
   reconciles all `Elasticsearch` and `Kibana` custom resources there
   (`EnterpriseSearch` CRDs remain installed but no KISS CR is deployed since
   KISS 3.0.0). The chart also installs the 12 `*.k8s.elastic.co` CRDs
   (`installCRDs: true`, annotated `helm.sh/resource-policy: keep`).
-- **`kiss-eck`** (alias of chart `eck-stack` 0.19.0) — renders the KISS custom
-  resources: `Elasticsearch` named `kiss` (version **8.19.3**, nodeSet
-  `default`, 3 nodes → StatefulSet `kiss-es-default`) and `Kibana` `kiss`
-  (pod `kiss-kb-*`). `EnterpriseSearch` is disabled since KISS 3.0.0 — KISS
+- **`kiss-eck`** (PodiumD's own template `templates/kiss-eck.yaml`, values under
+  `kiss-eck.eck-*`) — renders the KISS custom resources: `Elasticsearch` named
+  `kiss` (nodeSet `default`, 3 nodes → StatefulSet `kiss-es-default`) and
+  `Kibana` `kiss` (pod `kiss-kb-*`). Each resource has a digest-pinned image
+  block (`kiss-eck.eck-elasticsearch.image`, `…eck-kibana.image`,
+  `…eck-enterprise-search.image`); `spec.version` is the tag's version part.
+  On an environment with an ACR, override only `image.repository`, as for every
+  other image. `EnterpriseSearch` is disabled since KISS 3.0.0 — KISS
   queries the `search-*` Elasticsearch indices directly; websites are crawled
   by the Elastic Open Crawler running as a CronJob per site.
 - **`openinwoner-elasticsearch`** — a second `Elasticsearch` CR (version
@@ -42,17 +48,17 @@ Runtime components in the `podiumd` namespace: `elastic-operator-0`
 `kiss-kb-*` (Kibana),
 `openinwoner-elasticsearch-es-default-{0..n}` (Open Inwoner ES nodes).
 
-Enablement: the current chart enables the stack by default — dependency
-conditions `eck-operator.enabled: true` and `kiss-eck.enabled: true` are set in
-`values.yaml`, and a default render emits the operator and all three KISS CRs
-(verified with `helm template`). Note the legacy line `tags:
+Enablement: the current chart enables the stack by default —
+`eck-operator.enabled: true` (dependency condition) and `kiss-eck.enabled: true`
+(template condition, with `kiss-eck.eck-*.enabled` per resource) are set in
+`values.yaml`, and a default render emits the operator and the KISS
+`Elasticsearch` and `Kibana` CRs (`EnterpriseSearch` is off by default). Note the legacy line `tags:
 eck-operator.enabled: false` at the top of `values.yaml`: it is a stale flat
 tag key that does not match the Chart.yaml tag name (`eck-operator`), and Helm
 conditions override tags anyway — the `eck-operator.enabled` condition is what
 actually decides. Environments that already run a standalone `elastic-operator`
 release should set `eck-operator.enabled: false` and keep it
-(see the migration runbook). `kiss-eck` is additionally coupled to the KISS
-tags `kiss-eck` and `contact`.
+(see the migration runbook).
 
 ## Required resources
 
@@ -85,9 +91,10 @@ Kibana and the operator itself are stateless (no PVC).
 Cluster-internal only — no HTTPRoute and no public hostname. Other apps reach
 the stack via the ECK-generated ClusterIP services:
 
-- `kiss-es-http.podiumd.svc.cluster.local:9200` (HTTPS, ECK self-signed cert)
-- `kiss-kb-http.podiumd.svc.cluster.local:5601` (Kibana)
-- `openinwoner-elasticsearch-es-http.podiumd.svc.cluster.local:9200`
+- `kiss-es-http.<namespace>.svc.cluster.local:9200` (HTTPS, ECK self-signed cert)
+- `kiss-kb-http.<namespace>.svc.cluster.local:5601` (Kibana) — the chart wires
+  this by the bare service name `kiss-kb-http:5601` so it follows the namespace
+- `openinwoner-elasticsearch-es-http.<namespace>.svc.cluster.local:9200`
   (HTTP — self-signed TLS is disabled for this CR in the chart)
 
 ### Other dependencies
@@ -147,25 +154,28 @@ cluster does not install another operator, it only adds an `Elasticsearch`
 custom resource (the Open Inwoner pattern).
 
 1. **Ensure the central operator is enabled** for the environment:
-   `eck-operator.enabled: true` with `eck-operator.managedNamespaces:
-   [podiumd]` (must include the namespace where the new CR will live). On
+   `eck-operator.enabled: true` with `eck-operator.managedNamespaces` set to the
+   namespace where the new CR will live (default `[podiumd]`). On
    clusters with pre-existing ECK CRDs, run
    `charts/podiumd/scripts/pre-upgrade-prep-4.8.0.sh --context <ctx>` once
    before deploying; verify afterwards with
    `kubectl get crd -o name | grep -c 'k8s.elastic.co'` (must print 12).
-2. **Add an `Elasticsearch` CR via values.** Either give the app's subchart an
-   `eck-elasticsearch` dependency (as `openinwoner` does) or extend an
-   `eck-stack` alias block (as `kiss-eck` does). Set `fullnameOverride` /
+2. **Add an `Elasticsearch` CR.** Either give the app's subchart an
+   `eck-elasticsearch` dependency (as `openinwoner` does) or render it from a
+   PodiumD template with an image block (as `templates/kiss-eck.yaml` does). Set `fullnameOverride` /
    CR name deliberately — it determines the StatefulSet, PVC, Service and
    Secret names (`<name>-es-<nodeset>`, `elasticsearch-data-<name>-es-<nodeset>-N`,
-   `<name>-es-http`, `<name>-es-elastic-user`) — and pin `version` explicitly.
+   `<name>-es-http`, `<name>-es-elastic-user`) — and pin the version explicitly:
+   `version` for an `eck-elasticsearch` dependency, or `image.tag`
+   (`<version>@sha256:<digest>`) for a template like `kiss-eck.yaml`, which
+   takes `spec.version` from the tag and refuses a `version` key.
 3. **Configure `nodeSets` per environment**: `count` (1 for dev, 3 for
    production HA), `node.roles`, `node.store.allow_mmap: false` (required on
    AKS without vm.max_map_count tuning), pod resources + `ES_JAVA_OPTS` heap in
    `podTemplate`, and an explicit `volumeClaimTemplates` (size + storageClass).
    Keep the nodeSet name stable (`default`) — renaming it makes ECK build a
    new StatefulSet and rebalance all data.
-4. **Wire the consumer app** to `<name>-es-http.podiumd.svc.cluster.local:9200`
+4. **Wire the consumer app** to `<name>-es-http:9200` (or `<name>-es-http.<namespace>.svc.cluster.local:9200`)
    with the `elastic` user password from Secret `<name>-es-elastic-user`
    (disable `http.tls.selfSignedCertificate` in the CR if the client cannot
    handle ECK's self-signed cert, as openinwoner does).

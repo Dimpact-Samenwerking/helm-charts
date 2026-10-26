@@ -633,29 +633,3 @@ def test_paths_by_repository_nested_subchart_not_vendored_falls_through(
     groups = libchartrepoandpathresolution.paths_by_repository(tmp_path, [dep], values, paths, allow_pull=False)
 
     assert groups == {}
-
-
-def test_paths_by_repository_resolves_via_nested_subchart_documented_default(
-    tmp_path: Path, libchartrepoandpathresolution: ModuleType
-):
-    """eck-stack's repository comes only from a commented-out example in a nested subchart."""
-    dep = {"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}
-    make_tgz(
-        tmp_path / "charts",
-        "eck-stack",
-        "0.20.0",
-        {},
-        raw_files={
-            "eck-stack/charts/eck-elasticsearch/values.yaml": (
-                "# Elasticsearch Docker image to deploy.\n#\n"
-                "# image: docker.elastic.co/elasticsearch/elasticsearch:9.5.0\n"
-                "# image: docker.elastic.co/elasticsearch/elasticsearch:9.5.0@sha256:<digest>\n"
-            ),
-        },
-    )
-    values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.19"}}}
-    paths = [("kiss-eck", "eck-elasticsearch", "version")]
-
-    groups = libchartrepoandpathresolution.paths_by_repository(tmp_path, [dep], values, paths, allow_pull=False)
-
-    assert groups == {"elasticsearch/elasticsearch": [("kiss-eck", "eck-elasticsearch", "version")]}

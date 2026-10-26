@@ -12,6 +12,7 @@ from pathlib import Path
 import yaml
 
 from lib.chart.chart_yaml import ChartDependency
+from lib.chart.registered_paths import native_components
 from lib.chart.repo_and_path_resolution import repository_group_key
 from lib.chart.values_tree_primitives import dep_for_values_key
 from lib.chart.values_tree_primitives import values_key_of
@@ -176,7 +177,7 @@ def _changes_item_issues(
 
     The item resolves as its table row does (resolve_component_identity): a canonical
     sidecar/shared-image name to its entry, a dependency to its versions, a native
-    component to its entry. Never by a word it merely mentions.
+    component to its primary pin's version. Never by a word it merely mentions.
     """
     identity = resolve_component_identity(item["name"], context.deps, resolved.resolution.canonical_names)
     dep = dep_for_values_key(context.deps, identity[1]) if identity and identity[0] == "dep" else None
@@ -187,6 +188,12 @@ def _changes_item_issues(
             actual_app_version(context.baseline_values, values_key, dep["name"]) if context.baseline_values else None
         )
         return _changes_item_version_mismatches(name, item, actual_app, str(dep["version"]), baseline_app)
+    if identity is not None and identity[0] != "sidecar" and identity[1] in native_components(context.chart_dir):
+        # A native component resolves as its table row does (resolve_component_row):
+        # by its primary pin, never by whichever manifest entry under its key comes
+        # first (frankgateway's nginx-unprivileged shim can precede its own image).
+        actual_app = actual_app_version(context.values, identity[1], identity[1], chart_dir=context.chart_dir)
+        return _changes_item_version_mismatches(name, item, actual_app, None, None)
     entries = _entries_by_path(resolved)
     entry = None
     if identity is not None and identity[0] == "sidecar":

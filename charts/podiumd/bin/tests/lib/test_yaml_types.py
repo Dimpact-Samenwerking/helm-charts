@@ -1,7 +1,7 @@
 """lib.yaml_types — yaml_problem, parse_yaml_mapping,
 load_yaml_mapping, cached_file_mapping, key_problem."""
 
-import datetime
+import datetime as dt
 
 from pathlib import Path
 
@@ -18,7 +18,7 @@ from lib.yaml_types import yaml_problem
 
 def test_parse_yaml_mapping_keeps_nested_values():
     parsed = parse_yaml_mapping("a:\n  b: [1, x, true, null]\n  when: 2026-09-24\n", "t.yaml")
-    assert parsed == {"a": {"b": [1, "x", True, None], "when": datetime.date(2026, 9, 24)}}
+    assert parsed == {"a": {"b": [1, "x", True, None], "when": dt.date(2026, 9, 24)}}
 
 
 def test_parse_yaml_mapping_empty_document_is_empty_mapping():

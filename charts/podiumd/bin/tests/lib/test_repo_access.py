@@ -3,8 +3,8 @@
 import json
 import urllib.error
 
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from email.message import Message
 from pathlib import Path
 from types import ModuleType
@@ -103,7 +103,7 @@ def test_image_repos_groups_by_repository_and_version(librepoaccess: ModuleType,
             f'    tag: "1.1.1@sha256:{"a" * 64}"\n'
         ),
     )
-    target, lines = librepoaccess.image_repos(tmp_path / "values.yaml")[0]
+    target, lines = librepoaccess.image_repos(tmp_path / "values.yaml")[0][0]
     assert target == ("ghcr.io", "platform-autorisatie-beheer-component/pabc-api", "1.1.1")
     assert lines == [4]
 
@@ -122,16 +122,35 @@ def test_image_repos_groups_multiple_pins_of_the_same_image(librepoaccess: Modul
             f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
         ),
     )
-    results = librepoaccess.image_repos(tmp_path / "values.yaml")
+    results, _unresolved = librepoaccess.image_repos(tmp_path / "values.yaml")
     assert len(results) == 1
     target, lines = results[0]
     assert target == ("docker.io", "org/repo", "1.0.0")
     assert lines == [4, 8]
 
 
-def test_image_repos_skips_pins_needing_subchart_default_fallback(librepoaccess: ModuleType, tmp_path: Path):
+def test_image_repos_returns_pins_needing_subchart_default_fallback_as_unresolved(
+    librepoaccess: ModuleType, tmp_path: Path
+):
     write_values(tmp_path, (f'openzaak:\n  image:\n    tag: "1.14.2@sha256:{"a" * 64}"\n'))
-    assert librepoaccess.image_repos(tmp_path / "values.yaml") == []
+    resolved, unresolved = librepoaccess.image_repos(tmp_path / "values.yaml")
+    assert resolved == []
+    assert [(p["path"], p["line"]) for p in unresolved] == [(("openzaak", "image"), 3)]
+
+
+def test_check_repo_access_names_the_pins_it_cannot_check(
+    librepoaccess: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    """A pin whose subchart is not vendored yet is listed with the reason, not skipped silently."""
+    (tmp_path / "Chart.yaml").write_text(
+        "dependencies:\n  - name: openzaak\n    version: 1.0.0\n    repository: file://../openzaak\n",
+        encoding="utf-8",
+    )
+    write_values(tmp_path, (f'openzaak:\n  image:\n    tag: "1.14.2@sha256:{"a" * 64}"\n'))
+    librepoaccess.check_repo_access(tmp_path)
+    out = capsys.readouterr().out
+    assert "Not checked: 1 pin(s) without a known repository:" in out
+    assert "openzaak.image (values.yaml:3): its subchart is not vendored yet (Dependencies runs later)" in out
 
 
 # --- _check_http_repo ---
@@ -611,7 +630,7 @@ def test_cache_key_http_and_registry_shapes_differ(librepoaccesscache: ModuleTyp
 
 
 def test_cache_entry_is_fresh_true_for_recent_timestamp(librepoaccesscache: ModuleType):
-    entry = {"checked_at": datetime.now(timezone.utc).isoformat()}
+    entry = {"checked_at": datetime.now(UTC).isoformat()}
     assert librepoaccesscache.cache_entry_is_fresh(entry, 30) is True
 
 

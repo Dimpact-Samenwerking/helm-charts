@@ -82,7 +82,7 @@ def redis_values(tag, digest="abc"):
 @pytest.fixture
 def redis_sidecar_chart_repo(tmp_path: Path):
     """redis-ha's image is a sidecar under "redis-operator" (no primary "image" key),
-    matched only via canonical_sidecar_row_names, never match_dependency."""
+    matched only via canonical_sidecar_row_names, never match_component."""
     repo_root = tmp_path
     chart_dir = repo_root / "charts" / "podiumd"
     doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"

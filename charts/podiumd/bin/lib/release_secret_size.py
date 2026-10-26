@@ -15,7 +15,7 @@ writes docs/release-secret-size.md) and by check_release_secret_size
 (verify-podiumd; read-only, fails at warn_at_fraction_of_limit)."""
 
 import base64
-import datetime
+import datetime as dt
 import gzip
 import io
 import json
@@ -148,7 +148,7 @@ def build_release(chart_dir: Path, values_override: YamlMapping | None, manifest
             "below — treat the reported size as an under-count for this chart."
         )
 
-    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    now = dt.datetime.now(dt.UTC).isoformat()
     release: dict[str, object] = {
         "name": name,
         "info": {
@@ -267,7 +267,7 @@ def record_result(chart_dir: Path, chart_name: str, version: str, encoded_bytes:
     """Add or update `version`'s row in <chart_dir>/docs/release-secret-size.md (CLI --record only)."""
     doc_path = chart_dir / "docs" / "release-secret-size.md"
     doc_path.parent.mkdir(parents=True, exist_ok=True)
-    date = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
+    date = dt.datetime.now(dt.UTC).strftime("%Y-%m-%d")
     row = f"| {version} | {encoded_bytes:,} | {pct * 100:.1f}% | {date} |"
 
     if doc_path.exists():

@@ -466,22 +466,23 @@ The podiumd realm exclusively serves beheer (management) users and municipality 
 | Setting | Value | Status |
 |---------|-------|--------|
 | `pkceCodeChallengeMethod` per client | `S256` | ⚙️ Available via `pkceEnabled` switch — disabled by default |
+| `pkce.code.challenge.method` on the `zac` client | `S256` | ✅ Configured by default since 4.10.0 (`zac.auth.enablePkce`) |
 
 **`pkceCodeChallengeMethod: S256`** — available per client, disabled by default
 
 - **Standard:** **RFC 9700** (OAuth 2.0 Security BCP) §2.1.1 — PKCE verplicht voor alle clients die authorization code flow gebruiken, ook voor confidential clients; **OWASP ASVS 4.0 V2.10.3**; **Forum / OAuth NL GOV**
 - **Why:** Without PKCE, an attacker who intercepts the authorization code can exchange it for tokens without the client secret. PKCE binds the authorization code to the device that initiated the flow via a cryptographic challenge/verifier pair. S256 (SHA-256 hash of the verifier) is required — plain method is insecure.
 - **History:** PKCE enforcement was deployed on 2026-03-16 and immediately caused HTTP 403 errors on all login pages. The PodiumD applications use `mozilla_django_oidc` which only added PKCE support in v4.0.0 (2024). PKCE enforcement was reverted until all components support and are configured to use PKCE.
-- **Current implementation:** Each Keycloak client now has an individual `pkceEnabled` switch in `values.yaml` (default: `false`). Setting it to `true` adds `pkceCodeChallengeMethod: S256` to the client in the realm ConfigMap.
+- **Current implementation:** Each Keycloak client except ZAC's has an individual `pkceEnabled` switch in `values.yaml` (default: `false`). Setting it to `true` adds `pkceCodeChallengeMethod: S256` to the client in the realm ConfigMap. ZAC has one switch for both sides, `zac.auth.enablePkce`, default `true` (see below).
 - **Enabling PKCE per component requires two aligned steps:**
-  1. Set `<component>.configuration.pkceEnabled: true` (or `<component>.settings.oidc.pkceEnabled: true` for KISS/PABC/ZAC/ITA) in your env values file — this configures the Keycloak client.
-  2. For Django apps: add `oidc_use_pkce: true` to the `oidc_db_config_admin_auth.items` entry in `configuration.data` — this tells the application to send `code_challenge` with each authorization request. Requires `mozilla_django_oidc >= 4.0.0`. Note: the upstream Maykin Media Helm charts (openzaak, openklant, openformulieren, openinwoner, opennotificaties, objecten, objecttypen) do **not** expose `oidc_use_pkce` as a chart value — `configuration.data` is the correct and only mechanism.
+  1. Set `<component>.configuration.pkceEnabled: true` (KISS and PABC: `<component>.settings.oidc.pkceEnabled: true`; ITA: `ita.web.oidc.pkceEnabled: true`; ZAC: see below) in your env values file — this configures the Keycloak client.
+  2. For Django apps: the app must also send `code_challenge`. **This is not possible yet** (checked 2026-10-21 on PodiumD 4.10.0). Every Django app has `mozilla_django_oidc` >= 4.0.0 (4.0.1 or 5.0.2), which sends PKCE only while the setting `OIDC_USE_PKCE` is true (`views.py`, `middleware.py`). `mozilla-django-oidc-db` (1.x and 2.x) looks that setting up on the OIDC configuration in the database and has no field for it, so it falls back to the Django settings, where no app sets it and no environment variable maps to it. An `oidc_use_pkce` key in `configuration.data` is therefore not read by the app. Keep `pkceEnabled: false` for the Django apps until upstream adds the setting: with only the Keycloak side on, the login fails (as on 2026-03-16). Since 4.10.0 the render fails when a Django app sets `configuration.pkceEnabled: true` (`templates/keycloak-podiumd-realm-config.yaml`), instead of the login failing after the deploy.
 - **openarchiefbeheer exception:** openarchiefbeheer v1.1.1 does not yet support OIDC; the `pkceEnabled` switch is reserved for future use once OIDC is added.
-- **ZAC exception:** ZAC does not currently support PKCE; the `pkceEnabled` switch is reserved for future use.
+- **ZAC (since 4.10.0):** ZAC supports PKCE since 5.4.5 (`enable-pkce` in its `oidc.json`, read from `AUTH_ENABLE_PKCE`). One switch, `zac.auth.enablePkce` (default `true`), sets both `AUTH_ENABLE_PKCE` in ZAC and `pkce.code.challenge.method: S256` on the `zac` client, so the two sides cannot drift apart. The former `zac.auth.pkceEnabled` only set the Keycloak side and now fails the render. See `docs/_UPGRADE_PATHS/4.9.5-to-4.10.0-upgrade.md`, "ZAC: PKCE on by default".
 - **Non-Django apps (KISS, ITA, PABC):** These are frontend/ASP.NET Core apps. Their upstream charts do **not** expose an app-side PKCE toggle — there is no equivalent of `oidc_use_pkce`. Whether PKCE works transparently depends entirely on the OIDC client library version used by the application:
   - KISS and ITA are JS/Vue frontends — if they use a modern library (`oidc-client-ts` v2+), PKCE is typically used by default for auth code flow and enabling it on the Keycloak client side should be safe.
   - PABC is an ASP.NET Core app — PKCE in .NET's OpenIdConnect middleware is not configurable via the current `Oidc__*` env vars; enabling `pkceEnabled` on the Keycloak client should only be done after confirming the application's middleware configuration.
-- **Action required:** For Django apps: verify each component has `mozilla_django_oidc >= 4.0.0` installed, then enable PKCE per component in env values once confirmed. For KISS/ITA/PABC: verify OIDC library PKCE compatibility before enabling.
+- **Action required:** For Django apps: none possible yet; `mozilla_django_oidc >= 4.0.0` is installed everywhere, but the apps offer no way to turn `OIDC_USE_PKCE` on (step 2). For KISS/ITA/PABC: verify OIDC library PKCE compatibility before enabling. ZAC: on by default since 4.10.0.
 - **Note on redirect URI wildcards:** All clients currently use path-wildcard redirect URIs (`https://app.example.nl/*`). RFC 9700 §4.1.3 recommends exact URI matching. This is accepted because all ingress terminates within the cluster and the NGINX ingress controller is managed and audited separately. Exact URIs will be evaluated per component when application callback paths are stable.
 
 ### Offline Session Max Lifespan
@@ -503,21 +504,20 @@ The podiumd realm exclusively serves beheer (management) users and municipality 
 | Setting | Current value | Keycloak default | Status |
 |---------|--------------|-----------------|--------|
 | `defaultOptionalClientScopes` | `[address, phone, microprofile-jwt]` | `[address, phone, offline_access, microprofile-jwt]` | ✅ Configured (`offline_access` removed) |
-| `<every client>.optionalClientScopes` | `[address, phone, microprofile-jwt]` | inherited realm default | ✅ Configured (`offline_access` removed) |
 
-**`offline_access` removed from realm defaults and from every client** ← changed from Keycloak's built-in default
+**`offline_access` removed from the realm defaults** ← changed from Keycloak's built-in default
 
 - **Standard:** RFC 9700 (OAuth 2.0 Security BCP) — grant only the scopes a client actually needs; BIO 2.0 / ISO 27002:2022 maatregel **8.5**; **OWASP ASVS 4.0 V1.2.1** (economy of privilege)
-- **Why:** `offline_access` lets a client obtain a refresh token that keeps working after the user's browser session ends, bounded only by the offline-session lifespan/idle-timeout above rather than by an active login. Every client in this realm is either a browser-redirect app for internal beheer users or a service account — none legitimately needs a refresh token that outlives the user's session or the service account's own client-credentials flow. `defaultOptionalClientScopes` stops new clients from getting the scope; the same list is referenced as `optionalClientScopes: *defaultOptionalClientScopes` (a YAML anchor/alias, resolved by keycloak-config-cli's YAML parser) on every existing client (`account-console`, `account`, `admin-cli`, and each application client) to strip it from clients that already had it via Keycloak's built-in realm default.
-- **Implementation:** `keycloak-podiumd-realm-config.yaml` → realm-level `defaultOptionalClientScopes: &defaultOptionalClientScopes`; `optionalClientScopes: *defaultOptionalClientScopes` on every entry under `clients`
-- **Client-side impact — a client must not ask for the scope either.** keycloak-config-cli
-  applies `optionalClientScopes` to clients that already exist, so an upgrade
-  *removes* `offline_access` from clients that had it. Keycloak then rejects any
+- **Why:** `offline_access` lets a client obtain a refresh token that keeps working after the user's browser session ends, bounded only by the offline-session lifespan/idle-timeout above rather than by an active login. Every client in this realm is either a browser-redirect app for internal beheer users or a service account — none legitimately needs a refresh token that outlives the user's session or the service account's own client-credentials flow. `defaultOptionalClientScopes` stops clients the realm import creates from getting the scope. 4.9.1–4.9.4 also listed it as `optionalClientScopes` on every client, which stripped `offline_access` from existing clients. Since 4.10.0 client entries list no scopes, because environments and Keycloak updates add scopes to clients (for example `bsn` and `eherkenning` for DigiD/eHerkenning). Since 4.10.0 the `keycloak-repair-client-scopes` Job removes `offline_access` from every client on every deploy.
+- **Implementation:** `keycloak-podiumd-realm-config.yaml` → realm-level `defaultOptionalClientScopes`; `keycloak-repair-client-scopes-job.yaml` for existing clients
+- **Client-side impact — a client must not ask for the scope either.** On 4.9.1–4.9.4
+  keycloak-config-cli applied `optionalClientScopes` to clients that already
+  existed, so that upgrade *removed* `offline_access` from clients that had it. Keycloak then rejects any
   authorization request that still asks for it with `invalid_scope` — it does not
   silently drop the scope. In 4.9.1 this locked every user out of Grafana, whose
   values in the sibling `monitoring-logging` chart still listed
   `offline_access` ([IN-2882](https://dimpact.atlassian.net/browse/IN-2882),
-  fixed in monitoring-logging 1.0.18). **Before adding a scope to this list, check
+  fixed in monitoring-logging 1.0.18). **Before adding a scope to the realm defaults, check
   what the clients actually request** — `monitoring` (Grafana) is configured in
   `charts/monitoring-logging/values.yaml`, not here. A client that needs a
   refresh token across page loads does not need `offline_access` for it: the

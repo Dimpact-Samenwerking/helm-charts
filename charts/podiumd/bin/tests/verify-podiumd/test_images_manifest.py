@@ -375,103 +375,6 @@ def test_images_manifest_format_component_version_path_change_is_recognized(
     assert not any("has no entry" in i for i in issues)
 
 
-def make_nested_subchart_tgz(chart_dir, name, version, nested_charts):
-    """Minimal vendored <name>-<version>.tgz with a "<name>/charts/<nested>/values.yaml"
-    member per (nested name, values text) pair in `nested_charts`."""
-    import tarfile
-
-    from io import BytesIO
-
-    charts_dir = chart_dir / "charts"
-    charts_dir.mkdir(parents=True, exist_ok=True)
-    tgz_path = charts_dir / f"{name}-{version}.tgz"
-    with tarfile.open(tgz_path, "w:gz") as tar:
-        data = yaml.safe_dump({}).encode("utf-8")
-        info = tarfile.TarInfo(name=f"{name}/values.yaml")
-        info.size = len(data)
-        tar.addfile(info, BytesIO(data))
-        for nested_name, text in nested_charts.items():
-            raw = text.encode("utf-8")
-            raw_info = tarfile.TarInfo(name=f"{name}/charts/{nested_name}/values.yaml")
-            raw_info.size = len(raw)
-            tar.addfile(raw_info, BytesIO(raw))
-
-
-ECK_STACK_DEPS = [make_dep("eck-stack", "0.20.0", alias="kiss-eck")]
-
-ECK_STACK_MANIFEST = """\
-# Baseline: podiumd 4.8.5 (test @ 0000000).
-#
-# Images new or changed in podiumd 4.9.0 vs 4.8.5.
-#
-# Changes:
-#   1. eck-stack 8.19.3 -> 8.19.19 (chart 0.19.0 -> 0.20.0).
-#
-# See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.
-
-# eck-stack — 8.19.3 -> 8.19.19
-- name: elasticsearch/elasticsearch
-  url: docker.elastic.co/elasticsearch/elasticsearch
-  version: "8.19.19"
-  digest: "sha256:aaa"
-- name: kibana/kibana
-  url: docker.elastic.co/kibana/kibana
-  version: "8.19.19"
-  digest: "sha256:bbb"
-- name: enterprise-search/enterprise-search
-  url: docker.elastic.co/enterprise-search/enterprise-search
-  version: "8.19.19"
-  digest: "sha256:ccc"
-"""
-
-
-def eck_stack_values(version):
-    return {
-        "kiss-eck": {
-            "eck-elasticsearch": {"version": version},
-            "eck-kibana": {"version": version},
-            "eck-enterprise-search": {"version": version},
-        }
-    }
-
-
-def test_images_manifest_format_sidecars_recognized_within_group_by_basename(
-    libimagesmanifest: ModuleType, tmp_path: Path
-):
-    """kibana/enterprise-search share elasticsearch's group header; component_of must
-    resolve all three via repo_map, not fuzzy header matching, so none lack a comment."""
-    (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": ECK_STACK_DEPS}), encoding="utf-8")
-    (tmp_path / "values.yaml").write_text(yaml.safe_dump(eck_stack_values("8.19.19")), encoding="utf-8")
-    make_nested_subchart_tgz(
-        tmp_path,
-        "eck-stack",
-        "0.20.0",
-        {
-            "eck-elasticsearch": "# image: docker.elastic.co/elasticsearch/elasticsearch:9.5.0\n",
-            "eck-kibana": "# image: docker.elastic.co/kibana/kibana:9.5.0\n",
-            "eck-enterprise-search": "# image: docker.elastic.co/enterprise-search/enterprise-search:8.19.0\n",
-        },
-    )
-    images_path = tmp_path / "images-4.9.0.yaml"
-    images_path.write_text(ECK_STACK_MANIFEST)
-
-    issues = libimagesmanifest.check_images_manifest_format(
-        images_path,
-        libimagesmanifest.ManifestCheckContext(
-            "4.8.5",
-            "4.9.0",
-            ECK_STACK_DEPS,
-            eck_stack_values("8.19.19"),
-            eck_stack_values("8.19.3"),
-            chart_dir=tmp_path,
-        ),
-    )
-
-    assert not any("has no preceding comment" in i for i in issues)
-    assert not any("did not change" in i for i in issues)
-    assert not any("has no entry" in i for i in issues)
-
-
 def test_images_manifest_format_correctly_ordered_entries_are_not_flagged(
     libimagesmanifest: ModuleType, tmp_path: Path
 ):
@@ -809,6 +712,92 @@ def test_images_manifest_format_changes_item_canonical_path_segment_target_misma
     )
 
     assert any("target app" in i and "9.9.9" in i for i in issues), issues
+
+
+def test_images_manifest_format_native_item_resolves_to_own_image_before_sidecar(
+    libimagesmanifest: ModuleType, tmp_path: Path
+):
+    """Regression: "frankgateway.image" must check frankgateway.image's entry, not the
+    entry of a sidecar under frankgateway (the nginx-unprivileged shim) that comes first."""
+    values = {
+        "frankgateway": {
+            "image": {"repository": "ghcr.io/wearefrank/frank-gateway", "tag": "1.1.3"},
+            "dashboard": {
+                "auth": {"shim": {"image": {"repository": "docker.io/nginxinc/nginx-unprivileged", "tag": "1.31.6"}}}
+            },
+        }
+    }
+    (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": []}, sort_keys=False), encoding="utf-8")
+    (tmp_path / "values.yaml").write_text(yaml.safe_dump(values, sort_keys=False), encoding="utf-8")
+    images_path = tmp_path / "images-4.10.0.yaml"
+    images_path.write_text(
+        "# Baseline: podiumd 4.9.4.\n#\n# podiumd 4.10.0 vs 4.9.4.\n\n"
+        "# Changes:\n"
+        "#   1. nginx-unprivileged 1.31.6 (digest changed).\n"
+        "#   2. frankgateway.image 1.1.0 -> 1.1.3.\n"
+        "#\n\n"
+        "# nginx-unprivileged 1.31.6 (digest changed)\n"
+        "- name: nginxinc/nginx-unprivileged\n"
+        "  url: docker.io/nginxinc/nginx-unprivileged\n"
+        '  version: "1.31.6"\n'
+        '  digest: "sha256:aaa"\n'
+        "# frankgateway.image 1.1.0 -> 1.1.3\n"
+        "- name: wearefrank/frank-gateway\n"
+        "  url: ghcr.io/wearefrank/frank-gateway\n"
+        '  version: "1.1.3"\n'
+        '  digest: "sha256:bbb"\n'
+    )
+
+    issues = libimagesmanifest.check_images_manifest_format(
+        images_path,
+        libimagesmanifest.ManifestCheckContext("4.9.4", "4.10.0", [], values, {}, chart_dir=tmp_path),
+    )
+
+    assert not any("frankgateway.image" in i for i in issues), issues
+
+
+def test_images_manifest_format_native_item_uses_its_registered_primary_pin(
+    libimagesmanifest: ModuleType, tmp_path: Path
+):
+    """A native component's item is checked against its registered primary pin
+    (pin_paths_for, as the writer's resolve_component_row reads it), not a hardcoded
+    <key>.image: here "gateway.image", with an unrelated "image" sidecar under the key."""
+    (tmp_path / "etc").mkdir()
+    (tmp_path / "etc" / "settings.yaml").write_text(
+        "component_resolution:\n"
+        "  native_components: [frankgateway]\n"
+        "  image_paths:\n"
+        '    frankgateway: ["gateway.image"]\n',
+        encoding="utf-8",
+    )
+    values = {
+        "frankgateway": {
+            "image": {"repository": "docker.io/nginxinc/nginx-unprivileged", "tag": "1.31.6"},
+            "gateway": {"image": {"repository": "ghcr.io/wearefrank/frank-gateway", "tag": "1.1.3"}},
+        }
+    }
+    (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": []}, sort_keys=False), encoding="utf-8")
+    (tmp_path / "values.yaml").write_text(yaml.safe_dump(values, sort_keys=False), encoding="utf-8")
+    images_path = tmp_path / "images-4.10.0.yaml"
+    manifest = (
+        "# Baseline: podiumd 4.9.4.\n#\n# podiumd 4.10.0 vs 4.9.4.\n\n"
+        "# Changes:\n"
+        "#   1. frankgateway {app}.\n"
+        "#\n\n"
+        "# frankgateway\n"
+        "- name: wearefrank/frank-gateway\n"
+        "  url: ghcr.io/wearefrank/frank-gateway\n"
+        '  version: "1.1.3"\n'
+        '  digest: "sha256:bbb"\n'
+    )
+    context = libimagesmanifest.ManifestCheckContext("4.9.4", "4.10.0", [], values, {}, chart_dir=tmp_path)
+
+    images_path.write_text(manifest.format(app="1.1.0 -> 1.1.3"), encoding="utf-8")
+    assert not any("target app" in i for i in libimagesmanifest.check_images_manifest_format(images_path, context))
+
+    images_path.write_text(manifest.format(app="1.1.0 -> 1.31.6"), encoding="utf-8")
+    issues = libimagesmanifest.check_images_manifest_format(images_path, context)
+    assert any('target app "1.31.6" != values.yaml "1.1.3"' in i for i in issues), issues
 
 
 # --- exact-vs-fuzzy Changes item collision: "Kiss's ECK-managed ..." fuzzy-matches

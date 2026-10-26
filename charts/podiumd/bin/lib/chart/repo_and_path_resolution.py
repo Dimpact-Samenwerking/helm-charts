@@ -4,28 +4,28 @@ import tarfile
 
 from collections.abc import Collection
 from collections.abc import Mapping
-from dataclasses import dataclass
 from pathlib import Path
 
 from lib.chart.chart_yaml import ChartDependency
-from lib.chart.nested_subchart_identity import nested_subchart_documented_image_repository
-from lib.chart.nested_subchart_identity import nested_subchart_name_for
 from lib.chart.nested_subchart_identity import version_repository_path_for
 from lib.chart.pull_and_subchart_resolution import formatted_repo
 from lib.chart.pull_and_subchart_resolution import own_full_repository
 from lib.chart.pull_and_subchart_resolution import resolve_chart_values
-from lib.chart.pull_and_subchart_resolution import subchart_values
-from lib.chart.registered_paths import image_paths_for
+from lib.chart.registered_paths import PinPath
 from lib.chart.registered_paths import is_primary_image_path
 from lib.chart.registered_paths import is_primary_rel_path
 from lib.chart.registered_paths import native_component_named
 from lib.chart.registered_paths import native_components
-from lib.chart.values_tree_primitives import dotted_key_path
+from lib.chart.registered_paths import pin_paths_for
+from lib.chart.values_tree_primitives import dep_for_values_key
 from lib.chart.values_tree_primitives import find_app_versions
 from lib.chart.values_tree_primitives import find_dependency
 from lib.chart.values_tree_primitives import strip_registry_host
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
+from lib.registry import ImagePathTagCheck
+from lib.registry import parse_repo
+from lib.registry import registry_tag_exists
 from lib.release_baseline import resolve_baseline_chart_state
 from lib.yaml_types import YamlMapping
 
@@ -66,9 +66,9 @@ def component_state_at_baseline(
             (f"no dependency named or aliased '{component}' in {chart_dir_relpath}/Chart.yaml at {baseline_ref}"),
         )
     values_key = values_key_of(dep) if dep else name
-    image_paths = image_paths_for(name, chart_dir)
-    app_versions = find_app_versions(baseline_values, values_key, image_paths)
-    return baseline_ref, dep, values_key, image_paths, app_versions, None
+    pins = pin_paths_for(name, chart_dir)
+    app_versions = find_app_versions(baseline_values, values_key, pins)
+    return baseline_ref, dep, values_key, [pin.path for pin in pins], app_versions, None
 
 
 def repo_group_representative(repo_paths: list[tuple[str, ...]], deps: list[ChartDependency]) -> tuple[str, ...]:
@@ -98,6 +98,76 @@ def repo_group_representative(repo_paths: list[tuple[str, ...]], deps: list[Char
     return [path for path in repo_paths if rank(path) == best][-1]
 
 
+class RepositoryResolver:  # pylint: disable=too-few-public-methods  # one query, plus its per-tree caches
+    """The fully host-qualified repository of image paths in one values tree, resolved once per path.
+
+    Per path, first match wins:
+    1. podiumd's own "repository:" at that path (with a sibling "registry:").
+    2. The component's registered sibling field (redis-operator imageName).
+    3. The dependency's vendored subchart default.
+    A path without an owning dependency only has tier 1: podiumd's own
+    templates render it. Each vendored .tgz is read at most once.
+    allow_pull defaults to False: a check shouldn't hit the network.
+    vendored_defaults=False drops tier 3, for a tree that already holds the
+    target chart's own values: the vendored .tgz is the old chart version.
+
+    A sibling "registry:" that looks like a host (".", ":" or localhost,
+    e.g. mi's mcr.microsoft.com) is used as-is. One that doesn't (zaakbrug's
+    "registry: wearefrank") is a Docker Hub namespace and goes through
+    parse_repo with the repository.
+    """
+
+    def __init__(
+        self,
+        chart_dir: Path | None,
+        deps: list[ChartDependency],
+        values: YamlMapping | None,
+        *,
+        allow_pull: bool = False,
+        vendored_defaults: bool = True,
+    ):
+        self.chart_dir = chart_dir
+        self.deps = deps
+        self.values = values
+        self.allow_pull = allow_pull
+        self.vendored_defaults = vendored_defaults
+        self._by_values_key = {values_key_of(dep): dep for dep in deps}
+        self._subchart_cache: dict[str, YamlMapping | None] = {}
+
+    def full_repository(self, path: tuple[str, ...]) -> str | None:
+        """The host-qualified repository of `path`, or None when no tier resolves it."""
+        own_repo = own_full_repository(self.values, path)
+        if own_repo is not None:
+            return own_repo
+        dep = self._by_values_key.get(path[0]) if path else None
+        if dep is None:
+            return None
+
+        sibling_rel = version_repository_path_for(dep["name"], self.chart_dir)
+        if sibling_rel:
+            sibling_repo = text_at(self.values, f"{path[0]}.{sibling_rel}")
+            if isinstance(sibling_repo, str) and sibling_repo:
+                return formatted_repo(sibling_repo)
+
+        if not self.vendored_defaults:
+            return None
+
+        sub_values = self._subchart_values(dep)
+        repo = text_at(sub_values, ".".join(path[1:]) + ".repository") if sub_values is not None else None
+        return formatted_repo(repo) if isinstance(repo, str) and repo else None
+
+    def _subchart_values(self, dep: ChartDependency):
+        """resolve_chart_values(dep), cached per dependency; None without chart_dir or a resolvable chart."""
+        if self.chart_dir is None:
+            return None
+        if dep["name"] not in self._subchart_cache:
+            sub_values, _source, _err = resolve_chart_values(
+                self.chart_dir, dep, dep["version"], allow_pull=self.allow_pull
+            )
+            self._subchart_cache[dep["name"]] = sub_values
+        return self._subchart_cache[dep["name"]]
+
+
 def paths_by_repository(
     chart_dir: Path | None,
     deps: list[ChartDependency],
@@ -110,48 +180,16 @@ def paths_by_repository(
 
     Includes sidecars (e.g. ZAC's opa, whose repository lives only in ZAC's
     vendored values) and paths without a dependency (apiproxy etc. alias the
-    same global anchors; leaving them out would split a group).
-
-    Per path, first match wins:
-    1. podiumd's own "repository:" at that path.
-    2. The component's registered sibling field (redis-operator imageName).
-    3. A registered nested subchart's documented default (eck-stack).
-    4. The dependency's vendored subchart default, resolved once per
-       dependency.
-    Unresolvable paths are skipped. allow_pull defaults to False: a
-    consistency check shouldn't hit the network.
+    same global anchors; leaving them out would split a group). Repositories
+    come from RepositoryResolver; unresolvable paths are skipped.
     """
-    by_values_key = {values_key_of(dep): dep for dep in deps}
-    state = _RepoResolutionState(chart_dir, allow_pull, {}, {})
+    resolver = RepositoryResolver(chart_dir, deps, values, allow_pull=allow_pull)
     groups: dict[str, list[tuple[str, ...]]] = {}
     for path in paths:
-        dep = by_values_key.get(path[0]) if path else None
-        repo = _grouped_repository_for_path(values, path, dep, state)
+        repo = resolver.full_repository(path)
         if repo:
-            groups.setdefault(repo, []).append(path)
+            groups.setdefault(repository_group_key(repo), []).append(path)
     return groups
-
-
-@dataclass
-class _RepoResolutionState:
-    """Per-call state of paths_by_repository: caches so each .tgz/nested subchart is read at most once."""
-
-    chart_dir: Path | None
-    allow_pull: bool
-    subchart_cache: dict[str, tuple[YamlMapping | None, str | None]]
-    nested_subchart_cache: dict[tuple[str, str], str | None]
-
-
-def _grouped_repository_for_path(
-    values: YamlMapping, path: tuple[str, ...], dep: ChartDependency | None, state: _RepoResolutionState
-):
-    """paths_by_repository's resolution chain for one path, stripped to its group key."""
-    own_repo = own_full_repository(values, path)
-    if own_repo is not None:
-        return strip_registry_host(own_repo)
-    if dep is None:
-        return None
-    return _grouped_repository_from_dependency(dep, path, values, state)
 
 
 def repository_group_key(repository: str) -> str:
@@ -163,60 +201,6 @@ def repository_group_key(repository: str) -> str:
     return strip_registry_host(formatted_repo(repository))
 
 
-def _grouped_repository_from_dependency(
-    dep: ChartDependency, path: tuple[str, ...], values: YamlMapping, state: _RepoResolutionState
-):
-    """Tiers 2-4 of _grouped_repository_for_path, for a known `dep` without an own override."""
-    sibling_rel = version_repository_path_for(dep["name"], state.chart_dir)
-    if sibling_rel:
-        sibling_repo = text_at(values, f"{path[0]}.{sibling_rel}")
-        if isinstance(sibling_repo, str) and sibling_repo:
-            return repository_group_key(sibling_repo)
-
-    nested_repo = _cached_nested_subchart_repository(dep, path, state)
-    if nested_repo:
-        return repository_group_key(nested_repo)
-
-    sub_values = _cached_subchart_values(dep, state)
-    if sub_values is None:
-        return None
-    repo = text_at(sub_values, ".".join(path[1:]) + ".repository")
-    return repository_group_key(repo) if isinstance(repo, str) and repo else None
-
-
-def _cached_nested_subchart_repository(dep: ChartDependency, path: tuple[str, ...], state: _RepoResolutionState):
-    """dep's registered nested subchart's documented repository at `path`, cached per (dep, nested chart)."""
-    nested_rel = ".".join(path[1:])
-    nested_chart_name = nested_subchart_name_for(dep["name"], nested_rel, state.chart_dir)
-    if not nested_chart_name:
-        return None
-    cache_key = (dep["name"], nested_chart_name)
-    if cache_key not in state.nested_subchart_cache:
-        state.nested_subchart_cache[cache_key] = (
-            nested_subchart_documented_image_repository(state.chart_dir, dep, nested_chart_name)
-            if state.chart_dir is not None
-            else None
-        )
-    return state.nested_subchart_cache[cache_key]
-
-
-def _cached_subchart_values(dep: ChartDependency, state: _RepoResolutionState):
-    """resolve_chart_values(dep), cached per dependency."""
-    if dep["name"] not in state.subchart_cache:
-        if state.chart_dir is None:
-            state.subchart_cache[dep["name"]] = (
-                None,
-                f"no chart_dir given — can't resolve {dep['name']}'s subchart default",
-            )
-        else:
-            sub_values, _source, err = resolve_chart_values(
-                state.chart_dir, dep, dep["version"], allow_pull=state.allow_pull
-            )
-            state.subchart_cache[dep["name"]] = (sub_values, err)
-    sub_values, _error = state.subchart_cache[dep["name"]]
-    return sub_values
-
-
 def full_repository_for_path(
     chart_dir: Path | None,
     deps: list[ChartDependency],
@@ -225,51 +209,70 @@ def full_repository_for_path(
     *,
     allow_pull: bool = False,
 ):
-    """The fully host-qualified repository for `path`, or None; same chain as paths_by_repository.
+    """RepositoryResolver.full_repository of one path, or None.
 
     Registry calls and manifest "url:" need this: rebuilding a host from a
-    stripped group key would wrongly assume Docker Hub.
-
-    A sibling "registry:" that looks like a host (".", ":" or localhost,
-    e.g. mi's mcr.microsoft.com) is used as-is. One that doesn't (zaakbrug's
-    "registry: wearefrank") is a Docker Hub namespace and goes through
-    parse_repo with the repository.
+    stripped group key would wrongly assume Docker Hub. Resolving many
+    paths of one tree: build one RepositoryResolver instead.
     """
-    own_repo = own_full_repository(values, path)
-    if own_repo is not None:
-        return own_repo
+    return RepositoryResolver(chart_dir, deps, values, allow_pull=allow_pull).full_repository(path)
 
-    by_values_key = {values_key_of(dep): dep for dep in deps}
-    dep = by_values_key.get(path[0]) if path else None
+
+def pin_repositories(
+    chart_dir: Path | None, dep: ChartDependency | None, component_values: YamlMapping, pins: list[PinPath]
+) -> list[tuple[str, str]]:
+    """[(pin path, repository)] for the pins of one component's values tree whose repository resolves.
+
+    `component_values` is that component's block, over the target chart's values
+    when checking a bump, so the vendored (old) chart's own defaults are never
+    read.
+    `dep` None (a native component) leaves only its own "repository:".
+    """
     if dep is None:
-        return None
-    return _full_repo_from_dependency(chart_dir, dep, path, values, allow_pull=allow_pull)
+        prefix: tuple[str, ...] = ()
+        resolver = RepositoryResolver(None, [], component_values)
+    else:
+        prefix = (values_key_of(dep),)
+        resolver = RepositoryResolver(chart_dir, [dep], {prefix[0]: component_values}, vendored_defaults=False)
+    return [(pin.path, repo) for pin in pins if (repo := resolver.full_repository((*prefix, *pin.path.split("."))))]
 
 
-def _full_repo_from_dependency(
-    chart_dir: Path | None, dep: ChartDependency, path: tuple[str, ...], values: YamlMapping | None, *, allow_pull: bool
-):
-    """Tiers 2-4 of full_repository_for_path, for a known `dep` without an own override."""
-    sibling_rel = version_repository_path_for(dep["name"], chart_dir)
-    if sibling_rel:
-        sibling_repo = text_at(values, f"{path[0]}.{sibling_rel}")
-        if isinstance(sibling_repo, str) and sibling_repo:
-            return formatted_repo(sibling_repo)
+def check_image_versions(
+    chart_dir: Path | None,
+    dep: ChartDependency | None,
+    component_values: YamlMapping,
+    pins: list[PinPath],
+    app_version: str,
+) -> list[ImagePathTagCheck]:
+    """Registry existence check of `app_version` for every pin in `pins` whose repository resolves.
 
-    nested_rel = ".".join(path[1:])
-    nested_chart_name = nested_subchart_name_for(dep["name"], nested_rel, chart_dir)
-    if nested_chart_name and chart_dir is not None:
-        nested_repo = nested_subchart_documented_image_repository(chart_dir, dep, nested_chart_name)
-        if nested_repo:
-            return formatted_repo(nested_repo)
+    `component_values` is one component's values tree: podiumd's block over
+    the target chart's values, or a native component's block (`dep` None).
+    Repositories come from RepositoryResolver, as in verify-podiumd's image
+    checks, so a registered sibling field (redis-operator's imageName) counts.
+    Raises SystemExit when no pin resolves (wrong path or a restructured
+    chart), rather than reporting "0 checked". Pins sharing a repository
+    (redis-operator's imageTag and initContainerImageTag) cost one lookup.
+    """
+    repos = pin_repositories(chart_dir, dep, component_values, pins)
+    if not repos:
+        msg = (
+            f"error: no repository found for {', '.join(pin.path for pin in pins)} "
+            f"— wrong path? see lib.chart.registered_paths.pin_paths_for()"
+        )
+        raise SystemExit(msg)
 
-    if chart_dir is None:
-        return None
-    sub_values, _source, _err = resolve_chart_values(chart_dir, dep, dep["version"], allow_pull=allow_pull)
-    if sub_values is None:
-        return None
-    repo = text_at(sub_values, ".".join(path[1:]) + ".repository")
-    return formatted_repo(repo) if isinstance(repo, str) and repo else None
+    results: list[ImagePathTagCheck] = []
+    lookups: dict[str, tuple[bool, str | None]] = {}
+    for path, repo in repos:
+        host, repo_path = parse_repo(repo)
+        if repo not in lookups:
+            lookups[repo] = registry_tag_exists(host, repo_path, app_version)
+        exists, digest = lookups[repo]
+        results.append(
+            {"path": path, "repository": repo, "host": host, "repo_path": repo_path, "exists": exists, "digest": digest}
+        )
+    return results
 
 
 def repository_path_map(
@@ -308,7 +311,7 @@ def canonical_sidecar_row_names(
       component (e.g. "redis-operator - redis-exporter").
     - "<image-basename>" for an image under "global".
 
-    Primary images are left to match_dependency. A sidecar whose repository
+    Primary images are left to match_component. A sidecar whose repository
     is also a global image or an owner's primary image is excluded, so one
     bump never gets two row names. Deterministic; no fuzzy matching.
     """
@@ -409,51 +412,9 @@ def subchart_template_text(chart_dir: Path, dep: ChartDependency):
         return None
 
 
-def _dependency_for_pin(lines: list[str], pin_line: int, deps: list[ChartDependency]):
-    """(dependency, subpath such as "frontend.image") for the pin "tag:" at 1-based pin_line, or (None, None)."""
-    path = dotted_key_path(lines, pin_line - 1)
-    segments = path.split(".")
-    if len(segments) < 3:
-        return None, None
-    component, subpath = segments[0], ".".join(segments[1:-1])
-    dep = find_dependency(deps, component)
-    if dep is None:
-        return None, None
-    return dep, subpath
-
-
-# dep name -> vendored subchart values (None: not vendored).
-SubchartValuesCache = dict[str, YamlMapping | None]
-
-
-def subchart_default_repository(
-    chart_dir: Path,
-    lines: list[str],
-    pin_line: int,
-    deps: list[ChartDependency],
-    cache: SubchartValuesCache | None = None,
-) -> str | None:
-    """The subchart-default "repository:" for a digest pin with none in podiumd's values.yaml, or None.
-
-    `pin_line` is the pin's 1-based "tag:" line; `cache` avoids re-reading
-    a component's .tgz across pins.
-    """
-    dep, subpath = _dependency_for_pin(lines, pin_line, deps)
-    if dep is None:
-        return None
-    if cache is None:
-        cache = {}
-    if dep["name"] not in cache:
-        cache[dep["name"]] = subchart_values(chart_dir, dep)
-    values = cache[dep["name"]]
-    if values is None:
-        return None
-    return text_at(values, f"{subpath}.repository")
-
-
-def subchart_needs_vendoring(chart_dir: Path, lines: list[str], pin_line: int, deps: list[ChartDependency]):
-    """Whether re-vendoring could resolve this pin: its dependency's .tgz at the pinned version is missing."""
-    dep, _ = _dependency_for_pin(lines, pin_line, deps)
+def subchart_needs_vendoring(chart_dir: Path, deps: list[ChartDependency], path: tuple[str, ...]):
+    """Whether re-vendoring could resolve `path`: its dependency's .tgz at the pinned version is missing."""
+    dep = dep_for_values_key(deps, path[0]) if path else None
     if dep is None:
         return False
     tgz_path = chart_dir / "charts" / f"{dep['name']}-{dep['version']}.tgz"

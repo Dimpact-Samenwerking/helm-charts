@@ -6,6 +6,8 @@ requires that it changes nothing.
 
 import pytest
 
+from pymarkdown.api import PyMarkdownApi
+
 UPGRADE = "_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md"
 DELTAS = "_UPGRADE_PATHS/4.8.5-to-4.9.0-values-deltas.md"
 MANIFEST = "images/images-4.9.0.yaml"
@@ -39,6 +41,30 @@ def test_a_version_bump(writer_then_checker):
     assert "#   1. zac 5.4.4 -> 5.4.5." in docs[MANIFEST]
 
 
+def test_a_stale_copy_of_a_changes_item_is_merged_in_one_run(writer_then_checker):
+    """Two PRs merged together can leave an older and a current copy of one item."""
+    manifest = (
+        "# Baseline: podiumd 4.8.5.\n#\n# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n#\n"
+        "# Changes:\n"
+        "#   1. zac 5.4.4 -> 5.4.5.\n"
+        "#   2. zac 5.4.4 -> 5.4.6.\n"
+        "#\n# See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.\n\n"
+        "# zac 5.4.4 -> 5.4.6\n"
+        "- name: infonl/zaakafhandelcomponent\n"
+        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+        '  version: "5.4.6"\n'
+        f'  digest: "sha256:{"a" * 64}"\n'
+    )
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC], "values": {"zac": zac("5.4.4")}},
+        {"version": "4.9.0", "deps": [ZAC], "values": {"zac": zac("5.4.6")}, "files": {f"docs/{MANIFEST}": manifest}},
+    )
+
+    assert docs[MANIFEST].count("#   1. zac 5.4.4 -> 5.4.6.") == 1
+    assert "zac 5.4.4 -> 5.4.5" not in docs[MANIFEST]
+    assert "#   2." not in docs[MANIFEST]
+
+
 def test_a_second_bump_keeps_the_user_text_of_the_section(writer_then_checker):
     note = "Restart the zaakbrug after ZAC.\n"
     earlier_doc = (
@@ -62,6 +88,31 @@ def test_a_second_bump_keeps_the_user_text_of_the_section(writer_then_checker):
     assert "### zac 5.4.4 → 5.4.6 (chart 1.0.297, unchanged)" in docs[UPGRADE]
     assert "5.4.5" not in docs[UPGRADE]
     assert note in docs[UPGRADE]
+
+
+def test_a_link_to_a_renamed_heading_follows_it(writer_then_checker):
+    """pymarkdown's MD051 (verify-podiumd's markdown step) accepts the link after the heading is renamed."""
+    earlier_doc = (
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "Read [zac below](#zac-544--545-chart-10297-unchanged) first.\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| zac | 5.4.4 → 5.4.5 | 1.0.297 (unchanged) | - |\n\n"
+        "## Changes\n\n"
+        "### zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)\n\n"
+        "PodiumD 4.9.0 upgrades **zac** from app version 5.4.4\nto 5.4.5.\n\n"
+        "- Image tag pin `zac.image.tag` `5.4.4` → `5.4.5` in\n  `charts/podiumd/values.yaml`.\n\n"
+        "- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).\n"
+    )
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC], "values": {"zac": zac("5.4.4")}},
+        {"version": "4.9.0", "deps": [ZAC], "values": {"zac": zac("5.4.6")}, "files": {f"docs/{UPGRADE}": earlier_doc}},
+    )
+
+    assert "Read [zac below](#zac-544--546-chart-10297-unchanged) first." in docs[UPGRADE]
+    failures = PyMarkdownApi().scan_string(docs[UPGRADE]).scan_failures
+    assert [f.rule_id for f in failures if f.rule_id == "MD051"] == []
 
 
 def test_a_new_component(writer_then_checker):
@@ -490,6 +541,123 @@ def test_a_shared_image_absent_at_the_baseline_is_new(writer_then_checker):
     assert "#   1. curl 8.2.0 (new)." in docs[MANIFEST]
 
 
+def test_a_sidecar_switched_onto_a_new_shared_image_documents_each_pin(writer_then_checker):
+    """zac.hooks leaves k8s-kubectl v1.25.4 for the alpine/k8s 1.37.1 that zac.labeler already pinned.
+
+    The shared image's own repository kept its version; the row is changed because one
+    path using it was on another version, and each path's bullet shows its own baseline.
+    """
+    alpine_k8s = image("docker.io/alpine/k8s", "1.37.1")
+    baseline = {
+        "zac": {
+            **zac("5.4.4"),
+            "labeler": {"image": image("docker.io/alpine/k8s", "1.37.1")},
+            "hooks": {"image": image("docker.io/lachlanevenson/k8s-kubectl", "v1.25.4", "b")},
+        }
+    }
+    target = {
+        "global": {"images": {"alpineK8s": alpine_k8s}},
+        "zac": {**zac("5.4.4"), "labeler": {"image": alpine_k8s}, "hooks": {"image": alpine_k8s}},
+    }
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC], "values": baseline},
+        {"version": "4.9.0", "deps": [ZAC], "values": target},
+    )
+
+    assert "| k8s | v1.25.4 → 1.37.1 | - | - |" in docs[UPGRADE]
+    assert "upgrades the shared **k8s** image to 1.37.1," in docs[UPGRADE]
+    assert "- `global.images.alpineK8s.tag` `v1.25.4` → `1.37.1`" in docs[UPGRADE]
+    assert (
+        "- `zac.hooks.image.tag` `v1.25.4` → `1.37.1` (shares a YAML anchor with `global.images.alpineK8s.tag`)"
+        in docs[UPGRADE]
+    )
+    assert (
+        "- `zac.labeler.image.tag` `1.37.1` (unchanged) (shares a YAML anchor with `global.images.alpineK8s.tag`)"
+        in docs[UPGRADE]
+    )
+    assert "(unchanged) | - | - |" not in docs[UPGRADE]
+
+
+def test_a_sidecar_joining_an_existing_unchanged_shared_image_keeps_each_paths_version(writer_then_checker):
+    """global.images.alpineK8s stays at 1.37.1; zac.hooks joins it from k8s-kubectl v1.25.4.
+
+    The row shows the switch; each bullet shows its own path's old version.
+    """
+    alpine_k8s = image("docker.io/alpine/k8s", "1.37.1")
+    hooks_baseline = image("docker.io/lachlanevenson/k8s-kubectl", "v1.25.4", "b")
+    docs = writer_then_checker(
+        {
+            "version": "4.8.5",
+            "deps": [ZAC],
+            "values": {
+                "global": {"images": {"alpineK8s": alpine_k8s}},
+                "zac": {**zac("5.4.4"), "labeler": {"image": alpine_k8s}, "hooks": {"image": hooks_baseline}},
+            },
+        },
+        {
+            "version": "4.9.0",
+            "deps": [ZAC],
+            "values": {
+                "global": {"images": {"alpineK8s": alpine_k8s}},
+                "zac": {**zac("5.4.4"), "labeler": {"image": alpine_k8s}, "hooks": {"image": alpine_k8s}},
+            },
+        },
+    )
+
+    assert "| k8s | v1.25.4 → 1.37.1 | - | - |" in docs[UPGRADE]
+    assert "- `zac.labeler.image.tag` `1.37.1` (unchanged) (shares a YAML anchor" in docs[UPGRADE]
+    assert "- `zac.hooks.image.tag` `v1.25.4` → `1.37.1` (shares a YAML anchor" in docs[UPGRADE]
+
+
+def test_a_shared_image_bump_keeps_its_own_old_version_when_a_sidecar_joins_it(writer_then_checker):
+    """global.images.alpineK8s goes 1.36.0 → 1.37.1 while zac.hooks, earlier in values.yaml, joins it."""
+    old_k8s = image("docker.io/alpine/k8s", "1.36.0")
+    new_k8s = image("docker.io/alpine/k8s", "1.37.1")
+    hooks_baseline = image("docker.io/lachlanevenson/k8s-kubectl", "v1.25.4", "b")
+    docs = writer_then_checker(
+        {
+            "version": "4.8.5",
+            "deps": [ZAC],
+            "values": {
+                "global": {"images": {"alpineK8s": old_k8s}},
+                "zac": {**zac("5.4.4"), "hooks": {"image": hooks_baseline}, "labeler": {"image": old_k8s}},
+            },
+        },
+        {
+            "version": "4.9.0",
+            "deps": [ZAC],
+            "values": {
+                "global": {"images": {"alpineK8s": new_k8s}},
+                "zac": {**zac("5.4.4"), "hooks": {"image": new_k8s}, "labeler": {"image": new_k8s}},
+            },
+        },
+    )
+
+    assert "| k8s | 1.36.0 → 1.37.1 | - | - |" in docs[UPGRADE]
+    assert "- `global.images.alpineK8s.tag` `1.36.0` → `1.37.1`" in docs[UPGRADE]
+    assert "- `zac.labeler.image.tag` `1.36.0` → `1.37.1` (shares a YAML anchor" in docs[UPGRADE]
+    assert "- `zac.hooks.image.tag` `v1.25.4` → `1.37.1` (shares a YAML anchor" in docs[UPGRADE]
+    assert "v1.25.4" not in docs[MANIFEST]
+
+
+def test_a_sidecar_moved_onto_a_new_shared_image_at_its_version_leaves_no_docs(writer_then_checker):
+    """An anchor new in global.images whose paths all kept their version changes nothing to document."""
+    alpine_k8s = image("docker.io/alpine/k8s", "1.37.1")
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC], "values": {"zac": {**zac("5.4.4"), "labeler": {"image": alpine_k8s}}}},
+        {
+            "version": "4.9.0",
+            "deps": [ZAC],
+            "values": {
+                "global": {"images": {"alpineK8s": alpine_k8s}},
+                "zac": {**zac("5.4.4"), "labeler": {"image": alpine_k8s}},
+            },
+        },
+    )
+
+    assert "k8s" not in docs[UPGRADE]
+
+
 def test_a_sidecar_bump_keeps_its_parents_own_row(writer_then_checker):
     opa = image("openpolicyagent/opa", "1.4.1")
     docs = writer_then_checker(
@@ -613,3 +781,81 @@ def test_a_doc_without_a_changes_heading_gets_one_section_per_component(writer_t
 
     assert docs[UPGRADE].count("## Changes\n") == 1
     assert docs[UPGRADE].count("### zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)") == 1
+
+
+KISS_CHART = {"name": "kiss-chart", "alias": "kiss", "version": "3.1.1", "repository": "@kiss"}
+ECK_STACK = {"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0", "repository": "@elastic"}
+# kiss-eck rendered by podiumd itself; eck-stack's bare version fields stay registered for the baseline.
+KISS_ECK_NATIVE_SETTINGS = {
+    "etc/settings.yaml": (
+        "component_resolution:\n"
+        '  native_components: ["frankgateway", "keycloak", "kiss-eck"]\n'
+        "  image_paths:\n"
+        '    "kiss-eck": ["eck-elasticsearch.image", "eck-kibana.image"]\n'
+        "  version_paths:\n"
+        '    "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"]\n'
+    )
+}
+
+
+def kiss_eck_chart(version: str, kibana: str | None = None) -> dict[str, object]:
+    return {"eck-elasticsearch": {"version": version}, "eck-kibana": {"version": kibana or version}}
+
+
+def kiss_eck_native(tag: str) -> dict[str, object]:
+    return {
+        "eck-elasticsearch": {"image": image("docker.elastic.co/elasticsearch/elasticsearch", tag)},
+        "eck-kibana": {"image": image("docker.elastic.co/kibana/kibana", tag, "b")},
+    }
+
+
+def test_a_dependency_that_becomes_a_native_component_keeps_its_baseline(writer_then_checker):
+    """kiss-eck: the eck-stack chart until 4.10, then podiumd's own templates under the same key.
+
+    Its row is not KISS's ("kiss" alias), not new, and not removed: the old
+    version comes from eck-stack's bare version fields, the chart goes away."""
+    docs = writer_then_checker(
+        {
+            "version": "4.8.5",
+            "deps": [KISS_CHART, ECK_STACK],
+            # Kibana one patch behind: each image keeps its own baseline.
+            "values": {"kiss": kiss("3.1.1"), "kiss-eck": kiss_eck_chart("8.19.19", kibana="8.19.18")},
+        },
+        {
+            "version": "4.9.0",
+            "deps": [KISS_CHART],
+            "values": {"kiss": kiss("3.1.1"), "kiss-eck": kiss_eck_native("8.19.23")},
+            "files": KISS_ECK_NATIVE_SETTINGS,
+        },
+    )
+
+    assert "| kiss-eck | 8.19.19 → 8.19.23 | 0.20.0 → - | - |" in docs[UPGRADE]
+    assert "### kiss-eck 8.19.19 → 8.19.23\n" in docs[UPGRADE]
+    assert "| kiss |" not in docs[UPGRADE]
+    assert "(removed)" not in docs[UPGRADE]
+    assert "#   1. kiss-eck.eck-elasticsearch.image 8.19.19 -> 8.19.23." in docs[MANIFEST]
+    assert "#   2. kiss-eck.eck-kibana.image 8.19.18 -> 8.19.23." in docs[MANIFEST]
+    assert "# kiss-eck.eck-elasticsearch.image 8.19.19 -> 8.19.23\n" in docs[MANIFEST]
+    assert "# kiss-eck.eck-kibana.image 8.19.18 -> 8.19.23\n" in docs[MANIFEST]
+    assert "## kiss-eck 8.19.19 → 8.19.23" in docs[DELTAS]
+
+
+def test_a_dependency_that_becomes_a_native_component_at_the_same_version(writer_then_checker):
+    """Same Elastic version: the row stays, as the eck-stack chart went away."""
+    docs = writer_then_checker(
+        {
+            "version": "4.8.5",
+            "deps": [KISS_CHART, ECK_STACK],
+            "values": {"kiss": kiss("3.1.1"), "kiss-eck": kiss_eck_chart("8.19.19")},
+        },
+        {
+            "version": "4.9.0",
+            "deps": [KISS_CHART],
+            "values": {"kiss": kiss("3.1.1"), "kiss-eck": kiss_eck_native("8.19.19")},
+            "files": KISS_ECK_NATIVE_SETTINGS,
+        },
+    )
+
+    assert "| kiss-eck | 8.19.19 (unchanged) | 0.20.0 → - | - |" in docs[UPGRADE]
+    assert "### kiss-eck 8.19.19 (unchanged)\n" in docs[UPGRADE]
+    assert "(removed)" not in docs[UPGRADE]

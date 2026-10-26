@@ -15,8 +15,7 @@ from typing import Literal
 from lib.chart.chart_state import ComponentState
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.historical_baselines import baseline_lookup
-from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
-from lib.chart.historical_baselines import historical_app_version_for_path
+from lib.chart.historical_baselines import sidecar_baseline_version
 from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
 from lib.chart.registered_paths import component_chart_versions
 from lib.chart.repo_and_path_resolution import full_repository_for_path
@@ -122,43 +121,32 @@ def _sidecar_scan_state(text: str, target_state: ComponentState, indexes: StateI
 
 
 def _resolve_sidecar_old_app(path: tuple[str, ...], ctx: _SidecarRowContext):
-    """A sidecar path's prior app version when the exact path isn't in the baseline.
-
-    Tries baseline_tag_for_sidecar_path (same repository elsewhere in the
-    baseline, e.g. postgres pins merged into global.images.postgres), then
-    past images-<version>.yaml manifests. Never images-baseline.yaml.
-    """
-    old_app = baseline_tag_for_sidecar_path(
+    """A sidecar path's prior app version (sidecar_baseline_version). Never images-baseline.yaml."""
+    return sidecar_baseline_version(
         baseline_lookup(
             ctx.doc_context.chart_dir, ctx.target_state.deps, ctx.target_state.values, ctx.baseline_values, ctx.state
         ),
         path,
+        ctx.doc_context.upgrade_docs_baseline,
     )
-    if old_app is None and ctx.baseline_values:
-        old_app = historical_app_version_for_path(
-            ctx.doc_context.chart_dir,
-            ctx.target_state.deps,
-            ctx.target_state.values,
-            path,
-            ctx.doc_context.upgrade_docs_baseline,
-        )
-    return old_app
 
 
 def _add_sidecar_row(text: str, name: str, path: tuple[str, ...], ctx: _SidecarRowContext):
     """Insert `name`'s missing row and Changes section for `path`; (text, False) if not needed.
 
-    Not needed when already present, unchanged in version (digest-only
-    re-pins aren't documented), or the doc has no table.
+    Not needed when already present, unchanged in version vs the baseline
+    the checker resolves (digest-only re-pins aren't documented), or the
+    doc has no table.
     """
     if path in ctx.state.matched_paths:
         return text, False
     current_tag = ctx.state.current_paths.get(path)
-    baseline_tag = ctx.state.baseline_paths.get(path)
-    if current_tag is None or not image_version_changed(baseline_tag, current_tag):
+    if current_tag is None:
+        return text, False
+    old_app = _resolve_sidecar_old_app(path, ctx)
+    if not image_version_changed(old_app, current_tag):
         return text, False
     new_app = current_tag.split("@", 1)[0]
-    old_app = _resolve_sidecar_old_app(path, ctx)
 
     ordering = OrderingContext(ctx.target_state.deps, ctx.target_state.values, ctx.state.canonical_names)
     text, table_action = update_component_table(text, name, VersionChange(old_app, new_app, None, "-"), ordering)
