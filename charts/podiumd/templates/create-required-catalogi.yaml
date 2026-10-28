@@ -70,14 +70,18 @@ data:
         catalogi_url+"catalogussen",
         headers=headers
     )
-    if response.status_code != 200:
+    # Open Zaak can answer 200 with an HTML page while it starts.
+    try:
+        catalogi = response.json()['results'] if response.status_code == 200 else None
+    except (ValueError, KeyError):
+        catalogi = None
+    if catalogi is None:
         sys.exit(f"listing catalogussen failed: HTTP {response.status_code}: {response.text[:500]}")
 
     print(response.json())
 
     zac_catalogus={ "domein": f"{domein}", "rsin": f"{rsin}", "contactpersoonBeheerNaam": f"{contact_person}", "contactpersoonBeheerEmailadres": f"{contact_email}", "zaaktypen": [], "informatieobjecttypen": [], "besluittypen": [] }
 
-    catalogi = response.json()['results']
 
     for catalogus in catalogi:
         if(catalogus['domein']==zac_catalogus['domein'] and catalogus['rsin']==zac_catalogus['rsin']):
