@@ -5531,6 +5531,12 @@ openbao:
           tls_disable     = 1
           address         = "[::]:8200"
           cluster_address = "[::]:8201"
+          # The public openbao host must send it too, also where no edge adds it.
+          custom_response_headers {
+            "default" = {
+              "X-Content-Type-Options" = ["nosniff"]
+            }
+          }
         }
         {{- if or (.Values.global.serverTelemetry).prometheusOperator .Values.serverTelemetry.serviceMonitor.enabled }}
 
