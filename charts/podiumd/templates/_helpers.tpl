@@ -1214,6 +1214,28 @@ done
 {{- end }}
 
 {{/*
+Container command that reruns the given command every 5 s until it succeeds,
+for at most 10 minutes. A Job whose dependency is not ready yet (Keycloak, the
+realm, an API client) otherwise fails its pod and waits in the Job back-off
+(10 s, 20 s, 40 s, ... up to 6 minutes) for its next try. The command runs as a
+process of its own, so a script's `set -e` still works. The container's args
+are appended to it. No `&` in the script: toJson escapes it.
+Usage: command: {{ include "podiumd.retryCommand" (list "/bin/bash" "-c") }}
+*/}}
+{{- define "podiumd.retryCommand" -}}
+{{- $retry := `end=$(($(date +%s) + 600)); until "$@"; do [ "$(date +%s)" -lt "$end" ] || exit 1; echo "Failed; retrying in 5 s"; sleep 5; done` -}}
+{{- toJson (concat (list "/bin/sh" "-c" $retry "retry") .) -}}
+{{- end -}}
+
+{{/*
+keycloak-config-cli's command: the ENTRYPOINT of its image, which the realm
+import Jobs wrap in podiumd.retryCommand.
+*/}}
+{{- define "podiumd.keycloakConfigCli.command" -}}
+{{- include "podiumd.retryCommand" (list "/bin/sh" "-c" "exec java $JAVA_OPTS -jar /app/keycloak-config-cli.jar") -}}
+{{- end -}}
+
+{{/*
 Whether a subchart dependency is enabled, decided the way Helm decides its
 `condition: <component>.enabled`: only a boolean false turns it off. An unset,
 null or non-boolean value leaves the subchart enabled (Helm warns and ignores

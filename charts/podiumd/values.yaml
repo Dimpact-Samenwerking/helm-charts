@@ -4280,7 +4280,9 @@ pabc:
     # functional roles, so without these a seeded PABC still grants nothing.
     # The Job only adds (kcadm create/add-roles) and never touches client
     # roles or removes anything. Needs keycloak-operator.enabled and
-    # keycloak-operator.jobs.ensureOperatorSa.clientSecret.
+    # keycloak-operator.jobs.ensureOperatorSa.clientSecret. Left out when
+    # keycloak.config.skipRoles and skipGroups are both false: the realm import
+    # then creates the same roles and groups.
     keycloak:
       enabled: true
       resources:

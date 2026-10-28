@@ -11,8 +11,8 @@
 # - removes offline_access from every client (see keycloak-security-updates.md).
 # The name carries the release revision, so it runs on every deploy. It
 # tolerates Keycloak restarting mid-run (Keycloak operator upgrade): the login
-# waits for Keycloak, a failed call fails the pod, backoffLimit retries it, and
-# every step checks before it changes anything. A client is marked with the
+# waits for Keycloak, a failed run is rerun (podiumd.retryCommand), and every
+# step checks before it changes anything. A client is marked with the
 # attribute podiumd.repair-client-scopes=pending while its defaults are added,
 # so a retry finishes a half-repaired client. That marker is written with
 # kcadm --no-merge, which sends only the attribute: the realm import Job runs
@@ -58,7 +58,7 @@ spec:
             drop: ["ALL"]
           seccompProfile:
             type: RuntimeDefault
-        command: ["/bin/bash", "-c"]
+        command: {{ include "podiumd.retryCommand" (list "/bin/bash" "-c") }}
         args:
         - |
           {{- include "podiumd.keycloakRepairClientScopes.script" . | nindent 10 }}
