@@ -403,7 +403,7 @@ PodiumD Helm chart
 | keycloak.externalDatabase.user | string | `""` |  |
 | keycloak.externalDatabase.vendor | string | `"postgres"` |  |
 | keycloak.features.enabled | list | `[]` |  |
-| keycloak.hostname | object | `{"admin":"","hostname":""}` | new hostname configuration for keycloak-operator, falls back to config.adminFrontendUrl if not defined |
+| keycloak.hostname | object | `{"admin":"","hostname":""}` | hostname configuration for keycloak-operator. `hostname` falls back to config.realmFrontendUrl (then config.adminFrontendUrl), `admin` falls back to config.adminFrontendUrl |
 | keycloak.http.httpEnabled | bool | `true` |  |
 | keycloak.image.registry | string | `""` |  |
 | keycloak.image.repository | string | `"quay.io/keycloak/keycloak"` |  |
