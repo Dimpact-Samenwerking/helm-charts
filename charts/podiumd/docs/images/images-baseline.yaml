@@ -195,7 +195,7 @@
 - name: library/solr
   url: docker.io/library/solr
   version: "9.11.0-slim"
-  digest: "sha256:3b70e899b1cca19729c49c110a1aa8e937f727be4cca3ad07ea67f151f5cc07d"
+  digest: "sha256:5bc07412dffc1198ff6ace3587e09f8eea2126f821109a849506f4541b228aca"
 
 - name: pravega/zookeeper-operator
   url: docker.io/pravega/zookeeper-operator
