@@ -314,12 +314,14 @@ keycloak:
             limits:
               memory: "1Gi"
               cpu: "1000m"
+          # Liveness and readiness start only after the startup probe succeeds, so
+          # an initial delay only holds back Ready.
           livenessProbe:
             httpGet:
               path: /health/live
               port: 9000
               scheme: HTTP
-            initialDelaySeconds: 120
+            initialDelaySeconds: 0
             periodSeconds: 30
             timeoutSeconds: 5
             failureThreshold: 5
@@ -328,7 +330,7 @@ keycloak:
               path: /health/ready
               port: 9000
               scheme: HTTP
-            initialDelaySeconds: 60
+            initialDelaySeconds: 0
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
@@ -337,10 +339,10 @@ keycloak:
               path: /health/started
               port: 9000
               scheme: HTTP
-            initialDelaySeconds: 30
-            periodSeconds: 10
+            initialDelaySeconds: 0
+            periodSeconds: 5
             timeoutSeconds: 5
-            failureThreshold: 30
+            failureThreshold: 66  # 330 s, as before
           volumeMounts:
             - name: keycloak-build-data
               mountPath: /opt/keycloak/lib/quarkus

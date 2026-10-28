@@ -431,7 +431,7 @@ PodiumD Helm chart
 | keycloak.podTemplate.spec.containers[0].livenessProbe.httpGet.path | string | `"/health/live"` |  |
 | keycloak.podTemplate.spec.containers[0].livenessProbe.httpGet.port | int | `9000` |  |
 | keycloak.podTemplate.spec.containers[0].livenessProbe.httpGet.scheme | string | `"HTTP"` |  |
-| keycloak.podTemplate.spec.containers[0].livenessProbe.initialDelaySeconds | int | `120` |  |
+| keycloak.podTemplate.spec.containers[0].livenessProbe.initialDelaySeconds | int | `0` |  |
 | keycloak.podTemplate.spec.containers[0].livenessProbe.periodSeconds | int | `30` |  |
 | keycloak.podTemplate.spec.containers[0].livenessProbe.timeoutSeconds | int | `5` |  |
 | keycloak.podTemplate.spec.containers[0].name | string | `"keycloak"` |  |
@@ -439,7 +439,7 @@ PodiumD Helm chart
 | keycloak.podTemplate.spec.containers[0].readinessProbe.httpGet.path | string | `"/health/ready"` |  |
 | keycloak.podTemplate.spec.containers[0].readinessProbe.httpGet.port | int | `9000` |  |
 | keycloak.podTemplate.spec.containers[0].readinessProbe.httpGet.scheme | string | `"HTTP"` |  |
-| keycloak.podTemplate.spec.containers[0].readinessProbe.initialDelaySeconds | int | `60` |  |
+| keycloak.podTemplate.spec.containers[0].readinessProbe.initialDelaySeconds | int | `0` |  |
 | keycloak.podTemplate.spec.containers[0].readinessProbe.periodSeconds | int | `10` |  |
 | keycloak.podTemplate.spec.containers[0].readinessProbe.timeoutSeconds | int | `5` |  |
 | keycloak.podTemplate.spec.containers[0].resources.limits.cpu | string | `"1000m"` |  |
@@ -451,12 +451,12 @@ PodiumD Helm chart
 | keycloak.podTemplate.spec.containers[0].securityContext.runAsNonRoot | bool | `true` |  |
 | keycloak.podTemplate.spec.containers[0].securityContext.runAsUser | int | `1000` |  |
 | keycloak.podTemplate.spec.containers[0].securityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
-| keycloak.podTemplate.spec.containers[0].startupProbe.failureThreshold | int | `30` |  |
+| keycloak.podTemplate.spec.containers[0].startupProbe.failureThreshold | int | `66` |  |
 | keycloak.podTemplate.spec.containers[0].startupProbe.httpGet.path | string | `"/health/started"` |  |
 | keycloak.podTemplate.spec.containers[0].startupProbe.httpGet.port | int | `9000` |  |
 | keycloak.podTemplate.spec.containers[0].startupProbe.httpGet.scheme | string | `"HTTP"` |  |
-| keycloak.podTemplate.spec.containers[0].startupProbe.initialDelaySeconds | int | `30` |  |
-| keycloak.podTemplate.spec.containers[0].startupProbe.periodSeconds | int | `10` |  |
+| keycloak.podTemplate.spec.containers[0].startupProbe.initialDelaySeconds | int | `0` |  |
+| keycloak.podTemplate.spec.containers[0].startupProbe.periodSeconds | int | `5` |  |
 | keycloak.podTemplate.spec.containers[0].startupProbe.timeoutSeconds | int | `5` |  |
 | keycloak.podTemplate.spec.containers[0].volumeMounts[0].mountPath | string | `"/opt/keycloak/lib/quarkus"` |  |
 | keycloak.podTemplate.spec.containers[0].volumeMounts[0].name | string | `"keycloak-build-data"` |  |
