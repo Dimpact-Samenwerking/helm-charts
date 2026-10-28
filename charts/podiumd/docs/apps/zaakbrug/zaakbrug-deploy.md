@@ -143,8 +143,8 @@ zaakbrug:
   connections:
     create: true
     jdbc:
-      - name: "jdbc/podiumd"   # must equal jdbc/podiumd — Narayana looks it up by this default
-        type: postgresql
+      # No `name`: the chart derives jdbc/<release name>, the name Narayana looks up.
+      - type: postgresql
         host: psql-<env>-<gemeente>.postgres.database.azure.com
         port: "5432"
         database: zaakbrug
