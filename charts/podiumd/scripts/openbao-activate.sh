@@ -224,7 +224,8 @@ kc get namespace "${NAMESPACE}" >/dev/null 2>&1 \
   || fail "cannot reach namespace ${NAMESPACE} on context ${KUBE_CONTEXT}"
 ok "cluster reachable (context ${KUBE_CONTEXT}, namespace ${NAMESPACE})"
 
-hc status "${RELEASE}" >/dev/null 2>&1 || fail "Helm release ${RELEASE} not found"
+# Not `helm status`: Helm 4 lists every release resource there, a minute on a busy cluster.
+hc get metadata "${RELEASE}" >/dev/null 2>&1 || fail "Helm release ${RELEASE} not found"
 # Captured first: `grep -q` exits on the first match, and under pipefail the
 # SIGPIPE that gives helm would fail this check on a large hooks output.
 HOOKS=$(hc get hooks "${RELEASE}") || fail "helm get hooks ${RELEASE} failed"
@@ -599,9 +600,12 @@ EOS
   READER=""
   kc rollout restart deployment -l app.kubernetes.io/component=frankgateway >/dev/null
   # Revoke the old token only once every gateway pod runs with the new one.
-  for d in $(kc get deployment -l app.kubernetes.io/component=frankgateway -o name); do
-    kc rollout status "${d}" --timeout=300s >/dev/null || fail "${d} did not roll out with the new token"
-  done
+  # Without an old token to revoke (fresh install, invalid token) nothing waits on the rollout.
+  if [[ -n "${OLD_RD}" ]]; then
+    for d in $(kc get deployment -l app.kubernetes.io/component=frankgateway -o name); do
+      kc rollout status "${d}" --timeout=300s >/dev/null || fail "${d} did not roll out with the new token"
+    done
+  fi
   ok "gateway token minted into Secret/${READER_SECRET}; gateways restarted"
   [[ -n "${OLD_RD}" ]] && revoke_token "gateway token" "${OLD_RD}"
   OLD_RD=""
