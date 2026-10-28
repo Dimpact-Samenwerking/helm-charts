@@ -23,7 +23,8 @@ def write_env(root: Path, gemeente: str, env: str, text: str, file_name: str = "
     """root/<gemeente>/<env>/<file_name> with `text`."""
     path = root / gemeente / env / file_name
     path.parent.mkdir(parents=True)
-    path.write_text(text, encoding="utf-8")
+    # newline="": on Windows write_text would turn "\r\n" into "\r\r\n".
+    path.write_text(text, encoding="utf-8", newline="")
     return path
 
 

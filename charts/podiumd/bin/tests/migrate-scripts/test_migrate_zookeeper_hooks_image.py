@@ -92,4 +92,4 @@ def test_the_charts_tag_gets_no_note(zookeeper: ModuleType, tag: str):
     ],
 )
 def test_nothing_to_migrate(zookeeper: ModuleType, text: str):
-    assert zookeeper.migrate_text(text)[0] == text
+    assert zookeeper.migrate_text(text) == (text, [])

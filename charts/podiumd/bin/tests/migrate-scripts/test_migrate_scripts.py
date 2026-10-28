@@ -150,7 +150,7 @@ GATEWAY_AFTER = (
 def test_migrates_once(script: Callable[[str], ModuleType], file_name: str, before: str, after: str, notes: list[str]):
     migrate_text = script(file_name).migrate_text
     assert migrate_text(before) == (after, notes)
-    assert migrate_text(after)[0] == after
+    assert migrate_text(after) == (after, [])
 
 
 def test_objecten_leaves_a_file_without_objecten_or_objecttypen(script: Callable[[str], ModuleType]):
