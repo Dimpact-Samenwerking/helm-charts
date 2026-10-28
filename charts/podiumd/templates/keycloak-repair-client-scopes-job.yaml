@@ -85,7 +85,9 @@ set -euo pipefail
 
 # Plain bash only: the Keycloak image has no awk or grep. Every kc get is
 # captured in a variable first, so a failing call fails the Job (set -e does
-# not see failures inside a process substitution).
+# not see failures inside a process substitution). Each kcadm.sh call starts a
+# JVM, so the state of all clients is read in a few listings up front and a
+# client only costs calls when it needs a change.
 all_scopes=$(kc get client-scopes -r "$REALM" --fields id,name --format csv --noquotes)
 scope_id() {
   local id name
@@ -93,13 +95,12 @@ scope_id() {
     if [ "$name" = "$1" ]; then echo "$id"; fi
   done <<< "$all_scopes"
 }
-has_scope() {  # has_scope <client id> <default|optional> <scope name>
+has_name() {  # has_name <comma-separated scope names> <scope name>
   local names name
-  # Called inside `if`, where set -e is off: exit explicitly on failure.
-  names=$(kc get "clients/$1/$2-client-scopes" -r "$REALM" --fields name --format csv --noquotes) || exit 1
-  while read -r name; do
-    if [ "$name" = "$3" ]; then return 0; fi
-  done <<< "$names"
+  IFS=, read -ra names <<< "$1"
+  for name in "${names[@]}"; do
+    if [ "$name" = "$2" ]; then return 0; fi
+  done
   return 1
 }
 realm_defaults=()
@@ -110,32 +111,34 @@ done <<< "$rows"
 MARKER=podiumd.repair-client-scopes
 service_account_id=$(scope_id service_account)
 offline_access_id=$(scope_id offline_access)
-clients=$(kc get clients -r "$REALM" --fields id,clientId,protocol,bearerOnly,serviceAccountsEnabled,authorizationServicesEnabled --format csv --noquotes)
+# kcadm writes an absent field as an empty column, so the columns stay in
+# place and the last variable of `read` takes the whole default scope list.
+clients=$(kc get clients -r "$REALM" --fields "id,clientId,protocol,bearerOnly,serviceAccountsEnabled,authorizationServicesEnabled,attributes($MARKER),defaultClientScopes" --format csv --noquotes)
+rows=$(kc get clients -r "$REALM" --fields id,optionalClientScopes --format csv --noquotes)
+declare -A optionals
+while IFS=, read -r id names; do optionals[$id]=$names; done <<< "$rows"
 
-while IFS=, read -r id client protocol bearer sa authz; do
+while IFS=, read -r id client protocol bearer sa authz marker defaults; do
   # A client update without authorizationServicesEnabled switches Authorization
   # Services off and deletes the resource server, so every --no-merge write
   # passes the current value (true for a client that has it is a no-op).
   authz=${authz:-false}
   # Bearer-only clients get no tokens (and realm-management refuses changes).
   if [ "$protocol" != "openid-connect" ] || [ "$bearer" = "true" ]; then continue; fi
-  defaults=$(kc get "clients/$id/default-client-scopes" -r "$REALM" --fields name --format csv --noquotes)
-  # Full representation (kcadm --fields attributes returns an empty object),
-  # whitespace removed so the match does not depend on kcadm's JSON layout.
-  attrs=$(kc get "clients/$id" -r "$REALM")
-  attrs=${attrs//[[:space:]]/}
   # Keycloak adds service_account itself when a service account is enabled. A
   # client marked pending was being repaired when an earlier run stopped (for
   # example because the Keycloak operator restarted Keycloak); finish it.
-  if [ -z "$defaults" ] || [ "$defaults" = "service_account" ] || [[ "$attrs" == *"\"$MARKER\":\"pending\""* ]]; then
+  if [ -z "$defaults" ] || [ "$defaults" = "service_account" ] || [ "$marker" = "pending" ]; then
     kc update "clients/$id" -r "$REALM" --no-merge -s "attributes.\"$MARKER\"=pending" -s "authorizationServicesEnabled=$authz" >/dev/null
     for row in "${realm_defaults[@]}"; do
-      if ! has_scope "$id" default "${row#*,}"; then
+      if ! has_name "$defaults" "${row#*,}"; then
         kc update "clients/$id/default-client-scopes/${row%%,*}" -r "$REALM" >/dev/null
+        # The offline_access check below must see a scope added here.
+        defaults+=",${row#*,}"
         echo "$client: added default scope ${row#*,}"
       fi
     done
-    if [ "$sa" = "true" ] && [ -n "$service_account_id" ] && ! has_scope "$id" default service_account; then
+    if [ "$sa" = "true" ] && [ -n "$service_account_id" ] && ! has_name "$defaults" service_account; then
       kc update "clients/$id/default-client-scopes/$service_account_id" -r "$REALM" >/dev/null
       echo "$client: added default scope service_account"
     fi
@@ -143,7 +146,8 @@ while IFS=, read -r id client protocol bearer sa authz; do
   fi
   if [ -n "$offline_access_id" ]; then
     for kind in default optional; do
-      if has_scope "$id" "$kind" offline_access; then
+      if [ "$kind" = default ]; then names=$defaults; else names=${optionals[$id]:-}; fi
+      if has_name "$names" offline_access; then
         kc delete "clients/$id/$kind-client-scopes/$offline_access_id" -r "$REALM" >/dev/null
         echo "$client: removed $kind scope offline_access"
       fi

@@ -127,7 +127,8 @@ Chart defaults (values.yaml + resource-overview.md):
 | keycloak-builder (init) | 250m | 512Mi | 1000m | 1Gi | `keycloak.podTemplate.spec.initContainers` |
 | keycloak-operator | 100m | 128Mi | 500m | 768Mi | `keycloak-operator.operator.resources` (limit raised from 256Mi after OOMKills, IN-2233) |
 | jobs: ensure-* (curl/python/psql) | 50m | 64Mi | 200m | 128Mi | `keycloak-operator.jobs.resources` |
-| jobs: import-*-realm (kc-config-cli) | 50m | 256Mi | 200m | 512Mi | `keycloak-operator.jobs.configCliResources` |
+| jobs: import-*-realm (kc-config-cli) | 50m | 256Mi | 2 | 512Mi | `keycloak-operator.jobs.configCliResources` |
+| job: repair-client-scopes (kcadm.sh) | 50m | 256Mi | 2 | 512Mi | `keycloak-operator.jobs.repairClientScopes.resources` |
 
 `spec.resources` in the CR is the operator's supported sizing field; the
 operator's own built-in defaults (when nothing is set) are 1700Mi request / 2Gi
