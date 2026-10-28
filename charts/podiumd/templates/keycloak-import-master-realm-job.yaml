@@ -85,6 +85,7 @@ spec:
       containers:
       - name: kc-config-cli
         image: {{ include "podiumd.image" .Values.keycloak.keycloakConfigCli.image }}
+        command: {{ include "podiumd.keycloakConfigCli.command" . }}
         resources:
 {{ toYaml (index .Values "keycloak-operator").jobs.configCliResources | indent 10 }}
         securityContext:

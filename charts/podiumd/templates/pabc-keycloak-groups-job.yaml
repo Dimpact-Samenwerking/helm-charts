@@ -35,7 +35,7 @@ spec:
         drop: ["ALL"]
       seccompProfile:
         type: RuntimeDefault
-    command: ["/bin/bash", "-c"]
+    command: {{ include "podiumd.retryCommand" (list "/bin/bash" "-c") }}
     args:
     - |
       {{- .script | nindent 6 }}
@@ -57,7 +57,8 @@ spec:
 {{- end }}
 
 {{- $operatorJobs := (index .Values "keycloak-operator").jobs }}
-{{- if and .Values.pabc.enabled .Values.pabc.seedJob.enabled .Values.pabc.seedJob.keycloak.enabled (index .Values "keycloak-operator").enabled $operatorJobs.ensureOperatorSa.enabled $operatorJobs.ensureOperatorSa.clientSecret }}
+{{- $importCreatesAll := and $operatorJobs.importPodiumdRealm.enabled (not .Values.keycloak.config.skipRoles) (not .Values.keycloak.config.skipGroups) }}
+{{- if and .Values.pabc.enabled .Values.pabc.seedJob.enabled .Values.pabc.seedJob.keycloak.enabled (index .Values "keycloak-operator").enabled $operatorJobs.ensureOperatorSa.enabled $operatorJobs.ensureOperatorSa.clientSecret (not $importCreatesAll) }}
 ---
 {{- $dataset := .Files.Get "files/pabc-dataset.json" | fromJson }}
 {{- $script := include "podiumd.pabcKeycloakGroups.script" (dict "dataset" $dataset) }}
@@ -74,8 +75,10 @@ spec:
 # Keycloak image, authenticating with the keycloak-operator client secret, and only ever adds:
 # existing roles, groups and mappings are left alone.
 #
-# With keycloak.config.skipRoles/skipGroups: false the realm import creates the
-# same roles and groups, so there this Job changes nothing.
+# With keycloak.config.skipRoles and skipGroups both false the realm import
+# creates the same roles and groups, so this Job is left out: running both
+# made the import fail with 409 on a role this Job had just created. With only
+# one of them false, the import's rerun (podiumd.retryCommand) gets past it.
 #
 # The Job name carries a checksum of its whole pod template, script included,
 # so it runs once per change of the functional roles, and also when the
