@@ -39,6 +39,7 @@ data:
     import requests
     import time
     import os
+    import sys
     import jwt
     from datetime import date, timedelta
 
@@ -69,6 +70,8 @@ data:
         catalogi_url+"catalogussen",
         headers=headers
     )
+    if response.status_code != 200:
+        sys.exit(f"listing catalogussen failed: HTTP {response.status_code}: {response.text[:500]}")
 
     print(response.json())
 
@@ -455,7 +458,7 @@ spec:
     spec:
       containers:
         - image: {{ include "podiumd.image" .Values.objecten.image }}
-          command: ["/jobs/create-required-catalogi.py"]
+          command: {{ include "podiumd.retryCommand" (list "/jobs/create-required-catalogi.py") }}
           name: create-required-catalogi
           resources:
             {{- toYaml .Values.openzaak.create_required_catalogi_job.resources | nindent 12 }}
