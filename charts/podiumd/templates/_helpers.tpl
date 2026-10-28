@@ -938,9 +938,10 @@ whenever any client secret changes, generated ones included.
 
 - Per-component clients (openzaak, ...): configuration.secrets.keycloak_client_secret,
   else configuration.oidcSecret, else generated (podiumd.keycloak.realmSecret).
-- kiss, zac, zac-admin, ita and pabc: the realm import always creates these
-  clients, also when the component is disabled. Their configured secret is
-  used; an empty or placeholder one is generated instead.
+- kiss, zac, zac-admin, ita and pabc: their configured secret is used; an
+  empty or placeholder one is generated instead.
+- A secret stays here while its component is disabled and its client is left
+  out of the realm, so the client comes back with the same secret.
 - monitoring, datamigratie and zaakbrug: as configured (validated in
   validations.yaml for an enabled client).
 - One client per Frank!Gateway dashboard with SSO.
