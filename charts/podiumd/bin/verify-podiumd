@@ -22,6 +22,8 @@ Steps, in run order:
   lockstep-versions    registered lockstep components agree on one version
   helm-doc             README.md matches `helm-docs --dry-run`
   markdown             pymarkdown on the chart's own *.md (report only)
+  upgrade-doc-layout   the target version's upgrade guide and values-deltas
+                       doc follow docs/_UPGRADE_DOCS_CHECKLIST.md
   repo-access          dependency repos and image registries are reachable
   dependencies         `helm dependency update` resolves and vendors
   doc-consistency      upgrade docs and images manifest match Chart.yaml and
@@ -102,6 +104,7 @@ from lib.checks.node_selector import check_node_selector
 from lib.checks.oidc_url_coverage import check_oidc_url_coverage
 from lib.checks.root_containers import check_root_containers
 from lib.checks.shellcheck import check_shellcheck
+from lib.checks.upgrade_doc_layout import check_upgrade_doc_layout
 from lib.checks.vendored_tgz import check_vendored_tgz_extraction
 from lib.checks.yamllint import check_yamllint
 from lib.dependencies import check_dependencies
@@ -264,6 +267,7 @@ SKIPPABLE_STEPS = [
     ("lockstep-versions", "Lockstep versions"),
     ("helm-doc", "Helm doc"),
     ("markdown", "Markdown lint"),
+    ("upgrade-doc-layout", "Upgrade doc layout"),
     ("repo-access", "Repo access"),
     ("dependencies", "Dependencies"),
     ("doc-consistency", "Doc consistency"),
@@ -482,6 +486,12 @@ def _run_all_steps(runner: StepRunner, chart_dir: Path, args: argparse.Namespace
 
     runner.run("Helm doc", "Checking README.md against values.yaml (helm-docs)", check_helm_docs, chart_dir)
     runner.run("Markdown lint", "Checking markdown docs with pymarkdown", check_markdown, chart_dir)
+    runner.run(
+        "Upgrade doc layout",
+        "Checking the upgrade docs against the upgrade docs checklist",
+        check_upgrade_doc_layout,
+        chart_dir,
+    )
 
     runner.run(
         "Repo access",

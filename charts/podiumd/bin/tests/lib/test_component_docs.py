@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING
 from lib.chart.chart_state import BaselineState
 from lib.chart.chart_state import ComponentState
 from lib.chart.chart_yaml import ChartDependency
+from lib.checks.upgrade_doc_layout import upgrade_guide_layout_issues
+from lib.checks.upgrade_doc_layout import values_deltas_layout_issues
 from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
 from lib.upgradedoc.doc_names import images_manifest_path
 from lib.upgradedoc.resolve_component_row import ResolutionContext
@@ -231,6 +233,72 @@ def test_create_missing_docs_nothing_to_do_when_all_exist(
     (images_dir / "images-4.9.0.yaml").write_text("x", encoding="utf-8")
 
     assert libcomponentdocsbaselinedocstubs.create_missing_docs(doc_dir, images_dir, "4.8.5", "4.9.0") == []
+
+
+# --- the stubs follow docs/_UPGRADE_DOCS_CHECKLIST.md ---
+
+
+def _stub(stubs: ModuleType, suffix: str) -> str:
+    return stubs.STUB_TEMPLATES[suffix].format(upgrade_docs_baseline="4.8.5", target="4.9.0")
+
+
+def test_upgrade_stub_has_the_checklist_sections_in_order(libcomponentdocsbaselinedocstubs: ModuleType):
+    text = _stub(libcomponentdocsbaselinedocstubs, "upgrade")
+    level2 = [line.removeprefix("## ") for line in text.splitlines() if line.startswith("## ")]
+    assert level2 == [
+        "Checklist",
+        "A. Once per cluster",
+        "B. Once per values repository",
+        "C. Per environment, before the deploy day",
+        "D. The deploy run",
+        "E. After the deploy",
+        "F. Rollback",
+        "Changes that need no action",
+        "Component versions (4.9.0 vs 4.8.5)",
+        "Changes",
+        "Reference",
+    ]
+    assert "### If the run fails\n\nNothing for this hop.\n" in text
+    assert "For environments already on **4.8.5**." in text
+    assert "](#c-per-environment-before-the-deploy-day)" in text
+
+
+def test_stubs_pass_the_layout_check(libcomponentdocsbaselinedocstubs: ModuleType):
+    stubs = libcomponentdocsbaselinedocstubs
+    assert upgrade_guide_layout_issues("u.md", _stub(stubs, "upgrade"), "4.8.5", "4.9.0") == []
+    assert values_deltas_layout_issues("v.md", _stub(stubs, "values-deltas")) == []
+
+
+def test_first_changes_block_clears_the_upgrade_stub_todos_and_keeps_the_layout(
+    libcomponentdocsbaselinedocstubs: ModuleType, libcomponentdocschanges: ModuleType
+):
+    """The first "### ..." block lands under "## Changes", before the reference part, and both TODOs go."""
+    section = libcomponentdocschanges.render_changes_section("zac 5.0.2 → 5.4.3", [], [], "4.9.0")
+    text = libcomponentdocschanges.insert_changes_section(
+        _stub(libcomponentdocsbaselinedocstubs, "upgrade"),
+        section,
+        "zac",
+        libcomponentdocschanges.OrderingContext([], {}),
+    )
+    assert "TODO" not in text
+    assert "## Changes\n\n### zac 5.0.2 → 5.4.3\n" in text
+    assert text.index("### zac 5.0.2 → 5.4.3") < text.index("## Reference")
+    assert upgrade_guide_layout_issues("u.md", text, "4.8.5", "4.9.0") == []
+
+
+def test_stale_values_deltas_todo_goes_and_the_stub_opening_stays(
+    libcomponentdocsbaselinedocstubs: ModuleType, libcomponentdocsdeltas: ModuleType
+):
+    """Once a hand-written section is there, only the stub's TODO line goes."""
+    stub = _stub(libcomponentdocsbaselinedocstubs, "values-deltas")
+    section = "## zac 5.0.2 → 5.4.3\n\n```yaml\nzac:\n  x: 1  # new\n```\n"
+    opening = stub.replace("TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n", "")
+    assert "and nothing else." in opening
+    assert values_deltas_layout_issues("v.md", opening + section) == []
+    assert libcomponentdocsdeltas.strip_stale_values_deltas_todo_stub(stub + "\n" + section) == (
+        opening + section,
+        True,
+    )
 
 
 DEPS: list[ChartDependency] = [

@@ -25,7 +25,8 @@ changelog of the components.
     <https://dimpact.atlassian.net/wiki/spaces/PCP/pages/7602191/Releases+PodiumD>.
   - **Upgrade steps for the hoster:** those are in the upgrade guide,
     values-deltas and gemeente-specific docs. Summarise the impact in one line
-    per component and link the docs.
+    per component and link the docs. To write or review those docs, use
+    [`/upgrade-guide`](../../commands/upgrade-guide.md).
 
 Audience: stakeholders and municipalities. Language: **Dutch**, plain and short.
 
