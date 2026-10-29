@@ -60,10 +60,10 @@ regression, even when the tests pass.
   code (`pin_paths_for`, `RepositoryResolver`, `check_image_versions`) in the
   same change.
 - `update-*` scripts end by running `fix-doc-consistency`.
-- Writers rewrite only the generated lines of `*-upgrade.md` and
-  `*-values-deltas.md`, recognised by the renderers' exact templates. User
-  text is never changed or lost; when a removed section still holds user
-  text, keep the text and report it.
+- Writers rewrite only the generated lines of `*-upgrade.md` and the
+  generated headings of `*-values-deltas.md`, recognised by the renderers'
+  exact templates. User text is never changed or lost; when a removed section
+  still holds user text, keep the text and report it.
 
 ## While changing code
 

@@ -20,7 +20,6 @@ from lib.component_docs.changes_section import resolve_component_own_version_cha
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
 from lib.component_docs.images_manifest_entries import expected_changes_items
 from lib.component_docs.images_manifest_entries import stale_changes_items
-from lib.component_docs.values_delta_sections import edited_values_delta_lines
 from lib.component_docs.values_delta_sections import has_stale_gemeente_specific_placeholder
 from lib.docs_consistency.check_context import ComponentRowsResult
 from lib.docs_consistency.check_context import DocQuery
@@ -41,7 +40,7 @@ from lib.docs_consistency.markdown_format import check_companion_doc
 from lib.docs_consistency.markdown_format import check_doc_title
 from lib.docs_consistency.pointer_consistency import check_pointer_consistency
 from lib.docs_consistency.values_diff import ValuesDeltaInputs
-from lib.docs_consistency.values_diff import check_values_deltas_content
+from lib.docs_consistency.values_diff import check_values_deltas_empty_sections
 from lib.docs_consistency.values_diff import check_values_deltas_rowless_headings
 from lib.image.docs import changes_sections_contradicting_rows
 from lib.image.manifest_entry_pins import entry_pin
@@ -76,7 +75,7 @@ from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows as _parse_upgrade_doc_rows
-from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
+from lib.upgradedoc.version_cells import component_version_cell
 from lib.version_numbers import is_bare_version
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import load_yaml_mapping
@@ -646,27 +645,12 @@ def _check_images_manifest(
 
 
 def _check_values_deltas(ctx: DocsCheckContext, upgrade_docs_baseline: str, findings: Findings):
-    """The values-deltas doc's content checks (see caller's guard); fix-doc-consistency orders its sections."""
-    values_deltas_path = ctx.doc_query.doc_dir / doc_name(
-        upgrade_docs_baseline, ctx.doc_query.podiumd_version, "values-deltas"
-    )
-    # Removed components are listed in the upgrade doc only.
-    findings.mismatches.extend(
-        check_values_deltas_content(
-            values_deltas_path, ctx.actual_changed_keys - set(ctx.removed_items_by_name), _values_delta_inputs(ctx)
-        )
-    )
-
-    deltas_text = values_deltas_path.read_text(encoding="utf-8")
-    _warn_edited_generated_lines(values_deltas_path, "##", edited_values_delta_lines(deltas_text))
-
-
-def _check_values_deltas_headings(ctx: DocsCheckContext, upgrade_docs_baseline: str, findings: Findings):
-    """Generated values-deltas headings without an upgrade-doc row; also when no key changed at all."""
+    """Empty values-deltas sections, and generated headings without an upgrade-doc row."""
     query = ctx.doc_query
     values_deltas_path = query.doc_dir / doc_name(upgrade_docs_baseline, query.podiumd_version, "values-deltas")
     if not values_deltas_path.is_file():
         return
+    findings.mismatches.extend(check_values_deltas_empty_sections(values_deltas_path))
     findings.mismatches.extend(
         check_values_deltas_rowless_headings(
             values_deltas_path,
@@ -677,9 +661,7 @@ def _check_values_deltas_headings(ctx: DocsCheckContext, upgrade_docs_baseline: 
 
 
 def _values_delta_inputs(ctx: DocsCheckContext) -> ValuesDeltaInputs:
-    return ValuesDeltaInputs(
-        ctx.baseline.values, ctx.current.values, ctx.current.deps, ctx.images.current.canonical_names
-    )
+    return ValuesDeltaInputs(ctx.current.deps, ctx.images.current.canonical_names)
 
 
 def _check_baseline_doc_set_and_pointers(
@@ -725,10 +707,8 @@ def _check_docs(chart_dir: Path, doc_dir: Path, upgrade_docs_baseline: str | Non
     _check_component_versions_table(ctx, findings)
     _check_images_manifest(ctx, sibling_fields, findings)
 
-    if ctx.baseline_ref and is_bare_version(upgrade_docs_baseline) and ctx.actual_changed_keys:
-        _check_values_deltas(ctx, upgrade_docs_baseline, findings)
     if is_bare_version(upgrade_docs_baseline):
-        _check_values_deltas_headings(ctx, upgrade_docs_baseline, findings)
+        _check_values_deltas(ctx, upgrade_docs_baseline, findings)
     return findings
 
 

@@ -17,8 +17,8 @@ from lib.component_docs.changes_section import render_changes_section
 from lib.component_docs.changes_section import replace_changes_section
 from lib.image.docs import make_image_changes_section
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
-from lib.upgradedoc.version_cells_and_key_changes import pin_version_text
-from lib.upgradedoc.version_cells_and_key_changes import version_transition
+from lib.upgradedoc.version_cells import pin_version_text
+from lib.upgradedoc.version_cells import version_transition
 
 ZAC = ComponentIdentity("zac", "zaakafhandelcomponent", "zac")
 ECK = ComponentIdentity("eck-stack", "eck-stack", "eck-stack")

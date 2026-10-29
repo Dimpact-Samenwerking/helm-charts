@@ -1,211 +1,36 @@
-"""diff_keys, flatten_leaf_keys, pair_renames, check_values_deltas_content:
-values.yaml structural diffing."""
+"""check_values_deltas_empty_sections and check_values_deltas_rowless_headings: values-deltas.md sections."""
 
 from pathlib import Path
 from types import ModuleType
 
+import pytest
 
-def test_diff_keys_identical_trees(libupgradedoccomments: ModuleType):
-    tree = {"a": {"b": 1}}
-    assert list(libupgradedoccomments.diff_keys(tree, tree)) == []
-
-
-def test_diff_keys_added_and_removed_at_same_level(libupgradedoccomments: ModuleType):
-    baseline = {"a": 1, "b": 2}
-    current = {"a": 1, "c": 3}
-    result = set(libupgradedoccomments.diff_keys(baseline, current))
-    assert result == {("added", ("c",)), ("removed", ("b",))}
+DEPS = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+TABLE = "## Component versions\n\n| Component | App version | Helm chart | Notes |\n| --- | --- | --- | --- |\n"
+ZAC_ROW = "| zac | 5.0.2 → 5.1.0 | 1.0.297 | - |\n"
+# Not checked against values.yaml, whether right or not.
+KEY_LINE_SECTION = "# Values deltas\n\n## zac 5.0.2 → 5.1.0\n\n- Key `zac.notAKey` was added.\n"
 
 
-def test_diff_keys_reports_shallowest_differing_level(libupgradedoccomments: ModuleType):
-    """A whole new/removed block is reported once, not leaf-by-leaf."""
-    baseline = {"mi": {"sftp": {"host": "x", "user": "y", "password": "z"}}}
-    current = {"mi": {"transfer": {"mode": "sftp-password", "host": "x"}}}
-    result = list(libupgradedoccomments.diff_keys(baseline, current))
-    assert ("removed", ("mi", "sftp")) in result
-    assert ("added", ("mi", "transfer")) in result
-    # must NOT recurse into "transfer" to also report "mode" as separately added
-    assert not any(path[:2] == ("mi", "transfer") and len(path) > 2 for _, path in result)
-
-
-def test_diff_keys_recurses_into_keys_present_in_both(libupgradedoccomments: ModuleType):
-    baseline = {"mi": {"enabled": True, "sftp": {"host": "old"}}}
-    current = {"mi": {"enabled": True, "sftp": {"host": "old", "port": 22}}}
-    result = list(libupgradedoccomments.diff_keys(baseline, current))
-    assert result == [("added", ("mi", "sftp", "port"))]
-
-
-def test_diff_keys_scalar_value_change_is_not_reported(libupgradedoccomments: ModuleType):
-    baseline = {"a": 1}
-    current = {"a": 2}
-    assert list(libupgradedoccomments.diff_keys(baseline, current)) == []
-
-
-def test_diff_keys_non_dict_nodes_yield_nothing(libupgradedoccomments: ModuleType):
-    assert list(libupgradedoccomments.diff_keys("x", "y")) == []
-    assert list(libupgradedoccomments.diff_keys(["a"], ["b"])) == []
-
-
-def test_flatten_leaf_keys_collects_nested_leaf_names_only(libupgradedoccomments: ModuleType):
-    node = {"host": "x", "auth": {"user": "y", "password": "z"}}
-    assert libupgradedoccomments.flatten_leaf_keys(node) == {"host", "user", "password"}
-
-
-def test_flatten_leaf_keys_walks_lists(libupgradedoccomments: ModuleType):
-    node = [{"a": 1}, {"b": 2}]
-    assert libupgradedoccomments.flatten_leaf_keys(node) == {"a", "b"}
-
-
-def test_flatten_leaf_keys_scalar_is_empty(libupgradedoccomments: ModuleType):
-    assert libupgradedoccomments.flatten_leaf_keys("scalar") == set()
-
-
-def test_pair_renames_detects_similar_blocks(libupgradedoccomments: ModuleType):
-    """The real mi.sftp -> mi.transfer example: different key, but the new
-    block's leaf keys substantially overlap with the old one's."""
-    baseline = {"mi": {"sftp": {"host": "x", "user": "y", "password": "z"}}}
-    current = {"mi": {"transfer": {"mode": "sftp-password", "host": "x", "user": "y", "password": "z"}}}
-    added = [("mi", "transfer")]
-    removed = [("mi", "sftp")]
-    renamed, added_left, removed_left = libupgradedoccomments.pair_renames(added, removed, baseline, current)
-    assert renamed == [(("mi", "sftp"), ("mi", "transfer"))]
-    assert added_left == []
-    assert removed_left == []
-
-
-def test_pair_renames_does_not_pair_dissimilar_blocks(libupgradedoccomments: ModuleType):
-    baseline = {"mi": {"old": {"totally": 1, "different": 2}}}
-    current = {"mi": {"new": {"unrelated": 3, "fields": 4}}}
-    added = [("mi", "new")]
-    removed = [("mi", "old")]
-    renamed, added_left, removed_left = libupgradedoccomments.pair_renames(added, removed, baseline, current)
-    assert renamed == []
-    assert added_left == [("mi", "new")]
-    assert removed_left == [("mi", "old")]
-
-
-def test_pair_renames_pairs_identical_scalars(libupgradedoccomments: ModuleType):
-    baseline = {"mi": {"oldName": "same-value"}}
-    current = {"mi": {"newName": "same-value"}}
-    added = [("mi", "newName")]
-    removed = [("mi", "oldName")]
-    renamed, _added_left, _removed_left = libupgradedoccomments.pair_renames(added, removed, baseline, current)
-    assert renamed == [(("mi", "oldName"), ("mi", "newName"))]
-
-
-def test_pair_renames_ignores_different_parent_paths(libupgradedoccomments: ModuleType):
-    baseline = {"mi": {"a": {"x": 1}}}
-    current = {"other": {"b": {"x": 1}}}
-    added = [("other", "b")]
-    removed = [("mi", "a")]
-    renamed, added_left, removed_left = libupgradedoccomments.pair_renames(added, removed, baseline, current)
-    assert renamed == []
-    assert added_left == [("other", "b")]
-    assert removed_left == [("mi", "a")]
-
-
-# --- check_values_deltas_content ---
-
-DEPS = [
-    {"name": "mi-data", "alias": "mi", "version": "1.0.0"},
-    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"},
-]
-
-
-def test_values_deltas_content_no_changes_is_clean(libdocsconsistencyvaluesdiff: ModuleType, tmp_path: Path):
+def test_empty_section_is_flagged(libdocsconsistencyvaluesdiff: ModuleType, tmp_path: Path):
     doc = tmp_path / "values-deltas.md"
-    doc.write_text(
-        "# Values deltas\n\n## mi 1.0.0, unchanged\n\nNo gemeente podiumd.yml changes are required for this hop.\n"
-    )
-    values = {"mi": {"sftp": {"host": "x"}}}
-    inputs = libdocsconsistencyvaluesdiff.ValuesDeltaInputs(values, values, DEPS)
-    assert libdocsconsistencyvaluesdiff.check_values_deltas_content(doc, {"mi"}, inputs) == []
-
-
-def test_values_deltas_content_generated_rename_line_passes(libdocsconsistencyvaluesdiff: ModuleType, tmp_path: Path):
-    doc = tmp_path / "values-deltas.md"
-    doc.write_text("## mi 1.0.0, unchanged\n\n- Key `mi.sftp` was renamed to `mi.transfer`.\n\nUser note.\n")
-    baseline = {"mi": {"sftp": {"host": "x", "user": "y", "password": "z"}}}
-    current = {"mi": {"transfer": {"mode": "sftp-password", "host": "x", "user": "y", "password": "z"}}}
-    inputs = libdocsconsistencyvaluesdiff.ValuesDeltaInputs(baseline, current, DEPS)
-    assert libdocsconsistencyvaluesdiff.check_values_deltas_content(doc, {"mi"}, inputs) == []
-
-
-def test_values_deltas_content_flags_unmentioned_rename(libdocsconsistencyvaluesdiff: ModuleType, tmp_path: Path):
-    doc = tmp_path / "values-deltas.md"
-    doc.write_text(
-        "# Values deltas\n\n## mi 1.0.0, unchanged\n\nNo gemeente podiumd.yml changes are required for this hop.\n"
-    )
-    baseline = {"mi": {"sftp": {"host": "x", "user": "y", "password": "z"}}}
-    current = {"mi": {"transfer": {"mode": "sftp-password", "host": "x", "user": "y", "password": "z"}}}
-    inputs = libdocsconsistencyvaluesdiff.ValuesDeltaInputs(baseline, current, DEPS)
-    issues = libdocsconsistencyvaluesdiff.check_values_deltas_content(doc, {"mi"}, inputs)
-    assert any('lacks the generated line "- Key `mi.sftp` was renamed to `mi.transfer`."' in i for i in issues)
-    assert any("claims" in i and "No gemeente" in i for i in issues)
-
-
-def test_values_deltas_content_flags_no_section_at_all(libdocsconsistencyvaluesdiff: ModuleType, tmp_path: Path):
-    doc = tmp_path / "values-deltas.md"
-    doc.write_text("# Values deltas\n\nNothing relevant mentioned, no section for zac either.\n")
-    baseline = {"zac": {"brpApi": {}}}
-    current = {"zac": {"brpApi": {"logLevel": "OFF"}}}
-    inputs = libdocsconsistencyvaluesdiff.ValuesDeltaInputs(baseline, current, DEPS)
-    issues = libdocsconsistencyvaluesdiff.check_values_deltas_content(doc, {"zac"}, inputs)
-    assert any('component "zac" has a values.yaml schema change' in i and 'no "## ..." section' in i for i in issues)
-
-
-def test_values_deltas_content_flags_unmentioned_addition(libdocsconsistencyvaluesdiff: ModuleType, tmp_path: Path):
-    doc = tmp_path / "values-deltas.md"
-    doc.write_text("## zac 1.0.297, unchanged\n\nNothing relevant mentioned.\n")
-    baseline = {"zac": {"brpApi": {}}}
-    current = {"zac": {"brpApi": {"logLevel": "OFF"}}}
-    inputs = libdocsconsistencyvaluesdiff.ValuesDeltaInputs(baseline, current, DEPS)
-    issues = libdocsconsistencyvaluesdiff.check_values_deltas_content(doc, {"zac"}, inputs)
-    assert any('lacks the generated line "- Key `zac.brpApi.logLevel` was added."' in i for i in issues)
-
-
-def test_values_deltas_content_flags_unmentioned_removal(libdocsconsistencyvaluesdiff: ModuleType, tmp_path: Path):
-    doc = tmp_path / "values-deltas.md"
-    doc.write_text("## zac 1.0.297, unchanged\n\nNothing relevant mentioned.\n")
-    baseline = {"zac": {"brpApi": {"protocollering": {"verwerking": {"extendWithZaaktype": False}}}}}
-    current = {"zac": {"brpApi": {"protocollering": {"verwerking": {}}}}}
-    inputs = libdocsconsistencyvaluesdiff.ValuesDeltaInputs(baseline, current, DEPS)
-    issues = libdocsconsistencyvaluesdiff.check_values_deltas_content(doc, {"zac"}, inputs)
-    assert any(
-        'lacks the generated line "- Key `zac.brpApi.protocollering.verwerking.extendWithZaaktype` was removed."' in i
-        for i in issues
-    )
-
-
-def test_values_deltas_content_generated_addition_line_passes(libdocsconsistencyvaluesdiff: ModuleType, tmp_path: Path):
-    doc = tmp_path / "values-deltas.md"
-    doc.write_text("## zac 1.0.297, unchanged\n\n- Key `zac.brpApi.logLevel` was added.\n\nDefaults to `OFF`.\n")
-    baseline = {"zac": {"brpApi": {}}}
-    current = {"zac": {"brpApi": {"logLevel": "OFF"}}}
-    inputs = libdocsconsistencyvaluesdiff.ValuesDeltaInputs(baseline, current, DEPS)
-    assert libdocsconsistencyvaluesdiff.check_values_deltas_content(doc, {"zac"}, inputs) == []
-
-
-def test_values_deltas_content_prose_mention_is_not_enough(libdocsconsistencyvaluesdiff: ModuleType, tmp_path: Path):
-    """User prose naming the key doesn't replace the generated line."""
-    doc = tmp_path / "values-deltas.md"
-    doc.write_text("## zac 1.0.297, unchanged\n\nNew field `zac.brpApi.logLevel`, defaults to `OFF`.\n")
-    baseline = {"zac": {"brpApi": {}}}
-    current = {"zac": {"brpApi": {"logLevel": "OFF"}}}
-    inputs = libdocsconsistencyvaluesdiff.ValuesDeltaInputs(baseline, current, DEPS)
-    issues = libdocsconsistencyvaluesdiff.check_values_deltas_content(doc, {"zac"}, inputs)
-    assert issues == [
-        'values-deltas.md: "zac"\'s own section lacks the generated line "- Key `zac.brpApi.logLevel` was added."'
+    doc.write_text("# Values deltas\n\n## zac 5.0.2 → 5.1.0\n\n", encoding="utf-8")
+    assert libdocsconsistencyvaluesdiff.check_values_deltas_empty_sections(doc) == [
+        'values-deltas.md: "## zac 5.0.2 → 5.1.0" section has nothing under its own heading'
     ]
 
 
-def test_values_deltas_content_ignores_untracked_components(libdocsconsistencyvaluesdiff: ModuleType, tmp_path: Path):
+def test_a_key_line_is_section_content(libdocsconsistencyvaluesdiff: ModuleType, tmp_path: Path):
     doc = tmp_path / "values-deltas.md"
-    doc.write_text(
-        "# Values deltas\n\n## zac 1.0.297, unchanged\n\nNo gemeente podiumd.yml changes are required for this hop.\n"
-    )
-    baseline = {"unrelated": {"a": 1}}
-    current = {"unrelated": {"b": 2}}
-    # "unrelated" isn't in changed_component_keys, so its diff must be ignored
-    inputs = libdocsconsistencyvaluesdiff.ValuesDeltaInputs(baseline, current, DEPS)
-    assert libdocsconsistencyvaluesdiff.check_values_deltas_content(doc, {"zac"}, inputs) == []
+    doc.write_text(KEY_LINE_SECTION, encoding="utf-8")
+    assert libdocsconsistencyvaluesdiff.check_values_deltas_empty_sections(doc) == []
+
+
+@pytest.mark.parametrize(("rows", "expected"), [(ZAC_ROW, 0), ("", 1)])
+def test_rowless_heading(libdocsconsistencyvaluesdiff: ModuleType, tmp_path: Path, rows: str, expected: int):
+    doc = tmp_path / "values-deltas.md"
+    doc.write_text(KEY_LINE_SECTION, encoding="utf-8")
+    upgrade = tmp_path / "upgrade.md"
+    upgrade.write_text(TABLE + rows, encoding="utf-8")
+    inputs = libdocsconsistencyvaluesdiff.ValuesDeltaInputs(DEPS)
+    assert len(libdocsconsistencyvaluesdiff.check_values_deltas_rowless_headings(doc, upgrade, inputs)) == expected
