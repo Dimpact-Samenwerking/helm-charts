@@ -1,4 +1,4 @@
-"""Upgrade-doc text primitives: name/version normalization, word-boundary name matching, table parsing."""
+"""Upgrade-doc text primitives: name/version normalization, word-boundary name matching, table and heading parsing."""
 
 import re
 
@@ -6,6 +6,7 @@ from collections.abc import Iterable
 from collections.abc import Mapping
 from collections.abc import Sequence
 from typing import Literal
+from typing import NamedTuple
 from typing import TypedDict
 from typing import TypeVar
 
@@ -15,6 +16,7 @@ from lib.chart.values_tree_primitives import values_key_of
 
 COMPONENT_VERSIONS_HEADING_RE = re.compile(r"^##\s+Component versions\b")
 FENCE_LINE_RE = re.compile(r"^\s*```")
+_HEADING_RE = re.compile(r"^(?P<marks>#{1,6})\s+(?P<text>.*?)\s*$")
 
 # A sidecar/shared image by values-tree path, or a dependency/native component by values key.
 ComponentRef = tuple[Literal["sidecar"], tuple[str, ...]] | tuple[Literal["dep"], str]
@@ -345,3 +347,27 @@ def fenced_line_flags(lines: Sequence[str]) -> list[bool]:
         if is_fence:
             in_fence = not in_fence
     return flags
+
+
+def heading_slug(heading: str):
+    """The anchor GitHub gives a heading, which pymarkdown's MD051 checks "(#...)" links against."""
+    return "".join(c for c in heading.lower() if c.isalnum() or c in " -_").replace(" ", "-")
+
+
+class MarkdownHeading(NamedTuple):
+    """A "#" heading: its 0-based line index, its marks ("##") and its text."""
+
+    line: int
+    marks: str
+    text: str
+
+
+def markdown_headings(text: str) -> list[MarkdownHeading]:
+    """Each "#" heading outside fenced code blocks, in document order."""
+    lines = text.splitlines()
+    fenced = fenced_line_flags(lines)
+    return [
+        MarkdownHeading(i, m.group("marks"), m.group("text"))
+        for i, (line, in_fence) in enumerate(zip(lines, fenced, strict=True))
+        if not in_fence and (m := _HEADING_RE.match(line))
+    ]
