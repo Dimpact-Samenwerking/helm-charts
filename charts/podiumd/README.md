@@ -1,6 +1,6 @@
 # podiumd
 
-![Version: 4.9.5](https://img.shields.io/badge/Version-4.9.5-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 4.9.5](https://img.shields.io/badge/AppVersion-4.9.5-informational?style=flat-square)
+![Version: 4.9.6](https://img.shields.io/badge/Version-4.9.6-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 4.9.6](https://img.shields.io/badge/AppVersion-4.9.6-informational?style=flat-square)
 
 PodiumD Helm chart
 
@@ -922,7 +922,7 @@ PodiumD Helm chart
 | openformulieren.customerInteractionsConfigJob.serviceIdentifier | string | `"openklant-api"` | zgw_consumers service identifier (Service.slug) of the Open Klant klantinteracties service; must have api_type `kc`. |
 | openformulieren.flower.enabled | bool | `false` |  |
 | openformulieren.fullnameOverride | string | `"openformulieren"` |  |
-| openformulieren.image.tag | string | `"3.5.10@sha256:a71bb4a76bfa0886391b9dcf87a9c4857a7b76076c084b61d38db820fd09d6dc"` |  |
+| openformulieren.image.tag | string | `"3.5.14@sha256:0320f7ba471453040ecc8362c96cb4acf3d774ee0647633d8c07e0e08007cf8b"` |  |
 | openformulieren.nameOverride | string | `"openformulieren"` |  |
 | openformulieren.nginx.config.clientMaxBodySize | string | `"100M"` |  |
 | openformulieren.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
@@ -975,7 +975,7 @@ PodiumD Helm chart
 | openinwoner.eck-elasticsearch.version | string | `"9.2.0"` |  |
 | openinwoner.eck-operator.enabled | bool | `false` |  |
 | openinwoner.fullnameOverride | string | `"openinwoner"` |  |
-| openinwoner.image.tag | string | `"2.4.7@sha256:f78563302f20a0b8f8f156e5328aae4343261c3b91994f6e1b964104ed66d58e"` |  |
+| openinwoner.image.tag | string | `"2.4.9@sha256:ae873faf771b3f4311c980b38e1b226aa8279df72d08e86828b01506f25a3d2b"` |  |
 | openinwoner.lowLatencyWorker | object | `{"replicaCount":1,"resources":{"requests":{"cpu":"100m","memory":"256Mi"}}}` | New in openinwoner 2.3.0 (chart 2.2.0): dedicated low-latency Celery worker for cache-seeding/warmup tasks. The chart creates this deployment by default (replicaCount 1) on upgrade; resources pinned here to match podiumd conventions. |
 | openinwoner.nameOverride | string | `"openinwoner"` |  |
 | openinwoner.nginx.config.basicAuth.enabled | bool | `false` |  |
