@@ -1,15 +1,10 @@
-# Upgrade documents: is this usable by the deploy operator?
+# Upgrade doc set Is it "Operator Friendly" ?
 
 ## Checklist
 
 **Can the operator find what to do without reading everything?**
 
-- [ ] The guide opens with a one-screen checklist, one line per section, and
-      says which sections run once (cluster, values repository) and which run
-      per environment.
-- [ ] The runbook is ordered by where the work runs: once per cluster, once
-      per values repository, per environment before the day, the deploy run,
-      afterwards, rollback. Not by component, not by discovery order.
+- [ ] The runbook is ordered for maximum clarity for the operator.
 - [ ] Explanations, history and background are in a Reference part at the
       end, reached by links from the steps. Nothing has to be read to find
       out whether it needs action.
@@ -17,9 +12,7 @@
 
 **Can the operator run it as written?**
 
-- [ ] Every action is a copy-pasteable command with its target named in it
-      (`--context`, `-n`, `--subscription`), never the ambient context.
-- [ ] Every step says when it runs relative to `helm upgrade`, whether it can
+- [ ] Every step says when it runs **relative to** `helm upgrade`, whether it can
       be run twice, what state the environment is in if it fails, and which
       rights it needs.
 - [ ] The migration scripts are one block: preview, migrate, check gate. A
@@ -27,9 +20,9 @@
 
 ## The required layout, shown on 4.9.5 → 4.10.0
 
-The known-good form is the 4.9.5 → 4.10.0 set as reworked in
-[PR #658](https://github.com/Dimpact-Samenwerking/helm-charts/pull/658).
-Copy its shape; the links below point at each part.
+**The known-good form is the 4.9.5 → 4.10.0 set as reworked in**
+**[PR #658](https://github.com/Dimpact-Samenwerking/helm-charts/pull/658).**
+**Copy its shape; the links below point at each part.**
 
 ### The upgrade guide
 
