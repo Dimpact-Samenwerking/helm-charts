@@ -92,6 +92,29 @@ environment is not affected, because its realm already has the `frontendUrl`.
 Changing the chart default would move the public hostname of every
 environment that doesn't set it, so that waits for a later release.
 
+### Operator CRDs on a fresh install
+
+The operator image (26.8.1) is ahead of the adfinis chart (1.13.1, Keycloak
+26.7.4), so the CRDs come from `scripts/install-keycloak-operator-crds.sh`, not
+from the chart's `crds/`. Helm applies a chart's `crds/` on `helm install` only,
+never on `helm upgrade`. With Helm 4, a fresh `helm install` replaces CRDs that
+are already on the cluster with the chart's 26.7.4 ones. They then lack the 26.8
+fields, such as `spec.unsupported.podTemplate.spec.schedulingGroup` on
+`keycloaks` and `identityProviders[].organizationLinks` on
+`keycloakrealmimports`. CRDs are cluster-wide, so every other PodiumD namespace
+on the cluster gets the older CRDs too.
+
+- **The cluster already has the CRDs** (another PodiumD namespace, or the CRDs
+  applied before the install, as the upgrade guides say): run `helm install`
+  with `--skip-crds`. The flag skips the `crds/` of every subchart, also those
+  of redis-operator and of the Solr operator in the zac chart, so those CRDs
+  must be on the cluster as well (`scripts/install-redis-operator-crds.sh`, and
+  the Solr CRDs in [`zac-BASICS.md`](../zac/zac-BASICS.md)).
+- **A new cluster:** run `helm install` without `--skip-crds`, then run
+  `scripts/install-keycloak-operator-crds.sh` again.
+
+A `helm upgrade` is not affected.
+
 ### Other dependencies
 
 - **SMTP** — realm mail settings under `keycloak.config.smtp` (password reset,
