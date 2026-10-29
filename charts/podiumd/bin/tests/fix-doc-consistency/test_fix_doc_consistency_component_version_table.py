@@ -11,7 +11,7 @@ from lib.fix_doc_consistency.component_version_table import fix_changes_heading_
 from lib.fix_doc_consistency.component_version_table import fix_component_version_table
 from lib.fix_doc_consistency.component_version_table import fix_values_delta_heading_app_versions
 from lib.upgradedoc.resolve_component_row import ResolutionContext
-from lib.upgradedoc.version_cells_and_key_changes import canonical_version_cell
+from lib.upgradedoc.version_cells import canonical_version_cell
 from lib.yaml_types import YamlMapping
 
 # --- canonical_version_cell ---

@@ -42,7 +42,9 @@ Applies to `charts/podiumd/bin/` (scripts, `lib/`, tests) and
 ## Docs the scripts write
 
 - `*-values-deltas.md` has one `## <component> <old> → <new> (chart …)`
-  section per component, and no section for a pure version bump.
+  section per component, and no section for a pure version bump. Its content
+  is written by hand: the scripts neither write nor check key-change lines
+  (`- Key ... was added.`), and leave existing ones alone.
 - `release-table.csv` is generated: regenerate it, never edit it by hand.
 
 ## Process

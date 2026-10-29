@@ -16,8 +16,8 @@ from lib.chart.values_tree_primitives import version_of
 from lib.component_docs.changes_section import ALIAS_NOTE
 from lib.upgradedoc.sorting_and_ordering import changes_blocks_with_lines
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
-from lib.upgradedoc.version_cells_and_key_changes import PIN_TEXT_PATTERN
-from lib.upgradedoc.version_cells_and_key_changes import pin_version_text
+from lib.upgradedoc.version_cells import PIN_TEXT_PATTERN
+from lib.upgradedoc.version_cells import pin_version_text
 from lib.yaml_types import YamlValue
 
 # "- `<path>` ..." (image block, under "pinned at:") or "- Image tag pin `<path>` ..." /

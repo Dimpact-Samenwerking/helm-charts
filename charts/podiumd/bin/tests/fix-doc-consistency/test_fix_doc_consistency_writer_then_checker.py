@@ -155,17 +155,15 @@ def test_a_sidecar_only_bump_gets_no_row_for_its_parent(writer_then_checker):
     assert "| zac |" not in docs[UPGRADE]
 
 
-def test_a_values_key_added_and_one_removed(writer_then_checker):
+def test_a_values_key_added_and_one_removed_writes_no_key_lines(writer_then_checker):
     baseline = {"zac": {**zac("5.4.4"), "oldFeature": {"enabled": True}}}
-    # Other content than oldFeature, or describe_key_changes reports a rename.
     target = {"zac": {**zac("5.4.5"), "newFeature": {"replicas": 2}}}
     docs = writer_then_checker(
         {"version": "4.8.5", "deps": [ZAC], "values": baseline},
         {"version": "4.9.0", "deps": [ZAC], "values": target},
     )
 
-    assert "- Key `zac.newFeature` was added." in docs[DELTAS]
-    assert "- Key `zac.oldFeature` was removed." in docs[DELTAS]
+    assert "Feature" not in docs[DELTAS]
 
 
 def test_a_removed_component_and_image(writer_then_checker, capsys: pytest.CaptureFixture[str]):
@@ -283,7 +281,7 @@ def test_user_text_in_the_values_deltas_section_of_a_removed_component_stays(wri
         by_hand=['"## kiss 3.1.1 → 3.2.0 (chart 3.1.1 → 3.2.0)" names no row'],
     )
 
-    assert docs[DELTAS].endswith("## kiss 3.1.1 → 3.2.0 (chart 3.1.1 → 3.2.0)\n\nDrop `kiss` from podiumd.yml.\n")
+    assert docs[DELTAS].endswith(deltas.split("\n\n", 1)[1])
 
 
 def test_a_hand_written_row_of_a_removed_component_is_rewritten_not_duplicated(writer_then_checker):
@@ -490,7 +488,7 @@ def test_a_component_reset_to_its_baseline_keeps_its_user_text_without_a_pointer
 
 
 def test_a_component_reset_to_its_baseline_flags_its_values_deltas_heading_kept_by_user_text(writer_then_checker):
-    """The key lines go; the user's note keeps the generated heading, which no longer applies."""
+    """The section stays as written; its generated heading no longer applies."""
     deltas = (
         "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
         "## zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)\n\n"
@@ -503,9 +501,7 @@ def test_a_component_reset_to_its_baseline_flags_its_values_deltas_heading_kept_
         by_hand=['"## zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)" names no row'],
     )
 
-    assert docs[DELTAS].endswith(
-        "## zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)\n\nSet `zac.extra` per environment.\n"
-    )
+    assert docs[DELTAS].endswith(deltas.split("\n\n", 1)[1])
 
 
 def test_a_shared_image_bumped_twice_is_documented_from_its_baseline(writer_then_checker):
@@ -837,7 +833,6 @@ def test_a_dependency_that_becomes_a_native_component_keeps_its_baseline(writer_
     assert "#   2. kiss-eck.eck-kibana.image 8.19.18 -> 8.19.23." in docs[MANIFEST]
     assert "# kiss-eck.eck-elasticsearch.image 8.19.19 -> 8.19.23\n" in docs[MANIFEST]
     assert "# kiss-eck.eck-kibana.image 8.19.18 -> 8.19.23\n" in docs[MANIFEST]
-    assert "## kiss-eck 8.19.19 → 8.19.23" in docs[DELTAS]
 
 
 def test_a_dependency_that_becomes_a_native_component_at_the_same_version(writer_then_checker):

@@ -22,8 +22,8 @@ from lib.upgradedoc.string_and_parsing_basics import TableRow
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.string_and_parsing_basics import set_row_cells
-from lib.upgradedoc.version_cells_and_key_changes import canonical_version_cell
-from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
+from lib.upgradedoc.version_cells import canonical_version_cell
+from lib.upgradedoc.version_cells import component_version_cell
 
 
 @dataclass

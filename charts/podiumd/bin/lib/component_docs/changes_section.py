@@ -49,11 +49,11 @@ from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.string_and_parsing_basics import set_row_cells
 from lib.upgradedoc.string_and_parsing_basics import text_names
-from lib.upgradedoc.version_cells_and_key_changes import PIN_TEXT_PATTERN
-from lib.upgradedoc.version_cells_and_key_changes import chart_version_suffix
-from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
-from lib.upgradedoc.version_cells_and_key_changes import pin_version_text
-from lib.upgradedoc.version_cells_and_key_changes import version_transition
+from lib.upgradedoc.version_cells import PIN_TEXT_PATTERN
+from lib.upgradedoc.version_cells import chart_version_suffix
+from lib.upgradedoc.version_cells import component_version_cell
+from lib.upgradedoc.version_cells import pin_version_text
+from lib.upgradedoc.version_cells import version_transition
 
 
 @dataclass
