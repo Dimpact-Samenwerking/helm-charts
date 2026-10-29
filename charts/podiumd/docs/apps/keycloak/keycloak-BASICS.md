@@ -28,9 +28,9 @@ small operator pod.
   app is a **client** of this Keycloak; nothing else in the stack does its own
   authentication.
 - Runtime components:
-  - `keycloak-0` / `keycloak-1` — server pods (operator-managed StatefulSet),
-    each with a `keycloak-builder` init container (runs `kc.sh build` into an
-    `emptyDir`) and the `keycloak` main container.
+  - `keycloak-0` / `keycloak-1` — server pods (operator-managed StatefulSet)
+    with the `keycloak` container. The CR sets `startOptimized: false`, so
+    Keycloak runs its build step at every start.
   - `keycloak-operator` — operator Deployment (1 replica).
   - Bootstrap Jobs (Helm-rendered, `ttlSecondsAfterFinished` garbage-collected):
     `ensure-podiumd-admin-user` (python + psql — seeds the admin user in the
@@ -61,8 +61,7 @@ not via a pre-created ConfigMap:
 
 ### Storage
 
-None. No PVC — the `keycloak-build-data` volume is an `emptyDir` (rebuilt by
-the init container on every pod start); persistent state is in PostgreSQL.
+None. No PVC; persistent state is in PostgreSQL.
 
 ### Routing / exposure (NGINX Gateway Fabric)
 
@@ -92,6 +91,29 @@ login then fails with "Restart login cookie not found". An existing
 environment is not affected, because its realm already has the `frontendUrl`.
 Changing the chart default would move the public hostname of every
 environment that doesn't set it, so that waits for a later release.
+
+### Operator CRDs on a fresh install
+
+The operator image (26.8.1) is ahead of the adfinis chart (1.13.1, Keycloak
+26.7.4), so the CRDs come from `scripts/install-keycloak-operator-crds.sh`, not
+from the chart's `crds/`. Helm applies a chart's `crds/` on `helm install` only,
+never on `helm upgrade`. With Helm 4, a fresh `helm install` replaces CRDs that
+are already on the cluster with the chart's 26.7.4 ones. They then lack the 26.8
+fields, such as `spec.unsupported.podTemplate.spec.schedulingGroup` on
+`keycloaks` and `identityProviders[].organizationLinks` on
+`keycloakrealmimports`. CRDs are cluster-wide, so every other PodiumD namespace
+on the cluster gets the older CRDs too.
+
+- **The cluster already has the CRDs** (another PodiumD namespace, or the CRDs
+  applied before the install, as the upgrade guides say): run `helm install`
+  with `--skip-crds`. The flag skips the `crds/` of every subchart, also those
+  of redis-operator and of the Solr operator in the zac chart, so those CRDs
+  must be on the cluster as well (`scripts/install-redis-operator-crds.sh`, and
+  the Solr CRDs in [`zac-BASICS.md`](../zac/zac-BASICS.md)).
+- **A new cluster:** run `helm install` without `--skip-crds`, then run
+  `scripts/install-keycloak-operator-crds.sh` again.
+
+A `helm upgrade` is not affected.
 
 ### Other dependencies
 
@@ -124,7 +146,6 @@ Chart defaults (values.yaml + resource-overview.md):
 | Container | CPU request | Mem request | CPU limit | Mem limit | Values key |
 |---|---|---|---|---|---|
 | keycloak (main, x2) | 500m | 1700Mi | 1000m | 2Gi | `keycloak.resources` → `spec.resources` in the Keycloak CR |
-| keycloak-builder (init) | 250m | 512Mi | 1000m | 1Gi | `keycloak.podTemplate.spec.initContainers` |
 | keycloak-operator | 100m | 128Mi | 500m | 768Mi | `keycloak-operator.operator.resources` (limit raised from 256Mi after OOMKills, IN-2233) |
 | jobs: ensure-* (curl/python/psql) | 50m | 64Mi | 200m | 128Mi | `keycloak-operator.jobs.resources` |
 | jobs: import-*-realm (kc-config-cli) | 50m | 256Mi | 200m | 512Mi | `keycloak-operator.jobs.configCliResources` |

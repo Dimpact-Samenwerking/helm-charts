@@ -10,6 +10,11 @@ spec:
     {{- toYaml . | nindent 4 }}
   {{- end }}
   image: {{ include "podiumd.image" .Values.keycloak.image }}
+  # With spec.image set the operator starts Keycloak with --optimized, which
+  # needs a pre-built image. The stock image is not, so Keycloak builds at
+  # start. A build in an init container instead breaks the operator's update
+  # Job, which runs the old image over the new image's build.
+  startOptimized: false
   {{- if (index .Values "keycloak-operator").enabled }}
   bootstrapAdmin:
     user:
@@ -91,16 +96,6 @@ spec:
         nodeSelector:
 {{ toYaml .Values.nodeSelector | indent 10 }}
 {{- end }}
-{{- if .Values.keycloak.podTemplate.spec.initContainers }}
-        initContainers:
-{{- $initContainers := list }}
-{{- range .Values.keycloak.podTemplate.spec.initContainers }}
-{{- $c := deepCopy . }}
-{{- if not $c.image }}{{- $_ := set $c "image" (include "podiumd.image" $.Values.keycloak.image) }}{{- end }}
-{{- $initContainers = append $initContainers $c }}
-{{- end }}
-{{ toYaml $initContainers | indent 8 }}
-{{- end }}
         containers:
 {{- if .Values.keycloak.podTemplate.spec.containers }}
 {{ toYaml .Values.keycloak.podTemplate.spec.containers | indent 8 }}
@@ -110,9 +105,5 @@ spec:
             resources:
 {{ toYaml .Values.keycloak.resources | indent 14 }}
 {{- end }}
-{{- end }}
-{{- if .Values.keycloak.podTemplate.spec.volumes }}
-        volumes:
-{{ toYaml .Values.keycloak.podTemplate.spec.volumes | indent 8 }}
 {{- end }}
 {{- end }}
