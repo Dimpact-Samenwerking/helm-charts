@@ -1663,12 +1663,11 @@ openarchiefbeheer:
     postDestructionVisibilityPeriod: 7
     # -- If true, the inline presentation of related objects is disabled, reducing load on external registers.
     relatedCountDisabled: false
-    # logging:
-    # -- Controls whether the logs are output to standard output (true) or to a file (false, default)
-    #   toStdout: false
-    # -- Controls the log levels of project code and of the OIDC library.
-    # Possible values: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL.
-    #   level: INFO
+    logging:
+      # -- Write the application logs to stdout (true) or to a file in the container (false, subchart default). Grafana only collects container stdout/stderr, so the logs are only visible there with true.
+      toStdout: true
+      # -- Log level of project code and of the OIDC library. Possible values: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL.
+      level: INFO
     frontend:
       apiUrl: ""
       apiPath: "/api/v1"
@@ -1684,8 +1683,8 @@ openarchiefbeheer:
       axes: redis-ha-master:6379/13
       choices: redis-ha-master:6379/14
     celery:
-      # -- Set to debug for test/acceptance environments
-      logLevel: warning
+      # -- Log level of the celery worker and beat. On warning beat logs only its startup banner and the worker a few lines a day, so they hardly show in Grafana. Set to debug for test/acceptance environments.
+      logLevel: info
       brokerUrl: redis://redis-ha-master:6379/14
       # The openarchiefbeheer chart 2.1.0 reads resultBackend; the misspelled resultBackendl left it empty.
       resultBackend: redis://redis-ha-master:6379/14
