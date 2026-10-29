@@ -45,7 +45,6 @@ Default replicas: **2**
 
 | Container | CPU Request | Mem Request | CPU Limit | Mem Limit | Notes |
 |-----------|-------------|-------------|-----------|-----------|-------|
-| keycloak-builder (init) `(op)` | 250m | 512Mi | 1000m | 1Gi | Set by keycloak-operator |
 | keycloak `(op)` | 500m | 1700Mi | 1000m | 2Gi | Set via `keycloak.resources` → `spec.resources` in Keycloak CR |
 
 Resources for the main Keycloak container are set via `spec.resources` in the Keycloak CR — this is the supported field provided by the operator. The operator's built-in defaults (when nothing is set) are `1700Mi` request and `2Gi` limit (memory only, no CPU). The chart now explicitly sets these via `keycloak.resources` to also add a CPU request of `500m`.

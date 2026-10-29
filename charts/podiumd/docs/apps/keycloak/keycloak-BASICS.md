@@ -28,9 +28,9 @@ small operator pod.
   app is a **client** of this Keycloak; nothing else in the stack does its own
   authentication.
 - Runtime components:
-  - `keycloak-0` / `keycloak-1` — server pods (operator-managed StatefulSet),
-    each with a `keycloak-builder` init container (runs `kc.sh build` into an
-    `emptyDir`) and the `keycloak` main container.
+  - `keycloak-0` / `keycloak-1` — server pods (operator-managed StatefulSet)
+    with the `keycloak` container. The CR sets `startOptimized: false`, so
+    Keycloak runs its build step at every start.
   - `keycloak-operator` — operator Deployment (1 replica).
   - Bootstrap Jobs (Helm-rendered, `ttlSecondsAfterFinished` garbage-collected):
     `ensure-podiumd-admin-user` (python + psql — seeds the admin user in the
@@ -61,8 +61,7 @@ not via a pre-created ConfigMap:
 
 ### Storage
 
-None. No PVC — the `keycloak-build-data` volume is an `emptyDir` (rebuilt by
-the init container on every pod start); persistent state is in PostgreSQL.
+None. No PVC; persistent state is in PostgreSQL.
 
 ### Routing / exposure (NGINX Gateway Fabric)
 
@@ -124,7 +123,6 @@ Chart defaults (values.yaml + resource-overview.md):
 | Container | CPU request | Mem request | CPU limit | Mem limit | Values key |
 |---|---|---|---|---|---|
 | keycloak (main, x2) | 500m | 1700Mi | 1000m | 2Gi | `keycloak.resources` → `spec.resources` in the Keycloak CR |
-| keycloak-builder (init) | 250m | 512Mi | 1000m | 1Gi | `keycloak.podTemplate.spec.initContainers` |
 | keycloak-operator | 100m | 128Mi | 500m | 768Mi | `keycloak-operator.operator.resources` (limit raised from 256Mi after OOMKills, IN-2233) |
 | jobs: ensure-* (curl/python/psql) | 50m | 64Mi | 200m | 128Mi | `keycloak-operator.jobs.resources` |
 | jobs: import-*-realm (kc-config-cli) | 50m | 256Mi | 200m | 512Mi | `keycloak-operator.jobs.configCliResources` |
