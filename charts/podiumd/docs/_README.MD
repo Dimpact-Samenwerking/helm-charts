@@ -37,6 +37,7 @@ defined in [`_UPGRADING.md`](_UPGRADING.md).
 
 What goes into each file, how the upgrade guide is organised and when the set
 is done: [`_UPGRADE_DOCS_CHECKLIST.md`](_UPGRADE_DOCS_CHECKLIST.md).
+To write or review them with Claude Code: [`/upgrade-guide`](../../../.claude/commands/upgrade-guide.md).
 
 A new component that ships `enabled: false` gets a row in the *Optional
 components* table in [`_UPGRADING.md`](_UPGRADING.md), and the hop guide that
@@ -47,14 +48,15 @@ For a new release `<new>` with predecessor `<prev>`:
 1. Bump `charts/podiumd/Chart.yaml` and pin the new images in
    `charts/podiumd/values.yaml` (tag + digest).
 2. Scaffold the guide with the `/upgrade-notes <prev>-to-<new>` skill →
-   `_UPGRADE_PATHS/<prev>-to-<new>-upgrade.md`. Checklist first, details below;
-   link app-specific runbooks from `apps/<app>/` instead of inlining them.
-3. Create the companions in `_UPGRADE_PATHS/`:
-   - `<prev>-to-<new>-values-deltas.md` — full key-by-key reference, or the
-     placeholder text used by the existing placeholders when no gemeente
-     values change.
-   - `<prev>-to-<new>-gemeente-specific.md` — copy the empty template from any
-     existing `*-gemeente-specific.md`.
+   `_UPGRADE_PATHS/<prev>-to-<new>-upgrade.md`, in the layout of
+   [`_UPGRADE_DOCS_CHECKLIST.md`](_UPGRADE_DOCS_CHECKLIST.md): every section
+   A to F stays, an empty one says "Nothing for this hop.". Link app-specific
+   runbooks from `apps/<app>/` instead of inlining them.
+3. Create the companions in `_UPGRADE_PATHS/` (`create-doc-version` makes the
+   first two as stubs):
+   - `<prev>-to-<new>-values-deltas.md` — config only, as the checklist
+     describes; the stub's placeholder stays when no gemeente values change.
+   - `<prev>-to-<new>-gemeente-specific.md` — findings per environment.
    - `<prev>-to-<new>-operators-crds.md` — **only** when the release adds or
      upgrades an operator or CRDs: summary table (component / change / CRD
      impact / action) plus the pre-deploy CRD commands.
