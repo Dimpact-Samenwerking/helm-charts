@@ -256,46 +256,6 @@ keycloak:
                       values:
                         - keycloak
                 topologyKey: kubernetes.io/hostname
-      initContainers:
-        - name: keycloak-builder
-          # image is intentionally not set here - it will be automatically populated
-          # by the keycloak-cr.yaml template to match the main Keycloak image version
-          # (see line 69 in templates/keycloak-cr.yaml)
-          securityContext:
-            allowPrivilegeEscalation: false
-            runAsNonRoot: true
-            runAsUser: 1000
-            capabilities:
-              drop:
-                - ALL
-            seccompProfile:
-              type: RuntimeDefault
-          resources:
-            requests:
-              memory: "512Mi"
-              cpu: "250m"
-            limits:
-              memory: "1Gi"
-              cpu: "1000m"
-          command:
-            - /bin/bash
-            - -c
-            - |
-              set -e
-              export KC_DB=postgres
-              export KC_PROXY_HEADERS=xforwarded
-              export KC_CACHE=ispn
-              export KC_METRICS_ENABLED=true
-              export KC_HEALTH_ENABLED=true
-              /opt/keycloak/bin/kc.sh build
-              rm -rf /opt/keycloak/build/quarkus /opt/keycloak/build/providers
-              mkdir -p /opt/keycloak/build/quarkus /opt/keycloak/build/providers
-              cp -a /opt/keycloak/lib/quarkus/. /opt/keycloak/build/quarkus/
-              cp -a /opt/keycloak/providers/. /opt/keycloak/build/providers/ 2>/dev/null || true
-          volumeMounts:
-            - name: keycloak-build-data
-              mountPath: /opt/keycloak/build
-              subPath: ""
       containers:
         - name: keycloak
           securityContext:
@@ -343,16 +303,6 @@ keycloak:
             periodSeconds: 5
             timeoutSeconds: 5
             failureThreshold: 66  # 330 s, as before
-          volumeMounts:
-            - name: keycloak-build-data
-              mountPath: /opt/keycloak/lib/quarkus
-              subPath: quarkus
-            - name: keycloak-build-data
-              mountPath: /opt/keycloak/providers
-              subPath: providers
-      volumes:
-        - name: keycloak-build-data
-          emptyDir: {}
   # -- new keycloak entrypoint configuration, falls back to proxyHeaders if headers is not set
   proxy:
     headers: "xforwarded"
