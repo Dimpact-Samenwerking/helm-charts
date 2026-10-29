@@ -233,6 +233,64 @@ def test_create_missing_docs_nothing_to_do_when_all_exist(
     assert libcomponentdocsbaselinedocstubs.create_missing_docs(doc_dir, images_dir, "4.8.5", "4.9.0") == []
 
 
+# --- the stubs follow docs/_UPGRADE_DOCS_CHECKLIST.md ---
+
+
+def _stub(stubs: ModuleType, suffix: str) -> str:
+    return stubs.STUB_TEMPLATES[suffix].format(upgrade_docs_baseline="4.8.5", target="4.9.0")
+
+
+def test_upgrade_stub_has_the_checklist_sections_in_order(libcomponentdocsbaselinedocstubs: ModuleType):
+    text = _stub(libcomponentdocsbaselinedocstubs, "upgrade")
+    level2 = [line.removeprefix("## ") for line in text.splitlines() if line.startswith("## ")]
+    assert level2 == [
+        "Checklist",
+        "A. Once per cluster",
+        "B. Once per values repository",
+        "C. Per environment, before the deploy day",
+        "D. The deploy run",
+        "E. After the deploy",
+        "F. Rollback",
+        "Changes that need no action",
+        "Component versions (4.9.0 vs 4.8.5)",
+        "Changes",
+        "Reference",
+    ]
+    assert "### If the run fails\n\nNothing for this hop.\n" in text
+    assert "For environments already on **4.8.5**." in text
+    assert "](#c-per-environment-before-the-deploy-day)" in text
+
+
+def test_first_changes_block_clears_the_upgrade_stub_todos_and_keeps_the_layout(
+    libcomponentdocsbaselinedocstubs: ModuleType, libcomponentdocschanges: ModuleType
+):
+    """The first "### ..." block lands under "## Changes", before the reference part, and both TODOs go."""
+    section = libcomponentdocschanges.render_changes_section("zac 5.0.2 → 5.4.3", [], [], "4.9.0")
+    text = libcomponentdocschanges.insert_changes_section(
+        _stub(libcomponentdocsbaselinedocstubs, "upgrade"),
+        section,
+        "zac",
+        libcomponentdocschanges.OrderingContext([], {}),
+    )
+    assert "TODO" not in text
+    assert "## Changes\n\n### zac 5.0.2 → 5.4.3\n" in text
+    assert text.index("### zac 5.0.2 → 5.4.3") < text.index("## Reference")
+
+
+def test_stale_values_deltas_todo_goes_and_the_stub_opening_stays(
+    libcomponentdocsbaselinedocstubs: ModuleType, libcomponentdocsdeltas: ModuleType
+):
+    """Once a hand-written section is there, only the stub's TODO line goes."""
+    stub = _stub(libcomponentdocsbaselinedocstubs, "values-deltas")
+    section = "## zac 5.0.2 → 5.4.3\n\n```yaml\nzac:\n  x: 1  # new\n```\n"
+    opening = stub.replace("TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n", "")
+    assert "and nothing else." in opening
+    assert libcomponentdocsdeltas.strip_stale_values_deltas_todo_stub(stub + "\n" + section) == (
+        opening + section,
+        True,
+    )
+
+
 DEPS: list[ChartDependency] = [
     {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"},
     {"name": "openformulieren", "version": "1.12.0"},

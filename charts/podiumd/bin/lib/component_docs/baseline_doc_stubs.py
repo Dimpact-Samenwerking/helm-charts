@@ -11,6 +11,8 @@ from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
 from lib.upgradedoc.doc_names import doc_name
 from lib.upgradedoc.doc_names import doc_name_re
 from lib.upgradedoc.doc_names import images_manifest_path
+from lib.upgradedoc.sorting_and_ordering import CHANGES_HEADING
+from lib.upgradedoc.string_and_parsing_basics import heading_slug
 from lib.yaml_types import YamlMapping
 
 # Bare placeholder lines the stubs write; shared with the "is this just the
@@ -24,18 +26,69 @@ VALUES_DELTAS_STUB_TODO_LINE = "TODO: describe any gemeente `podiumd.yml` change
 # is never stripped; has_stale_gemeente_specific_placeholder flags it instead.
 GEMEENTE_SPECIFIC_STUB_LINE = "_None recorded yet._\n"
 
-STUB_TEMPLATES = {
-    "upgrade": (
+# The upgrade guide's runbook sections, in the order of
+# docs/_UPGRADE_DOCS_CHECKLIST.md.
+RUNBOOK_SECTIONS = (
+    "A. Once per cluster",
+    "B. Once per values repository",
+    "C. Per environment, before the deploy day",
+    "D. The deploy run",
+    "E. After the deploy",
+    "F. Rollback",
+)
+DEPLOY_RUN_SECTION = RUNBOOK_SECTIONS[3]
+IF_THE_RUN_FAILS_SECTION = "If the run fails"
+# What an empty section says; an author keeps it when it is true for the hop.
+EMPTY_SECTION_LINE = "Nothing for this hop.\n"
+
+# (Checklist half-line, section body) per runbook section. Every section
+# starts empty, but D always runs `helm upgrade`.
+_EMPTY_RUNBOOK_STUB = ("nothing for this hop.", EMPTY_SECTION_LINE)
+_RUNBOOK_STUBS = {
+    DEPLOY_RUN_SECTION: (
+        "`helm upgrade`.",
+        f"### D1. `helm upgrade`\n\nRun the deploy as usual.\n\n### {IF_THE_RUN_FAILS_SECTION}\n\n{EMPTY_SECTION_LINE}",
+    ),
+}
+
+
+def _upgrade_stub_template() -> str:
+    """The upgrade-guide stub in the checklist layout, with {upgrade_docs_baseline} and {target} fields."""
+    stubs = [(name, *_RUNBOOK_STUBS.get(name, _EMPTY_RUNBOOK_STUB)) for name in RUNBOOK_SECTIONS]
+    checklist = "".join(f"- [ ] **[{name}](#{heading_slug(name)})**: {line}\n" for name, line, _body in stubs)
+    runbook = "".join(f"## {name}\n\n{body}\n" for name, _line, body in stubs)
+    companion = "{upgrade_docs_baseline}-to-{target}"
+    return (
         "# Upgrade guide: PodiumD {upgrade_docs_baseline} → {target}\n\n"
         "> See the Confluence Releases page for the agreed application\n"
         "> targets: <https://dimpact.atlassian.net/wiki/spaces/PCP/pages/7602191/Releases+PodiumD>.\n\n"
-        + UPGRADE_INTRO_STUB_TODO_LINE
-        + "\n"
+        "For environments already on **{upgrade_docs_baseline}**. The guide has three parts:\n\n"
+        "1. **The runbook** (sections A to F): what to run, in which order, and what\n"
+        "   to check. Written for the deploy pipeline.\n"
+        "2. **Component versions and changes**: the record of what moved in the chart.\n"
+        "3. **Reference**: the detail per topic, for when a step fails or a choice has\n"
+        "   to be made.\n\n" + UPGRADE_INTRO_STUB_TODO_LINE + "\n"
+        "Companion documents:\n\n"
+        f"- [`{companion}-values-deltas.md`]({companion}-values-deltas.md):\n"
+        "  the exact changes in a gemeente `podiumd.yml`, `services-gateway.yml` and\n"
+        "  `ssl-gateway.yml`.\n"
+        f"- [`{companion}-gemeente-specific.md`]({companion}-gemeente-specific.md):\n"
+        "  findings per environment.\n\n"
+        "## Checklist\n\n"
+        "A and B are done once; C, D and E per environment.\n\n"
+        f"{checklist}\n"
+        f"{runbook}"
+        f"## Changes that need no action\n\n{EMPTY_SECTION_LINE}\n"
         "## Component versions ({target} vs {upgrade_docs_baseline})\n\n"
         "| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n\n"
-        "## Changes\n\n" + UPGRADE_CHANGES_STUB_TODO_LINE
-    ),
+        f"{CHANGES_HEADING}\n\n{UPGRADE_CHANGES_STUB_TODO_LINE}\n"
+        f"## Reference\n\n{EMPTY_SECTION_LINE}"
+    )
+
+
+STUB_TEMPLATES = {
+    "upgrade": _upgrade_stub_template(),
     "gemeente-specific": (
         "# Gemeente-specific notes — PodiumD {upgrade_docs_baseline} → {target}\n\n"
         "Findings for this hop that apply to a **specific gemeente or environment** —\n"
@@ -47,8 +100,15 @@ STUB_TEMPLATES = {
         "  fix/workaround applied.\n"
         "-->\n"
     ),
+    # Config only: the opening, then one "##" section per component or
+    # gateway file, which the tooling and the author add.
     "values-deltas": (
-        "# Values deltas — PodiumD {upgrade_docs_baseline} → {target}\n\n" + VALUES_DELTAS_STUB_TODO_LINE
+        "# Values deltas — PodiumD {upgrade_docs_baseline} → {target}\n\n"
+        "What changes in a gemeente `podiumd.yml`, `services-gateway.yml` and\n"
+        "`ssl-gateway.yml` for this hop, and nothing else. Why, the pre- and\n"
+        "post-deploy steps and the rollback are in\n"
+        "[`{upgrade_docs_baseline}-to-{target}-upgrade.md`]({upgrade_docs_baseline}-to-{target}-upgrade.md).\n\n"
+        + VALUES_DELTAS_STUB_TODO_LINE
     ),
 }
 
