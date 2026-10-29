@@ -1,0 +1,17 @@
+# Baseline: podiumd 4.10.0. Re-verify before release.
+#
+# Images new or changed in podiumd 4.10.1 vs 4.10.0.
+#
+# Changes:
+#   1. zac - solr 9.11.0-slim (digest changed).
+#
+# See docs/_UPGRADE_PATHS/4.10.0-to-4.10.1-upgrade.md for the operator upgrade notes.
+#
+# Digests are the OCI image index (multi-arch manifest) digest as returned in
+# the Docker-Content-Digest response header from the source registry.
+
+#   sidecar: zac - solr 9.11.0-slim (digest changed)
+- name: library/solr
+  url: docker.io/library/solr
+  version: "9.11.0-slim"
+  digest: "sha256:5bc07412dffc1198ff6ace3587e09f8eea2126f821109a849506f4541b228aca"
