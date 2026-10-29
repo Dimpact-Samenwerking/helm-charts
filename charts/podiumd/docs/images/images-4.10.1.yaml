@@ -1,0 +1,12 @@
+# Baseline: podiumd 4.10.0. Re-verify before release.
+#
+# Images new or changed in podiumd 4.10.1 vs 4.10.0.
+#
+# Changes:
+#
+# See docs/_UPGRADE_PATHS/4.10.0-to-4.10.1-upgrade.md for the operator upgrade notes.
+#
+# Digests are the OCI image index (multi-arch manifest) digest as returned in
+# the Docker-Content-Digest response header from the source registry.
+
+[]
