@@ -25,3 +25,30 @@ def normalize_blank_line_before_insert(lines: list[str], insert_at: int):
         del lines[insert_at - (blank_count - 1) : insert_at]
         insert_at -= blank_count - 1
     return insert_at
+
+
+def _find_standalone_placeholder_line(lines: list[str], end: int, placeholder_text: str):
+    """Index of a line in lines[:end] that stripped-equals placeholder_text
+    and is its own paragraph (blank or doc edge on both sides), else None.
+    Other content may surround it, e.g. the intro blockquote."""
+    target = placeholder_text.strip()
+    for i in range(end):
+        if lines[i].strip() != target:
+            continue
+        before_ok = i == 0 or not lines[i - 1].strip()
+        after_ok = i + 1 == end or not lines[i + 1].strip()
+        if before_ok and after_ok:
+            return i
+    return None
+
+
+def strip_standalone_placeholder_line(lines: list[str], end: int, placeholder_text: str):
+    """Remove that standalone placeholder line in place, collapsing the
+    double blank left behind. Returns True if a line was removed."""
+    idx = _find_standalone_placeholder_line(lines, end, placeholder_text)
+    if idx is None:
+        return False
+    del lines[idx]
+    if 0 < idx < len(lines) and not lines[idx].strip() and not lines[idx - 1].strip():
+        del lines[idx]
+    return True
