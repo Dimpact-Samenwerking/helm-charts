@@ -38,6 +38,16 @@ RUNBOOK_SECTIONS = (
 )
 DEPLOY_RUN_SECTION = RUNBOOK_SECTIONS[3]
 IF_THE_RUN_FAILS_SECTION = "If the run fails"
+# All its "##" sections up to "## Changes", in that order, as the
+# upgrade-doc-layout check expects them; a heading may add to the name
+# ("A. Once per cluster: CRDs").
+UPGRADE_GUIDE_SECTIONS = (
+    "Checklist",
+    *RUNBOOK_SECTIONS,
+    "Changes that need no action",
+    "Component versions",
+    CHANGES_HEADING.removeprefix("## "),
+)
 # What an empty section says; an author keeps it when it is true for the hop.
 EMPTY_SECTION_LINE = "Nothing for this hop.\n"
 

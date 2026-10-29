@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING
 from lib.chart.chart_state import BaselineState
 from lib.chart.chart_state import ComponentState
 from lib.chart.chart_yaml import ChartDependency
+from lib.checks.upgrade_doc_layout import upgrade_guide_layout_issues
+from lib.checks.upgrade_doc_layout import values_deltas_layout_issues
 from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
 from lib.upgradedoc.doc_names import images_manifest_path
 from lib.upgradedoc.resolve_component_row import ResolutionContext
@@ -261,6 +263,12 @@ def test_upgrade_stub_has_the_checklist_sections_in_order(libcomponentdocsbaseli
     assert "](#c-per-environment-before-the-deploy-day)" in text
 
 
+def test_stubs_pass_the_layout_check(libcomponentdocsbaselinedocstubs: ModuleType):
+    stubs = libcomponentdocsbaselinedocstubs
+    assert upgrade_guide_layout_issues("u.md", _stub(stubs, "upgrade"), "4.8.5", "4.9.0") == []
+    assert values_deltas_layout_issues("v.md", _stub(stubs, "values-deltas")) == []
+
+
 def test_first_changes_block_clears_the_upgrade_stub_todos_and_keeps_the_layout(
     libcomponentdocsbaselinedocstubs: ModuleType, libcomponentdocschanges: ModuleType
 ):
@@ -275,6 +283,7 @@ def test_first_changes_block_clears_the_upgrade_stub_todos_and_keeps_the_layout(
     assert "TODO" not in text
     assert "## Changes\n\n### zac 5.0.2 → 5.4.3\n" in text
     assert text.index("### zac 5.0.2 → 5.4.3") < text.index("## Reference")
+    assert upgrade_guide_layout_issues("u.md", text, "4.8.5", "4.9.0") == []
 
 
 def test_stale_values_deltas_todo_goes_and_the_stub_opening_stays(
@@ -285,6 +294,7 @@ def test_stale_values_deltas_todo_goes_and_the_stub_opening_stays(
     section = "## zac 5.0.2 → 5.4.3\n\n```yaml\nzac:\n  x: 1  # new\n```\n"
     opening = stub.replace("TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n", "")
     assert "and nothing else." in opening
+    assert values_deltas_layout_issues("v.md", opening + section) == []
     assert libcomponentdocsdeltas.strip_stale_values_deltas_todo_stub(stub + "\n" + section) == (
         opening + section,
         True,
