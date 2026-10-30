@@ -60,8 +60,9 @@ using about 3.4Gi in practice.
 - **Exception to the standard convention**: zaakbrug does *not* use the usual
   `<component>` Secret (`DB_PASSWORD`) + ConfigMap (`DB_HOST`/`DB_NAME`/
   `DB_USER`) contract. The JDBC connection is declared inline in the
-  environment values under `zaakbrug.connections.jdbc[]` — JNDI name must be
-  `jdbc/podiumd` (Narayana looks it up by that default) — with the password
+  environment values under `zaakbrug.connections.jdbc[]` — leave `name` out:
+  Narayana looks the datasource up by `jdbc/<release name>`, which the chart
+  then derives — with the password
   substituted at deploy time from the Key Vault secret `zaakbrug`
   (`REP_ZAAKBRUG_DATABASE_PASSWORD_REP`).
 - `ssl` must be an unquoted YAML boolean; `ssl: "true"` fails the helm render
@@ -142,8 +143,8 @@ troubleshooting):
    `frank.environmentVariables`
    `application.security.console.authentication.*` block (required — without
    it the console serves openly with no Keycloak redirect), and the
-   `connections.jdbc[]` entry named `jdbc/podiumd` with `ssl: true`
-   (unquoted boolean).
+   `connections.jdbc[]` entry without a `name` (the chart derives
+   `jdbc/<release name>`) and with `ssl: true` (unquoted boolean).
 4. **Keycloak client** — add the `zaakbrug` client under
    `keycloak.config.clients` with `secret:
    "REP_ZAAKBRUG_OAUTH_CLIENT_SECRET_REP"` and `oidcUrl` set to the console
