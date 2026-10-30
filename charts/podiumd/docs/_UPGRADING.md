@@ -22,6 +22,13 @@ Upgrade one hop at a time, in order. Each guide covers exactly one hop.
 
 | You are on | Read, in this order |
 |---|---|
+| 4.9.6 | `4.9.6-to-4.10.1-upgrade.md`, added with 4.10.1; stay on 4.9.6 until then. **Not to 4.10.0**: it would take Open Inwoner back from 2.4.9 to 2.4.7 |
+| 4.9.5 | [`4.9.5-to-4.10.0-upgrade.md`](_UPGRADE_PATHS/4.9.5-to-4.10.0-upgrade.md) — or, if you are taking the Open Forms / Open Inwoner security patch first, [`4.9.5-to-4.9.6-upgrade.md`](_UPGRADE_PATHS/4.9.5-to-4.9.6-upgrade.md) → then the 4.9.6 row |
+| 4.9.4 | [`4.9.4-to-4.9.5-upgrade.md`](_UPGRADE_PATHS/4.9.4-to-4.9.5-upgrade.md) → then the 4.9.5 row |
+| 4.9.3 | [`4.9.3-to-4.9.4-upgrade.md`](_UPGRADE_PATHS/4.9.3-to-4.9.4-upgrade.md) → then the 4.9.4 row |
+| 4.9.2 | [`4.9.2-to-4.9.3-upgrade.md`](_UPGRADE_PATHS/4.9.2-to-4.9.3-upgrade.md) → then the 4.9.3 row |
+| 4.9.1 | [`4.9.1-to-4.9.2-upgrade.md`](_UPGRADE_PATHS/4.9.1-to-4.9.2-upgrade.md) → then the 4.9.2 row |
+| 4.9.0 | [`4.9.0-to-4.9.1-upgrade.md`](_UPGRADE_PATHS/4.9.0-to-4.9.1-upgrade.md) → then the 4.9.1 row |
 | 4.8.6 | [`4.8.6-to-4.9.0-upgrade.md`](_UPGRADE_PATHS/4.8.6-to-4.9.0-upgrade.md) |
 | 4.8.5 | [`4.8.5-to-4.9.0-upgrade.md`](_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md) — or, if you are taking the Keycloak security patch first, [`4.8.5-to-4.8.6-upgrade.md`](_UPGRADE_PATHS/4.8.5-to-4.8.6-upgrade.md) → then the 4.8.6 guide |
 | 4.8.4 | [`4.8.4-to-4.8.5-upgrade.md`](_UPGRADE_PATHS/4.8.4-to-4.8.5-upgrade.md) |
@@ -151,6 +158,11 @@ not needed when deploying one.
                                                                                                                                          ╰▶ 4.8.6 ─▶ 4.9.0   (optional Keycloak security patch)
 ```
 
+```text
+4.9.0 ─▶ 4.9.1 ─▶ 4.9.2 ─▶ 4.9.3 ─▶ 4.9.4 ─▶ 4.9.5 ─▶ 4.10.0 ─▶ 4.10.1
+                                              ╰▶ 4.9.6 ───────▶ 4.10.1   (Open Forms / Open Inwoner security patch; skip 4.10.0)
+```
+
 **4.8.6** is an optional side step off 4.8.5: a Keycloak-only security
 patch (26.6.4 → 26.7.2, 23 CVEs, adfinis operator chart 1.12.1 → 1.13.0)
 for environments that needed it before 4.9.0 was ready. Both routes land on
@@ -158,6 +170,12 @@ for environments that needed it before 4.9.0 was ready. Both routes land on
 26.6.4, so 4.8.6 → 4.9.0 **downgrades the operator** while the Keycloak
 server image stays on 26.7.2 — see
 [`4.8.6-to-4.9.0-upgrade.md`](_UPGRADE_PATHS/4.8.6-to-4.9.0-upgrade.md).
+
+**4.9.6** is a side step off 4.9.5: a security patch with Open Forms 3.5.14
+and Open Inwoner 2.4.9, released before 4.10.1. 4.10.0 was released before
+these patches and ships Open Inwoner 2.4.7, so from 4.9.6 the next hop is
+**4.10.1**, never 4.10.0: stay on 4.9.6 until 4.10.1 is released.
+Environments on 4.9.5 can go to 4.10.0 directly.
 
 Each hop has exactly **one** upgrade guide and a matching image manifest (the
 ACR-mirror set for that hop):
@@ -179,6 +197,14 @@ ACR-mirror set for that hop):
 | 4.8.5 → 4.9.0   | [`4.8.5-to-4.9.0-upgrade.md`](_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md)   | [`images/images-4.9.0.yaml`](images/images-4.9.0.yaml) |
 | 4.8.5 → 4.8.6   | [`4.8.5-to-4.8.6-upgrade.md`](_UPGRADE_PATHS/4.8.5-to-4.8.6-upgrade.md)   | [`images/images-4.8.6.yaml`](images/images-4.8.6.yaml) |
 | 4.8.6 → 4.9.0   | [`4.8.6-to-4.9.0-upgrade.md`](_UPGRADE_PATHS/4.8.6-to-4.9.0-upgrade.md)   | [`images/images-4.9.0.yaml`](images/images-4.9.0.yaml) |
+| 4.9.0 → 4.9.1 | [`4.9.0-to-4.9.1-upgrade.md`](_UPGRADE_PATHS/4.9.0-to-4.9.1-upgrade.md) | [`images/images-4.9.1.yaml`](images/images-4.9.1.yaml) |
+| 4.9.1 → 4.9.2 | [`4.9.1-to-4.9.2-upgrade.md`](_UPGRADE_PATHS/4.9.1-to-4.9.2-upgrade.md) | [`images/images-4.9.2.yaml`](images/images-4.9.2.yaml) |
+| 4.9.2 → 4.9.3 | [`4.9.2-to-4.9.3-upgrade.md`](_UPGRADE_PATHS/4.9.2-to-4.9.3-upgrade.md) | [`images/images-4.9.3.yaml`](images/images-4.9.3.yaml) |
+| 4.9.3 → 4.9.4 | [`4.9.3-to-4.9.4-upgrade.md`](_UPGRADE_PATHS/4.9.3-to-4.9.4-upgrade.md) | [`images/images-4.9.4.yaml`](images/images-4.9.4.yaml) |
+| 4.9.4 → 4.9.5 | [`4.9.4-to-4.9.5-upgrade.md`](_UPGRADE_PATHS/4.9.4-to-4.9.5-upgrade.md) | [`images/images-4.9.5.yaml`](images/images-4.9.5.yaml) |
+| 4.9.5 → 4.10.0 | [`4.9.5-to-4.10.0-upgrade.md`](_UPGRADE_PATHS/4.9.5-to-4.10.0-upgrade.md) | [`images/images-4.10.0.yaml`](images/images-4.10.0.yaml) |
+| 4.9.5 → 4.9.6 | [`4.9.5-to-4.9.6-upgrade.md`](_UPGRADE_PATHS/4.9.5-to-4.9.6-upgrade.md) | [`images/images-4.9.6.yaml`](images/images-4.9.6.yaml) |
+| 4.9.6 → 4.10.1 | `4.9.6-to-4.10.1-upgrade.md` (added with 4.10.1) | `images/images-4.10.1.yaml` (added with 4.10.1) |
 
 > The 4.6.4 → 4.6.8 and 4.6.8 → 4.7.6 guides are **consolidated**: each folds
 > several intermediate releases into one document so an operator reads one
