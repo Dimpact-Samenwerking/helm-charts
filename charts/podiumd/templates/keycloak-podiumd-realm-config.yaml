@@ -63,6 +63,13 @@
 {{- end }}
 {{- end }}
 {{- end -}}
+{{- /* Which components get their client, client roles and group mappings: a
+       client of a component that is not installed is an unused confidential
+       client with a live secret. */}}
+{{- $on := dict }}
+{{- range $oidcClients }}
+{{- $_ := set $on .name (not (eq .enabled false)) }}
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -239,6 +246,7 @@ data:
         standardFlowEnabled: false
         implicitFlowEnabled: false
         directAccessGrantsEnabled: false
+{{- if $on.openzaak }}
       - clientId: openzaak
         name: Open Zaak
         enabled: true
@@ -280,6 +288,8 @@ data:
               claim.name: "groups"
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openzaak"
+{{- end }}
+{{- if $on.openarchiefbeheer }}
       - clientId: abc
         name: Open Archiefbeheer
         enabled: true
@@ -321,6 +331,8 @@ data:
               claim.name: "groups"
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "abc"
+{{- end }}
+{{- if $on.monitoring }}
       - clientId: monitoring
         name: {{ .Values.keycloak.config.clients.monitoring.name|quote }}
         enabled: {{ .Values.keycloak.config.clients.monitoring.enabled }}
@@ -356,6 +368,8 @@ data:
             consentRequired: false
             config:
               role: "monitoring.viewer"
+{{- end }}
+{{- if $on.datamigratie }}
       - clientId: datamigratie
         name: {{ .Values.keycloak.config.clients.datamigratie.name|quote }}
         enabled: {{ .Values.keycloak.config.clients.datamigratie.enabled }}
@@ -387,6 +401,7 @@ data:
             consentRequired: false
             config:
               role: "DMT-Functioneel-Beheerder"
+{{- end }}
 {{- if .Values.zaakbrug.enabled }}
       - clientId: zaakbrug
         name: {{ .Values.keycloak.config.clients.zaakbrug.name | quote }}
@@ -419,6 +434,7 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "zaakbrug"
 {{- end }}
+{{- if $on.opennotificaties }}
       - clientId: opennotificaties
         name: Open Notificaties
         enabled: true
@@ -460,6 +476,8 @@ data:
               claim.name: "groups"
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "opennotificaties"
+{{- end }}
+{{- if $on.objecten }}
       - clientId: objecten
         name: Objecten
         enabled: true
@@ -501,6 +519,8 @@ data:
               claim.name: "groups"
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "objecten"
+{{- end }}
+{{- if $on.openklant }}
       - clientId: openklant
         name: Open Klant
         enabled: true
@@ -542,6 +562,8 @@ data:
               claim.name: "groups"
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openklant"
+{{- end }}
+{{- if $on.openformulieren }}
       - clientId: openformulieren
         name: Open Formulieren
         enabled: true
@@ -583,6 +605,8 @@ data:
               claim.name: "groups"
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openformulieren"
+{{- end }}
+{{- if $on.openinwoner }}
       - clientId: openinwoner
         name: Open Inwoner
         enabled: true
@@ -624,6 +648,8 @@ data:
               claim.name: "groups"
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openinwoner"
+{{- end }}
+{{- if $on.referentielijsten }}
       - clientId: referentielijsten
         name: Referentielijsten
         enabled: true
@@ -665,6 +691,8 @@ data:
               claim.name: "groups"
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "referentielijsten"
+{{- end }}
+{{- if $on.openbeheer }}
       - clientId: openbeheer
         name: Open Beheer
         enabled: true
@@ -706,6 +734,7 @@ data:
               claim.name: "groups"
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openbeheer"
+{{- end }}
 {{- if .Values.openvtb.enabled }}
       - clientId: openvtb
         name: Open VTB
@@ -749,6 +778,7 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openvtb"
 {{- end }}
+{{- if $on.openbao }}
       - clientId: openbao
         name: OpenBao
         enabled: true
@@ -788,6 +818,8 @@ data:
               claim.name: "groups"
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openbao"
+{{- end }}
+{{- if $on.kiss }}
       - clientId: kiss
         name: Kiss
         enabled: true
@@ -826,6 +858,8 @@ data:
               access.token.claim: true
               claim.name: samaccountname
               jsonType.label: String
+{{- end }}
+{{- if $on.zac }}
       - clientId: {{ .Values.zac.auth.clientId }}
         name: Zaakafhandelcomponent
         enabled: true
@@ -865,6 +899,8 @@ data:
               lightweight.claim: "false"
               access.token.claim: "true"
               claim.name: "group_membership"
+{{- end }}
+{{- if $on.zac }}
       - clientId: {{ .Values.zac.keycloak.adminClient.id }}
         name: Zaakafhandelcomponent Admin Client
         enabled: true
@@ -908,6 +944,8 @@ data:
               access.token.claim: "true"
               claim.name: "client_id"
               jsonType.label: "String"
+{{- end }}
+{{- if $on.ita }}
       - clientId: ita
         name: Interne Taak Afhandeling
         enabled: true
@@ -949,6 +987,8 @@ data:
               access.token.claim: "true"
               claim.name: "samaccountname"
               jsonType.label: "String"
+{{- end }}
+{{- if $on.pabc }}
       - clientId: {{ .Values.pabc.settings.oidc.clientId }}
         name: PABC OIDC Client
         enabled: true
@@ -978,6 +1018,8 @@ data:
               claim.name: "roles"
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "pabc"
+{{- end }}
+{{- if $on.pabc }}
       - clientId: {{ .Values.pabc.settings.keycloakAdmin.clientId }}
         name: PABC Keycloak Admin REST API client
         enabled: true
@@ -990,6 +1032,7 @@ data:
         standardFlowEnabled: false
         implicitFlowEnabled: false
         directAccessGrantsEnabled: false
+{{- end }}
 {{- if .Values.frankgateway.enabled }}
 {{- /* One dashboard client per enabled gateway instance: apisix-dashboard binds
        a single etcd prefix, so a split deployment runs one dashboard per traffic
@@ -1049,6 +1092,7 @@ data:
         description: OpenID Connect scope for add user roles to the access token
         protocol: openid-connect
         protocolMappers:
+{{- if $on.zac }}
           - config:
               access.token.claim: "true"
               claim.name: roles
@@ -1063,6 +1107,7 @@ data:
             name: zac roles
             protocol: openid-connect
             protocolMapper: oidc-usermodel-client-role-mapper
+{{- end }}
           - config:
               access.token.claim: "true"
               introspection.token.claim: "true"
@@ -1092,26 +1137,6 @@ data:
             name: realm roles
             protocol: openid-connect
             protocolMapper: oidc-usermodel-realm-role-mapper
-    users:
-      - username: "service-account-{{ .Values.zac.keycloak.adminClient.id }}"
-        enabled: "true"
-        totp: "false"
-        serviceAccountClientId: "{{ .Values.zac.keycloak.adminClient.id }}"
-        clientRoles:
-          realm-management:
-            - "view-users"
-          account:
-            - "view-groups"
-      - username: "service-account-{{ .Values.pabc.settings.keycloakAdmin.clientId }}"
-        enabled: "true"
-        totp: "false"
-        serviceAccountClientId: "{{ .Values.pabc.settings.keycloakAdmin.clientId }}"
-        clientRoles:
-          realm-management:
-            - "view-users"
-            - "view-realm"
-          account:
-            - "view-groups"
 {{- /* Frank!Gateway dashboard operators, placed in the fg-admins group (or a
        per-instance override of dashboard.auth.adminGroup). keycloak-config-cli
        fully manages the group memberships of users listed in the import — the
@@ -1119,8 +1144,8 @@ data:
        accounts for exactly that reason. A listed user that does not exist yet
        is created enabled, without credentials, and cannot log in until a
        password is set in the admin console. */}}
-{{- if .Values.frankgateway.enabled }}
 {{- $fgMembers := dict }}
+{{- if .Values.frankgateway.enabled }}
 {{- range $fgKey, $fgOverride := .Values.frankgateway.instances }}
 {{- $fgInst := include "podiumd.frankgateway.instanceValues" (dict "root" $ "key" $fgKey "override" $fgOverride) | fromYaml }}
 {{- if and $fgInst.enabled $fgInst.dashboard.enabled $fgInst.dashboard.auth.enabled $fgInst.dashboard.auth.adminGroup }}
@@ -1131,13 +1156,38 @@ data:
 {{- end }}
 {{- end }}
 {{- end }}
+{{- end }}
+{{- /* An empty list, not null, when no user is left. */}}
+    users:{{ if not (or $on.zac $on.pabc $fgMembers) }} []{{ end }}
+{{- if $on.zac }}
+      - username: "service-account-{{ .Values.zac.keycloak.adminClient.id }}"
+        enabled: "true"
+        totp: "false"
+        serviceAccountClientId: "{{ .Values.zac.keycloak.adminClient.id }}"
+        clientRoles:
+          realm-management:
+            - "view-users"
+          account:
+            - "view-groups"
+{{- end }}
+{{- if $on.pabc }}
+      - username: "service-account-{{ .Values.pabc.settings.keycloakAdmin.clientId }}"
+        enabled: "true"
+        totp: "false"
+        serviceAccountClientId: "{{ .Values.pabc.settings.keycloakAdmin.clientId }}"
+        clientRoles:
+          realm-management:
+            - "view-users"
+            - "view-realm"
+          account:
+            - "view-groups"
+{{- end }}
 {{- range $u := keys $fgMembers | sortAlpha }}
       - username: {{ $u | quote }}
         enabled: "true"
         groups:
 {{- range $p := keys (get $fgMembers $u) | sortAlpha }}
           - {{ $p | quote }}
-{{- end }}
 {{- end }}
 {{- end }}
     smtpServer:
@@ -1163,39 +1213,64 @@ data:
           description: {{ printf "PABC functionele rol %s" $fr.name | quote }}
 {{- end }}
       client:
+{{- if $on.openarchiefbeheer }}
         abc:
           - name: administrators
+{{- end }}
+{{- if $on.monitoring }}
         monitoring:
           - name: admin
           - name: editor
           - name: viewer
+{{- end }}
+{{- if $on.openklant }}
         openklant:
           - name: administrators
+{{- end }}
+{{- if $on.objecten }}
         objecten:
           - name: administrators
+{{- end }}
+{{- if $on.openzaak }}
         openzaak:
           - name: administrators
+{{- end }}
+{{- if $on.opennotificaties }}
         opennotificaties:
           - name: administrators
+{{- end }}
+{{- if $on.openformulieren }}
         openformulieren:
           - name: administrators
+{{- end }}
+{{- if $on.openinwoner }}
         openinwoner:
           - name: administrators
+{{- end }}
+{{- if $on.referentielijsten }}
         referentielijsten:
           - name: administrators
+{{- end }}
+{{- if $on.openbeheer }}
         openbeheer:
           - name: administrators
+{{- end }}
 {{- if .Values.openvtb.enabled }}
         openvtb:
           - name: administrators
 {{- end }}
+{{- if $on.openbao }}
         openbao:
           - name: {{ .Values.openbao.configuration.uploadersRole | quote }}
+{{- end }}
+{{- if $on.kiss }}
         kiss:
           - name: Redacteur
           - name: Beheerder
           - name: Klantcontactmedewerker
           - name: Kennisbank
+{{- end }}
+{{- if $on.zac }}
         zac:
           - name: behandelaar
           - name: beheerder
@@ -1203,11 +1278,16 @@ data:
           - name: raadpleger
           - name: recordmanager
           - name: domein_elk_zaaktype
+{{- end }}
+{{- if $on.ita }}
         ita:
           - name: ITA_Gebruiker
           - name: ITA_Functioneel_Beheerder
+{{- end }}
+{{- if $on.pabc }}
         pabc:
           - name: administrator
+{{- end }}
 {{- if .Values.zaakbrug.enabled }}
         zaakbrug:
           - name: administrators
@@ -1245,6 +1325,7 @@ data:
           - "podiumd-admin"
           - "administrators"
         clientRoles:
+{{- if $on.zac }}
           zac:
             - "recordmanager"
             - "domein_elk_zaaktype"
@@ -1252,35 +1333,60 @@ data:
             - "coordinator"
             - "raadpleger"
             - "behandelaar"
+{{- end }}
+{{- if $on.openarchiefbeheer }}
           abc:
             - "administrators"
+{{- end }}
+{{- if $on.ita }}
           ita:
             - "ITA_Gebruiker"
             - "ITA_Functioneel_Beheerder"
+{{- end }}
+{{- if $on.monitoring }}
           monitoring:
             - "admin"
+{{- end }}
+{{- if $on.objecten }}
           objecten:
             - "administrators"
+{{- end }}
+{{- if $on.openzaak }}
           openzaak:
             - "administrators"
+{{- end }}
+{{- if $on.openklant }}
           openklant:
             - "administrators"
+{{- end }}
+{{- if $on.openformulieren }}
           openformulieren:
             - "administrators"
+{{- end }}
+{{- if $on.openinwoner }}
           openinwoner:
             - "administrators"
+{{- end }}
+{{- if $on.opennotificaties }}
           opennotificaties:
             - "administrators"
+{{- end }}
+{{- if $on.referentielijsten }}
           referentielijsten:
             - "administrators"
+{{- end }}
+{{- if $on.openbeheer }}
           openbeheer:
             - "administrators"
+{{- end }}
 {{- if .Values.openvtb.enabled }}
           openvtb:
             - "administrators"
 {{- end }}
+{{- if $on.pabc }}
           pabc:
             - "administrator"
+{{- end }}
 {{- if .Values.zaakbrug.enabled }}
           zaakbrug:
             - "administrators"
@@ -1292,11 +1398,13 @@ data:
             - "Behandelaars"
         realmRoles:
           - "behandelaars"
+{{- if $on.zac }}
         clientRoles:
           zac:
             - "domein_elk_zaaktype"
             - "behandelaar"
             - "raadpleger"
+{{- end }}
       - name: coordinators
         path: /coordinators
         attributes:
@@ -1304,12 +1412,14 @@ data:
             - "Coordinators"
         realmRoles:
           - "coordinators"
+{{- if $on.zac }}
         clientRoles:
           zac:
             - "domein_elk_zaaktype"
             - "coordinator"
             - "raadpleger"
             - "behandelaar"
+{{- end }}
       - name: recordmanagers
         path: /recordmanagers
         attributes:
@@ -1317,6 +1427,7 @@ data:
             - "Recordmanagers"
         realmRoles:
           - "recordmanagers"
+{{- if $on.zac }}
         clientRoles:
           zac:
             - "domein_elk_zaaktype"
@@ -1324,6 +1435,7 @@ data:
             - "behandelaar"
             - "raadpleger"
             - "recordmanager"
+{{- end }}
       - name: beheerders
         path: /beheerders
         attributes:
@@ -1331,6 +1443,7 @@ data:
             - "Beheerders"
         realmRoles:
           - "beheerders"
+{{- if $on.zac }}
         clientRoles:
           zac:
             - "domein_elk_zaaktype"
@@ -1339,6 +1452,7 @@ data:
             - "beheerder"
             - "raadpleger"
             - "recordmanager"
+{{- end }}
       - name: raadplegers
         path: /raadplegers
         attributes:
@@ -1346,10 +1460,12 @@ data:
             - "Raadplegers"
         realmRoles:
           - "raadplegers"
+{{- if $on.zac }}
         clientRoles:
           zac:
             - "domein_elk_zaaktype"
             - "raadpleger"
+{{- end }}
 {{- /* A PABC functional role in files/pabc-dataset.json without a hand-written
        group above (with its ZAC client roles) still gets a group carrying its
        realm role, so the dataset alone decides which groups exist. */}}
@@ -1365,6 +1481,7 @@ data:
           - {{ $fr.name | quote }}
 {{- end }}
 {{- end }}
+{{- if $on.openbao }}
       - name: {{ .Values.openbao.configuration.uploadersGroup | quote }}
         path: "/{{ .Values.openbao.configuration.uploadersGroup }}"
         attributes:
@@ -1373,6 +1490,7 @@ data:
         clientRoles:
           openbao:
             - {{ .Values.openbao.configuration.uploadersRole | quote }}
+{{- end }}
     {{- end }}
 {{- /* Frank!Gateway dashboard operators — outside the skipGroups guard on
        purpose, see the collection comment above the groups: key. */}}
