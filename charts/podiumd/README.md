@@ -18,7 +18,7 @@ PodiumD Helm chart
 | @maykinmedia | opennotificaties | 2.1.0 |
 | @maykinmedia | objecten(openobject) | 1.2.0 |
 | @maykinmedia | openvtb | 0.2.0 |
-| @maykinmedia | openzaak | 1.14.2 |
+| @maykinmedia | openzaak | 1.16.0 |
 | @maykinmedia | referentielijsten(referentielijsten) | 0.2.0 |
 | @opstree | redis-operator | 0.27.0 |
 | @wiremind | clamav | 3.7.3 |
@@ -1261,7 +1261,7 @@ PodiumD Helm chart
 | openzaak.extraEnvVars | list | `[{"name":"OPENZAAK_PORT","value":"8000"}]` | Override OPENZAAK_PORT to prevent Kubernetes service-discovery injection (tcp://<ip>:80) from being passed to uwsgi as the port number. Since Open Zaak 1.27.3 the app reads OPENZAAK_PORT for uwsgi_port; K8s auto-injects OPENZAAK_PORT=tcp://<svc-ip>:80 for the openzaak Service, which uwsgi cannot parse. See https://github.com/open-zaak/open-zaak/issues/2415 |
 | openzaak.flower.enabled | bool | `false` |  |
 | openzaak.fullnameOverride | string | `"openzaak"` |  |
-| openzaak.image.tag | string | `"1.29.3@sha256:7ac22da287ac190a0e1c14849a370c433d3511678dcc8f3897007fd6de6dd4ac"` |  |
+| openzaak.image.tag | string | `"1.31.1@sha256:63448221142145b0f56eabadaa9ef9578dd4aacc7f95476bd5368f767883ada0"` |  |
 | openzaak.nameOverride | string | `"openzaak"` |  |
 | openzaak.nginx.config.proxyConnectTimeoutSeconds | int | `1800` | Same as ZAC's nginx proxy_timeout: ZAC uploads large documents to Open Zaak in parts (bestandsdelen) through this nginx; the chart default is 300. |
 | openzaak.nginx.config.proxyReadTimeoutSeconds | int | `1800` | See proxyConnectTimeoutSeconds. |
