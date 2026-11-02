@@ -14,8 +14,7 @@ from lib.upgradedoc.string_and_parsing_basics import ComponentRef
 from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import match_canonical_sidecar_name
-from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
-from lib.upgradedoc.string_and_parsing_basics import match_native_component
+from lib.upgradedoc.string_and_parsing_basics import match_component
 from lib.upgradedoc.string_and_parsing_basics import normalize_name
 
 
@@ -24,20 +23,16 @@ def resolve_component_identity(
 ) -> ComponentRef | None:
     """The single component `text` names, ("sidecar", path) or ("dep", values_key), or None.
 
-    Sidecar names are checked first because
-    match_dependency_excluding_sidecar_names rejects anything containing
-    " - ". Native components also return ("dep", key): callers only compare
+    Sidecar names are checked first because match_component skips
+    dependencies for anything containing " - ". Native components also return ("dep", key): callers only compare
     identities, so no separate shape is needed."""
     sidecar_path = match_canonical_sidecar_name(text, canonical_names)
     if sidecar_path is not None:
         return ("sidecar", sidecar_path)
-    dep = match_dependency_excluding_sidecar_names(text, deps)
-    if dep is not None:
-        return ("dep", values_key_of(dep))
-    native_key = match_native_component(text, native_components())
-    if native_key is not None:
-        return ("dep", native_key)
-    return None
+    component = match_component(text, deps, native_components())
+    if component is None:
+        return None
+    return ("dep", component if isinstance(component, str) else values_key_of(component))
 
 
 def _named_row_identities(
@@ -151,6 +146,12 @@ def is_exact_dependency_match(name: str, dep: ChartDependency) -> bool:
     return any(normalize_name(c) == norm for c in (dep.get("name"), dep.get("alias")) if c)
 
 
+def _claimed_dependency(name: str, deps: list[ChartDependency]) -> ChartDependency | None:
+    """The dependency `name` names, or None, also when it names a native component."""
+    component = match_component(name, deps, native_components())
+    return None if isinstance(component, str) else component
+
+
 def find_wrong_or_duplicate_dependency_claims(
     names: list[str], deps: list[ChartDependency]
 ) -> tuple[set[str], set[str]]:
@@ -172,7 +173,7 @@ def find_wrong_or_duplicate_dependency_claims(
     exactly_claiming_names: set[str] = set()
     exactly_claimed_keys: set[str] = set()
     for name in names:
-        dep = match_dependency_excluding_sidecar_names(name, deps)
+        dep = _claimed_dependency(name, deps)
         if dep is not None and is_exact_dependency_match(name, dep):
             exactly_claiming_names.add(name)
             exactly_claimed_keys.add(values_key_of(dep))
@@ -181,7 +182,7 @@ def find_wrong_or_duplicate_dependency_claims(
     for name in names:
         if name in duplicate_names or name in exactly_claiming_names:
             continue
-        dep = match_dependency_excluding_sidecar_names(name, deps)
+        dep = _claimed_dependency(name, deps)
         if dep is None:
             continue
         key = values_key_of(dep)

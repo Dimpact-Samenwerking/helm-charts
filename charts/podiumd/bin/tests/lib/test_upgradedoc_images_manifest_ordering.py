@@ -49,14 +49,10 @@ def test_is_primary_image_path_version_paths_for_field_is_primary(libchartregist
 
 
 def test_is_primary_image_path_eck_stack_registered_version_fields_are_primary(libchartregisteredpaths: ModuleType):
-    """eck-stack's registered eck-elasticsearch and eck-kibana are co-equal primaries; unregistered
-    eck-enterprise-search stays a sidecar needing its own header."""
+    """eck-stack's registered version fields are co-equal primaries, eck-enterprise-search too."""
     deps = [{"name": "eck-stack", "alias": "kiss-eck", "version": "1.0.0"}]
-    assert libchartregisteredpaths.is_primary_image_path(("kiss-eck", "eck-elasticsearch", "version"), deps) is True
-    assert libchartregisteredpaths.is_primary_image_path(("kiss-eck", "eck-kibana", "version"), deps) is True
-    assert (
-        libchartregisteredpaths.is_primary_image_path(("kiss-eck", "eck-enterprise-search", "version"), deps) is False
-    )
+    for resource in ("eck-elasticsearch", "eck-kibana", "eck-enterprise-search"):
+        assert libchartregisteredpaths.is_primary_image_path(("kiss-eck", resource, "version"), deps) is True
 
 
 def test_is_primary_image_path_no_owning_dependency_is_primary(libchartregisteredpaths: ModuleType):
@@ -171,8 +167,14 @@ def test_find_images_manifest_faulty_headers_correct_sidecar_header_is_not_flagg
     lines = text.splitlines()
     entries = [{"name": "redis-operator", "version": "0.26.0"}, {"name": "redis-ha", "version": "8.6.6"}]
     entry_line_indices = _entry_line_indices(lines)
-    current_paths = {("redis-operator", "image"): "0.26.0", ("redis-operator", "redis-ha", "image"): "8.6.6"}
-    repo_map = {"redis-operator": ("redis-operator", "image"), "redis-ha": ("redis-operator", "redis-ha", "image")}
+    current_paths = {
+        ("redis-operator", "redisOperator", "imageTag"): "0.26.0",
+        ("redis-operator", "redis-ha", "image"): "8.6.6",
+    }
+    repo_map = {
+        "redis-operator": ("redis-operator", "redisOperator", "imageTag"),
+        "redis-ha": ("redis-operator", "redis-ha", "image"),
+    }
     canonical_names = {"redis-operator - redis": ("redis-operator", "redis-ha", "image")}
 
     problems = libupgradedocmanifestordering.find_images_manifest_faulty_headers(
@@ -198,8 +200,14 @@ def test_find_images_manifest_faulty_headers_sidecar_sharing_parents_plain_heade
     lines = text.splitlines()
     entries = [{"name": "redis-operator", "version": "0.26.0"}, {"name": "redis-ha", "version": "8.6.6"}]
     entry_line_indices = _entry_line_indices(lines)
-    current_paths = {("redis-operator", "image"): "0.26.0", ("redis-operator", "redis-ha", "image"): "8.6.6"}
-    repo_map = {"redis-operator": ("redis-operator", "image"), "redis-ha": ("redis-operator", "redis-ha", "image")}
+    current_paths = {
+        ("redis-operator", "redisOperator", "imageTag"): "0.26.0",
+        ("redis-operator", "redis-ha", "image"): "8.6.6",
+    }
+    repo_map = {
+        "redis-operator": ("redis-operator", "redisOperator", "imageTag"),
+        "redis-ha": ("redis-operator", "redis-ha", "image"),
+    }
     canonical_names = {"redis-operator - redis": ("redis-operator", "redis-ha", "image")}
 
     problems = libupgradedocmanifestordering.find_images_manifest_faulty_headers(
@@ -386,7 +394,7 @@ def test_path_order_key_unknown_values_key_sorts_last(libupgradedocmanifestorder
 
 
 def _images_manifest_two_component_fixture():
-    """zac then redis-operator, each with its own comment; `values` has real image blocks so
+    """zac then redis-operator, each with its own comment; `values` has the real pin fields so
     sort_images_manifest_entries can resolve the entries itself."""
     text = (
         "# zac 5.0.2 -> 5.4.4\n"
@@ -405,9 +413,12 @@ def _images_manifest_two_component_fixture():
         {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.0"},
         {"name": "redis-operator", "version": "1.0.0"},
     ]
-    values = {"redis-operator": {"image": {"tag": "0.26.0"}}, "zac": {"image": {"tag": "5.4.4"}}}
-    current_paths = {("zac", "image"): "5.4.4", ("redis-operator", "image"): "0.26.0"}
-    repo_map = {"infonl/zaakafhandelcomponent": ("zac", "image"), "opstree/redis-operator": ("redis-operator", "image")}
+    values = {"redis-operator": {"redisOperator": {"imageTag": "0.26.0"}}, "zac": {"image": {"tag": "5.4.4"}}}
+    current_paths = {("zac", "image"): "5.4.4", ("redis-operator", "redisOperator", "imageTag"): "0.26.0"}
+    repo_map = {
+        "infonl/zaakafhandelcomponent": ("zac", "image"),
+        "opstree/redis-operator": ("redis-operator", "redisOperator", "imageTag"),
+    }
     key_order = ["redis-operator", "zac"]
     return text, entries, deps, values, current_paths, repo_map, key_order
 
@@ -457,8 +468,11 @@ def test_sort_images_manifest_entries_inserts_missing_blank_line_between_groups(
         {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.0"},
         {"name": "redis-operator", "version": "1.0.0"},
     ]
-    values = {"zac": {"image": {"tag": "5.4.4"}}, "redis-operator": {"image": {"tag": "0.26.0"}}}
-    repo_map = {"infonl/zaakafhandelcomponent": ("zac", "image"), "opstree/redis-operator": ("redis-operator", "image")}
+    values = {"zac": {"image": {"tag": "5.4.4"}}, "redis-operator": {"redisOperator": {"imageTag": "0.26.0"}}}
+    repo_map = {
+        "infonl/zaakafhandelcomponent": ("zac", "image"),
+        "opstree/redis-operator": ("redis-operator", "redisOperator", "imageTag"),
+    }
 
     new_text, moved = libupgradedocmanifestordering.sort_images_manifest_entries(
         text, libupgradedocmanifestordering.ManifestSortContext(deps, values, repo_map, {})
@@ -519,10 +533,10 @@ def test_sort_images_manifest_entries_moves_shared_group_as_one_unit(libupgraded
     deps = [{"name": "redis-operator", "version": "1.0.0"}, {"name": "zgw-office-addin", "version": "1.0.0"}]
     values = {
         "zgw-office-addin": {"frontend": {"image": {"tag": "0.11.0"}}, "backend": {"image": {"tag": "0.11.0"}}},
-        "redis-operator": {"image": {"tag": "0.26.0"}},
+        "redis-operator": {"redisOperator": {"imageTag": "0.26.0"}},
     }
     repo_map = {
-        "opstree/redis-operator": ("redis-operator", "image"),
+        "opstree/redis-operator": ("redis-operator", "redisOperator", "imageTag"),
         "infonl/zgw-office-addin-frontend": ("zgw-office-addin", "frontend", "image"),
         "infonl/zgw-office-addin-backend": ("zgw-office-addin", "backend", "image"),
     }
@@ -562,12 +576,12 @@ def test_sort_images_manifest_entries_collapses_internal_blank_lines_even_withou
     deps = [{"name": "zgw-office-addin", "version": "1.0.0"}, {"name": "redis-operator", "version": "1.0.0"}]
     values = {
         "zgw-office-addin": {"frontend": {"image": {"tag": "0.11.0"}}, "backend": {"image": {"tag": "0.11.0"}}},
-        "redis-operator": {"image": {"tag": "0.26.0"}},
+        "redis-operator": {"redisOperator": {"imageTag": "0.26.0"}},
     }
     repo_map = {
         "infonl/zgw-office-addin-frontend": ("zgw-office-addin", "frontend", "image"),
         "infonl/zgw-office-addin-backend": ("zgw-office-addin", "backend", "image"),
-        "opstree/redis-operator": ("redis-operator", "image"),
+        "opstree/redis-operator": ("redis-operator", "redisOperator", "imageTag"),
     }
 
     new_text, moved = libupgradedocmanifestordering.sort_images_manifest_entries(
@@ -608,13 +622,13 @@ def test_sort_images_manifest_entries_collapses_between_separately_headered_side
             "operator": {"config": {"keycloakImage": {"tag": "26.7.2"}}},
             "job": {"postgres": {"image": {"tag": "16.15"}}, "python": {"image": {"tag": "3.14.7-slim"}}},
         },
-        "redis-operator": {"image": {"tag": "0.26.0"}},
+        "redis-operator": {"redisOperator": {"imageTag": "0.26.0"}},
     }
     repo_map = {
         "keycloak/keycloak": ("keycloak-operator", "operator", "config", "keycloakImage"),
         "postgres": ("keycloak-operator", "job", "postgres", "image"),
         "python": ("keycloak-operator", "job", "python", "image"),
-        "opstree/redis-operator": ("redis-operator", "image"),
+        "opstree/redis-operator": ("redis-operator", "redisOperator", "imageTag"),
     }
 
     new_text, moved = libupgradedocmanifestordering.sort_images_manifest_entries(
@@ -667,9 +681,12 @@ def test_sort_images_manifest_entries_global_entry_sorts_first_not_last(libupgra
     deps = [{"name": "redis-operator", "version": "1.0.0"}]
     values = {
         "global": {"images": {"curl": {"repository": "curlimages/curl", "tag": "8.21.0@sha256:aaaa"}}},
-        "redis-operator": {"image": {"tag": "0.26.0"}},
+        "redis-operator": {"redisOperator": {"imageTag": "0.26.0"}},
     }
-    repo_map = {"curlimages/curl": ("global", "images", "curl"), "opstree/redis-operator": ("redis-operator", "image")}
+    repo_map = {
+        "curlimages/curl": ("global", "images", "curl"),
+        "opstree/redis-operator": ("redis-operator", "redisOperator", "imageTag"),
+    }
 
     new_text, moved = libupgradedocmanifestordering.sort_images_manifest_entries(
         text, libupgradedocmanifestordering.ManifestSortContext(deps, values, repo_map, {})
@@ -741,7 +758,7 @@ def test_images_manifest_display_name_positions_matches_entry_positions_order(
         "# kiss-eck 8.19.3 -> 8.19.19\n"
         "- name: kibana/kibana\n"
         '  version: "8.19.19"\n'
-        "#   sidecar: kiss-eck - enterprise-search 8.19.3 -> 8.19.19\n"
+        "# kiss-eck 8.19.3 -> 8.19.19\n"
         "- name: enterprise-search/enterprise-search\n"
         '  version: "8.19.19"\n'
         "\n"
@@ -776,7 +793,6 @@ def test_images_manifest_display_name_positions_matches_entry_positions_order(
     }
     canonical_names = {
         "kiss - crawler": ("kiss", "crawler", "image"),
-        "kiss-eck - enterprise-search": ("kiss-eck", "eck-enterprise-search", "version"),
     }
 
     display_positions = libupgradedocmanifestordering.images_manifest_display_name_positions(
@@ -784,9 +800,8 @@ def test_images_manifest_display_name_positions_matches_entry_positions_order(
     )
 
     assert display_positions["kiss"] < display_positions["kiss - crawler"]
-    assert display_positions["kiss-eck"] < display_positions["kiss-eck - enterprise-search"]
     assert display_positions["redis-operator"] < display_positions["kiss-eck"]
-    assert display_positions["kiss-eck - enterprise-search"] < display_positions["kiss"]
+    assert display_positions["kiss-eck"] < display_positions["kiss"]
 
 
 def test_images_manifest_display_name_positions_ambiguous_name_keeps_first_position(
@@ -831,8 +846,11 @@ def test_sort_images_manifest_entries_no_blank_lines_no_reorder_is_truly_unchang
         {"name": "redis-operator", "version": "1.0.0"},
         {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.0"},
     ]
-    values = {"redis-operator": {"image": {"tag": "0.26.0"}}, "zac": {"image": {"tag": "5.4.4"}}}
-    repo_map = {"opstree/redis-operator": ("redis-operator", "image"), "infonl/zaakafhandelcomponent": ("zac", "image")}
+    values = {"redis-operator": {"redisOperator": {"imageTag": "0.26.0"}}, "zac": {"image": {"tag": "5.4.4"}}}
+    repo_map = {
+        "opstree/redis-operator": ("redis-operator", "redisOperator", "imageTag"),
+        "infonl/zaakafhandelcomponent": ("zac", "image"),
+    }
 
     new_text, moved = libupgradedocmanifestordering.sort_images_manifest_entries(
         text, libupgradedocmanifestordering.ManifestSortContext(deps, values, repo_map, {})

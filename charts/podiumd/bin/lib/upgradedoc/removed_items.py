@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 from lib.chart.chart_yaml import ChartDependency
+from lib.chart.registered_paths import native_components
 from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.values_tree_primitives import version_of
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
@@ -89,8 +90,11 @@ def _removed_images(
 
 
 def _removed_deps(target: ChartImageIndex, baseline: ChartImageIndex) -> dict[str, ChartDependency]:
-    """{values key: baseline dependency} for each dependency the target no longer has."""
-    target_keys = {values_key_of(dep) for dep in target.deps}
+    """{values key: baseline dependency} for each dependency the target no longer has.
+
+    A dependency the target now renders itself as a native component under the
+    same values key is not removed: its row shows the chart going away instead."""
+    target_keys = {values_key_of(dep) for dep in target.deps} | native_components(target.chart_dir)
     return {values_key_of(dep): dep for dep in baseline.deps if values_key_of(dep) not in target_keys}
 
 

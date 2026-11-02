@@ -596,3 +596,45 @@ def test_basenames_under_scope_ignores_scope_key_case(libimageversion: ModuleTyp
     lines = ["zac:", "  image:", "    repository: ghcr.io/infonl/zac", '    tag: "1.0@sha256:' + "a" * 64 + '"']
     assert list(libimageversion.basenames_under_scope(lines, "ZAC")) == ["zac"]
     assert list(libimageversion.basenames_under_scope_any_tag(lines, "Zac")) == ["zac"]
+
+
+def test_update_image_version_rewrites_the_reference_comment(
+    libimageversion: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """A pin whose repository comes from a "# host/repo:tag@sha256:..." comment gets that comment updated too."""
+    values_path = write_values(
+        tmp_path,
+        (
+            "zac:\n"
+            "  office_converter:\n"
+            f"    # gotenberg/gotenberg:8.37.0@sha256:{'a' * 64}\n"
+            "    image:\n"
+            "      # repository: gotenberg/gotenberg\n"
+            f'      tag: "8.37.0@sha256:{"a" * 64}"\n'
+        ),
+    )
+    monkeypatch.setattr(libimageversion, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    changes = libimageversion.update_image_version(values_path, "zac", "gotenberg", "8.38.1")
+    assert len(changes) == 1
+    text = values_path.read_text(encoding="utf-8")
+    assert f"    # gotenberg/gotenberg:8.38.1@sha256:{'b' * 64}\n" in text
+    assert f'tag: "8.38.1@sha256:{"b" * 64}"' in text
+    assert "8.37.0" not in text
+
+
+def test_update_image_version_keeps_a_digestless_reference_comment_digestless(
+    libimageversion: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    values_path = write_values(
+        tmp_path,
+        (
+            "zac:\n"
+            "  opa:\n"
+            "    # openpolicyagent/opa:1.21.1-static\n"
+            "    image:\n"
+            f'      tag: "1.21.1-static@sha256:{"a" * 64}"\n'
+        ),
+    )
+    monkeypatch.setattr(libimageversion, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    libimageversion.update_image_version(values_path, "zac", "opa", "1.21.3-static")
+    assert "    # openpolicyagent/opa:1.21.3-static\n" in values_path.read_text(encoding="utf-8")

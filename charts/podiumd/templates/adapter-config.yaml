@@ -10,7 +10,8 @@ data:
   {{ printf "CONTACTVERZOEK_TYPES__%d" $index }}: {{ $contactverzoektype | quote }}
   {{- end  }}
   ESUITE_BASE_URL: {{ .Values.kiss.adapter.esuite.baseUrl | quote }}
-  INTERNE_TAAK_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" (default (printf "http://objecttypen.%s.svc.cluster.local" .Release.Namespace) .Values.kiss.adapter.objecttypen.baseUrlIntern) .Values.kiss.adapter.objecttypen.interneTaakUUID | quote }}
+  {{- /* H.7: both fall back to the merged "objecten" in-cluster host post-merge. */}}
+  INTERNE_TAAK_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" (default (printf "http://objecten.%s.svc.cluster.local" .Release.Namespace) .Values.kiss.adapter.objecten.baseUrlIntern) .Values.kiss.adapter.objecten.interneTaakUUID | quote }}
   SMOELENBOEK_BASE_URL: {{ default (printf "http://objecten.%s.svc.cluster.local" .Release.Namespace) .Values.kiss.adapter.objecten.baseUrl | quote }}
-  SMOELENBOEK_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" .Values.kiss.adapter.objecttypen.baseUrlExtern .Values.kiss.adapter.objecttypen.medewerkerUUID | quote }}
+  SMOELENBOEK_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" .Values.kiss.adapter.objecten.baseUrlExtern .Values.kiss.adapter.objecten.medewerkerUUID | quote }}
 {{- end }}

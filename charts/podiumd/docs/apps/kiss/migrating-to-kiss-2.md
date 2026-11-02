@@ -42,7 +42,7 @@ The script exits with a warning and does nothing if no `kiss:` key is found, or 
 | `kiss.esuite` | `kiss.adapter.esuite` | `isDefault` removed |
 | `kiss.database` | `kiss.settings.database` | See below |
 | `kiss.email` | `kiss.settings.email` + `kiss.settings.feedback` | Split into two keys |
-| `kiss.objecten` + `kiss.objecttypen` | `kiss.settings.afdelingen/groepen/logboek` + `kiss.adapter.objecten/objecttypen` | Split — see below |
+| `kiss.objecten` + `kiss.objecttypen` | `kiss.settings.afdelingen/groepen/logboek` + `kiss.adapter.objecten` | Split — see below |
 | `kiss.vac` | `kiss.settings.syncJobs.vac` | `useVacs` → `manageFromKiss` |
 | `kiss.sync` | `kiss.settings.syncJobs` | Restructured — see below |
 | `kiss.oidc` | `kiss.settings.oidc` | See below |
@@ -117,7 +117,7 @@ kiss:
 The old `kiss.objecten` and `kiss.objecttypen` keys are split across two destinations:
 
 - **`kiss.settings.afdelingen/groepen/logboek`** — one entry per object type, each containing `baseUrl`, `objectTypeUrl` (assembled from `objecttypen.baseUrlIntern` + the respective UUID), and `token`.
-- **`kiss.adapter.objecten`** and **`kiss.adapter.objecttypen`** — unchanged credential and UUID values used by the adapter itself.
+- **`kiss.adapter.objecten`** — the credential and UUID values used by the adapter itself, collapsed into one block since the objecten/objecttypen merge (was two separate `kiss.adapter.objecten`/`.objecttypen` blocks — see `docs/apps/objecten/openobject-migration.md` H.7).
 
 A new `kiss.settings.logboek` entry is added for the Activiteitenlog object type introduced in KISS 2.0. Its `objectTypeUrl` is constructed using the placeholder `REP_ITA_ACTIVITEITENLOG_UUID_REP`, which is the same UUID already used by ITA. Verify this placeholder is defined in your keyvault/replacement script.
 
@@ -143,7 +143,7 @@ kiss:
           baseUrl: "http://podiumd-adapter.podiumd.svc.cluster.local"
           clientId: contact_intern
           clientSecret: "..."
-          objectTypeUrl: "https://objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_INTERNETAAK_UUID_REP"
+          objectTypeUrl: "https://objecten.example.nl/api/v2/objecttypes/REP_CONTACT_INTERNETAAK_UUID_REP"
           objectTypeVersion: 1
         klanten:
           baseUrl: "http://podiumd-adapter.podiumd.svc.cluster.local/klanten"
@@ -217,7 +217,7 @@ kiss:
 - `kiss.configuration` — unchanged.
 - `kiss.nodeSelector` — unchanged.
 - `kiss.alpine` — unchanged.
-- `kiss.adapter.image / baseUrl / clientId / secret` — fields are preserved as-is; `objecten`, `objecttypen`, and `esuite` sub-sections are added.
+- `kiss.adapter.image / baseUrl / clientId / secret` — fields are preserved as-is; `objecten` (collapsed from the former separate `objecten`/`objecttypen`, see H.7 above) and `esuite` sub-sections are added.
 
 ## Post-migration checklist
 

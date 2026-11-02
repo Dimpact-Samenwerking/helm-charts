@@ -1,0 +1,35 @@
+{{- /*
+  Opt-in PodDisruptionBudget for the Keycloak pods (keycloak.podDisruptionBudget).
+
+  The Keycloak operator creates no budget and its CR has no field for one, so a
+  node drain (autoscaler scale-down, node image upgrade, AKS upgrade) may evict
+  every Keycloak pod at once when they share a node (the pod anti-affinity is
+  preferred, not required). maxUnavailable: 1 lets a drain take one pod at a
+  time. Off by default: it only matters for that edge case.
+
+  Rendered only with more than one instance: over a single pod the budget either
+  does nothing or blocks every node drain. The selector is the label set the
+  operator puts on the pods it manages.
+*/ -}}
+{{- $pdb := .Values.keycloak.podDisruptionBudget | default dict }}
+{{- if and (index .Values "keycloak-operator").enabled $pdb.enabled (gt (int .Values.keycloak.instances) 1) }}
+{{- $name := default "keycloak" .Values.keycloak.name }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labelsNamed" (dict "context" . "name" $name) | nindent 4 }}
+    app.kubernetes.io/component: keycloak
+spec:
+  maxUnavailable: {{ $pdb.maxUnavailable }}
+  {{- with $pdb.unhealthyPodEvictionPolicy }}
+  unhealthyPodEvictionPolicy: {{ . }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app: keycloak
+      app.kubernetes.io/instance: {{ $name }}
+      app.kubernetes.io/managed-by: keycloak-operator
+{{- end }}

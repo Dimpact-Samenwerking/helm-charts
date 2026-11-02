@@ -56,7 +56,7 @@ import lib.upgradedoc.images_manifest_ordering as upgradedoc_images_manifest_ord
 import lib.upgradedoc.resolve_component_row as upgradedoc_resolve_component_row
 import lib.upgradedoc.sorting_and_ordering as upgradedoc_sorting_and_ordering
 import lib.upgradedoc.string_and_parsing_basics as upgradedoc_string_and_parsing_basics
-import lib.upgradedoc.version_cells_and_key_changes as upgradedoc_version_cells_and_key_changes
+import lib.upgradedoc.version_cells as upgradedoc_version_cells
 
 
 def _load_module():
@@ -170,7 +170,7 @@ def libupgradedocresolverow() -> ModuleType:
 
 @pytest.fixture(scope="session")
 def libupgradedocversioncells() -> ModuleType:
-    return upgradedoc_version_cells_and_key_changes
+    return upgradedoc_version_cells
 
 
 @pytest.fixture(scope="session")

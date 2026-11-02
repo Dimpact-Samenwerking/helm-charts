@@ -4,6 +4,7 @@ from pathlib import Path
 
 from lib.chart.yaml_alias_groups import alias_groups
 from lib.chart.yaml_alias_groups import alias_groups_in_text
+from lib.chart.yaml_alias_groups import scalar_lines_in_text
 
 
 def test_scalar_alias_groups_anchor_first():
@@ -36,3 +37,8 @@ def test_alias_groups_reads_the_file(tmp_path: Path):
     values = tmp_path / "values.yaml"
     values.write_text("x: &v '1'\ny: *v\n", encoding="utf-8")
     assert alias_groups(values) == {"x": ("x", "y"), "y": ("x", "y")}
+
+
+def test_scalar_lines_in_text_gives_an_alias_its_anchors_line():
+    text = 'a:\n  image:\n    tag: &v "1.0"\nb:\n  image:\n    tag: *v\n'
+    assert scalar_lines_in_text(text) == {("a", "image", "tag"): 3, ("b", "image", "tag"): 3}

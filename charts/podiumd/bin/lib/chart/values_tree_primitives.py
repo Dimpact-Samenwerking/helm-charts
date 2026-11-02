@@ -2,6 +2,7 @@
 
 import re
 
+from collections.abc import Iterable
 from pathlib import Path
 
 from lib.chart.chart_yaml import ChartDependency
@@ -142,12 +143,18 @@ def resolve_values_path_source(chart_dir: Path, deps: list[ChartDependency], pat
     return "local: no referencing template found"
 
 
-def find_app_versions(values: YamlMapping | None, values_key: str, image_paths: list[str]) -> list[tuple[str, str]]:
-    """[(image_path, tag), ...] for each of `image_paths` with a tag override under values[values_key]."""
+def find_app_versions(
+    values: YamlMapping | None, values_key: str, pins: Iterable[tuple[str, str]]
+) -> list[tuple[str, str]]:
+    """[(path, version), ...] for each (path, version_key) pin with an override under values[values_key].
+
+    `pins` are registered_paths.pin_paths_for's PinPaths: an image block reads
+    its ".tag", a bare version field (redis-operator's imageTag) itself.
+    """
     base: YamlValue = values.get(values_key, {}) if isinstance(values, dict) else {}
     versions: list[tuple[str, str]] = []
-    for path in image_paths:
-        tag = text_at(base, f"{path}.tag")
+    for path, version_key in pins:
+        tag = text_at(base, version_key)
         if tag:
             versions.append((path, tag))
     return versions

@@ -5,6 +5,10 @@ metadata:
   name: {{ default "keycloak" .Values.keycloak.name }}
 spec:
   instances: {{ .Values.keycloak.instances }}
+  {{- with .Values.keycloak.update }}
+  update:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   image: {{ include "podiumd.image" .Values.keycloak.image }}
   {{- if (index .Values "keycloak-operator").enabled }}
   bootstrapAdmin:
@@ -38,6 +42,20 @@ spec:
       key: {{ default "database_password" .Values.keycloak.db.passwordSecret.key }}
   ingress:
     enabled: {{ .Values.keycloak.ingress.enabled }}
+  {{- $np := .Values.networkPolicies | default dict }}
+  {{- if and $np.enabled ($np.namespaceIsolation | default dict).enabled }}
+  {{- $kcFrom := (.Values.keycloak.networkPolicy | default dict).extraFrom | default dict }}
+  # Under namespace isolation the operator's own NetworkPolicy gets the same
+  # peers, so 8080/8443/9000 are no longer open to the whole cluster.
+  networkPolicy:
+    enabled: true
+    http:
+      {{- include "podiumd.networkPolicy.keycloakPeers" (dict "np" $np "port" "http" "extra" $kcFrom.http) | nindent 6 }}
+    https:
+      {{- include "podiumd.networkPolicy.keycloakPeers" (dict "np" $np "port" "http" "extra" $kcFrom.http) | nindent 6 }}
+    management:
+      {{- include "podiumd.networkPolicy.keycloakPeers" (dict "np" $np "port" "management" "extra" $kcFrom.management) | nindent 6 }}
+  {{- end }}
   {{- if .Values.keycloak.resources }}
   resources:
 {{ toYaml .Values.keycloak.resources | indent 4 }}

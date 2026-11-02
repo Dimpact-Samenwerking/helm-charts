@@ -20,7 +20,7 @@ C4Context
 
         System_Boundary(registers, "Registers") {
             System(OpenZaak, "Open Zaak")
-            System(Objecten, "Objecten")
+            System(Objecten, "Objecten (merged Objects+Objecttypes API)")
         }
 
         System_Boundary(andersteunend, "Ondersteunenende componenten") {

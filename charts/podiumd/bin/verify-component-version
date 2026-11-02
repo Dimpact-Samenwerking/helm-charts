@@ -44,14 +44,14 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # pylint: disable=wrong-import-position
 from lib.chart.paths import CHART_DIR
 from lib.chart.paths import CHART_YAML
-from lib.chart.pull_and_subchart_resolution import check_image_versions
 from lib.chart.pull_and_subchart_resolution import component_check_values
 from lib.chart.pull_and_subchart_resolution import native_component_values
 from lib.chart.pull_and_subchart_resolution import print_image_version_results
 from lib.chart.pull_and_subchart_resolution import verify_chart_version
-from lib.chart.registered_paths import image_paths_for
 from lib.chart.registered_paths import is_native_chart_version
+from lib.chart.registered_paths import pin_paths_for
 from lib.chart.registered_paths import resolve_native_component
+from lib.chart.repo_and_path_resolution import check_image_versions
 from lib.chart.values_tree_primitives import mapping_at
 from lib.chart.values_tree_primitives import require_dependency
 from lib.chart.values_tree_primitives import values_key_of
@@ -74,6 +74,7 @@ def main():
     component, app_version, chart_version = positional_args(__doc__, 3)
 
     if is_native_chart_version(chart_version):
+        dep = None
         chart_name = resolve_native_component(CHART_DIR, component)
         print(f"No Chart.yaml dependency for {chart_name} — image repositories come from values.yaml")
         values = native_component_values(CHART_DIR, chart_name)
@@ -83,8 +84,8 @@ def main():
         chart_values = verify_chart_version(CHART_DIR, dep, chart_version)  # exits 1 itself if missing
         podiumd_values = load_yaml_mapping(CHART_DIR / "values.yaml")
         values = component_check_values(chart_values, mapping_at(podiumd_values, values_key_of(dep)))
-    # image_paths_for is keyed by Chart.yaml name, not alias ("kiss" vs "kiss-chart").
-    results = check_image_versions(values, image_paths_for(chart_name, CHART_DIR), app_version)
+    # pin_paths_for is keyed by Chart.yaml name, not alias ("kiss" vs "kiss-chart").
+    results = check_image_versions(CHART_DIR, dep, values, pin_paths_for(chart_name, CHART_DIR), app_version)
 
     print()
     print(f"Checking app version {app_version!r} for {component}:")

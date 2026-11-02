@@ -110,19 +110,11 @@ component_resolution:
   # Components implemented by podiumd's own templates, without a Chart.yaml
   # dependency. keycloak is the server CR, image and keycloak-config-cli on
   # top of the keycloak-operator dependency.
-  native_components: ["frankgateway", "keycloak"]
+  native_components: ["frankgateway", "keycloak", "kiss-eck"]
   # component (name) -> sibling path holding a version_paths entry's
   # repository, when podiumd's values.yaml overrides it.
   version_repository_paths:
     "redis-operator": "redisOperator.imageName"
-  # component -> {version field: nested sub-subchart} for bare versions the
-  # operator maps to images internally (ECK); the image is only documented
-  # in the nested sub-subchart's values.yaml inside the .tgz.
-  version_path_nested_subcharts:
-    "eck-stack":
-      "eck-elasticsearch.version": "eck-elasticsearch"
-      "eck-kibana.version": "eck-kibana"
-      "eck-enterprise-search.version": "eck-enterprise-search"
   # component (name or alias) -> the image path(s) that carry its app
   # version, for multi-image components; others use default_image_paths.
   # Multiple paths form a lockstep group.
@@ -142,6 +134,8 @@ component_resolution:
     # vendored-subchart fallback: eck-operator has no values.yaml image
     # override, so its version only resolves from the .tgz default.
     "eck-operator": ["image"]
+    # Native (templates/kiss-eck.yaml): one image block per ECK resource.
+    "kiss-eck": ["eck-elasticsearch.image", "eck-kibana.image", "eck-enterprise-search.image"]
   default_image_paths: ["image"]
   # Image path whose tag embeds another image's version -> that image's
   # path. keycloak-config-cli tags are "<own>-<keycloak-version>": pin the
@@ -152,9 +146,11 @@ component_resolution:
     "keycloak.keycloakConfigCli.image": "keycloak.image"
   # component (name) -> paths of bare version strings, tried after
   # image_paths finds no tag; first that resolves wins.
-  # - eck-stack: per-resource CRD "version:" (enterprise-search is disabled
-  #   by default, so not listed).
-  # - redis-operator: split "imageName:"/"imageTag:" fields.
+  # - eck-stack: only for upgrade baselines in which kiss-eck is still the
+  #   eck-stack chart (bare "version:" per ECK resource); kiss-eck is native now.
+  # - redis-operator: split "imageName:"/"imageTag:" fields. The init-config
+  #   init container runs the operator image too; its tag defaults to
+  #   v<appVersion> in every chart release, so the two form a lockstep group.
   version_paths:
-    "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"]
-    "redis-operator": ["redisOperator.imageTag"]
+    "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version", "eck-enterprise-search.version"]
+    "redis-operator": ["redisOperator.imageTag", "redisOperator.initContainerImageTag"]

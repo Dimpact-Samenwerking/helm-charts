@@ -254,3 +254,44 @@ frankgateway:
     ok, detail = vp.check_digest_pinning(tmp_path)
     assert ok is True
     assert detail == "2 pin(s), 0 unpinned"
+
+
+def test_stale_reference_comment_fails(vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
+    """A "# host/repo:tag@sha256:..." comment that names another tag than its pin fails the step."""
+    write_values_yaml(
+        tmp_path,
+        f"""\
+zac:
+  opa:
+    # openpolicyagent/opa:1.21.1-static@sha256:{"b" * 64}
+    image:
+      #repository: openpolicyagent/opa
+      tag: "1.21.3-static@sha256:{DIGEST_A}"
+""",
+    )
+    ok, detail = vp.check_digest_pinning(tmp_path)
+    assert ok is False
+    assert detail == "1 stale reference comment(s)"
+    out = capsys.readouterr().out
+    assert "values.yaml:3" in out
+    assert f"expected: # openpolicyagent/opa:1.21.3-static@sha256:{DIGEST_A}" in out
+
+
+def test_matching_reference_comment_passes(vp: ModuleType, tmp_path: Path):
+    write_values_yaml(
+        tmp_path,
+        f"""\
+zac:
+  opa:
+    # openpolicyagent/opa:1.21.3-static@sha256:{DIGEST_A}
+    image:
+      #repository: openpolicyagent/opa
+      tag: "1.21.3-static@sha256:{DIGEST_A}"
+  solr:
+    # library/solr:9.10.1-slim
+    image:
+      tag: "9.10.1-slim@sha256:{DIGEST_A}"
+""",
+    )
+    ok, _ = vp.check_digest_pinning(tmp_path)
+    assert ok is True

@@ -1,4 +1,4 @@
-# ruff, pylint, isort, vulture, bandit and basedpyright config for
+# ruff, pylint, isort, vulture, bandit, basedpyright and coverage config for
 # charts/podiumd/bin/ (scripts, lib/, tests/). Not applied to
 # charts/podiumd/scripts/.
 
@@ -224,6 +224,15 @@ skips = [
     "B110",  # S110 in ruff
     "B501",
 ]
+
+# "." also measures the extensionless scripts, which tests load with
+# SourceFileLoader.
+[tool.coverage.run]
+source = ["."]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+fail_under = 97
 
 [tool.basedpyright]
 exclude = [

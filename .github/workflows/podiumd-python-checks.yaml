@@ -1,0 +1,46 @@
+name: PodiumD Python checks
+
+on:
+  push:
+    paths:
+      - 'charts/podiumd/bin/**'
+      - '.github/workflows/podiumd-python-checks.yaml'
+  pull_request:
+    paths:
+      - 'charts/podiumd/bin/**'
+      - '.github/workflows/podiumd-python-checks.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run-python-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # Tests read release tags and baselines from the git history.
+          fetch-depth: 0
+
+      # Tests create commits in scratch repositories.
+      - name: Configure Git
+        run: |
+          git config --global user.name "$GITHUB_ACTOR"
+          git config --global user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: charts/podiumd/bin/requirements.txt
+
+      # run_python_checks installs and upgrades the tools itself.
+      - name: run_python_checks
+        run: charts/podiumd/bin/run_python_checks

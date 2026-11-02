@@ -87,12 +87,17 @@ spec:
         {{- include "podiumd.labelsNamed" (dict "context" . "name" "frankgateway-etcd") | nindent 8 }}
         app.kubernetes.io/component: frankgateway-etcd
     spec:
+      {{- /* fsGroup makes the existing PVC writable for the non-root user:
+             with fsGroupChangePolicy OnRootMismatch the kubelet re-owns a
+             volume that root wrote before, once. */}}
+      {{- include "podiumd.frankgateway.podSecurity" (dict "instance" $.Values.frankgateway "user" "etcd") | nindent 6 }}
       topologySpreadConstraints:
         {{- include "podiumd.frankgateway.spread" (dict "name" "frankgateway-etcd" "override" $etcd.topologySpreadConstraints) | nindent 8 }}
       containers:
         - name: etcd
           image: {{ include "podiumd.image" $etcd.image }}
           imagePullPolicy: IfNotPresent
+          {{- include "podiumd.frankgateway.containerSecurity" (dict "instance" $.Values.frankgateway "user" "etcd") | nindent 10 }}
           env:
             - name: POD_NAME
               valueFrom:

@@ -1,0 +1,359 @@
+{
+	"type": "object",
+	"title": "Medewerker",
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"examples": [
+		{
+			"identificatie": "Smith365",
+			"voornaam": "Benjamin",
+			"voorvoegselAchternaam": "van",
+			"achternaam": "Yperen",
+			"telefoonnummers": [
+				{
+					"telefoonnummer": "84 6429 7502"
+				}
+			],
+			"emails": [
+				{
+					"email": "benjamin.vanyperen@demodam.nl",
+					"naam": "Benjamin van Yperen"
+				}
+			],
+			"functie": "Afdelingshoofd Fysieke Leefomgeving",
+			"afdelingen": [
+				{
+					"afdelingnaam": "Vergunningen"
+				}
+			],
+			"groepen": [
+				{
+					"groepsnaam": "Omgevingswet"
+				}
+			],
+			"beschikbaarheid": {
+				"maandag": {
+					"ochtend": true,
+					"middag": true
+				},
+				"dinsdag": {
+					"ochtend": true,
+					"middag": true
+				},
+				"woensdag": {
+					"ochtend": true,
+					"middag": true
+				},
+				"donderdag": {
+					"ochtend": true,
+					"middag": true
+				},
+				"vrijdag": {
+					"ochtend": true,
+					"middag": true
+				}
+			},
+			"vervanging": {
+				"name": "Johan Tersteege"
+			},
+			"skills": "Hoofd van de afdeling die zich bezig houdt met Omgevingswet. Ik ben het aanspreekpunt voor de nieuwe omgevingswet en de gevolgen ervan voor de vergunningverlening."
+		},
+		{
+			"identificatie": "Rod956",
+			"volledigeNaam": "Olivia Rodriguez",
+			"telefoonnummers": [
+				{
+					"telefoonnummer": "11 4136 1065"
+				}
+			],
+			"emails": [
+				{
+					"email": "olivia.rodriguez@demodam.nl",
+					"naam": "Olivia Rodriguez"
+				}
+			],
+			"functie": "Onderhoud openbaar groen",
+			"afdelingen": [
+				{
+					"afdelingnaam": "Beheer openbare ruimte"
+				}
+			],
+			"groepen": [
+				{
+					"groepsnaam": "Groenvoorzieningen"
+				}
+			],
+			"beschikbaarheid": {
+				"maandag": {
+					"ochtend": true,
+					"middag": true
+				},
+				"dinsdag": {
+					"ochtend": true,
+					"middag": true
+				},
+				"woensdag": {
+					"ochtend": true,
+					"middag": true
+				},
+				"donderdag": {
+					"ochtend": true,
+					"middag": true
+				},
+				"vrijdag": {
+					"ochtend": true,
+					"middag": true
+				}
+			},
+			"vervanging": {
+				"name": "Nari Kimura"
+			},
+			"skills": "Ik hou me bezig met onderhoudswerkzaamheden aan stadsparken, bomen, groenstroken en gras- en hooilanden. Zoals het snoeien van bomen, maaien van grasvelden en het knippen van hagen."
+		}
+	],
+	"properties": {
+		"identificatie": {
+			"type": "string",
+			"title": "Unieke identificatie binnen de organisatie",
+			"description": "De identificatie van de medewerker binnen de organisatie, bijv loginnaam"
+		},
+		"voornaam": {
+			"type": "string",
+			"title": "Voornaam",
+			"description": "De voornaam van de medewerker"
+		},
+		"voorvoegselAchternaam": {
+			"type": "string",
+			"title": "Voorvoegsel van de achternaam",
+			"description": "Het voorvoegsel van de achternaam van de medewerker"
+		},
+		"achternaam": {
+			"type": "string",
+			"title": "Achternaam",
+			"description": "De achternaam van de medewerker"
+		},
+		"volledigeNaam": {
+			"type": "string",
+			"title": "Volledige naam",
+			"description": "De volledige naam van de medewerker"
+		},
+		"telefoonnummers": {
+			"type": "array",
+			"title": "Telefoonnummers",
+			"description": "De telefoonnummers van de medewerker",
+			"items": {
+				"type": "object",
+				"properties": {
+					"naam": {
+						"type": "null"
+					},
+					"telefoonnummer": {
+						"type": "string",
+						"title": "Telefoonnummer",
+						"description": "Telefoonnummer van de medewerker"
+					}
+				},
+				"required": [
+					"telefoonnummer"
+				]
+			}
+		},
+		"emails": {
+			"type": "array",
+			"title": "Emailadressen",
+			"description": "De emailadressen van de medewerker",
+			"items": {
+				"type": "object",
+				"properties": {
+					"naam": {
+						"type": "string",
+						"title": "Weergavenaam",
+						"description": "De naam die weergegeven wordt bij dit emailadres"
+					},
+					"email": {
+						"type": "string",
+						"format": "email",
+						"title": "Emailadres",
+						"description": "Emailadres van de medewerker"
+					}
+				},
+				"required": [
+					"email"
+				]
+			}
+		},
+		"functie": {
+			"type": "string",
+			"title": "Functie",
+			"description": "De functie van de medewerker"
+		},
+		"afdelingen": {
+			"title": "afdeling of afdelingen",
+			"description": "De afdeling of afdelingen waar de medewerker werkt.",
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": [
+					"afdelingnaam"
+				],
+				"properties": {
+					"afdelingId": {
+						"type": "string",
+						"title": "Identifier afdeling",
+						"description": "De unieke identifier van de afdeling binnen de organisatie"
+					},
+					"afdelingnaam": {
+						"type": "string",
+						"title": "Naam afdeling",
+						"description": "de naam van de afdeling"
+					}
+				}
+			}
+		},
+		"groepen": {
+			"title": "groep of groepen",
+			"description": "De groep of groepen waar de medewerker werkt.",
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": [
+					"groepsnaam"
+				],
+				"properties": {
+					"groepsId": {
+						"type": "string",
+						"title": "Identifier groep",
+						"description": "De unieke identifier van de groep binnen de organisatie"
+					},
+					"groepsnaam": {
+						"type": "string",
+						"title": "Naam groep",
+						"description": "de naam van de groep"
+					}
+				}
+			}
+		},
+		"beschikbaarheid": {
+			"type": "object",
+			"title": "Dagen van de werkweek",
+			"description": "De dagen van de werkweek",
+			"properties": {
+				"maandag": {
+					"type": "object",
+					"title": "Maandag",
+					"description": "De beschikbaarheid op maandag",
+					"properties": {
+						"middag": {
+							"type": "boolean"
+						},
+						"ochtend": {
+							"type": "boolean"
+						}
+					},
+					"required": [
+						"ochtend",
+						"middag"
+					]
+				},
+				"dinsdag": {
+					"type": "object",
+					"title": "Dinsdag",
+					"description": "De beschikbaarheid op dinsdag",
+					"properties": {
+						"middag": {
+							"type": "boolean"
+						},
+						"ochtend": {
+							"type": "boolean"
+						}
+					},
+					"required": [
+						"ochtend",
+						"middag"
+					]
+				},
+				"woensdag": {
+					"type": "object",
+					"title": "Woensdag",
+					"description": "De beschikbaarheid op woensdag",
+					"properties": {
+						"middag": {
+							"type": "boolean"
+						},
+						"ochtend": {
+							"type": "boolean"
+						}
+					},
+					"required": [
+						"ochtend",
+						"middag"
+					]
+				},
+				"donderdag": {
+					"type": "object",
+					"title": "Donderdag",
+					"description": "De beschikbaarheid op donderdag",
+					"properties": {
+						"middag": {
+							"type": "boolean"
+						},
+						"ochtend": {
+							"type": "boolean"
+						}
+					},
+					"required": [
+						"ochtend",
+						"middag"
+					]
+				},
+				"vrijdag": {
+					"type": "object",
+					"title": "Vrijdag",
+					"description": "De beschikbaarheid op vrijdag",
+					"properties": {
+						"middag": {
+							"type": "boolean"
+						},
+						"ochtend": {
+							"type": "boolean"
+						}
+					},
+					"required": [
+						"ochtend",
+						"middag"
+					]
+				}
+			},
+			"required": [
+				"maandag",
+				"dinsdag",
+				"woensdag",
+				"donderdag",
+				"vrijdag"
+			]
+		},
+		"vervanging": {
+			"type": "object",
+			"title": "Vervanger",
+			"description": "De plaatsvervangende medewerker van de medewerker",
+			"properties": {
+				"name": {
+					"type": "string",
+					"title": "Naam vervanger",
+					"description": "De naam van de plaatsvervangende medewerker"
+				}
+			},
+			"required": [
+				"name"
+			]
+		},
+		"skills": {
+			"type": "string",
+			"title": "Vaardigheden",
+			"description": "Overzicht van de vaardigheden van de medewerker."
+		}
+	},
+	"required": [
+		"identificatie",
+		"afdelingen"
+	]
+}

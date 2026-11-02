@@ -64,14 +64,15 @@ worker and an nginx sidecar.
 
 ### Other dependencies
 
-- **Redis** (shared `redis-ha`, `redis-ha-master.podiumd.svc.cluster.local:6379`):
+- **Redis** (shared `redis-ha`, `redis-ha-master:6379` in the release namespace):
   - DB `7` — Django cache + axes (`openklant.settings.cache`)
   - DB `8` — Celery broker and result backend (`openklant.settings.celery`)
   - Allocation table: `docs/apps/redis/redis-ha-databases.md`.
 - **Keycloak**: OIDC client in the `podiumd` realm for admin login
   (`openklant.configuration.secrets.keycloak_client_secret`,
-  `openklant.configuration.oidcUrl`; set `openklant.configuration.pkceEnabled:
-  true` plus `oidc_use_pkce: true` in `configuration.data` for PKCE).
+  `openklant.configuration.oidcUrl`; keep `openklant.configuration.pkceEnabled`
+  false: Open Klant cannot send PKCE yet, and the render fails when it is true,
+  see [keycloak-security-updates.md](../keycloak/keycloak-security-updates.md#pkce-enforcement)).
 - **API tokens for consumers**: token-auth entries in
   `openklant.configuration.data` (`tokenauth` items) give KISS, OMC,
   Open Inwoner (`openklant_openinwoner_token`), Open Archiefbeheer and ZAC
@@ -111,7 +112,7 @@ not peaks. `resource-overview.md` also recommends a PodDisruptionBudget with
 2. **Set chart values** in the per-gemeente values file:
    - `openklant.image.tag` — pin the release (chart default `2.15.0`).
    - `openklant.settings.allowedHosts` — add the public hostname next to the
-     cluster-internal default `openklant.podiumd.svc.cluster.local`.
+     cluster-internal default `.svc.cluster.local` (namespace-agnostic wildcard).
    - `openklant.persistentVolume.volumeAttributeShareName` — Azure Files
      share (default `openklant`); create the share up front.
    - Leave `openklant.settings.cache` / `openklant.settings.celery` on Redis

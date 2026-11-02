@@ -77,11 +77,13 @@ For `docs/_UPGRADE_PATHS/<baseline>-to-<target>-*.md` of the current release, `v
 - Every level-3 section under the level-2 "Changes" heading must be a component version change with a row in the "Component versions" table, in the same order as `values.yaml`.
 - Anything else (a behaviour change, a new check, a migration note) gets its own level-2 section after "Changes", not a level-3 section under it.
 
-When the scripts (`charts/podiumd/bin/`, branch `feature/podiumd-scripts`) are available, run the real checks as the final gate:
+To recheck only these two steps after a fix, run:
 
 ```bash
 python3 charts/podiumd/bin/verify-podiumd --include markdown,doc-consistency
 ```
+
+That is not the gate: before a commit is pushed for review, run the full `/verify-podiumd`. The subset misses failures such as kube-score.
 
 ## Report
 

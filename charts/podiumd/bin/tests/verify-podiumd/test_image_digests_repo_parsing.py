@@ -160,3 +160,42 @@ def test_find_sibling_registry_none_when_absent(libimagedigests: ModuleType):
 def test_find_sibling_registry_stops_at_dedent(libimagedigests: ModuleType):
     lines = ["registry: should/not-be-used", "image:", "  repository: org/repo"]
     assert libimagedigests.find_sibling_registry(lines, 2, 2) is None
+
+
+# --- reference comments: writer (sync_reference_comments) then checker ---
+
+_STALE_VALUES = (
+    "zac:\n"
+    "  opa:\n"
+    "    # openpolicyagent/opa:1.21.1-static\n"
+    "    image:\n"
+    f'      tag: "1.21.3-static@sha256:{"a" * 64}"\n'
+    "  office_converter:\n"
+    f"    # gotenberg/gotenberg:8.37.0@sha256:{'b' * 64}\n"
+    "    image:\n"
+    f'      tag: "8.38.1@sha256:{"c" * 64}"\n'
+)
+
+
+def test_sync_reference_comments_then_the_check_reports_nothing(libimagedigests: ModuleType):
+    """The writer fixes exactly what the check reports, keeps a digestless comment digestless,
+    and a second run changes nothing."""
+    assert [s.line for s in libimagedigests.find_stale_reference_comments(_STALE_VALUES.splitlines())] == [3, 7]
+    text, fixed = libimagedigests.sync_reference_comments(_STALE_VALUES)
+    assert [s.line for s in fixed] == [3, 7]
+    assert "    # openpolicyagent/opa:1.21.3-static\n" in text
+    assert f"    # gotenberg/gotenberg:8.38.1@sha256:{'c' * 64}\n" in text
+    assert not libimagedigests.find_stale_reference_comments(text.splitlines())
+    assert libimagedigests.sync_reference_comments(text) == (text, [])
+
+
+def test_sync_reference_comments_only_for_the_given_pins(libimagedigests: ModuleType):
+    text, fixed = libimagedigests.sync_reference_comments(_STALE_VALUES, {9})
+    assert [s.line for s in fixed] == [7]
+    assert "    # openpolicyagent/opa:1.21.1-static\n" in text
+
+
+def test_the_check_reads_the_comment_resolve_pin_repo_reads(libimagedigests: ModuleType):
+    lines = _STALE_VALUES.splitlines()
+    assert libimagedigests.resolve_pin_repo(lines, 4, 6) == "openpolicyagent/opa"
+    assert libimagedigests.find_stale_reference_comments(lines)[0].line == 3

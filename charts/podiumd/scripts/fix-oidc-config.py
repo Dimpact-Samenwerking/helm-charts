@@ -9,9 +9,11 @@ Affected components (use new format): openzaak, opennotificaties, objecten,
 objecttypen, openklant, openformulieren, openarchiefbeheer (chart 2.0.0+,
 PodiumD 4.7.0+).
 
-NOT affected (still use old flat format): openinwoner (chart 2.1.3). The
-script automatically skips OIDC blocks nested under this component key —
-they are left untouched.
+NOT handled: openinwoner. The script skips OIDC blocks nested under this
+component key and leaves them untouched. Open Inwoner needs the providers
+schema too (since Open Inwoner 2.4.0, PodiumD 4.8.4), but with more than this
+script does (default_groups, provider-level settings, one provider per item):
+use migrate-openinwoner-admin-oidc.py for it.
 
 Old format (keys at item level):
   claim_mapping          (dict)  → options.user_settings.claim_mappings
@@ -70,13 +72,11 @@ except ImportError:
 
 
 # ---------------------------------------------------------------------------
-# Components that still use the OLD flat OIDC format and must NOT be migrated.
-# These are excluded because their chart versions do not yet support the new
-# options.user_settings / options.groups_settings nested format.
+# Components this script must NOT migrate.
 # ---------------------------------------------------------------------------
 
 _SKIP_COMPONENTS = frozenset({
-    "openinwoner",       # chart 2.1.3 — still uses old mozilla-django-oidc-db format
+    "openinwoner",       # migrated by migrate-openinwoner-admin-oidc.py instead
     # openarchiefbeheer migrated to new format in chart 2.0.0 (PodiumD 4.7.0).
 })
 

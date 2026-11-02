@@ -1,6 +1,7 @@
-"""verify_component_version and check_chart_version_lockstep."""
+"""verify_component_version, check_chart_version_lockstep and refuse_unwritable_pins."""
 
 from types import ModuleType
+from types import SimpleNamespace
 
 import pytest
 
@@ -23,7 +24,7 @@ def test_verify_component_version_returns_upstream_image_results(ucv: ModuleType
     monkeypatch.setattr(
         ucv,
         "check_image_versions",
-        lambda values, image_paths, app_version: [
+        lambda _chart_dir, _dep, values, pins, app_version: [
             {
                 "path": "image",
                 "repository": "maykinmedia/open-forms",
@@ -34,7 +35,7 @@ def test_verify_component_version_returns_upstream_image_results(ucv: ModuleType
             }
         ],
     )
-    result = ucv.verify_component_version(dep, ["image"], "3.5.6", "1.12.0")
+    result = ucv.verify_component_version(dep, [ucv.PinPath("image", "image.tag")], "3.5.6", "1.12.0")
     assert result == {
         "image": {
             "path": "image",
@@ -55,7 +56,7 @@ def test_verify_component_version_exits_on_pull_failure(ucv: ModuleType, monkeyp
         lambda chart_dir, dep_arg, version, allow_pull=True: (None, None, "chart version not found"),
     )
     with pytest.raises(SystemExit):
-        ucv.verify_component_version(dep, ["image"], "3.5.6", "9.9.9")
+        ucv.verify_component_version(dep, [ucv.PinPath("image", "image.tag")], "3.5.6", "9.9.9")
 
 
 def test_verify_component_version_exits_when_image_does_not_exist(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch):
@@ -73,7 +74,7 @@ def test_verify_component_version_exits_when_image_does_not_exist(ucv: ModuleTyp
     monkeypatch.setattr(
         ucv,
         "check_image_versions",
-        lambda values, image_paths, app_version: [
+        lambda _chart_dir, _dep, values, pins, app_version: [
             {
                 "path": "image",
                 "repository": "maykinmedia/open-forms",
@@ -85,7 +86,7 @@ def test_verify_component_version_exits_when_image_does_not_exist(ucv: ModuleTyp
         ],
     )
     with pytest.raises(SystemExit):
-        ucv.verify_component_version(dep, ["image"], "9.9.9", "1.12.0")
+        ucv.verify_component_version(dep, [ucv.PinPath("image", "image.tag")], "9.9.9", "1.12.0")
 
 
 def _checked_repositories(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch, component_values):
@@ -98,13 +99,15 @@ def _checked_repositories(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch, comp
     )
     checked = []
 
-    def fake_check(values, image_paths, app_version):
+    def fake_check(_chart_dir, _dep, values, pins, app_version):
         repo = values["image"]["repository"]
         checked.append(repo)
         return [{"path": "image", "repository": repo, "host": "x", "repo_path": repo, "exists": True, "digest": None}]
 
     monkeypatch.setattr(ucv, "check_image_versions", fake_check)
-    ucv.verify_component_version(dep, ["image"], "3.5.6", "1.12.0", component_values=component_values)
+    ucv.verify_component_version(
+        dep, [ucv.PinPath("image", "image.tag")], "3.5.6", "1.12.0", component_values=component_values
+    )
     assert upstream == {"image": {"repository": "maykinmedia/open-forms", "tag": "3.5.5"}}, "pulled values mutated"
     return checked
 
@@ -153,3 +156,32 @@ def test_check_chart_version_lockstep_ignores_unregistered_component(ucv: Module
 def test_check_chart_version_lockstep_ignores_native_component(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(ucv, "chart_version_lockstep_components", lambda chart_dir: frozenset({"frankgateway"}))
     ucv.check_chart_version_lockstep("frankgateway", "104", "native", no_chart=True)
+
+
+# --- refuse_unwritable_pins ---
+
+
+def _pins_ctx(ucv: ModuleType, chart_name: str, values_key: str) -> SimpleNamespace:
+    return SimpleNamespace(chart_name=chart_name, values_key=values_key, pins=ucv.pin_paths_for(chart_name))
+
+
+def test_refuse_unwritable_pins_refuses_bare_version_fields_without_a_repository_field(
+    ucv: ModuleType, capsys: pytest.CaptureFixture[str]
+):
+    """eck-stack's "*.version" fields have no pin line to rewrite: refused before any registry call."""
+    with pytest.raises(SystemExit) as exc:
+        ucv.refuse_unwritable_pins(_pins_ctx(ucv, "eck-stack", "kiss-eck"))
+    assert exc.value.code == 1
+    out = capsys.readouterr().out
+    assert (
+        "kiss-eck.eck-elasticsearch.version, kiss-eck.eck-kibana.version, kiss-eck.eck-enterprise-search.version "
+        "are bare version fields"
+    ) in out
+
+
+@pytest.mark.parametrize(
+    ("chart_name", "values_key"), [("redis-operator", "redis-operator"), ("zaakafhandelcomponent", "zac")]
+)
+def test_refuse_unwritable_pins_accepts_writable_pins(ucv: ModuleType, chart_name: str, values_key: str):
+    """redis-operator's split fields have their imageName; image blocks are always writable."""
+    ucv.refuse_unwritable_pins(_pins_ctx(ucv, chart_name, values_key))

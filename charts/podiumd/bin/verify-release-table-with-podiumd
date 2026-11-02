@@ -61,7 +61,7 @@ from lib.chart.pull_and_subchart_resolution import primary_image_repositories  #
 
 # pylint: disable-next=unused-import
 from lib.release_table_verification import is_primary_image  # noqa: F401
-from lib.chart.chart_yaml import load_chart_dependencies
+from lib.chart.chart_yaml import chart_dir_dependencies
 from lib.yaml_types import load_yaml_mapping
 from lib.release_table.csv_rows import read_release_table
 # isort: on
@@ -135,7 +135,7 @@ def main():
         sys.exit(1)
     rows = read_release_table(RELEASE_TABLE_CSV)
 
-    deps = load_chart_dependencies(CHART_YAML) if CHART_YAML.is_file() else []
+    deps = chart_dir_dependencies(CHART_YAML.parent)
     values = load_yaml_mapping(VALUES_YAML) if VALUES_YAML.is_file() else {}
     lines = VALUES_YAML.read_text(encoding="utf-8").splitlines() if VALUES_YAML.is_file() else []
 

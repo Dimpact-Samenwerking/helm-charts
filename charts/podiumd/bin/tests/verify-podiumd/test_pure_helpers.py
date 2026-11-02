@@ -33,6 +33,7 @@ def test_words_of_splits_on_non_alnum(libupgradedocbasics: ModuleType):
         ("1.0.297 (unchanged)", "1.0.297"),
         ("`0.0.92`", "0.0.92"),
         ("v0.9.313 → 0.11.0", "0.11.0"),
+        ("0.20.0 → -", None),
     ],
 )
 def test_extract_target_version(libupgradedocbasics: ModuleType, cell, expected):

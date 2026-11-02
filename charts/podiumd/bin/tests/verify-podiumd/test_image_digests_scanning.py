@@ -1,6 +1,9 @@
-"""scan_digest_pins, scan_version_pins, find_inconsistent_version_pins: pin records and drift/duplicate detection."""
+"""scan_digest_pins, scan_version_pins, scan_image_pins, find_inconsistent_version_pins: pin records and drift/duplicate detection."""
 
+from pathlib import Path
 from types import ModuleType
+
+import yaml
 
 # --- scan_digest_pins ---
 
@@ -113,6 +116,37 @@ def test_scan_version_pins_tolerates_anchor_tag(libimagedigests: ModuleType):
     ]
 
 
+def test_scan_version_pins_finds_registered_split_field_pins(libimagedigests: ModuleType):
+    """redis-operator pins "imageTag:"/"initContainerImageTag:" next to "imageName:"; both are pins."""
+    digest = "a" * 64
+    lines = [
+        "  redisOperator:",
+        "    imageName: quay.io/opstree/redis-operator",
+        f'    imageTag: "v0.26.0@sha256:{digest}"',
+        f'    initContainerImageTag: "v0.26.0@sha256:{digest}"',
+        '    otherTag: "v1.0.0"',
+    ]
+    pins = libimagedigests.scan_version_pins(lines)
+    assert [(p["line"], p["repository"], p["version"]) for p in pins] == [
+        (3, "quay.io/opstree/redis-operator", "v0.26.0"),
+        (4, "quay.io/opstree/redis-operator", "v0.26.0"),
+    ]
+
+
+def test_scan_version_pins_reads_an_anchored_split_field_and_skips_its_alias(libimagedigests: ModuleType):
+    lines = [
+        "  redisOperator:",
+        "    imageName: quay.io/opstree/redis-operator",
+        f'    imageTag: &redisOperatorImageTag "v0.26.0@sha256:{"a" * 64}"',
+        "    initContainerImageTag: *redisOperatorImageTag",
+    ]
+    assert [p["line"] for p in libimagedigests.scan_digest_pins(lines)] == [3]
+
+
+def test_scan_version_pins_skips_a_split_field_without_its_repository_field(libimagedigests: ModuleType):
+    assert libimagedigests.scan_version_pins(["  redisOperator:", '    imageTag: "v0.26.0"']) == []
+
+
 def test_scan_version_pins_ignores_non_tag_lines(libimagedigests: ModuleType):
     assert libimagedigests.scan_version_pins(["  repository: org/repo", "  enabled: true"]) == []
 
@@ -200,3 +234,75 @@ def test_find_inconsistent_version_pins_ignores_unresolved_repository(libimagedi
     lines = ["a:", "  image:", f'    tag: "1.0.0@sha256:{"a" * 64}"']
     pins = libimagedigests.scan_digest_pins(lines)
     assert libimagedigests.find_inconsistent_version_pins(pins) == {}
+
+
+# --- scan_image_pins / image targets ---
+
+KEYCLOAK_VALUES = f"""\
+keycloak:
+  image:
+    repository: &kcRepo quay.io/keycloak/keycloak
+    tag: &kcVersion "26.7.3"
+    sha: &kcDigest "{"a" * 64}"
+keycloak-operator:
+  operator:
+    config:
+      keycloakImage:
+        repository: *kcRepo
+        tag: *kcVersion
+        sha: *kcDigest
+"""
+
+
+def test_scan_image_pins_reads_a_registered_sibling_digest(libimagedigests: ModuleType, tmp_path: Path):
+    """keycloak's digest is in "sha:", not in the tag, and the pin reports that line; the aliased
+    operator copy reports the anchor's line."""
+    (tmp_path / "values.yaml").write_text(KEYCLOAK_VALUES, encoding="utf-8")
+    pins = libimagedigests.scan_image_pins(tmp_path)
+    assert [(p["path"], p["line"], p["version"], p["digest"], p["repository"]) for p in pins] == [
+        (("keycloak", "image"), 5, "26.7.3", "a" * 64, "quay.io/keycloak/keycloak"),
+        (
+            ("keycloak-operator", "operator", "config", "keycloakImage"),
+            5,
+            "26.7.3",
+            "a" * 64,
+            "quay.io/keycloak/keycloak",
+        ),
+    ]
+
+
+def test_digest_pin_targets_include_sibling_digest_pins(libimagedigests: ModuleType, tmp_path: Path):
+    (tmp_path / "values.yaml").write_text(KEYCLOAK_VALUES, encoding="utf-8")
+    pins, targets = libimagedigests.digest_pin_targets(tmp_path)
+    assert len(pins) == 2
+    assert targets == {("quay.io/keycloak/keycloak", "26.7.3"): ("a" * 64, [5])}
+
+
+def test_find_inconsistent_version_pins_reports_drift_between_literal_sibling_digests(
+    libimagedigests: ModuleType, tmp_path: Path
+):
+    """One aliased tag, two literal "sha:" values: drift, though both pins share the tag's line."""
+    values = KEYCLOAK_VALUES.replace("sha: *kcDigest", f'sha: "{"b" * 64}"')
+    (tmp_path / "values.yaml").write_text(values, encoding="utf-8")
+    findings = libimagedigests.find_inconsistent_version_pins(libimagedigests.scan_image_pins(tmp_path))
+    assert findings["quay.io/keycloak/keycloak"]["kind"] == "drift"
+    assert sorted(line for _pair, lines in findings["quay.io/keycloak/keycloak"]["pins"] for line in lines) == [5, 12]
+
+
+def test_find_inconsistent_version_pins_ignores_aliases_of_one_anchor(libimagedigests: ModuleType, tmp_path: Path):
+    """Two paths aliasing one anchor are one literal pin, not a [DUPLICATE-PIN]."""
+    (tmp_path / "values.yaml").write_text(KEYCLOAK_VALUES, encoding="utf-8")
+    assert libimagedigests.find_inconsistent_version_pins(libimagedigests.scan_image_pins(tmp_path)) == {}
+
+
+def test_unique_image_targets_include_a_digest_less_version_field(libimagedigests: ModuleType, tmp_path: Path):
+    """A registered version field without a digest (redis-operator imageTag) is still an image to check."""
+    (tmp_path / "Chart.yaml").write_text(
+        yaml.safe_dump({"dependencies": [{"name": "redis-operator", "version": "0.26.1"}]}), encoding="utf-8"
+    )
+    (tmp_path / "values.yaml").write_text(
+        'redis-operator:\n  redisOperator:\n    imageName: quay.io/opstree/redis-operator\n    imageTag: "v0.26.0"\n',
+        encoding="utf-8",
+    )
+    targets = libimagedigests.unique_image_targets(tmp_path)
+    assert targets[("quay.io/opstree/redis-operator", "v0.26.0")] == (None, 4)

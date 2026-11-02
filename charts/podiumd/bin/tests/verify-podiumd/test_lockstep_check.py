@@ -75,6 +75,30 @@ def test_drifted_multi_path_bare_version_reported(liblockstepcheck: ModuleType):
     assert resolved == [("eck-elasticsearch.version", "8.19.19"), ("eck-kibana.version", "8.19.3")]
 
 
+def test_drifted_redis_operator_init_container_tag_reported(
+    liblockstepcheck: ModuleType, monkeypatch: pytest.MonkeyPatch
+):
+    """The init-config init container runs the operator image; its tag must follow imageTag."""
+    monkeypatch.setattr(
+        liblockstepcheck,
+        "component_version_paths",
+        lambda: {"redis-operator": ["redisOperator.imageTag", "redisOperator.initContainerImageTag"]},
+    )
+    dep = {"name": "redis-operator", "alias": "", "version": "0.27.0"}
+    values = {
+        "redis-operator": {
+            "redisOperator": {"imageTag": "v0.27.0@sha256:aaa", "initContainerImageTag": "v0.26.0@sha256:bbb"}
+        }
+    }
+    assert liblockstepcheck.find_lockstep_mismatches([dep], values) == [
+        (
+            "redis-operator",
+            "redis-operator",
+            [("redisOperator.imageTag", "v0.27.0"), ("redisOperator.initContainerImageTag", "v0.26.0")],
+        )
+    ]
+
+
 def test_digest_ignored_when_comparing_image_tag_versions(liblockstepcheck: ModuleType):
     """Two paths pinned to the SAME version but different digests must
     never be reported — only the version (before "@") is compared."""

@@ -38,9 +38,9 @@ Steps, in run order:
   shellcheck           embedded shell scripts in own templates
   kube-score           container resource requests/limits (report only)
   release-secret-size  Helm release Secret stays under 90% of 1 MiB
+  root-containers      containers that run as root (report only)
   chart-upgrades       newer stable dependency chart versions published
                        (report only)
-  root-containers      containers that run as root (report only)
   image-upgrades       newer same-variant tags published (report only)
   cve-scan             fixable CVEs via docker + trivy (report only; skipped
                        without docker)
@@ -278,8 +278,8 @@ SKIPPABLE_STEPS = [
     ("shellcheck", "shellcheck"),
     ("kube-score", "kube-score"),
     ("release-secret-size", "Release secret size"),
-    ("chart-upgrades", "Chart upgrades"),
     ("root-containers", "Root containers"),
+    ("chart-upgrades", "Chart upgrades"),
     ("image-upgrades", "Image upgrades"),
     ("cve-scan", "CVE scan"),
     ("cve-diff", "CVE diff"),
@@ -542,8 +542,8 @@ def _run_all_steps(runner: StepRunner, chart_dir: Path, args: argparse.Namespace
         chart_dir,
         extra_args,
     )
-    runner.run("Chart upgrades", "Checking for newer dependency chart versions", check_chart_upgrades, chart_dir)
     runner.run("Root containers", "Checking which containers run as root", check_root_containers, chart_dir, extra_args)
+    runner.run("Chart upgrades", "Checking for newer dependency chart versions", check_chart_upgrades, chart_dir)
     runner.run("Image upgrades", "Checking for newer published tags", check_image_upgrades, chart_dir, extra_args)
     runner.run(
         "CVE scan",

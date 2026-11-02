@@ -7,6 +7,7 @@ from types import ModuleType
 import pytest
 import yaml
 
+from lib.chart.registered_paths import PinPath
 from lib.registry import ImagePathTagCheck
 from lib.yaml_types import YamlMapping
 
@@ -58,7 +59,7 @@ def test_main_single_image_component_success(
     monkeypatch.setattr(
         vcv,
         "check_image_versions",
-        lambda values, image_paths, app_version: [
+        lambda _chart_dir, _dep, values, pins, app_version: [
             {
                 "path": "image",
                 "repository": "ghcr.io/infonl/zaakafhandelcomponent",
@@ -84,7 +85,8 @@ def test_main_multi_image_component_checks_both(
     write_chart_yaml(vcv, [{"name": "zgw-office-addin", "repository": "@zgw-office-addin"}])
     checked_paths = []
 
-    def fake_check_image_versions(values, image_paths, app_version):
+    def fake_check_image_versions(_chart_dir, _dep, values, pins, app_version):
+        image_paths = [pin.path for pin in pins]
         checked_paths.extend(image_paths)
         return [
             {
@@ -123,7 +125,8 @@ def test_main_alias_argument_resolves_full_multi_path_registration(
     write_chart_yaml(vcv, [{"name": "kiss-chart", "alias": "kiss", "repository": "@kiss"}])
     checked_paths = []
 
-    def fake_check_image_versions(values, image_paths, app_version):
+    def fake_check_image_versions(_chart_dir, _dep, values, pins, app_version):
+        image_paths = [pin.path for pin in pins]
         checked_paths.extend(image_paths)
         return [
             {
@@ -162,7 +165,7 @@ def test_main_dockerhub_component(
     monkeypatch.setattr(
         vcv,
         "check_image_versions",
-        lambda values, image_paths, app_version: [
+        lambda _chart_dir, _dep, values, pins, app_version: [
             {
                 "path": "image",
                 "repository": "openformulieren/open-forms",
@@ -201,7 +204,7 @@ def test_main_missing_app_version_fails(
     monkeypatch.setattr(
         vcv,
         "check_image_versions",
-        lambda values, image_paths, app_version: [
+        lambda _chart_dir, _dep, values, pins, app_version: [
             {
                 "path": "image",
                 "repository": "ghcr.io/infonl/zaakafhandelcomponent",
@@ -230,7 +233,8 @@ def test_main_no_repository_at_configured_path_propagates(
         vcv, "verify_chart_version", lambda chart_dir, dep, version: {"somethingElse": {"repository": "x/y"}}
     )
 
-    def raise_no_repo(values, image_paths, app_version):
+    def raise_no_repo(_chart_dir, _dep, values, pins, app_version):
+        image_paths = [pin.path for pin in pins]
         msg = f"error: no repository found at {', '.join(f'{p}.repository' for p in image_paths)}"
         raise SystemExit(msg)
 
@@ -268,8 +272,9 @@ def test_main_native_component_reads_podiumd_values(
     seen = {}
 
     def fake_check_image_versions(
-        values: YamlMapping, image_paths: list[str], app_version: str
+        _chart_dir: object, _dep: object, values: YamlMapping, pins: list[PinPath], app_version: str
     ) -> list[ImagePathTagCheck]:
+        image_paths = [pin.path for pin in pins]
         seen.update(values=values, image_paths=image_paths)
         return [
             {

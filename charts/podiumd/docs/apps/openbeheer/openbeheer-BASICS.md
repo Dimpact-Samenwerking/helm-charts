@@ -1,5 +1,9 @@
 # Open Beheer — Basics
 
+> **Version:** this page describes 4.10.0 and later, where the Objecttypen API is part of
+> `objecten`. Before 4.10.0 read `objecttypen` for `objecten`: see
+> [`openbeheer.md` § Objecttypen API on Open Object](openbeheer.md#objecttypen-api-on-open-object).
+
 ## Management summary
 
 Open Beheer is the administration console for the case-type catalogues that drive
@@ -8,14 +12,14 @@ case-types, document-types and object schemas in one place, instead of editing t
 the raw Open Zaak and Objecttypen admin screens. It is part of PodiumD because every other
 component (ZAC, Open Formulieren, Open Inwoner) depends on well-maintained catalogi, and
 Open Beheer makes that maintenance manageable. To run it needs a PostgreSQL database, a
-small Azure file share, Redis, a Keycloak client and API credentials for Open Zaak,
-Objecttypen, and Objecten. Its footprint is small: two lightweight web pods plus an nginx sidecar,
+small Azure file share, Redis, a Keycloak client and API credentials for Open Zaak and the
+Objecttypen API. Its footprint is small: two lightweight web pods plus an nginx sidecar,
 roughly 250–270 MiB memory each and near-idle CPU.
 
 ## What it is
 
 - Upstream: Maykin Media [`open-beheer`](https://github.com/maykinmedia/open-beheer), a
-  Django application. New in PodiumD 4.8.0 (IN-2157), **disabled by default**
+  Django application. Part of PodiumD since 4.6.1 (IN-2157), **disabled by default**
   (`openbeheer.enabled: false`).
 - Image: `maykinmedia/open-beheer:0.9.1`; nginx sidecar `nginxinc/nginx-unprivileged:1.31.4`
   (shared `global.images.nginx`, digest-pinned).
@@ -23,7 +27,7 @@ roughly 250–270 MiB memory each and near-idle CPU.
   `@maykinmedia`).
 - Role: admin/management UI on top of the ZGW APIs — manages zaaktypes and
   informatieobjecttypes via the Open Zaak **Catalogi** API, object schemas via the
-  **Objecttypen** API, and reads retention schedules from the public **Selectielijst** API.
+  **Objecttypen** API (part of `objecten` since 4.10.0), and reads retention schedules from the public **Selectielijst** API.
 - Runtime components:
   - web Deployment, `replicaCount: 2` (uWSGI; the chart forces `UWSGI_MASTER=1` — see
     known issues)
@@ -74,7 +78,7 @@ default) — see [openbeheer.md](openbeheer.md).
 
 ### Other dependencies
 
-- **Redis**: shared `redis-ha` at `redis-ha-master.podiumd.svc.cluster.local:6379`,
+- **Redis**: shared `redis-ha` at `redis-ha-master:6379` (release namespace),
   **db 17** for both `default` and `axes` caches (`openbeheer.settings.cache.*`); db 18 is
   reserved for Celery but unused — Open Beheer runs no Celery worker. Allocation table:
   `docs/apps/redis/redis-ha-databases.md`.
@@ -85,12 +89,11 @@ default) — see [openbeheer.md](openbeheer.md).
 - **Open Zaak**: ZGW consumer with client id `openbeheer` (client-credentials JWT), secret
   in `openbeheer.configuration.secrets.openzaak_openbeheer_secret`; registered in the
   Open Zaak admin so the Catalogi API accepts Open Beheer.
-- **Objecttypen**: API token (`auth_type: api_key`) in
-  `openbeheer.configuration.secrets.objecttypen_openbeheer_token`; token holder registered
-  in the Objecttypen admin.
-- **Objecten**: API token (`auth_type: api_key`) in
-  `openbeheer.configuration.secrets.objecten_openbeheer_token`; token holder registered in
-  the Objecten admin with `is_superuser: true`.
+- **Objecttypen API** (on `objecten`): API token (`auth_type: api_key`) in
+  `openbeheer.configuration.secrets.objecttypen_openbeheer_token`, registered as `tokenauth`
+  item `openbeheer-token` in `objecten`. Open Beheer does not use the Objects API, so it needs
+  no Objecten token. See
+  [`openbeheer.md` § Objecttypen API on Open Object](openbeheer.md#objecttypen-api-on-open-object).
 - **Selectielijst**: public `https://selectielijst.openzaak.nl/api/v1/`, no auth.
 - **SMTP**: optional, `openbeheer.settings.email.*` (defaults `localhost:25`).
 - Django `SECRET_KEY` via `openbeheer.settings.secretKey` (pipeline-injected).
@@ -125,7 +128,7 @@ with production workload measurements.
    `...Namespace`) authenticates against — the PV is static, the share must pre-exist.
 3. **Provision Key Vault secrets**: Django `SECRET_KEY` (`openssl rand -base64 50`),
    Keycloak client secret `openbeheer-oidc-secret` (`openssl rand -hex 32`), Open Zaak ZGW
-   secret, Objecten API token and Objecttypen API token (all `openssl rand -hex 32`).
+   secret and Objecttypen API token (all `openssl rand -hex 32`).
 4. **Enable and configure** in the environment values file:
 
    ```yaml
@@ -139,7 +142,7 @@ with production workload measurements.
         image:
           repository: acrprodmgmt.azurecr.io/nginxinc/nginx-unprivileged
       settings:
-        allowedHosts: "openbeheer.example.nl,openbeheer-nginx.podiumd.svc.cluster.local"
+        allowedHosts: "openbeheer.example.nl,.svc.cluster.local"
         database:
           name: openbeheer
           username: openbeheer
@@ -156,7 +159,6 @@ with production workload measurements.
           keycloak_client_secret: "REP_OPENBEHEER_OIDC_SECRET_REP"
           openzaak_openbeheer_secret: "REP_OPENZAAK_OPENBEHEER_SECRET_REP"
           objecttypen_openbeheer_token: "REP_OBJECTTYPEN_OPENBEHEER_TOKEN_REP"
-          objecten_openbeheer_token: "REP_OBJECTEN_OPENBEHEER_TOKEN_REP"
         data: |
           oidc_db_config_enable: true
           oidc_db_config_admin_auth:
@@ -205,18 +207,11 @@ with production workload measurements.
             services:
               - identifier: objecttypen-service
                 label: Objecttypen API
-                api_root: "https://objecttypen.example.nl/api/v2/"
+                api_root: "https://<objecten-host>/api/v2/"  # host of objecten.configuration.oidcUrl
                 api_type: orc
                 auth_type: api_key
                 header_key: Authorization
                 header_value: "Token REP_OBJECTTYPEN_OPENBEHEER_TOKEN_REP"
-              - identifier: objecten-service
-                label: Objecten API
-                api_root: "https://objecten.example.nl/api/v2/"
-                api_type: orc
-                auth_type: api_key
-                header_key: Authorization
-                header_value: "Token REP_OBJECTEN_OPENBEHEER_TOKEN_REP"
               - identifier: catalogi-service
                 label: Open Zaak - Catalogi API
                 api_root: "https://openzaak.example.nl/catalogi/api/v1/"
@@ -236,13 +231,14 @@ with production workload measurements.
      ```
 
    Secrets inside `configuration.data` use django-setup-configuration's
-   `value_from: {env: VAR}` pattern; the Objecttypen and Objecten `Authorization: Token ...`
-   headers are exceptions and keep inline `REP_..._REP` tokens.
-5. Configure the matching peer services (openzaak, objecttypen, objecten):
-   **objecttypen side** — register `openbeheer-token`. `token:` is a plain scalar (no prefix), so `value_from` applies directly:
+   `value_from: {env: VAR}` pattern; the Objecttypen `Authorization: Token ...` header is the
+   exception and keeps an inline `REP_..._REP` token.
+5. Configure the matching peer services (objecten, openzaak):
+   **objecten side** — register `openbeheer-token` with the same token value. No permissions
+   or `is_superuser`: Open Object 4.1.0 accepts any valid token on `objecttypes`.
 
    ```yaml
-   objecttypen:
+   objecten:
      configuration:
        secrets:
          objecttypen_openbeheer_token: "REP_OBJECTTYPEN_OPENBEHEER_TOKEN_REP"
@@ -254,28 +250,7 @@ with production workload measurements.
                 token: {value_from: {env: objecttypen_openbeheer_token}}
                 contact_person: Open Beheer
                 email: openbeheer@example.com
-                organization: Open Beheer
                 application: Open Beheer
-                administration: Open Beheer
-   ```
-
-   **objecten side** — register `openbeheer-token` with **`is_superuser: true`** so it can read/write across all object types:
-
-   ```yaml
-   objecten:
-     configuration:
-       secrets:
-         objecten_openbeheer_token: "REP_OBJECTEN_OPENBEHEER_TOKEN_REP"
-       data: |-
-          tokenauth_config_enable: true
-          tokenauth:
-            items:
-              - identifier: openbeheer-token
-                token: {value_from: {env: objecten_openbeheer_token}}
-                contact_person: Open Beheer
-                email: openbeheer@example.com
-                application: Open Beheer
-                is_superuser: true
    ```
 
    **openzaak side** — register openbeheer as an authorised application with full admin rights:
@@ -305,18 +280,17 @@ with production workload measurements.
    `configuration.oidcUrl`; populate `openbeheer-oidc-secret` **before** the first deploy
    or the job generates a random secret you must reconcile.
 7. **Register API consumers**: in Open Zaak, add a ZGW application/credential for client id
-   `openbeheer` with the ZGW secret; in Objecttypen, create a token-authorised user holding
-   the API token; in Objecten, create a token-authorised user with `is_superuser: true`.
+   `openbeheer` with the ZGW secret; in `objecten`, the `openbeheer-token` item from step 5.
 8. **DNS + HTTPRoute**: have the environment deployment create the
    `<env>-openbeheer.<gemeente>.nl` DNS record and the HTTPRoute on `public-gateway`, with
    `backendRefs` → `openbeheer-nginx` port 80; the hostname must match
    `configuration.oidcUrl`.
-9. **Verify**: configuration Job completes (`kubectl -n podiumd get jobs -l
+9. **Verify**: configuration Job completes (`kubectl --context <aks-context> -n podiumd get jobs -l
    app.kubernetes.io/name=openbeheer` → 1/1); 2/2 pods Ready with 0 restarts (uWSGI master
-   fix active: `kubectl -n podiumd get cm openbeheer -o jsonpath='{.data.UWSGI_MASTER}'`
+   fix active: `kubectl --context <aks-context> -n podiumd get cm openbeheer -o jsonpath='{.data.UWSGI_MASTER}'`
    → `1`); browse to `https://<env>-openbeheer.<gemeente>.nl/admin/` and confirm the Keycloak
    redirect; browse to `https://<env>-openbeheer.<gemeente>.nl/` and confirm the Open Beheer
-   login page appears; in the UI confirm the Catalogi, Objecttypen, Objecten and Selectielijst services
+   login page appears; in the UI confirm the Catalogi, Objecttypen and Selectielijst services
    resolve and catalogi load from Open Zaak.
 
 ## Related documents

@@ -5,6 +5,12 @@
   ],
   "packageRules": [
     {
+      "description": "PodiumD component versions are not updated by Renovate: they are bumped per release on the release branch with charts/podiumd/bin/update-component-version and update-image-version, which also pin the digest and update the upgrade docs and images manifest that verify-podiumd checks. Other charts (monitoring-logging, mi-data, brp-personen-mock, beproeving), GitHub Actions and the podiumd tooling's pip requirements stay enabled.",
+      "matchManagers": ["helm-values", "helmv3"],
+      "matchFileNames": ["charts/podiumd/**"],
+      "enabled": false
+    },
+    {
       "description": "ITA: chart and web/poller images share one version (chart_version_lockstep_components in charts/podiumd/etc/settings.yaml)",
       "matchPackageNames": ["ghcr.io/interne-taak-afhandeling/**"],
       "groupName": "internetaakafhandeling"

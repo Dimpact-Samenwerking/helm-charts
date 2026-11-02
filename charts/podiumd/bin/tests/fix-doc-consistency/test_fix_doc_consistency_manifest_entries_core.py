@@ -4,6 +4,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import TYPE_CHECKING
 
+from lib.fix_doc_consistency.manifest_entries_core import BaselineRelease
 from lib.fix_doc_consistency.manifest_entries_core import ManifestEntriesContext
 from lib.fix_doc_consistency.manifest_entries_core import fix_images_manifest_entries
 from lib.fix_doc_consistency.manifest_entries_core import resolve_entry_version
@@ -217,7 +218,9 @@ def test_fix_images_manifest_entries_finds_historical_baseline_for_new_path(cdb:
     repo_map = {"brp-api/personen-mock": ("brppersonenmock", "image")}
     new_text, changed, unresolved = fix_images_manifest_entries(
         text,
-        ManifestEntriesContext(tmp_path, deps, target_values, baseline_values, repo_map, upgrade_docs_baseline="4.8.5"),
+        ManifestEntriesContext(
+            tmp_path, deps, target_values, baseline_values, repo_map, baseline_release=BaselineRelease("4.8.5")
+        ),
     )
     assert unresolved == []
     assert changed == []  # already correctly reads "2.6.0 -> 2.7.0"
@@ -249,7 +252,9 @@ def test_fix_images_manifest_entries_corrects_moved_repository_comment(cdb: Modu
 
     new_text, changed, unresolved = fix_images_manifest_entries(
         text,
-        ManifestEntriesContext(tmp_path, deps, target_values, baseline_values, repo_map, upgrade_docs_baseline="4.8.5"),
+        ManifestEntriesContext(
+            tmp_path, deps, target_values, baseline_values, repo_map, baseline_release=BaselineRelease("4.8.5")
+        ),
     )
 
     assert unresolved == []

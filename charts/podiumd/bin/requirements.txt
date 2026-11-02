@@ -8,6 +8,7 @@ pylint
 vulture
 isort
 pytest
+pytest-cov
 bandit
 basedpyright
 jscpd

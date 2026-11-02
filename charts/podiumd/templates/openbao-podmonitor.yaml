@@ -1,0 +1,51 @@
+{{- /*
+OpenBao standby metrics. In HA mode the openbao subchart's ServiceMonitor
+selects only the openbao-active Service, so only the active node is scraped and
+a standby that sealed itself after a failed failover raises nothing until it
+becomes active. This PodMonitor scrapes the standbys (openbao-active: "false",
+set by service_registration "kubernetes") on the metrics-only listener (port
+"metrics", 9101); the active node stays with the subchart's ServiceMonitor, so
+no pod is scraped twice. Rendered under the same condition as that listener
+and the subchart's ServiceMonitor (podiumd's top-level global: is merged into
+the subchart's .Values.global, so that flag counts too), and only with more than
+one HA replica: a single server has no standby to scrape.
+*/ -}}
+{{- $bao := .Values.openbao | default dict }}
+{{- $telemetry := $bao.serverTelemetry | default dict }}
+{{- $sm := $telemetry.serviceMonitor | default dict }}
+{{- $global := or (dig "global" "serverTelemetry" "prometheusOperator" false $bao) (dig "serverTelemetry" "prometheusOperator" false (.Values.global | default dict)) }}
+{{- $ha := dig "server" "ha" dict $bao }}
+{{- $standbys := and $ha.enabled (gt (int ($ha.replicas | default 1)) 1) }}
+{{- if and $bao.enabled (or $global $sm.enabled) $standbys }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: openbao-standby
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: openbao
+    {{- with $sm.selectors }}
+    {{- toYaml . | nindent 4 }}
+    {{- else }}
+    release: prometheus
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: openbao
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      openbao-active: "false"
+  podMetricsEndpoints:
+    - port: metrics
+      path: /v1/sys/metrics
+      params:
+        format:
+          - prometheus
+      interval: {{ $sm.interval | default "30s" }}
+      scrapeTimeout: {{ $sm.scrapeTimeout | default "10s" }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+{{- end }}

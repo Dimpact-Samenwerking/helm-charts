@@ -50,6 +50,10 @@ migration tool is available since 3.5.2. **Use it on 3.5.10 or later
 converted with it on an older version get the correct order back when saved
 once in the admin on 3.5.10.
 
+**Up to 3.5.9 the command has no dry run:** run without arguments it converts
+every form at once, and `--no-dry-run` fails as an unknown argument. The two
+commands below only behave as described from 3.5.10 on.
+
 **NOTE: this cannot be easily reverted for large forms, these should be copied first!**
 
 ```bash
@@ -70,7 +74,53 @@ ZGW APIs and Objects API registration backends that use direct
 catalogue + type description format before 4.0. Open Forms 4.0 will refuse
 to start if it detects legacy configuration.
 
-A migration tool is available since 3.5.3:
+A migration tool is available since 3.5.3. It stops the whole run, and
+migrates nothing, on the first registration it can't validate. It then prints
+only "The registration options are not valid." or "No service configured",
+without the form. Two causes are common:
+
+- Objects API registrations at options version 2 that still hold keys of
+  version 1 (`content_json`, `productaanvraag_type`). Open Forms reports them
+  as "niet van toepassing in v2" and doesn't use them. Saving the
+  registration once in the form designer removes them.
+- A registration, or a `file` component's `registration.informatieobjecttype`,
+  that points at a Catalogi without a configured service, for example a URL of
+  another environment. This is often on old copies of a form in the trash.
+
+Check for both first, on Open Forms 3.5.10 (PodiumD 4.9.5), after the logic
+conversion (section 3) and before the migration tool. The two scripts below
+ship with PodiumD 4.10.0 (`charts/podiumd/scripts`); run them from a
+helm-charts checkout of 4.10.0 against the environment that is still on 4.9.5.
+They read from stdin, so `kubectl exec` needs `-i`. The check is read-only:
+[`scripts/openforms-check-registration-options.py`](../../../scripts/openforms-check-registration-options.py).
+It prints one line per problem: `V1_KEYS` (with the keys to remove),
+`NO_SERVICE` (with the URL), or `INVALID` (any other error), and a summary
+line. 0 problems means the migration tool won't stop on these:
+
+```bash
+kubectl exec -i -n <ns> deploy/openformulieren -c openformulieren -- \
+  python /app/src/manage.py shell < charts/podiumd/scripts/openforms-check-registration-options.py
+```
+
+Remove the v1-only keys with
+[`scripts/openforms-fix-registration-options.py`](../../../scripts/openforms-fix-registration-options.py).
+It only touches registrations whose every error is a v1-only key, does all
+changes in one transaction, and prints the original options as `BACKUP_JSON`:
+save that output. Without `APPLY=1` it is a dry run that rolls back:
+
+```bash
+# Dry run:
+kubectl exec -i -n <ns> deploy/openformulieren -c openformulieren -- \
+  python /app/src/manage.py shell < charts/podiumd/scripts/openforms-fix-registration-options.py
+# Apply, keeping the output (BACKUP_JSON):
+kubectl exec -i -n <ns> deploy/openformulieren -c openformulieren -- \
+  env APPLY=1 python /app/src/manage.py shell < charts/podiumd/scripts/openforms-fix-registration-options.py \
+  | tee openforms-registration-options-<ns>.log
+```
+
+Fix `NO_SERVICE` references by hand (correct or clear the URL, or delete the
+trashed form), and run the check again until it reports 0. Then run the
+migration tool:
 
 ```bash
 # Dry run (reports issues without making changes):
@@ -81,6 +131,12 @@ kubectl exec -n <ns> <openformulieren-pod> -- \
 kubectl exec -n <ns> <openformulieren-pod> -- \
   python /app/src/manage.py migrate_catalogi_api_urls --no-dry-run
 ```
+
+If the dry run reports `Resolving the case/document types didn't converge to a
+single catalogue`, the case type and document type sit in one catalogue, but
+the ZGW API group's default catalogue (`catalogue_domain`/`catalogue_rsin`) is
+another one. Set the catalogue of the case type on that form's registration
+backend (in the form's registration settings), then run the dry run again.
 
 Also check `file` component registration options for inconsistent catalogue
 references (available since 3.5.5):

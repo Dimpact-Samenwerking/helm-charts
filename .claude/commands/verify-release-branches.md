@@ -67,19 +67,24 @@ Behavior:
 
 6. **For `PREV_NEXT` (previous-minor next patch): documented separate workflow — do NOT create + bump + open PR like the other two.** Previous-minor patches **never merge to `main`** (main is already past this minor; merging would drag old code forward). Instead:
 
-   a. Develop and test the patch on the `feature/podiumd-<PREV_NEXT>` branch (a regular feature branch — but with no PR to `main`).
-   b. When the patch is ready and tested, **squash the entire feature branch into a single commit** on a `release/podiumd-<PREV_NEXT>` branch. That single commit is what triggers the helm-publish CI build. **Do not push further commits to `release/podiumd-<PREV_NEXT>`** — extra commits don't re-trigger cleanly and confuse the publish job.
-   c. Tag / GitHub-release is cut from the `release/*` tip.
+   a. Create `feature/podiumd-<PREV_NEXT>` from the `podiumd-<PREV>` tag, never from `main`. Run `create-podiumd-version` and the `update-*` scripts there, and develop and test the patch on it (a regular feature branch, but with no PR to `main`).
+   b. Split the documentation from the chart. The Markdown and the images manifest (`_UPGRADE_PATHS/<PREV>-to-<PREV_NEXT>-*.md`, `images/images-<PREV_NEXT>.yaml`, the `<PREV_NEXT>` rows in `_UPGRADING.md`) go to `main` in a separate docs PR from a `docs/podiumd-<PREV_NEXT>` branch off `main` (precedent: #438 for 4.8.6). A docs-only merge does not trigger a release (`paths-ignore` in `release.yaml`). Open it as a draft and merge it only after `<PREV_NEXT>` is released. The feature branch keeps an identical copy of the docs, because `verify-podiumd`'s doc checks need them; the chart changes (`Chart.yaml`, `values.yaml`, `etc/`, `images-baseline.yaml`, `README.md`) stay on the feature branch only.
+   c. Never document a hop from `<PREV_NEXT>` to the already-released current version: that release predates the patch and can undo it. The next hop is `<PREV_NEXT>-to-<CUR_NEXT>`, written in the `<CUR_NEXT>` release next to `<CUR>-to-<CUR_NEXT>` (generate it in a scratch copy with `change-podiumd-baseline <PREV_NEXT>`; this needs `feature/podiumd-<PREV_NEXT>` pushed). The `<PREV>-to-<PREV_NEXT>` guide says: stay on `<PREV_NEXT>` until `<CUR_NEXT>` is released.
+   d. When the patch is ready and tested, **squash the entire feature branch into a single commit** on a `release/podiumd-<PREV_NEXT>` branch. That single commit is what triggers the helm-publish CI build. **Do not push further commits to `release/podiumd-<PREV_NEXT>`** — extra commits don't re-trigger cleanly and confuse the publish job.
+   e. Tag / GitHub-release is cut from the `release/*` tip.
 
    If the **feature branch** is missing, print an alarm but do **not** auto-create it — the previous-minor owner picks which fix to backport and when. Sample alarm text:
    ```
    ⚠️  Previous-minor patch branch missing: feature/podiumd-<PREV_NEXT>
        Latest released previous-minor: podiumd-<PREV>
        Follow the prev-minor workflow:
-         1. develop on feature/podiumd-<PREV_NEXT> (no PR to main, ever)
-         2. squash all work into ONE commit on release/podiumd-<PREV_NEXT>
+         1. develop on feature/podiumd-<PREV_NEXT>, branched from podiumd-<PREV>
+            (no chart PR to main, ever)
+         2. docs (upgrade .md + images manifest) go to main in a separate
+            docs/podiumd-<PREV_NEXT> PR; the feature branch keeps a copy
+         3. squash all work into ONE commit on release/podiumd-<PREV_NEXT>
             — that single commit triggers the helm build
-         3. no further commits on release/* after that
+         4. no further commits on release/* after that
        Do not run create+bump+PR from this command — that flow is for the
        current minor (CUR_NEXT) and next minor (NEXT_MINOR) only.
    ```
@@ -89,7 +94,7 @@ Behavior:
    **Visibility PR:** a PR for the prev-minor patch *may* exist against `main` for visibility/tracking. **Draft-state follows the same review-requested rule as the other two placeholders** — draft when no reviewers are requested, ready when reviewers are. The PR must **never actually merge to `main`** regardless of state (the release/* single-commit branch is the helm-build trigger).
 
    **Hard rules (follow to the letter):**
-   - The prev-minor PR must never be merged to `main`, draft or not. If you find one in a "mergeable + approved" state, leave it — let the operator decide whether to close it.
+   - The prev-minor chart PR must never be merged to `main`, draft or not; only its `docs/podiumd-<PREV_NEXT>` PR merges. If you find one in a "mergeable + approved" state, leave it — let the operator decide whether to close it.
    - Draft-state on the prev-minor PR mirrors `reviewRequests.length > 0` exactly (same rule as steps 7/8/11).
    - Never push a second commit to `release/podiumd-<PREV_NEXT>` once the squash commit is there.
    - Memory: see `project_prev_minor_patch_workflow.md` and `project_release_pr_draft_policy.md` in the project memory dir for the same rules.

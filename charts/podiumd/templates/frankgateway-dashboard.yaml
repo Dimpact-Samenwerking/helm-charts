@@ -48,7 +48,7 @@ stringData:
         host: 0.0.0.0
         port: 9000
       allow_list:
-        - 0.0.0.0/0
+        {{- toYaml $dash.allowFrom | nindent 8 }}
       etcd:
         endpoints:
           {{- include "podiumd.frankgateway.etcdEndpoints" (dict "root" $root) | nindent 10 }}
@@ -167,12 +167,14 @@ spec:
         {{- include "podiumd.labelsNamed" (dict "context" $root "name" (printf "%s-dashboard" $name)) | nindent 8 }}
         app.kubernetes.io/component: frankgateway-dashboard
     spec:
+      {{- include "podiumd.frankgateway.podSecurity" (dict "instance" $fg "user" "dashboard") | nindent 6 }}
       topologySpreadConstraints:
         {{- include "podiumd.frankgateway.spread" (dict "name" (printf "%s-dashboard" $name) "override" $fg.topologySpreadConstraints) | nindent 8 }}
       containers:
         - name: dashboard
           image: {{ include "podiumd.image" $dash.image }}
           imagePullPolicy: IfNotPresent
+          {{- include "podiumd.frankgateway.containerSecurity" (dict "instance" $fg "user" "dashboard") | nindent 10 }}
           ports:
             - name: http
               containerPort: 9000
@@ -192,10 +194,20 @@ spec:
             - name: conf
               mountPath: /usr/local/apisix-dashboard/conf/conf.yaml
               subPath: conf.yaml
+            - name: logs
+              mountPath: /usr/local/apisix-dashboard/logs
+            - name: tmp
+              mountPath: /tmp
       volumes:
         - name: conf
           secret:
             secretName: {{ $name }}-dashboard-conf
+        - name: logs
+          emptyDir:
+            sizeLimit: 128Mi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
       {{- with $dash.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

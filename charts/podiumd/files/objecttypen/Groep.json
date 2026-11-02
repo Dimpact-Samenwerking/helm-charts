@@ -1,0 +1,40 @@
+{
+	"type": "object",
+	"title": "Groep",
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"examples": [
+		{
+			"identificatie": "ond-verg-wabo",
+			"naam": "Ondernemen en Vergunningen Wabo",
+			"afdelingId": "12bed5b2-b403-4dc1-96da-1ee9c7a526df",
+			"email": "ond-verg-wabo@demodam.nl"
+		}
+	],
+	"properties": {
+		"identificatie": {
+			"type": "string",
+			"title": "identificatie",
+			"description": "Een korte identificatie van de groep"
+		},
+		"naam": {
+			"type": "string",
+			"title": "Naam van de groep",
+			"description": "feitelijke naam van de groep"
+		},
+		"afdelingId": {
+			"type": "string",
+			"title": "ID van de bovenliggende afdeling.",
+			"description": "ID van de afdeling waar de groep onder valt."
+		},
+		"email": {
+			"type": "string",
+			"title": "E-mailadres",
+			"format": "email",
+			"description": "E-mailadres van de groep"
+		}
+	},
+	"required": [
+		"identificatie",
+		"naam"
+	]
+}

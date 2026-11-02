@@ -106,49 +106,69 @@ def test_word_aligned_spans_excludes_mid_word_fragments(libupgradedocbasics: Mod
     assert spans == {"ensurepodiumdadminuser"}
 
 
-# --- match_dependency ---
+# --- match_component: dependencies ---
 
 
 def test_match_dependency_by_alias(libupgradedocbasics: ModuleType):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac"}]
-    dep = libupgradedocbasics.match_dependency("ZAC (Zaakafhandelcomponent)", deps)
+    dep = libupgradedocbasics.match_component("ZAC (Zaakafhandelcomponent)", deps, set())
     assert dep["alias"] == "zac"
 
 
 def test_match_dependency_prefers_longest_match(libupgradedocbasics: ModuleType):
     deps = [{"name": "openzaak"}, {"name": "openzaak-notificaties"}]
-    dep = libupgradedocbasics.match_dependency("OpenZaak Notificaties", deps)
+    dep = libupgradedocbasics.match_component("OpenZaak Notificaties", deps, set())
     assert dep["name"] == "openzaak-notificaties"
 
 
 def test_match_dependency_no_match_returns_none(libupgradedocbasics: ModuleType):
-    assert libupgradedocbasics.match_dependency("Totally Unknown Thing", [{"name": "zac"}]) is None
+    assert libupgradedocbasics.match_component("Totally Unknown Thing", [{"name": "zac"}], set()) is None
 
 
 def test_match_dependency_short_alias_does_not_match_mid_word(libupgradedocbasics: ModuleType):
     """ "mi" inside "ensurePodiumdAdminUser" must not match without a word boundary."""
     deps = [{"name": "mi-data", "alias": "mi"}]
-    assert libupgradedocbasics.match_dependency("Python (ensurePodiumdAdminUser init image)", deps) is None
+    assert libupgradedocbasics.match_component("Python (ensurePodiumdAdminUser init image)", deps, set()) is None
 
 
-# --- match_native_component ---
+# --- match_component ---
 
 
-def test_match_native_component_matches_bare_name(libupgradedocbasics: ModuleType):
-    assert libupgradedocbasics.match_native_component("frankgateway", {"frankgateway"}) == "frankgateway"
+def test_match_component_matches_native_bare_name(libupgradedocbasics: ModuleType):
+    assert libupgradedocbasics.match_component("frankgateway", [], {"frankgateway"}) == "frankgateway"
 
 
-def test_match_native_component_matches_with_version_text(libupgradedocbasics: ModuleType):
-    assert libupgradedocbasics.match_native_component("frankgateway 100 → 104", {"frankgateway"}) == "frankgateway"
+def test_match_component_matches_native_with_version_text(libupgradedocbasics: ModuleType):
+    assert libupgradedocbasics.match_component("frankgateway 100 → 104", [], {"frankgateway"}) == "frankgateway"
 
 
-def test_match_native_component_no_match_returns_none(libupgradedocbasics: ModuleType):
-    assert libupgradedocbasics.match_native_component("Totally Unknown Thing", {"frankgateway"}) is None
+def test_match_component_no_match_returns_none(libupgradedocbasics: ModuleType):
+    assert libupgradedocbasics.match_component("Totally Unknown Thing", [], {"frankgateway"}) is None
 
 
-def test_match_native_component_does_not_match_mid_word(libupgradedocbasics: ModuleType):
+def test_match_component_does_not_match_native_mid_word(libupgradedocbasics: ModuleType):
     """A native component name inside an unrelated word must not match."""
-    assert libupgradedocbasics.match_native_component("somefrankgatewayfoo", {"frankgateway"}) is None
+    assert libupgradedocbasics.match_component("somefrankgatewayfoo", [], {"frankgateway"}) is None
+
+
+def test_match_component_exact_native_name_beats_a_word_match_on_a_dependency(libupgradedocbasics: ModuleType):
+    """A native "kiss-eck" row is not KISS's "kiss" alias."""
+    deps = [{"name": "kiss-chart", "alias": "kiss", "version": "3.2.0"}]
+    assert libupgradedocbasics.match_component("kiss-eck", deps, {"kiss-eck"}) == "kiss-eck"
+    assert libupgradedocbasics.match_component("kiss", deps, {"kiss-eck"}) == deps[0]
+    assert libupgradedocbasics.match_component("kiss-eck.eck-kibana.image", deps, {"kiss-eck"}) == "kiss-eck"
+
+
+def test_match_component_without_an_exact_name_prefers_a_dependency_word_match(libupgradedocbasics: ModuleType):
+    """No exact name: the word match keeps checking dependencies before native components."""
+    deps = [{"name": "kiss-chart", "alias": "kiss", "version": "3.2.0"}]
+    assert libupgradedocbasics.match_component("kiss-eck 8.19.19", deps, {"kiss-eck"}) == deps[0]
+    assert libupgradedocbasics.match_component("Frank gateway frankgateway", deps, {"frankgateway"}) == "frankgateway"
+
+
+def test_match_component_skips_dependencies_for_sidecar_names(libupgradedocbasics: ModuleType):
+    deps = [{"name": "redis-operator", "version": "0.27.0"}]
+    assert libupgradedocbasics.match_component("redis-operator - redis", deps, set()) is None
 
 
 # --- changes_heading_identities ---

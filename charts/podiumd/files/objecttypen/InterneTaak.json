@@ -1,0 +1,299 @@
+{
+  "type": "object",
+  "title": "ObjectType Interne Taak",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "examples": [
+    {
+      "actor": {
+	"naam": "D. Abbasoğlu",
+	"soortActor": "medewerker",
+	"identificatie": "abbaso014",
+	"naamOrganisatorischeEenheid": "Schuldhulpverlening",
+	"identificatieOrganisatorischeEenheid": "BAD-SHV",
+	"typeOrganisatorischeEenheid": "groep"      
+      },
+      "nummer": "2023-0001",
+      "status": "te verwerken",
+      "handeling": "De handeling die moet worden uitgevoerd om de taak af te ronden. Omschrijving Lang",
+      "betrokkene": {
+        "rol": "klant",
+        "klant": "https://example.com",
+        "organisatie": "Sporthal Ons Genoegen",
+        "persoonsnaam": {
+          "voornaam": "Johannes",
+          "achternaam": "Dooper",
+          "voorvoegselAchternaam": "den"
+        },
+        "digitaleAdressen": [
+          {
+            "adres": "0611223344",
+            "omschrijving": "telefoonnummer",
+            "soortDigitaalAdres": "telefoonnummer"
+          },
+          {
+            "adres": "020 6383068",
+            "omschrijving": "werknummer",
+            "soortDigitaalAdres": "telefoonnummer"
+          },
+          {
+            "adres": "joop@domein.nl",
+            "omschrijving": "e-mmailadres",
+            "soortDigitaalAdres": "e-mailadres"
+          }
+        ]
+      },
+      "toelichting": "Toelichting die, aanvullend bij de inhoud van het klantcontact dat aanleiding gaf tot de taak en de gevraagde handeling bijdraagt aan het kunnen afhandelen van de taak. Omschrijving Lang",
+      "contactmoment": "https://example.com/contactmomenten/api/v1/contactmomenten/2146569b-8100-4944-a12e-fd262bf7389d",
+      "registratiedatum": "2023-07-28T14:15:22Z",
+      "medewerkerIdentificatie": {
+        "achternaam": "string",
+        "voorletters": "string",
+        "identificatie": "string",
+        "voorvoegselAchternaam": "string"
+      }
+    },
+    {
+      "actor": {
+	   "naam": "Vergunningen",
+	   "soortActor": "organisatorische eenheid",
+           "identificatie": "vergu-012",
+	   "typeOrganisatorischeEenheid": "afdeling"
+		},
+	"nummer": "2023-0002",
+	"status": "te verwerken",
+	"handeling": "Terugbellen",
+	"betrokkene": {
+	   "rol": "klant",
+	   "klant": "https://example.com",
+	   "persoonsnaam": {
+	   	"voornaam": "Maria",
+	   	"achternaam": "Oosterbruggenbeek",
+		"voorvoegselAchternaam": "van der"
+	   },
+	  "digitaleAdressen": [
+		{
+			"adres": "0611223344",
+			"omschrijving": "telefoonnummer",
+			"soortDigitaalAdres": "telefoonnummer"
+		},
+		{
+			"adres": "020 6383068",
+			"omschrijving": "werknummer",
+			"soortDigitaalAdres": "telefoonnummer"
+		},
+		{
+			"adres": "joop@domein.nl",
+			"omschrijving": "e-mmailadres",
+			"soortDigitaalAdres": "e-mailadres"
+			}
+		]
+	  },
+      "toelichting": "Graag terubellen in de middaguren, over de zaak",
+      "contactmoment": "https://example.com/contactmomenten/api/v1/contactmomenten/2146569b-8100-4944-a12e-fd262bf7389d",
+      "registratiedatum": "2023-07-28T14:15:22Z",
+      "medewerkerIdentificatie": {
+	"achternaam": "string",
+	"voorletters": "string",
+	"identificatie": "string",
+	"voorvoegselAchternaam": "string"
+			}
+		}
+  ],
+  "required": [
+    "contactmoment",
+    "actor",
+    "betrokkene"
+  ],
+  "properties": {
+    "actor": {
+      "type": "object",
+      "required": [
+        "identificatie"
+      ],
+      "properties": {
+        "naam": {
+          "type": "string",
+          "title": "Naam van de actor",
+          "description": "Weergave naam van de actor. In geval van persoon: samenstelling van Voornaam/voorletters, tussenvoegsel en Achternaam"
+        },
+        "soortActor": {
+          "enum": [
+            "medewerker",
+            "organisatorische eenheid",
+            "geautomatiseerde actor"
+          ],
+          "type": "string",
+          "title": "Soort actor",
+          "description": ""
+        },
+        "identificatie": {
+          "type": "string",
+          "title": "identificatie",
+          "description": "Een korte identificatie van de organisatorische eenheid, of medewerker, die de taak moet gaan uitvoeren."
+        },
+	"naamOrganisatorischeEenheid": {
+	   "type": "string",
+	"title": "Naam van de organisatorische eenheid van de medewerker-actor",
+	"description": "Als actor een Medewerker is, dan kan in deze property de naam van de afdeling of groep van die medewerker staan, waardoor de taak in de juiste takenlijst kan komen te staan."
+	},
+	"identificatieOrganisatorischeEenheid": {
+		"type": "string",
+		"title": "identificatie van de organisatorische eenheid van de medewerker",
+		"description": "korte identificatie van de organisatorische eenheid van de medewerker-actor"
+	},
+	"typeOrganisatorischeEenheid": {
+		"enum": [
+			"afdeling",
+			"groep"
+		],
+		"type": "string",
+		"title": "Type organisatorische eenheid",
+		"description": "Extra aanduiding van het type organisatorische eenheid, bv Afdeling of Groep. Toegevoegd t.b.v. ontwikkeling PodiumD Contact i.c.m. e-Suite, waar het verschil tussen Afdeling en Groep betekenisvol is."
+	}
+      }
+    },
+    "nummer": {
+      "type": "string",
+      "title": "Nummer",
+      "maxLength": 40,
+      "description": "Uniek identificerend nummer waarmee tijdens communicatie tussen mensen verwezen kan worden naar de interne taak."
+    },
+    "status": {
+      "enum": [
+        "te verwerken",
+        "verwerkt"
+      ],
+      "type": "string",
+      "title": "Status",
+      "description": "De voortgang van de afhandeling van de taak."
+    },
+    "handeling": {
+      "type": "string",
+      "title": "Gevraagd handeling",
+      "description": "De handeling die moet worden uitgevoerd om de taak af te ronden."
+    },
+    "betrokkene": {
+      "type": "object",
+      "required": [
+        "digitaleAdressen"
+      ],
+      "properties": {
+        "rol": {
+          "enum": [
+            "klant",
+            "vertegenwoordiger"
+          ],
+          "type": "string",
+          "title": "Rol van de betrokkene",
+          "description": "Geeft aan of de persoon of organisatie die bij het klantcontact betrokken was optrad als (uiteindelijk) belanghebbende of als vertegenwoordiger."
+        },
+        "klant": {
+          "type": "string",
+          "title": "Gerelateerde klant",
+          "format": "uri",
+          "description": "URL-referentie naar de klant die de betrokkene is bij deze Interne Taak"
+        },
+        "organisatie": {
+          "type": "string",
+          "title": "Organisatienaam",
+          "description": "De naam van de organisatie die betrokken was bij een klantcontact"
+        },
+        "persoonsnaam": {
+          "type": "object",
+          "properties": {
+            "voornaam": {
+              "type": "string",
+              "title": "Voornaam",
+              "description": "De voornaam die de persoon wil gebruiken tijdens communicatie met de gemeente."
+            },
+            "achternaam": {
+              "type": "string",
+              "title": "Achternaam",
+              "description": "De achternaam van de betrokkene."
+            },
+            "voorvoegselAchternaam": {
+              "type": "string",
+              "title": "voorvoegsel achternaam",
+              "description": "Een eventueel voorvoegsel dat hoort bij de achternaam die de persoon wil gebruiken tijdens communicatie met de gemeente."
+            }
+          }
+        },
+        "digitaleAdressen": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "adres"
+            ],
+            "properties": {
+              "adres": {
+                "type": "string",
+                "title": "Het digitale adres",
+                "description": "Het digitale adres waarop de betrokkene bij klantcontact heeft aangegeven bereikbaar te zijn."
+              },
+              "omschrijving": {
+                "type": "string",
+                "title": "Omschrijving",
+                "description": "De omschrijving van het digitale adres, bijvoorbeeld Mobiel nummer, telefoonnummer of werktelefoon"
+              },
+              "soortDigitaalAdres": {
+                "type": "string",
+                "title": "Soort digitaal adres",
+                "description": "Het type soort digitale adres, zoals telefoonnummer of een e-mailadres (of twitter handle, mastodon-account."
+              }
+            }
+          },
+          "title": "Digitale adressen",
+          "description": "Eén of meer digitale adressen, bv. telefoonnummer en/of e-mailadres, waarop de betrokkene bij klantcontact heeft aangegeven bereikbaar te zijn."
+        }
+      }
+    },
+    "toelichting": {
+      "type": "string",
+      "title": "Toelichting",
+      "description": "Toelichting die, aanvullend bij de inhoud van het klantcontact dat aanleiding gaf tot de taak en de gevraagde handeling, bijdraagt aan het kunnen afhandelen van de taak."
+    },
+    "contactmoment": {
+      "type": "string",
+      "title": "Gerelateerd contactmoment",
+      "format": "uri",
+      "default": "",
+      "examples": [
+        "https://example.com/contactmomenten/api/v1/contactmomenten/2146569b-8100-4944-a12e-fd262bf7389d"
+      ],
+      "description": "URL-referentie naar het Contactmoment waar deze Interne Taak uit is aangemaakt"
+    },
+    "registratiedatum": {
+      "type": "string",
+      "title": "Registratiedatum",
+      "format": "date-time",
+      "description": "De datum en het tijdstip waarop de interne taak werd geregistreerd."
+    },
+    "medewerkerIdentificatie": {
+      "type": "object",
+      "properties": {
+        "achternaam": {
+          "type": "string",
+          "title": "Achternaam",
+          "description": "De achternaam zoals de MEDEWERKER die in het dagelijkse verkeer gebruikt."
+        },
+        "voorletters": {
+          "type": "string",
+          "title": "Voorletters",
+          "description": "De verzameling letters die gevormd wordt door de eerste letter van alle in volgorde voorkomende voornamen."
+        },
+        "identificatie": {
+          "type": "string",
+          "title": "identificatie van de medewerker",
+          "maxLength": 24,
+          "description": "Een korte unieke aanduiding van de MEDEWERKER die het contactverzoek aanmaakt"
+        },
+        "voorvoegselAchternaam": {
+          "type": "string",
+          "title": "Voorvoegsel bij de achternaam",
+          "description": "Dat deel van de geslachtsnaam dat voorkomt in Tabel 36 (GBA), voorvoegseltabel, en door een spatie van de geslachtsnaam is gescheiden"
+        }
+      }
+    }
+  }
+}

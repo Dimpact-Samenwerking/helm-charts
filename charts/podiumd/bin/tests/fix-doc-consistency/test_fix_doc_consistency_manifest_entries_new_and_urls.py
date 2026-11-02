@@ -9,8 +9,6 @@ from typing import TYPE_CHECKING
 import pytest
 import yaml
 
-import lib.fix_doc_consistency.manifest_entries_new_and_urls as manifest_entries_new_and_urls
-
 from lib.fix_doc_consistency.manifest_entries_new_and_urls import MissingEntriesContext
 from lib.fix_doc_consistency.manifest_entries_new_and_urls import add_missing_images_manifest_entries
 from lib.fix_doc_consistency.manifest_entries_new_and_urls import fix_images_manifest_entry_names
@@ -549,94 +547,6 @@ def eck_stack_chart_dir(tmp_path: Path):
     )
     write(tmp_path / "values.yaml", yaml.safe_dump({"kiss-eck": {"eck-elasticsearch": {"version": "8.19.19"}}}))
     return tmp_path
-
-
-def test_add_missing_images_manifest_entries_allow_pull_fetches_digest_from_registry(
-    eck_stack_chart_dir, monkeypatch: pytest.MonkeyPatch
-):
-    """With allow_pull=True, a digest missing from values.yaml is fetched from the registry."""
-    deps: list[ChartDependency] = [{"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}]
-    target_values: YamlMapping = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.19"}}}
-    baseline_values: YamlMapping = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.3"}}}
-    fake_digest = "sha256:" + "a" * 64
-    calls = []
-
-    def fake_registry_tag_exists(host, repo, tag):
-        calls.append((host, repo, tag))
-        return True, fake_digest
-
-    monkeypatch.setattr(manifest_entries_new_and_urls, "registry_tag_exists", fake_registry_tag_exists)
-
-    new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
-        "",
-        MissingEntriesContext(
-            eck_stack_chart_dir,
-            deps,
-            target_values,
-            baseline_values,
-            allow_pull=True,
-        ),
-    )
-
-    assert skipped == []
-    assert added == ["kiss-eck"]
-    assert calls == [("docker.elastic.co", "elasticsearch/elasticsearch", "8.19.19")]
-    assert f'digest: "{fake_digest}"' in new_text
-    assert 'version: "8.19.19"' in new_text
-
-
-def test_add_missing_images_manifest_entries_allow_pull_false_never_touches_network(
-    eck_stack_chart_dir, monkeypatch: pytest.MonkeyPatch
-):
-    """allow_pull=False never calls the registry: skipped."""
-    deps: list[ChartDependency] = [{"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}]
-    target_values: YamlMapping = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.19"}}}
-    baseline_values: YamlMapping = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.3"}}}
-
-    def fail_if_called(host, repo, tag):
-        msg = "registry_tag_exists must never be called when allow_pull=False"
-        raise AssertionError(msg)
-
-    monkeypatch.setattr(manifest_entries_new_and_urls, "registry_tag_exists", fail_if_called)
-
-    new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
-        "",
-        MissingEntriesContext(
-            eck_stack_chart_dir,
-            deps,
-            target_values,
-            baseline_values,
-        ),
-    )
-
-    assert added == []
-    assert skipped == ["kiss-eck"]
-    assert new_text == ""
-
-
-def test_add_missing_images_manifest_entries_allow_pull_registry_miss_still_skips(
-    eck_stack_chart_dir, monkeypatch: pytest.MonkeyPatch
-):
-    """A registry miss (exists=False) is still reported as skipped."""
-    deps: list[ChartDependency] = [{"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}]
-    target_values: YamlMapping = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.19"}}}
-    baseline_values: YamlMapping = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.3"}}}
-
-    monkeypatch.setattr(manifest_entries_new_and_urls, "registry_tag_exists", lambda host, repo, tag: (False, None))
-
-    _new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
-        "",
-        MissingEntriesContext(
-            eck_stack_chart_dir,
-            deps,
-            target_values,
-            baseline_values,
-            allow_pull=True,
-        ),
-    )
-
-    assert added == []
-    assert skipped == ["kiss-eck"]
 
 
 @pytest.fixture

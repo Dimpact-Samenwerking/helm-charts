@@ -1,12 +1,10 @@
-"""Preceding-comment lookup, images-manifest "# Changes:" block parsing,
-key-diff primitives, and path_display_name."""
+"""Preceding-comment lookup, images-manifest "# Changes:" block parsing
+and path_display_name."""
 
 import re
 
 from collections.abc import Callable
-from collections.abc import Iterator
 from collections.abc import Mapping
-from typing import Literal
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import is_primary_image_path
@@ -15,7 +13,6 @@ from lib.images_manifest import ManifestEntry
 from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
 from lib.upgradedoc.string_and_parsing_basics import extract_target_version
-from lib.yaml_types import YamlValue
 
 BARE_CHART_CLAUSE_RE = re.compile(
     r"\bchart\s+`?[A-Za-z0-9][\w.\-]*`?\s*(?:→|->)\s*`?[A-Za-z0-9][\w.\-]*`?", re.IGNORECASE
@@ -102,87 +99,6 @@ def _comment_owner(
             return None
         index -= 1
     return index
-
-
-def diff_keys(
-    baseline_node: YamlValue, current_node: YamlValue, path: tuple[str, ...] = ()
-) -> Iterator[tuple[Literal["added", "removed"], tuple[str, ...]]]:
-    """Yield ("added"|"removed", path) for the shallowest differing keys.
-
-    A wholly new/removed block is reported once, matching how values-deltas.md
-    documents changes. Scalar value changes are not reported. Keys are sorted
-    so pair_renames' pairing is deterministic across processes."""
-    if not isinstance(baseline_node, dict) or not isinstance(current_node, dict):
-        return
-    baseline_keys = set(baseline_node.keys())
-    current_keys = set(current_node.keys())
-    for key in sorted(current_keys - baseline_keys):
-        yield "added", (*path, key)
-    for key in sorted(baseline_keys - current_keys):
-        yield "removed", (*path, key)
-    for key in sorted(baseline_keys & current_keys):
-        yield from diff_keys(baseline_node[key], current_node[key], (*path, key))
-
-
-def flatten_leaf_keys(node: YamlValue) -> set[str]:
-    """Leaf key names (not paths) anywhere under a subtree, for rename similarity.
-
-    Keys holding a dict/list are excluded; they'd inflate the similarity ratio."""
-    keys: set[str] = set()
-    if isinstance(node, dict):
-        for key, value in node.items():
-            if isinstance(value, (dict, list)):
-                keys |= flatten_leaf_keys(value)
-            else:
-                keys.add(key)
-    elif isinstance(node, list):
-        for item in node:
-            keys |= flatten_leaf_keys(item)
-    return keys
-
-
-def _get_at_path(node: YamlValue, path: tuple[str, ...]) -> YamlValue:
-    for key in path:
-        if not isinstance(node, dict):
-            return None
-        node = node.get(key)
-    return node
-
-
-def _find_rename_match(
-    add_path: tuple[str, ...], removed_left: list[tuple[str, ...]], baseline_node: YamlValue, current_node: YamlValue
-) -> tuple[str, ...] | None:
-    """First removed path pairing with add_path as a rename (see pair_renames), or None."""
-    add_val = _get_at_path(current_node, add_path)
-    for rem_path in removed_left:
-        if add_path[:-1] != rem_path[:-1]:
-            continue
-        rem_val = _get_at_path(baseline_node, rem_path)
-        add_keys, rem_keys = flatten_leaf_keys(add_val), flatten_leaf_keys(rem_val)
-        similar = bool(add_keys and rem_keys and len(add_keys & rem_keys) / len(add_keys | rem_keys) >= 0.3)
-        same_scalar = not isinstance(add_val, (dict, list)) and add_val == rem_val
-        if similar or same_scalar:
-            return rem_path
-    return None
-
-
-def pair_renames(
-    added: list[tuple[str, ...]], removed: list[tuple[str, ...]], baseline_node: YamlValue, current_node: YamlValue
-) -> tuple[list[tuple[tuple[str, ...], tuple[str, ...]]], list[tuple[str, ...]], list[tuple[str, ...]]]:
-    """Pair added/removed keys at the same parent into renames.
-
-    A pair matches when leaf key names overlap enough (e.g. mi.sftp ->
-    mi.transfer) or both hold the same scalar. Returns (renamed, added_left,
-    removed_left)."""
-    renamed: list[tuple[tuple[str, ...], tuple[str, ...]]] = []
-    added_left, removed_left = list(added), list(removed)
-    for add_path in list(added_left):
-        rem_path = _find_rename_match(add_path, removed_left, baseline_node, current_node)
-        if rem_path is not None:
-            renamed.append((rem_path, add_path))
-            added_left.remove(add_path)
-            removed_left.remove(rem_path)
-    return renamed, added_left, removed_left
 
 
 def parse_changes_block(text: str) -> list[VersionRow]:

@@ -25,7 +25,7 @@ from lib.upgradedoc.sorting_and_ordering import path_order_key
 from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import changes_item_names
 from lib.upgradedoc.string_and_parsing_basics import normalize_name
-from lib.upgradedoc.version_cells_and_key_changes import VERSION_PAIR_RE
+from lib.upgradedoc.version_cells import VERSION_PAIR_RE
 from lib.yaml_types import YamlMapping
 
 SIDECAR_HEADER_RE = re.compile(r"^#\s{2,}sidecar:\s*(?P<text>.*)$", re.IGNORECASE)

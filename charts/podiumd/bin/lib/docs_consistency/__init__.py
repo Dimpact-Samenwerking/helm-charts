@@ -5,8 +5,6 @@ given upgrade_docs_baseline, every component changed since it must appear in the
 doc. Uses only upgrade_docs_baseline, never release_table_baseline.
 """
 
-import re
-
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -15,7 +13,6 @@ from lib.chart.chart_state import ComponentState
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.release_baseline_basics import chart_version
-from lib.chart.values_tree_primitives import image_version_changed
 from lib.component_docs.changes_section import DocContext
 from lib.component_docs.changes_section import edited_changes_lines
 from lib.component_docs.changes_section import pointer_issues
@@ -23,7 +20,6 @@ from lib.component_docs.changes_section import resolve_component_own_version_cha
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
 from lib.component_docs.images_manifest_entries import expected_changes_items
 from lib.component_docs.images_manifest_entries import stale_changes_items
-from lib.component_docs.values_delta_sections import edited_values_delta_lines
 from lib.component_docs.values_delta_sections import has_stale_gemeente_specific_placeholder
 from lib.docs_consistency.check_context import ComponentRowsResult
 from lib.docs_consistency.check_context import DocQuery
@@ -44,7 +40,7 @@ from lib.docs_consistency.markdown_format import check_companion_doc
 from lib.docs_consistency.markdown_format import check_doc_title
 from lib.docs_consistency.pointer_consistency import check_pointer_consistency
 from lib.docs_consistency.values_diff import ValuesDeltaInputs
-from lib.docs_consistency.values_diff import check_values_deltas_content
+from lib.docs_consistency.values_diff import check_values_deltas_empty_sections
 from lib.docs_consistency.values_diff import check_values_deltas_rowless_headings
 from lib.image.docs import changes_sections_contradicting_rows
 from lib.image.manifest_entry_pins import entry_pin
@@ -71,6 +67,7 @@ from lib.upgradedoc.resolve_component_row import ResolvedRow
 from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
 from lib.upgradedoc.resolve_component_row import resolve_component_row
 from lib.upgradedoc.resolve_component_row import resolved_row_unchanged
+from lib.upgradedoc.resolve_component_row import strip_chart_clause
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.string_and_parsing_basics import TableRow
@@ -78,7 +75,7 @@ from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows as _parse_upgrade_doc_rows
-from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
+from lib.upgradedoc.version_cells import component_version_cell
 from lib.version_numbers import is_bare_version
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import load_yaml_mapping
@@ -161,7 +158,9 @@ def _build_docs_check_context(chart_dir: Path, doc_dir: Path, podiumd_version: s
     )
     # Ground truth, independent of the docs, so a changed component missing from every doc is caught.
     actual_changed_keys: set[str] = (
-        compute_changed_components(deps, baseline_deps, values, baseline_values) if baseline_ref else set()
+        compute_changed_components(deps, baseline_deps, values, baseline_values, chart_dir=chart_dir)
+        if baseline_ref
+        else set()
     )
     ctx = DocsCheckContext(
         chart_dir=chart_dir,
@@ -307,12 +306,14 @@ def _check_component_rows(
     return result
 
 
-def _check_missing_component_rows(ctx: DocsCheckContext, scan: DocScanState):
+def _check_missing_component_rows(ctx: DocsCheckContext, scan: DocScanState, resolution: ResolutionContext):
     """Flag components changed vs baseline that have no row at all.
 
     Covers own primary rows (resolve_component_own_version_change, shared with
     add_missing_component_rows) and sidecar images under an already-rowed dependency
-    (e.g. redis-ha under redis-operator). Only called when ctx.baseline_ref is set.
+    (e.g. redis-ha under redis-operator), resolved like their rows
+    (resolve_component_row, shared with add_missing_sidecar_rows' baseline). Only
+    called when ctx.baseline_ref is set.
     """
     mismatches: list[str] = []
     # fix-doc-consistency writes a removed component's row (sync_removed_items).
@@ -337,7 +338,8 @@ def _check_missing_component_rows(ctx: DocsCheckContext, scan: DocScanState):
         if path in rowed_paths:
             continue
         # A digest-only re-pin needs no row.
-        if image_version_changed(ctx.images.baseline.paths.get(path), ctx.images.current.paths.get(path)):
+        resolved = resolve_component_row(name, scan.canonical_names, resolution)
+        if resolved["kind"] != "unmatched" and not resolved_row_unchanged(resolved):
             mismatches.append(
                 f'{scan.doc_path.name}: sidecar/shared image "{name}" changed vs {ctx.baseline_ref} '
                 f'but has no row in the "Component versions" table'
@@ -417,7 +419,7 @@ def _check_changes_heading_correspondence(
 
         if ctx.baseline_ref and identity in rows_result.baseline_app_by_identity:
             expected_app_heading = component_version_cell(rows_result.baseline_app_by_identity[identity], actual_app)
-            without_chart_clause = re.sub(r"\(chart[^)]*\)", "", heading)
+            without_chart_clause = strip_chart_clause(heading)
             if expected_app_heading is not None and expected_app_heading not in without_chart_clause:
                 mismatches.append(
                     f'{scan.doc_path.name}: "## Changes" section "### {heading}" shows the wrong '
@@ -542,7 +544,7 @@ def _check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
     findings.mismatches.extend(rows_result.mismatches)
 
     if ctx.baseline_ref:
-        findings.mismatches.extend(_check_missing_component_rows(ctx, scan))
+        findings.mismatches.extend(_check_missing_component_rows(ctx, scan, resolution))
 
     doc_text = doc_path.read_text(encoding="utf-8")
     changes_headings = [b["heading"] for b in parse_upgrade_doc_changes_blocks(doc_text)]
@@ -574,7 +576,11 @@ def _check_images_manifest_entry(
         findings.mismatches.append(f'{name}: entry in {scan.images_path.name} is missing "version" or "digest"')
         return
     expected_tag = f"{version}@{digest}"
-    if actual_tag != expected_tag:
+    # A path exempt from digest pinning without a digest field (omc.image) pins the
+    # tag only; its entry still records the registry digest of that tag.
+    exception = scan.sibling_fields.get(path)
+    tag_only = exception is not None and exception["sibling_field"] is None
+    if actual_tag != expected_tag and not (tag_only and actual_tag == version):
         findings.mismatches.append(
             f'{name}: values.yaml tag is "{actual_tag}", {scan.images_path.name} says "{expected_tag}"'
         )
@@ -639,27 +645,12 @@ def _check_images_manifest(
 
 
 def _check_values_deltas(ctx: DocsCheckContext, upgrade_docs_baseline: str, findings: Findings):
-    """The values-deltas doc's content checks (see caller's guard); fix-doc-consistency orders its sections."""
-    values_deltas_path = ctx.doc_query.doc_dir / doc_name(
-        upgrade_docs_baseline, ctx.doc_query.podiumd_version, "values-deltas"
-    )
-    # Removed components are listed in the upgrade doc only.
-    findings.mismatches.extend(
-        check_values_deltas_content(
-            values_deltas_path, ctx.actual_changed_keys - set(ctx.removed_items_by_name), _values_delta_inputs(ctx)
-        )
-    )
-
-    deltas_text = values_deltas_path.read_text(encoding="utf-8")
-    _warn_edited_generated_lines(values_deltas_path, "##", edited_values_delta_lines(deltas_text))
-
-
-def _check_values_deltas_headings(ctx: DocsCheckContext, upgrade_docs_baseline: str, findings: Findings):
-    """Generated values-deltas headings without an upgrade-doc row; also when no key changed at all."""
+    """Empty values-deltas sections, and generated headings without an upgrade-doc row."""
     query = ctx.doc_query
     values_deltas_path = query.doc_dir / doc_name(upgrade_docs_baseline, query.podiumd_version, "values-deltas")
     if not values_deltas_path.is_file():
         return
+    findings.mismatches.extend(check_values_deltas_empty_sections(values_deltas_path))
     findings.mismatches.extend(
         check_values_deltas_rowless_headings(
             values_deltas_path,
@@ -670,9 +661,7 @@ def _check_values_deltas_headings(ctx: DocsCheckContext, upgrade_docs_baseline: 
 
 
 def _values_delta_inputs(ctx: DocsCheckContext) -> ValuesDeltaInputs:
-    return ValuesDeltaInputs(
-        ctx.baseline.values, ctx.current.values, ctx.current.deps, ctx.images.current.canonical_names
-    )
+    return ValuesDeltaInputs(ctx.current.deps, ctx.images.current.canonical_names)
 
 
 def _check_baseline_doc_set_and_pointers(
@@ -718,10 +707,8 @@ def _check_docs(chart_dir: Path, doc_dir: Path, upgrade_docs_baseline: str | Non
     _check_component_versions_table(ctx, findings)
     _check_images_manifest(ctx, sibling_fields, findings)
 
-    if ctx.baseline_ref and is_bare_version(upgrade_docs_baseline) and ctx.actual_changed_keys:
-        _check_values_deltas(ctx, upgrade_docs_baseline, findings)
     if is_bare_version(upgrade_docs_baseline):
-        _check_values_deltas_headings(ctx, upgrade_docs_baseline, findings)
+        _check_values_deltas(ctx, upgrade_docs_baseline, findings)
     return findings
 
 

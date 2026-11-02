@@ -11,6 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import lib.chart.repo_and_path_resolution as repo_and_path_resolution
 import lib.image.docs as image_docs
 import lib.image.version as image_version
 
@@ -29,21 +30,27 @@ def git(*args: str, cwd: Path) -> None:
     subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
 
 
-def chart_yaml(zac_chart: str, kiss_chart: str = "3.0.0") -> str:
+def chart_yaml(zac_chart: str, kiss_chart: str = "3.0.0", redis_operator_chart: str = "0.26.1") -> str:
     # Raw text, not yaml.safe_dump: update_chart_yaml's line scan needs "name:" first.
     return (
         "apiVersion: v2\nname: podiumd\nversion: 4.9.0\n"
         "dependencies:\n"
         f'  - name: zaakafhandelcomponent\n    version: {zac_chart}\n    repository: "@example"\n    alias: zac\n'
         f'  - name: kiss\n    version: {kiss_chart}\n    repository: "@example"\n'
+        f'  - name: redis-operator\n    version: {redis_operator_chart}\n    repository: "@example"\n'
     )
 
 
-def values_yaml(zac: str, opa: str, kiss: str) -> str:
+def values_yaml(zac: str, opa: str, kiss: str, redis_operator: str = f"v0.26.0@{DIGEST['a']}") -> str:
     return (
         f'zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n    tag: "{zac}"\n'
         f'  opa:\n    image:\n      repository: openpolicyagent/opa\n      tag: "{opa}"\n'
         f'kiss:\n  image:\n    repository: ghcr.io/kiss/kiss-frontend\n    tag: "{kiss}"\n'
+        # Split "imageName:"/"imageTag:" fields, no "image:" block; the init
+        # container's tag aliases imageTag's anchor, as in the real chart.
+        f"redis-operator:\n  redisOperator:\n    imageName: quay.io/opstree/redis-operator\n"
+        f'    imageTag: &redisOperatorImageTag "{redis_operator}"\n'
+        "    initContainerImageTag: *redisOperatorImageTag\n"
     )
 
 
@@ -106,7 +113,8 @@ def chart(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType) -> P
     )
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, DIGEST["f"]))
 
-    def check_image_versions(values, image_paths, app_version):
+    def check_image_versions(_chart_dir, _dep, values, pins, app_version):
+        image_paths = [pin.path for pin in pins]
         return [
             {"path": p, "repository": "r", "host": "ghcr.io", "repo_path": "r", "exists": True, "digest": DIGEST["f"]}
             for p in image_paths
@@ -151,3 +159,38 @@ def test_a_chart_only_bump(ucv: ModuleType, chart: Path, monkeypatch: pytest.Mon
 
     assert "| kiss | 3.0.0 (unchanged) | 3.0.0 → 3.0.1 | - |" in written[UPGRADE]
     assert USER_NOTE in written[UPGRADE]
+
+
+def test_a_split_version_field_bump_is_written_checked_and_stable(
+    ucv: ModuleType, chart: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """redis-operator: the real version check finds the repository in imageName, both tag fields are bumped,
+    the checker accepts the docs, and a second run changes nothing."""
+    checked: list[tuple[str, str, str]] = []
+
+    def exists(host: str, repo: str, tag: str) -> tuple[bool, str | None]:
+        checked.append((host, repo, tag))
+        return True, DIGEST["f"]
+
+    monkeypatch.setattr(ucv, "check_image_versions", repo_and_path_resolution.check_image_versions)
+    monkeypatch.setattr(repo_and_path_resolution, "registry_tag_exists", exists)
+
+    written = bump(ucv, chart, monkeypatch, "redis-operator", "v0.27.0", "0.27.0")
+
+    # imageTag and initContainerImageTag share one repository: one lookup.
+    assert checked == [("quay.io", "opstree/redis-operator", "v0.27.0")]
+    values = (chart / "values.yaml").read_text(encoding="utf-8")
+    assert values.count(f'"v0.27.0@{DIGEST["f"]}"') == 1
+    assert "initContainerImageTag: *redisOperatorImageTag\n" in values
+    assert "v0.26.0" not in values
+    assert "version: 0.27.0" in (chart / "Chart.yaml").read_text(encoding="utf-8")
+    assert "| redis-operator | v0.26.0 → v0.27.0 | 0.26.1 → 0.27.0 | - |" in written[UPGRADE]
+
+    before = (values, (chart / "Chart.yaml").read_text(encoding="utf-8"), written)
+    again = bump(ucv, chart, monkeypatch, "redis-operator", "v0.27.0", "0.27.0")
+    after = (
+        (chart / "values.yaml").read_text(encoding="utf-8"),
+        (chart / "Chart.yaml").read_text(encoding="utf-8"),
+        again,
+    )
+    assert after == before

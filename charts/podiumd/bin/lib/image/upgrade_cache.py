@@ -12,21 +12,22 @@ from lib.json_cache import cache_file
 from lib.json_cache import checked_within
 from lib.json_cache import load_json_cache
 from lib.json_cache import save_json_cache
+from lib.version_numbers import major_line
 from lib.yaml_types import shape_problem
 
 CACHE_FILENAME = "image-upgrade-cache.json"
 
 
 class UpgradeEntry(TypedDict):
-    """When the tag list was checked, and the newest same-variant tag then (the pin itself if none newer)."""
+    """When the versions were checked, and the newest newer one per major then ([] if none)."""
 
     checked_at: str
-    newest: str
+    newer: list[str]
 
 
 def is_upgrade_entry(value: object) -> TypeGuard[UpgradeEntry]:
     """Whether a parsed cache entry is an UpgradeEntry."""
-    return shape_problem(value, {"checked_at": str, "newest": str}) is None
+    return shape_problem(value, {"checked_at": str, "newer": [str]}) is None
 
 
 def cache_path(chart_dir: Path):
@@ -58,3 +59,15 @@ def cache_key(repository: str, version: str):
 def cache_entry_is_fresh(entry: UpgradeEntry, ttl_days: int):
     """Whether `entry` was checked within the last `ttl_days` days."""
     return checked_within(entry.get("checked_at"), timedelta(days=ttl_days))
+
+
+def same_major_upgrade(cache: dict[str, UpgradeEntry], repository: str, version: str, ttl_days: int) -> str | None:
+    """The newer tag in `version`'s major line from a fresh cache entry, else None.
+
+    The CVE checks compare against this one: a newer major is a migration, not an upgrade.
+    """
+    entry = cache.get(cache_key(repository, version))
+    if not entry or not cache_entry_is_fresh(entry, ttl_days):
+        return None
+    line = major_line(version)
+    return next((tag for tag in entry["newer"] if major_line(tag) == line), None)

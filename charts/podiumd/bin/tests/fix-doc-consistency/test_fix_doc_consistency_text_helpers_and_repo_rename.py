@@ -11,7 +11,9 @@ import pytest
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import collapse_multiple_blank_lines
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import ensure_blank_lines_around_headings
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import find_collisions
+from lib.fix_doc_consistency.text_helpers_and_repo_rename import heading_slug
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import remaining_mentions
+from lib.fix_doc_consistency.text_helpers_and_repo_rename import retarget_heading_links
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import update_component_versions_heading
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import update_title_line
 from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
@@ -220,6 +222,47 @@ def test_collapse_multiple_blank_lines_also_fixes_missing_blank_around_heading(c
     assert collapse_multiple_blank_lines(text) == (
         "- Image / digest: see foo.\n\n### curl 8.21.0 → 8.22.0\n\nSome prose.\n"
     )
+
+
+# --- heading_slug / retarget_heading_links ---
+
+
+def test_heading_slug_drops_punctuation_and_keeps_each_space():
+    assert heading_slug("kiss-eck 8.19.19 → 8.19.23") == "kiss-eck-81919--81923"
+    assert heading_slug("zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)") == "zac-544--545-chart-10297-unchanged"
+
+
+def test_retarget_heading_links_follows_a_renamed_generated_heading():
+    old = "See [it](#kiss-eck-81919-unchanged).\n\n### kiss-eck 8.19.19 (unchanged)\n"
+    new = "See [it](#kiss-eck-81919-unchanged).\n\n### kiss-eck 8.19.19 → 8.19.23\n"
+
+    text, retargeted = retarget_heading_links(old, new)
+
+    assert text == "See [it](#kiss-eck-81919--81923).\n\n### kiss-eck 8.19.19 → 8.19.23\n"
+    assert retargeted == ["#kiss-eck-81919-unchanged -> #kiss-eck-81919--81923"]
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        # A hand-written heading has no component identity to follow.
+        ("[it](#notes)\n\n## Notes\n", "[it](#notes)\n\n## Notes for ops\n"),
+        # Another level is another heading.
+        ("[it](#kiss-1-unchanged)\n\n### kiss 1 (unchanged)\n", "[it](#kiss-1-unchanged)\n\n## kiss 1 → 2\n"),
+        # The old anchor still exists.
+        (
+            "[it](#kiss-1-unchanged)\n\n### kiss 1 (unchanged)\n",
+            "[it](#kiss-1-unchanged)\n\n### kiss 1 → 2\n\n#### kiss 1 (unchanged)\n",
+        ),
+        # Inside a code fence.
+        (
+            "```\n[it](#kiss-1-unchanged)\n```\n\n### kiss 1 (unchanged)\n",
+            "```\n[it](#kiss-1-unchanged)\n```\n\n### kiss 1 → 2\n",
+        ),
+    ],
+)
+def test_retarget_heading_links_leaves_other_links_alone(old: str, new: str):
+    assert retarget_heading_links(old, new) == (new, [])
 
 
 # --- main() integration, against a real temp git repo ---

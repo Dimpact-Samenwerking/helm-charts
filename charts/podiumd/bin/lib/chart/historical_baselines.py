@@ -2,6 +2,7 @@
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 from typing import Protocol
 
@@ -10,8 +11,13 @@ from lib.chart.repo_and_path_resolution import full_repository_for_path
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repo_group_representative
 from lib.chart.repo_and_path_resolution import repository_group_key
+from lib.chart.values_tree_primitives import image_version_changed
+from lib.chart.values_tree_primitives import version_of
 from lib.images_manifest import try_parse_images_manifest
+from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.doc_names import IMAGES_MANIFEST_NAME_RE
+from lib.upgradedoc.sorting_and_ordering import path_order_key
+from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.version_numbers import dotted_numbers
 from lib.version_numbers import stable_semver_key
 from lib.yaml_types import YamlMapping
@@ -114,6 +120,11 @@ class BaselineLookup:
     baseline_paths: Mapping[tuple[str, ...], str | None]
     baseline_repo_groups: Mapping[str, list[tuple[str, ...]]]
 
+    @cached_property
+    def target_index(self) -> ChartImageIndex:
+        """The target's image paths and repository groups, for the paths using a global.images anchor."""
+        return ChartImageIndex(self.chart_dir, self.deps, self.target_values)
+
 
 def baseline_lookup(
     chart_dir: Path | None,
@@ -174,3 +185,45 @@ def baseline_tag_for_sidecar_path(lookup: BaselineLookup, path: tuple[str, ...])
     representative = repo_group_representative(matching, lookup.deps)
     representative_tag = lookup.baseline_paths.get(representative)
     return representative_tag.split("@", 1)[0] if representative_tag else None
+
+
+def sidecar_baseline_version(lookup: BaselineLookup, path: tuple[str, ...], at_or_before: str | None) -> str | None:
+    """A sidecar/shared image's baseline version: baseline_tag_for_sidecar_path, then
+    this chart's past images-<version>.yaml manifests up to `at_or_before`.
+
+    For a global.images `path` whose version that way is unchanged or unknown, a
+    path in its repository group that was on another version gives it instead
+    (_switched_consumer_baseline_tag): a sidecar that left its own image for the
+    shared one changes the shared image's row. Shared by the "Component versions"
+    row resolver (checker and table writer) and the sidecar-row writer, so they
+    agree on whether a row is needed."""
+    version = baseline_tag_for_sidecar_path(lookup, path)
+    if version is None and lookup.baseline_values:
+        version = historical_app_version_for_path(
+            lookup.chart_dir, lookup.deps, lookup.target_values, path, at_or_before
+        )
+    if path[0] == "global" and (
+        version is None or not image_version_changed(version, lookup.target_index.paths.get(path))
+    ):
+        return _switched_consumer_baseline_tag(lookup, path) or version
+    return version
+
+
+def _switched_consumer_baseline_tag(lookup: BaselineLookup, path: tuple[str, ...]) -> str | None:
+    """The baseline version of the first path (values.yaml order) in global.images
+    `path`'s repository group whose baseline version differs from `path`'s current
+    one; None when no such path exists."""
+    index = lookup.target_index
+    current_tag = index.paths.get(path)
+    group = next((paths for paths in index.repo_groups.values() if path in paths), None)
+    if group is None:
+        return None
+    key_order = values_key_order(lookup.target_values)
+    consumers = sorted(
+        (p for p in group if p != path), key=lambda p: path_order_key(p, lookup.deps, key_order, lookup.target_values)
+    )
+    for consumer in consumers:
+        baseline_tag = lookup.baseline_paths.get(consumer)
+        if baseline_tag and image_version_changed(baseline_tag, current_tag):
+            return version_of(baseline_tag)
+    return None

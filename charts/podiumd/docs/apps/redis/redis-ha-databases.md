@@ -4,11 +4,17 @@ PodiumD uses a single shared Redis HA cluster (3 replicas, managed by the OT Red
 instead of per-component Redis subcharts. Each component is assigned one or two dedicated
 logical databases within Redis, identified by the `/N` suffix in the connection URL.
 
-The Redis HA service is reachable at:
+The Redis HA service is reachable at the bare service name, which resolves to the
+`redis-ha-master` Service in the pod's own namespace (i.e. the namespace the chart is
+deployed to). This keeps the connection strings namespace-agnostic:
 
 ```text
-redis-ha-master.podiumd.svc.cluster.local:6379
+redis-ha-master:6379
 ```
+
+> The fully-qualified form is `redis-ha-master.<namespace>.svc.cluster.local:6379`. The
+> connection strings in `values.yaml` deliberately use the short name so the chart works in
+> any namespace without per-environment overrides.
 
 The cluster is configured with **32 logical databases** (`databases: 32` in `values.yaml`).
 This is set via an initContainer because `databases` is a startup-only parameter and the OT
@@ -20,9 +26,9 @@ Redis Operator v0.24.0 does not include it in the main `redis.conf` automaticall
 
 | DB  | Component         | Purpose                              | values.yaml key(s)                                  |
 |-----|-------------------|--------------------------------------|-----------------------------------------------------|
-| 0   | objecttypen       | Cache (default + axes)               | `objecttypen.settings.cache.default/axes`           |
+| 0   | *(free)*          | Freed by the objecten/objecttypen merge — was objecttypen's cache DB; the merged `objecten` app (docs/apps/objecten/openobject-migration.md, H.3) uses DBs 1/2 below for both apps' former traffic | — |
 | 1   | objecten          | Cache (default + axes + oidc)        | `objecten.settings.cache.default/axes/oidc`         |
-| 2   | objecten          | Celery broker + result backend       | `objecten.settings.celery.brokerUrl/resultBackendl` |
+| 2   | objecten          | Celery broker + result backend       | `objecten.settings.celery.brokerUrl/resultBackend`  |
 | 3   | opennotificaties  | Cache (default + axes)               | `opennotificaties.settings.cache.default/axes`      |
 | 4   | openzaak          | Cache (default + axes)               | `openzaak.settings.cache.default/axes`              |
 | 5   | openzaak          | Celery broker + result backend       | `openzaak.settings.celery.brokerUrl/resultBackendl` |
@@ -39,9 +45,11 @@ Redis Operator v0.24.0 does not include it in the main `redis.conf` automaticall
 | 16  | referentielijsten | **Reserved** — no Celery workers    | —                                                   |
 | 17  | openbeheer        | Cache (default + axes)               | `openbeheer.settings.cache.default/axes`            |
 | 18  | openbeheer        | **Reserved** — no Celery workers    | —                                                   |
-| 19  | *(future)*        | Cache (default + axes)               | See [Adding a new component](#adding-a-new-django-component) |
-| 20  | *(future)*        | Celery broker + result backend       | See [Adding a new component](#adding-a-new-django-component) |
-| 21–31 | —             | **Unallocated**                      | —                                                   |
+| 19  | openvtb           | Cache (default + axes)               | `openvtb.settings.cache.default/axes`               |
+| 20  | openvtb           | Celery broker + result backend (no worker deployed) | `openvtb.settings.celery.brokerUrl/resultBackend` |
+| 21  | *(future)*        | Cache (default + axes)               | See [Adding a new component](#adding-a-new-django-component) |
+| 22  | *(future)*        | Celery broker + result backend       | See [Adding a new component](#adding-a-new-django-component) |
+| 23–31 | —             | **Unallocated**                      | —                                                   |
 
 > ¹ Since opennotificaties chart **2.0.0** (PodiumD 4.8.0) the bundled RabbitMQ
 > is removed and db 6 carries the Celery broker, publish broker **and** result
@@ -72,9 +80,9 @@ Django-based components use two types of Redis connections:
 
 | Type | URL format | Example |
 |------|-----------|---------|
-| Cache | `host:port/N` | `redis-ha-master.podiumd.svc.cluster.local:6379/4` |
-| Celery broker | `redis://host:port/N` | `redis://redis-ha-master.podiumd.svc.cluster.local:6379/5` |
-| Celery result backend | `redis://host:port/N` | `redis://redis-ha-master.podiumd.svc.cluster.local:6379/5` |
+| Cache | `host:port/N` | `redis-ha-master:6379/4` |
+| Celery broker | `redis://host:port/N` | `redis://redis-ha-master:6379/5` |
+| Celery result backend | `redis://host:port/N` | `redis://redis-ha-master:6379/5` |
 
 Cache URLs do **not** include the `redis://` prefix — Django's cache backend adds this
 internally. Celery URLs **must** include the `redis://` prefix.
@@ -86,20 +94,20 @@ internally. Celery URLs **must** include the `redis://` prefix.
 When adding a new Django-based component to the chart, follow these steps:
 
 1. **Pick the next two unallocated database numbers** from the table above. At time of writing,
-   the next free pair is **db 19 (cache) and db 20 (celery)**.
+   the next free pair is **db 21 (cache) and db 22 (celery)**.
 
 2. **Add the Redis endpoints to the component's `settings` block in `values.yaml`:**
 
    ```yaml
-   # Example: future-component — uses db 19 (cache) and db 20 (celery)
+   # Example: future-component — uses db 21 (cache) and db 22 (celery)
    future-component:
      settings:
        cache:
-         default: redis-ha-master.podiumd.svc.cluster.local:6379/19
-         axes: redis-ha-master.podiumd.svc.cluster.local:6379/19
+         default: redis-ha-master:6379/21
+         axes: redis-ha-master:6379/21
        celery:
-         brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/20
-         resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/20
+         brokerUrl: redis://redis-ha-master:6379/22
+         resultBackendl: redis://redis-ha-master:6379/22
    ```
 
    > **Note:** The `resultBackendl` key has a typo (extra `l`) — this is intentional to match
@@ -108,7 +116,7 @@ When adding a new Django-based component to the chart, follow these steps:
 3. **Update the allocation table comment in `values.yaml`** under `redis-operator.redis-ha`:
 
    ```yaml
-   #   future-component   : db 19 (cache), db 20 (celery)
+   #   future-component   : db 21 (cache), db 22 (celery)
    ```
 
 4. **Update this document** — add the new component to the allocation table above.

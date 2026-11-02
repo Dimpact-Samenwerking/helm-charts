@@ -15,8 +15,8 @@ Also repairs the content against Chart.yaml and values.yaml:
     that contradicts its row; a pin bullet for every values
     path that shares a YAML anchor with a documented pin; a missing
     "- Image / digest" pointer and the blank line before it
-  - values-deltas doc: adds missing component sections and nested key
-    added/removed lines
+  - values-deltas doc: corrects the app versions in "## ..." headings,
+    removes empty sections and sorts them in values.yaml order
   - docs/images/images-<target>.yaml: fixes entries and "# Changes:"
     items, adds missing ones and removes images unchanged vs the
     baseline; review the "name:"/"url:" of added entries by hand (ACR

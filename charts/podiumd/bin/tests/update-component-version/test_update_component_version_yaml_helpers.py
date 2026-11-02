@@ -227,7 +227,7 @@ def test_update_values_yaml_single_image(ucv: ModuleType, tmp_path: Path, monkey
         encoding="utf-8",
     )
     monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
-    changes = ucv.update_values_yaml("zac", ["image"], {"image": "5.4.3@sha256:cccc"})
+    changes = ucv.update_values_yaml("zac", [ucv.PinPath("image", "image.tag")], {"image": "5.4.3@sha256:cccc"})
     assert len(changes) == 1
     updated = values_yaml.read_text(encoding="utf-8")
     assert '"5.4.3@sha256:cccc"' in updated
@@ -249,7 +249,7 @@ def test_update_values_yaml_multi_image_lockstep(ucv: ModuleType, tmp_path: Path
     monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
     changes = ucv.update_values_yaml(
         "zgw-office-addin",
-        ["frontend.image", "backend.image"],
+        [ucv.PinPath("frontend.image", "frontend.image.tag"), ucv.PinPath("backend.image", "backend.image.tag")],
         {"frontend.image": "v0.9.352@sha256:cccc", "backend.image": "v0.9.352@sha256:dddd"},
     )
     assert len(changes) == 2
@@ -264,7 +264,9 @@ def test_update_values_yaml_missing_path_raises(ucv: ModuleType, tmp_path: Path,
     values_yaml.write_text('zac:\n  image:\n    tag: "5.0.2@sha256:aaaa"\n', encoding="utf-8")
     monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
     with pytest.raises(SystemExit):
-        ucv.update_values_yaml("zac", ["frontend.image"], {"frontend.image": "1.0.0@sha256:zzzz"})
+        ucv.update_values_yaml(
+            "zac", [ucv.PinPath("frontend.image", "frontend.image.tag")], {"frontend.image": "1.0.0@sha256:zzzz"}
+        )
 
 
 # --- _load_split_tag_sha_paths ---

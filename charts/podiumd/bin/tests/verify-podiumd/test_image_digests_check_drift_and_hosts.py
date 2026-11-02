@@ -117,7 +117,7 @@ def test_check_image_digests_reports_duplicate_pin(
     assert "1 duplicate pin(s)" in detail
     assert "0 version-drift finding" in detail
     out = capsys.readouterr().out
-    assert "[DUPLICATE-PIN] curlimages/curl:8.21.0" in out
+    assert "[DUPLICATE-PIN] docker.io/curlimages/curl:8.21.0" in out
     assert "values.yaml:4, 8" in out
     assert "YAML anchor" in out
 

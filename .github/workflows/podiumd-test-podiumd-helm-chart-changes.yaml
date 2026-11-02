@@ -72,3 +72,21 @@ jobs:
           -f charts/podiumd/ci/frankgateway-single-class-values.yaml \
           > /dev/null
 
+
+    - name: render the required Jobs with openzaak/objecten.enabled unset and false
+      # openzaak.enabled and objecten.enabled have no default in values.yaml.
+      # The create-required-catalogi and -objecttypen Jobs must render when they
+      # are unset (like the subcharts) and must not render when they are false.
+      run: |
+        unset_out=$(helm template github-test charts/podiumd --namespace podiumd \
+          -f charts/podiumd/ci/lint-values.yaml)
+        false_out=$(helm template github-test charts/podiumd --namespace podiumd \
+          -f charts/podiumd/ci/lint-values.yaml \
+          --set openzaak.enabled=false --set objecten.enabled=false)
+        for job in create-required-catalogi create-required-objecttypen; do
+          grep -q "name: ${job}-secret$" <<<"$unset_out" \
+            || { echo "::error::${job} does not render with enabled unset"; exit 1; }
+          if grep -q "name: ${job}-secret$" <<<"$false_out"; then
+            echo "::error::${job} renders with enabled: false"; exit 1
+          fi
+        done
