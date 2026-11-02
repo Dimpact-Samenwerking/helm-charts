@@ -120,7 +120,7 @@ Three settings under `redis-operator.redis-ha` limit what a failover does to the
 | --- | --- | --- |
 | `topologySpreadConstraints` | `maxSkew: 1` on `kubernetes.io/hostname`, `ScheduleAnyway` | The Redis pods go to different nodes where possible, so one node fault or drain takes out at most one of them. |
 | `pdb` | `enabled: true`, `maxUnavailable: 1` | The operator creates a PodDisruptionBudget: a node drain evicts one Redis pod at a time. |
-| `masterReadinessCheck.enabled` | `true` | A pod labelled `redis-role=master` that reports `role:slave` itself is NotReady, so it drops out of the `redis-ha-master` Service (IN-2961). |
+| `masterReadinessCheck.enabled` | `true` | A pod labelled `redis-role=master` that reports `role:slave` itself is NotReady, so it drops out of the `redis-ha-master` Service (IN-2961). A pod that reports `role:slave` also closes its client connections older than 10 seconds (podiumd-chart-28, below). |
 
 Why the readiness check: the operator sets the new `redis-role=master` label before it removes
 the old one. For about half a minute the `redis-ha-master` Service then also points at a
@@ -130,8 +130,17 @@ by the kubelet) and compares them with `INFO replication`. A correctly labelled 
 NotReady, so StatefulSet rolling updates are not blocked. Without any genuine master the
 Service has no endpoints, and apps get a connection error instead of a rejected write.
 
-Not covered here: a connection an app already holds to a replica stays there until the app
-reconnects or restarts (IN-2962, for Maykin).
+A connection an app already holds stays when the pod drops out of the Service. On a fresh
+install that is the common case (podiumd-chart-28): the operator sets up replication only once
+all pods are Ready, and before that it labels every Ready pod `redis-role=master`, because each
+is a standalone master. Apps that start early connect through `redis-ha-master` to a pod that
+then becomes a replica, and every write over that connection fails with `READONLY`; django-redis
+hides the error (`IGNORE_EXCEPTIONS`). So the check also closes, on a pod that reports
+`role:slave`, every client connection older than 10 seconds (`CLIENT KILL TYPE normal MAXAGE
+10`), and the apps reconnect through `redis-ha-master`. No app uses a replica, and the
+operator's, the exporter's and the probe's own connections are younger than that. Holding the
+apps back until replication is up is not possible from this chart: their charts have no init
+containers. (IN-2962 asks Maykin to reconnect on `READONLY`.)
 
 The spread only applies where the scheduler has a choice. The Redis volumes are zonal disks, so
 an existing pod restarts in the zone of its disk; to move a replica, recreate it with a new volume

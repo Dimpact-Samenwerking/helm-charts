@@ -587,8 +587,10 @@ redis-operator:
     # then write to a read-only replica (IN-2869). With this check a pod labelled master that
     # reports `role:slave` itself is NotReady and drops out of the Service. The pod reads its own
     # labels through a downward API volume (/etc/podinfo). A correctly labelled replica is never
-    # NotReady, so rolling updates are not blocked. Disable to fall back to the operator's PING
-    # probe.
+    # NotReady, so rolling updates are not blocked. A replica also closes its app connections older
+    # than 10 s: apps that connected before replication was set up (fresh install) or during a
+    # failover keep them otherwise, and every write fails with READONLY (podiumd-chart-28).
+    # Disable to fall back to the operator's PING probe.
     masterReadinessCheck:
       enabled: true
     redisConfig:
