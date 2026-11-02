@@ -224,3 +224,38 @@ def test_changes_heading_identities_real_sidecar_still_resolves_despite_dash(lib
         "openbao - postgres 16-alpine → 16-alpine", deps, canonical_names
     )
     assert idents == {("sidecar", ("openbao", "database", "schemaJob", "image"))}
+
+
+# --- fenced_line_flags / markdown_headings: the one heading detection ---
+
+
+def test_fenced_line_flags_covers_tilde_fences_and_multi_line_comments(libupgradedocbasics: ModuleType):
+    lines = ["a", "~~~text", "```", "## in tilde fence", "~~~", "<!-- note", "## in comment", "-->", "b", "<!-- x -->"]
+    assert libupgradedocbasics.fenced_line_flags(lines) == [
+        False,
+        True,
+        True,  # a backtick line does not close a ~~~ fence
+        True,
+        True,
+        True,
+        True,
+        True,
+        False,
+        False,  # a one-line comment hides nothing
+    ]
+
+
+def test_markdown_headings_skip_fences_and_comments_and_drop_closing_marks(libupgradedocbasics: ModuleType):
+    text = "# T\n\n```bash\n## not a heading\n```\n\n<!--\n## nor this\n-->\n\n## Checklist ##\n\n### C1. Step\n"
+    headings = libupgradedocbasics.markdown_headings(text)
+    assert [(h.line, h.marks, h.text) for h in headings] == [
+        (0, "#", "T"),
+        (10, "##", "Checklist"),
+        (12, "###", "C1. Step"),
+    ]
+    assert libupgradedocbasics.markdown_headings(text.splitlines(keepends=True)) == headings
+
+
+def test_parse_upgrade_doc_rows_ignores_a_fenced_heading_inside_the_table_section(libupgradedocbasics: ModuleType):
+    text = TABLE + "\n```bash\n## x\n```\n\n| Late | 1 → 2 | - | - |\n"
+    assert [r["name"] for r in libupgradedocbasics.parse_upgrade_doc_rows(text)][-1] == "Late"

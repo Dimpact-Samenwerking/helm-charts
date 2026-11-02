@@ -14,9 +14,11 @@ from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import native_components
 from lib.chart.values_tree_primitives import values_key_of
 
-COMPONENT_VERSIONS_HEADING_RE = re.compile(r"^##\s+Component versions\b")
-FENCE_LINE_RE = re.compile(r"^\s*```")
-_HEADING_RE = re.compile(r"^(?P<marks>#{1,6})\s+(?P<text>.*?)\s*$")
+# Matched against a "##" heading's text (markdown_headings), as every writer and check does.
+COMPONENT_VERSIONS_HEADING_RE = re.compile(r"^Component versions\b")
+FENCE_LINE_RE = re.compile(r"^\s*(?P<fence>`{3,}|~{3,})")
+# Optional closing marks ("## Checklist ##") are not part of the text.
+_HEADING_RE = re.compile(r"^(?P<marks>#{1,6})\s+(?P<text>.*?)(?:\s+#+)?\s*$")
 
 # A sidecar/shared image by values-tree path, or a dependency/native component by values key.
 ComponentRef = tuple[Literal["sidecar"], tuple[str, ...]] | tuple[Literal["dep"], str]
@@ -123,19 +125,10 @@ def parse_upgrade_doc_rows(text: str) -> list[TableRow]:
     Scoped to that section (up to the next "## "), so other pipe-tables in the doc are never
     read as component rows. [] without the heading."""
     lines = text.splitlines()
-    start = None
-    for i, line in enumerate(lines):
-        if COMPONENT_VERSIONS_HEADING_RE.match(line.strip()):
-            start = i + 1
-            break
+    start, end = component_versions_section_bounds(lines)
     if start is None:
         return []
-
-    end = len(lines)
-    for i in range(start, len(lines)):
-        if re.match(r"^##\s+\S", lines[i]):
-            end = i
-            break
+    start += 1
 
     rows: list[TableRow] = []
     for i in range(start, end):
@@ -338,14 +331,30 @@ def match_located_line(pattern: re.Pattern[str], line: str) -> re.Match[str]:
 
 
 def fenced_line_flags(lines: Sequence[str]) -> list[bool]:
-    """Per line: True for a ``` fence line or a line inside a fenced code block."""
+    """Per line: True for a fence line (``` or ~~~), a line inside a fenced code
+    block, or a line of an HTML comment that starts a line and spans several.
+
+    A fence closes only on a fence of its own character, at least as long."""
     flags: list[bool] = []
-    in_fence = False
+    fence = ""
+    in_comment = False
     for line in lines:
-        is_fence = bool(FENCE_LINE_RE.match(line))
-        flags.append(in_fence or is_fence)
-        if is_fence:
-            in_fence = not in_fence
+        m = FENCE_LINE_RE.match(line)
+        if fence:
+            flags.append(True)
+            if m and m["fence"][0] == fence[0] and len(m["fence"]) >= len(fence):
+                fence = ""
+        elif in_comment:
+            flags.append(True)
+            in_comment = "-->" not in line
+        elif m:
+            flags.append(True)
+            fence = m["fence"]
+        elif line.lstrip().startswith("<!--") and "-->" not in line:
+            flags.append(True)
+            in_comment = True
+        else:
+            flags.append(False)
     return flags
 
 
@@ -362,12 +371,29 @@ class MarkdownHeading(NamedTuple):
     text: str
 
 
-def markdown_headings(text: str) -> list[MarkdownHeading]:
-    """Each "#" heading outside fenced code blocks, in document order."""
-    lines = text.splitlines()
+def markdown_headings(text: str | Sequence[str]) -> list[MarkdownHeading]:
+    """Each "#" heading outside fenced code blocks and HTML comments, in document order.
+
+    Takes the text or its lines (with or without line ends); `line` indexes them.
+    The one heading detection of the doc writers and checks."""
+    lines = text.splitlines() if isinstance(text, str) else text
     fenced = fenced_line_flags(lines)
     return [
         MarkdownHeading(i, m.group("marks"), m.group("text"))
         for i, (line, in_fence) in enumerate(zip(lines, fenced, strict=True))
         if not in_fence and (m := _HEADING_RE.match(line))
     ]
+
+
+def next_level2_line(headings: Sequence[MarkdownHeading], start_line: int, line_count: int) -> int:
+    """The line of the first "##" heading after start_line, else line_count."""
+    return next((h.line for h in headings if h.line > start_line and h.marks == "##"), line_count)
+
+
+def component_versions_section_bounds(lines: Sequence[str]) -> tuple[int | None, int]:
+    """(heading line, section end) of "## Component versions"; (None, len(lines)) if absent."""
+    headings = markdown_headings(lines)
+    start = next((h.line for h in headings if h.marks == "##" and COMPONENT_VERSIONS_HEADING_RE.match(h.text)), None)
+    if start is None:
+        return None, len(lines)
+    return start, next_level2_line(headings, start, len(lines))

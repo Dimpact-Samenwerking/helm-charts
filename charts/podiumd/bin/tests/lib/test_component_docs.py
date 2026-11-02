@@ -283,6 +283,7 @@ def test_first_changes_block_clears_the_upgrade_stub_todos_and_keeps_the_layout(
     assert "TODO" not in text
     assert "## Changes\n\n### zac 5.0.2 → 5.4.3\n" in text
     assert text.index("### zac 5.0.2 → 5.4.3") < text.index("## Reference")
+    assert libcomponentdocschanges.strip_stale_upgrade_placeholders(text) == (text, False)
     assert upgrade_guide_layout_issues("u.md", text, "4.8.5", "4.9.0") == []
 
 
@@ -299,6 +300,35 @@ def test_stale_values_deltas_todo_goes_and_the_stub_opening_stays(
         opening + section,
         True,
     )
+    assert libcomponentdocsdeltas.strip_stale_values_deltas_todo_stub(opening + section) == (opening + section, False)
+
+
+def test_values_deltas_writers_skip_a_heading_in_the_openings_code_block(
+    libcomponentdocsbaselinedocstubs: ModuleType,
+    libcomponentdocsdeltas: ModuleType,
+    libupgradedocsorting: ModuleType,
+):
+    """A "## ..." comment in the opening's bash block is no section: the checker and the writers agree."""
+    stub = _stub(libcomponentdocsbaselinedocstubs, "values-deltas")
+    todo = "TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n"
+    scripts = "```bash\n## migrate first\npython3 migrate.py\n```\n\n"
+    sections = "## zac 5.0.2 → 5.4.3\n\nEvery environment.\n\n## keycloak 26.7.3 → 26.8.1\n\nSome.\n"
+    text = stub.replace(todo, scripts + todo) + "\n" + sections
+    assert [s["heading"] for s in libupgradedocsorting.parse_values_delta_sections(text)] == [
+        "zac 5.0.2 → 5.4.3",
+        "keycloak 26.7.3 → 26.8.1",
+    ]
+    stripped, changed = libcomponentdocsdeltas.strip_stale_values_deltas_todo_stub(text)
+    assert changed
+    assert stripped == stub.replace(todo, scripts) + sections
+    assert values_deltas_layout_issues("v.md", stripped) == []
+    ordering = libupgradedocsorting.OrderingContext(
+        [{"name": "keycloak", "version": "1"}, {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1"}],
+        {"keycloak": {}, "zac": {}},
+    )
+    sorted_text, moved = libupgradedocsorting.sort_values_delta_sections(stripped, ordering)
+    assert moved
+    assert sorted_text.startswith(stub.replace(todo, scripts))
 
 
 DEPS: list[ChartDependency] = [

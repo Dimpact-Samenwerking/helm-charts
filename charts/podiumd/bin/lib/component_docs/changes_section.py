@@ -44,8 +44,10 @@ from lib.upgradedoc.sorting_and_ordering import changes_blocks_with_lines
 from lib.upgradedoc.sorting_and_ordering import changes_section_bounds
 from lib.upgradedoc.sorting_and_ordering import component_insertion_index
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
-from lib.upgradedoc.string_and_parsing_basics import COMPONENT_VERSIONS_HEADING_RE
 from lib.upgradedoc.string_and_parsing_basics import TableRow
+from lib.upgradedoc.string_and_parsing_basics import component_versions_section_bounds
+from lib.upgradedoc.string_and_parsing_basics import markdown_headings
+from lib.upgradedoc.string_and_parsing_basics import next_level2_line
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.string_and_parsing_basics import set_row_cells
@@ -106,17 +108,10 @@ def new_row_insert_index(lines: list[str], rows: list[TableRow], friendly: str, 
     if rows:
         idx = component_insertion_index(friendly, [r["name"] for r in rows], ordering)
         return rows[idx]["line_index"] if idx < len(rows) else rows[-1]["line_index"] + 1
-    in_section = False
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if COMPONENT_VERSIONS_HEADING_RE.match(stripped):
-            in_section = True
-            continue
-        if in_section and re.match(r"^##\s+\S", line):
-            break
-        if in_section and re.match(r"^\|\s*:?-+:?\s*\|", stripped):
-            return i + 1
-    return None
+    start, end = component_versions_section_bounds(lines)
+    if start is None:
+        return None
+    return next((i + 1 for i in range(start + 1, end) if re.match(r"^\|\s*:?-+:?\s*\|", lines[i].strip())), None)
 
 
 def update_component_table(text: str, friendly: str, change: VersionChange, ordering: OrderingContext):
@@ -430,7 +425,7 @@ def _strip_bare_changes_todo(lines: list[str], changes_idx: int, end_bound: int)
 def _insert_index_for_empty_changes_section(lines: list[str], changes_idx: int, section_end: int):
     """Insert index for a "## Changes" section with no blocks yet, after
     stripping both upgrade.md stub placeholders."""
-    first_heading_idx = next((i for i, line in enumerate(lines) if re.match(r"^##\s+\S", line)), len(lines))
+    first_heading_idx = next_level2_line(markdown_headings(lines), -1, len(lines))
     if strip_standalone_placeholder_line(lines, first_heading_idx, UPGRADE_INTRO_STUB_TODO_LINE):
         # Removal takes one or two lines: recompute instead of adjusting.
         new_changes_idx, section_end = changes_section_bounds(lines)
@@ -476,7 +471,7 @@ def strip_stale_upgrade_placeholders(text: str):
     lines = text.splitlines(keepends=True)
     changed = False
 
-    first_heading_idx = next((i for i, line in enumerate(lines) if re.match(r"^##\s+\S", line)), len(lines))
+    first_heading_idx = next_level2_line(markdown_headings(lines), -1, len(lines))
     if strip_standalone_placeholder_line(lines, first_heading_idx, UPGRADE_INTRO_STUB_TODO_LINE):
         changed = True
         blocks = parse_upgrade_doc_changes_blocks("".join(lines))  # indices shifted -- recompute
