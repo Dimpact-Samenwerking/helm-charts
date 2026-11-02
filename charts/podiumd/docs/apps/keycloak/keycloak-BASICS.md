@@ -77,27 +77,39 @@ Two public hostnames, both HTTPRoutes on Gateway `public-gateway` in namespace
 Backends target the operator-created ClusterIP service `keycloak-service`
 (port 8080). TLS terminates at the gateway: `keycloak.http.httpEnabled: true`
 and `keycloak.proxy.headers: xforwarded`. Hostnames are set via
-`keycloak.hostname.hostname` (fallback: `keycloak.config.realmFrontendUrl`)
+`keycloak.hostname.hostname` (fallback: `keycloak.config.adminFrontendUrl`, or
+`keycloak.config.realmFrontendUrl` with `keycloak.hostname.useRealmFrontendUrl`)
 and `keycloak.hostname.admin` (fallback: `keycloak.config.adminFrontendUrl`).
 The `podiumd` realm's `frontendUrl` is `keycloak.config.realmFrontendUrl`; the
 `master` realm's is `keycloak.config.adminFrontendUrl` (set by the
 `importMasterRealm` job), which keeps the admin console login on the admin
 host.
 
-Since 4.10.1 the public hostname falls back to the realm host, so a **fresh
-install** no longer needs `keycloak.hostname.hostname`. Up to 4.10.0 it fell
-back to the admin host: OIDC discovery then handed out `keycloak-admin`
-endpoints until the realm import set the podiumd realm's `frontendUrl`, and
-anything that read discovery before that (the Django setup-configuration Jobs,
-PABC and ITA at startup) kept the admin host, so a login failed with "Restart
-login cookie not found". An explicit `keycloak.hostname.hostname` still wins.
+On a **fresh install**, the public hostname must be the realm host from the
+start. With the admin host as public hostname, OIDC discovery hands out
+`keycloak-admin` endpoints until the realm import sets the podiumd realm's
+`frontendUrl`; anything that reads discovery before that (the Django
+setup-configuration Jobs, PABC and ITA at startup) keeps the admin host, and a
+login then fails with "Restart login cookie not found". So set either
+`keycloak.hostname.useRealmFrontendUrl: true` (since 4.10.1) or
+`keycloak.hostname.hostname` to the host of `keycloak.config.realmFrontendUrl`.
+An explicit `keycloak.hostname.hostname` always wins.
 
-The `master` realm stays on the admin host only through its `frontendUrl`,
-which `keycloak-operator.jobs.importMasterRealm` sets (on by default). With
-that job off, set `keycloak.hostname.hostname` explicitly. A realm that an
-environment created itself, without a `frontendUrl`, moves from the admin host
-to the public host; admin console and admin REST URLs come from
-`hostname.admin` and do not move.
+An **existing environment** needs neither: its realm already has the
+`frontendUrl`. `useRealmFrontendUrl` is off by default, so the rendered
+Keycloak CR does not change. Turning it on where `realmFrontendUrl` differs
+from `adminFrontendUrl` moves the public hostname and restarts Keycloak.
+
+With the realm host as public hostname, the `master` realm stays on the admin
+host only through its `frontendUrl`, which the `import-master-realm` Job sets.
+That Job renders only when `keycloak-operator.enabled`,
+`keycloak-operator.jobs.importMasterRealm.enabled` and
+`keycloak-operator.jobs.ensureOperatorSa.enabled` are on **and**
+`keycloak-operator.jobs.ensureOperatorSa.clientSecret` is set (default `""`).
+Without it, the admin console login moves to the public host. A realm that an
+environment created itself, without a `frontendUrl`, also moves to the public
+host; admin console and admin REST URLs come from `hostname.admin` and do not
+move.
 
 ### Operator CRDs on a fresh install
 
@@ -182,8 +194,11 @@ deploying Keycloak again. Standing up Keycloak in a fresh environment:
    Server) and set `keycloak.externalDatabase.host/database/user/password`
    (or the `keycloak.db.*` block) in the environment values.
 2. Set the mandatory values: `keycloak.auth.adminPassword` (render fails if
-   empty), `keycloak.hostname.hostname` / `keycloak.hostname.admin`,
-   `keycloak.config.realmFrontendUrl` / `keycloak.config.adminFrontendUrl`,
+   empty), `keycloak.config.realmFrontendUrl` /
+   `keycloak.config.adminFrontendUrl`, `keycloak.hostname.useRealmFrontendUrl:
+   true` (or `keycloak.hostname.hostname` set to the realm host; see
+   [Routing / exposure](#routing--exposure-nginx-gateway-fabric)), `keycloak.hostname.admin` if it differs from
+   `adminFrontendUrl`,
    `keycloak.config.smtp.*`, and
    `keycloak-operator.jobs.ensureOperatorSa.clientSecret` (without it the
    realm-import jobs do not render).

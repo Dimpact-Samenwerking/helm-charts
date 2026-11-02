@@ -140,10 +140,12 @@ keycloak:
   name: "keycloak"
   features:
     enabled: []
-  # -- hostname configuration for keycloak-operator. `hostname` falls back to config.realmFrontendUrl (then config.adminFrontendUrl), `admin` falls back to config.adminFrontendUrl
+  # -- hostname configuration for keycloak-operator. `hostname` falls back to config.adminFrontendUrl, or with `useRealmFrontendUrl` to config.realmFrontendUrl first; `admin` falls back to config.adminFrontendUrl
   hostname:
     hostname: ""
     admin: ""
+    # -- Without `hostname`, use config.realmFrontendUrl as Keycloak's public hostname instead of config.adminFrontendUrl. For fresh installs; on an existing environment, turning it on moves the public hostname and restarts Keycloak (see docs/apps/keycloak/keycloak-BASICS.md).
+    useRealmFrontendUrl: false
   http:
     httpEnabled: true
   # image parameters for keycloak-operator

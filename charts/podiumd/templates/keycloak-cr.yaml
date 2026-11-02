@@ -21,7 +21,11 @@ spec:
       secret: keycloak-podiumd-admin
   {{- end }}
   hostname:
+    {{- if .Values.keycloak.hostname.useRealmFrontendUrl }}
     hostname: {{ coalesce .Values.keycloak.hostname.hostname .Values.keycloak.config.realmFrontendUrl .Values.keycloak.config.adminFrontendUrl }}
+    {{- else }}
+    hostname: {{ coalesce .Values.keycloak.hostname.hostname .Values.keycloak.config.adminFrontendUrl }}
+    {{- end }}
     admin: {{ coalesce .Values.keycloak.hostname.admin .Values.keycloak.config.adminFrontendUrl }}
   http:
     httpEnabled: {{ .Values.keycloak.http.httpEnabled }}

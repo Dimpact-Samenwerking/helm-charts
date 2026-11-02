@@ -403,7 +403,8 @@ PodiumD Helm chart
 | keycloak.externalDatabase.user | string | `""` |  |
 | keycloak.externalDatabase.vendor | string | `"postgres"` |  |
 | keycloak.features.enabled | list | `[]` |  |
-| keycloak.hostname | object | `{"admin":"","hostname":""}` | hostname configuration for keycloak-operator. `hostname` falls back to config.realmFrontendUrl (then config.adminFrontendUrl), `admin` falls back to config.adminFrontendUrl |
+| keycloak.hostname | object | `{"admin":"","hostname":"","useRealmFrontendUrl":false}` | hostname configuration for keycloak-operator. `hostname` falls back to config.adminFrontendUrl, or with `useRealmFrontendUrl` to config.realmFrontendUrl first; `admin` falls back to config.adminFrontendUrl |
+| keycloak.hostname.useRealmFrontendUrl | bool | `false` | Without `hostname`, use config.realmFrontendUrl as Keycloak's public hostname instead of config.adminFrontendUrl. For fresh installs; on an existing environment, turning it on moves the public hostname and restarts Keycloak (see docs/apps/keycloak/keycloak-BASICS.md). |
 | keycloak.http.httpEnabled | bool | `true` |  |
 | keycloak.image.registry | string | `""` |  |
 | keycloak.image.repository | string | `"quay.io/keycloak/keycloak"` |  |
