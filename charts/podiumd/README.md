@@ -647,6 +647,7 @@ PodiumD Helm chart
 | objecten.create_required_objecttypen_job.resources.limits.memory | string | `"128Mi"` |  |
 | objecten.create_required_objecttypen_job.resources.requests.cpu | string | `"50m"` |  |
 | objecten.create_required_objecttypen_job.resources.requests.memory | string | `"64Mi"` |  |
+| objecten.create_required_objecttypen_job.updateExistingVersions | list | `[]` |  |
 | objecten.flower.enabled | bool | `false` |  |
 | objecten.fullnameOverride | string | `"objecten"` |  |
 | objecten.image.repository | string | `"maykinmedia/open-object"` |  |

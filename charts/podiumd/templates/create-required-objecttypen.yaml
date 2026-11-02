@@ -39,6 +39,7 @@ metadata:
     {{- include "openobject.labels" . | nindent 4 }}
 data:
   OBJECTTYPES_URL: {{ printf "%s%s" .Values.objecten.configuration.oidcUrl "/api/v2" | quote}}
+  UPDATE_EXISTING_VERSIONS: {{ .Values.objecten.create_required_objecttypen_job.updateExistingVersions | default list | toJson | quote }}
   create-required-objecttypen.py: |
     #!/usr/local/bin/python
     import json
@@ -51,6 +52,7 @@ data:
     authorization_token = os.environ['AUTHORIZATION_TOKEN']
     objecttypes_url = os.environ['OBJECTTYPES_URL']
     schemas_dir = '/schemas'
+    update_existing_versions = set(json.loads(os.environ.get('UPDATE_EXISTING_VERSIONS', '[]')))
 
     authorization="Token " + authorization_token
     def findHighestVersion(versions):
@@ -96,17 +98,30 @@ data:
         sys.exit(f"{action} failed: HTTP {response.status_code}: {response.text[:500]}")
       return response
 
+    def publishVersion(objecttype, action):
+      check(requests.post(
+        f"{objecttypes_url}/objecttypes/{objecttype['uuid']}/versions",
+        json={"status":"published","jsonSchema":schemas[objecttype['name']]},
+        headers={
+          "Authorization": authorization,
+          "Content-Type": "application/json"
+        }
+      ), f"{action} for objecttype {objecttype['name']}")
+
     # The API caps pageSize at 500, so follow "next" instead of trusting one page.
+    def listAll(url, action):
+      results = []
+      params = {"pageSize": "500"}
+      while url:
+        page = check(requests.get(url, params=params, headers={"Authorization": authorization}), action).json()
+        results.extend(page["results"])
+        url = page.get("next")
+        params = None
+      return results
+
     # No dataClassification filter: a type with another classification must still
     # be found, or its fixed UUID is POSTed again and the job fails.
-    existing = []
-    page_url = f"{objecttypes_url}/objecttypes"
-    params = {"pageSize": "500"}
-    while page_url:
-      page = check(requests.get(page_url, params=params, headers={"Authorization": authorization}), "listing objecttypes").json()
-      existing.extend(page["results"])
-      page_url = page.get("next")
-      params = None
+    existing = listAll(f"{objecttypes_url}/objecttypes", "listing objecttypes")
 
     # Find existing uuid and latest version of objecttypes
     for result in existing:
@@ -135,19 +150,25 @@ data:
         objecttype['uuid']=response.json()['uuid']
         print(f"created objecttype for {objecttype['name']}: {objecttype['uuid']}")
 
-      # Only a type without any version gets one. Published versions are never
-      # replaced, so a newer schema in the chart doesn't reach existing types.
+      # A type without any version gets one. A type that has one only gets a new
+      # version when it is listed in updateExistingVersions and its latest
+      # published version's schema differs from the chart's. Drafts are skipped:
+      # the API accepts a new version on top of a draft, and a draft's schema is
+      # not what clients use.
       if 'version' not in objecttype:
-        versionData={"status":"published","jsonSchema":schemas[objecttype['name']]}
-        check(requests.post(
-          f"{objecttypes_url}/objecttypes/{objecttype['uuid']}/versions",
-          json=versionData,
-          headers={
-            "Authorization": authorization,
-            "Content-Type": "application/json"
-          }
-        ), f"creating version for objecttype {objecttype['name']}")
+        publishVersion(objecttype, "creating version")
         print(f"created version for objecttype {objecttype['name']} ({objecttype['uuid']})")
+      elif objecttype['name'] in update_existing_versions:
+        published = [v for v in listAll(
+          f"{objecttypes_url}/objecttypes/{objecttype['uuid']}/versions",
+          f"listing versions of objecttype {objecttype['name']}"
+        ) if v.get('status') == 'published']
+        latest_schema = max(published, key=lambda v: v['version'])['jsonSchema'] if published else None
+        if latest_schema != schemas[objecttype['name']]:
+          publishVersion(objecttype, "publishing updated version")
+          print(f"published updated version for objecttype {objecttype['name']} ({objecttype['uuid']}): schema changed")
+        else:
+          print(f"schema unchanged for objecttype {objecttype['name']} ({objecttype['uuid']}), skipping")
 ---
 apiVersion: batch/v1
 kind: Job
