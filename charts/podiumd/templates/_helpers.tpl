@@ -938,9 +938,11 @@ whenever any client secret changes, generated ones included.
 
 - Per-component clients (openzaak, ...): configuration.secrets.keycloak_client_secret,
   else configuration.oidcSecret, else generated (podiumd.keycloak.realmSecret).
-- kiss, zac, zac-admin, ita and pabc: the realm import always creates these
-  clients, also when the component is disabled. Their configured secret is
-  used; an empty or placeholder one is generated instead.
+- kiss, zac, zac-admin, ita and pabc: their configured secret is used; an
+  empty or placeholder one is generated instead.
+- A generated secret stays here while its component is disabled and its
+  client is left out of the realm, so the client comes back with the same
+  secret.
 - monitoring, datamigratie and zaakbrug: as configured (validated in
   validations.yaml for an enabled client).
 - One client per Frank!Gateway dashboard with SSO.
@@ -949,12 +951,10 @@ whenever any client secret changes, generated ones included.
 {{- $root := . -}}
 {{- $secrets := dict -}}
 {{- range $comp := list "openzaak" "openarchiefbeheer" "opennotificaties" "objecten" "openklant" "openformulieren" "openinwoner" "referentielijsten" "openbeheer" "openvtb" "openbao" -}}
-{{-   if or (ne $comp "openvtb") $root.Values.openvtb.enabled -}}
-{{-     $cfg := index (index $root.Values $comp) "configuration" | default dict -}}
-{{-     $configured := coalesce (index (index $cfg "secrets" | default dict) "keycloak_client_secret") (index $cfg "oidcSecret") | default "" -}}
-{{-     $key := printf "%s-oidc-secret" $comp -}}
-{{-     $_ := set $secrets $key (include "podiumd.keycloak.realmSecret" (dict "root" $root "key" $key "value" $configured)) -}}
-{{-   end -}}
+{{-   $cfg := index (index $root.Values $comp) "configuration" | default dict -}}
+{{-   $configured := coalesce (index (index $cfg "secrets" | default dict) "keycloak_client_secret") (index $cfg "oidcSecret") | default "" -}}
+{{-   $key := printf "%s-oidc-secret" $comp -}}
+{{-   $_ := set $secrets $key (include "podiumd.keycloak.realmSecret" (dict "root" $root "key" $key "value" $configured)) -}}
 {{- end -}}
 {{- range $s := list
       (list "kiss-oidc-secret" $root.Values.kiss.settings.oidc.clientSecret)
