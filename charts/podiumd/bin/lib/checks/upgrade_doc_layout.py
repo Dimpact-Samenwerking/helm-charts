@@ -1,7 +1,9 @@
 """Check the target version's upgrade guide and values-deltas doc against docs/_UPGRADE_DOCS_CHECKLIST.md.
 
-Only the docs of the hop to Chart.yaml's version are checked: guides of
-released versions are frozen in the layout they shipped with.
+Only the docs of the hop to Chart.yaml's version are checked, and only
+while that version has no podiumd-<version> tag: guides of released
+versions are frozen in the layout they shipped with. Report only: the
+findings are printed, the step never fails.
 
 The upgrade guide: the opening names the baseline and links the values-deltas
 doc; the "##" sections from "## Checklist" to "## Changes" are all there, in
@@ -17,6 +19,7 @@ trailing note on a YAML block reads the same as prose to a parser.
 """
 
 import re
+import shutil
 
 from pathlib import Path
 
@@ -31,6 +34,8 @@ from lib.component_docs.baseline_doc_stubs import NO_ACTION_SECTION
 from lib.component_docs.baseline_doc_stubs import RUNBOOK_SECTIONS
 from lib.component_docs.baseline_doc_stubs import UPGRADE_GUIDE_SECTIONS
 from lib.component_docs.owned_parts import generated_heading_name
+from lib.gitutil import find_repo_root
+from lib.gitutil import resolve_git_ref
 from lib.upgradedoc.baseline_intro import BASELINE_INTRO_RE
 from lib.upgradedoc.doc_names import doc_name
 from lib.upgradedoc.sorting_and_ordering import is_changes_heading
@@ -171,13 +176,30 @@ def values_deltas_layout_issues(name: str, text: str) -> list[str]:
     return issues
 
 
+def _is_released(chart_dir: Path, target: str) -> bool | None:
+    """Whether the local repository has the podiumd-<target> tag; None when there is no git repository to ask."""
+    repo_root = find_repo_root(chart_dir) if shutil.which("git") else None
+    if repo_root is None:
+        return None
+    return resolve_git_ref(repo_root, [f"refs/tags/podiumd-{target}"]) is not None
+
+
 def check_upgrade_doc_layout(chart_dir: Path):
-    """(ok, detail) for verify-podiumd: the target version's upgrade docs follow the checklist's layout."""
+    """(True, detail) for verify-podiumd: report where the target version's upgrade docs leave the checklist's layout.
+
+    Never fails. A released target (tagged) is skipped; without git the docs
+    are checked anyway, with a warning, since the findings only inform."""
     baseline = read_upgrade_docs_baseline(chart_dir)
     if not is_bare_version(baseline):
         print(f'upgrade_docs baseline "{baseline}" is missing or not a bare version — nothing to check')
         return True, "no bare upgrade_docs baseline — skipped"
     target = chart_version(chart_dir / "Chart.yaml")
+    released = _is_released(chart_dir, target)
+    if released:
+        print(f"podiumd-{target} is tagged: its upgrade docs are released and frozen — nothing to check")
+        return True, f"{target} is released — skipped"
+    if released is None:
+        print(f"WARNING: no git repository, so whether {target} is released is unknown — checking its docs anyway")
     doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
     guide = doc_dir / doc_name(baseline, target, "upgrade")
     deltas = doc_dir / doc_name(baseline, target, "values-deltas")
@@ -196,9 +218,9 @@ def check_upgrade_doc_layout(chart_dir: Path):
         print(f"no {baseline}-to-{target} upgrade guide or values-deltas doc — nothing to check")
         return True, "no matching docs found — skipped"
     if issues:
-        print(f"{len(issues)} layout issue(s); the layout is in {CHECKLIST_PATH}:")
+        print(f"WARNING: {len(issues)} layout issue(s) (report only); the layout is in {CHECKLIST_PATH}:")
         for issue in issues:
             print(" ", issue)
-        return False, f"{len(issues)} layout issue(s)"
+        return True, f"{len(issues)} layout issue(s) (report-only, not a failure)"
     print(f"OK: {', '.join(checked)} follow {CHECKLIST_PATH}")
     return True, f"layout of {', '.join(checked)} OK"

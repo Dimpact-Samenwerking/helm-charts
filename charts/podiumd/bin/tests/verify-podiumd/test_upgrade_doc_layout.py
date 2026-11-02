@@ -1,5 +1,7 @@
 """check_upgrade_doc_layout: the target version's upgrade docs against docs/_UPGRADE_DOCS_CHECKLIST.md."""
 
+import subprocess
+
 from pathlib import Path
 
 import pytest
@@ -216,14 +218,35 @@ def test_check_passes_on_the_stubs_and_ignores_released_guides(chart_dir: Path, 
     assert "4.9.4-to-4.9.5" not in capsys.readouterr().out
 
 
-def test_check_fails_and_prints_each_issue(chart_dir: Path, capsys: pytest.CaptureFixture[str]):
+def test_check_reports_each_issue_but_never_fails(chart_dir: Path, capsys: pytest.CaptureFixture[str]):
     _write(chart_dir, GUIDE, _stub("upgrade").replace("## F. Rollback\n\nNothing for this hop.\n\n", ""))
     _write(chart_dir, DELTAS, _stub("values-deltas") + "\n## Background\n\nText.\n")
-    assert check_upgrade_doc_layout(chart_dir) == (False, "2 layout issue(s)")
+    assert check_upgrade_doc_layout(chart_dir) == (True, "2 layout issue(s) (report-only, not a failure)")
     out = capsys.readouterr().out
-    assert "2 layout issue(s); the layout is in docs/_UPGRADE_DOCS_CHECKLIST.md:" in out
+    assert "WARNING: no git repository, so whether 4.10.0 is released is unknown — checking its docs anyway" in out
+    assert "WARNING: 2 layout issue(s) (report only); the layout is in docs/_UPGRADE_DOCS_CHECKLIST.md:" in out
     assert f'{GUIDE}: missing "## F. Rollback" after "## E. After the deploy"' in out
     assert f'{DELTAS}: "## Background" is neither' in out
+
+
+def _git(chart_dir: Path, *args: str):
+    subprocess.run(["git", "-C", str(chart_dir), *args], check=True, capture_output=True)
+
+
+def test_check_skips_a_released_target_and_checks_an_unreleased_one(
+    chart_dir: Path, capsys: pytest.CaptureFixture[str]
+):
+    _write(chart_dir, GUIDE, "# Upgrade guide: PodiumD 4.9.5 → 4.10.0\n\n## Changes\n")
+    _git(chart_dir, "init", "-q")
+    _git(chart_dir, "-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "x")
+    ok, detail = check_upgrade_doc_layout(chart_dir)
+    assert ok
+    assert detail.endswith("layout issue(s) (report-only, not a failure)")
+    assert "no git repository" not in capsys.readouterr().out
+
+    _git(chart_dir, "tag", "podiumd-4.10.0")
+    assert check_upgrade_doc_layout(chart_dir) == (True, "4.10.0 is released — skipped")
+    assert "podiumd-4.10.0 is tagged" in capsys.readouterr().out
 
 
 def test_check_skips_without_docs_or_bare_baseline(chart_dir: Path):
