@@ -186,7 +186,13 @@ def main():
     # sees the outgoing version in Chart.yaml and redoes both.
     baselines_changed = read_upgrade_docs_baseline(CHART_DIR) != baseline or recorded_release_table != new_release_table
     if baselines_changed:
-        write_release_baselines(CHART_DIR, upgrade_docs=baseline, release_table=(baseline if kind == "minor" else None))
+        # A side path belongs to the target it leads to; a new target starts without one.
+        write_release_baselines(
+            CHART_DIR,
+            upgrade_docs=baseline,
+            release_table=(baseline if kind == "minor" else None),
+            side_paths=[],
+        )
 
     changed = update_chart_version(target)
     if changed:

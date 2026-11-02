@@ -48,6 +48,16 @@ def test_both_baselines_resolve_passes(vp: ModuleType, repo, capsys: pytest.Capt
     assert "release_table '4.8.5' resolves to podiumd-4.8.5" in out
 
 
+def test_side_paths_must_resolve_too(vp: ModuleType, repo):
+    write_baselines(repo, upgrade_docs="4.9.0", release_table="4.8.5")
+    with (repo / "etc" / "release-baseline.yaml").open("a", encoding="utf-8") as f:
+        f.write('side_paths: ["4.8.5", "4.8.6"]\n')
+    ok, detail = vp.check_release_baseline(repo)
+    assert ok is False
+    assert "side_paths '4.8.6'" in detail
+    assert "side_paths '4.8.5'" not in detail
+
+
 def test_missing_file_fails_both_keys(vp: ModuleType, repo):
     ok, detail = vp.check_release_baseline(repo)
     assert ok is False

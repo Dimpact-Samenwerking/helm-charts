@@ -7,6 +7,7 @@ import shutil
 import tempfile
 
 from collections.abc import Generator
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -60,7 +61,9 @@ def _change(name: str, old: str | None, new: str | None) -> DocChange:
 
 
 @contextlib.contextmanager
-def fix_docs_dry_run(chart_dir: Path, target: str, new_baseline: str) -> Generator[DryRun]:
+def fix_docs_dry_run(
+    chart_dir: Path, target: str, new_baseline: str, side_paths: Sequence[str] = ()
+) -> Generator[DryRun]:
     """Run fix_docs on a temporary copy of chart_dir's docs; the copy lives until the context ends.
 
     Its output is captured, and docs/images/images-baseline.yaml is not
@@ -81,6 +84,7 @@ def fix_docs_dry_run(chart_dir: Path, target: str, new_baseline: str) -> Generat
                     FixDocPaths(chart_dir, docs_dir / "_UPGRADE_PATHS", docs_dir / "images", _rename),
                     target,
                     new_baseline,
+                    side_paths,
                 )
             except SystemExit:
                 error = output.getvalue().strip()

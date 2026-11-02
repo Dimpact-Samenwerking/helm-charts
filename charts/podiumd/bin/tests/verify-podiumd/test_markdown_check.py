@@ -85,6 +85,22 @@ def test_find_markdown_files_excludes_target_match_with_wrong_baseline(libmarkdo
     assert found == [chart_dir / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"]
 
 
+def test_find_markdown_files_includes_a_declared_side_path(libmarkdowncheck: ModuleType, tmp_path: Path):
+    chart_dir = make_chart_dir(
+        tmp_path,
+        upgrade_docs_baseline="4.8.5",
+        files={
+            "docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md": "# main path\n",
+            "docs/_UPGRADE_PATHS/4.8.4-to-4.9.0-upgrade.md": "# side path\n",
+        },
+    )
+    (chart_dir / "etc" / "release-baseline.yaml").write_text(
+        'upgrade_docs: "4.8.5"\nside_paths: ["4.8.4"]\n', encoding="utf-8"
+    )
+    found = libmarkdowncheck.find_markdown_files(chart_dir)
+    assert [p.name for p in found] == ["4.8.4-to-4.9.0-upgrade.md", "4.8.5-to-4.9.0-upgrade.md"]
+
+
 def test_find_markdown_files_target_only_match_when_release_baseline_missing(
     libmarkdowncheck: ModuleType, tmp_path: Path
 ):
