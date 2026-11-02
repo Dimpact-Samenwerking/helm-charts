@@ -95,6 +95,36 @@ def test_without_kiss_nothing_is_reported(kiss: ModuleType, kiss_block: str):
     assert kiss.migrate_text(text) == (text, [])
 
 
+DISABLED = KISS.replace("kiss:\n", "kiss:\n  enabled: false\n", 1)
+
+
+def test_kiss_disabled_reports_a_missing_permission_without_editing(kiss: ModuleType):
+    text = values(*CONTACT, kiss_block=DISABLED)
+
+    new, notes = kiss.migrate_text(text)
+
+    assert new == text
+    note = (
+        "CHECK kiss.enabled is false in this file, but tokenauth.items[0] (contact) has KISS's logboek token "
+        f"without read_only on {LOG_TYPE}: where KISS is enabled (an overlay), add it there or by hand; "
+        "left unchanged"
+    )
+    assert notes == [note]
+
+
+@pytest.mark.parametrize(
+    "lines",
+    [
+        [*CONTACT, *PERMISSION],
+        [*CONTACT[:2], "  is_superuser: true"],
+        [CONTACT[0], '  token: "REP_OTHER_TOKEN_REP"', *CONTACT[2:]],
+    ],
+)
+def test_kiss_disabled_is_silent_when_no_matching_item_lacks_the_permission(kiss: ModuleType, lines: list[str]):
+    text = values(*lines, kiss_block=DISABLED)
+    assert kiss.migrate_text(text) == (text, [])
+
+
 def test_without_the_object_type_in_objecttypes_nothing_changes(kiss: ModuleType):
     text = values(*CONTACT).replace(OBJECTTYPES, "")
 

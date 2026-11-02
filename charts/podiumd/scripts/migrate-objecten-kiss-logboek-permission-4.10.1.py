@@ -22,7 +22,9 @@ logboek setting without token or objectTypeUrl, and a token that matches no
 item. A file whose objecttypes.items does not create the object type (by this
 uuid or by name Activiteitenlog) is left alone with a CHECK note: Objecten runs
 the objecttypes step before tokenauth, and a permission on an unknown object
-type fails the configuration job.
+type fails the configuration job. A file with kiss.enabled: false is not
+edited; a CHECK note names a matching item that lacks the permission, since an
+overlay may enable KISS.
 
 The permission is inserted after the item's last permission: comments, quoting
 and REP_..._REP placeholders stay as they are. Before writing, the script
@@ -98,20 +100,31 @@ def migrate_text(text: str, _args: argparse.Namespace | None = None) -> tuple[st
     doc = load_safe(text)
     if not isinstance(doc, dict):
         raise MigrationError("not a YAML mapping")
-    if not isinstance(doc.get("kiss"), dict) or doc["kiss"].get("enabled") is False:
+    if not isinstance(doc.get("kiss"), dict):
         return text, []
+    disabled = doc["kiss"].get("enabled") is False
     data, inner = objecten_data(doc)
     if data is None:
         return text, []
     logboek = (doc["kiss"].get("settings") or {}).get("logboek") or {}
     token, type_url = logboek.get("token"), logboek.get("objectTypeUrl")
     if not token or not type_url:
+        if disabled:
+            return text, []
         return text, [
             f"CHECK {LOGBOEK_PATH}.token or .objectTypeUrl is empty: KISS shows no ITA activity; nothing to migrate"
         ]
     object_type = str(type_url).rstrip("/").rsplit("/", 1)[-1]
     items = (inner.get("tokenauth") or {}).get("items") or []
     todo, notes = _targets(items, token, object_type)
+    if disabled:
+        # An overlay may enable KISS: report the missing permission, edit nothing.
+        return text, [
+            f"CHECK kiss.enabled is false in this file, but tokenauth.items[{i}] ({items[i].get('identifier')}) "
+            f"has KISS's logboek token without {MODE} on {object_type}: where KISS is enabled (an overlay), "
+            "add it there or by hand; left unchanged"
+            for i in todo
+        ]
     if not todo:
         return text, notes
     if not creates_object_type(inner, object_type, OBJECT_TYPE_NAME):
