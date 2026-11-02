@@ -3552,11 +3552,11 @@ zac:
     mail: "noreply@example.nl"
   global:
     curlImage: *curlImage
-  # ghcr.io/infonl/zaakafhandelcomponent:5.10.0
+  # ghcr.io/infonl/zaakafhandelcomponent:5.11.0
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 5.10.0@sha256:952e89644169d7bb3125a163412455145a1f4adcca370fb29b569bef334a88a0
+    tag: 5.11.0@sha256:2ec89c039149a306827f5bafb518d00bd39496c253e50473a72ce5cc8b6d9634
   # Liveness probe uses /health/ready (not /health/live) with a high failureThreshold so
   # Kubernetes automatically restarts ZAC after extended OpenZaak/catalogus unavailability.
   # The ZGW-API-Client has no connectTimeout/readTimeout, causing stale TCP connections
@@ -3646,10 +3646,10 @@ zac:
     username: "dummy"
     # -- Basic auth password for the office converter; see username.
     password: "dummy"
-    # gotenberg/gotenberg:8.38.1@sha256:aa552cc115db488e0f0bcb07446aac13071ad51505b642c84bb894500907b42b
+    # gotenberg/gotenberg:8.39.0@sha256:13672f317b443c793e972b1bd2155ec62a3e7b6891b411e8196442cc053ee5f5
     image:
       # repository: gotenberg/gotenberg
-      tag: "8.38.1@sha256:aa552cc115db488e0f0bcb07446aac13071ad51505b642c84bb894500907b42b"
+      tag: "8.39.0@sha256:13672f317b443c793e972b1bd2155ec62a3e7b6891b411e8196442cc053ee5f5"
     # Gotenberg needs about 200Mi plus 60Mi per 12-megapixel photo, and ZAC accepts
     # files up to 500 MB: the zac chart's 1Gi limit OOM-kills a Word file with 40
     # photos (podiumd-chart-39).
@@ -3666,10 +3666,10 @@ zac:
       # null cancels the zac chart's runAsGroup 10001 (1.0.354 and later): the 5.9.1 image runs with its own group, as tested.
       runAsGroup: null
     sidecar: true
-    # openpolicyagent/opa:1.21.3-static@sha256:bf27411c17e72f3d16063725a74c69f711fb267eb9a4cebdae78028b72adc847
+    # openpolicyagent/opa:1.21.4-static@sha256:47f93480b09e24c220ae75f1e9133585ba6d698059951668d35e6a4fc32ebc82
     image:
       #repository: openpolicyagent/opa
-      tag: "1.21.3-static@sha256:bf27411c17e72f3d16063725a74c69f711fb267eb9a4cebdae78028b72adc847"
+      tag: "1.21.4-static@sha256:47f93480b09e24c220ae75f1e9133585ba6d698059951668d35e6a4fc32ebc82"
     resources:
       requests:
         cpu: 10m
@@ -3682,7 +3682,7 @@ zac:
     # check_digest_pinning (charts/podiumd's own values.yaml only) noticing.
     image:
       repository: otel/opentelemetry-collector-contrib
-      tag: "0.162.0@sha256:39923a8e431bd1f57be82411999d389fcfe40857492e4365456d97a4c1f74be6"
+      tag: "0.164.0@sha256:340c9ca6a36617084c6661bdc4f0fe92b7cda5a805d61673ec8db375fddc522b"
   organizations:
     bron:
       rsin: "000000000"

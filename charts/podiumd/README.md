@@ -23,7 +23,7 @@ PodiumD Helm chart
 | @opstree | redis-operator | 0.27.0 |
 | @wiremind | clamav | 3.7.3 |
 | @worth-nl | omc(notifynl-omc-nodep) | 0.17.4 |
-| @zac | zac(zaakafhandelcomponent) | 1.0.355 |
+| @zac | zac(zaakafhandelcomponent) | 1.0.362 |
 | @zgw-office-addin | zgw-office-addin | 0.0.93 |
 | file://../mi-data | mi(mi-data) | 1.1.0 |
 | https://helm.elastic.co | eck-operator | 3.5.0 |
@@ -1471,7 +1471,7 @@ PodiumD Helm chart
 | zac.global.curlImage.repository | string | `"curlimages/curl"` |  |
 | zac.global.curlImage.tag | string | `"8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93"` |  |
 | zac.image.pullPolicy | string | `"IfNotPresent"` |  |
-| zac.image.tag | string | `"5.10.0@sha256:952e89644169d7bb3125a163412455145a1f4adcca370fb29b569bef334a88a0"` |  |
+| zac.image.tag | string | `"5.11.0@sha256:2ec89c039149a306827f5bafb518d00bd39496c253e50473a72ce5cc8b6d9634"` |  |
 | zac.initContainer.enabled | bool | `true` |  |
 | zac.initContainer.resources.requests.cpu | string | `"50m"` |  |
 | zac.initContainer.resources.requests.memory | string | `"256Mi"` |  |
@@ -1504,7 +1504,7 @@ PodiumD Helm chart
 | zac.notificationsSecretKey | string | `"changeme"` |  |
 | zac.objectenApi.token | string | `"objectentoken"` |  |
 | zac.objectenApi.url | string | `"https://objecten.example.nl"` |  |
-| zac.office_converter.image.tag | string | `"8.38.1@sha256:aa552cc115db488e0f0bcb07446aac13071ad51505b642c84bb894500907b42b"` |  |
+| zac.office_converter.image.tag | string | `"8.39.0@sha256:13672f317b443c793e972b1bd2155ec62a3e7b6891b411e8196442cc053ee5f5"` |  |
 | zac.office_converter.password | string | `"dummy"` | Basic auth password for the office converter; see username. |
 | zac.office_converter.resources.limits.memory | string | `"2Gi"` |  |
 | zac.office_converter.resources.requests.cpu | string | `"100m"` |  |
@@ -1513,7 +1513,7 @@ PodiumD Helm chart
 | zac.office_converter.securityContext.runAsNonRoot | bool | `true` |  |
 | zac.office_converter.securityContext.runAsUser | int | `1001` |  |
 | zac.office_converter.username | string | `"dummy"` | Basic auth user shared by ZAC and its office converter (Gotenberg). Override per environment: the converter Service is reachable from any pod in the cluster. |
-| zac.opa.image.tag | string | `"1.21.3-static@sha256:bf27411c17e72f3d16063725a74c69f711fb267eb9a4cebdae78028b72adc847"` |  |
+| zac.opa.image.tag | string | `"1.21.4-static@sha256:47f93480b09e24c220ae75f1e9133585ba6d698059951668d35e6a4fc32ebc82"` |  |
 | zac.opa.resources.requests.cpu | string | `"10m"` |  |
 | zac.opa.resources.requests.memory | string | `"20Mi"` |  |
 | zac.opa.securityContext.runAsGroup | string | `nil` |  |
@@ -1522,7 +1522,7 @@ PodiumD Helm chart
 | zac.opa.sidecar | bool | `true` |  |
 | zac.openForms.url | string | `"https://open-forms.example.nl"` |  |
 | zac.opentelemetry-collector.image.repository | string | `"otel/opentelemetry-collector-contrib"` |  |
-| zac.opentelemetry-collector.image.tag | string | `"0.162.0@sha256:39923a8e431bd1f57be82411999d389fcfe40857492e4365456d97a4c1f74be6"` |  |
+| zac.opentelemetry-collector.image.tag | string | `"0.164.0@sha256:340c9ca6a36617084c6661bdc4f0fe92b7cda5a805d61673ec8db375fddc522b"` |  |
 | zac.organizations.bron.rsin | string | `"000000000"` |  |
 | zac.organizations.verantwoordelijke.rsin | string | `"000000000"` |  |
 | zac.pabcApi.apiKey | string | `""` |  |
