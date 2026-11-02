@@ -41,6 +41,9 @@ spec:
         {{- toYaml .Values.nodeSelector | nindent 8 }}
       {{- end }}
       restartPolicy: Never
+      # Talks to Keycloak only (kcadm.sh), never to the Kubernetes API.
+      serviceAccountName: {{ include "podiumd.serviceAccountName" . }}
+      automountServiceAccountToken: false
       volumes:
       - name: tmp
         emptyDir: {}
