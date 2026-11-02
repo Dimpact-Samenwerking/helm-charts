@@ -8,6 +8,9 @@ import pytest
 
 from pymarkdown.api import PyMarkdownApi
 
+from lib.checks.upgrade_doc_layout import upgrade_guide_layout_issues
+from lib.checks.upgrade_doc_layout import values_deltas_layout_issues
+
 UPGRADE = "_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md"
 DELTAS = "_UPGRADE_PATHS/4.8.5-to-4.9.0-values-deltas.md"
 MANIFEST = "images/images-4.9.0.yaml"
@@ -39,6 +42,19 @@ def test_a_version_bump(writer_then_checker):
     assert "| zac | 5.4.4 → 5.4.5 | 1.0.297 (unchanged) | - |" in docs[UPGRADE]
     assert "### zac 5.4.4 → 5.4.5 (chart 1.0.297, unchanged)" in docs[UPGRADE]
     assert "#   1. zac 5.4.4 -> 5.4.5." in docs[MANIFEST]
+
+
+def test_the_stubs_it_creates_keep_the_checklist_layout(writer_then_checker):
+    """fix-doc-consistency creates the stubs and fills them; the layout check still finds nothing."""
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [ZAC], "values": {"zac": zac("5.4.4")}},
+        {"version": "4.9.0", "deps": [ZAC], "values": {"zac": zac("5.4.5")}},
+    )
+
+    assert "TODO" not in docs[UPGRADE]
+    assert docs[UPGRADE].index("### zac 5.4.4 → 5.4.5") < docs[UPGRADE].index("## Reference")
+    assert upgrade_guide_layout_issues(UPGRADE, docs[UPGRADE], "4.8.5", "4.9.0") == []
+    assert values_deltas_layout_issues(DELTAS, docs[DELTAS]) == []
 
 
 def test_a_stale_copy_of_a_changes_item_is_merged_in_one_run(writer_then_checker):

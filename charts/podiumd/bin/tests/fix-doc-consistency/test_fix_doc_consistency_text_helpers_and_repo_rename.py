@@ -11,12 +11,12 @@ import pytest
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import collapse_multiple_blank_lines
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import ensure_blank_lines_around_headings
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import find_collisions
-from lib.fix_doc_consistency.text_helpers_and_repo_rename import heading_slug
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import remaining_mentions
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import retarget_heading_links
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import update_component_versions_heading
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import update_title_line
 from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
+from lib.upgradedoc.string_and_parsing_basics import heading_slug
 
 
 def write(path, text):

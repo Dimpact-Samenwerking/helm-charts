@@ -23,6 +23,7 @@ from lib.component_docs.baseline_doc_stubs import UPGRADE_CHANGES_STUB_TODO_LINE
 from lib.component_docs.baseline_doc_stubs import UPGRADE_INTRO_STUB_TODO_LINE
 from lib.component_docs.doc_lines import is_bare_placeholder_span
 from lib.component_docs.doc_lines import normalize_blank_line_before_insert
+from lib.component_docs.doc_lines import strip_standalone_placeholder_line
 from lib.component_docs.owned_parts import BLANK
 from lib.component_docs.owned_parts import SectionShape
 from lib.component_docs.owned_parts import edited_generated_lines
@@ -43,8 +44,10 @@ from lib.upgradedoc.sorting_and_ordering import changes_blocks_with_lines
 from lib.upgradedoc.sorting_and_ordering import changes_section_bounds
 from lib.upgradedoc.sorting_and_ordering import component_insertion_index
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
-from lib.upgradedoc.string_and_parsing_basics import COMPONENT_VERSIONS_HEADING_RE
 from lib.upgradedoc.string_and_parsing_basics import TableRow
+from lib.upgradedoc.string_and_parsing_basics import component_versions_section_bounds
+from lib.upgradedoc.string_and_parsing_basics import markdown_headings
+from lib.upgradedoc.string_and_parsing_basics import next_level2_line
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.string_and_parsing_basics import set_row_cells
@@ -105,17 +108,10 @@ def new_row_insert_index(lines: list[str], rows: list[TableRow], friendly: str, 
     if rows:
         idx = component_insertion_index(friendly, [r["name"] for r in rows], ordering)
         return rows[idx]["line_index"] if idx < len(rows) else rows[-1]["line_index"] + 1
-    in_section = False
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if COMPONENT_VERSIONS_HEADING_RE.match(stripped):
-            in_section = True
-            continue
-        if in_section and re.match(r"^##\s+\S", line):
-            break
-        if in_section and re.match(r"^\|\s*:?-+:?\s*\|", stripped):
-            return i + 1
-    return None
+    start, end = component_versions_section_bounds(lines)
+    if start is None:
+        return None
+    return next((i + 1 for i in range(start + 1, end) if re.match(r"^\|\s*:?-+:?\s*\|", lines[i].strip())), None)
 
 
 def update_component_table(text: str, friendly: str, change: VersionChange, ordering: OrderingContext):
@@ -416,33 +412,6 @@ def render_changes_section(heading: str, intro: Sequence[str], bullets: Sequence
     return "\n".join(part for part in parts if part) + "\n"
 
 
-def _find_standalone_placeholder_line(lines: list[str], end: int, placeholder_text: str):
-    """Index of a line in lines[:end] that stripped-equals placeholder_text
-    and is its own paragraph (blank or doc edge on both sides), else None.
-    Other content may surround it, e.g. the intro blockquote."""
-    target = placeholder_text.strip()
-    for i in range(end):
-        if lines[i].strip() != target:
-            continue
-        before_ok = i == 0 or not lines[i - 1].strip()
-        after_ok = i + 1 == end or not lines[i + 1].strip()
-        if before_ok and after_ok:
-            return i
-    return None
-
-
-def _strip_standalone_placeholder_line(lines: list[str], end: int, placeholder_text: str):
-    """Remove that standalone placeholder line in place, collapsing the
-    double blank left behind. Returns True if a line was removed."""
-    idx = _find_standalone_placeholder_line(lines, end, placeholder_text)
-    if idx is None:
-        return False
-    del lines[idx]
-    if 0 < idx < len(lines) and not lines[idx].strip() and not lines[idx - 1].strip():
-        del lines[idx]
-    return True
-
-
 def _strip_bare_changes_todo(lines: list[str], changes_idx: int, end_bound: int):
     """Delete "## Changes"' bare TODO stub in place if that is all the span
     holds; returns the new end bound (end_bound unchanged if nothing was
@@ -456,8 +425,8 @@ def _strip_bare_changes_todo(lines: list[str], changes_idx: int, end_bound: int)
 def _insert_index_for_empty_changes_section(lines: list[str], changes_idx: int, section_end: int):
     """Insert index for a "## Changes" section with no blocks yet, after
     stripping both upgrade.md stub placeholders."""
-    first_heading_idx = next((i for i, line in enumerate(lines) if re.match(r"^##\s+\S", line)), len(lines))
-    if _strip_standalone_placeholder_line(lines, first_heading_idx, UPGRADE_INTRO_STUB_TODO_LINE):
+    first_heading_idx = next_level2_line(markdown_headings(lines), -1, len(lines))
+    if strip_standalone_placeholder_line(lines, first_heading_idx, UPGRADE_INTRO_STUB_TODO_LINE):
         # Removal takes one or two lines: recompute instead of adjusting.
         new_changes_idx, section_end = changes_section_bounds(lines)
         if new_changes_idx is not None:
@@ -502,8 +471,8 @@ def strip_stale_upgrade_placeholders(text: str):
     lines = text.splitlines(keepends=True)
     changed = False
 
-    first_heading_idx = next((i for i, line in enumerate(lines) if re.match(r"^##\s+\S", line)), len(lines))
-    if _strip_standalone_placeholder_line(lines, first_heading_idx, UPGRADE_INTRO_STUB_TODO_LINE):
+    first_heading_idx = next_level2_line(markdown_headings(lines), -1, len(lines))
+    if strip_standalone_placeholder_line(lines, first_heading_idx, UPGRADE_INTRO_STUB_TODO_LINE):
         changed = True
         blocks = parse_upgrade_doc_changes_blocks("".join(lines))  # indices shifted -- recompute
 
