@@ -16,7 +16,11 @@ This script adds the permission to every such item:
 
 An item that has `permissions` or `is_superuser: true` is left alone; a CHECK
 note names the one whose permissions lack read_and_write on the productaanvraag
-object type. A file without the item changes nothing.
+object type. A file without the item changes nothing. A file whose
+objecttypes.items does not create the productaanvraag object type (by this
+uuid or by name Productaanvraag-Dimpact) is left alone with a CHECK note:
+Objecten runs the objecttypes step before tokenauth, and a permission on an
+unknown object type fails the configuration job.
 
 The block is inserted after the item's last line: comments, quoting and
 REP_..._REP placeholders stay as they are. Before writing, the script checks
@@ -49,6 +53,7 @@ from migrate_common import run
 
 IDENTIFIER = "openarchiefbeheer"
 OBJECT_TYPE = "REP_ZAC_PRODUCTAANVRAAG_UUID_REP"
+OBJECT_TYPE_NAME = "Productaanvraag-Dimpact"
 MODE = "read_and_write"
 DATA_PATH = "objecten.configuration.data"
 
@@ -109,6 +114,15 @@ def migrate_text(text: str, _args: argparse.Namespace | None = None) -> tuple[st
     todo = [i for i in targets if "permissions" not in items[i] and items[i].get("is_superuser") is not True]
     notes += [n for i in targets if i not in todo and (n := _check_note(i, items[i]))]
     if not todo:
+        return text, notes
+    objecttypes = ((inner or {}).get("objecttypes") or {}).get("items") or []
+    if not any(
+        isinstance(t, dict) and (t.get("uuid") == OBJECT_TYPE or t.get("name") == OBJECT_TYPE_NAME) for t in objecttypes
+    ):
+        notes.append(
+            f"CHECK objecttypes.items does not create {OBJECT_TYPE_NAME} ({OBJECT_TYPE}): "
+            "add it before giving the token a permission on it; left unchanged"
+        )
         return text, notes
 
     lines = text.splitlines(keepends=True)
