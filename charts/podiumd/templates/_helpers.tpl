@@ -1198,6 +1198,9 @@ realm as the keycloak-operator client and waits until $REALM exists (the realm
 import job may still be running). Expects KEYCLOAK_URL, REALM and CLIENT_SECRET.
 */}}
 {{- define "podiumd.kcadmLogin" -}}
+# kcadm.sh passes KC_OPTS to java. Each call is a short-lived JVM: skipping the
+# optimising compiler and reusing a class data archive halve its start.
+export KC_OPTS="-XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:+AutoCreateSharedArchive -XX:SharedArchiveFile=/tmp/kcadm.jsa"
 kc() { /opt/keycloak/bin/kcadm.sh "$@" --config /tmp/kcadm.config; }
 
 echo "Logging in to $KEYCLOAK_URL as keycloak-operator..."

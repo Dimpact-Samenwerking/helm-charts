@@ -467,7 +467,7 @@ keycloak-operator:
           cpu: 50m
           memory: 256Mi
         limits:
-          cpu: 500m
+          cpu: "2"
           memory: 512Mi
     # -- Resources applied to lightweight keycloak job containers (curl, python, psql): ensure-operator-sa, ensure-podiumd-admin-user.
     resources:
@@ -483,7 +483,7 @@ keycloak-operator:
         cpu: 50m
         memory: 256Mi
       limits:
-        cpu: 200m
+        cpu: "2"
         memory: 512Mi
 
 redis-operator:
