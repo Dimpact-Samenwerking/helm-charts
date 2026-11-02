@@ -60,6 +60,8 @@ import copy
 import sys
 
 from migrate_common import MigrationError
+from migrate_common import line_indent
+from migrate_common import literal_block
 from migrate_common import load_rt
 from migrate_common import load_safe
 from migrate_common import run
@@ -104,9 +106,9 @@ def _key_lines(inner_rt, offset: int) -> list[int]:
 
 def _value_end(lines: list[str], start: int, end: int) -> int:
     """End of a key's value: following lines indented deeper (a folded or nested value)."""
-    col = len(lines[start]) - len(lines[start].lstrip(" "))
+    col = line_indent(lines[start])
     j = start + 1
-    while j < end and lines[j].strip() and (len(lines[j]) - len(lines[j].lstrip(" "))) > col:
+    while j < end and lines[j].strip() and line_indent(lines[j]) > col:
         j += 1
     return j
 
@@ -138,15 +140,7 @@ def migrate_text(text: str, _args: argparse.Namespace | None = None) -> tuple[st
             return text, []
         rt = load_rt(text)
         cfg = rt["openformulieren"]["configuration"]
-        data_line = cfg.lc.key("data")[0]
-        if not lines[data_line].rstrip().endswith(("|", "|-", "|+")):
-            raise MigrationError(f"line {data_line + 1}: openformulieren.configuration.data is not a literal block (|)")
-        # A literal block's content starts on the next line, one source line per content line.
-        start = data_line + 1
-        block_end = start
-        while block_end < len(lines) and (not lines[block_end].strip()
-                                          or lines[block_end].startswith(" " * (len(lines[start]) - len(lines[start].lstrip(" "))))):
-            block_end += 1
+        start, block_end, _ = literal_block(lines, cfg, "data", "openformulieren.configuration.data")
         starts = _key_lines(load_rt(data), start)
         new_lines = _drop(lines, starts, block_end)
         new = "".join(new_lines)
