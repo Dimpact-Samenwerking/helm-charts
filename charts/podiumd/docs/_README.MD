@@ -35,6 +35,9 @@ defined in [`_UPGRADING.md`](_UPGRADING.md).
 
 ## Adding a new upgrade guide
 
+What goes into each file, how the upgrade guide is organised and when the set
+is done: [`_UPGRADE_DOCS_CHECKLIST.md`](_UPGRADE_DOCS_CHECKLIST.md).
+
 A new component that ships `enabled: false` gets a row in the *Optional
 components* table in [`_UPGRADING.md`](_UPGRADING.md), and the hop guide that
 introduces it links its enablement doc.
