@@ -5,6 +5,7 @@ from pathlib import Path
 import yaml
 
 from lib.chart.chart_yaml import normalize_int_version
+from lib.version_numbers import is_bare_version
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import YamlShapeError
 from lib.yaml_types import key_problem
@@ -55,17 +56,42 @@ def upgrade_docs_baseline(chart_dir: Path):
     return _baseline_value(chart_dir, "upgrade_docs")
 
 
+def upgrade_docs_side_paths(chart_dir: Path) -> list[str]:
+    """release-baseline.yaml's `side_paths`: further baselines whose docs to the same target are kept, or [].
+
+    A release can be reached from a version that is not upgrade_docs, such
+    as a patch released on an older line after it. Its
+    <side>-to-<target>-*.md docs are then a second upgrade path, maintained
+    like the main one, instead of a leftover to rebase onto upgrade_docs.
+    Raises YamlShapeError unless the key is a list of MAJOR.MINOR.PATCH strings.
+    """
+    value = _release_baselines(chart_dir).get("side_paths", [])
+    versions = (
+        [item for item in value if isinstance(item, str) and is_bare_version(item)] if isinstance(value, list) else []
+    )
+    if not isinstance(value, list) or len(versions) != len(value):
+        raise YamlShapeError(RELEASE_BASELINES_FILE_NAME, "side_paths: expected a list of MAJOR.MINOR.PATCH strings")
+    upgrade_docs = upgrade_docs_baseline(chart_dir)
+    return [item for item in dict.fromkeys(versions) if item != upgrade_docs]
+
+
 def release_table_baseline(chart_dir: Path):
     """The cumulative baseline of release-table.csv, or None; advanced only on a minor bump."""
     return _baseline_value(chart_dir, "release_table")
 
 
-def write_release_baselines(chart_dir: Path, upgrade_docs: str | None = None, release_table: str | None = None):
-    """Update only the given keys of etc/release-baseline.yaml, keeping the other.
+def write_release_baselines(
+    chart_dir: Path,
+    upgrade_docs: str | None = None,
+    release_table: str | None = None,
+    side_paths: list[str] | None = None,
+):
+    """Update only the given keys of etc/release-baseline.yaml, keeping the others.
 
-    Values are written double-quoted like the other version files;
-    safe_dump has no "quote every string" option, so each value is dumped
-    on its own with default_style='"' to get correct escaping.
+    An empty `side_paths` removes that key. Values are written double-quoted
+    like the other version files; safe_dump has no "quote every string"
+    option, so each value is dumped on its own with default_style='"' to get
+    correct escaping, a list in flow style on the key's line.
     """
     path = chart_dir / RELEASE_BASELINES_FILE_NAME
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -74,8 +100,12 @@ def write_release_baselines(chart_dir: Path, upgrade_docs: str | None = None, re
         data["upgrade_docs"] = upgrade_docs
     if release_table is not None:
         data["release_table"] = release_table
+    if side_paths:
+        data["side_paths"] = list(side_paths)
+    elif side_paths is not None:
+        data.pop("side_paths", None)
     lines: list[str] = []
     for key, value in data.items():
-        quoted_value = yaml.safe_dump(value, default_style='"').rstrip("\n")
+        quoted_value = yaml.safe_dump(value, default_style='"', default_flow_style=True, width=1000).rstrip("\n")
         lines.append(f"{key}: {quoted_value}\n")
     path.write_text("".join(lines), encoding="utf-8")

@@ -6,15 +6,19 @@ from lib.upgradedoc.doc_names import IMAGES_MANIFEST_NAME_RE
 from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
 from lib.upgradedoc.doc_names import doc_name_re
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
+from lib.version_numbers import stable_semver_key
 
 
-def check_pointer_consistency(doc_path: Path, podiumd_version: str, doc_dir: Path, images_dir: Path):
+def check_pointer_consistency(
+    doc_path: Path, podiumd_version: str, doc_dir: Path, images_dir: Path, side_path: str | None = None
+):
     """Every stale reference to a sibling <X>-to-<Y>-*.md doc or images-<Z>.yaml in this doc.
 
     A sibling-doc reference may point at an earlier hop; one targeting podiumd_version
     must exist. fix-doc-consistency already rewrote its baseline to upgrade_docs_baseline.
     Any images-<Z>.yaml with Z != podiumd_version is flagged: a release has only its own
-    manifest.
+    manifest. A side path's doc spans the releases after `side_path`, so it may also
+    name the manifest of each of those.
     """
     text = doc_path.read_text(encoding="utf-8")
     issues = [
@@ -25,7 +29,9 @@ def check_pointer_consistency(doc_path: Path, podiumd_version: str, doc_dir: Pat
 
     for m in IMAGES_MANIFEST_NAME_RE.finditer(text):
         version = m.group("target")
-        if normalize_version(version) != normalize_version(podiumd_version):
+        if normalize_version(version) != normalize_version(podiumd_version) and not _spanned(
+            version, side_path, podiumd_version
+        ):
             issues.append(
                 f'{doc_path.name}: reference "{m.group(0)}" targets podiumd {version}, expected "{podiumd_version}"'
             )
@@ -33,3 +39,11 @@ def check_pointer_consistency(doc_path: Path, podiumd_version: str, doc_dir: Pat
             issues.append(f'{doc_path.name}: reference "{m.group(0)}" does not exist')
 
     return issues
+
+
+def _spanned(version: str, side_path: str | None, podiumd_version: str) -> bool:
+    """Whether `version` is a release after `side_path` and up to podiumd_version."""
+    if side_path is None:
+        return False
+    key, low, high = (stable_semver_key(v) for v in (version, side_path, podiumd_version))
+    return key is not None and low is not None and high is not None and low < key <= high

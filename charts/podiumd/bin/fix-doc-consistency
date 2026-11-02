@@ -24,6 +24,11 @@ Also repairs the content against Chart.yaml and values.yaml:
   - docs/images/images-baseline.yaml: regenerated
 Issues it cannot fix are printed for manual review.
 
+A baseline in release-baseline.yaml's "side_paths" is a second upgrade
+path to the same target: its existing <side>-to-<target>-*.md docs are
+repaired the same way against that baseline (git tag podiumd-<side>), never
+renamed or stubbed; the images manifest belongs to upgrade_docs.
+
 Run change-podiumd-baseline to change the baseline; this script never
 writes release-baseline.yaml. Exits 1 when that file or key is missing.
 
@@ -50,6 +55,7 @@ from lib.chart.paths import DOC_DIR
 from lib.chart.paths import IMAGES_DIR
 from lib.chart.release_baseline_basics import chart_version
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
+from lib.chart.release_baseline_basics import upgrade_docs_side_paths as read_upgrade_docs_side_paths
 from lib.cli import positional_args
 from lib.dependencies import ensure_vendored_dependencies
 from lib.fix_doc_consistency.run import FixDocPaths
@@ -90,7 +96,12 @@ def main():
     _parse_cli_args()
     ensure_vendored_dependencies(CHART_YAML.parent)
     new_baseline, target = _load_and_validate_baseline()
-    state = fix_docs(FixDocPaths(CHART_YAML.parent, DOC_DIR, IMAGES_DIR), target, new_baseline)
+    state = fix_docs(
+        FixDocPaths(CHART_YAML.parent, DOC_DIR, IMAGES_DIR),
+        target,
+        new_baseline,
+        read_upgrade_docs_side_paths(CHART_YAML.parent),
+    )
     refresh_images_baseline(
         CHART_YAML.parent, state.target_deps, state.target_values, IMAGES_DIR / "images-baseline.yaml"
     )

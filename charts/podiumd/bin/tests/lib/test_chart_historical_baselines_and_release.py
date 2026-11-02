@@ -1,7 +1,9 @@
-"""lib.chart: historical images-manifest lookups and write_release_baselines."""
+"""lib.chart: historical images-manifest lookups, write_release_baselines and side_paths."""
 
 from pathlib import Path
 from types import ModuleType
+
+import pytest
 
 # --- historical_images_manifest_paths / historical_app_version_for_repository ---
 
@@ -265,3 +267,36 @@ def test_write_release_baselines_escapes_backslash_and_double_quote_correctly(
 
     text = (tmp_path / "etc" / "release-baseline.yaml").read_text(encoding="utf-8")
     assert text == 'upgrade_docs: "has \\"quotes\\" and a \\\\ backslash"\n'
+
+
+# --- side_paths ---
+
+
+def test_side_paths_round_trip_and_an_empty_list_removes_the_key(
+    libchartreleasebaselinebasics: ModuleType, tmp_path: Path
+):
+    basics = libchartreleasebaselinebasics
+    basics.write_release_baselines(tmp_path, upgrade_docs="4.10.0", release_table="4.9.5", side_paths=["4.9.6"])
+    text = (tmp_path / "etc" / "release-baseline.yaml").read_text(encoding="utf-8")
+    assert text == 'upgrade_docs: "4.10.0"\nrelease_table: "4.9.5"\nside_paths: ["4.9.6"]\n'
+    assert basics.upgrade_docs_side_paths(tmp_path) == ["4.9.6"]
+
+    basics.write_release_baselines(tmp_path, upgrade_docs="4.10.1", side_paths=[])
+    assert basics.upgrade_docs_side_paths(tmp_path) == []
+    assert "side_paths" not in (tmp_path / "etc" / "release-baseline.yaml").read_text(encoding="utf-8")
+
+
+def test_side_paths_drop_duplicates_and_upgrade_docs(libchartreleasebaselinebasics: ModuleType, tmp_path: Path):
+    (tmp_path / "etc").mkdir()
+    (tmp_path / "etc" / "release-baseline.yaml").write_text(
+        'upgrade_docs: "4.10.0"\nside_paths: ["4.9.6", "4.10.0", "4.9.6"]\n', encoding="utf-8"
+    )
+    assert libchartreleasebaselinebasics.upgrade_docs_side_paths(tmp_path) == ["4.9.6"]
+
+
+@pytest.mark.parametrize("value", ['"4.9.6"', '["4.9"]', "[4.9]"])
+def test_side_paths_must_be_a_list_of_versions(libchartreleasebaselinebasics: ModuleType, tmp_path: Path, value: str):
+    (tmp_path / "etc").mkdir()
+    (tmp_path / "etc" / "release-baseline.yaml").write_text(f"side_paths: {value}\n", encoding="utf-8")
+    with pytest.raises(libchartreleasebaselinebasics.YamlShapeError, match="side_paths"):
+        libchartreleasebaselinebasics.upgrade_docs_side_paths(tmp_path)
