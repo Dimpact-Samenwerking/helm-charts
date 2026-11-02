@@ -139,6 +139,20 @@ needs.
 - run `verify-podiumd` to check consistency, if not ok, fix the issues
 - commit+push the changes
 
+### A second upgrade path to the same target
+
+When a release can also be reached from a version that is not
+`upgrade_docs` (a patch released on an older line after it), its docs are a
+side path:
+
+- add the version to `side_paths` in `charts/podiumd/etc/release-baseline.yaml`,
+  for example `side_paths: ["4.9.6"]`; that version needs its `podiumd-<version>` tag
+- write `<side>-to-<version>-upgrade.md`, `-values-deltas.md` and `-gemeente-specific.md`
+- run `fix-doc-consistency`: it fills in and repairs the side path's docs against
+  that version, as for the main path, and never renames them; the images manifest
+  stays the main path's
+- `create-podiumd-version` clears `side_paths` for the next release
+
 ### What images (and versions) are in a helm-chart
 
 - run `list-helmchart-images <dependency> <dependency-chart-version>`
@@ -204,10 +218,10 @@ Notes:
 Tools:
 
 - `change-podiumd-baseline`: set the `upgrade_docs` baseline in `charts/podiumd/etc/release-baseline.yaml` and rebase the docs onto it; never changes `release_table`
-- `create-doc-version`: create the missing standard docs for the target version; refuses when docs exist under another baseline
+- `create-doc-version`: create the missing standard docs for the target version; refuses when docs exist under another baseline that is not a side path
 - `create-podiumd-version`: start a release from the branch name: set `Chart.yaml` to the target, record the outgoing version as `upgrade_docs` (and `release_table` on a minor bump) and create the docs; only single patch or minor steps
 - `export-confluence-release-table`: fetch release data from Confluence and store it in `charts/podiumd/etc/release-table.csv`
-- `fix-doc-consistency`: rebase the upgrade docs onto the `upgrade_docs` baseline, repair their content and create missing ones
+- `fix-doc-consistency`: rebase the upgrade docs onto the `upgrade_docs` baseline, repair their content and create missing ones; also repair the docs of each side path
 - `fix-helm-doc`: re-generate `charts/podiumd/README.md` using `helm-docs`
 - `fix-image-digests`: refresh stale image digests, for one image or all; on an unscoped run also stale `# host/repo:tag` reference comments
 - `fix-markdown`: apply pymarkdown's safe fixes

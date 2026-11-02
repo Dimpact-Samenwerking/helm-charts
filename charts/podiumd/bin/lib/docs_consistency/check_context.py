@@ -35,6 +35,8 @@ class DocQuery:
     podiumd_version: str
     upgrade_docs_baseline: str | None
     is_bare_version: bool
+    # False for a side path: images-<version>.yaml belongs to the upgrade_docs path.
+    owns_images_manifest: bool = True
 
 
 @dataclass

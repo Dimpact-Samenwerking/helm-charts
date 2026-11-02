@@ -2,6 +2,8 @@
 
 import re
 
+from collections.abc import Collection
+
 from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
 from lib.upgradedoc.doc_names import doc_name
 from lib.upgradedoc.doc_names import doc_name_re
@@ -20,14 +22,20 @@ def extract_images_baseline(text: str):
     return m.group("baseline") if m else None
 
 
-def update_sibling_doc_refs(text: str, target: str, new_baseline: str):
+def update_sibling_doc_refs(text: str, target: str, new_baseline: str, other_paths: Collection[str] = ()):
     """Rewrite every "<any-baseline>-to-<target>-<suffix>.md" reference to new_baseline.
 
-    Safe unconditionally: the chart supports exactly one upgrade path per target.
+    A reference to one of `other_paths`, the target's other declared upgrade
+    paths (upgrade_docs and side_paths), is a link to that path and stays.
     `changed` means the text differs, not that the pattern matched (an already-correct
     reference matches too). Returns (new_text, changed)."""
     pattern = doc_name_re(target, STANDARD_SUFFIXES)
-    new_text = pattern.sub(lambda m: doc_name(new_baseline, target, m.group("suffix")), text)
+    new_text = pattern.sub(
+        lambda m: (
+            m.group(0) if m.group("baseline") in other_paths else doc_name(new_baseline, target, m.group("suffix"))
+        ),
+        text,
+    )
     return new_text, new_text != text
 
 

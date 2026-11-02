@@ -155,6 +155,22 @@ def test_refuses_when_doc_exists_under_a_different_baseline(
     assert existing.read_text(encoding="utf-8") == "real content\n"  # untouched
 
 
+def test_a_declared_side_path_is_left_alone(cdv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """A side path's docs are a second doc set on purpose: the main path's docs are still created."""
+    doc_dir, _images_dir = setup_dirs(cdv, tmp_path, monkeypatch)
+    (tmp_path / "etc" / "release-baseline.yaml").write_text(
+        'upgrade_docs: "4.8.5"\nside_paths: ["4.8.4"]\n', encoding="utf-8"
+    )
+    side_doc = doc_dir / "4.8.4-to-4.9.0-upgrade.md"
+    side_doc.write_text("real content\n", encoding="utf-8")
+    monkeypatch.setattr("sys.argv", ["create-doc-version"])
+
+    cdv.main()
+
+    assert (doc_dir / "4.8.5-to-4.9.0-upgrade.md").is_file()
+    assert side_doc.read_text(encoding="utf-8") == "real content\n"
+
+
 def test_invokes_fix_helm_doc(cdv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     setup_dirs(cdv, tmp_path, monkeypatch)
     calls = []

@@ -25,6 +25,7 @@ from pathlib import Path
 
 from lib.chart.release_baseline_basics import chart_version
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
+from lib.chart.release_baseline_basics import upgrade_docs_side_paths as read_upgrade_docs_side_paths
 from lib.component_docs.baseline_doc_stubs import CHANGES_SECTION
 from lib.component_docs.baseline_doc_stubs import CHECKLIST_SECTION
 from lib.component_docs.baseline_doc_stubs import COMPONENT_VERSIONS_SECTION
@@ -201,18 +202,21 @@ def check_upgrade_doc_layout(chart_dir: Path):
     if released is None:
         print(f"WARNING: no git repository, so whether {target} is released is unknown — checking its docs anyway")
     doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
-    guide = doc_dir / doc_name(baseline, target, "upgrade")
-    deltas = doc_dir / doc_name(baseline, target, "values-deltas")
 
     # A missing doc is the doc-consistency step's finding.
     checked: list[str] = []
     issues: list[str] = []
-    if guide.is_file():
-        checked.append(guide.name)
-        issues.extend(upgrade_guide_layout_issues(guide.name, guide.read_text(encoding="utf-8"), baseline, target))
-    if deltas.is_file():
-        checked.append(deltas.name)
-        issues.extend(values_deltas_layout_issues(deltas.name, deltas.read_text(encoding="utf-8")))
+    # The side paths' docs are upgrade docs of the same target.
+    for path_baseline in (baseline, *read_upgrade_docs_side_paths(chart_dir)):
+        guide = doc_dir / doc_name(path_baseline, target, "upgrade")
+        deltas = doc_dir / doc_name(path_baseline, target, "values-deltas")
+        if guide.is_file():
+            checked.append(guide.name)
+            text = guide.read_text(encoding="utf-8")
+            issues.extend(upgrade_guide_layout_issues(guide.name, text, path_baseline, target))
+        if deltas.is_file():
+            checked.append(deltas.name)
+            issues.extend(values_deltas_layout_issues(deltas.name, deltas.read_text(encoding="utf-8")))
 
     if not checked:
         print(f"no {baseline}-to-{target} upgrade guide or values-deltas doc — nothing to check")

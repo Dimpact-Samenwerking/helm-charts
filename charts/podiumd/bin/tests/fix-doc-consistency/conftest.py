@@ -367,6 +367,7 @@ class WriterThenChecker(Protocol):
         *,
         earlier: ChartState | None = None,
         by_hand: Sequence[str] = (),
+        side: ChartState | None = None,
     ) -> dict[str, str]: ...
 
 
@@ -383,6 +384,8 @@ def writer_then_checker(
     With `by_hand`, the checker must instead report exactly that many
     fix-by-hand findings, each containing one of the given texts, and
     nothing fix-doc-consistency would change.
+    With `side`, that state is tagged podiumd-<version> too and declared as
+    the only side path.
     """
 
     def run(
@@ -391,10 +394,17 @@ def writer_then_checker(
         *,
         earlier: ChartState | None = None,
         by_hand: Sequence[str] = (),
+        side: ChartState | None = None,
     ) -> dict[str, str]:
         git("init", "-q", cwd=tmp_path)
         git("config", "user.email", "test@example.com", cwd=tmp_path)
         git("config", "user.name", "Test", cwd=tmp_path)
+        side_paths = [side["version"]] if side is not None else []
+        if side is not None:
+            _write_state(tmp_path, side)
+            git("add", "-A", cwd=tmp_path)
+            git("commit", "-q", "-m", "side path", cwd=tmp_path)
+            git("tag", f"podiumd-{side['version']}", cwd=tmp_path)
         _write_state(tmp_path, baseline)
         git("add", "-A", cwd=tmp_path)
         git("commit", "-q", "-m", "baseline", cwd=tmp_path)
@@ -403,6 +413,7 @@ def writer_then_checker(
         (tmp_path / "docs" / "images").mkdir(parents=True, exist_ok=True)
         monkeypatch.setattr("sys.argv", ["fix-doc-consistency"])
         monkeypatch.setattr(cdb, "read_upgrade_docs_baseline", lambda chart_dir: baseline["version"])
+        monkeypatch.setattr(cdb, "read_upgrade_docs_side_paths", lambda chart_dir: side_paths)
         monkeypatch.setattr(cdb, "DOC_DIR", tmp_path / "docs" / "_UPGRADE_PATHS")
         monkeypatch.setattr(cdb, "IMAGES_DIR", tmp_path / "docs" / "images")
         monkeypatch.setattr(cdb, "CHART_YAML", tmp_path / "Chart.yaml")
@@ -419,7 +430,7 @@ def writer_then_checker(
         cdb.main()
         written = _doc_snapshot(tmp_path)
         capsys.readouterr()
-        ok, detail = check_docs_consistency(tmp_path, upgrade_docs_baseline=baseline["version"])
+        ok, detail = check_docs_consistency(tmp_path, baseline["version"], side_paths)
         out = capsys.readouterr().out
         if by_hand:
             assert detail == f"{len(by_hand)} to fix by hand", f"{detail}\n{out}"
