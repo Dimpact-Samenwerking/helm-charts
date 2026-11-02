@@ -160,6 +160,8 @@ from dataclasses import dataclass, field
 
 from migrate_common import MigrationError
 from migrate_common import error_note
+from migrate_common import line_indent
+from migrate_common import literal_block
 from migrate_common import load_safe
 from migrate_common import rt_yaml
 from migrate_common import unified_diff
@@ -180,8 +182,15 @@ def _rt_yaml():
     return rt_yaml(width=4096)
 
 
-def _indent(line: str) -> int:
-    return len(line) - len(line.lstrip(" "))
+def _literal_content(lines: list[str], mapping, key: str, path: str) -> tuple[int, int, int, str]:
+    """literal_block's (start, end, indent) and the block's content without that indent."""
+    start, end, ind = literal_block(lines, mapping, key, path)
+    return start, end, ind, "\n".join(c[ind:] if c.strip() else "" for c in lines[start:end])
+
+
+def _indented(text: str, ind: int) -> list[str]:
+    """The lines of `text` indented by `ind` columns, for _literal_content's (start, end)."""
+    return [(" " * ind + line) if line.strip() else "" for line in text.split("\n")]
 
 
 def _is_blank_or_comment(line: str) -> bool:
@@ -193,7 +202,7 @@ def _trim_trailing(lines: list[str], start: int, end: int, key_col: int) -> int:
     """Leave trailing blank lines and comments at or left of the key's column out of a block:
     they belong to whatever follows."""
     while end > start + 1 and _is_blank_or_comment(lines[end - 1]) and (
-        not lines[end - 1].strip() or _indent(lines[end - 1]) <= key_col
+        not lines[end - 1].strip() or line_indent(lines[end - 1]) <= key_col
     ):
         end -= 1
     return end
@@ -228,8 +237,8 @@ def child_indent(lines: list[str], start: int, end: int) -> int:
     """Indentation of the first child line of the block starting at `start`."""
     for line in lines[start + 1:end]:
         if not _is_blank_or_comment(line):
-            return _indent(line)
-    return _indent(lines[start]) + 2
+            return line_indent(line)
+    return line_indent(lines[start]) + 2
 
 
 def reindent(block: list[str], delta: int) -> list[str]:
@@ -534,7 +543,7 @@ def edit_data(inner: str, objecttypen_inner: str) -> str:
         for key in ("fields", "use_fields"):
             if key in item:
                 ed.delete(*key_range(lines, item, key, i_e))
-    dash_col = items.lc.item(0)[1] - 2 if items else _indent(lines[items_s]) + 2
+    dash_col = items.lc.item(0)[1] - 2 if items else line_indent(lines[items_s]) + 2
 
     t_items = (t_root.get("tokenauth") or {}).get("items") or []
     plain_items = load_safe(inner)["tokenauth"]["items"]
@@ -656,25 +665,15 @@ def migrate_text(text: str, image_repo: str | None) -> tuple[str, list[str]]:
                   + [" " * sec_child + f"create_required_objecttypen_token: {token_quoted}"])
 
     # objecten.configuration.data
-    d_s, d_e = key_range(lines, cfg, "data", cf_e)
-    header = lines[d_s]
-    if not re.search(r":\s*\|[-+]?\s*(#.*)?$", header):
-        raise MigrationError("objecten.configuration.data is not a literal block (|)")
-    content = lines[d_s + 1:d_e]
-    ind = min((_indent(c) for c in content if c.strip()), default=cf_child + 2)
-    inner = "\n".join(c[ind:] if c.strip() else "" for c in content)
-    t_d_s, t_d_e = key_range(lines, ot_cfg, "data", tc_e)
-    t_content = lines[t_d_s + 1:t_d_e]
-    t_ind = min((_indent(c) for c in t_content if c.strip()), default=0)
-    t_inner = "\n".join(c[t_ind:] if c.strip() else "" for c in t_content)
-    new_inner = edit_data(inner, t_inner)
-    ed.replace(d_s + 1, d_e, [(" " * ind + l) if l.strip() else "" for l in new_inner.split("\n")])
+    d_s, d_e, ind, inner = _literal_content(lines, cfg, "data", "objecten.configuration.data")
+    t_inner = _literal_content(lines, ot_cfg, "data", "objecttypen.configuration.data")[3]
+    ed.replace(d_s, d_e, _indented(edit_data(inner, t_inner), ind))
 
     # objecten.create_required_objecttypen_job: moved from objecttypen
     tail: list[str] = []
     if "create_required_objecttypen_job" in ot and "create_required_objecttypen_job" not in ob:
         j_s, j_e = key_range(lines, ot, "create_required_objecttypen_job", ot_e)
-        tail += reindent(lines[j_s:j_e], ob_child - _indent(lines[j_s]))
+        tail += reindent(lines[j_s:j_e], ob_child - line_indent(lines[j_s]))
     if image_repo:
         if "image" in ob and "repository" in ob["image"]:
             r_line = ob["image"].lc.key("repository")[0]
@@ -1168,14 +1167,8 @@ def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
     expected_inner: dict[str, object] = {}
     for component, merges in plans.items():
         comp = root[component]
-        _, c_e = key_range(lines, root, component, len(lines))
-        _, cf_e = key_range(lines, comp, "configuration", c_e)
-        d_s, d_e = key_range(lines, comp["configuration"], "data", cf_e)
-        if not re.search(r":\s*\|[-+]?\s*(#.*)?$", lines[d_s]):
-            raise MigrationError(f"{component}.configuration.data is not a literal block (|)")
-        content = lines[d_s + 1:d_e]
-        ind = min((_indent(c) for c in content if c.strip()), default=_indent(lines[d_s]) + 2)
-        inner_text = "\n".join(c[ind:] if c.strip() else "" for c in content)
+        d_s, d_e, ind, inner_text = _literal_content(lines, comp["configuration"], "data",
+                                                     f"{component}.configuration.data")
         i_lines = inner_text.split("\n")
         i_root = _rt_yaml().load(inner_text)
         plain = load_safe(inner_text)
@@ -1209,19 +1202,15 @@ def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
                 raise MigrationError(f"{component}: the removed zgw_consumers service {old_id} is still referenced "
                                      f"at {'.'.join(map(str, left))}; point it at the kept service by hand")
         new_inner = "\n".join(i_ed.apply(i_lines))
-        ed.replace(d_s + 1, d_e, [(" " * ind + line) if line.strip() else "" for line in new_inner.split("\n")])
+        ed.replace(d_s, d_e, _indented(new_inner, ind))
         expected_inner[component] = plain
     want = copy.deepcopy(doc)
     if openzaak_plan is not None:
         comp = root["objecten"]
         _, c_e = key_range(lines, root, "objecten", len(lines))
         _, cf_e = key_range(lines, comp, "configuration", c_e)
-        d_s, d_e = key_range(lines, comp["configuration"], "data", cf_e)
-        if not re.search(r":\s*\|[-+]?\s*(#.*)?$", lines[d_s]):
-            raise MigrationError("objecten.configuration.data is not a literal block (|)")
-        content = lines[d_s + 1:d_e]
-        ind = min((_indent(c) for c in content if c.strip()), default=_indent(lines[d_s]) + 2)
-        inner_text = "\n".join(c[ind:] if c.strip() else "" for c in content)
+        d_s, d_e, ind, inner_text = _literal_content(lines, comp["configuration"], "data",
+                                                     "objecten.configuration.data")
         i_lines = inner_text.split("\n")
         i_root = _rt_yaml().load(inner_text)
         items = i_root["tokenauth"]["items"]
@@ -1229,7 +1218,7 @@ def merge_objecttypen_services(text: str) -> tuple[str, list[str], list[str]]:
         i_ed = Edits()
         i_ed.insert(items_e, _openzaak_item_lines(openzaak_plan, items.lc.item(0)[1] - 2))
         new_inner = "\n".join(i_ed.apply(i_lines))
-        ed.replace(d_s + 1, d_e, [(" " * ind + line) if line.strip() else "" for line in new_inner.split("\n")])
+        ed.replace(d_s, d_e, _indented(new_inner, ind))
         plain = load_safe(inner_text)
         plain["tokenauth"]["items"].append(_openzaak_item(openzaak_plan))
         expected_inner["objecten"] = plain
