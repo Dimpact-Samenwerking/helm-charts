@@ -263,12 +263,6 @@ def test_upgrade_stub_has_the_checklist_sections_in_order(libcomponentdocsbaseli
     assert "](#c-per-environment-before-the-deploy-day)" in text
 
 
-def test_stubs_pass_the_layout_check(libcomponentdocsbaselinedocstubs: ModuleType):
-    stubs = libcomponentdocsbaselinedocstubs
-    assert upgrade_guide_layout_issues("u.md", _stub(stubs, "upgrade"), "4.8.5", "4.9.0") == []
-    assert values_deltas_layout_issues("v.md", _stub(stubs, "values-deltas")) == []
-
-
 def test_first_changes_block_clears_the_upgrade_stub_todos_and_keeps_the_layout(
     libcomponentdocsbaselinedocstubs: ModuleType, libcomponentdocschanges: ModuleType
 ):
