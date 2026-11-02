@@ -161,7 +161,7 @@ spec:
     spec:
       containers:
         - image: {{ include "podiumd.image" .Values.objecten.image }}
-          command: ["/jobs/create-required-objecttypen.py"]
+          command: {{ include "podiumd.retryCommand" (list "/jobs/create-required-objecttypen.py") }}
           name: create-required-objecttypen
           resources:
             {{- toYaml .Values.objecten.create_required_objecttypen_job.resources | nindent 12 }}
