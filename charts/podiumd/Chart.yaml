@@ -24,7 +24,7 @@ dependencies:
     condition: mi.enabled
     alias: mi
   - name: openzaak
-    version: 1.14.2
+    version: 1.16.0
     repository: "@maykinmedia"
     condition: openzaak.enabled
   - name: opennotificaties
