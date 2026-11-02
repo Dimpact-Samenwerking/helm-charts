@@ -1413,10 +1413,11 @@ objecten:
     enabled: true
     # Objecttypes (by objecttypes_data "name", e.g. Medewerker, Afdeling, Groep, InterneTaak,
     # Kennisartikel, VAC, Productaanvraag-Dimpact, Activiteitenlog) that get a new published
-    # version when their latest version's jsonSchema differs from the chart's
+    # version when their latest published version's jsonSchema differs from the chart's
     # files/objecttypen/<name>.json. Objecttypes not listed here are never updated.
-    updateExistingVersions:
-      - Productaanvraag-Dimpact
+    # Empty by default: a listed type's own published versions are superseded by the
+    # chart's schema on every deploy, so an environment opts in per type.
+    updateExistingVersions: []
     # Total wall-clock window in which the job is allowed to keep retrying (seconds). Default: 15 minutes.
     activeDeadlineSeconds: 900
     # Number of retries before the job is marked failed. Aligned with django-config jobs.
