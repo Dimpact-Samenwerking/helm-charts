@@ -28,7 +28,9 @@
 
 [`4.9.5-to-4.10.0-upgrade.md`](_UPGRADE_PATHS/4.9.5-to-4.10.0-upgrade.md)
 has three parts, named in its first lines: the runbook, the record of what
-moved, the reference.
+moved, the reference. Every section A to F is there in every guide; one with
+nothing to do for the hop says "Nothing for this hop." and its Checklist box
+says so too.
 
 | Part | What it is, and why it is there |
 | --- | --- |

@@ -49,9 +49,8 @@ For a new release `<new>` with predecessor `<prev>`:
    `charts/podiumd/values.yaml` (tag + digest).
 2. Scaffold the guide with the `/upgrade-notes <prev>-to-<new>` skill →
    `_UPGRADE_PATHS/<prev>-to-<new>-upgrade.md`, in the layout of
-   [`_UPGRADE_DOCS_CHECKLIST.md`](_UPGRADE_DOCS_CHECKLIST.md): every section
-   A to F stays, an empty one says "Nothing for this hop.". Link app-specific
-   runbooks from `apps/<app>/` instead of inlining them.
+   [`_UPGRADE_DOCS_CHECKLIST.md`](_UPGRADE_DOCS_CHECKLIST.md). Link
+   app-specific runbooks from `apps/<app>/` instead of inlining them.
 3. Create the companions in `_UPGRADE_PATHS/` (`create-doc-version` makes the
    first two as stubs):
    - `<prev>-to-<new>-values-deltas.md` — config only, as the checklist

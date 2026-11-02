@@ -8,11 +8,11 @@ The baseline is `upgrade_docs` in `charts/podiumd/etc/release-baseline.yaml`, th
 
 **Never edit the guides of released versions** (every other `<from>-to-<to>-*.md`, such as `4.9.4-to-4.9.5-upgrade.md`). They are frozen; a step that also holds for an older hop goes in the current guide.
 
-When the docs do not exist yet, `charts/podiumd/bin/create-doc-version` (also run by `create-podiumd-version`) creates them as stubs in the checklist layout: every section is there and says "Nothing for this hop.".
+When the docs do not exist yet, `charts/podiumd/bin/create-doc-version` (also run by `create-podiumd-version`) creates them as stubs in the checklist layout: every section is there, D with a `helm upgrade` step, "## Changes" with a TODO that the tooling replaces, the rest with "Nothing for this hop.".
 
 ## 2. Write
 
-- Fill the sections of the stub in the checklist's order. Keep "Nothing for this hop." where it is true; delete it where the section gets content.
+- Fill the sections of the stub in the checklist's order; the checklist says what an empty section keeps.
 - The tooling writes the "Component versions" table and the `###` headings under "## Changes". Do not rewrite them by hand; run `charts/podiumd/bin/fix-doc-consistency` after editing.
 - The values-deltas doc is config only and written by hand: one `## <component> <old> → <new>` section per component, as in the "Component versions" table, and one per gateway file. Prose goes in the upgrade guide.
 
@@ -26,14 +26,14 @@ Go through the checklist's questions and its table of parts, one by one, against
 python3 charts/podiumd/bin/verify-podiumd --include upgrade-doc-layout,markdown,doc-consistency
 ```
 
-- `upgrade-doc-layout` checks that the guide's `##` sections from "Checklist" to "Changes" are all there and in order, that D has "If the run fails", that the Checklist links A to F and that the opening names the baseline and links the values-deltas doc. In the values-deltas doc it checks for an opening and that every `##` heading is a component or a gateway file. It does not judge the content of a step or the length of the prose: that is the review in step 3.
+- `upgrade-doc-layout` reports, and never fails the run, whether the guide's `##` sections from "Checklist" to "Changes" are all there and in order, whether D has "If the run fails", whether the Checklist links A to F and whether the opening names a baseline and links the values-deltas doc. In the values-deltas doc it looks for an opening and whether every `##` heading is a component or a gateway file. It skips a target that is already tagged (`podiumd-<target>`). Treat its WARNING lines as findings to fix: the PASS status does not mean the layout is right. It does not judge the content of a step or the length of the prose: that is the review in step 3.
 - Lint both docs with pymarkdown and the verify settings, as in [`/markdown-lint`](markdown-lint.md), until there are 0 findings.
 
 ## Report
 
 ```text
 UPGRADE DOCS <baseline> → <target>
-  Layout check    : PASS | FAIL (<n> issue(s): <first one>)
+  Layout check    : OK | <n> issue(s) reported: <first one>
   Markdown        : PASS (0 findings) | FAIL (<rule> <file>:<line>, ...)
   Doc consistency : PASS | FAIL (<detail>)
   Checklist       : <items not met, with their section>, or "all met"
