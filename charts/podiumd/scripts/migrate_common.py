@@ -15,6 +15,7 @@ import argparse
 import difflib
 import glob
 import os
+import re
 import sys
 from collections.abc import Callable
 
@@ -55,6 +56,37 @@ def load_rt_all(text: str) -> list:
 
 def load_safe_all(text: str) -> list:
     return list(YAML(typ="safe", pure=True).load_all(text))
+
+
+# `key: |`, `|-` or `|+`, optionally followed by a comment.
+_LITERAL_HEADER = re.compile(r":\s*\|[-+]?\s*(#.*)?$")
+
+
+def line_indent(line: str) -> int:
+    """The number of leading spaces of `line`."""
+    return len(line) - len(line.lstrip(" "))
+
+
+def literal_block(lines: list[str], mapping, key: str, path: str) -> tuple[int, int, int]:
+    """(start, end, indent) of the content lines of the literal block `key: |`.
+
+    `mapping` is the round-trip-loaded mapping that holds `key`; `lines` are the
+    file's lines. Content line j of the block is lines[start + j] without its
+    first `indent` columns, so the line numbers of a round-trip load of the
+    block's value map onto the file. Trailing blank lines belong to what
+    follows. Raises MigrationError when it is not a literal block.
+    """
+    line = mapping.lc.key(key)[0]
+    if not _LITERAL_HEADER.search(lines[line]):
+        raise MigrationError(f"line {line + 1}: {path} is not a literal block (|)")
+    start = line + 1
+    indent = line_indent(next((ln for ln in lines[start:] if ln.strip()), ""))
+    end = start
+    while end < len(lines) and (not lines[end].strip() or lines[end].startswith(" " * indent)):
+        end += 1
+    while end > start and not lines[end - 1].strip():
+        end -= 1
+    return start, end, indent
 
 
 def error_note(e: Exception) -> str:

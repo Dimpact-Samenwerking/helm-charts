@@ -71,6 +71,8 @@ import io
 import sys
 
 from migrate_common import MigrationError
+from migrate_common import line_indent
+from migrate_common import literal_block
 from migrate_common import load_safe
 from migrate_common import rt_yaml
 from migrate_common import run
@@ -185,9 +187,9 @@ def _dump(node, indent: int, seq_offset: int) -> str:
 
 def _value_end(lines: list[str], start: int, end: int) -> int:
     """End of a key's value: following lines indented deeper (or blank)."""
-    col = len(lines[start]) - len(lines[start].lstrip(" "))
+    col = line_indent(lines[start])
     j = start + 1
-    while j < end and (not lines[j].strip() or (len(lines[j]) - len(lines[j].lstrip(" "))) > col):
+    while j < end and (not lines[j].strip() or line_indent(lines[j]) > col):
         j += 1
     while j > start + 1 and not lines[j - 1].strip():  # trailing blank lines belong to what follows
         j -= 1
@@ -223,13 +225,10 @@ def migrate_text(text: str, _args: argparse.Namespace | None = None) -> tuple[st
 
     lines = text.splitlines(keepends=True)
     rt = rt_yaml().load(text)
-    data_line = rt["openinwoner"]["configuration"].lc.key("data")[0]
-    if not lines[data_line].split(" #", 1)[0].rstrip().endswith(("|", "|-", "|+")):
-        raise MigrationError(f"line {data_line + 1}: openinwoner.configuration.data is not a literal block (|)")
-    start = data_line + 1
+    start, _, block_indent = literal_block(lines, rt["openinwoner"]["configuration"], "data",
+                                           "openinwoner.configuration.data")
     inner_rt = rt_yaml().load(data)
     key_line, key_col = inner_rt.lc.key(KEY)
-    block_indent = len(lines[start]) - len(lines[start].lstrip(" "))
     abs_key = start + key_line
     end = _value_end(lines, abs_key, len(lines))
     migrated, notes = migrate_block(inner_rt[KEY])
