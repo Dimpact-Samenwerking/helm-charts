@@ -1411,6 +1411,12 @@ objecten:
   # objecttypen.create_required_objecttypen_job.* block.
   create_required_objecttypen_job:
     enabled: true
+    # Objecttypes (by objecttypes_data "name", e.g. Medewerker, Afdeling, Groep, InterneTaak,
+    # Kennisartikel, VAC, Productaanvraag-Dimpact, Activiteitenlog) that get a new published
+    # version when their latest version's jsonSchema differs from the chart's
+    # files/objecttypen/<name>.json. Objecttypes not listed here are never updated.
+    updateExistingVersions:
+      - Productaanvraag-Dimpact
     # Total wall-clock window in which the job is allowed to keep retrying (seconds). Default: 15 minutes.
     activeDeadlineSeconds: 900
     # Number of retries before the job is marked failed. Aligned with django-config jobs.

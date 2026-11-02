@@ -39,6 +39,7 @@ metadata:
     {{- include "openobject.labels" . | nindent 4 }}
 data:
   OBJECTTYPES_URL: {{ printf "%s%s" .Values.objecten.configuration.oidcUrl "/api/v2" | quote}}
+  UPDATE_EXISTING_VERSIONS: {{ .Values.objecten.create_required_objecttypen_job.updateExistingVersions | default list | toJson | quote }}
   create-required-objecttypen.py: |
     #!/usr/local/bin/python
     import json
@@ -51,12 +52,14 @@ data:
     authorization_token = os.environ['AUTHORIZATION_TOKEN']
     objecttypes_url = os.environ['OBJECTTYPES_URL']
     schemas_dir = '/schemas'
+    update_existing_versions = set(json.loads(os.environ.get('UPDATE_EXISTING_VERSIONS', '[]')))
 
     authorization="Token " + authorization_token
+    # Returns the URL of the highest-numbered version, or None when there is none.
     def findHighestVersion(versions):
       pattern = r'/(\d+)$'
-      numbers = [int(match.group(1)) for url in versions if (match := re.search(pattern, url))]
-      return max(numbers) if numbers else None
+      numbered = [(int(match.group(1)), url) for url in versions if (match := re.search(pattern, url))]
+      return max(numbered)[1] if numbered else None
 
     objecttypes_data = [
       { "documentationUrl": "https://raw.githubusercontent.com/open-objecten/objecttypes/refs/heads/main/community-concepts/Medewerker/medewerker-schema.json", "namePlural": "Medewerkers", "name": "Medewerker", "dataClassification":"open", "updateFrequency":"unknown"  },
@@ -95,6 +98,16 @@ data:
       if not response.ok:
         sys.exit(f"{action} failed: HTTP {response.status_code}: {response.text[:500]}")
       return response
+
+    def publishVersion(objecttype, action):
+      check(requests.post(
+        f"{objecttypes_url}/objecttypes/{objecttype['uuid']}/versions",
+        json={"status":"published","jsonSchema":schemas[objecttype['name']]},
+        headers={
+          "Authorization": authorization,
+          "Content-Type": "application/json"
+        }
+      ), f"{action} for objecttype {objecttype['name']}")
 
     # The API caps pageSize at 500, so follow "next" instead of trusting one page.
     # No dataClassification filter: a type with another classification must still
@@ -135,19 +148,22 @@ data:
         objecttype['uuid']=response.json()['uuid']
         print(f"created objecttype for {objecttype['name']}: {objecttype['uuid']}")
 
-      # Only a type without any version gets one. Published versions are never
-      # replaced, so a newer schema in the chart doesn't reach existing types.
+      # A type without any version gets one. A type that has one only gets a new
+      # version when it is listed in updateExistingVersions and its latest
+      # version's schema differs from the chart's.
       if 'version' not in objecttype:
-        versionData={"status":"published","jsonSchema":schemas[objecttype['name']]}
-        check(requests.post(
-          f"{objecttypes_url}/objecttypes/{objecttype['uuid']}/versions",
-          json=versionData,
-          headers={
-            "Authorization": authorization,
-            "Content-Type": "application/json"
-          }
-        ), f"creating version for objecttype {objecttype['name']}")
+        publishVersion(objecttype, "creating version")
         print(f"created version for objecttype {objecttype['name']} ({objecttype['uuid']})")
+      elif objecttype['name'] in update_existing_versions:
+        latest_schema = check(requests.get(
+          objecttype['version'],
+          headers={"Authorization": authorization}
+        ), f"reading latest version of objecttype {objecttype['name']}").json().get('jsonSchema')
+        if latest_schema != schemas[objecttype['name']]:
+          publishVersion(objecttype, "publishing updated version")
+          print(f"published updated version for objecttype {objecttype['name']} ({objecttype['uuid']}): schema changed")
+        else:
+          print(f"schema unchanged for objecttype {objecttype['name']} ({objecttype['uuid']}), skipping")
 ---
 apiVersion: batch/v1
 kind: Job
