@@ -61,10 +61,11 @@ Resources for the main Keycloak container are set via `spec.resources` in the Ke
 | keycloak-operator | 100m | 128Mi | 500m | 768Mi |
 | job: ensurePodiumdAdminUser | 50m | 64Mi | 200m | 128Mi |
 | job: ensureOperatorSa | 50m | 64Mi | 200m | 128Mi |
-| job: importPodiumdRealm (kc-config-cli) | 50m | 256Mi | 200m | 512Mi |
-| job: importMasterRealm (kc-config-cli) | 50m | 256Mi | 200m | 512Mi |
+| job: importPodiumdRealm (kc-config-cli) | 50m | 256Mi | 2 | 512Mi |
+| job: importMasterRealm (kc-config-cli) | 50m | 256Mi | 2 | 512Mi |
+| job: repairClientScopes (kcadm.sh) | 50m | 256Mi | 2 | 512Mi |
 
-Values keys: `keycloak-operator.operator.resources` (operator pod), `keycloak-operator.jobs.resources` (curl/python/psql job containers), `keycloak-operator.jobs.configCliResources` (kc-config-cli — Spring Boot JVM, needs more memory).
+Values keys: `keycloak-operator.operator.resources` (operator pod), `keycloak-operator.jobs.resources` (curl/python/psql job containers), `keycloak-operator.jobs.configCliResources` (kc-config-cli — Spring Boot JVM, needs more memory), `keycloak-operator.jobs.repairClientScopes.resources` (kcadm.sh — JVM).
 
 > Operator memory limit was raised 256Mi → 768Mi (IN-2233: OOMKilled with
 > excessive restarts across clusters at 256Mi).
