@@ -218,7 +218,7 @@ PodiumD Helm chart
 | frankgateway.seed.job.backoffLimit | int | `3` |  |
 | frankgateway.seed.job.image.pullPolicy | string | `"IfNotPresent"` |  |
 | frankgateway.seed.job.image.repository | string | `"curlimages/curl"` |  |
-| frankgateway.seed.job.image.tag | string | `"8.23.0@sha256:11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac"` |  |
+| frankgateway.seed.job.image.tag | string | `"8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93"` |  |
 | frankgateway.seed.job.nodeSelector | object | `{}` |  |
 | frankgateway.seed.job.ttlSecondsAfterFinished | int | `600` | How long the finished Job (and its per-route log) is kept. Must outlast the deploy's Helm timeout, or the Job vanishes under --wait. |
 | frankgateway.seed.prune | bool | `false` | Delete routes labelled `managed-by: iac` that are NOT in this render. Off: a route removed from values lingers in etcd until this is turned on. On: values are the complete truth. Routes without the label (made in the dashboard) are never touched either way. |
@@ -259,7 +259,7 @@ PodiumD Helm chart
 | global.images.busybox.tag | string | `"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"` |  |
 | global.images.curl.pullPolicy | string | `"IfNotPresent"` |  |
 | global.images.curl.repository | string | `"curlimages/curl"` |  |
-| global.images.curl.tag | string | `"8.23.0@sha256:11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac"` |  |
+| global.images.curl.tag | string | `"8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93"` |  |
 | global.images.nginx.pullPolicy | string | `"IfNotPresent"` |  |
 | global.images.nginx.repository | string | `"nginxinc/nginx-unprivileged"` |  |
 | global.images.nginx.tag | string | `"1.31.7@sha256:09b0d3eda2aa592d2487f284519419015cab010d7df16cd0fe224b585fc60eb6"` |  |
@@ -334,7 +334,7 @@ PodiumD Helm chart
 | keycloak-operator.jobs.ensureOperatorSa.enabled | bool | `true` |  |
 | keycloak-operator.jobs.ensureOperatorSa.image.pullPolicy | string | `"IfNotPresent"` |  |
 | keycloak-operator.jobs.ensureOperatorSa.image.repository | string | `"curlimages/curl"` |  |
-| keycloak-operator.jobs.ensureOperatorSa.image.tag | string | `"8.23.0@sha256:11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac"` |  |
+| keycloak-operator.jobs.ensureOperatorSa.image.tag | string | `"8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93"` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.enabled | bool | `true` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.image.pullPolicy | string | `"IfNotPresent"` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.image.repository | string | `"library/postgres"` |  |
@@ -605,7 +605,7 @@ PodiumD Helm chart
 | kiss.settings.syncJobs.crawlerImage | object | `{"pullPolicy":"IfNotPresent","repository":"docker.elastic.co/integrations/crawler","tag":"1.1.0@sha256:7e87a0571129681cfd3053e9bd7998926633e69fbd8da7c29a384f0d7e9ef26e"}` | Elastic Open Crawler, vervangt de Enterprise Search web crawler. Draait als CronJob per site uit syncJobs.website en schrijft rechtstreeks naar Elasticsearch. |
 | kiss.settings.syncJobs.image.pullPolicy | string | `"IfNotPresent"` |  |
 | kiss.settings.syncJobs.image.tag | string | `"3.2.0@sha256:8ebfe45802a4d7c09ecc8d9c237e11ba6c893479e6f59957e09116594ea52c49"` |  |
-| kiss.settings.syncJobs.indexTemplateImage | object | `{"pullPolicy":"IfNotPresent","repository":"curlimages/curl","tag":"8.23.0@sha256:11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac"}` | pre-install/pre-upgrade hook die het search-website* index-template in Elasticsearch registreert. Heeft alleen curl nodig. |
+| kiss.settings.syncJobs.indexTemplateImage | object | `{"pullPolicy":"IfNotPresent","repository":"curlimages/curl","tag":"8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93"}` | pre-install/pre-upgrade hook die het search-website* index-template in Elasticsearch registreert. Heeft alleen curl nodig. |
 | kiss.settings.syncJobs.kennisbank.baseUrl | string | `""` |  |
 | kiss.settings.syncJobs.kennisbank.historyLimit | int | `1` |  |
 | kiss.settings.syncJobs.kennisbank.objectTypeUrl | string | `""` |  |
@@ -1491,7 +1491,7 @@ PodiumD Helm chart
 | zac.gemeente.naam | string | `"Example Gemeente"` |  |
 | zac.global.curlImage.pullPolicy | string | `"IfNotPresent"` |  |
 | zac.global.curlImage.repository | string | `"curlimages/curl"` |  |
-| zac.global.curlImage.tag | string | `"8.23.0@sha256:11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac"` |  |
+| zac.global.curlImage.tag | string | `"8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93"` |  |
 | zac.image.pullPolicy | string | `"IfNotPresent"` |  |
 | zac.image.tag | string | `"5.9.1@sha256:d2b43634c21205183ed7ce9591791fa0112501bb2e4b04baff0362da9e001da4"` |  |
 | zac.initContainer.enabled | bool | `true` |  |
