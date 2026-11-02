@@ -4,10 +4,14 @@ on:
   push:
     paths:
       - 'charts/podiumd/bin/**'
+      # tests/migrate-scripts/ tests the migrate scripts there.
+      - 'charts/podiumd/scripts/**'
       - '.github/workflows/podiumd-python-checks.yaml'
   pull_request:
     paths:
       - 'charts/podiumd/bin/**'
+      # tests/migrate-scripts/ tests the migrate scripts there.
+      - 'charts/podiumd/scripts/**'
       - '.github/workflows/podiumd-python-checks.yaml'
   workflow_dispatch:
 
