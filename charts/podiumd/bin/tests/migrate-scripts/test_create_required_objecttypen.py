@@ -61,12 +61,12 @@ class ObjecttypesApi:
     posts: list[tuple[str, Any]] = field(default_factory=list[tuple[str, Any]])
     fail_on: str | None = None
 
-    def add(self, name: str, *versions: tuple[str, Any]) -> None:
+    def add(self, name: str, *versions: tuple[str, Any], name_plural: str | None = None) -> None:
         uuid = f"uuid-{name}"
         self.types[uuid] = {
             "uuid": uuid,
             "name": name,
-            "namePlural": f"{name}s",
+            "namePlural": name_plural or f"{name}s",
             "versions": [
                 {"version": n, "status": status, "jsonSchema": schema}
                 for n, (status, schema) in enumerate(versions, start=1)
@@ -214,6 +214,86 @@ def test_a_draft_on_top_of_the_current_published_schema_changes_nothing(
     run_job([PRODUCTAANVRAAG])
 
     assert api.posts == []
+
+
+OLD = ("published", {"old": True})
+
+
+@pytest.mark.parametrize(
+    ("existing", "update_existing_versions"),
+    [([], None), ([OLD], [PRODUCTAANVRAAG])],
+    ids=["create", "update"],
+)
+def test_a_second_run_changes_nothing(
+    api: ObjecttypesApi,
+    run_job: RunJob,
+    schemas: dict[str, Any],
+    existing: list[tuple[str, Any]],
+    update_existing_versions: list[str] | None,
+):
+    """The Job runs on every deploy."""
+    for name in sorted(schemas) if existing else []:
+        api.add(name, *existing)
+    run_job(update_existing_versions)
+    first = list(api.posts)
+
+    run_job(update_existing_versions)
+
+    assert first
+    assert api.posts == first
+
+
+@pytest.mark.parametrize(
+    ("versions", "new_versions"),
+    [
+        ([OLD, ("published", "CHART")], 0),
+        ([("published", "CHART"), OLD], 1),
+        ([("draft", {"draft": True})], 1),
+        ([OLD, OLD, OLD, ("published", "CHART")], 0),
+    ],
+    ids=["highest-published-is-current", "highest-published-is-old", "only-drafts", "beyond-the-first-page"],
+)
+def test_the_highest_published_version_decides(
+    api: ObjecttypesApi,
+    run_job: RunJob,
+    schemas: dict[str, Any],
+    versions: list[tuple[str, Any]],
+    new_versions: int,
+):
+    """A "CHART" schema stands for the chart's schema; the fake pages the versions list by PAGE_SIZE."""
+    for name in sorted(schemas):
+        if name == PRODUCTAANVRAAG:
+            api.add(name, *[(status, schemas[name] if schema == "CHART" else schema) for status, schema in versions])
+        else:
+            api.add(name, ("published", schemas[name]))
+
+    run_job([PRODUCTAANVRAAG])
+
+    expected = [
+        (
+            f"/objecttypes/uuid-{PRODUCTAANVRAAG}/versions",
+            {"status": "published", "jsonSchema": schemas[PRODUCTAANVRAAG]},
+        )
+    ]
+    assert api.posts == expected * new_versions
+
+
+def test_an_objecttype_is_found_by_its_plural_name(api: ObjecttypesApi, run_job: RunJob, schemas: dict[str, Any]):
+    """A type renamed in Objecten keeps matching on namePlural, so it is not created again."""
+    for name in sorted(schemas):
+        if name == PRODUCTAANVRAAG:
+            api.add("Productaanvraag (renamed)", name_plural="Productaanvragen-Dimpact")
+        else:
+            api.add(name, ("published", schemas[name]))
+
+    run_job(None)
+
+    assert api.posts == [
+        (
+            "/objecttypes/uuid-Productaanvraag (renamed)/versions",
+            {"status": "published", "jsonSchema": schemas[PRODUCTAANVRAAG]},
+        )
+    ]
 
 
 def test_a_failed_request_stops_the_job_with_its_status(api: ObjecttypesApi, run_job: RunJob):
