@@ -4,10 +4,13 @@ from pathlib import Path
 
 import pytest
 
+import lib.component_docs.changes_section as changes_section
+
 from lib.checks.upgrade_doc_layout import check_upgrade_doc_layout
 from lib.checks.upgrade_doc_layout import upgrade_guide_layout_issues
 from lib.checks.upgrade_doc_layout import values_deltas_layout_issues
 from lib.component_docs.baseline_doc_stubs import STUB_TEMPLATES
+from lib.upgradedoc.sorting_and_ordering import OrderingContext
 
 GUIDE = "4.9.5-to-4.10.0-upgrade.md"
 DELTAS = "4.9.5-to-4.10.0-values-deltas.md"
@@ -95,7 +98,7 @@ def test_opening_names_the_baseline_and_links_the_values_deltas():
         .replace(f"]({DELTAS})", "](elsewhere.md)")
     )
     assert _guide_issues(text) == [
-        f'{GUIDE}: the opening does not say which version it starts from ("For environments already on **4.9.5**.")',
+        f'{GUIDE}: the opening does not say which version it starts from ("For environments already on **4.9.5**."; doc-consistency checks the version)',
         f"{GUIDE}: the opening does not link the companion {DELTAS}",
     ]
 
@@ -113,6 +116,54 @@ def test_old_layout_guide_lists_every_missing_section():
     issues = _guide_issues(text)
     assert len(issues) == 8
     assert issues[0] == f'{GUIDE}: missing "## Checklist"'
+    # "after" names a section that is there, never one that is missing too.
+    assert issues[1] == f'{GUIDE}: missing "## A. Once per cluster"'
+    assert issues[-1] == f'{GUIDE}: missing "## Changes that need no action"'
+
+
+def test_changes_with_a_suffix_is_not_the_changes_section_for_the_writer_or_the_check():
+    """Regression (#670 review): "## Changes: notes" made insert_changes_section add a second "## Changes"."""
+    text = _stub("upgrade").replace("## Changes\n", "## Changes: notes\n")
+
+    def unknown(heading: str) -> str:
+        return (
+            f'{GUIDE}: "## {heading}" is not a section of the layout; move it under one of A to F, '
+            'or after "## Changes" as a reference section'
+        )
+
+    assert _guide_issues(text) == [
+        unknown("Changes: notes"),
+        unknown("Reference"),
+        f'{GUIDE}: missing "## Changes" after "## Component versions (4.10.0 vs 4.9.5)"',
+    ]
+    # The writer appends its own "## Changes" at the end; the check still reports both headings.
+    section = changes_section.render_changes_section("zac 5.0.2 → 5.4.3", [], [], "4.10.0")
+    written = changes_section.insert_changes_section(text, section, "zac", OrderingContext([], {}))
+    assert written.count("\n## Changes\n") == 1
+    assert _guide_issues(written) == [unknown("Changes: notes"), unknown("Reference")]
+
+
+def test_a_layout_section_after_changes_is_flagged():
+    text = _stub("upgrade") + "\n## Changes\n\nAgain.\n\n## F. Rollback: more\n\nText.\n"
+    assert _guide_issues(text) == [
+        f'{GUIDE}: "## Changes" appears twice',
+        f'{GUIDE}: "## F. Rollback: more" appears twice',
+    ]
+
+
+def test_checklist_out_of_order_gives_only_the_order_finding():
+    stub = _stub("upgrade")
+    checklist = stub[stub.index("## Checklist\n") : stub.index("## A. Once per cluster\n")]
+    text = stub.replace(checklist, "").replace("## F. Rollback\n", checklist + "## F. Rollback\n")
+    issues = _guide_issues(text)
+    assert len(issues) == 1
+    assert issues[0].startswith(f'{GUIDE}: "## Checklist" comes after "## E. After the deploy"')
+
+
+def test_closing_marks_and_exact_if_the_run_fails():
+    assert _guide_issues(_stub("upgrade").replace("## Checklist\n", "## Checklist ##\n")) == []
+    text = _stub("upgrade").replace("### If the run fails\n", "### If the run fails, read this\n")
+    assert _guide_issues(text) == [f'{GUIDE}: "## D. The deploy run" has no "### If the run fails" section']
 
 
 # --- values-deltas ---

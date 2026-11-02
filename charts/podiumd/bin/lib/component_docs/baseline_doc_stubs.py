@@ -38,15 +38,20 @@ RUNBOOK_SECTIONS = (
 )
 DEPLOY_RUN_SECTION = RUNBOOK_SECTIONS[3]
 IF_THE_RUN_FAILS_SECTION = "If the run fails"
+CHECKLIST_SECTION = "Checklist"
+NO_ACTION_SECTION = "Changes that need no action"
+COMPONENT_VERSIONS_SECTION = "Component versions"
+CHANGES_SECTION = CHANGES_HEADING.removeprefix("## ")
 # All its "##" sections up to "## Changes", in that order, as the
-# upgrade-doc-layout check expects them; a heading may add to the name
-# ("A. Once per cluster: CRDs").
+# upgrade-doc-layout check expects them. The Checklist and A to F headings
+# may add to the name ("A. Once per cluster: CRDs"); the others are found
+# the way the writers find them.
 UPGRADE_GUIDE_SECTIONS = (
-    "Checklist",
+    CHECKLIST_SECTION,
     *RUNBOOK_SECTIONS,
-    "Changes that need no action",
-    "Component versions",
-    CHANGES_HEADING.removeprefix("## "),
+    NO_ACTION_SECTION,
+    COMPONENT_VERSIONS_SECTION,
+    CHANGES_SECTION,
 )
 # What an empty section says; an author keeps it when it is true for the hop.
 EMPTY_SECTION_LINE = "Nothing for this hop.\n"
@@ -84,12 +89,12 @@ def _upgrade_stub_template() -> str:
         "  `ssl-gateway.yml`.\n"
         f"- [`{companion}-gemeente-specific.md`]({companion}-gemeente-specific.md):\n"
         "  findings per environment.\n\n"
-        "## Checklist\n\n"
+        f"## {CHECKLIST_SECTION}\n\n"
         "A and B are done once; C, D and E per environment.\n\n"
         f"{checklist}\n"
         f"{runbook}"
-        f"## Changes that need no action\n\n{EMPTY_SECTION_LINE}\n"
-        "## Component versions ({target} vs {upgrade_docs_baseline})\n\n"
+        f"## {NO_ACTION_SECTION}\n\n{EMPTY_SECTION_LINE}\n"
+        f"## {COMPONENT_VERSIONS_SECTION} ({{target}} vs {{upgrade_docs_baseline}})\n\n"
         "| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n\n"
         f"{CHANGES_HEADING}\n\n{UPGRADE_CHANGES_STUB_TODO_LINE}\n"

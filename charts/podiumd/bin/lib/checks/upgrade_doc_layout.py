@@ -22,13 +22,19 @@ from pathlib import Path
 
 from lib.chart.release_baseline_basics import chart_version
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
+from lib.component_docs.baseline_doc_stubs import CHANGES_SECTION
+from lib.component_docs.baseline_doc_stubs import CHECKLIST_SECTION
+from lib.component_docs.baseline_doc_stubs import COMPONENT_VERSIONS_SECTION
 from lib.component_docs.baseline_doc_stubs import DEPLOY_RUN_SECTION
 from lib.component_docs.baseline_doc_stubs import IF_THE_RUN_FAILS_SECTION
+from lib.component_docs.baseline_doc_stubs import NO_ACTION_SECTION
 from lib.component_docs.baseline_doc_stubs import RUNBOOK_SECTIONS
 from lib.component_docs.baseline_doc_stubs import UPGRADE_GUIDE_SECTIONS
 from lib.component_docs.owned_parts import generated_heading_name
 from lib.upgradedoc.baseline_intro import BASELINE_INTRO_RE
 from lib.upgradedoc.doc_names import doc_name
+from lib.upgradedoc.sorting_and_ordering import is_changes_heading
+from lib.upgradedoc.string_and_parsing_basics import COMPONENT_VERSIONS_HEADING_RE
 from lib.upgradedoc.string_and_parsing_basics import MarkdownHeading
 from lib.upgradedoc.string_and_parsing_basics import heading_slug
 from lib.upgradedoc.string_and_parsing_basics import markdown_headings
@@ -39,38 +45,54 @@ GATEWAY_FILE_HEADING_RE = re.compile(r"^`[\w-]+-gateway\.yml`$")
 _ORDER = ", ".join(f'"## {name}"' for name in UPGRADE_GUIDE_SECTIONS)
 
 
-def _section_index(heading: str) -> int | None:
-    """The UPGRADE_GUIDE_SECTIONS index `heading` names: the name alone, or followed by ": ..." or " (...)"."""
-    for i, name in enumerate(UPGRADE_GUIDE_SECTIONS):
-        if heading == name or heading.startswith((f"{name}: ", f"{name} (")):
-            return i
+# The Checklist and A to F may add to the name; the other sections are
+# found exactly as the writers find them (finding a "## Changes: notes"
+# would let insert_changes_section add a second "## Changes").
+_SUFFIXED_SECTIONS = (CHECKLIST_SECTION, *RUNBOOK_SECTIONS)
+_CHANGES_INDEX = UPGRADE_GUIDE_SECTIONS.index(CHANGES_SECTION)
+
+
+def _section_index(heading: MarkdownHeading) -> int | None:
+    """The UPGRADE_GUIDE_SECTIONS index of a "##" heading, None for any other heading."""
+    if is_changes_heading(heading):
+        return _CHANGES_INDEX
+    if COMPONENT_VERSIONS_HEADING_RE.match(heading.text):
+        return UPGRADE_GUIDE_SECTIONS.index(COMPONENT_VERSIONS_SECTION)
+    if heading.text == NO_ACTION_SECTION:
+        return UPGRADE_GUIDE_SECTIONS.index(NO_ACTION_SECTION)
+    for name in _SUFFIXED_SECTIONS:
+        if heading.text == name or heading.text.startswith((f"{name}: ", f"{name} (")):
+            return UPGRADE_GUIDE_SECTIONS.index(name)
     return None
 
 
 def _section_issues(name: str, level2: list[MarkdownHeading]) -> tuple[list[str], dict[int, MarkdownHeading]]:
-    """Unknown, misordered and missing "##" sections up to "## Changes"; also {section index: its heading}."""
+    """Unknown, misordered, repeated and missing "##" sections; also {section index: its heading}.
+
+    After "## Changes" any other heading may follow (the reference part), but
+    not a section of the layout again."""
     issues: list[str] = []
     found: dict[int, MarkdownHeading] = {}
     last_index, last_text = -1, ""
     for heading in level2:
-        index = _section_index(heading.text)
+        index = _section_index(heading)
         if index is None:
-            issues.append(
-                f'{name}: "## {heading.text}" is not a section of the layout; move it under one of A to F, '
-                f'or after "## Changes" as a reference section'
-            )
+            if _CHANGES_INDEX not in found:
+                issues.append(
+                    f'{name}: "## {heading.text}" is not a section of the layout; move it under one of A to F, '
+                    f'or after "## Changes" as a reference section'
+                )
             continue
         if index in found:
             issues.append(f'{name}: "## {heading.text}" appears twice')
         elif index < last_index:
             issues.append(f'{name}: "## {heading.text}" comes after "## {last_text}"; the order is {_ORDER}')
         found.setdefault(index, heading)
-        last_index, last_text = index, heading.text
-        if index == len(UPGRADE_GUIDE_SECTIONS) - 1:
-            break
+        last_index, last_text = max((index, heading.text), (last_index, last_text))
     for index, section in enumerate(UPGRADE_GUIDE_SECTIONS):
         if index not in found:
-            after = f' after "## {UPGRADE_GUIDE_SECTIONS[index - 1]}"' if index else ""
+            before = [UPGRADE_GUIDE_SECTIONS[i] for i in range(index) if i in found]
+            after = f' after "## {found[UPGRADE_GUIDE_SECTIONS.index(before[-1])].text}"' if before else ""
             issues.append(f'{name}: missing "## {section}"{after}')
     return issues, found
 
@@ -78,15 +100,19 @@ def _section_issues(name: str, level2: list[MarkdownHeading]) -> tuple[list[str]
 def _if_the_run_fails_issues(name: str, headings: list[MarkdownHeading], deploy_run: MarkdownHeading) -> list[str]:
     start = headings.index(deploy_run) + 1
     end = next((i for i in range(start, len(headings)) if headings[i].marks == "##"), len(headings))
-    if any(h.marks == "###" and h.text.startswith(IF_THE_RUN_FAILS_SECTION) for h in headings[start:end]):
+    if any(h.marks == "###" and h.text == IF_THE_RUN_FAILS_SECTION for h in headings[start:end]):
         return []
     return [f'{name}: "## {deploy_run.text}" has no "### {IF_THE_RUN_FAILS_SECTION}" section']
 
 
 def _checklist_link_issues(name: str, lines: list[str], found: dict[int, MarkdownHeading]) -> list[str]:
-    """Each A to F section present must be linked from the Checklist, by its anchor."""
-    checklist = found[UPGRADE_GUIDE_SECTIONS.index("Checklist")]
+    """Each A to F section present must be linked from the Checklist, by its anchor.
+
+    Nothing when the Checklist is not before them: the order finding covers that."""
+    checklist = found[UPGRADE_GUIDE_SECTIONS.index(CHECKLIST_SECTION)]
     first_runbook = min(found[i].line for i in range(1, len(RUNBOOK_SECTIONS) + 1) if i in found)
+    if first_runbook < checklist.line:
+        return []
     checklist_text = "".join(lines[checklist.line : first_runbook])
     return [
         f'{name}: the Checklist does not link "## {heading.text}" (#{heading_slug(heading.text)})'
@@ -106,7 +132,7 @@ def upgrade_guide_layout_issues(name: str, text: str, upgrade_docs_baseline: str
     if BASELINE_INTRO_RE.search(opening) is None:
         issues.append(
             f"{name}: the opening does not say which version it starts from "
-            f'("For environments already on **{upgrade_docs_baseline}**.")'
+            f'("For environments already on **{upgrade_docs_baseline}**."; doc-consistency checks the version)'
         )
     deltas = doc_name(upgrade_docs_baseline, target, "values-deltas")
     if f"]({deltas})" not in opening:
@@ -117,7 +143,7 @@ def upgrade_guide_layout_issues(name: str, text: str, upgrade_docs_baseline: str
     deploy_run = found.get(UPGRADE_GUIDE_SECTIONS.index(DEPLOY_RUN_SECTION))
     if deploy_run is not None:
         issues.extend(_if_the_run_fails_issues(name, headings, deploy_run))
-    if UPGRADE_GUIDE_SECTIONS.index("Checklist") in found and any(
+    if UPGRADE_GUIDE_SECTIONS.index(CHECKLIST_SECTION) in found and any(
         i in found for i in range(1, len(RUNBOOK_SECTIONS) + 1)
     ):
         issues.extend(_checklist_link_issues(name, lines, found))
