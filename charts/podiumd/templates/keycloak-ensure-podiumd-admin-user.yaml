@@ -235,9 +235,9 @@ spec:
             drop: ["ALL"]
           seccompProfile:
             type: RuntimeDefault
-        command:
-        - /bin/sh
-        - -c
+        # Rerun: the SQL needs the realm table, which Keycloak creates on its first start.
+        command: {{ include "podiumd.retryCommand" (list "/bin/sh" "-c") }}
+        args:
         - |
           if [ -f /skip/done ]; then
             echo "keycloak-operator SA already ready — skipping podiumd-admin DB update"
