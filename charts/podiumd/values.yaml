@@ -28,11 +28,11 @@ global:
       repository: library/postgres
       tag: "16.15-alpine@sha256:deb28ee471183cb0c303113dac9b2433c51eeeeb678def7af9a9ec5820367815"
       pullPolicy: IfNotPresent
-    # kubectl for the redis-ha Jobs and the zookeeper-operator hooks. No template
-    # reads this key: the anchor is resolved in this file only, so overriding it
-    # in an environment changes nothing. Environments set their ACR mirror on
-    # each of the three image paths that use it (global.imageRegistry does not
-    # apply to them).
+    # kubectl for the redis-ha Jobs, the zookeeper-operator hooks and the ZAC
+    # restart Job. No template reads this key: the anchor is resolved in this
+    # file only, so overriding it in an environment changes nothing.
+    # Environments set their ACR mirror on each of the four image paths that
+    # use it (global.imageRegistry does not apply to them).
     alpineK8s: &alpineK8sImage
       repository: docker.io/alpine/k8s
       tag: "1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"
@@ -3545,6 +3545,23 @@ zac:
     failureThreshold: 16
     periodSeconds: 30
     timeoutSeconds: 1
+  # -- Job (templates/zac-restart-after-openzaak-config.yaml) that restarts ZAC when its
+  # deployment failed because ZAC started before Open Zaak had its client and catalogus
+  # (podiumd-chart-30). Without it, only the liveness probe above restarts ZAC, 8 minutes later.
+  restartAfterOpenzaakConfig:
+    enabled: true
+    image: *alpineK8sImage
+    # -- Seconds to wait for openzaak-config and create-required-catalogi-job; after that the
+    # Job gives up without restarting ZAC.
+    timeoutSeconds: 1200
+    nodeSelector: {}
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
   initContainer:
     securityContext:
       runAsNonRoot: true
