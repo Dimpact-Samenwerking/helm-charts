@@ -1006,7 +1006,7 @@ PodiumD Helm chart
 | openinwoner.eck-elasticsearch.version | string | `"9.2.0"` |  |
 | openinwoner.eck-operator.enabled | bool | `false` |  |
 | openinwoner.fullnameOverride | string | `"openinwoner"` |  |
-| openinwoner.image.tag | string | `"2.4.7@sha256:f78563302f20a0b8f8f156e5328aae4343261c3b91994f6e1b964104ed66d58e"` |  |
+| openinwoner.image.tag | string | `"2.4.9@sha256:ae873faf771b3f4311c980b38e1b226aa8279df72d08e86828b01506f25a3d2b"` |  |
 | openinwoner.kvk.apiKey | string | `""` | KvK API key. Empty when a proxy adds the key; when set, the chart stores it in the Secret `openinwoner-kvk`. With apiRoot set, the Job writes this value, also when empty. |
 | openinwoner.kvk.apiRoot | string | `""` | KvK API root without version or endpoint, e.g. `http://api-proxy.podiumd.svc.cluster.local/api/` (a dotted host name or localhost: Django's URLField rejects `http://api-proxy/api/`). Empty: the chart leaves KvKConfig alone (configure it in the admin). |
 | openinwoner.kvk.existingSecret | string | `""` | Existing Secret with the API key, instead of apiKey. Rename the Secret or the key to re-run the Job after rotating it. |
