@@ -120,6 +120,10 @@ inside its brackets, must equal an identifier. Other rows get component
 `verify-release-table-with-podiumd` prints the exact name a missing row
 needs.
 
+A row of a component that left the chart but stays on the page, such as
+`Objecttypen (Objecttypes API)` since 4.10, goes in `etc/settings.yaml`
+`release_table.ignored_rows` by its whole name; the export leaves it out.
+
 ## Process steps
 
 ### Start a new release
