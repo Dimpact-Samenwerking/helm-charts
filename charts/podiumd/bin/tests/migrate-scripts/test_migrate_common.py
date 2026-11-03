@@ -121,7 +121,8 @@ def test_run_dry_run_keeps_stdout_for_the_diff(
     assert run(common, monkeypatch, "--dry-run", str(path)) == 0
     captured = capsys.readouterr()
     assert captured.out.startswith(f"--- a/{path}\n")
-    assert captured.err.endswith("\n1 migrated, 0 unchanged, 0 error\n")
+    assert f"[would migrate] {path}\n" in captured.err
+    assert captured.err.endswith("\n1 would migrate, 0 unchanged, 0 error\n")
 
 
 def test_run_without_files_found_exits_1(
