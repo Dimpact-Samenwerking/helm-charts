@@ -68,9 +68,12 @@ mirroren"), never "spiegelen", "triaged" (the known-issue group), never "getriee
    (access: the PodiumD team). Read it with
    `gh api repos/infonl/podiumd-known-issues/contents/README.md -H 'Accept: application/vnd.github.raw'`,
    or clone it.
-   - **The index:** the table in `README.md`, with one row per issue: Severity,
-     report, product and version, the status of the last verification round,
-     and the Fix column (scheduled or open).
+   - **The index:** `README.md`, one section per state (needs triage, to do,
+     in a PR, fixed not released, fixed upstream, waiting on upstream,
+     mitigated, fixed, won't fix), each a table with the same columns:
+     Severity, Issue, Component, What, Fix or next step, Last check, Source.
+     "Bekende problemen" takes the rows that still affect the release: not
+     the fixed, mitigated-without-impact or won't-fix ones.
    - **The detail:** each report in `issues/<id>-*.md`. Line 1 is an HTML
      comment with the upstream repository, the status, what was checked, and
      the last verification with its severity. Read the report before you judge
