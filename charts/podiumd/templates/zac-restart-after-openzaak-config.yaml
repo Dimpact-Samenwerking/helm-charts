@@ -124,8 +124,11 @@ spec:
                   [ "$(date +%s)" -lt "$DEADLINE" ] || give_up "job/$JOB not found within ${TIMEOUT}s"
                   sleep 5
                 done
+                # kubectl wait reads a negative --timeout as a week: give up before it gets one.
+                LEFT=$(( DEADLINE - $(date +%s) ))
+                [ "$LEFT" -gt 0 ] || give_up "job/$JOB did not complete within ${TIMEOUT}s"
                 kubectl wait --for=condition=complete "job/$JOB" -n "$NAMESPACE" \
-                  --timeout="$(( DEADLINE - $(date +%s) ))s" || give_up "job/$JOB did not complete within ${TIMEOUT}s"
+                  --timeout="${LEFT}s" || give_up "job/$JOB did not complete within ${TIMEOUT}s"
               done
               # shellcheck disable=SC2086 # JOBS is a space-separated list of names
               DONE=$(kubectl get job $JOBS -n "$NAMESPACE" -o jsonpath='{range .items[*]}{.status.completionTime}{"\n"}{end}' | sort | tail -n 1)
