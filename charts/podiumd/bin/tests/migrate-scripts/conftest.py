@@ -30,6 +30,12 @@ def load_script(file_name: str) -> ModuleType:
 
 
 @pytest.fixture(scope="session")
+def scripts_dir() -> Path:
+    """charts/podiumd/scripts/; its parent is the chart directory."""
+    return SCRIPTS_DIR
+
+
+@pytest.fixture(scope="session")
 def script() -> Callable[[str], ModuleType]:
     """load_script, for tests parametrized over script file names."""
     return load_script
