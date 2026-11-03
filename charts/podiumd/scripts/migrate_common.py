@@ -12,6 +12,7 @@ Run a script as `python3 <script>`: Python then finds this module next to it.
 from __future__ import annotations
 
 import argparse
+import copy
 import difflib
 import glob
 import os
@@ -87,6 +88,56 @@ def literal_block(lines: list[str], mapping, key: str, path: str) -> tuple[int, 
     while end > start and not lines[end - 1].strip():
         end -= 1
     return start, end, indent
+
+
+def block_end(lines: list[str], first: int, end: int, key_col: int) -> int:
+    """The line after the block that starts at lines[first] and whose keys are at
+    column key_col: before the first non-blank line left of key_col, at most `end`.
+
+    Trailing blank lines and comments left of the keys belong to what follows.
+    """
+    stop = first + 1
+    for n in range(first + 1, end):
+        line = lines[n]
+        if not line.strip():
+            continue
+        if line_indent(line) < key_col:
+            break
+        stop = n + 1
+    return stop
+
+
+OBJECTEN_DATA_PATH = "objecten.configuration.data"
+
+
+def objecten_data(doc: dict) -> tuple[str | None, dict]:
+    """(the objecten.configuration.data block, its parsed value); (None, {}) without it."""
+    data = ((doc.get("objecten") or {}).get("configuration") or {}).get("data")
+    if not data:
+        return None, {}
+    if not isinstance(data, str):
+        raise MigrationError(f"{OBJECTEN_DATA_PATH} is not a block scalar string")
+    return data, load_safe(data) or {}
+
+
+def creates_object_type(inner: dict, uuid: str, name: str) -> bool:
+    """Whether objecten's objecttypes.items creates the object type, by uuid or by name.
+
+    Objecten runs the objecttypes step before tokenauth, and a permission on an
+    unknown object type fails the configuration job.
+    """
+    objecttypes = (inner.get("objecttypes") or {}).get("items") or []
+    return any(isinstance(t, dict) and (t.get("uuid") == uuid or t.get("name") == name) for t in objecttypes)
+
+
+def verify_objecten_data_edit(new: str, doc: dict, want: dict) -> None:
+    """Raise MigrationError unless `new` parses to `doc` with objecten.configuration.data replaced by `want`."""
+    expected = copy.deepcopy(doc)
+    expected["objecten"]["configuration"]["data"] = want
+    got = load_safe(new)
+    got["objecten"]["configuration"]["data"] = load_safe(got["objecten"]["configuration"]["data"])
+    if got != expected:
+        raise MigrationError("self-check failed: the edited file does not match the intended values; nothing written")
 
 
 def error_note(e: Exception) -> str:
