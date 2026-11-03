@@ -8,8 +8,8 @@ again shows that the defect is gone.
 
 Status: checked on QA with chart 4.10.0 (podiumd-tests `full` run of
 2026-10-17, rev 83; later checks are dated in the row). **None is reported
-upstream yet**; the "Upstream" column names where to report it. Update a row
-when it is reported, fixed or worked around.
+upstream yet**; under "Open", each component heading links to where to report
+it. Update a row when it is reported, fixed or worked around.
 
 Versions are the image tags `values.yaml` pins in 4.10.0.
 
