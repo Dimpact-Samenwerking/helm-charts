@@ -64,6 +64,9 @@ FULL_SETTINGS = {
         "default_image_paths": ["custom-default-image"],
         "version_paths": {"widget-b": ["version"]},
     },
+    "release_table": {
+        "ignored_rows": ["Old Component (old)"],
+    },
 }
 
 
@@ -169,6 +172,7 @@ ACCESSOR_CASES = [
         {"widget-b": ["version"]},
         dict,
     ),
+    ("release_table_ignored_rows", [], ["Old Component (old)"], list),
 ]
 
 

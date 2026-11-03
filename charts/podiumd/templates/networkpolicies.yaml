@@ -317,13 +317,13 @@ spec:
                   - openinwoner-config
                   - openinwoner-low-latency-worker
                   - openinwoner-worker
-        {{- if (($kiss.settings | default dict).syncJobs | default dict).website }}
         # KISS pre-install/pre-upgrade hook that registers the crawler index template. Its pod has
-        # no labels of its own; the Job controller adds batch.kubernetes.io/job-name.
+        # no labels of its own; the Job controller adds batch.kubernetes.io/job-name. Rendered
+        # without a website too: the hook of the deploy that adds the first website runs before
+        # Helm updates this policy.
         - podSelector:
             matchLabels:
-              batch.kubernetes.io/job-name: {{ printf "%s-crawler-index-template" ($kiss.fullnameOverride | default "contact") }}
-        {{- end }}
+              batch.kubernetes.io/job-name: {{ printf "%s-crawler-index-template" (include "podiumd.subchartFullname" (dict "v" $kiss "chart" "kiss" "release" $root.Release.Name)) }}
         - podSelector:
             matchLabels:
               common.k8s.elastic.co/type: kibana

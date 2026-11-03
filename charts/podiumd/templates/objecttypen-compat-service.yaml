@@ -11,8 +11,7 @@ own Service: app.kubernetes.io/name from objecten.nameOverride (the chart name
 container's named port `http`.
 Only a boolean objecten.enabled: false turns it off, as for the dependency.
 */ -}}
-{{- $objectenEnabled := not (and (kindIs "bool" .Values.objecten.enabled) (not .Values.objecten.enabled)) }}
-{{- if and $objectenEnabled .Values.objecttypenCompatService.enabled }}
+{{- if and (include "podiumd.dependencyEnabled" .Values.objecten) .Values.objecttypenCompatService.enabled }}
 {{- $existing := lookup "v1" "Service" .Release.Namespace "objecttypen" }}
 {{- if $existing }}
 {{- $owner := index ($existing.metadata.annotations | default dict) "meta.helm.sh/release-name" }}

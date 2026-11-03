@@ -59,6 +59,22 @@ def load_safe_all(text: str) -> list:
     return list(YAML(typ="safe", pure=True).load_all(text))
 
 
+def plain_scalar(value) -> str:
+    """A scalar for an inserted `key: value` line, quoted only when YAML would read it differently."""
+    text = str(value)
+    safe = load_safe(f"k: {text}")
+    return text if safe == {"k": text} else "'" + text.replace("'", "''") + "'"
+
+
+def seq_offset(seq, key_col: int, default: int) -> int:
+    """How far a block list indents "- " under its key; ruamel reports an item's column after its "- "."""
+    if seq:
+        found = seq.lc.item(0)[1] - 2 - key_col
+        if found >= 0:
+            return found
+    return default
+
+
 # `key: |`, `|-` or `|+`, optionally followed by a comment.
 _LITERAL_HEADER = re.compile(r":\s*\|[-+]?\s*(#.*)?$")
 
@@ -169,6 +185,8 @@ def migrate_file(
 ) -> tuple[str, list[str]]:
     """(status, notes) for one file; writes it unless --dry-run or --check.
 
+    Under --dry-run the status is still "migrated"; run() shows it as "would migrate".
+
     Universal newlines read CRLF as LF, so a migrated file is written with LF.
     check_notes picks the notes shown for a file that needs migrating under --check.
     """
@@ -233,14 +251,19 @@ def run(
     all_notes: list[list[str]] = []
     # Under --dry-run stdout carries the diff only.
     out = sys.stderr if args.dry_run else sys.stdout
+
+    def label(status: str) -> str:
+        # --dry-run writes nothing, so its output must not say "migrated".
+        return "would migrate" if args.dry_run and status == "migrated" else status
+
     for path in files:
         status, notes = migrate_file(path, migrate, args, check_notes)
         counts[status] += 1
         all_notes.append(notes)
-        print(f"[{status}] {path}", file=out)
+        print(f"[{label(status)}] {path}", file=out)
         for note in notes:
             print(f"    - {note}", file=out)
-    summary = ", ".join(f"{v} {k}" for k, v in counts.items() if v or k in ("unchanged", "error"))
+    summary = ", ".join(f"{v} {label(k)}" for k, v in counts.items() if v or k in ("unchanged", "error"))
     if summary_suffix:
         summary += summary_suffix(counts, all_notes)
     print(f"\n{summary}", file=out)
