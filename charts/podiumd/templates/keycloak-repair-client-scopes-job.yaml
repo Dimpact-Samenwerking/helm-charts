@@ -9,6 +9,8 @@
 #   4.9.1-4.9.4 imports created clients like that; a curated client always has
 #   at least one default scope and is left alone.
 # - removes offline_access from every client (see keycloak-security-updates.md).
+# Both apply only to openid-connect clients that are not bearer-only; the others
+# get no tokens.
 # The name carries the release revision, so it runs on every deploy. It
 # tolerates Keycloak restarting mid-run (Keycloak operator upgrade): the login
 # waits for Keycloak, a failed run is rerun (podiumd.retryCommand), and every

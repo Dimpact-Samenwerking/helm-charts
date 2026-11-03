@@ -11,8 +11,8 @@ Reads, at tag podiumd-<target>:
 and fetches, per row, the upstream GitHub releases in (old, new] of the
 application (source repo from the image's OCI label, a ghcr path, or an
 override) and of the Helm chart (repo from <org>.github.io/<repo>, release tags
-<chart>-<version>). Versions published only as a tag fall back to the repo's
-changelog file. Writes one JSON bundle; does not write any notes.
+<chart>-<version>). For an application repo, versions published only as a tag
+fall back to the repo's changelog file; chart repos do not. Writes one JSON bundle; does not write any notes.
 
 The upstream texts are only input for the size and impact assessment in
 SKILL.md; they do not go into the release notes.
@@ -156,7 +156,9 @@ def section(log, version):
                   if re.search(rf"(^|[^0-9.]){re.escape(version)}([^0-9]|$)", l) and heading(i)), None)
     if start is None:
         return ""
-    end = next((j for j in range(start + 2, len(lines)) if SEMVER.search(lines[j]) and heading(j)), len(lines))
+    # From start + 1: an RST underline has no version number, so it never ends the section,
+    # and a markdown heading on the very next line does.
+    end = next((j for j in range(start + 1, len(lines)) if SEMVER.search(lines[j]) and heading(j)), len(lines))
     return "\n".join(lines[start:end]).strip()[:6000]
 
 
@@ -245,7 +247,8 @@ def main(baseline, target, out_path):
             entry["sources"].append({"kind": "chart", "repo": repo, "found_via": f"chart {name}",
                                      "releases": rels, "error": err})
         bundle["components"].append(entry)
-    json.dump(bundle, open(out_path, "w"), indent=1)
+    with open(out_path, "w") as f:
+        json.dump(bundle, f, indent=1)
     for c in bundle["components"]:
         print(f"{c['component']:42} app={c['app_cell']:28} chart={c['chart_cell']}")
         for s in c["sources"]:
