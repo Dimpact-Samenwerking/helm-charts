@@ -44,34 +44,21 @@ import argparse
 import copy
 import sys
 
+from migrate_common import OBJECTEN_DATA_PATH
 from migrate_common import MigrationError
-from migrate_common import line_indent
+from migrate_common import block_end
+from migrate_common import creates_object_type
 from migrate_common import literal_block
 from migrate_common import load_rt
 from migrate_common import load_safe
+from migrate_common import objecten_data
 from migrate_common import run
+from migrate_common import verify_objecten_data_edit
 
 IDENTIFIER = "openarchiefbeheer"
 OBJECT_TYPE = "REP_ZAC_PRODUCTAANVRAAG_UUID_REP"
 OBJECT_TYPE_NAME = "Productaanvraag-Dimpact"
 MODE = "read_and_write"
-DATA_PATH = "objecten.configuration.data"
-
-
-def _item_end(lines: list[str], first: int, end: int, key_col: int) -> int:
-    """The line after the item's last line: before the first line left of its keys.
-
-    Trailing blank lines and comments left of the keys belong to what follows.
-    """
-    stop = first + 1
-    for n in range(first + 1, end):
-        line = lines[n]
-        if not line.strip():
-            continue
-        if line_indent(line) < key_col:
-            break
-        stop = n + 1
-    return stop
 
 
 def _permission_lines(key_col: int) -> list[str]:
@@ -100,13 +87,10 @@ def migrate_text(text: str, _args: argparse.Namespace | None = None) -> tuple[st
     doc = load_safe(text)
     if not isinstance(doc, dict):
         raise MigrationError("not a YAML mapping")
-    data = ((doc.get("objecten") or {}).get("configuration") or {}).get("data")
-    if not data:
+    data, inner = objecten_data(doc)
+    if data is None:
         return text, []
-    if not isinstance(data, str):
-        raise MigrationError(f"{DATA_PATH} is not a block scalar string")
-    inner = load_safe(data)
-    items = ((inner or {}).get("tokenauth") or {}).get("items") or []
+    items = (inner.get("tokenauth") or {}).get("items") or []
     targets = [i for i, item in enumerate(items) if isinstance(item, dict) and item.get("identifier") == IDENTIFIER]
     notes: list[str] = []
     if len(targets) > 1:
@@ -115,10 +99,7 @@ def migrate_text(text: str, _args: argparse.Namespace | None = None) -> tuple[st
     notes += [n for i in targets if i not in todo and (n := _check_note(i, items[i]))]
     if not todo:
         return text, notes
-    objecttypes = ((inner or {}).get("objecttypes") or {}).get("items") or []
-    if not any(
-        isinstance(t, dict) and (t.get("uuid") == OBJECT_TYPE or t.get("name") == OBJECT_TYPE_NAME) for t in objecttypes
-    ):
+    if not creates_object_type(inner, OBJECT_TYPE, OBJECT_TYPE_NAME):
         notes.append(
             f"CHECK objecttypes.items does not create {OBJECT_TYPE_NAME} ({OBJECT_TYPE}): "
             "add it before giving the token a permission on it; left unchanged"
@@ -126,25 +107,20 @@ def migrate_text(text: str, _args: argparse.Namespace | None = None) -> tuple[st
         return text, notes
 
     lines = text.splitlines(keepends=True)
-    start, end, indent = literal_block(lines, load_rt(text)["objecten"]["configuration"], "data", DATA_PATH)
+    start, end, indent = literal_block(lines, load_rt(text)["objecten"]["configuration"], "data", OBJECTEN_DATA_PATH)
     seq = load_rt(data)["tokenauth"]["items"]
     # Bottom-up, so the line numbers of the items above stay valid.
     for i in reversed(todo):
         first, col = seq.lc.item(i)
         key_col = indent + col
-        at = _item_end(lines, start + first, end, key_col)
+        at = block_end(lines, start + first, end, key_col)
         lines[at:at] = _permission_lines(key_col)
     new = "".join(lines)
 
-    expected = copy.deepcopy(doc)
     want = copy.deepcopy(inner)
     for i in todo:
         want["tokenauth"]["items"][i]["permissions"] = [{"object_type": OBJECT_TYPE, "mode": MODE}]
-    expected["objecten"]["configuration"]["data"] = want
-    got = load_safe(new)
-    got["objecten"]["configuration"]["data"] = load_safe(got["objecten"]["configuration"]["data"])
-    if got != expected:
-        raise MigrationError("self-check failed: the edited file does not match the intended values; nothing written")
+    verify_objecten_data_edit(new, doc, want)
     notes += [f"tokenauth.items[{i}] ({IDENTIFIER}): added {MODE} on {OBJECT_TYPE}" for i in todo]
     return new, notes
 
