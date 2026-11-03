@@ -1251,6 +1251,28 @@ Usage: {{- if include "podiumd.dependencyEnabled" .Values.openzaak }}
 {{- end -}}
 
 {{/*
+The fullname a subchart gives its resources with the standard Helm
+<chart>.fullname helper: fullnameOverride, else <release>-<nameOverride or
+chart name>, or just <release> when that already contains the name. For
+resources the parent chart must name exactly as the subchart does (eck-stack
+0.20.0's KISS Elastic resources, KISS's crawler hook Job).
+Usage: {{ include "podiumd.subchartFullname" (dict "v" .Values.kiss "chart" "kiss" "release" .Release.Name) }}
+"chart" is the dependency alias when it has one: Helm renames an aliased subchart.
+*/}}
+{{- define "podiumd.subchartFullname" -}}
+{{- if .v.fullnameOverride -}}
+{{- .v.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $name := default .chart .v.nameOverride -}}
+{{- if contains $name .release -}}
+{{- .release | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .release $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 ClamAV — whether this chart deploys ClamAV (clamav.enabled; a missing key
 counts as on, like the subchart condition in Chart.yaml). Used by
 networkpolicies.yaml and by the configure-clamav Jobs.
