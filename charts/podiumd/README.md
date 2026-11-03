@@ -1523,6 +1523,8 @@ PodiumD Helm chart
 | zac.organizations.verantwoordelijke.rsin | string | `"000000000"` |  |
 | zac.pabcApi.apiKey | string | `""` |  |
 | zac.pabcApi.url | string | `""` |  |
+| zac.restartAfterOpenzaakConfig | object | `{"enabled":true,"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"},"nodeSelector":{},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"timeoutSeconds":1200}` | Job (templates/zac-restart-after-openzaak-config.yaml) that restarts ZAC when its deployment failed because ZAC started before Open Zaak had its client and catalogus (podiumd-chart-30). Without it, only the liveness probe above restarts ZAC, 8 minutes later. |
+| zac.restartAfterOpenzaakConfig.timeoutSeconds | int | `1200` | Seconds to wait for openzaak-config and create-required-catalogi-job; after that the Job gives up without restarting ZAC. |
 | zac.securityContext.runAsGroup | string | `nil` |  |
 | zac.securityContext.runAsNonRoot | bool | `true` |  |
 | zac.securityContext.runAsUser | int | `1001` |  |
