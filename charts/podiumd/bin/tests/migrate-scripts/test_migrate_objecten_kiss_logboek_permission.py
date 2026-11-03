@@ -112,6 +112,20 @@ def test_kiss_disabled_reports_a_missing_permission_without_editing(kiss: Module
     assert notes == [note]
 
 
+def test_kiss_disabled_reports_an_item_without_permissions(kiss: ModuleType):
+    text = values(*CONTACT[:2], kiss_block=DISABLED)
+
+    new, notes = kiss.migrate_text(text)
+
+    assert new == text
+    note = (
+        "CHECK kiss.enabled is false in this file, but tokenauth.items[0] (contact) has KISS's logboek token "
+        f"without read_only on {LOG_TYPE}: where KISS is enabled (an overlay), add it there or by hand; "
+        "left unchanged"
+    )
+    assert notes == [note]
+
+
 @pytest.mark.parametrize(
     "lines",
     [
