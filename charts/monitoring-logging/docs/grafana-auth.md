@@ -74,6 +74,53 @@ curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" \
   "$AUTH?client_id=monitoring&redirect_uri=$RU&response_type=code&scope=openid%20email%20profile%20offline_access%20roles&state=p"
 ```
 
+### Recreated Keycloak accounts — `oauth_allow_insecure_email_lookup`
+
+```yaml
+auth:
+  oauth_allow_insecure_email_lookup: true   # chart default
+```
+
+Grafana links an OAuth login to a Grafana user through the Keycloak user id
+(`sub`), stored in `user_auth`. Delete a user in Keycloak and create them again
+and that id changes, which breaks the link permanently:
+
+1. the new `sub` matches no `user_auth` row;
+2. the fallback lookup by e-mail is skipped, because
+   `oauth_allow_insecure_email_lookup` defaults to `false` upstream, which
+   leaves the lookup params empty for OAuth clients;
+3. creating the user fails, because `LoginConflict` still finds the old row
+   holding that e-mail.
+
+Grafana logs the pair below and renders *"Login failed — User sync failed"*. The
+user is locked out on every attempt, while Entra and Keycloak both report a
+successful login and an active session.
+
+```
+logger=user.sync     level=error msg="Failed to create user" error="user not found" auth_module=oauth_generic_oauth auth_id=<new keycloak id>
+logger=authn.service level=error msg="Failed to run post auth hook" error="[user.sync.internal] unable to create user: user not found"
+```
+
+With the setting enabled Grafana falls back to the e-mail address, finds the
+existing user and relinks it to the new Keycloak id on the next login. No
+database surgery and no break-glass admin access needed.
+
+Upstream calls the fallback insecure because it trusts whatever e-mail the
+provider sends. That assumes more than one identity provider, or one that lets
+users set an unverified address. In this realm Keycloak is the only provider,
+addresses come from Entra ID, self-registration is off and Keycloak refuses
+duplicate e-mail addresses, so no one can claim a colleague's address. Roles and
+the Grafana admin flag are re-read from the token claims on every login
+(`role_attribute_path`, `skip_org_role_sync: false`) rather than from the
+Grafana user row, so no permissions can be inherited through this path either.
+
+**Verifying it is applied:**
+
+```bash
+kubectl -n <monitoring-ns> exec deploy/<release>-grafana -c grafana -- \
+  grep -n insecure_email /etc/grafana/grafana.ini
+```
+
 ---
 
 **Role mapping** (from chart defaults — adjust if your Keycloak roles differ):
@@ -182,3 +229,4 @@ Revert with a normal `helm upgrade` after the incident.
 - [ ] Keycloak client `monitoring` created with `monitoring_roles` claim mapper
 - [ ] Grafana redirect URI `https://<hostname>/login/generic_oauth` added to Keycloak client `monitoring`
 - [ ] `scopes` does not contain `offline_access` (chart default is already correct)
+- [ ] `auth.oauth_allow_insecure_email_lookup` is `true` (chart default), so a recreated Keycloak account does not lock the user out
