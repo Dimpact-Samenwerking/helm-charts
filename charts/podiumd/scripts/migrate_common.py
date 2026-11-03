@@ -59,6 +59,22 @@ def load_safe_all(text: str) -> list:
     return list(YAML(typ="safe", pure=True).load_all(text))
 
 
+def plain_scalar(value) -> str:
+    """A scalar for an inserted `key: value` line, quoted only when YAML would read it differently."""
+    text = str(value)
+    safe = load_safe(f"k: {text}")
+    return text if safe == {"k": text} else "'" + text.replace("'", "''") + "'"
+
+
+def seq_offset(seq, key_col: int, default: int) -> int:
+    """How far a block list indents "- " under its key; ruamel reports an item's column after its "- "."""
+    if seq:
+        found = seq.lc.item(0)[1] - 2 - key_col
+        if found >= 0:
+            return found
+    return default
+
+
 # `key: |`, `|-` or `|+`, optionally followed by a comment.
 _LITERAL_HEADER = re.compile(r":\s*\|[-+]?\s*(#.*)?$")
 
