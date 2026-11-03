@@ -22,7 +22,7 @@ Upgrade one hop at a time, in order. Each guide covers exactly one hop.
 
 | You are on | Read, in this order |
 |---|---|
-| 4.9.6 | `4.9.6-to-4.10.1-upgrade.md`, added with 4.10.1; stay on 4.9.6 until then. **Not to 4.10.0**: it would take Open Inwoner back from 2.4.9 to 2.4.7 |
+| 4.9.6 | [`4.9.6-to-4.10.1-upgrade.md`](_UPGRADE_PATHS/4.9.6-to-4.10.1-upgrade.md); stay on 4.9.6 until 4.10.1 is released. **Not to 4.10.0**: it would take Open Inwoner back from 2.4.9 to 2.4.7 |
 | 4.9.5 | [`4.9.5-to-4.10.0-upgrade.md`](_UPGRADE_PATHS/4.9.5-to-4.10.0-upgrade.md) — or, if you are taking the Open Forms / Open Inwoner security patch first, [`4.9.5-to-4.9.6-upgrade.md`](_UPGRADE_PATHS/4.9.5-to-4.9.6-upgrade.md) → then the 4.9.6 row |
 | 4.9.4 | [`4.9.4-to-4.9.5-upgrade.md`](_UPGRADE_PATHS/4.9.4-to-4.9.5-upgrade.md) → then the 4.9.5 row |
 | 4.9.3 | [`4.9.3-to-4.9.4-upgrade.md`](_UPGRADE_PATHS/4.9.3-to-4.9.4-upgrade.md) → then the 4.9.4 row |
@@ -204,7 +204,7 @@ ACR-mirror set for that hop):
 | 4.9.4 → 4.9.5 | [`4.9.4-to-4.9.5-upgrade.md`](_UPGRADE_PATHS/4.9.4-to-4.9.5-upgrade.md) | [`images/images-4.9.5.yaml`](images/images-4.9.5.yaml) |
 | 4.9.5 → 4.10.0 | [`4.9.5-to-4.10.0-upgrade.md`](_UPGRADE_PATHS/4.9.5-to-4.10.0-upgrade.md) | [`images/images-4.10.0.yaml`](images/images-4.10.0.yaml) |
 | 4.9.5 → 4.9.6 | [`4.9.5-to-4.9.6-upgrade.md`](_UPGRADE_PATHS/4.9.5-to-4.9.6-upgrade.md) | [`images/images-4.9.6.yaml`](images/images-4.9.6.yaml) |
-| 4.9.6 → 4.10.1 | `4.9.6-to-4.10.1-upgrade.md` (added with 4.10.1) | `images/images-4.10.1.yaml` (added with 4.10.1) |
+| 4.9.6 → 4.10.1 | [`4.9.6-to-4.10.1-upgrade.md`](_UPGRADE_PATHS/4.9.6-to-4.10.1-upgrade.md) | [`images/images-4.10.0.yaml`](images/images-4.10.0.yaml) and [`images/images-4.10.1.yaml`](images/images-4.10.1.yaml) |
 
 > The 4.6.4 → 4.6.8 and 4.6.8 → 4.7.6 guides are **consolidated**: each folds
 > several intermediate releases into one document so an operator reads one
