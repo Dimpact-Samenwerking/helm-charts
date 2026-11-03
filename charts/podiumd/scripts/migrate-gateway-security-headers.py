@@ -60,9 +60,10 @@ import sys
 
 from migrate_common import MigrationError
 from migrate_common import load_rt_all
-from migrate_common import load_safe
 from migrate_common import load_safe_all
+from migrate_common import plain_scalar
 from migrate_common import run
+from migrate_common import seq_offset
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 DEFAULT_HSTS_MAX_AGE = 31536000
@@ -102,18 +103,11 @@ def _block_seq(node, what: str) -> CommentedSeq:
     return node
 
 
-def _scalar(value) -> str:
-    """A header value as a plain scalar, quoted only when YAML would read it differently."""
-    text = str(value)
-    safe = load_safe(f"k: {text}")
-    return text if safe == {"k": text} else "'" + text.replace("'", "''") + "'"
-
-
 def _header_lines(items: list[dict], dash_col: int) -> list[str]:
     lines = []
     for item in items:
-        lines.append(" " * dash_col + f"- name: {_scalar(item['name'])}")
-        lines.append(" " * (dash_col + 2) + f"value: {_scalar(item['value'])}")
+        lines.append(" " * dash_col + f"- name: {plain_scalar(item['name'])}")
+        lines.append(" " * (dash_col + 2) + f"value: {plain_scalar(item['value'])}")
     return lines
 
 
@@ -126,15 +120,6 @@ def _filter_lines(items: list[dict], dash_col: int, offset: int) -> list[str]:
         " " * (body + 2) + "set:",
         *_header_lines(items, body + 2 + offset),
     ]
-
-
-def _seq_offset(seq: CommentedSeq, key_col: int, default: int) -> int:
-    """How far a block list indents "- " under its key; ruamel reports an item's column after its "- "."""
-    if seq:
-        found = seq.lc.item(0)[1] - 2 - key_col
-        if found >= 0:
-            return found
-    return default
 
 
 class Inserts:
@@ -204,7 +189,7 @@ def _migrate_rule(rule: CommentedMap, rule_line: int, rule_col: int, want_rule: 
         return "added"
     filters = _block_seq(filters, "filters")
     key_line, key_col = rule.lc.key("filters")
-    local = _seq_offset(filters, key_col, offset)
+    local = seq_offset(filters, key_col, offset)
 
     existing = [i for i, f in enumerate(filters) if isinstance(f, dict) and f.get("type") == HEADER_FILTER]
     if not existing:
@@ -231,7 +216,7 @@ def _migrate_rule(rule: CommentedMap, rule_line: int, rule_col: int, want_rule: 
         if not set_list:
             raise MigrationError("responseHeaderModifier.set is empty; add the headers by hand")
         ins.after(_last_line(set_list, set_line),
-                  _header_lines(missing, set_col + _seq_offset(set_list, set_col, local)))
+                  _header_lines(missing, set_col + seq_offset(set_list, set_col, local)))
     else:
         mod_line, mod_col = filters[index].lc.key("responseHeaderModifier")
         child_col = modifier.lc.key(next(iter(modifier)))[1] if modifier else mod_col + 2
@@ -263,7 +248,7 @@ def migrate_text(text: str, hsts_max_age: int = DEFAULT_HSTS_MAX_AGE) -> tuple[s
             weak: list[str] = []
             try:
                 results.append(_migrate_rule(rule, line, col, want_doc["spec"]["rules"][index], wanted,
-                                             _seq_offset(rules, doc["spec"].lc.key("rules")[1], 2), ins,
+                                             seq_offset(rules, doc["spec"].lc.key("rules")[1], 2), ins,
                                              weak, hsts_max_age))
             except MigrationError as e:
                 raise MigrationError(f"HTTPRoute {name} rule {index + 1}: {e}") from None
