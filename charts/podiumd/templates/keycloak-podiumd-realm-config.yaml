@@ -32,7 +32,9 @@
      An entry is skipped when its component is disabled (<component>.enabled=false) or when its
      Keycloak client is disabled (keycloak.config.clients.<name>.enabled=false, for the clients
      that have that flag: monitoring, datamigratie, zaakbrug); a component with no enabled flag
-     is always deployed and is therefore always checked. The URL checked is the one the client's
+     is always deployed and is therefore always checked. Monitoring and datamigratie are not
+     part of this chart, so an empty oidcUrl means they are not installed and their client is
+     skipped (podiumd.keycloak.externalClientEnabled). The URL checked is the one the client's
      redirect URIs come from: configuration.oidcUrl for the Django apps and kiss, zac.contextUrl
      for zac, pabc.settings.oidc.oidcUrl for pabc, ita.web.oidc.frontendUrl for ita and
      keycloak.config.clients.<name>.oidcUrl for monitoring, datamigratie and zaakbrug. See IN-2868. */ -}}
@@ -53,8 +55,8 @@
   (dict "name" "pabc"              "enabled" .Values.pabc.enabled              "oidcUrl" .Values.pabc.settings.oidc.oidcUrl "field" "pabc.settings.oidc.oidcUrl")
   (dict "name" "ita"               "enabled" .Values.ita.enabled               "oidcUrl" .Values.ita.web.oidc.frontendUrl "field" "ita.web.oidc.frontendUrl")
   (dict "name" "zaakbrug"          "enabled" (and (.Values.zaakbrug.enabled | default false) (ne .Values.keycloak.config.clients.zaakbrug.enabled false)) "oidcUrl" .Values.keycloak.config.clients.zaakbrug.oidcUrl "field" "keycloak.config.clients.zaakbrug.oidcUrl")
-  (dict "name" "monitoring"        "enabled" .Values.keycloak.config.clients.monitoring.enabled   "oidcUrl" .Values.keycloak.config.clients.monitoring.oidcUrl "field" "keycloak.config.clients.monitoring.oidcUrl")
-  (dict "name" "datamigratie"      "enabled" .Values.keycloak.config.clients.datamigratie.enabled "oidcUrl" .Values.keycloak.config.clients.datamigratie.oidcUrl "field" "keycloak.config.clients.datamigratie.oidcUrl")
+  (dict "name" "monitoring"        "enabled" (eq (include "podiumd.keycloak.externalClientEnabled" .Values.keycloak.config.clients.monitoring) "true")   "oidcUrl" .Values.keycloak.config.clients.monitoring.oidcUrl "field" "keycloak.config.clients.monitoring.oidcUrl")
+  (dict "name" "datamigratie"      "enabled" (eq (include "podiumd.keycloak.externalClientEnabled" .Values.keycloak.config.clients.datamigratie) "true") "oidcUrl" .Values.keycloak.config.clients.datamigratie.oidcUrl "field" "keycloak.config.clients.datamigratie.oidcUrl")
 -}}
 {{- range $oidcClients }}
 {{- if not (eq .enabled false) }}

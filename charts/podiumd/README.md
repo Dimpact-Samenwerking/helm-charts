@@ -374,11 +374,11 @@ PodiumD Helm chart
 | keycloak.config.adminFrontendUrl | string | `"https://keycloak-admin.example.nl"` |  |
 | keycloak.config.clients.datamigratie.enabled | bool | `true` |  |
 | keycloak.config.clients.datamigratie.name | string | `"Datamigratie"` |  |
-| keycloak.config.clients.datamigratie.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while this client is enabled (keycloak.config.clients.datamigratie.enabled) and this is empty or an example.nl URL. E.g. `https://datamigratie.example.nl`. |
+| keycloak.config.clients.datamigratie.oidcUrl | string | `""` | Public https URL of the standalone Datamigratie app; the Keycloak client's redirect URIs are built from it. Empty: Datamigratie is not installed and the realm gets no `datamigratie` client. The render fails on an example.nl URL. E.g. `https://datamigratie.example.nl`. |
 | keycloak.config.clients.datamigratie.secret | string | `""` |  |
 | keycloak.config.clients.monitoring.enabled | bool | `true` |  |
 | keycloak.config.clients.monitoring.name | string | `"Monitoring (Grafana)"` |  |
-| keycloak.config.clients.monitoring.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while this client is enabled (keycloak.config.clients.monitoring.enabled) and this is empty or an example.nl URL. E.g. `https://monitoring.example.nl`. |
+| keycloak.config.clients.monitoring.oidcUrl | string | `""` | Public https URL of Grafana from the monitoring-logging chart; the Keycloak client's redirect URIs are built from it. Empty: monitoring-logging is not installed and the realm gets no `monitoring` client. The render fails on an example.nl URL. E.g. `https://monitoring.example.nl`. |
 | keycloak.config.clients.monitoring.secret | string | `""` |  |
 | keycloak.config.clients.zaakbrug.enabled | bool | `true` |  |
 | keycloak.config.clients.zaakbrug.name | string | `"Zaakbrug Frank!Framework console"` |  |

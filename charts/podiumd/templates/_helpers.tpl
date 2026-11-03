@@ -1272,3 +1272,16 @@ Usage: {{ include "podiumd.clamavConfigJob.enabled" (dict "root" $ "job" .Values
 {{- $job := .job | default dict -}}
 {{- if and $job.enabled (or (include "podiumd.clamav.enabled" .root) (ne (toString ($job.clamavHost | default "clamav")) "clamav")) -}}true{{- end -}}
 {{- end -}}
+
+{{/*
+Keycloak — whether the realm import gets the client of a component that is
+not part of this chart (keycloak.config.clients.monitoring, .datamigratie):
+its enabled flag is not false and its oidcUrl is set. This chart cannot see
+whether that component is installed; an environment that runs it sets the
+oidcUrl the client's redirect URIs come from.
+
+Usage: {{ include "podiumd.keycloak.externalClientEnabled" .Values.keycloak.config.clients.monitoring }}
+*/}}
+{{- define "podiumd.keycloak.externalClientEnabled" -}}
+{{- if and (ne (toString .enabled) "false") (trim (toString (.oidcUrl | default ""))) -}}true{{- end -}}
+{{- end -}}
