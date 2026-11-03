@@ -370,3 +370,8 @@ def component_resolution_version_paths(chart_dir: Path):
             },
         )
     )
+
+
+def release_table_ignored_rows(chart_dir: Path):
+    """release_table.ignored_rows: Confluence row names export-confluence-release-table leaves out."""
+    return list(_text_list(chart_dir, "release_table", "ignored_rows", []))

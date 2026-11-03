@@ -563,6 +563,23 @@ zac:
     ]
 
 
+def test_extract_release_rows_leaves_out_release_table_ignored_rows(
+    ecrt: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    """A row whose whole name equals an ignored_rows entry (case/punctuation ignored) is left out; a partial match stays."""
+    write_chart_yaml_with_dependencies(tmp_path, [("zaakafhandelcomponent", "zac"), ("openzaak", None)])
+    (tmp_path / "etc").mkdir()
+    (tmp_path / "etc" / "settings.yaml").write_text(
+        'release_table:\n  ignored_rows: ["OPEN-ZAAK", "ZAC (old)", "()"]\n', encoding="utf-8"
+    )
+    rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
+    assert [row[3] for row in rows] == ["ZAC"]
+    assert (
+        '"Product component versies": 1 row(s) matched, 1 ignored (release_table.ignored_rows)'
+        in capsys.readouterr().out
+    )
+
+
 def test_resolve_image_basenames_falls_back_to_any_tag_when_digest_required_scan_is_empty(
     ecrt: ModuleType, tmp_path: Path
 ):

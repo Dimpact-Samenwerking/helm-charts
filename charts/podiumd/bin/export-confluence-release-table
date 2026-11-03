@@ -4,6 +4,7 @@ Export the release component tables of a Confluence page to a CSV file.
 
 Writes charts/podiumd/etc/release-table.csv, one row per component, with
 its component name and alias resolved against Chart.yaml and values.yaml.
+Rows named in etc/settings.yaml release_table.ignored_rows are left out.
 
 Authentication: your Atlassian email plus a classic API token (a scoped
 token does not work). Create one under profile icon > Account settings >
@@ -56,6 +57,8 @@ from lib.release_table.component_resolution import orphan_values_yaml_keys
 from lib.release_table.csv_rows import CSV_HEADER
 from lib.release_table.csv_rows import release_table_records
 from lib.release_table.image_basenames import resolve_image_basenames
+from lib.settings import release_table_ignored_rows
+from lib.upgradedoc.string_and_parsing_basics import normalize_name
 
 DEFAULT_OUTPUT = CHART_DIR / "etc" / "release-table.csv"
 
@@ -274,12 +277,13 @@ def resolve_token(args: argparse.Namespace):
 
 @dataclass
 class ComponentResolutionContext:
-    """component_and_alias inputs, resolved once and shared by every row."""
+    """component_and_alias inputs and the ignored row names, resolved once and shared by every row."""
 
     dependencies: list[DependencyNames]
     orphan_keys: list[DependencyNames]
     global_keys: list[str]
     native_keys: list[DependencyNames]
+    ignored_names: frozenset[str]
 
 
 def extract_release_rows(
@@ -301,6 +305,8 @@ def extract_release_rows(
         orphan_values_yaml_keys(chart_dir, dependencies),
         global_image_names(chart_dir),
         native_component_keys(chart_dir),
+        # An entry without letters or digits would match every row with an empty name.
+        frozenset(filter(None, (normalize_name(name) for name in release_table_ignored_rows(chart_dir)))),
     )
     all_tables = extract_tables(html)
     if not all_tables:
@@ -367,16 +373,29 @@ def _rows_for_table(
         print(f'"{heading}": skipped (missing required column(s): {", ".join(missing)})')
         return [], 0, target_label
 
+    rows_out, unknown_count, ignored_count = _release_rows(grid[header_row_count:], heading, columns, context)
+    ignored_suffix = f", {ignored_count} ignored (release_table.ignored_rows)" if ignored_count else ""
+    print(f'"{heading}": {len(rows_out)} row(s) matched{ignored_suffix}')
+    return rows_out, unknown_count, target_label
+
+
+def _release_rows(
+    data_rows: list[list[str]], heading: str, columns: ReleaseColumns, context: ComponentResolutionContext
+) -> tuple[list[list[str]], int, int]:
+    """(rows without image_basename, non-semver cell count, ignored row count); blank rows are skipped."""
     rows_out: list[list[str]] = []
     unknown_count = 0
-    for data_row in grid[header_row_count:]:
+    ignored_count = 0
+    for data_row in data_rows:
         if not any(cell.strip() for cell in data_row):
+            continue
+        if normalize_name(_column_text(data_row, columns["first"])) in context.ignored_names:
+            ignored_count += 1
             continue
         row, row_unknown_count = _release_row_from_data_row(data_row, heading, columns, context)
         rows_out.append(row)
         unknown_count += row_unknown_count
-    print(f'"{heading}": {len(rows_out)} row(s) matched')
-    return rows_out, unknown_count, target_label
+    return rows_out, unknown_count, ignored_count
 
 
 def _column_text(data_row: list[str], index: int | None) -> str:

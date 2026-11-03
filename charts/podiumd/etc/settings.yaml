@@ -154,3 +154,10 @@ component_resolution:
   version_paths:
     "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version", "eck-enterprise-search.version"]
     "redis-operator": ["redisOperator.imageTag", "redisOperator.initContainerImageTag"]
+
+release_table:
+  # Confluence rows export-confluence-release-table leaves out, by whole name
+  # (case and punctuation ignored): rows of components that left the chart
+  # but stay on the release page for reference.
+  # - Objecttypen: merged into objecten (openobject chart) in 4.10.0.
+  ignored_rows: ["Objecttypen (Objecttypes API)"]
