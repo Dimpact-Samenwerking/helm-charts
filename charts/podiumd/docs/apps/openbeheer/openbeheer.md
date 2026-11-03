@@ -181,6 +181,10 @@ service registry in Postgres, but the data it manages lives in the ZGW APIs:
 
 ### Objecttypen API on Open Object
 
+Before 4.10.0, `objecttypen` is a separate app: set the `objecttypen-service` `api_root` to
+the public Objecttypen URL (host of `objecttypen.configuration.oidcUrl`) plus `/api/v2/`, and put
+the `openbeheer-token` item in `objecttypen.configuration.data`.
+
 Since 4.10.0 the Objecttypen API is part of `objecten` (Open Object, see
 [`openobject-migration.md`](../objecten/openobject-migration.md)):
 
@@ -190,9 +194,6 @@ Since 4.10.0 the Objecttypen API is part of `objecten` (Open Object, see
   never calls the Objects API, so it needs no Objecten token.
 - Open Object 4.1.0 accepts any valid token on `objecttypes`, for read and write.
   `is_superuser` and per-object-type permissions only apply to `objects`; leave them off.
-- Before 4.10.0, `objecttypen` is a separate app: use the public Objecttypen URL
-  (host of `objecttypen.configuration.oidcUrl`) plus `/api/v2/`
-  and put the `openbeheer-token` item in `objecttypen.configuration.data`.
 
 Verified on johnb00 on 2026-10-13 (open-beheer 0.9.1, Open Object 4.1.0). The checks in
 [§ Validation](#validation) passed.

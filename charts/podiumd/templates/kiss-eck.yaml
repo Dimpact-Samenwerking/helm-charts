@@ -18,23 +18,6 @@ non-default eck-operator.config.containerRegistry replaces the docker.elastic.co
 host of a repository the environment did not override: SSC environments set only
 that registry (their ACR), so their KISS Elastic images keep coming from it.
 */ -}}
-{{- /*
-The name of one KISS Elastic resource, as eck-stack 0.20.0's <chart>.fullname
-helpers made it: fullnameOverride, else <release>-<nameOverride or chart name>,
-or just <release> when that already contains the name.
-*/ -}}
-{{- define "podiumd.kissEck.fullname" -}}
-{{- if .v.fullnameOverride -}}
-{{- .v.fullnameOverride | trunc 63 | trimSuffix "-" -}}
-{{- else -}}
-{{- $name := default .chart .v.nameOverride -}}
-{{- if contains $name .release -}}
-{{- .release | trunc 63 | trimSuffix "-" -}}
-{{- else -}}
-{{- printf "%s-%s" .release $name | trunc 63 | trimSuffix "-" -}}
-{{- end -}}
-{{- end -}}
-{{- end -}}
 {{- define "podiumd.kissEck.imageBlock" -}}
 {{- $img := deepCopy .image -}}
 {{- $registry := (((index .values "eck-operator") | default dict).config | default dict).containerRegistry | default "" -}}
@@ -81,7 +64,7 @@ or just <release> when that already contains the name.
 apiVersion: elasticsearch.k8s.elastic.co/v1
 kind: Elasticsearch
 metadata:
-  name: {{ include "podiumd.kissEck.fullname" (dict "v" $es "chart" "eck-elasticsearch" "release" $.Release.Name) }}
+  name: {{ include "podiumd.subchartFullname" (dict "v" $es "chart" "eck-elasticsearch" "release" $.Release.Name) }}
   labels:
     helm.sh/chart: {{ include "podiumd.chart" $ }}
     app.kubernetes.io/name: eck-elasticsearch
@@ -166,7 +149,7 @@ spec:
 apiVersion: kibana.k8s.elastic.co/v1
 kind: Kibana
 metadata:
-  name: {{ include "podiumd.kissEck.fullname" (dict "v" $kb "chart" "eck-kibana" "release" $.Release.Name) }}
+  name: {{ include "podiumd.subchartFullname" (dict "v" $kb "chart" "eck-kibana" "release" $.Release.Name) }}
   labels:
     helm.sh/chart: {{ include "podiumd.chart" $ }}
     app.kubernetes.io/name: eck-kibana
@@ -234,7 +217,7 @@ spec:
 apiVersion: enterprisesearch.k8s.elastic.co/v1
 kind: EnterpriseSearch
 metadata:
-  name: {{ include "podiumd.kissEck.fullname" (dict "v" $ent "chart" "eck-enterprise-search" "release" $.Release.Name) }}
+  name: {{ include "podiumd.subchartFullname" (dict "v" $ent "chart" "eck-enterprise-search" "release" $.Release.Name) }}
   labels:
     helm.sh/chart: {{ include "podiumd.chart" $ }}
     app.kubernetes.io/name: eck-enterprise-search
