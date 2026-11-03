@@ -92,6 +92,12 @@ spec:
   {{- end }}
   {{- if ($redisHa.masterReadinessCheck | default dict).enabled }}
   {{- /* IN-2961: NotReady when labelled master but the server reports role:slave.
+       podiumd-chart-28: a replica also closes its app connections older than 10 s. Before
+       replication is set up the operator labels every Ready standalone pod master, so apps can
+       connect through redis-ha-master to a pod that then becomes a replica; NotReady only stops
+       new connections, and the open ones fail every write with READONLY. Replicas serve no app
+       (nothing uses redis-ha-replica); MAXAGE spares the short-lived connections of the operator,
+       the exporter and this probe.
        The script uses shell builtins, tr, hostname and redis-cli (all in the redis image). It replaces the operator's default
        probe, which adds --tls when TLS is on: with TLS, add the same flags here. */}}
   readinessProbe:
@@ -106,9 +112,11 @@ spec:
           while IFS= read -r LINE || [ -n "$LINE" ]; do
             [ "$LINE" = 'redis-role="master"' ] && LABELLED_MASTER=1
           done < /etc/podinfo/labels
-          [ "$LABELLED_MASTER" = 1 ] || exit 0
           case "$(redis-cli -h "$(hostname)" -p "${REDIS_PORT}" info replication)" in
-            *role:slave*) echo "labelled master but role:slave"; exit 1 ;;
+            *role:slave*)
+              redis-cli -h "$(hostname)" -p "${REDIS_PORT}" client kill type normal maxage 10 >/dev/null || true
+              [ "$LABELLED_MASTER" = 1 ] || exit 0
+              echo "labelled master but role:slave"; exit 1 ;;
           esac
     periodSeconds: 5
     timeoutSeconds: 3
