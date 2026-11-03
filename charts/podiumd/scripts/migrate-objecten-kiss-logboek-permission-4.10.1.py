@@ -73,9 +73,11 @@ def _permission_lines(dash_col: int, key_col: int, object_type: str) -> list[str
     ]
 
 
-def _targets(items: list, token: str, object_type: str) -> tuple[list[int], list[str]]:
-    """(indices of the items to give the permission, CHECK notes) for the items with `token`."""
+def _targets(items: list, token: str, object_type: str) -> tuple[list[int], list[int], list[str]]:
+    """(indices of the items to give the permission, indices of every item with `token` that lacks it,
+    CHECK notes) for the items with `token`. An item without any permissions lacks it but is not edited."""
     todo: list[int] = []
+    lacking: list[int] = []
     notes: list[str] = []
     matched = [i for i, item in enumerate(items) if isinstance(item, dict) and item.get("token") == token]
     if not matched:
@@ -90,10 +92,12 @@ def _targets(items: list, token: str, object_type: str) -> tuple[list[int], list
             continue
         permissions = item.get("permissions")
         if not permissions:
+            lacking.append(i)
             notes.append(f"CHECK {name} has KISS's logboek token but no permissions: left unchanged")
         elif not any(isinstance(p, dict) and p.get("object_type") == object_type for p in permissions):
+            lacking.append(i)
             todo.append(i)
-    return todo, notes
+    return todo, lacking, notes
 
 
 def migrate_text(text: str, _args: argparse.Namespace | None = None) -> tuple[str, list[str]]:
@@ -116,14 +120,14 @@ def migrate_text(text: str, _args: argparse.Namespace | None = None) -> tuple[st
         ]
     object_type = str(type_url).rstrip("/").rsplit("/", 1)[-1]
     items = (inner.get("tokenauth") or {}).get("items") or []
-    todo, notes = _targets(items, token, object_type)
+    todo, lacking, notes = _targets(items, token, object_type)
     if disabled:
         # An overlay may enable KISS: report the missing permission, edit nothing.
         return text, [
             f"CHECK kiss.enabled is false in this file, but tokenauth.items[{i}] ({items[i].get('identifier')}) "
             f"has KISS's logboek token without {MODE} on {object_type}: where KISS is enabled (an overlay), "
             "add it there or by hand; left unchanged"
-            for i in todo
+            for i in lacking
         ]
     if not todo:
         return text, notes
