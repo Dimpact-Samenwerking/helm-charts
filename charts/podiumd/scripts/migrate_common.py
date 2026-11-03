@@ -136,14 +136,24 @@ def objecten_data(doc: dict) -> tuple[str | None, dict]:
     return data, load_safe(data) or {}
 
 
-def creates_object_type(inner: dict, uuid: str, name: str) -> bool:
-    """Whether objecten's objecttypes.items creates the object type, by uuid or by name.
+def created_object_type(inner: dict, uuid: str, name: str) -> str | None:
+    """The uuid under which objecten's objecttypes.items creates the object type, found by uuid or else by
+    name; None when it does not create it.
 
     Objecten runs the objecttypes step before tokenauth, and a permission on an
-    unknown object type fails the configuration job.
+    unknown object type fails the configuration job. An item found by name with
+    a uuid string of its own (a literal instead of the REP_..._REP placeholder)
+    needs a permission on that uuid; with any other uuid value (value_from) the
+    placeholder stands for it.
     """
-    objecttypes = (inner.get("objecttypes") or {}).get("items") or []
-    return any(isinstance(t, dict) and (t.get("uuid") == uuid or t.get("name") == name) for t in objecttypes)
+    objecttypes = [t for t in (inner.get("objecttypes") or {}).get("items") or [] if isinstance(t, dict)]
+    if any(t.get("uuid") == uuid for t in objecttypes):
+        return uuid
+    named = [t for t in objecttypes if t.get("name") == name]
+    if not named:
+        return None
+    own = named[0].get("uuid")
+    return own if isinstance(own, str) and own else uuid
 
 
 def verify_objecten_data_edit(new: str, doc: dict, want: dict) -> None:
@@ -241,9 +251,7 @@ def run(
 
     if not args.files and not args.gemeenten_dir:
         parser.error(f"give {file_name} files or --gemeenten-dir")
-    files = args.files or sorted(
-        glob.glob(os.path.join(os.path.expanduser(args.gemeenten_dir), "*", "*", file_name))
-    )
+    files = args.files or sorted(glob.glob(os.path.join(os.path.expanduser(args.gemeenten_dir), "*", "*", file_name)))
     if not files:
         print(f"No {file_name} files found.", file=sys.stderr)
         return 1

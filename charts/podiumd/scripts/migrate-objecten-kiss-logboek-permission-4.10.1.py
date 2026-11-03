@@ -51,7 +51,7 @@ import sys
 from migrate_common import OBJECTEN_DATA_PATH
 from migrate_common import MigrationError
 from migrate_common import block_end
-from migrate_common import creates_object_type
+from migrate_common import created_object_type
 from migrate_common import literal_block
 from migrate_common import load_rt
 from migrate_common import load_safe
@@ -131,7 +131,7 @@ def migrate_text(text: str, _args: argparse.Namespace | None = None) -> tuple[st
         ]
     if not todo:
         return text, notes
-    if not creates_object_type(inner, object_type, OBJECT_TYPE_NAME):
+    if created_object_type(inner, object_type, OBJECT_TYPE_NAME) is None:
         notes.append(
             f"CHECK objecttypes.items does not create {OBJECT_TYPE_NAME} ({object_type}): "
             "add it before giving the token a permission on it; left unchanged"

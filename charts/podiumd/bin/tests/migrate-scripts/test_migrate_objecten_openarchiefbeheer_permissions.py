@@ -67,6 +67,21 @@ def test_the_object_type_is_found_by_name_or_uuid(oab: ModuleType, objecttype: s
     assert oab.migrate_text(text)[1] == [ADDED]
 
 
+def test_a_literal_uuid_found_by_name_is_the_permission_s_object_type(oab: ModuleType):
+    """A values file outside SSC names the object type by its uuid; the placeholder would not resolve there."""
+    uuid = "11a5f7fd-013e-4e29-9cd1-738249fc3479"
+    text = items(*OAB).replace(
+        '"REP_ZAC_PRODUCTAANVRAAG_UUID_REP"\n', f"{uuid}\n            name: Productaanvraag-Dimpact\n", 1
+    )
+
+    new, notes = oab.migrate_text(text)
+
+    permission = [line.replace("REP_ZAC_PRODUCTAANVRAAG_UUID_REP", uuid) for line in PERMISSION]
+    assert new == text.removesuffix("\n") + "\n" + "".join(f"          {line}\n" for line in permission)
+    assert notes == [ADDED.replace("REP_ZAC_PRODUCTAANVRAAG_UUID_REP", uuid)]
+    assert oab.migrate_text(new) == (new, [])
+
+
 def test_without_the_object_type_in_objecttypes_nothing_changes(oab: ModuleType):
     text = items(*OAB).replace(OBJECTTYPES, "")
 

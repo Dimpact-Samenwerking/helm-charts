@@ -14,6 +14,9 @@ This script adds the permission to every such item:
     - object_type: "REP_ZAC_PRODUCTAANVRAAG_UUID_REP"
       mode: read_and_write
 
+When objecttypes.items creates Productaanvraag-Dimpact under another uuid,
+the permission names that uuid instead.
+
 An item that has `permissions` or `is_superuser: true` is left alone; a CHECK
 note names the one whose permissions lack read_and_write on the productaanvraag
 object type. A file without the item changes nothing. A file whose
@@ -47,7 +50,7 @@ import sys
 from migrate_common import OBJECTEN_DATA_PATH
 from migrate_common import MigrationError
 from migrate_common import block_end
-from migrate_common import creates_object_type
+from migrate_common import created_object_type
 from migrate_common import literal_block
 from migrate_common import load_rt
 from migrate_common import load_safe
@@ -61,24 +64,24 @@ OBJECT_TYPE_NAME = "Productaanvraag-Dimpact"
 MODE = "read_and_write"
 
 
-def _permission_lines(key_col: int) -> list[str]:
+def _permission_lines(key_col: int, object_type: str) -> list[str]:
     pad = " " * key_col
     # Quoted like the environment values write object types: an unquoted
     # placeholder (REP_..._REP) fails the SSC quoting check.
     return [
         f"{pad}permissions:\n",
-        f'{pad}  - object_type: "{OBJECT_TYPE}"\n',
+        f'{pad}  - object_type: "{object_type}"\n',
         f"{pad}    mode: {MODE}\n",
     ]
 
 
-def _check_note(index: int, item: dict) -> str | None:
+def _check_note(index: int, item: dict, object_type: str) -> str | None:
     if item.get("is_superuser") is True:
         return None
-    if any(p.get("object_type") == OBJECT_TYPE and p.get("mode") == MODE for p in item.get("permissions") or []):
+    if any(p.get("object_type") == object_type and p.get("mode") == MODE for p in item.get("permissions") or []):
         return None
     return (
-        f"CHECK tokenauth.items[{index}] ({IDENTIFIER}) has permissions without {MODE} on {OBJECT_TYPE}: "
+        f"CHECK tokenauth.items[{index}] ({IDENTIFIER}) has permissions without {MODE} on {object_type}: "
         "Open Archiefbeheer cannot delete productaanvraag objects; left unchanged"
     )
 
@@ -96,10 +99,11 @@ def migrate_text(text: str, _args: argparse.Namespace | None = None) -> tuple[st
     if len(targets) > 1:
         notes.append(f"CHECK tokenauth has {len(targets)} items with identifier {IDENTIFIER}: keep one")
     todo = [i for i in targets if "permissions" not in items[i] and items[i].get("is_superuser") is not True]
-    notes += [n for i in targets if i not in todo and (n := _check_note(i, items[i]))]
+    object_type = created_object_type(inner, OBJECT_TYPE, OBJECT_TYPE_NAME)
+    notes += [n for i in targets if i not in todo and (n := _check_note(i, items[i], object_type or OBJECT_TYPE))]
     if not todo:
         return text, notes
-    if not creates_object_type(inner, OBJECT_TYPE, OBJECT_TYPE_NAME):
+    if object_type is None:
         notes.append(
             f"CHECK objecttypes.items does not create {OBJECT_TYPE_NAME} ({OBJECT_TYPE}): "
             "add it before giving the token a permission on it; left unchanged"
@@ -114,14 +118,14 @@ def migrate_text(text: str, _args: argparse.Namespace | None = None) -> tuple[st
         first, col = seq.lc.item(i)
         key_col = indent + col
         at = block_end(lines, start + first, end, key_col)
-        lines[at:at] = _permission_lines(key_col)
+        lines[at:at] = _permission_lines(key_col, object_type)
     new = "".join(lines)
 
     want = copy.deepcopy(inner)
     for i in todo:
-        want["tokenauth"]["items"][i]["permissions"] = [{"object_type": OBJECT_TYPE, "mode": MODE}]
+        want["tokenauth"]["items"][i]["permissions"] = [{"object_type": object_type, "mode": MODE}]
     verify_objecten_data_edit(new, doc, want)
-    notes += [f"tokenauth.items[{i}] ({IDENTIFIER}): added {MODE} on {OBJECT_TYPE}" for i in todo]
+    notes += [f"tokenauth.items[{i}] ({IDENTIFIER}): added {MODE} on {object_type}" for i in todo]
     return new, notes
 
 
