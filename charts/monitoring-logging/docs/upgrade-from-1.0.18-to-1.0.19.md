@@ -128,10 +128,15 @@ user out for good: the new id matches no `user_auth` row, the fallback lookup by
 e-mail is off by default, and creating the user fails because the old row still
 holds that e-mail. Grafana then shows "User sync failed" on every attempt while
 Keycloak reports a successful login. With the fallback on, the next login
-relinks the existing user. See `docs/grafana-auth.md` § Recreated Keycloak
-accounts for why this is safe in a single-provider realm.
+relinks the existing user.
 
-No action required; existing users keep working.
+Existing users keep working, so no action is required to upgrade. Do check the
+preconditions in `docs/grafana-auth.md` § Recreated Keycloak accounts: the
+fallback is safe while Keycloak is the only identity provider and users cannot
+set their own e-mail address. The `podiumd` realm currently does let users edit
+their own address, which leaves a departed user's released address claimable.
+Either make `email` admin-only in the realm's user profile, or set
+`oauth_allow_insecure_email_lookup: false` for that environment.
 
 ## Deferred (tracked as backlog items, not folded in here)
 

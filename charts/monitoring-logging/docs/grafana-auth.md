@@ -96,7 +96,7 @@ Grafana logs the pair below and renders *"Login failed — User sync failed"*. T
 user is locked out on every attempt, while Entra and Keycloak both report a
 successful login and an active session.
 
-```
+```text
 logger=user.sync     level=error msg="Failed to create user" error="user not found" auth_module=oauth_generic_oauth auth_id=<new keycloak id>
 logger=authn.service level=error msg="Failed to run post auth hook" error="[user.sync.internal] unable to create user: user not found"
 ```
@@ -105,14 +105,31 @@ With the setting enabled Grafana falls back to the e-mail address, finds the
 existing user and relinks it to the new Keycloak id on the next login. No
 database surgery and no break-glass admin access needed.
 
-Upstream calls the fallback insecure because it trusts whatever e-mail the
-provider sends. That assumes more than one identity provider, or one that lets
-users set an unverified address. In this realm Keycloak is the only provider,
-addresses come from Entra ID, self-registration is off and Keycloak refuses
-duplicate e-mail addresses, so no one can claim a colleague's address. Roles and
-the Grafana admin flag are re-read from the token claims on every login
-(`role_attribute_path`, `skip_org_role_sync: false`) rather than from the
-Grafana user row, so no permissions can be inherited through this path either.
+Upstream calls the fallback insecure because Grafana then trusts whatever
+e-mail the provider sends. This chart ships it on by default, which is safe as
+long as the realm meets these preconditions — check them per environment, the
+chart enforces none of them:
+
+- Keycloak is the only identity provider for the `monitoring` client.
+- Self-registration is off (`registrationAllowed: false`) and duplicate e-mail
+  addresses are refused (`duplicateEmailsAllowed: false`), so an address in use
+  by an active user cannot be claimed by someone else.
+- Users cannot set their own e-mail address. The `podiumd` realm's user profile
+  currently grants `edit: [admin, user]` on the `email` attribute and does not
+  require verification, so this precondition is **not** met out of the box.
+
+That last point is the residual risk: a deleted account releases its e-mail
+address, and a user who can edit their own address can take it over. On the
+next login the fallback links them to the departed user's Grafana account.
+Roles and the Grafana admin flag are re-read from the token claims on every
+login (`role_attribute_path`, `skip_org_role_sync: false`) rather than from the
+Grafana user row, so no roles are gained, but team memberships and explicit
+folder or dashboard permissions sit on the Grafana user and do carry over, as
+do that user's dashboards and preferences.
+
+Close it by making `email` admin-only in the realm's user profile, or by
+setting `oauth_allow_insecure_email_lookup: false` per environment and
+accepting that a recreated Keycloak account then needs manual repair.
 
 **Verifying it is applied:**
 
