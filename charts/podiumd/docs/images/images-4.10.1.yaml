@@ -5,7 +5,7 @@
 # Changes:
 #   1. curl 8.23.0 (digest changed).
 #   2. openformulieren 4.0.2 -> 4.0.7.
-#   3. openinwoner 2.4.7 -> 2.4.9.
+#   3. openinwoner 2.4.7 -> 2.5.0 (chart 2.6.0 -> 2.7.0).
 #   4. zac - solr 9.11.0-slim (digest changed).
 #
 # See docs/_UPGRADE_PATHS/4.10.0-to-4.10.1-upgrade.md for the operator upgrade notes.
@@ -25,11 +25,11 @@
   version: "4.0.7"
   digest: "sha256:12c975259f37eb91973a722d1f4e3f0ccf09aa037c08ecbd200350efd4ed493a"
 
-# openinwoner 2.4.7 -> 2.4.9
+# openinwoner 2.4.7 -> 2.5.0
 - name: maykinmedia/open-inwoner
   url: docker.io/maykinmedia/open-inwoner
-  version: "2.4.9"
-  digest: "sha256:ae873faf771b3f4311c980b38e1b226aa8279df72d08e86828b01506f25a3d2b"
+  version: "2.5.0"
+  digest: "sha256:079c98ceae963ea78ef2d9848a5aed88857dee415938e00b666ad2636deec4e0"
 
 #   sidecar: zac - solr 9.11.0-slim (digest changed)
 - name: library/solr
