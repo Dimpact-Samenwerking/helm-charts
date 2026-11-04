@@ -1,4 +1,4 @@
-"""fix-doc-consistency: repair "Component versions" table cells and Changes/values-deltas heading app versions."""
+"""fix-doc-consistency: repair "Component versions" table cells and Changes/values-deltas heading versions."""
 
 import re
 
@@ -23,6 +23,7 @@ from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.string_and_parsing_basics import set_row_cells
 from lib.upgradedoc.version_cells import canonical_version_cell
+from lib.upgradedoc.version_cells import chart_version_suffix
 from lib.upgradedoc.version_cells import component_version_cell
 
 
@@ -158,6 +159,16 @@ def _chart_clause(heading: str):
     return match.group(0) if match else ""
 
 
+def _expected_chart_clause(heading: str, resolved: ResolvedRow):
+    """The heading's chart clause with the row's chart versions, when both are known; else as it is.
+
+    Only an existing clause is rewritten: a heading without one stays without."""
+    current = _chart_clause(heading)
+    if not current or resolved["baseline_chart"] is None or resolved["target_chart"] is None:
+        return current
+    return chart_version_suffix(resolved["baseline_chart"], resolved["target_chart"])
+
+
 def _heading_resolved_row(
     heading: str, resolution: ResolutionContext, inputs: HeadingFixInputs, canonical_path_to_name: dict[ImagePath, str]
 ) -> tuple[str, ResolvedRow, str | None, str | None] | None:
@@ -212,15 +223,20 @@ def _heading_replacement(
     # Replace the name only if it is still the auto-written bare name; a
     # hand-customized heading name is an editorial choice and must be kept.
     corrected_name = row_name if current_name == expected_bare_name else current_name
-    if expected_app_heading in without_chart_clause and corrected_name == current_name:
+    chart_clause = _expected_chart_clause(heading, resolved)
+    if (
+        expected_app_heading in without_chart_clause
+        and corrected_name == current_name
+        and chart_clause == _chart_clause(heading)
+    ):
         return None
-    return f"{inputs.heading_marker} {corrected_name} {expected_app_heading}{_chart_clause(heading)}", heading
+    return f"{inputs.heading_marker} {corrected_name} {expected_app_heading}{chart_clause}", heading
 
 
 def _fix_heading_app_versions(
     text: str, resolution: ResolutionContext, inputs: HeadingFixInputs
 ) -> tuple[str, list[str]]:
-    """Rewrite stale heading names/app versions in inputs.blocks; shared by the "###" and "##" fixes.
+    """Rewrite stale heading names, app and chart versions in inputs.blocks; shared by the "###" and "##" fixes.
 
     Both callers pass the same _resolved_rows_by_values_key map so the two docs
     can't disagree. A sidecar identity (a values path tuple) is looked up by its
@@ -242,9 +258,10 @@ def _fix_heading_app_versions(
 
 
 def fix_changes_heading_app_versions(text: str, resolution: ResolutionContext):
-    """Rewrite "### ..." Changes headings' name and app version to match the table row.
+    """Rewrite "### ..." Changes headings' name, app and chart versions to match the table row.
 
-    The "(chart ...)" clause and body are untouched. Old/new are re-resolved via
+    An existing "(chart ...)" clause gets the row's chart versions when both are
+    known; the body is untouched. Old/new are re-resolved via
     resolve_component_row rather than parsed from the rendered row cell, because
     "<v> (new)" and "<v> (unchanged)" cells extract to the same pair.
 
