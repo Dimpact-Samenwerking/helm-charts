@@ -2,8 +2,8 @@ apiVersion: v2
 name: monitoring-logging
 description: A monitoring stack using Loki, Prometheus, Grafana Alloy, OpenTelemetry Collector, and Grafana. Optionally includes Grafana Tempo for distributed tracing.
 type: application
-version: 1.0.18
-appVersion: "1.0.18"
+version: 1.0.19
+appVersion: "1.0.19"
 dependencies:
   - name: loki
     repository: "@grafana"
@@ -11,7 +11,7 @@ dependencies:
     condition: loki.enabled
   - name: alloy
     repository: "@grafana"
-    version: 1.6.2
+    version: 1.12.1
     condition: alloy.enabled
   - name: grafana
     repository: "@grafana"
@@ -19,11 +19,11 @@ dependencies:
     condition: grafana.enabled
   - name: kube-prometheus-stack
     repository: "@prometheus-community"
-    version: 83.0.0
+    version: 90.0.0
     condition: kube-prometheus-stack.enabled
   - name: prometheus-pushgateway
     repository: "@prometheus-community"
-    version: 3.6.0
+    version: 3.8.0
     condition: prometheus-pushgateway.enabled
   - name: tempo
     repository: "@grafana"
