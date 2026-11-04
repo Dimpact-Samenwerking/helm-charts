@@ -127,9 +127,16 @@ Grafana user row, so no roles are gained, but team memberships and explicit
 folder or dashboard permissions sit on the Grafana user and do carry over, as
 do that user's dashboards and preferences.
 
-Close it by making `email` admin-only in the realm's user profile, or by
-setting `oauth_allow_insecure_email_lookup: false` per environment and
-accepting that a recreated Keycloak account then needs manual repair.
+PodiumD accepts this risk and keeps self-service e-mail editing: it takes an
+authenticated user in the realm, the account they target has to be gone, and
+what carries over is one departed colleague's dashboards and teams in a
+monitoring tool — no roles, no admin rights, no access to any other component.
+Weighed against the alternative, where every recreated account needs manual
+repair in the Grafana database through break-glass access, the fallback wins.
+
+An environment that wants it closed anyway can make `email` admin-only in the
+realm's user profile, or set `oauth_allow_insecure_email_lookup: false` and
+accept the manual repair.
 
 **Verifying it is applied:**
 
