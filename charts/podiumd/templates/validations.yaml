@@ -113,7 +113,10 @@
      the pods. */ -}}
 {{- if or $oip.enabled (not (hasKey $oip "enabled")) -}}
 {{- $removedEnv := list -}}
-{{- range $e := $oip.extraEnvVars | default list -}}
+{{- $envs := $oip.extraEnvVars | default list -}}
+{{- /* The subchart renders extraEnvVars through tpl, so it may also be a template string. */ -}}
+{{- if kindIs "string" $envs }}{{ $envs = fromYamlArray (tpl $envs $) }}{{ end -}}
+{{- range $e := $envs -}}
 {{- $n := (get ($e | default dict) "name") | default "" | toString -}}
 {{- if or (regexMatch "^(KIC_|ADMIN_OIDC_|DIGID_OIDC_|DIGID_SAML_|EHERKENNING_OIDC_|EHERKENNING_SAML_|CMS_)" $n) (and (hasPrefix "SITE_" $n) (ne $n "SITE_ID")) (has $n (list "ZGW_CONFIG_ENABLE" "ZGW_ZAAK_SERVICE_API_ROOT" "ZGW_ZAAK_SERVICE_API_CLIENT_ID" "ZGW_ZAAK_SERVICE_API_SECRET" "ZGW_CATALOGI_SERVICE_API_ROOT" "ZGW_CATALOGI_SERVICE_API_CLIENT_ID" "ZGW_CATALOGI_SERVICE_API_SECRET" "ZGW_DOCUMENTEN_SERVICE_API_ROOT" "ZGW_DOCUMENTEN_SERVICE_API_CLIENT_ID" "ZGW_DOCUMENTEN_SERVICE_API_SECRET" "ZGW_FORM_SERVICE_API_ROOT" "ZGW_FORM_SERVICE_API_CLIENT_ID" "ZGW_FORM_SERVICE_API_SECRET" "ZGW_SERVER_CERTIFICATE_LABEL" "ZGW_SERVER_CERTIFICATE_TYPE" "ZGW_ALLOWED_FILE_EXTENSIONS" "ZGW_ZAAK_MAX_CONFIDENTIALITY" "ZGW_DOCUMENT_MAX_CONFIDENTIALITY" "ZGW_ENABLE_CATEGORIES_FILTERING_WITH_ZAKEN" "ZGW_FETCH_EHERKENNING_ZAKEN_WITH_RSIN" "ZGW_MIJN_AANVRAGEN_TITLE_TEXT" "ZGW_REFORMAT_ESUITE_ZAAK_IDENTIFICATIE" "ZGW_SKIP_NOTIFICATION_STATUSTYPE_INFORMEREN" "OIP_ORGANIZATION" "ACTION_REQUIRED_DEADLINE_DAYS" "SEARCH_ZERO_RESULTS_TEXT")) -}}
 {{- $removedEnv = append $removedEnv $n -}}
