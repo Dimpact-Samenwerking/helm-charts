@@ -26,7 +26,7 @@ global:
       pullPolicy: IfNotPresent
     postgres: &postgresImage
       repository: library/postgres
-      tag: "16.15-alpine@sha256:deb28ee471183cb0c303113dac9b2433c51eeeeb678def7af9a9ec5820367815"
+      tag: "16.15-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab"
       pullPolicy: IfNotPresent
     # kubectl for the redis-ha Jobs, the zookeeper-operator hooks and the ZAC
     # restart Job. No template reads this key: the anchor is resolved in this
@@ -35,7 +35,7 @@ global:
     # use it (global.imageRegistry does not apply to them).
     alpineK8s: &alpineK8sImage
       repository: docker.io/alpine/k8s
-      tag: "1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"
+      tag: "1.37.2@sha256:dcb7185e112a453aa72f426754849a97357727ef8f40168fb208c8cf59952042"
 
 tags:
   eck-operator.enabled: false
@@ -162,7 +162,7 @@ keycloak:
     registry: ""
     repository: &keycloakImageRepo quay.io/keycloak/keycloak
     tag: &keycloakImageVersion "26.8.1"
-    sha: &keycloakImageDigest "79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244"
+    sha: &keycloakImageDigest "3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332"
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   # How the Keycloak operator applies a change of the Keycloak CR (IN-3176).
@@ -359,7 +359,7 @@ keycloak-operator:
       # `operator.image.sha: ""`. See
       # docs/_UPGRADE_PATHS/4.7.3-to-4.7.4-upgrade.md.
       tag: "26.8.1"
-      sha: "60996d513b9e9945657b348655c98071c366bb0212deefa1508785941b1651dc"
+      sha: "4c88e4e9a9d488efd6487ab602974d3cb762ff2ee6f173b2716df418bfe33e53"
     resources:
       requests:
         cpu: 100m
@@ -396,8 +396,8 @@ keycloak-operator:
       initImage:
         registry: ""
         repository: python
-        # Digest-pinned to a specific patch rather than the floating 3.14-slim minor tag.
-        tag: "3.14.7-slim@sha256:51dafde81dbdb6ebde285137a295cf18a47ca95234fe388a343719cb97305b3d"
+        # Digest-pinned to a specific patch rather than the floating 3.15-slim minor tag.
+        tag: "3.15.2-slim@sha256:8c13a3f37a6a5b71498228e902c4b9f51c1f7900d49fabf71f9a650c6120e0d0"
       # Main container: runs psql to execute the generated SQL against the Keycloak DB.
       image: *postgresImage
     ensureOperatorSa:
@@ -3054,7 +3054,7 @@ kiss-eck:
     # -- elasticsearch image; spec.version is the tag's version part. ACR: override repository only.
     image:
       repository: docker.elastic.co/elasticsearch/elasticsearch
-      tag: "8.19.23@sha256:4d0724bb8d78d7a2330693623e26ca4d621079d062ecc8a30b3e1fc180ec14c1"
+      tag: "8.19.24@sha256:d6dfe6626d645cfec66e91009aca60c6c1bb6f94d34253528f24d8cea2f94ba6"
     # -- default sizing, kept equal to the previous release (kiss-elastic used
     # elasticsearchCount: 3). Environments can override nodeSets (e.g. nodeSelector,
     # count, storage), the same way openinwoner.eck-elasticsearch.nodeSets is set.
@@ -3105,7 +3105,7 @@ kiss-eck:
     # -- enterprise-search image; spec.version is the tag's version part. ACR: override repository only.
     image:
       repository: docker.elastic.co/enterprise-search/enterprise-search
-      tag: "8.19.23@sha256:08d6d698cdd2a0d00f463def05200bfeb0e3c123bfc4a1a799a2577f36ca2bc6"
+      tag: "8.19.24@sha256:68a919341aa7c04528d49f4e7375ba603fe5c37080caab918731a6cab9f4a906"
     config:
       app_search.engine.total_fields.limit: 1000
       kibana.host: https://kiss-kb-http:5601
@@ -3124,7 +3124,7 @@ kiss-eck:
     # -- kibana image; spec.version is the tag's version part. ACR: override repository only.
     image:
       repository: docker.elastic.co/kibana/kibana
-      tag: "8.19.23@sha256:920b24f689833d34205f426f5359864378a572e829c53016073f0a6837c2e995"
+      tag: "8.19.24@sha256:c712b5ab0a82d272eff6192edd4ae75b6b07477b3d1b13cabaa2934744727b4d"
     count: 1
     config:
       server.publicBaseUrl: https://kiss-kb-http:5601
@@ -3729,10 +3729,10 @@ zac:
       busyBoxImage: *busyboxImage
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.11.0-slim@sha256:5bc07412dffc1198ff6ace3587e09f8eea2126f821109a849506f4541b228aca
+      # library/solr:9.11.0-slim@sha256:54cec2ced0f2c26436605a7dd5dde5ae78f26d5c0d19a7358349d5cb71fdfc1a
       image:
         #repository:
-        tag: 9.11.0-slim@sha256:5bc07412dffc1198ff6ace3587e09f8eea2126f821109a849506f4541b228aca
+        tag: 9.11.0-slim@sha256:54cec2ced0f2c26436605a7dd5dde5ae78f26d5c0d19a7358349d5cb71fdfc1a
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       # Solr jobs (affinity, annotations, nodeSelector, tolerations): ZAC chart defaults.
@@ -3880,12 +3880,12 @@ clamav:
   # serviceMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 ServiceMonitor).
   image:
     repository: clamav/clamav
-    tag: "1.5.4@sha256:e19130cdebaeacc71fa46eab3ed6f69941f2f22aa5e08d55e9197f8edf43ce5e"
+    tag: "1.5.4@sha256:6d87c712e3391e13c1ba6e05dfb074d4b1ddb5a6834b23bb9da990d2a4ef042a"
   metrics:
     enabled: false
     image:
       repository: docker.io/sergeymakinen/clamav_exporter
-      tag: "v2.1.9@sha256:ac694b06337090d0ad1d5fb3a44f46e905bdd3f1901758587ae0d650854f8600"
+      tag: "v2.1.12@sha256:66bc4f313d4c1f3baa73a75cb57a5c55c1095fb8687c6eb6cd66954eed084911"
     serviceMonitor:
       enabled: false
   nameOverride: clamav
@@ -4551,7 +4551,7 @@ frankgateway:
   # Digest-pinned; matches docs/images/images-baseline.yaml.
   image:
     repository: ghcr.io/wearefrank/frank-gateway
-    tag: "1.1.4@sha256:eb03ea3df1b89f37357e500f6635d2c2ba16296fdc62a0a82e2441de04576217"
+    tag: "1.2.1@sha256:f22de6b89d5586e3d92950f98dce4da6c301dd60d4454704b6417db90a2324b3"
   # Per class. Two, not one: one replica means every pod event — a crash, an
   # eviction, a node image upgrade, an autoscaler consolidation — is an outage
   # of that traffic class. Raise for load, never lower below 2 in an
@@ -5140,7 +5140,7 @@ zaakbrug:
   image:
     registry: wearefrank
     repository: zaakbrug
-    tag: "1.26.19@sha256:4c90dddac58fdbe813566417c796b5890ab86a4ffd70f143460b6b9b379eec8c"
+    tag: "1.27.1@sha256:5f87a0b971a49af7b995d9b3fd7118b5b03ebe419ce0c1593417d1a28235272a"
   # K8s cgroup limits sized for the Frank!Framework JVM heap (subchart
   # default Xms=Xmx=4G via .Values.frank.memory.{minimum,maximum}).
   # Overhead ≈1Gi headroom for non-heap (metaspace, code cache, direct
@@ -5239,7 +5239,7 @@ openbao:
     enabled: false
     image:
       repository: hashicorp/vault-k8s
-      tag: "1.7.6@sha256:55e27b080c9b0469fd420dfb3631243488c6319504b779423caa46c529a95490"
+      tag: "1.7.7@sha256:ecb3a6f77a756d5e7209bd9c5ded027c71ce86691d6f308b0e5bf7b6e61b5eb0"
 
   # CSI Provider (upstream subchart default: OFF, same as here). Not currently
   # used — PodiumD's secrets consumption doesn't go through the Secrets Store
@@ -5319,7 +5319,7 @@ openbao:
       # its anchor), so the server and this Job always run the same OpenBao.
       image:
         repository: quay.io/openbao/openbao
-        tag: &openbaoImageTag "2.7.1@sha256:6d2b93856e3fcf7b18ad855a0b51eaba474dc8b79cf554379ea32034797d2acf"
+        tag: &openbaoImageTag "2.7.2@sha256:5046911075e137e154ce49ab051502f4ec7cf367d484ae4a4dce665d9b90561f"
       nodeSelector: {}
       resources:
         requests:

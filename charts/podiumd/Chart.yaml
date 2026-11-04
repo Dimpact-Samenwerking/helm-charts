@@ -74,7 +74,7 @@ dependencies:
     tags:
       - zaak
   - name: zaakbrug
-    version: 2.3.33
+    version: 2.3.36
     repository: "https://wearefrank.github.io/charts"
     condition: zaakbrug.enabled
     tags:
@@ -114,6 +114,6 @@ dependencies:
     tags:
       - eck-operator
   - name: openbao
-    version: 0.30.3
+    version: 0.30.6
     repository: "https://openbao.github.io/openbao-helm"
     condition: openbao.enabled
