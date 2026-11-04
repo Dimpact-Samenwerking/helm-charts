@@ -16,6 +16,7 @@
 #   11. zac - solr 9.11.0-slim (digest changed).
 #   12. clamav 1.5.4 (digest changed).
 #   13. clamav - clamav_exporter v2.1.9 -> v2.1.12.
+#   14. zaakbrug 1.26.19 -> 1.27.1 (chart 2.3.33 -> 2.3.36).
 #
 # See docs/_UPGRADE_PATHS/4.10.0-to-4.10.1-upgrade.md for the operator upgrade notes.
 #
@@ -94,3 +95,9 @@
   url: docker.io/sergeymakinen/clamav_exporter
   version: "v2.1.12"
   digest: "sha256:66bc4f313d4c1f3baa73a75cb57a5c55c1095fb8687c6eb6cd66954eed084911"
+
+# zaakbrug 1.26.19 -> 1.27.1
+- name: wearefrank/zaakbrug
+  url: docker.io/wearefrank/zaakbrug
+  version: "1.27.1"
+  digest: "sha256:5f87a0b971a49af7b995d9b3fd7118b5b03ebe419ce0c1593417d1a28235272a"
