@@ -838,6 +838,46 @@ def test_fix_values_delta_heading_app_versions_unchanged_app_with_chart_bump_is_
     assert again_text == new_text
 
 
+def test_fix_values_delta_heading_app_versions_corrects_stale_chart_version(cdb: ModuleType):
+    """A chart bump after the heading was written corrects its "(chart ...)" clause too, together with
+    the app version, and a second run changes nothing."""
+    upgrade_doc_text = (
+        "## Component versions (4.10.1 vs 4.9.6)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| openinwoner | 2.4.9 → 2.5.0 | 2.4.0 → 2.7.0 | - |\n"
+    )
+    values_deltas_text = (
+        "# Values deltas — PodiumD 4.9.6 → 4.10.1\n\n"
+        "## openinwoner 2.4.9 (unchanged) (chart 2.4.0 → 2.6.0)\n\n"
+        "Hand-written text.\n"
+    )
+    repository = "docker.io/maykinmedia/open-inwoner"
+    deps: list[ChartDependency] = [{"name": "openinwoner", "version": "2.7.0"}]
+    target_values: YamlMapping = {
+        "openinwoner": {"image": {"repository": repository, "tag": "2.5.0@sha256:" + "b" * 64}}
+    }
+    baseline_deps: list[ChartDependency] = [{"name": "openinwoner", "version": "2.4.0"}]
+    baseline_values: YamlMapping = {
+        "openinwoner": {"image": {"repository": repository, "tag": "2.4.9@sha256:" + "a" * 64}}
+    }
+    resolution = ResolutionContext(
+        None,
+        ComponentState(deps, target_values),
+        BaselineState(baseline_deps, baseline_values),
+        upgrade_docs_baseline="4.9.6",
+    )
+
+    new_text, updated_headings = fix_values_delta_heading_app_versions(upgrade_doc_text, values_deltas_text, resolution)
+    again_text, again_headings = fix_values_delta_heading_app_versions(upgrade_doc_text, new_text, resolution)
+
+    assert updated_headings == ["openinwoner 2.4.9 (unchanged) (chart 2.4.0 → 2.6.0)"]
+    assert "## openinwoner 2.4.9 → 2.5.0 (chart 2.4.0 → 2.7.0)\n" in new_text
+    assert "Hand-written text.\n" in new_text
+    assert again_headings == []
+    assert again_text == new_text
+
+
 def test_fix_values_delta_heading_app_versions_corrects_stale_sidecar_heading(cdb: ModuleType):
     """A stale sidecar "## ..." heading in -values-deltas.md is corrected via the shared core."""
     redis_upgrade_doc_text = (
