@@ -8,18 +8,19 @@
 #   3. k8s 1.37.1 -> 1.37.2.
 #   4. keycloak.image 26.8.1 (digest changed).
 #   5. keycloak-operator 26.8.1 (digest changed).
-#   6. openformulieren 4.0.2 -> 4.0.7.
-#   7. openinwoner 2.4.7 -> 2.4.9.
-#   8. kiss-eck.eck-elasticsearch.image 8.19.23 -> 8.19.24.
-#   9. kiss-eck.eck-enterprise-search.image 8.19.23 -> 8.19.24.
-#   10. kiss-eck.eck-kibana.image 8.19.23 -> 8.19.24.
-#   11. zac - solr 9.11.0-slim (digest changed).
-#   12. clamav 1.5.4 (digest changed).
-#   13. clamav - clamav_exporter v2.1.9 -> v2.1.12.
-#   14. frankgateway.image 1.1.4 -> 1.2.1.
-#   15. zaakbrug 1.26.19 -> 1.27.1 (chart 2.3.33 -> 2.3.36).
-#   16. openbao 2.7.1 -> 2.7.2 (chart 0.30.3 -> 0.30.6).
-#   17. openbao - vault-k8s 1.7.6 -> 1.7.7.
+#   6. keycloak-operator - python 3.14.7-slim -> 3.15.2-slim.
+#   7. openformulieren 4.0.2 -> 4.0.7.
+#   8. openinwoner 2.4.7 -> 2.4.9.
+#   9. kiss-eck.eck-elasticsearch.image 8.19.23 -> 8.19.24.
+#   10. kiss-eck.eck-enterprise-search.image 8.19.23 -> 8.19.24.
+#   11. kiss-eck.eck-kibana.image 8.19.23 -> 8.19.24.
+#   12. zac - solr 9.11.0-slim (digest changed).
+#   13. clamav 1.5.4 (digest changed).
+#   14. clamav - clamav_exporter v2.1.9 -> v2.1.12.
+#   15. frankgateway.image 1.1.4 -> 1.2.1.
+#   16. zaakbrug 1.26.19 -> 1.27.1 (chart 2.3.33 -> 2.3.36).
+#   17. openbao 2.7.1 -> 2.7.2 (chart 0.30.3 -> 0.30.6).
+#   18. openbao - vault-k8s 1.7.6 -> 1.7.7.
 #
 # See docs/_UPGRADE_PATHS/4.10.0-to-4.10.1-upgrade.md for the operator upgrade notes.
 #
@@ -53,6 +54,11 @@
   url: quay.io/keycloak/keycloak-operator
   version: "26.8.1"
   digest: "sha256:4c88e4e9a9d488efd6487ab602974d3cb762ff2ee6f173b2716df418bfe33e53"
+#   sidecar: keycloak-operator - python 3.14.7-slim -> 3.15.2-slim
+- name: library/python
+  url: docker.io/library/python
+  version: "3.15.2-slim"
+  digest: "sha256:8c13a3f37a6a5b71498228e902c4b9f51c1f7900d49fabf71f9a650c6120e0d0"
 
 # openformulieren 4.0.2 -> 4.0.7
 - name: openformulieren/open-forms
