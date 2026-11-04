@@ -119,6 +119,20 @@ Action for an environment that still runs Traefik at the edge: set
 `traefikMonitor.enabled: true`, or the Traefik metrics and the Traefik
 dashboard stop receiving data.
 
+## Grafana relinks users whose Keycloak account was recreated
+
+`grafana."grafana.ini".auth.oauth_allow_insecure_email_lookup` now defaults to
+`true`. Grafana links an OAuth login to a Grafana user through the Keycloak user
+id (`sub`), so deleting a user in Keycloak and creating them again locks that
+user out for good: the new id matches no `user_auth` row, the fallback lookup by
+e-mail is off by default, and creating the user fails because the old row still
+holds that e-mail. Grafana then shows "User sync failed" on every attempt while
+Keycloak reports a successful login. With the fallback on, the next login
+relinks the existing user. See `docs/grafana-auth.md` § Recreated Keycloak
+accounts for why this is safe in a single-provider realm.
+
+No action required; existing users keep working.
+
 ## Deferred (tracked as backlog items, not folded in here)
 
 - **`loki` 6.55.0 → 7.3.0**: the chart's default MinIO images silently
