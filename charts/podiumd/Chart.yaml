@@ -50,7 +50,7 @@ dependencies:
     repository: "@maykinmedia"
     condition: openformulieren.enabled
   - name: openinwoner
-    version: 2.6.0
+    version: 2.7.0
     repository: "@maykinmedia"
     condition: openinwoner.enabled
   - name: referentielijsten

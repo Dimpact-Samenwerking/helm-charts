@@ -13,7 +13,7 @@ PodiumD Helm chart
 | @maykinmedia | openarchiefbeheer | 2.1.0 |
 | @maykinmedia | openbeheer | 0.1.3 |
 | @maykinmedia | openformulieren(openforms) | 1.13.0 |
-| @maykinmedia | openinwoner | 2.6.0 |
+| @maykinmedia | openinwoner | 2.7.0 |
 | @maykinmedia | openklant | 1.11.0 |
 | @maykinmedia | opennotificaties | 2.1.0 |
 | @maykinmedia | objecten(openobject) | 1.2.0 |
@@ -632,7 +632,7 @@ PodiumD Helm chart
 | objecten.configuration.demo.enabled | bool | `false` |  |
 | objecten.configuration.enabled | bool | `true` |  |
 | objecten.configuration.initContainer.enabled | bool | `false` |  |
-| objecten.configuration.job.backoffLimit | int | `6` |  |
+| objecten.configuration.job.backoffLimit | int | `12` |  |
 | objecten.configuration.job.enabled | bool | `true` |  |
 | objecten.configuration.job.resources | object | `{}` |  |
 | objecten.configuration.job.restartPolicy | string | `"OnFailure"` |  |
@@ -712,7 +712,7 @@ PodiumD Helm chart
 | openarchiefbeheer.beat.resources.requests.memory | string | `"128Mi"` |  |
 | openarchiefbeheer.configuration.data | string | `""` |  |
 | openarchiefbeheer.configuration.enabled | bool | `true` |  |
-| openarchiefbeheer.configuration.job.backoffLimit | int | `6` |  |
+| openarchiefbeheer.configuration.job.backoffLimit | int | `12` |  |
 | openarchiefbeheer.configuration.job.enabled | bool | `true` |  |
 | openarchiefbeheer.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | openarchiefbeheer.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://abc.example.nl`. |
@@ -856,7 +856,7 @@ PodiumD Helm chart
 | openbao.snapshotAgent.image.tag | string | `"0.4.5@sha256:ef2c80770e30bba3fcf4d7911cb829607efcea7e7c1a917210c9fa1ba55a8249"` |  |
 | openbeheer.configuration.data | string | `""` |  |
 | openbeheer.configuration.enabled | bool | `true` |  |
-| openbeheer.configuration.job.backoffLimit | int | `6` |  |
+| openbeheer.configuration.job.backoffLimit | int | `12` |  |
 | openbeheer.configuration.job.enabled | bool | `true` |  |
 | openbeheer.configuration.job.resources | object | `{}` |  |
 | openbeheer.configuration.job.restartPolicy | string | `"Never"` |  |
@@ -934,7 +934,7 @@ PodiumD Helm chart
 | openformulieren.clamavConfigJob.backoffLimit | int | `15` | Retries generously: on first deploy this Job can race both the openformulieren DB migration (image entrypoint) and ClamAV's own cold-start (up to ~5 minutes to load its signature database, see docs/apps/clamav/clamav-BASICS.md) — it fails fast and lets Kubernetes' Job backoff retry until both are ready, rather than needing a wait container or Helm hook ordering. |
 | openformulieren.configuration.data | string | `""` |  |
 | openformulieren.configuration.enabled | bool | `true` |  |
-| openformulieren.configuration.job.backoffLimit | int | `6` |  |
+| openformulieren.configuration.job.backoffLimit | int | `12` |  |
 | openformulieren.configuration.job.enabled | bool | `true` |  |
 | openformulieren.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | openformulieren.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openformulieren.example.nl`. |
@@ -966,7 +966,7 @@ PodiumD Helm chart
 | openformulieren.persistentVolume.volumeAttributeShareName | string | `"openformulieren"` |  |
 | openformulieren.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | openformulieren.resources.requests.cpu | string | `"250m"` |  |
-| openformulieren.resources.requests.memory | string | `"1Gi"` |  |
+| openformulieren.resources.requests.memory | string | `"1792Mi"` |  |
 | openformulieren.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | openformulieren.securityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | openformulieren.settings.allowedHosts | string | `".svc.cluster.local"` |  |
@@ -984,7 +984,7 @@ PodiumD Helm chart
 | openformulieren.worker.maxWorkerLivenessDelta | string | `"300"` |  |
 | openformulieren.worker.replicaCount | int | `1` |  |
 | openformulieren.worker.resources.requests.cpu | string | `"200m"` |  |
-| openformulieren.worker.resources.requests.memory | string | `"1Gi"` |  |
+| openformulieren.worker.resources.requests.memory | string | `"1536Mi"` |  |
 | openinwoner.beat.resources.requests.cpu | string | `"50m"` |  |
 | openinwoner.beat.resources.requests.memory | string | `"128Mi"` |  |
 | openinwoner.celeryMonitor.resources.requests.cpu | string | `"50m"` |  |
@@ -994,7 +994,7 @@ PodiumD Helm chart
 | openinwoner.configuration.data | string | `""` |  |
 | openinwoner.configuration.enabled | bool | `true` |  |
 | openinwoner.configuration.initContainer.enabled | bool | `false` |  |
-| openinwoner.configuration.job.backoffLimit | int | `6` |  |
+| openinwoner.configuration.job.backoffLimit | int | `12` |  |
 | openinwoner.configuration.job.enabled | bool | `true` |  |
 | openinwoner.configuration.job.resources | object | `{}` |  |
 | openinwoner.configuration.job.restartPolicy | string | `"OnFailure"` |  |
@@ -1006,7 +1006,7 @@ PodiumD Helm chart
 | openinwoner.eck-elasticsearch.version | string | `"9.2.0"` |  |
 | openinwoner.eck-operator.enabled | bool | `false` |  |
 | openinwoner.fullnameOverride | string | `"openinwoner"` |  |
-| openinwoner.image.tag | string | `"2.4.9@sha256:ae873faf771b3f4311c980b38e1b226aa8279df72d08e86828b01506f25a3d2b"` |  |
+| openinwoner.image.tag | string | `"2.5.0@sha256:079c98ceae963ea78ef2d9848a5aed88857dee415938e00b666ad2636deec4e0"` |  |
 | openinwoner.kvk.apiKey | string | `""` | KvK API key. Empty when a proxy adds the key; when set, the chart stores it in the Secret `openinwoner-kvk`. With apiRoot set, the Job writes this value, also when empty. |
 | openinwoner.kvk.apiRoot | string | `""` | KvK API root without version or endpoint, e.g. `http://api-proxy.podiumd.svc.cluster.local/api/` (a dotted host name or localhost: Django's URLField rejects `http://api-proxy/api/`). Empty: the chart leaves KvKConfig alone (configure it in the admin). |
 | openinwoner.kvk.existingSecret | string | `""` | Existing Secret with the API key, instead of apiKey. Rename the Secret or the key to re-run the Job after rotating it. |
@@ -1069,7 +1069,7 @@ PodiumD Helm chart
 | openklant.configuration.data | string | `""` |  |
 | openklant.configuration.enabled | bool | `true` |  |
 | openklant.configuration.initContainer.enabled | bool | `false` |  |
-| openklant.configuration.job.backoffLimit | int | `6` |  |
+| openklant.configuration.job.backoffLimit | int | `12` |  |
 | openklant.configuration.job.enabled | bool | `true` |  |
 | openklant.configuration.job.resources | object | `{}` |  |
 | openklant.configuration.job.restartPolicy | string | `"OnFailure"` |  |
@@ -1123,7 +1123,7 @@ PodiumD Helm chart
 | opennotificaties.configuration.data | string | `""` |  |
 | opennotificaties.configuration.http_request_job.enabled | bool | `false` |  |
 | opennotificaties.configuration.initContainer.enabled | bool | `false` |  |
-| opennotificaties.configuration.job.backoffLimit | int | `6` |  |
+| opennotificaties.configuration.job.backoffLimit | int | `12` |  |
 | opennotificaties.configuration.job.enabled | bool | `true` |  |
 | opennotificaties.configuration.job.resources | object | `{}` |  |
 | opennotificaties.configuration.job.restartPolicy | string | `"OnFailure"` |  |
@@ -1173,7 +1173,7 @@ PodiumD Helm chart
 | opennotificaties.worker.resources.requests.memory | string | `"386Mi"` |  |
 | openvtb.configuration.data | string | `""` |  |
 | openvtb.configuration.enabled | bool | `true` |  |
-| openvtb.configuration.job.backoffLimit | int | `6` |  |
+| openvtb.configuration.job.backoffLimit | int | `12` |  |
 | openvtb.configuration.job.enabled | bool | `true` |  |
 | openvtb.configuration.job.resources | object | `{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources of the setup-configuration Job (one Django process). |
 | openvtb.configuration.job.restartPolicy | string | `"Never"` |  |
@@ -1240,7 +1240,7 @@ PodiumD Helm chart
 | openzaak.configuration.data | string | `""` |  |
 | openzaak.configuration.enabled | bool | `true` |  |
 | openzaak.configuration.initContainer.enabled | bool | `false` |  |
-| openzaak.configuration.job.backoffLimit | int | `6` |  |
+| openzaak.configuration.job.backoffLimit | int | `12` |  |
 | openzaak.configuration.job.enabled | bool | `true` |  |
 | openzaak.configuration.job.resources | object | `{}` |  |
 | openzaak.configuration.job.restartPolicy | string | `"Never"` |  |
@@ -1284,7 +1284,7 @@ PodiumD Helm chart
 | openzaak.persistentVolume.volumeAttributeShareName | string | `"openzaak"` |  |
 | openzaak.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | openzaak.resources.requests.cpu | string | `"250m"` |  |
-| openzaak.resources.requests.memory | string | `"512Mi"` |  |
+| openzaak.resources.requests.memory | string | `"1Gi"` |  |
 | openzaak.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | openzaak.settings.allowedHosts | string | `".svc.cluster.local"` |  |
 | openzaak.settings.cache.axes | string | `"redis-ha-master:6379/4"` |  |
@@ -1385,7 +1385,7 @@ PodiumD Helm chart
 | referentielijsten.configuration.data | string | `""` |  |
 | referentielijsten.configuration.enabled | bool | `true` |  |
 | referentielijsten.configuration.initContainer.enabled | bool | `false` |  |
-| referentielijsten.configuration.job.backoffLimit | int | `6` |  |
+| referentielijsten.configuration.job.backoffLimit | int | `12` |  |
 | referentielijsten.configuration.job.enabled | bool | `true` |  |
 | referentielijsten.configuration.job.resources | object | `{}` |  |
 | referentielijsten.configuration.job.restartPolicy | string | `"OnFailure"` |  |
@@ -1497,6 +1497,7 @@ PodiumD Helm chart
 | zac.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | zac.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
 | zac.nginx.image.tag | string | `"1.31.7@sha256:09b0d3eda2aa592d2487f284519419015cab010d7df16cd0fe224b585fc60eb6"` |  |
+| zac.nginx.resources.limits.memory | string | `"256Mi"` |  |
 | zac.nginx.resources.requests.cpu | string | `"50m"` |  |
 | zac.nginx.resources.requests.memory | string | `"64Mi"` |  |
 | zac.nginx.securityContext.allowPrivilegeEscalation | bool | `false` |  |
@@ -1505,6 +1506,9 @@ PodiumD Helm chart
 | zac.objectenApi.url | string | `"https://objecten.example.nl"` |  |
 | zac.office_converter.image.tag | string | `"8.38.1@sha256:aa552cc115db488e0f0bcb07446aac13071ad51505b642c84bb894500907b42b"` |  |
 | zac.office_converter.password | string | `"dummy"` | Basic auth password for the office converter; see username. |
+| zac.office_converter.resources.limits.memory | string | `"2Gi"` |  |
+| zac.office_converter.resources.requests.cpu | string | `"100m"` |  |
+| zac.office_converter.resources.requests.memory | string | `"512Mi"` |  |
 | zac.office_converter.securityContext.runAsGroup | string | `nil` |  |
 | zac.office_converter.securityContext.runAsNonRoot | bool | `true` |  |
 | zac.office_converter.securityContext.runAsUser | int | `1001` |  |

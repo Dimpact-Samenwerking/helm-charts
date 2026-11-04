@@ -280,6 +280,23 @@ def test_a_values_deltas_section_shared_with_a_removed_component_keeps_its_key_l
     assert "## zac and kiss\n\n- Key `zac.extra` was added.\n\nBoth read the same realm.\n" in docs[DELTAS]
 
 
+def test_a_chart_bump_after_the_values_deltas_heading_corrects_its_chart_clause(writer_then_checker):
+    note = "Set `kiss.feat` per environment.\n"
+    deltas = f"# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n## kiss 3.1.1 (unchanged) (chart 3.1.1 → 3.2.0)\n\n{note}"
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [KISS], "values": {"kiss": kiss("3.1.1")}},
+        {
+            "version": "4.9.0",
+            "deps": [{**KISS, "version": "3.3.0"}],
+            "values": {"kiss": kiss("3.3.0")},
+            "files": {f"docs/{DELTAS}": deltas},
+        },
+    )
+
+    assert "## kiss 3.1.1 → 3.3.0 (chart 3.1.1 → 3.3.0)\n" in docs[DELTAS]
+    assert note in docs[DELTAS]
+
+
 def test_user_text_in_the_values_deltas_section_of_a_removed_component_stays(writer_then_checker):
     deltas = (
         "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"

@@ -650,7 +650,9 @@ openzaak:
       enabled: false
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       ttlSecondsAfterFinished: 600
       restartPolicy: Never
       resources: {}
@@ -846,7 +848,8 @@ openzaak:
   resources:
     requests:
       cpu: 250m
-      memory: 512Mi
+      # Peaked at 872Mi storing four concurrent 45 MB documents.
+      memory: 1Gi
   worker:
     replicaCount: 1
     livenessProbe:
@@ -931,7 +934,9 @@ opennotificaties:
       enabled: false
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       restartPolicy: OnFailure
       resources: {}
     secrets:
@@ -1194,7 +1199,9 @@ objecten:
       enabled: false
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
@@ -1450,7 +1457,9 @@ openarchiefbeheer:
       enabled: true
       # Chart 2.1.0 runs this Job as a post-install/post-upgrade hook (defaults 0 and
       # Never): retries keep a Keycloak that is not ready yet from failing the release.
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       restartPolicy: OnFailure
     secrets:
       keycloak_client_secret: ""
@@ -1688,7 +1697,9 @@ openklant:
       enabled: false
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
@@ -1854,7 +1865,9 @@ openformulieren:
     enabled: true
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       restartPolicy: OnFailure
     secrets:
       keycloak_client_secret: ""
@@ -2120,7 +2133,8 @@ openformulieren:
   resources:
     requests:
       cpu: 250m
-      memory: 1Gi
+      # Four concurrent 45 MB uploads with ZGW registration peaked at 1606Mi.
+      memory: 1792Mi
   worker:
     replicaCount: 1
     livenessProbe:
@@ -2129,7 +2143,8 @@ openformulieren:
     resources:
       requests:
         cpu: 200m
-        memory: 1Gi
+        # Peaked at 1375Mi registering four concurrent 45 MB submissions.
+        memory: 1536Mi
   nameOverride: openformulieren
   fullnameOverride: openformulieren
   flower:
@@ -2177,7 +2192,9 @@ openinwoner:
       enabled: false
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       restartPolicy: OnFailure
       resources: {}
     data: ""
@@ -2412,7 +2429,7 @@ openinwoner:
     volumeAttributeShareName: openinwoner
     storageClassName: podiumd-standard
   image:
-    tag: "2.4.9@sha256:ae873faf771b3f4311c980b38e1b226aa8279df72d08e86828b01506f25a3d2b"
+    tag: "2.5.0@sha256:079c98ceae963ea78ef2d9848a5aed88857dee415938e00b666ad2636deec4e0"
   resources:
     requests:
       cpu: 200m
@@ -2543,7 +2560,9 @@ referentielijsten:
       enabled: false
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
@@ -2652,7 +2671,9 @@ openbeheer:
     overwrite: false
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       ttlSecondsAfterFinished: 600
       restartPolicy: Never
       resources: {}
@@ -2833,7 +2854,9 @@ openvtb:
     overwrite: false
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       ttlSecondsAfterFinished: 600
       restartPolicy: Never
       # -- Resources of the setup-configuration Job (one Django process).
@@ -3602,6 +3625,10 @@ zac:
       requests:
         cpu: 50m
         memory: 64Mi
+      # The zac chart's 128Mi filled to 119Mi with page cache during two
+      # concurrent 500 MB uploads.
+      limits:
+        memory: 256Mi
   notificationsSecretKey: "changeme"
   # Since the objecten/objecttypen merge ZAC reads only objectenApi: the merged
   # Objecten app serves the Objecttypen API too. zac.objecttypenApi is gone in
@@ -3623,6 +3650,15 @@ zac:
     image:
       # repository: gotenberg/gotenberg
       tag: "8.38.1@sha256:aa552cc115db488e0f0bcb07446aac13071ad51505b642c84bb894500907b42b"
+    # Gotenberg needs about 200Mi plus 60Mi per 12-megapixel photo, and ZAC accepts
+    # files up to 500 MB: the zac chart's 1Gi limit OOM-kills a Word file with 40
+    # photos (podiumd-chart-39).
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        memory: 2Gi
   opa:
     securityContext:
       runAsNonRoot: true

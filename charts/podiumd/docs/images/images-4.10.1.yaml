@@ -10,7 +10,7 @@
 #   5. keycloak-operator 26.8.1 (digest changed).
 #   6. keycloak-operator - python 3.14.7-slim -> 3.15.2-slim.
 #   7. openformulieren 4.0.2 -> 4.0.7.
-#   8. openinwoner 2.4.7 -> 2.4.9.
+#   8. openinwoner 2.4.7 -> 2.5.0 (chart 2.6.0 -> 2.7.0).
 #   9. kiss-eck.eck-elasticsearch.image 8.19.23 -> 8.19.24.
 #   10. kiss-eck.eck-enterprise-search.image 8.19.23 -> 8.19.24.
 #   11. kiss-eck.eck-kibana.image 8.19.23 -> 8.19.24.
@@ -66,11 +66,11 @@
   version: "4.0.7"
   digest: "sha256:12c975259f37eb91973a722d1f4e3f0ccf09aa037c08ecbd200350efd4ed493a"
 
-# openinwoner 2.4.7 -> 2.4.9
+# openinwoner 2.4.7 -> 2.5.0
 - name: maykinmedia/open-inwoner
   url: docker.io/maykinmedia/open-inwoner
-  version: "2.4.9"
-  digest: "sha256:ae873faf771b3f4311c980b38e1b226aa8279df72d08e86828b01506f25a3d2b"
+  version: "2.5.0"
+  digest: "sha256:079c98ceae963ea78ef2d9848a5aed88857dee415938e00b666ad2636deec4e0"
 
 # kiss-eck.eck-elasticsearch.image 8.19.23 -> 8.19.24
 - name: elasticsearch/elasticsearch
