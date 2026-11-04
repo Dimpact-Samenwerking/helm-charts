@@ -650,7 +650,9 @@ openzaak:
       enabled: false
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       ttlSecondsAfterFinished: 600
       restartPolicy: Never
       resources: {}
@@ -932,7 +934,9 @@ opennotificaties:
       enabled: false
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       restartPolicy: OnFailure
       resources: {}
     secrets:
@@ -1195,7 +1199,9 @@ objecten:
       enabled: false
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
@@ -1451,7 +1457,9 @@ openarchiefbeheer:
       enabled: true
       # Chart 2.1.0 runs this Job as a post-install/post-upgrade hook (defaults 0 and
       # Never): retries keep a Keycloak that is not ready yet from failing the release.
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       restartPolicy: OnFailure
     secrets:
       keycloak_client_secret: ""
@@ -1689,7 +1697,9 @@ openklant:
       enabled: false
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
@@ -1855,7 +1865,9 @@ openformulieren:
     enabled: true
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       restartPolicy: OnFailure
     secrets:
       keycloak_client_secret: ""
@@ -2180,7 +2192,9 @@ openinwoner:
       enabled: false
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       restartPolicy: OnFailure
       resources: {}
     data: ""
@@ -2546,7 +2560,9 @@ referentielijsten:
       enabled: false
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
@@ -2655,7 +2671,9 @@ openbeheer:
     overwrite: false
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       ttlSecondsAfterFinished: 600
       restartPolicy: Never
       resources: {}
@@ -2836,7 +2854,9 @@ openvtb:
     overwrite: false
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       ttlSecondsAfterFinished: 600
       restartPolicy: Never
       # -- Resources of the setup-configuration Job (one Django process).
