@@ -259,8 +259,8 @@
 
 - name: wearefrank/frank-gateway
   url: ghcr.io/wearefrank/frank-gateway
-  version: "1.1.4"
-  digest: "sha256:eb03ea3df1b89f37357e500f6635d2c2ba16296fdc62a0a82e2441de04576217"
+  version: "1.2.1"
+  digest: "sha256:f22de6b89d5586e3d92950f98dce4da6c301dd60d4454704b6417db90a2324b3"
 
 - name: coreos/etcd
   url: quay.io/coreos/etcd
@@ -294,13 +294,13 @@
 
 - name: openbao/openbao
   url: quay.io/openbao/openbao
-  version: "2.7.1"
-  digest: "sha256:6d2b93856e3fcf7b18ad855a0b51eaba474dc8b79cf554379ea32034797d2acf"
+  version: "2.7.2"
+  digest: "sha256:5046911075e137e154ce49ab051502f4ec7cf367d484ae4a4dce665d9b90561f"
 
 - name: hashicorp/vault-k8s
   url: docker.io/hashicorp/vault-k8s
-  version: "1.7.6"
-  digest: "sha256:55e27b080c9b0469fd420dfb3631243488c6319504b779423caa46c529a95490"
+  version: "1.7.7"
+  digest: "sha256:ecb3a6f77a756d5e7209bd9c5ded027c71ce86691d6f308b0e5bf7b6e61b5eb0"
 
 - name: openbao/openbao-csi-provider
   url: quay.io/openbao/openbao-csi-provider

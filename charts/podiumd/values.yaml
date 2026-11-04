@@ -4515,7 +4515,7 @@ frankgateway:
   # Digest-pinned; matches docs/images/images-baseline.yaml.
   image:
     repository: ghcr.io/wearefrank/frank-gateway
-    tag: "1.1.4@sha256:eb03ea3df1b89f37357e500f6635d2c2ba16296fdc62a0a82e2441de04576217"
+    tag: "1.2.1@sha256:f22de6b89d5586e3d92950f98dce4da6c301dd60d4454704b6417db90a2324b3"
   # Per class. Two, not one: one replica means every pod event — a crash, an
   # eviction, a node image upgrade, an autoscaler consolidation — is an outage
   # of that traffic class. Raise for load, never lower below 2 in an
@@ -5203,7 +5203,7 @@ openbao:
     enabled: false
     image:
       repository: hashicorp/vault-k8s
-      tag: "1.7.6@sha256:55e27b080c9b0469fd420dfb3631243488c6319504b779423caa46c529a95490"
+      tag: "1.7.7@sha256:ecb3a6f77a756d5e7209bd9c5ded027c71ce86691d6f308b0e5bf7b6e61b5eb0"
 
   # CSI Provider (upstream subchart default: OFF, same as here). Not currently
   # used — PodiumD's secrets consumption doesn't go through the Secrets Store
@@ -5283,7 +5283,7 @@ openbao:
       # its anchor), so the server and this Job always run the same OpenBao.
       image:
         repository: quay.io/openbao/openbao
-        tag: &openbaoImageTag "2.7.1@sha256:6d2b93856e3fcf7b18ad855a0b51eaba474dc8b79cf554379ea32034797d2acf"
+        tag: &openbaoImageTag "2.7.2@sha256:5046911075e137e154ce49ab051502f4ec7cf367d484ae4a4dce665d9b90561f"
       nodeSelector: {}
       resources:
         requests:

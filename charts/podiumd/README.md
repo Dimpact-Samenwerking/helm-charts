@@ -27,7 +27,7 @@ PodiumD Helm chart
 | @zgw-office-addin | zgw-office-addin | 0.0.93 |
 | file://../mi-data | mi(mi-data) | 1.1.0 |
 | https://helm.elastic.co | eck-operator | 3.5.0 |
-| https://openbao.github.io/openbao-helm | openbao | 0.30.3 |
+| https://openbao.github.io/openbao-helm | openbao | 0.30.6 |
 | https://wearefrank.github.io/charts | zaakbrug | 2.3.36 |
 | oci://ghcr.io/interne-taak-afhandeling | ita(internetaakafhandeling) | 3.3.4 |
 | oci://ghcr.io/klantinteractie-servicesysteem | kiss(kiss-chart) | 3.2.0 |
@@ -182,7 +182,7 @@ PodiumD Helm chart
 | frankgateway.etcd.storageClassName | string | `""` |  |
 | frankgateway.etcd.topologySpreadConstraints | list | `[]` |  |
 | frankgateway.image.repository | string | `"ghcr.io/wearefrank/frank-gateway"` |  |
-| frankgateway.image.tag | string | `"1.1.4@sha256:eb03ea3df1b89f37357e500f6635d2c2ba16296fdc62a0a82e2441de04576217"` |  |
+| frankgateway.image.tag | string | `"1.2.1@sha256:f22de6b89d5586e3d92950f98dce4da6c301dd60d4454704b6417db90a2324b3"` |  |
 | frankgateway.instances.internal.enabled | bool | `true` |  |
 | frankgateway.instances.inway.enabled | bool | `true` |  |
 | frankgateway.instances.outway.enabled | bool | `true` |  |
@@ -775,7 +775,7 @@ PodiumD Helm chart
 | openbao.configuration.enabled | bool | `true` |  |
 | openbao.configuration.job.backoffLimit | int | `6` |  |
 | openbao.configuration.job.image.repository | string | `"quay.io/openbao/openbao"` |  |
-| openbao.configuration.job.image.tag | string | `"2.7.1@sha256:6d2b93856e3fcf7b18ad855a0b51eaba474dc8b79cf554379ea32034797d2acf"` |  |
+| openbao.configuration.job.image.tag | string | `"2.7.2@sha256:5046911075e137e154ce49ab051502f4ec7cf367d484ae4a4dce665d9b90561f"` |  |
 | openbao.configuration.job.nodeSelector | object | `{}` |  |
 | openbao.configuration.job.resources.limits.cpu | string | `"250m"` |  |
 | openbao.configuration.job.resources.limits.memory | string | `"128Mi"` |  |
@@ -814,7 +814,7 @@ PodiumD Helm chart
 | openbao.enabled | bool | `false` |  |
 | openbao.injector.enabled | bool | `false` |  |
 | openbao.injector.image.repository | string | `"hashicorp/vault-k8s"` |  |
-| openbao.injector.image.tag | string | `"1.7.6@sha256:55e27b080c9b0469fd420dfb3631243488c6319504b779423caa46c529a95490"` |  |
+| openbao.injector.image.tag | string | `"1.7.7@sha256:ecb3a6f77a756d5e7209bd9c5ded027c71ce86691d6f308b0e5bf7b6e61b5eb0"` |  |
 | openbao.seal.static.key | string | `""` | AES-256 key for the static seal: 32 raw characters, 64 hex, or base64 (44 standard / 43 unpadded URL-safe). Empty keeps the Shamir seal. Pipeline-substituted from the environment Key Vault, never committed. Setting it on an initialised Shamir vault requires a one-time `bao operator unseal -migrate` (docs §3.6). |
 | openbao.seal.static.keyId | string | `"1"` | Permanent identifier of `key`; change it together with the key, never on its own. |
 | openbao.seal.static.previousKey | string | `""` | Previous key during a rotation: set `key`/`keyId` to the new key and these to the old one until OpenBao has re-wrapped its root key, then clear them. |
@@ -834,7 +834,7 @@ PodiumD Helm chart
 | openbao.server.ha.replicas | int | `3` |  |
 | openbao.server.image.registry | string | `"quay.io"` |  |
 | openbao.server.image.repository | string | `"openbao/openbao"` |  |
-| openbao.server.image.tag | string | `"2.7.1@sha256:6d2b93856e3fcf7b18ad855a0b51eaba474dc8b79cf554379ea32034797d2acf"` |  |
+| openbao.server.image.tag | string | `"2.7.2@sha256:5046911075e137e154ce49ab051502f4ec7cf367d484ae4a4dce665d9b90561f"` |  |
 | openbao.server.ingress.enabled | bool | `false` |  |
 | openbao.server.livenessProbe | object | `{"enabled":true,"execCommand":["/bin/sh","-c","[ -f /openbao/seal/seal.hcl ] || exit 0; s=$(bao status -format=json 2>/dev/null); case \"$s\" in *'\"initialized\": true'*) ;; *) exit 0 ;; esac; case \"$s\" in *'\"migration\": true'*) exit 0 ;; esac; case \"$s\" in *'\"sealed\": true'*) exit 1 ;; esac; exit 0"],"failureThreshold":3,"initialDelaySeconds":60,"periodSeconds":10,"timeoutSeconds":5}` | Restarts a running node that sealed itself; only with the static seal (see the comment above). |
 | openbao.server.readinessProbe.enabled | bool | `true` |  |

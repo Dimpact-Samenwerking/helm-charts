@@ -16,7 +16,10 @@
 #   11. zac - solr 9.11.0-slim (digest changed).
 #   12. clamav 1.5.4 (digest changed).
 #   13. clamav - clamav_exporter v2.1.9 -> v2.1.12.
-#   14. zaakbrug 1.26.19 -> 1.27.1 (chart 2.3.33 -> 2.3.36).
+#   14. frankgateway.image 1.1.4 -> 1.2.1.
+#   15. zaakbrug 1.26.19 -> 1.27.1 (chart 2.3.33 -> 2.3.36).
+#   16. openbao 2.7.1 -> 2.7.2 (chart 0.30.3 -> 0.30.6).
+#   17. openbao - vault-k8s 1.7.6 -> 1.7.7.
 #
 # See docs/_UPGRADE_PATHS/4.10.0-to-4.10.1-upgrade.md for the operator upgrade notes.
 #
@@ -96,8 +99,25 @@
   version: "v2.1.12"
   digest: "sha256:66bc4f313d4c1f3baa73a75cb57a5c55c1095fb8687c6eb6cd66954eed084911"
 
+# frankgateway.image 1.1.4 -> 1.2.1
+- name: wearefrank/frank-gateway
+  url: ghcr.io/wearefrank/frank-gateway
+  version: "1.2.1"
+  digest: "sha256:f22de6b89d5586e3d92950f98dce4da6c301dd60d4454704b6417db90a2324b3"
+
 # zaakbrug 1.26.19 -> 1.27.1
 - name: wearefrank/zaakbrug
   url: docker.io/wearefrank/zaakbrug
   version: "1.27.1"
   digest: "sha256:5f87a0b971a49af7b995d9b3fd7118b5b03ebe419ce0c1593417d1a28235272a"
+
+# openbao 2.7.1 -> 2.7.2
+- name: openbao/openbao
+  url: quay.io/openbao/openbao
+  version: "2.7.2"
+  digest: "sha256:5046911075e137e154ce49ab051502f4ec7cf367d484ae4a4dce665d9b90561f"
+#   sidecar: openbao - vault-k8s 1.7.6 -> 1.7.7
+- name: hashicorp/vault-k8s
+  url: docker.io/hashicorp/vault-k8s
+  version: "1.7.7"
+  digest: "sha256:ecb3a6f77a756d5e7209bd9c5ded027c71ce86691d6f308b0e5bf7b6e61b5eb0"
