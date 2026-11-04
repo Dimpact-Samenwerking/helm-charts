@@ -85,6 +85,7 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 | grafana."grafana.ini".auth.disable_signout_menu | bool | `false` |  |
 | grafana."grafana.ini".auth.login_maximum_inactive_lifetime_duration | string | `"7d"` |  |
 | grafana."grafana.ini".auth.login_maximum_lifetime_duration | string | `"30d"` |  |
+| grafana."grafana.ini".auth.oauth_allow_insecure_email_lookup | bool | `true` | Match an OAuth login to an existing Grafana user by e-mail when the stored Keycloak user id no longer matches. Without this a user whose Keycloak account is deleted and recreated can never log in again: the new `sub` finds no `user_auth` row, the e-mail lookup is skipped, and creating the user fails because the old row still holds that e-mail. Grafana then returns `[user.sync.internal] unable to create user: user not found` and renders "User sync failed". See docs/grafana-auth.md. |
 | grafana."grafana.ini".auth.oauth_auto_login | bool | `true` |  |
 | grafana."grafana.ini".auth.oauth_skip_org_role_update_sync | bool | `false` |  |
 | grafana."grafana.ini".feature_toggles | object | `{"grafanaAdvisor":true}` | Grafana Advisor surfaces recommendations in the Grafana UI |

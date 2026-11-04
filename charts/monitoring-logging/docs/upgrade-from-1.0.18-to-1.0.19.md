@@ -119,6 +119,30 @@ Action for an environment that still runs Traefik at the edge: set
 `traefikMonitor.enabled: true`, or the Traefik metrics and the Traefik
 dashboard stop receiving data.
 
+## Grafana relinks users whose Keycloak account was recreated
+
+`grafana."grafana.ini".auth.oauth_allow_insecure_email_lookup` now defaults to
+`true`. Grafana links an OAuth login to a Grafana user through the Keycloak user
+id (`sub`), so deleting a user in Keycloak and creating them again locks that
+user out for good: the new id matches no `user_auth` row, the fallback lookup by
+e-mail is off by default, and creating the user fails because the old row still
+holds that e-mail. Grafana then shows "User sync failed" on every attempt while
+Keycloak reports a successful login. With the fallback on, the next login
+relinks the existing user.
+
+Existing users keep working, so no action is required to upgrade.
+
+`docs/grafana-auth.md` § Recreated Keycloak accounts lists the preconditions
+this relies on. One of them is not met in the `podiumd` realm: users may edit
+their own e-mail address, so the address of a deleted account can be claimed,
+and the fallback then links the claimer to that account's Grafana user.
+PodiumD accepts that: it needs an authenticated user in the realm, the target
+account has to be gone, and only a departed colleague's dashboards and teams
+carry over — roles and admin rights come from the token on every login. An
+environment that disagrees can make `email` admin-only in the realm's user
+profile, or set `oauth_allow_insecure_email_lookup: false` and repair
+recreated accounts by hand.
+
 ## Deferred (tracked as backlog items, not folded in here)
 
 - **`loki` 6.55.0 → 7.3.0**: the chart's default MinIO images silently
