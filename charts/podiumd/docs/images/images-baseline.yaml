@@ -35,17 +35,17 @@
 - name: library/postgres
   url: docker.io/library/postgres
   version: "16.15-alpine"
-  digest: "sha256:deb28ee471183cb0c303113dac9b2433c51eeeeb678def7af9a9ec5820367815"
+  digest: "sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab"
 
 - name: alpine/k8s
   url: docker.io/alpine/k8s
-  version: "1.37.1"
-  digest: "sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"
+  version: "1.37.2"
+  digest: "sha256:dcb7185e112a453aa72f426754849a97357727ef8f40168fb208c8cf59952042"
 
 - name: keycloak/keycloak
   url: quay.io/keycloak/keycloak
   version: "26.8.1"
-  digest: "sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244"
+  digest: "sha256:3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332"
 
 - name: adorsys/keycloak-config-cli
   url: docker.io/adorsys/keycloak-config-cli
@@ -55,12 +55,12 @@
 - name: keycloak/keycloak-operator
   url: quay.io/keycloak/keycloak-operator
   version: "26.8.1"
-  digest: "sha256:60996d513b9e9945657b348655c98071c366bb0212deefa1508785941b1651dc"
+  digest: "sha256:4c88e4e9a9d488efd6487ab602974d3cb762ff2ee6f173b2716df418bfe33e53"
 
 - name: library/python
   url: docker.io/library/python
-  version: "3.14.7-slim"
-  digest: "sha256:51dafde81dbdb6ebde285137a295cf18a47ca95234fe388a343719cb97305b3d"
+  version: "3.15.2-slim"
+  digest: "sha256:8c13a3f37a6a5b71498228e902c4b9f51c1f7900d49fabf71f9a650c6120e0d0"
 
 - name: opstree/redis-operator
   url: quay.io/opstree/redis-operator
@@ -134,18 +134,18 @@
 
 - name: elasticsearch/elasticsearch
   url: docker.elastic.co/elasticsearch/elasticsearch
-  version: "8.19.23"
-  digest: "sha256:4d0724bb8d78d7a2330693623e26ca4d621079d062ecc8a30b3e1fc180ec14c1"
+  version: "8.19.24"
+  digest: "sha256:d6dfe6626d645cfec66e91009aca60c6c1bb6f94d34253528f24d8cea2f94ba6"
 
 - name: enterprise-search/enterprise-search
   url: docker.elastic.co/enterprise-search/enterprise-search
-  version: "8.19.23"
-  digest: "sha256:08d6d698cdd2a0d00f463def05200bfeb0e3c123bfc4a1a799a2577f36ca2bc6"
+  version: "8.19.24"
+  digest: "sha256:68a919341aa7c04528d49f4e7375ba603fe5c37080caab918731a6cab9f4a906"
 
 - name: kibana/kibana
   url: docker.elastic.co/kibana/kibana
-  version: "8.19.23"
-  digest: "sha256:920b24f689833d34205f426f5359864378a572e829c53016073f0a6837c2e995"
+  version: "8.19.24"
+  digest: "sha256:c712b5ab0a82d272eff6192edd4ae75b6b07477b3d1b13cabaa2934744727b4d"
 
 - name: klantinteractie-servicesysteem/kiss-frontend
   url: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
@@ -195,7 +195,7 @@
 - name: library/solr
   url: docker.io/library/solr
   version: "9.11.0-slim"
-  digest: "sha256:5bc07412dffc1198ff6ace3587e09f8eea2126f821109a849506f4541b228aca"
+  digest: "sha256:54cec2ced0f2c26436605a7dd5dde5ae78f26d5c0d19a7358349d5cb71fdfc1a"
 
 - name: pravega/zookeeper-operator
   url: docker.io/pravega/zookeeper-operator
@@ -220,12 +220,12 @@
 - name: clamav/clamav
   url: docker.io/clamav/clamav
   version: "1.5.4"
-  digest: "sha256:e19130cdebaeacc71fa46eab3ed6f69941f2f22aa5e08d55e9197f8edf43ce5e"
+  digest: "sha256:6d87c712e3391e13c1ba6e05dfb074d4b1ddb5a6834b23bb9da990d2a4ef042a"
 
 - name: sergeymakinen/clamav_exporter
   url: docker.io/sergeymakinen/clamav_exporter
-  version: "v2.1.9"
-  digest: "sha256:ac694b06337090d0ad1d5fb3a44f46e905bdd3f1901758587ae0d650854f8600"
+  version: "v2.1.12"
+  digest: "sha256:66bc4f313d4c1f3baa73a75cb57a5c55c1095fb8687c6eb6cd66954eed084911"
 
 - name: interne-taak-afhandeling/internetaakafhandeling.web
   url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web
@@ -259,8 +259,8 @@
 
 - name: wearefrank/frank-gateway
   url: ghcr.io/wearefrank/frank-gateway
-  version: "1.1.4"
-  digest: "sha256:eb03ea3df1b89f37357e500f6635d2c2ba16296fdc62a0a82e2441de04576217"
+  version: "1.2.1"
+  digest: "sha256:f22de6b89d5586e3d92950f98dce4da6c301dd60d4454704b6417db90a2324b3"
 
 - name: coreos/etcd
   url: quay.io/coreos/etcd
@@ -279,8 +279,8 @@
 
 - name: wearefrank/zaakbrug
   url: docker.io/wearefrank/zaakbrug
-  version: "1.26.19"
-  digest: "sha256:4c90dddac58fdbe813566417c796b5890ab86a4ffd70f143460b6b9b379eec8c"
+  version: "1.27.1"
+  digest: "sha256:5f87a0b971a49af7b995d9b3fd7118b5b03ebe419ce0c1593417d1a28235272a"
 
 - name: brp-api/personen-mock
   url: ghcr.io/brp-api/personen-mock
@@ -294,13 +294,13 @@
 
 - name: openbao/openbao
   url: quay.io/openbao/openbao
-  version: "2.7.1"
-  digest: "sha256:6d2b93856e3fcf7b18ad855a0b51eaba474dc8b79cf554379ea32034797d2acf"
+  version: "2.7.2"
+  digest: "sha256:5046911075e137e154ce49ab051502f4ec7cf367d484ae4a4dce665d9b90561f"
 
 - name: hashicorp/vault-k8s
   url: docker.io/hashicorp/vault-k8s
-  version: "1.7.6"
-  digest: "sha256:55e27b080c9b0469fd420dfb3631243488c6319504b779423caa46c529a95490"
+  version: "1.7.7"
+  digest: "sha256:ecb3a6f77a756d5e7209bd9c5ded027c71ce86691d6f308b0e5bf7b6e61b5eb0"
 
 - name: openbao/openbao-csi-provider
   url: quay.io/openbao/openbao-csi-provider

@@ -4,9 +4,23 @@
 #
 # Changes:
 #   1. curl 8.23.0 (digest changed).
-#   2. openformulieren 4.0.2 -> 4.0.7.
-#   3. openinwoner 2.4.7 -> 2.5.0 (chart 2.6.0 -> 2.7.0).
-#   4. zac - solr 9.11.0-slim (digest changed).
+#   2. postgres 16.15-alpine (digest changed).
+#   3. k8s 1.37.1 -> 1.37.2.
+#   4. keycloak.image 26.8.1 (digest changed).
+#   5. keycloak-operator 26.8.1 (digest changed).
+#   6. keycloak-operator - python 3.14.7-slim -> 3.15.2-slim.
+#   7. openformulieren 4.0.2 -> 4.0.7.
+#   8. openinwoner 2.4.7 -> 2.5.0 (chart 2.6.0 -> 2.7.0).
+#   9. kiss-eck.eck-elasticsearch.image 8.19.23 -> 8.19.24.
+#   10. kiss-eck.eck-enterprise-search.image 8.19.23 -> 8.19.24.
+#   11. kiss-eck.eck-kibana.image 8.19.23 -> 8.19.24.
+#   12. zac - solr 9.11.0-slim (digest changed).
+#   13. clamav 1.5.4 (digest changed).
+#   14. clamav - clamav_exporter v2.1.9 -> v2.1.12.
+#   15. frankgateway.image 1.1.4 -> 1.2.1.
+#   16. zaakbrug 1.26.19 -> 1.27.1 (chart 2.3.33 -> 2.3.36).
+#   17. openbao 2.7.1 -> 2.7.2 (chart 0.30.3 -> 0.30.6).
+#   18. openbao - vault-k8s 1.7.6 -> 1.7.7.
 #
 # See docs/_UPGRADE_PATHS/4.10.0-to-4.10.1-upgrade.md for the operator upgrade notes.
 #
@@ -18,6 +32,33 @@
   url: docker.io/curlimages/curl
   version: "8.23.0"
   digest: "sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93"
+# postgres 16.15-alpine (digest changed)
+- name: library/postgres
+  url: docker.io/library/postgres
+  version: "16.15-alpine"
+  digest: "sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab"
+# k8s 1.37.1 -> 1.37.2
+- name: alpine/k8s
+  url: docker.io/alpine/k8s
+  version: "1.37.2"
+  digest: "sha256:dcb7185e112a453aa72f426754849a97357727ef8f40168fb208c8cf59952042"
+
+# keycloak.image 26.8.1 (digest changed)
+- name: keycloak/keycloak
+  url: quay.io/keycloak/keycloak
+  version: "26.8.1"
+  digest: "sha256:3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332"
+
+# keycloak-operator 26.8.1 (digest changed)
+- name: keycloak/keycloak-operator
+  url: quay.io/keycloak/keycloak-operator
+  version: "26.8.1"
+  digest: "sha256:4c88e4e9a9d488efd6487ab602974d3cb762ff2ee6f173b2716df418bfe33e53"
+#   sidecar: keycloak-operator - python 3.14.7-slim -> 3.15.2-slim
+- name: library/python
+  url: docker.io/library/python
+  version: "3.15.2-slim"
+  digest: "sha256:8c13a3f37a6a5b71498228e902c4b9f51c1f7900d49fabf71f9a650c6120e0d0"
 
 # openformulieren 4.0.2 -> 4.0.7
 - name: openformulieren/open-forms
@@ -31,8 +72,58 @@
   version: "2.5.0"
   digest: "sha256:079c98ceae963ea78ef2d9848a5aed88857dee415938e00b666ad2636deec4e0"
 
+# kiss-eck.eck-elasticsearch.image 8.19.23 -> 8.19.24
+- name: elasticsearch/elasticsearch
+  url: docker.elastic.co/elasticsearch/elasticsearch
+  version: "8.19.24"
+  digest: "sha256:d6dfe6626d645cfec66e91009aca60c6c1bb6f94d34253528f24d8cea2f94ba6"
+# kiss-eck.eck-enterprise-search.image 8.19.23 -> 8.19.24
+- name: enterprise-search/enterprise-search
+  url: docker.elastic.co/enterprise-search/enterprise-search
+  version: "8.19.24"
+  digest: "sha256:68a919341aa7c04528d49f4e7375ba603fe5c37080caab918731a6cab9f4a906"
+# kiss-eck.eck-kibana.image 8.19.23 -> 8.19.24
+- name: kibana/kibana
+  url: docker.elastic.co/kibana/kibana
+  version: "8.19.24"
+  digest: "sha256:c712b5ab0a82d272eff6192edd4ae75b6b07477b3d1b13cabaa2934744727b4d"
+
 #   sidecar: zac - solr 9.11.0-slim (digest changed)
 - name: library/solr
   url: docker.io/library/solr
   version: "9.11.0-slim"
-  digest: "sha256:5bc07412dffc1198ff6ace3587e09f8eea2126f821109a849506f4541b228aca"
+  digest: "sha256:54cec2ced0f2c26436605a7dd5dde5ae78f26d5c0d19a7358349d5cb71fdfc1a"
+
+# clamav 1.5.4 (digest changed)
+- name: clamav/clamav
+  url: docker.io/clamav/clamav
+  version: "1.5.4"
+  digest: "sha256:6d87c712e3391e13c1ba6e05dfb074d4b1ddb5a6834b23bb9da990d2a4ef042a"
+#   sidecar: clamav - clamav_exporter v2.1.9 -> v2.1.12
+- name: sergeymakinen/clamav_exporter
+  url: docker.io/sergeymakinen/clamav_exporter
+  version: "v2.1.12"
+  digest: "sha256:66bc4f313d4c1f3baa73a75cb57a5c55c1095fb8687c6eb6cd66954eed084911"
+
+# frankgateway.image 1.1.4 -> 1.2.1
+- name: wearefrank/frank-gateway
+  url: ghcr.io/wearefrank/frank-gateway
+  version: "1.2.1"
+  digest: "sha256:f22de6b89d5586e3d92950f98dce4da6c301dd60d4454704b6417db90a2324b3"
+
+# zaakbrug 1.26.19 -> 1.27.1
+- name: wearefrank/zaakbrug
+  url: docker.io/wearefrank/zaakbrug
+  version: "1.27.1"
+  digest: "sha256:5f87a0b971a49af7b995d9b3fd7118b5b03ebe419ce0c1593417d1a28235272a"
+
+# openbao 2.7.1 -> 2.7.2
+- name: openbao/openbao
+  url: quay.io/openbao/openbao
+  version: "2.7.2"
+  digest: "sha256:5046911075e137e154ce49ab051502f4ec7cf367d484ae4a4dce665d9b90561f"
+#   sidecar: openbao - vault-k8s 1.7.6 -> 1.7.7
+- name: hashicorp/vault-k8s
+  url: docker.io/hashicorp/vault-k8s
+  version: "1.7.7"
+  digest: "sha256:ecb3a6f77a756d5e7209bd9c5ded027c71ce86691d6f308b0e5bf7b6e61b5eb0"
