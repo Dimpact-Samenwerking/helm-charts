@@ -1505,6 +1505,9 @@ PodiumD Helm chart
 | zac.objectenApi.url | string | `"https://objecten.example.nl"` |  |
 | zac.office_converter.image.tag | string | `"8.38.1@sha256:aa552cc115db488e0f0bcb07446aac13071ad51505b642c84bb894500907b42b"` |  |
 | zac.office_converter.password | string | `"dummy"` | Basic auth password for the office converter; see username. |
+| zac.office_converter.resources.limits.memory | string | `"2Gi"` |  |
+| zac.office_converter.resources.requests.cpu | string | `"100m"` |  |
+| zac.office_converter.resources.requests.memory | string | `"512Mi"` |  |
 | zac.office_converter.securityContext.runAsGroup | string | `nil` |  |
 | zac.office_converter.securityContext.runAsNonRoot | bool | `true` |  |
 | zac.office_converter.securityContext.runAsUser | int | `1001` |  |
