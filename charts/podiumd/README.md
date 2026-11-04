@@ -966,7 +966,7 @@ PodiumD Helm chart
 | openformulieren.persistentVolume.volumeAttributeShareName | string | `"openformulieren"` |  |
 | openformulieren.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | openformulieren.resources.requests.cpu | string | `"250m"` |  |
-| openformulieren.resources.requests.memory | string | `"1Gi"` |  |
+| openformulieren.resources.requests.memory | string | `"1792Mi"` |  |
 | openformulieren.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | openformulieren.securityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | openformulieren.settings.allowedHosts | string | `".svc.cluster.local"` |  |
@@ -984,7 +984,7 @@ PodiumD Helm chart
 | openformulieren.worker.maxWorkerLivenessDelta | string | `"300"` |  |
 | openformulieren.worker.replicaCount | int | `1` |  |
 | openformulieren.worker.resources.requests.cpu | string | `"200m"` |  |
-| openformulieren.worker.resources.requests.memory | string | `"1Gi"` |  |
+| openformulieren.worker.resources.requests.memory | string | `"1536Mi"` |  |
 | openinwoner.beat.resources.requests.cpu | string | `"50m"` |  |
 | openinwoner.beat.resources.requests.memory | string | `"128Mi"` |  |
 | openinwoner.celeryMonitor.resources.requests.cpu | string | `"50m"` |  |
@@ -1284,7 +1284,7 @@ PodiumD Helm chart
 | openzaak.persistentVolume.volumeAttributeShareName | string | `"openzaak"` |  |
 | openzaak.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | openzaak.resources.requests.cpu | string | `"250m"` |  |
-| openzaak.resources.requests.memory | string | `"512Mi"` |  |
+| openzaak.resources.requests.memory | string | `"1Gi"` |  |
 | openzaak.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | openzaak.settings.allowedHosts | string | `".svc.cluster.local"` |  |
 | openzaak.settings.cache.axes | string | `"redis-ha-master:6379/4"` |  |
@@ -1497,6 +1497,7 @@ PodiumD Helm chart
 | zac.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | zac.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
 | zac.nginx.image.tag | string | `"1.31.7@sha256:09b0d3eda2aa592d2487f284519419015cab010d7df16cd0fe224b585fc60eb6"` |  |
+| zac.nginx.resources.limits.memory | string | `"256Mi"` |  |
 | zac.nginx.resources.requests.cpu | string | `"50m"` |  |
 | zac.nginx.resources.requests.memory | string | `"64Mi"` |  |
 | zac.nginx.securityContext.allowPrivilegeEscalation | bool | `false` |  |
