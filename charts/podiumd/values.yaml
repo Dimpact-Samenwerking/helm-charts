@@ -3623,6 +3623,15 @@ zac:
     image:
       # repository: gotenberg/gotenberg
       tag: "8.38.1@sha256:aa552cc115db488e0f0bcb07446aac13071ad51505b642c84bb894500907b42b"
+    # Gotenberg needs about 200Mi plus 60Mi per 12-megapixel photo, and ZAC accepts
+    # files up to 500 MB: the zac chart's 1Gi limit OOM-kills a Word file with 40
+    # photos (podiumd-chart-39).
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        memory: 2Gi
   opa:
     securityContext:
       runAsNonRoot: true
