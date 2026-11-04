@@ -4,9 +4,14 @@
 #
 # Changes:
 #   1. curl 8.23.0 (digest changed).
-#   2. openformulieren 4.0.2 -> 4.0.7.
-#   3. openinwoner 2.4.7 -> 2.4.9.
-#   4. zac - solr 9.11.0-slim (digest changed).
+#   2. k8s 1.37.1 -> 1.37.2.
+#   3. openformulieren 4.0.2 -> 4.0.7.
+#   4. openinwoner 2.4.7 -> 2.4.9.
+#   5. kiss-eck.eck-elasticsearch.image 8.19.23 -> 8.19.24.
+#   6. kiss-eck.eck-enterprise-search.image 8.19.23 -> 8.19.24.
+#   7. kiss-eck.eck-kibana.image 8.19.23 -> 8.19.24.
+#   8. zac - solr 9.11.0-slim (digest changed).
+#   9. clamav - clamav_exporter v2.1.9 -> v2.1.12.
 #
 # See docs/_UPGRADE_PATHS/4.10.0-to-4.10.1-upgrade.md for the operator upgrade notes.
 #
@@ -18,6 +23,11 @@
   url: docker.io/curlimages/curl
   version: "8.23.0"
   digest: "sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93"
+# k8s 1.37.1 -> 1.37.2
+- name: alpine/k8s
+  url: docker.io/alpine/k8s
+  version: "1.37.2"
+  digest: "sha256:dcb7185e112a453aa72f426754849a97357727ef8f40168fb208c8cf59952042"
 
 # openformulieren 4.0.2 -> 4.0.7
 - name: openformulieren/open-forms
@@ -31,8 +41,30 @@
   version: "2.4.9"
   digest: "sha256:ae873faf771b3f4311c980b38e1b226aa8279df72d08e86828b01506f25a3d2b"
 
+# kiss-eck.eck-elasticsearch.image 8.19.23 -> 8.19.24
+- name: elasticsearch/elasticsearch
+  url: docker.elastic.co/elasticsearch/elasticsearch
+  version: "8.19.24"
+  digest: "sha256:d6dfe6626d645cfec66e91009aca60c6c1bb6f94d34253528f24d8cea2f94ba6"
+# kiss-eck.eck-enterprise-search.image 8.19.23 -> 8.19.24
+- name: enterprise-search/enterprise-search
+  url: docker.elastic.co/enterprise-search/enterprise-search
+  version: "8.19.24"
+  digest: "sha256:68a919341aa7c04528d49f4e7375ba603fe5c37080caab918731a6cab9f4a906"
+# kiss-eck.eck-kibana.image 8.19.23 -> 8.19.24
+- name: kibana/kibana
+  url: docker.elastic.co/kibana/kibana
+  version: "8.19.24"
+  digest: "sha256:c712b5ab0a82d272eff6192edd4ae75b6b07477b3d1b13cabaa2934744727b4d"
+
 #   sidecar: zac - solr 9.11.0-slim (digest changed)
 - name: library/solr
   url: docker.io/library/solr
   version: "9.11.0-slim"
   digest: "sha256:5bc07412dffc1198ff6ace3587e09f8eea2126f821109a849506f4541b228aca"
+
+#   sidecar: clamav - clamav_exporter v2.1.9 -> v2.1.12
+- name: sergeymakinen/clamav_exporter
+  url: docker.io/sergeymakinen/clamav_exporter
+  version: "v2.1.12"
+  digest: "sha256:66bc4f313d4c1f3baa73a75cb57a5c55c1095fb8687c6eb6cd66954eed084911"

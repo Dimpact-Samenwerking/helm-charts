@@ -35,7 +35,7 @@ global:
     # use it (global.imageRegistry does not apply to them).
     alpineK8s: &alpineK8sImage
       repository: docker.io/alpine/k8s
-      tag: "1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"
+      tag: "1.37.2@sha256:dcb7185e112a453aa72f426754849a97357727ef8f40168fb208c8cf59952042"
 
 tags:
   eck-operator.enabled: false
@@ -3031,7 +3031,7 @@ kiss-eck:
     # -- elasticsearch image; spec.version is the tag's version part. ACR: override repository only.
     image:
       repository: docker.elastic.co/elasticsearch/elasticsearch
-      tag: "8.19.23@sha256:4d0724bb8d78d7a2330693623e26ca4d621079d062ecc8a30b3e1fc180ec14c1"
+      tag: "8.19.24@sha256:d6dfe6626d645cfec66e91009aca60c6c1bb6f94d34253528f24d8cea2f94ba6"
     # -- default sizing, kept equal to the previous release (kiss-elastic used
     # elasticsearchCount: 3). Environments can override nodeSets (e.g. nodeSelector,
     # count, storage), the same way openinwoner.eck-elasticsearch.nodeSets is set.
@@ -3082,7 +3082,7 @@ kiss-eck:
     # -- enterprise-search image; spec.version is the tag's version part. ACR: override repository only.
     image:
       repository: docker.elastic.co/enterprise-search/enterprise-search
-      tag: "8.19.23@sha256:08d6d698cdd2a0d00f463def05200bfeb0e3c123bfc4a1a799a2577f36ca2bc6"
+      tag: "8.19.24@sha256:68a919341aa7c04528d49f4e7375ba603fe5c37080caab918731a6cab9f4a906"
     config:
       app_search.engine.total_fields.limit: 1000
       kibana.host: https://kiss-kb-http:5601
@@ -3101,7 +3101,7 @@ kiss-eck:
     # -- kibana image; spec.version is the tag's version part. ACR: override repository only.
     image:
       repository: docker.elastic.co/kibana/kibana
-      tag: "8.19.23@sha256:920b24f689833d34205f426f5359864378a572e829c53016073f0a6837c2e995"
+      tag: "8.19.24@sha256:c712b5ab0a82d272eff6192edd4ae75b6b07477b3d1b13cabaa2934744727b4d"
     count: 1
     config:
       server.publicBaseUrl: https://kiss-kb-http:5601
@@ -3849,7 +3849,7 @@ clamav:
     enabled: false
     image:
       repository: docker.io/sergeymakinen/clamav_exporter
-      tag: "v2.1.9@sha256:ac694b06337090d0ad1d5fb3a44f46e905bdd3f1901758587ae0d650854f8600"
+      tag: "v2.1.12@sha256:66bc4f313d4c1f3baa73a75cb57a5c55c1095fb8687c6eb6cd66954eed084911"
     serviceMonitor:
       enabled: false
   nameOverride: clamav
