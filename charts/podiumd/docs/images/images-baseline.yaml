@@ -35,7 +35,7 @@
 - name: library/postgres
   url: docker.io/library/postgres
   version: "16.15-alpine"
-  digest: "sha256:deb28ee471183cb0c303113dac9b2433c51eeeeb678def7af9a9ec5820367815"
+  digest: "sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab"
 
 - name: alpine/k8s
   url: docker.io/alpine/k8s
@@ -45,7 +45,7 @@
 - name: keycloak/keycloak
   url: quay.io/keycloak/keycloak
   version: "26.8.1"
-  digest: "sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244"
+  digest: "sha256:3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332"
 
 - name: adorsys/keycloak-config-cli
   url: docker.io/adorsys/keycloak-config-cli
@@ -55,7 +55,7 @@
 - name: keycloak/keycloak-operator
   url: quay.io/keycloak/keycloak-operator
   version: "26.8.1"
-  digest: "sha256:60996d513b9e9945657b348655c98071c366bb0212deefa1508785941b1651dc"
+  digest: "sha256:4c88e4e9a9d488efd6487ab602974d3cb762ff2ee6f173b2716df418bfe33e53"
 
 - name: library/python
   url: docker.io/library/python
@@ -195,7 +195,7 @@
 - name: library/solr
   url: docker.io/library/solr
   version: "9.11.0-slim"
-  digest: "sha256:5bc07412dffc1198ff6ace3587e09f8eea2126f821109a849506f4541b228aca"
+  digest: "sha256:54cec2ced0f2c26436605a7dd5dde5ae78f26d5c0d19a7358349d5cb71fdfc1a"
 
 - name: pravega/zookeeper-operator
   url: docker.io/pravega/zookeeper-operator
@@ -220,7 +220,7 @@
 - name: clamav/clamav
   url: docker.io/clamav/clamav
   version: "1.5.4"
-  digest: "sha256:e19130cdebaeacc71fa46eab3ed6f69941f2f22aa5e08d55e9197f8edf43ce5e"
+  digest: "sha256:6d87c712e3391e13c1ba6e05dfb074d4b1ddb5a6834b23bb9da990d2a4ef042a"
 
 - name: sergeymakinen/clamav_exporter
   url: docker.io/sergeymakinen/clamav_exporter

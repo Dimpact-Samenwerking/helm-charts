@@ -92,7 +92,7 @@ PodiumD Helm chart
 | clamav.freshclamConfig | string | `"###############\n# General\n###############\n\nDatabaseDirectory /var/lib/clamav\nPidFile /tmp/freshclam.pid\n# CUSTOM: Set defined user\nDatabaseOwner 2000\n\n###############\n# Updates\n###############\n\nDatabaseMirror database.clamav.net\nScriptedUpdates yes\nNotifyClamd /etc/clamav/clamd.conf\nBytecode yes\n"` |  |
 | clamav.fullnameOverride | string | `"clamav"` |  |
 | clamav.image.repository | string | `"clamav/clamav"` |  |
-| clamav.image.tag | string | `"1.5.4@sha256:e19130cdebaeacc71fa46eab3ed6f69941f2f22aa5e08d55e9197f8edf43ce5e"` |  |
+| clamav.image.tag | string | `"1.5.4@sha256:6d87c712e3391e13c1ba6e05dfb074d4b1ddb5a6834b23bb9da990d2a4ef042a"` |  |
 | clamav.metrics.enabled | bool | `false` |  |
 | clamav.metrics.image.repository | string | `"docker.io/sergeymakinen/clamav_exporter"` |  |
 | clamav.metrics.image.tag | string | `"v2.1.12@sha256:66bc4f313d4c1f3baa73a75cb57a5c55c1095fb8687c6eb6cd66954eed084911"` |  |
@@ -265,7 +265,7 @@ PodiumD Helm chart
 | global.images.nginx.tag | string | `"1.31.7@sha256:09b0d3eda2aa592d2487f284519419015cab010d7df16cd0fe224b585fc60eb6"` |  |
 | global.images.postgres.pullPolicy | string | `"IfNotPresent"` |  |
 | global.images.postgres.repository | string | `"library/postgres"` |  |
-| global.images.postgres.tag | string | `"16.15-alpine@sha256:deb28ee471183cb0c303113dac9b2433c51eeeeb678def7af9a9ec5820367815"` |  |
+| global.images.postgres.tag | string | `"16.15-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab"` |  |
 | global.settings.databaseHost | string | `""` |  |
 | ita.afdeling.type | string | `"https://ontw-objecten.example.nl/api/v2/objecttypes/REP_CONTACT_AFDELING_UUID_REP"` |  |
 | ita.afdeling.typeVersion | int | `1` |  |
@@ -338,7 +338,7 @@ PodiumD Helm chart
 | keycloak-operator.jobs.ensurePodiumdAdminUser.enabled | bool | `true` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.image.pullPolicy | string | `"IfNotPresent"` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.image.repository | string | `"library/postgres"` |  |
-| keycloak-operator.jobs.ensurePodiumdAdminUser.image.tag | string | `"16.15-alpine@sha256:deb28ee471183cb0c303113dac9b2433c51eeeeb678def7af9a9ec5820367815"` |  |
+| keycloak-operator.jobs.ensurePodiumdAdminUser.image.tag | string | `"16.15-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab"` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.registry | string | `""` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.repository | string | `"python"` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.tag | string | `"3.14.7-slim@sha256:51dafde81dbdb6ebde285137a295cf18a47ca95234fe388a343719cb97305b3d"` |  |
@@ -349,10 +349,10 @@ PodiumD Helm chart
 | keycloak-operator.jobs.repairClientScopes.resources | object | `{"limits":{"cpu":"2","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources for the kcadm.sh (JVM) container of that Job. |
 | keycloak-operator.jobs.resources | object | `{"limits":{"cpu":"200m","memory":"128Mi"},"requests":{"cpu":"50m","memory":"64Mi"}}` | Resources applied to lightweight keycloak job containers (curl, python, psql): ensure-operator-sa, ensure-podiumd-admin-user. |
 | keycloak-operator.operator.config.keycloakImage.repository | string | `"quay.io/keycloak/keycloak"` |  |
-| keycloak-operator.operator.config.keycloakImage.sha | string | `"79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244"` |  |
+| keycloak-operator.operator.config.keycloakImage.sha | string | `"3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332"` |  |
 | keycloak-operator.operator.config.keycloakImage.tag | string | `"26.8.1"` |  |
 | keycloak-operator.operator.image.repository | string | `"quay.io/keycloak/keycloak-operator"` |  |
-| keycloak-operator.operator.image.sha | string | `"60996d513b9e9945657b348655c98071c366bb0212deefa1508785941b1651dc"` |  |
+| keycloak-operator.operator.image.sha | string | `"4c88e4e9a9d488efd6487ab602974d3cb762ff2ee6f173b2716df418bfe33e53"` |  |
 | keycloak-operator.operator.image.tag | string | `"26.8.1"` |  |
 | keycloak-operator.operator.resources.limits.cpu | string | `"500m"` |  |
 | keycloak-operator.operator.resources.limits.memory | string | `"768Mi"` |  |
@@ -408,7 +408,7 @@ PodiumD Helm chart
 | keycloak.http.httpEnabled | bool | `true` |  |
 | keycloak.image.registry | string | `""` |  |
 | keycloak.image.repository | string | `"quay.io/keycloak/keycloak"` |  |
-| keycloak.image.sha | string | `"79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244"` |  |
+| keycloak.image.sha | string | `"3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332"` |  |
 | keycloak.image.tag | string | `"26.8.1"` |  |
 | keycloak.ingress.enabled | bool | `false` |  |
 | keycloak.instances | string | `"2"` | instances is the new operator-style replica count (falls back to replicaCount) |
@@ -801,7 +801,7 @@ PodiumD Helm chart
 | openbao.database.schemaJob.backoffLimit | int | `6` |  |
 | openbao.database.schemaJob.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openbao.database.schemaJob.image.repository | string | `"library/postgres"` |  |
-| openbao.database.schemaJob.image.tag | string | `"16.15-alpine@sha256:deb28ee471183cb0c303113dac9b2433c51eeeeb678def7af9a9ec5820367815"` |  |
+| openbao.database.schemaJob.image.tag | string | `"16.15-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab"` |  |
 | openbao.database.schemaJob.nodeSelector | object | `{}` |  |
 | openbao.database.schemaJob.resources.limits.cpu | string | `"250m"` |  |
 | openbao.database.schemaJob.resources.limits.memory | string | `"128Mi"` |  |
@@ -1544,7 +1544,7 @@ PodiumD Helm chart
 | zac.solr-operator.solr.busyBoxImage.tag | string | `"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"` |  |
 | zac.solr-operator.solr.dataStorage.persistent.reclaimPolicy | string | `"Retain"` | Retain PVCs when the operator scales down Solr (e.g. during node rotation). The default "Delete" causes the operator to destroy PVC data on scale-down, which requires a full index resync from another replica. |
 | zac.solr-operator.solr.enabled | bool | `true` | set enabled to provision solrcloud as well |
-| zac.solr-operator.solr.image.tag | string | `"9.11.0-slim@sha256:5bc07412dffc1198ff6ace3587e09f8eea2126f821109a849506f4541b228aca"` |  |
+| zac.solr-operator.solr.image.tag | string | `"9.11.0-slim@sha256:54cec2ced0f2c26436605a7dd5dde5ae78f26d5c0d19a7358349d5cb71fdfc1a"` |  |
 | zac.solr-operator.solr.javaMem | string | `"-Xms512m -Xmx768m"` | define memory settings for solr in the solrcloud |
 | zac.solr-operator.solr.jobs | object | `{}` |  |
 | zac.solr-operator.solr.resources.limits.cpu | string | `"2000m"` |  |

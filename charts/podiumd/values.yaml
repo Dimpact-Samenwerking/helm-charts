@@ -26,7 +26,7 @@ global:
       pullPolicy: IfNotPresent
     postgres: &postgresImage
       repository: library/postgres
-      tag: "16.15-alpine@sha256:deb28ee471183cb0c303113dac9b2433c51eeeeb678def7af9a9ec5820367815"
+      tag: "16.15-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab"
       pullPolicy: IfNotPresent
     # kubectl for the redis-ha Jobs, the zookeeper-operator hooks and the ZAC
     # restart Job. No template reads this key: the anchor is resolved in this
@@ -162,7 +162,7 @@ keycloak:
     registry: ""
     repository: &keycloakImageRepo quay.io/keycloak/keycloak
     tag: &keycloakImageVersion "26.8.1"
-    sha: &keycloakImageDigest "79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244"
+    sha: &keycloakImageDigest "3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332"
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   # How the Keycloak operator applies a change of the Keycloak CR (IN-3176).
@@ -359,7 +359,7 @@ keycloak-operator:
       # `operator.image.sha: ""`. See
       # docs/_UPGRADE_PATHS/4.7.3-to-4.7.4-upgrade.md.
       tag: "26.8.1"
-      sha: "60996d513b9e9945657b348655c98071c366bb0212deefa1508785941b1651dc"
+      sha: "4c88e4e9a9d488efd6487ab602974d3cb762ff2ee6f173b2716df418bfe33e53"
     resources:
       requests:
         cpu: 100m
@@ -3693,10 +3693,10 @@ zac:
       busyBoxImage: *busyboxImage
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.11.0-slim@sha256:5bc07412dffc1198ff6ace3587e09f8eea2126f821109a849506f4541b228aca
+      # library/solr:9.11.0-slim@sha256:54cec2ced0f2c26436605a7dd5dde5ae78f26d5c0d19a7358349d5cb71fdfc1a
       image:
         #repository:
-        tag: 9.11.0-slim@sha256:5bc07412dffc1198ff6ace3587e09f8eea2126f821109a849506f4541b228aca
+        tag: 9.11.0-slim@sha256:54cec2ced0f2c26436605a7dd5dde5ae78f26d5c0d19a7358349d5cb71fdfc1a
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       # Solr jobs (affinity, annotations, nodeSelector, tolerations): ZAC chart defaults.
@@ -3844,7 +3844,7 @@ clamav:
   # serviceMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 ServiceMonitor).
   image:
     repository: clamav/clamav
-    tag: "1.5.4@sha256:e19130cdebaeacc71fa46eab3ed6f69941f2f22aa5e08d55e9197f8edf43ce5e"
+    tag: "1.5.4@sha256:6d87c712e3391e13c1ba6e05dfb074d4b1ddb5a6834b23bb9da990d2a4ef042a"
   metrics:
     enabled: false
     image:

@@ -4,14 +4,18 @@
 #
 # Changes:
 #   1. curl 8.23.0 (digest changed).
-#   2. k8s 1.37.1 -> 1.37.2.
-#   3. openformulieren 4.0.2 -> 4.0.7.
-#   4. openinwoner 2.4.7 -> 2.4.9.
-#   5. kiss-eck.eck-elasticsearch.image 8.19.23 -> 8.19.24.
-#   6. kiss-eck.eck-enterprise-search.image 8.19.23 -> 8.19.24.
-#   7. kiss-eck.eck-kibana.image 8.19.23 -> 8.19.24.
-#   8. zac - solr 9.11.0-slim (digest changed).
-#   9. clamav - clamav_exporter v2.1.9 -> v2.1.12.
+#   2. postgres 16.15-alpine (digest changed).
+#   3. k8s 1.37.1 -> 1.37.2.
+#   4. keycloak.image 26.8.1 (digest changed).
+#   5. keycloak-operator 26.8.1 (digest changed).
+#   6. openformulieren 4.0.2 -> 4.0.7.
+#   7. openinwoner 2.4.7 -> 2.4.9.
+#   8. kiss-eck.eck-elasticsearch.image 8.19.23 -> 8.19.24.
+#   9. kiss-eck.eck-enterprise-search.image 8.19.23 -> 8.19.24.
+#   10. kiss-eck.eck-kibana.image 8.19.23 -> 8.19.24.
+#   11. zac - solr 9.11.0-slim (digest changed).
+#   12. clamav 1.5.4 (digest changed).
+#   13. clamav - clamav_exporter v2.1.9 -> v2.1.12.
 #
 # See docs/_UPGRADE_PATHS/4.10.0-to-4.10.1-upgrade.md for the operator upgrade notes.
 #
@@ -23,11 +27,28 @@
   url: docker.io/curlimages/curl
   version: "8.23.0"
   digest: "sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93"
+# postgres 16.15-alpine (digest changed)
+- name: library/postgres
+  url: docker.io/library/postgres
+  version: "16.15-alpine"
+  digest: "sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab"
 # k8s 1.37.1 -> 1.37.2
 - name: alpine/k8s
   url: docker.io/alpine/k8s
   version: "1.37.2"
   digest: "sha256:dcb7185e112a453aa72f426754849a97357727ef8f40168fb208c8cf59952042"
+
+# keycloak.image 26.8.1 (digest changed)
+- name: keycloak/keycloak
+  url: quay.io/keycloak/keycloak
+  version: "26.8.1"
+  digest: "sha256:3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332"
+
+# keycloak-operator 26.8.1 (digest changed)
+- name: keycloak/keycloak-operator
+  url: quay.io/keycloak/keycloak-operator
+  version: "26.8.1"
+  digest: "sha256:4c88e4e9a9d488efd6487ab602974d3cb762ff2ee6f173b2716df418bfe33e53"
 
 # openformulieren 4.0.2 -> 4.0.7
 - name: openformulieren/open-forms
@@ -61,8 +82,13 @@
 - name: library/solr
   url: docker.io/library/solr
   version: "9.11.0-slim"
-  digest: "sha256:5bc07412dffc1198ff6ace3587e09f8eea2126f821109a849506f4541b228aca"
+  digest: "sha256:54cec2ced0f2c26436605a7dd5dde5ae78f26d5c0d19a7358349d5cb71fdfc1a"
 
+# clamav 1.5.4 (digest changed)
+- name: clamav/clamav
+  url: docker.io/clamav/clamav
+  version: "1.5.4"
+  digest: "sha256:6d87c712e3391e13c1ba6e05dfb074d4b1ddb5a6834b23bb9da990d2a4ef042a"
 #   sidecar: clamav - clamav_exporter v2.1.9 -> v2.1.12
 - name: sergeymakinen/clamav_exporter
   url: docker.io/sergeymakinen/clamav_exporter
