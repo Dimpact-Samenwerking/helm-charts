@@ -2120,7 +2120,8 @@ openformulieren:
   resources:
     requests:
       cpu: 250m
-      memory: 1Gi
+      # Four concurrent 45 MB uploads and submissions peaked at 1214Mi.
+      memory: 1536Mi
   worker:
     replicaCount: 1
     livenessProbe:
@@ -3602,6 +3603,10 @@ zac:
       requests:
         cpu: 50m
         memory: 64Mi
+      # The zac chart's 128Mi filled to 119Mi with page cache during two
+      # concurrent 500 MB uploads.
+      limits:
+        memory: 256Mi
   notificationsSecretKey: "changeme"
   # Since the objecten/objecttypen merge ZAC reads only objectenApi: the merged
   # Objecten app serves the Objecttypen API too. zac.objecttypenApi is gone in
