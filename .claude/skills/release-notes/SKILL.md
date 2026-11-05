@@ -143,6 +143,31 @@ mirroren"), never "spiegelen", "triaged" (the known-issue group), never "getriee
      gemerged; Jira nog bijwerken". Report it to the user too.
    - Jira and GitHub change during the day. Fetch both again right before
      every rebuild, and put the date (`stand <datum>`) in the section.
+9. **Work outside helm-charts** for "Werk buiten helm-charts": run
+   `python3 -I .claude/skills/release-notes/repo_metrics.py <version> <out.json>`.
+   - It counts, from the baseline tag to the target tag (or today), the work
+     in podiumd-tests, podiumd-minikube, the known-issues repository, the QA
+     infrastructure (podiumd-infra) and the review tooling
+     (podiumd-local-review): commits on all branches, authors, lines, merged
+     PRs.
+   - Per repository it adds:
+     - podiumd-tests: test functions added and removed, and the test runs
+       against this chart version, by tier and environment, with their
+       totals;
+     - known-issues: reports added, and issues per state;
+     - review tooling: local-LLM reviews of release PRs from the review
+       ledger.
+   - It uses the clones in `~/IdeaProjects` (`--clones-dir`) and fetches
+     them first. Test runs are only on the machine that ran them: run it
+     there, or pass `--tests-results`.
+   - **Disclosure:** the known-issues repository, podiumd-infra and
+     podiumd-local-review are private. Name them by role, as the `notes_name`
+     field does ("het interne overzicht van bekende problemen", "de
+     QA-infrastructuur", "de reviewtooling"), and give counts only. Only
+     podiumd-tests and podiumd-minikube are named.
+   - Write it as one short table plus one line on the test runs. Lines of
+     code are not a measure of value: show them, but lead with tests added,
+     test runs and issues found.
 
 ## Size
 
