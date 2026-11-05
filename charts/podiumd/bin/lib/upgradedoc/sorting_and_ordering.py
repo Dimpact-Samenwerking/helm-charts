@@ -1,7 +1,5 @@
 """Canonical values.yaml-order sorting for upgrade-doc table rows, Changes blocks and values-deltas sections."""
 
-import re
-
 from collections.abc import Mapping
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -11,16 +9,13 @@ from typing import TypeVar
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import is_primary_image_path
+from lib.upgradedoc.string_and_parsing_basics import MarkdownHeading
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
-from lib.upgradedoc.string_and_parsing_basics import match_located_line
+from lib.upgradedoc.string_and_parsing_basics import markdown_headings
+from lib.upgradedoc.string_and_parsing_basics import next_level2_line
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.string_and_parsing_basics import text_names
 from lib.yaml_types import YamlMapping
-
-CHANGES_BLOCK_HEADING_RE = re.compile(r"^###\s+(.+)$")
-
-
-VALUES_DELTA_SECTION_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$")
 
 OrderKeyT = TypeVar("OrderKeyT", int, tuple[int, ...])
 
@@ -143,23 +138,21 @@ def component_insertion_index(new_name: str, existing_names: Sequence[str], orde
 CHANGES_HEADING = "## Changes"
 
 
+def is_changes_heading(heading: MarkdownHeading) -> bool:
+    """Whether `heading` is "## Changes" itself, the only form the writers fill."""
+    return f"{heading.marks} {heading.text}" == CHANGES_HEADING
+
+
 def changes_section_bounds(lines: list[str]) -> tuple[int | None, int]:
     """(changes_idx, section_end) for "## Changes"; (None, len(lines)) if absent.
 
-    section_end is the next "## " heading or len(lines)."""
-    changes_idx = None
-    for i, line in enumerate(lines):
-        if line.strip() == CHANGES_HEADING:
-            changes_idx = i
-            break
+    section_end is the next "## " heading or len(lines). Headings in fenced
+    code or HTML comments do not count (markdown_headings)."""
+    headings = markdown_headings(lines)
+    changes_idx = next((h.line for h in headings if is_changes_heading(h)), None)
     if changes_idx is None:
         return None, len(lines)
-    section_end = len(lines)
-    for i in range(changes_idx + 1, len(lines)):
-        if re.match(r"^##\s+\S", lines[i]):
-            section_end = i
-            break
-    return changes_idx, section_end
+    return changes_idx, next_level2_line(headings, changes_idx, len(lines))
 
 
 def parse_upgrade_doc_changes_blocks(text: str) -> list[HeadingBlock]:
@@ -168,22 +161,20 @@ def parse_upgrade_doc_changes_blocks(text: str) -> list[HeadingBlock]:
     end is the next "### "/"## " heading or EOF. "#### ..." sub-headings stay part
     of their block."""
     lines = text.splitlines(keepends=True)
-    changes_idx, section_end = changes_section_bounds(lines)
+    changes_idx, changes_end = changes_section_bounds(lines)
     if changes_idx is None:
         return []
+    return _heading_blocks(
+        [h for h in markdown_headings(lines) if h.marks == "###" and changes_idx < h.line < changes_end], changes_end
+    )
 
-    heading_indices = [i for i in range(changes_idx + 1, section_end) if CHANGES_BLOCK_HEADING_RE.match(lines[i])]
-    blocks: list[HeadingBlock] = []
-    for j, start in enumerate(heading_indices):
-        end = heading_indices[j + 1] if j + 1 < len(heading_indices) else section_end
-        blocks.append(
-            {
-                "heading": match_located_line(CHANGES_BLOCK_HEADING_RE, lines[start]).group(1),
-                "start": start,
-                "end": end,
-            }
-        )
-    return blocks
+
+def _heading_blocks(headings: Sequence[MarkdownHeading], end: int) -> list[HeadingBlock]:
+    """A HeadingBlock per heading, each ending where the next starts, the last at `end`."""
+    return [
+        {"heading": h.text, "start": h.line, "end": headings[j + 1].line if j + 1 < len(headings) else end}
+        for j, h in enumerate(headings)
+    ]
 
 
 def changes_blocks_with_lines(text: str) -> tuple[list[str], list[HeadingBlock]]:
@@ -273,18 +264,7 @@ def parse_values_delta_sections(text: str) -> list[HeadingBlock]:
     end is the next "## " heading or EOF. Content before the first "## " heading
     belongs to no section."""
     lines = text.splitlines(keepends=True)
-    heading_indices = [i for i, line in enumerate(lines) if VALUES_DELTA_SECTION_HEADING_RE.match(line)]
-    sections: list[HeadingBlock] = []
-    for j, start in enumerate(heading_indices):
-        end = heading_indices[j + 1] if j + 1 < len(heading_indices) else len(lines)
-        sections.append(
-            {
-                "heading": match_located_line(VALUES_DELTA_SECTION_HEADING_RE, lines[start]).group(1),
-                "start": start,
-                "end": end,
-            }
-        )
-    return sections
+    return _heading_blocks([h for h in markdown_headings(lines) if h.marks == "##"], len(lines))
 
 
 def sort_values_delta_sections(text: str, ordering: OrderingContext) -> tuple[str, list[tuple[str, int, int]]]:

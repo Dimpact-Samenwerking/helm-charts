@@ -168,6 +168,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(
     monkeypatch.setattr(vp, "check_docs_consistency", make_check("docs"))
     monkeypatch.setattr(vp, "check_helm_docs", make_check("helm-docs"))
     monkeypatch.setattr(vp, "check_markdown", make_check("markdown"))
+    monkeypatch.setattr(vp, "check_upgrade_doc_layout", make_check("upgrade-doc-layout"))
     monkeypatch.setattr(vp, "check_vendored_tgz_extraction", make_check("tgz"))
     monkeypatch.setattr(vp, "check_release_baseline", make_check("release-baseline"))
     monkeypatch.setattr(vp, "check_lockstep_versions", make_check("lockstep"))
@@ -204,6 +205,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(
         "lockstep",
         "helm-docs",
         "markdown",
+        "upgrade-doc-layout",
         "repo-access",
         "deps",
         "docs",
@@ -255,6 +257,7 @@ def test_main_skipped_step_does_not_count_as_failure(vp: ModuleType, monkeypatch
         "check_lockstep_versions",
         "check_helm_docs",
         "check_markdown",
+        "check_upgrade_doc_layout",
         "check_subchart_image_visibility",
         "check_shared_image_usage",
         "check_image_repository",
@@ -311,6 +314,7 @@ def test_main_continues_past_a_failed_step(
     monkeypatch.setattr(vp, "check_docs_consistency", make_check("docs"))
     monkeypatch.setattr(vp, "check_helm_docs", make_check("helm-docs"))
     monkeypatch.setattr(vp, "check_markdown", make_check("markdown"))
+    monkeypatch.setattr(vp, "check_upgrade_doc_layout", make_check("upgrade-doc-layout"))
     monkeypatch.setattr(vp, "check_vendored_tgz_extraction", make_check("tgz"))
     monkeypatch.setattr(vp, "check_release_baseline", make_check("release-baseline"))
     monkeypatch.setattr(vp, "check_lockstep_versions", make_check("lockstep"))
@@ -345,6 +349,7 @@ def test_main_continues_past_a_failed_step(
         "lockstep",
         "helm-docs",
         "markdown",
+        "upgrade-doc-layout",
         "repo-access",
         "deps",
         "docs",
@@ -396,6 +401,7 @@ def test_main_skips_dependents_of_a_failed_prerequisite(
         "check_lockstep_versions",
         "check_helm_docs",
         "check_markdown",
+        "check_upgrade_doc_layout",
         "check_repo_access",
         "check_chart_upgrades",
     ):
@@ -502,6 +508,7 @@ def _stub_all_checks(vp: ModuleType, monkeypatch: pytest.MonkeyPatch, ran):
     monkeypatch.setattr(vp, "check_docs_consistency", make_check("docs"))
     monkeypatch.setattr(vp, "check_helm_docs", make_check("helm-docs"))
     monkeypatch.setattr(vp, "check_markdown", make_check("markdown"))
+    monkeypatch.setattr(vp, "check_upgrade_doc_layout", make_check("upgrade-doc-layout"))
     monkeypatch.setattr(vp, "check_vendored_tgz_extraction", make_check("tgz"))
     monkeypatch.setattr(vp, "check_release_baseline", make_check("release-baseline"))
     monkeypatch.setattr(vp, "check_lockstep_versions", make_check("lockstep"))

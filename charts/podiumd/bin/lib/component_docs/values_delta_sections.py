@@ -6,39 +6,26 @@ import re
 
 from lib.component_docs.baseline_doc_stubs import GEMEENTE_SPECIFIC_STUB_LINE
 from lib.component_docs.baseline_doc_stubs import VALUES_DELTAS_STUB_TODO_LINE
-from lib.component_docs.doc_lines import is_bare_placeholder_span
+from lib.component_docs.doc_lines import strip_standalone_placeholder_line
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
 from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
 from lib.upgradedoc.version_cells import strip_html_comments
 
 
-def _is_bare_values_deltas_todo_stub(lines: list[str]):
-    """True if `lines` is exactly the values-deltas stub: an H1 title plus VALUES_DELTAS_STUB_TODO_LINE."""
-    title_idx = next((i for i, line in enumerate(lines) if line.strip()), None)
-    return (
-        title_idx is not None
-        and lines[title_idx].strip().startswith("# ")
-        and is_bare_placeholder_span(lines, title_idx + 1, len(lines), VALUES_DELTAS_STUB_TODO_LINE)
-    )
-
-
 def strip_stale_values_deltas_todo_stub(text: str):
-    """Remove the TODO stub line left between the H1 title and the first real section.
+    """Remove the stub's TODO line left in the opening, before the first real section.
 
-    Callers can use the `changed` flag alone as a check. A doc with no real
-    section yet is left alone. Returns (new_text, changed)."""
+    Only the line itself, when it is a paragraph of its own; the rest of the
+    opening stays. Callers can use the `changed` flag alone as a check. A doc
+    with no real section yet is left alone. Returns (new_text, changed)."""
     sections = parse_values_delta_sections(text)
     if not sections:
         return text, False
 
     lines = text.splitlines(keepends=True)
-    first_section_start = sections[0]["start"]
-    prefix = lines[:first_section_start]
-    if not _is_bare_values_deltas_todo_stub(prefix):
+    if not strip_standalone_placeholder_line(lines, sections[0]["start"], VALUES_DELTAS_STUB_TODO_LINE):
         return text, False
-
-    title_line = next(line for line in prefix if line.strip())
-    return title_line + "\n" + "".join(lines[first_section_start:]), True
+    return "".join(lines), True
 
 
 GEMEENTE_SECTION_HEADING_RE = re.compile(r"^##\s+\S.*$", re.MULTILINE)
