@@ -14,6 +14,9 @@ same period, the work in the repositories around it:
 | known-issues | infonl/podiumd-known-issues | private | reports added, issues per state in the index |
 | qa-infra | ICATT-Menselijk-Digitaal/podiumd-infra | private | - |
 | review-tooling | infonl/podiumd-local-review | private | local-LLM reviews of release PRs (review ledger) |
+| externals | ssctwente/ExternalsPodiumD (Azure DevOps) | private | merged PRs from "Merged PR N:" |
+| release-tooling | helm-charts: bin, scripts, etc, .claude, .github | public | - |
+| monitoring-logging | helm-charts: charts/monitoring-logging | public | - |
 
 Per repository: commits (no merges) on all branches of origin, each counted
 once, so work on feature branches that is not merged yet counts too (the QA
@@ -51,15 +54,20 @@ import subprocess
 import sys
 import tempfile
 
+HELM_CHARTS = "Dimpact-Samenwerking/helm-charts"
 REPOS = [
-    # key, slug, public, role for the notes (Dutch)
-    ("podiumd-tests", "infonl/podiumd-tests", True, "podiumd-tests (testset)"),
-    ("podiumd-minikube", "infonl/podiumd-minikube", True, "podiumd-minikube (lokale testomgeving)"),
-    ("known-issues", "infonl/podiumd-known-issues", False, "het interne overzicht van bekende problemen"),
-    ("qa-infra", "ICATT-Menselijk-Digitaal/podiumd-infra", False, "de QA-infrastructuur"),
-    ("review-tooling", "infonl/podiumd-local-review", False, "de reviewtooling (lokale LLM-reviews)"),
+    # key, slug, public, role for the notes (Dutch), paths (None: the whole repository)
+    ("podiumd-tests", "infonl/podiumd-tests", True, "podiumd-tests (testset)", None),
+    ("podiumd-minikube", "infonl/podiumd-minikube", True, "podiumd-minikube (lokale testomgeving)", None),
+    ("known-issues", "infonl/podiumd-known-issues", False, "het interne overzicht van bekende problemen", None),
+    ("qa-infra", "ICATT-Menselijk-Digitaal/podiumd-infra", False, "de QA-infrastructuur", None),
+    ("review-tooling", "infonl/podiumd-local-review", False, "de reviewtooling (lokale LLM-reviews)", None),
+    ("externals", "ssctwente/ExternalsPodiumD", False, "de ExternalsPodiumD-omgevingen (waarden en pipelines)", None),
+    ("release-tooling", HELM_CHARTS, True, "de releasetooling in helm-charts (scripts, controles, skills)",
+     ["charts/podiumd/bin", "charts/podiumd/scripts", "charts/podiumd/etc", ".claude", ".github"]),
+    ("monitoring-logging", HELM_CHARTS, True, "de monitoring-logging-chart", ["charts/monitoring-logging"]),
 ]
-PR_SUBJECT = re.compile(r"Merge pull request #(\d+)|\(#(\d+)\)\s*$")
+PR_SUBJECT = re.compile(r"Merge pull request #(\d+)|\(#(\d+)\)\s*$|^Merged PR (\d+):")
 TEST_DEF = re.compile(r"^[+-]\s*(?:async\s+)?def test_\w+", re.M)
 
 
@@ -106,25 +114,26 @@ def default_ref(path):
     return out or "origin/main"
 
 
-def git_metrics(path, ref, since, until):
+def git_metrics(path, ref, since, until, paths=None):
     window = [f"--since={since}T00:00:00Z", f"--until={until}T23:59:59Z"]
+    only = ["--", *paths] if paths else []
     commits, authors, prs, added, deleted = 0, set(), set(), 0, 0
-    log = run(["git", "log", ref, *window, "--no-merges", "--format=%x00%H%x09%an%x09%s", "--numstat"], cwd=path)
+    log = run(["git", "log", ref, *window, "--no-merges", "--format=%x00%H%x09%an%x09%s", "--numstat", *only], cwd=path)
     for block in log.split("\x00")[1:]:
         head, _, stats = block.partition("\n")
         _, author, subject = head.split("\t", 2)
         commits += 1
         authors.add(author)
         for m in PR_SUBJECT.finditer(subject):
-            prs.add(int(m[1] or m[2]))
+            prs.add(int(m[1] or m[2] or m[3]))
         for line in stats.splitlines():
             a, d, *_ = line.split("\t") + ["", ""]
             if a.isdigit() and d.isdigit():
                 added, deleted = added + int(a), deleted + int(d)
-    merges = run(["git", "log", ref, *window, "--merges", "--format=%s"], cwd=path)
+    merges = run(["git", "log", ref, *window, "--merges", "--format=%s", *only], cwd=path)
     for subject in merges.splitlines():
         for m in PR_SUBJECT.finditer(subject):
-            prs.add(int(m[1] or m[2]))
+            prs.add(int(m[1] or m[2] or m[3]))
     return {"commits": commits, "authors": len(authors), "merged_prs": len(prs),
             "lines_added": added, "lines_deleted": deleted}
 
@@ -226,12 +235,14 @@ def main():
 
     out = {"target": a.version, "baseline": baseline, "since": since, "until": until, "repos": {}}
     with tempfile.TemporaryDirectory() as tmp:
-        for key, slug, public, role in REPOS:
+        for key, slug, public, role, paths in REPOS:
             entry = {"public": public, "notes_name": role}
             try:
                 path = clone(slug, a.clones_dir, tmp)
                 ref = default_ref(path)
-                entry.update(git_metrics(path, "--remotes=origin", since, until))
+                entry.update(git_metrics(path, "--remotes=origin", since, until, paths))
+                if paths:
+                    entry["paths"] = paths
                 if key == "podiumd-tests":
                     entry.update(tests_added(path, ref, since, until))
                     entry["test_runs"] = test_runs(a.tests_results or os.path.join(path, "results"),

@@ -147,9 +147,12 @@ mirroren"), never "spiegelen", "triaged" (the known-issue group), never "getriee
    `python3 -I .claude/skills/release-notes/repo_metrics.py <version> <out.json>`.
    - It counts, from the baseline tag to the target tag (or today), the work
      in podiumd-tests, podiumd-minikube, the known-issues repository, the QA
-     infrastructure (podiumd-infra) and the review tooling
-     (podiumd-local-review): commits on all branches, authors, lines, merged
-     PRs.
+     infrastructure (podiumd-infra), the review tooling
+     (podiumd-local-review) and the ExternalsPodiumD environments (Azure
+     DevOps), plus two parts of helm-charts itself: the release tooling
+     (`charts/podiumd/{bin,scripts,etc}`, `.claude`, `.github`) and the
+     monitoring-logging chart. Per part: commits on all branches, authors,
+     lines, merged PRs.
    - Per repository it adds:
      - podiumd-tests: test functions added and removed, and the test runs
        against this chart version, by tier and environment, with their
@@ -163,8 +166,9 @@ mirroren"), never "spiegelen", "triaged" (the known-issue group), never "getriee
    - **Disclosure:** the known-issues repository, podiumd-infra and
      podiumd-local-review are private. Name them by role, as the `notes_name`
      field does ("het interne overzicht van bekende problemen", "de
-     QA-infrastructuur", "de reviewtooling"), and give counts only. Only
-     podiumd-tests and podiumd-minikube are named.
+     QA-infrastructuur", "de reviewtooling"), and give counts only.
+     ExternalsPodiumD is named as the environments the guides already name,
+     with counts only.
    - Write it as one short table plus one line on the test runs. Lines of
      code are not a measure of value: show them, but lead with tests added,
      test runs and issues found.
