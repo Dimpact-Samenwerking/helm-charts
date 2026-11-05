@@ -12,3 +12,5 @@ pytest-cov
 bandit
 basedpyright
 jscpd
+# Imported by the charts/podiumd/scripts/migrate-*.py scripts that tests/migrate-scripts/ load.
+ruamel.yaml

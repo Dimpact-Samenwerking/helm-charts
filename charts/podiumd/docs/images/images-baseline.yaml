@@ -25,7 +25,7 @@
 - name: curlimages/curl
   url: docker.io/curlimages/curl
   version: "8.23.0"
-  digest: "sha256:11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac"
+  digest: "sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93"
 
 - name: library/busybox
   url: docker.io/library/busybox
@@ -195,7 +195,7 @@
 - name: library/solr
   url: docker.io/library/solr
   version: "9.11.0-slim"
-  digest: "sha256:3b70e899b1cca19729c49c110a1aa8e937f727be4cca3ad07ea67f151f5cc07d"
+  digest: "sha256:5bc07412dffc1198ff6ace3587e09f8eea2126f821109a849506f4541b228aca"
 
 - name: pravega/zookeeper-operator
   url: docker.io/pravega/zookeeper-operator

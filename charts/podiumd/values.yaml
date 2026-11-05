@@ -18,7 +18,7 @@ global:
       pullPolicy: IfNotPresent
     curl: &curlImage
       repository: curlimages/curl
-      tag: "8.23.0@sha256:11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac"
+      tag: "8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93"
       pullPolicy: IfNotPresent
     busybox: &busyboxImage
       repository: library/busybox
@@ -256,46 +256,6 @@ keycloak:
                       values:
                         - keycloak
                 topologyKey: kubernetes.io/hostname
-      initContainers:
-        - name: keycloak-builder
-          # image is intentionally not set here - it will be automatically populated
-          # by the keycloak-cr.yaml template to match the main Keycloak image version
-          # (see line 69 in templates/keycloak-cr.yaml)
-          securityContext:
-            allowPrivilegeEscalation: false
-            runAsNonRoot: true
-            runAsUser: 1000
-            capabilities:
-              drop:
-                - ALL
-            seccompProfile:
-              type: RuntimeDefault
-          resources:
-            requests:
-              memory: "512Mi"
-              cpu: "250m"
-            limits:
-              memory: "1Gi"
-              cpu: "1000m"
-          command:
-            - /bin/bash
-            - -c
-            - |
-              set -e
-              export KC_DB=postgres
-              export KC_PROXY_HEADERS=xforwarded
-              export KC_CACHE=ispn
-              export KC_METRICS_ENABLED=true
-              export KC_HEALTH_ENABLED=true
-              /opt/keycloak/bin/kc.sh build
-              rm -rf /opt/keycloak/build/quarkus /opt/keycloak/build/providers
-              mkdir -p /opt/keycloak/build/quarkus /opt/keycloak/build/providers
-              cp -a /opt/keycloak/lib/quarkus/. /opt/keycloak/build/quarkus/
-              cp -a /opt/keycloak/providers/. /opt/keycloak/build/providers/ 2>/dev/null || true
-          volumeMounts:
-            - name: keycloak-build-data
-              mountPath: /opt/keycloak/build
-              subPath: ""
       containers:
         - name: keycloak
           securityContext:
@@ -314,12 +274,14 @@ keycloak:
             limits:
               memory: "1Gi"
               cpu: "1000m"
+          # Liveness and readiness start only after the startup probe succeeds, so
+          # an initial delay only holds back Ready.
           livenessProbe:
             httpGet:
               path: /health/live
               port: 9000
               scheme: HTTP
-            initialDelaySeconds: 120
+            initialDelaySeconds: 0
             periodSeconds: 30
             timeoutSeconds: 5
             failureThreshold: 5
@@ -328,7 +290,7 @@ keycloak:
               path: /health/ready
               port: 9000
               scheme: HTTP
-            initialDelaySeconds: 60
+            initialDelaySeconds: 0
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
@@ -337,20 +299,10 @@ keycloak:
               path: /health/started
               port: 9000
               scheme: HTTP
-            initialDelaySeconds: 30
-            periodSeconds: 10
+            initialDelaySeconds: 0
+            periodSeconds: 5
             timeoutSeconds: 5
-            failureThreshold: 30
-          volumeMounts:
-            - name: keycloak-build-data
-              mountPath: /opt/keycloak/lib/quarkus
-              subPath: quarkus
-            - name: keycloak-build-data
-              mountPath: /opt/keycloak/providers
-              subPath: providers
-      volumes:
-        - name: keycloak-build-data
-          emptyDir: {}
+            failureThreshold: 66  # 330 s, as before
   # -- new keycloak entrypoint configuration, falls back to proxyHeaders if headers is not set
   proxy:
     headers: "xforwarded"
@@ -467,7 +419,7 @@ keycloak-operator:
           cpu: 50m
           memory: 256Mi
         limits:
-          cpu: 500m
+          cpu: "2"
           memory: 512Mi
     # -- Resources applied to lightweight keycloak job containers (curl, python, psql): ensure-operator-sa, ensure-podiumd-admin-user.
     resources:
@@ -483,7 +435,7 @@ keycloak-operator:
         cpu: 50m
         memory: 256Mi
       limits:
-        cpu: 200m
+        cpu: "2"
         memory: 512Mi
 
 redis-operator:
@@ -887,7 +839,7 @@ openzaak:
     volumeAttributeShareName: openzaak
     storageClassName: podiumd-standard
   image:
-    tag: "1.29.3@sha256:7ac22da287ac190a0e1c14849a370c433d3511678dcc8f3897007fd6de6dd4ac"
+    tag: "1.31.1@sha256:63448221142145b0f56eabadaa9ef9578dd4aacc7f95476bd5368f767883ada0"
   resources:
     requests:
       cpu: 250m
@@ -1663,12 +1615,11 @@ openarchiefbeheer:
     postDestructionVisibilityPeriod: 7
     # -- If true, the inline presentation of related objects is disabled, reducing load on external registers.
     relatedCountDisabled: false
-    # logging:
-    # -- Controls whether the logs are output to standard output (true) or to a file (false, default)
-    #   toStdout: false
-    # -- Controls the log levels of project code and of the OIDC library.
-    # Possible values: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL.
-    #   level: INFO
+    logging:
+      # -- Write the application logs to stdout (true) or to a file in the container (false, subchart default). Grafana only collects container stdout/stderr, so the logs are only visible there with true.
+      toStdout: true
+      # -- Log level of project code and of the OIDC library. Possible values: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL.
+      level: INFO
     frontend:
       apiUrl: ""
       apiPath: "/api/v1"
@@ -1684,8 +1635,8 @@ openarchiefbeheer:
       axes: redis-ha-master:6379/13
       choices: redis-ha-master:6379/14
     celery:
-      # -- Set to debug for test/acceptance environments
-      logLevel: warning
+      # -- Log level of the celery worker and beat. On warning beat logs only its startup banner and the worker a few lines a day, so they hardly show in Grafana. Set to debug for test/acceptance environments.
+      logLevel: info
       brokerUrl: redis://redis-ha-master:6379/14
       # The openarchiefbeheer chart 2.1.0 reads resultBackend; the misspelled resultBackendl left it empty.
       resultBackend: redis://redis-ha-master:6379/14
@@ -3559,11 +3510,11 @@ zac:
     mail: "noreply@example.nl"
   global:
     curlImage: *curlImage
-  # ghcr.io/infonl/zaakafhandelcomponent:5.9.1
+  # ghcr.io/infonl/zaakafhandelcomponent:5.11.0
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 5.9.1@sha256:d2b43634c21205183ed7ce9591791fa0112501bb2e4b04baff0362da9e001da4
+    tag: 5.11.0@sha256:2ec89c039149a306827f5bafb518d00bd39496c253e50473a72ce5cc8b6d9634
   # Liveness probe uses /health/ready (not /health/live) with a high failureThreshold so
   # Kubernetes automatically restarts ZAC after extended OpenZaak/catalogus unavailability.
   # The ZGW-API-Client has no connectTimeout/readTimeout, causing stale TCP connections
@@ -3632,10 +3583,10 @@ zac:
     username: "dummy"
     # -- Basic auth password for the office converter; see username.
     password: "dummy"
-    # gotenberg/gotenberg:8.38.1@sha256:aa552cc115db488e0f0bcb07446aac13071ad51505b642c84bb894500907b42b
+    # gotenberg/gotenberg:8.39.0@sha256:13672f317b443c793e972b1bd2155ec62a3e7b6891b411e8196442cc053ee5f5
     image:
       # repository: gotenberg/gotenberg
-      tag: "8.38.1@sha256:aa552cc115db488e0f0bcb07446aac13071ad51505b642c84bb894500907b42b"
+      tag: "8.39.0@sha256:13672f317b443c793e972b1bd2155ec62a3e7b6891b411e8196442cc053ee5f5"
   opa:
     securityContext:
       runAsNonRoot: true
@@ -3643,10 +3594,10 @@ zac:
       # null cancels the zac chart's runAsGroup 10001 (1.0.354 and later): the 5.9.1 image runs with its own group, as tested.
       runAsGroup: null
     sidecar: true
-    # openpolicyagent/opa:1.21.3-static@sha256:bf27411c17e72f3d16063725a74c69f711fb267eb9a4cebdae78028b72adc847
+    # openpolicyagent/opa:1.21.4-static@sha256:47f93480b09e24c220ae75f1e9133585ba6d698059951668d35e6a4fc32ebc82
     image:
       #repository: openpolicyagent/opa
-      tag: "1.21.3-static@sha256:bf27411c17e72f3d16063725a74c69f711fb267eb9a4cebdae78028b72adc847"
+      tag: "1.21.4-static@sha256:47f93480b09e24c220ae75f1e9133585ba6d698059951668d35e6a4fc32ebc82"
     resources:
       requests:
         cpu: 10m
@@ -3659,7 +3610,7 @@ zac:
     # check_digest_pinning (charts/podiumd's own values.yaml only) noticing.
     image:
       repository: otel/opentelemetry-collector-contrib
-      tag: "0.161.0@sha256:fd328de2552466ad78385e1b1289c3f2402b1c45f265b252aab1955b42845ac1"
+      tag: "0.164.0@sha256:340c9ca6a36617084c6661bdc4f0fe92b7cda5a805d61673ec8db375fddc522b"
   organizations:
     bron:
       rsin: "000000000"
@@ -3706,10 +3657,10 @@ zac:
       busyBoxImage: *busyboxImage
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.11.0-slim@sha256:3b70e899b1cca19729c49c110a1aa8e937f727be4cca3ad07ea67f151f5cc07d
+      # library/solr:9.11.0-slim@sha256:5bc07412dffc1198ff6ace3587e09f8eea2126f821109a849506f4541b228aca
       image:
         #repository:
-        tag: 9.11.0-slim@sha256:3b70e899b1cca19729c49c110a1aa8e937f727be4cca3ad07ea67f151f5cc07d
+        tag: 9.11.0-slim@sha256:5bc07412dffc1198ff6ace3587e09f8eea2126f821109a849506f4541b228aca
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       # Solr jobs (affinity, annotations, nodeSelector, tolerations): ZAC chart defaults.
@@ -4280,7 +4231,9 @@ pabc:
     # functional roles, so without these a seeded PABC still grants nothing.
     # The Job only adds (kcadm create/add-roles) and never touches client
     # roles or removes anything. Needs keycloak-operator.enabled and
-    # keycloak-operator.jobs.ensureOperatorSa.clientSecret.
+    # keycloak-operator.jobs.ensureOperatorSa.clientSecret. Left out when
+    # keycloak.config.skipRoles and skipGroups are both false: the realm import
+    # then creates the same roles and groups.
     keycloak:
       enabled: true
       resources:
@@ -5531,6 +5484,12 @@ openbao:
           tls_disable     = 1
           address         = "[::]:8200"
           cluster_address = "[::]:8201"
+          # The public openbao host must send it too, also where no edge adds it.
+          custom_response_headers {
+            "default" = {
+              "X-Content-Type-Options" = ["nosniff"]
+            }
+          }
         }
         {{- if or (.Values.global.serverTelemetry).prometheusOperator .Values.serverTelemetry.serviceMonitor.enabled }}
 

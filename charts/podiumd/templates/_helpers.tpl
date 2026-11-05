@@ -938,9 +938,11 @@ whenever any client secret changes, generated ones included.
 
 - Per-component clients (openzaak, ...): configuration.secrets.keycloak_client_secret,
   else configuration.oidcSecret, else generated (podiumd.keycloak.realmSecret).
-- kiss, zac, zac-admin, ita and pabc: the realm import always creates these
-  clients, also when the component is disabled. Their configured secret is
-  used; an empty or placeholder one is generated instead.
+- kiss, zac, zac-admin, ita and pabc: their configured secret is used; an
+  empty or placeholder one is generated instead.
+- A generated secret stays here while its component is disabled and its
+  client is left out of the realm, so the client comes back with the same
+  secret.
 - monitoring, datamigratie and zaakbrug: as configured (validated in
   validations.yaml for an enabled client).
 - One client per Frank!Gateway dashboard with SSO.
@@ -949,12 +951,10 @@ whenever any client secret changes, generated ones included.
 {{- $root := . -}}
 {{- $secrets := dict -}}
 {{- range $comp := list "openzaak" "openarchiefbeheer" "opennotificaties" "objecten" "openklant" "openformulieren" "openinwoner" "referentielijsten" "openbeheer" "openvtb" "openbao" -}}
-{{-   if or (ne $comp "openvtb") $root.Values.openvtb.enabled -}}
-{{-     $cfg := index (index $root.Values $comp) "configuration" | default dict -}}
-{{-     $configured := coalesce (index (index $cfg "secrets" | default dict) "keycloak_client_secret") (index $cfg "oidcSecret") | default "" -}}
-{{-     $key := printf "%s-oidc-secret" $comp -}}
-{{-     $_ := set $secrets $key (include "podiumd.keycloak.realmSecret" (dict "root" $root "key" $key "value" $configured)) -}}
-{{-   end -}}
+{{-   $cfg := index (index $root.Values $comp) "configuration" | default dict -}}
+{{-   $configured := coalesce (index (index $cfg "secrets" | default dict) "keycloak_client_secret") (index $cfg "oidcSecret") | default "" -}}
+{{-   $key := printf "%s-oidc-secret" $comp -}}
+{{-   $_ := set $secrets $key (include "podiumd.keycloak.realmSecret" (dict "root" $root "key" $key "value" $configured)) -}}
 {{- end -}}
 {{- range $s := list
       (list "kiss-oidc-secret" $root.Values.kiss.settings.oidc.clientSecret)
@@ -1198,6 +1198,9 @@ realm as the keycloak-operator client and waits until $REALM exists (the realm
 import job may still be running). Expects KEYCLOAK_URL, REALM and CLIENT_SECRET.
 */}}
 {{- define "podiumd.kcadmLogin" -}}
+# kcadm.sh passes KC_OPTS to java. Each call is a short-lived JVM: skipping the
+# optimising compiler and reusing a class data archive halve its start.
+export KC_OPTS="-XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:+AutoCreateSharedArchive -XX:SharedArchiveFile=/tmp/kcadm.jsa"
 kc() { /opt/keycloak/bin/kcadm.sh "$@" --config /tmp/kcadm.config; }
 
 echo "Logging in to $KEYCLOAK_URL as keycloak-operator..."
@@ -1212,6 +1215,28 @@ for i in $(seq 1 60); do
   sleep 10
 done
 {{- end }}
+
+{{/*
+Container command that reruns the given command every 5 s until it succeeds,
+for at most 10 minutes. A Job whose dependency is not ready yet (Keycloak, the
+realm, an API client) otherwise fails its pod and waits in the Job back-off
+(10 s, 20 s, 40 s, ... up to 6 minutes) for its next try. The command runs as a
+process of its own, so a script's `set -e` still works. The container's args
+are appended to it. No `&` in the script: toJson escapes it.
+Usage: command: {{ include "podiumd.retryCommand" (list "/bin/bash" "-c") }}
+*/}}
+{{- define "podiumd.retryCommand" -}}
+{{- $retry := `end=$(($(date +%s) + 600)); until "$@"; do [ "$(date +%s)" -lt "$end" ] || exit 1; echo "Failed; retrying in 5 s"; sleep 5; done` -}}
+{{- toJson (concat (list "/bin/sh" "-c" $retry "retry") .) -}}
+{{- end -}}
+
+{{/*
+keycloak-config-cli's command: the ENTRYPOINT of its image, which the realm
+import Jobs wrap in podiumd.retryCommand.
+*/}}
+{{- define "podiumd.keycloakConfigCli.command" -}}
+{{- include "podiumd.retryCommand" (list "/bin/sh" "-c" "exec java $JAVA_OPTS -jar /app/keycloak-config-cli.jar") -}}
+{{- end -}}
 
 {{/*
 Whether a subchart dependency is enabled, decided the way Helm decides its

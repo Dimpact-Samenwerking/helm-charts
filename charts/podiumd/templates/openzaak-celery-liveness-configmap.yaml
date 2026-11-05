@@ -1,0 +1,21 @@
+{{- /*
+The openzaak chart 1.16.0 (maykinmedia/charts "Remove unused script for celery
+livenessProbe") dropped its <fullname>-celery-liveness ConfigMap but still adds
+it as a volume of the worker Pod when worker.livenessProbe.enabled. The volume
+is not mounted (the probe runs /celery_worker_liveness_probe.sh from the
+image), but kubelet sets up every volume, so without the ConfigMap the worker
+Pod stays in ContainerCreating. Remove this file once the openzaak chart no
+longer references the ConfigMap.
+Only a boolean openzaak.enabled: false turns it off, as for the dependency.
+*/ -}}
+{{- $openzaakEnabled := not (and (kindIs "bool" .Values.openzaak.enabled) (not .Values.openzaak.enabled)) }}
+{{- if and $openzaakEnabled .Values.openzaak.worker.livenessProbe.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.openzaak.fullnameOverride | default "openzaak" }}-celery-liveness
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: openzaak
+data: {}
+{{- end }}

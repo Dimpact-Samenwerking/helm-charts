@@ -1,6 +1,6 @@
 # podiumd
 
-![Version: 4.10.0](https://img.shields.io/badge/Version-4.10.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 4.10.0](https://img.shields.io/badge/AppVersion-4.10.0-informational?style=flat-square)
+![Version: 4.10.1](https://img.shields.io/badge/Version-4.10.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 4.10.1](https://img.shields.io/badge/AppVersion-4.10.1-informational?style=flat-square)
 
 PodiumD Helm chart
 
@@ -18,12 +18,12 @@ PodiumD Helm chart
 | @maykinmedia | opennotificaties | 2.1.0 |
 | @maykinmedia | objecten(openobject) | 1.2.0 |
 | @maykinmedia | openvtb | 0.2.0 |
-| @maykinmedia | openzaak | 1.14.2 |
+| @maykinmedia | openzaak | 1.16.0 |
 | @maykinmedia | referentielijsten(referentielijsten) | 0.2.0 |
 | @opstree | redis-operator | 0.27.0 |
 | @wiremind | clamav | 3.7.3 |
 | @worth-nl | omc(notifynl-omc-nodep) | 0.17.4 |
-| @zac | zac(zaakafhandelcomponent) | 1.0.355 |
+| @zac | zac(zaakafhandelcomponent) | 1.0.362 |
 | @zgw-office-addin | zgw-office-addin | 0.0.93 |
 | file://../mi-data | mi(mi-data) | 1.1.0 |
 | https://helm.elastic.co | eck-operator | 3.5.0 |
@@ -218,7 +218,7 @@ PodiumD Helm chart
 | frankgateway.seed.job.backoffLimit | int | `3` |  |
 | frankgateway.seed.job.image.pullPolicy | string | `"IfNotPresent"` |  |
 | frankgateway.seed.job.image.repository | string | `"curlimages/curl"` |  |
-| frankgateway.seed.job.image.tag | string | `"8.23.0@sha256:11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac"` |  |
+| frankgateway.seed.job.image.tag | string | `"8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93"` |  |
 | frankgateway.seed.job.nodeSelector | object | `{}` |  |
 | frankgateway.seed.job.ttlSecondsAfterFinished | int | `600` | How long the finished Job (and its per-route log) is kept. Must outlast the deploy's Helm timeout, or the Job vanishes under --wait. |
 | frankgateway.seed.prune | bool | `false` | Delete routes labelled `managed-by: iac` that are NOT in this render. Off: a route removed from values lingers in etcd until this is turned on. On: values are the complete truth. Routes without the label (made in the dashboard) are never touched either way. |
@@ -259,7 +259,7 @@ PodiumD Helm chart
 | global.images.busybox.tag | string | `"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"` |  |
 | global.images.curl.pullPolicy | string | `"IfNotPresent"` |  |
 | global.images.curl.repository | string | `"curlimages/curl"` |  |
-| global.images.curl.tag | string | `"8.23.0@sha256:11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac"` |  |
+| global.images.curl.tag | string | `"8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93"` |  |
 | global.images.nginx.pullPolicy | string | `"IfNotPresent"` |  |
 | global.images.nginx.repository | string | `"nginxinc/nginx-unprivileged"` |  |
 | global.images.nginx.tag | string | `"1.31.7@sha256:09b0d3eda2aa592d2487f284519419015cab010d7df16cd0fe224b585fc60eb6"` |  |
@@ -329,12 +329,12 @@ PodiumD Helm chart
 | keycloak-operator.enableServiceMonitor | bool | `true` | Render the write Role and RoleBinding the Keycloak operator needs to manage the ServiceMonitor for Keycloak metrics (templates/keycloak-operator-servicemonitor-rbac.yaml). On by default. Set false on a cluster without Prometheus (no monitoring.coreos.com ServiceMonitor CRD) to leave out that Role. With the CRD installed the Role is rendered anyway: the operator then manages a ServiceMonitor whatever this value says, and without the Role the Keycloak CR stays InProgress. |
 | keycloak-operator.enabled | bool | `true` |  |
 | keycloak-operator.fullnameOverride | string | `"keycloak"` |  |
-| keycloak-operator.jobs.configCliResources | object | `{"limits":{"cpu":"200m","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources for the kc-config-cli containers (Spring Boot JVM app) in import-podiumd-realm and import-master-realm jobs. |
+| keycloak-operator.jobs.configCliResources | object | `{"limits":{"cpu":"2","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources for the kc-config-cli containers (Spring Boot JVM app) in import-podiumd-realm and import-master-realm jobs. |
 | keycloak-operator.jobs.ensureOperatorSa.clientSecret | string | `""` |  |
 | keycloak-operator.jobs.ensureOperatorSa.enabled | bool | `true` |  |
 | keycloak-operator.jobs.ensureOperatorSa.image.pullPolicy | string | `"IfNotPresent"` |  |
 | keycloak-operator.jobs.ensureOperatorSa.image.repository | string | `"curlimages/curl"` |  |
-| keycloak-operator.jobs.ensureOperatorSa.image.tag | string | `"8.23.0@sha256:11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac"` |  |
+| keycloak-operator.jobs.ensureOperatorSa.image.tag | string | `"8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93"` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.enabled | bool | `true` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.image.pullPolicy | string | `"IfNotPresent"` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.image.repository | string | `"library/postgres"` |  |
@@ -346,7 +346,7 @@ PodiumD Helm chart
 | keycloak-operator.jobs.importPodiumdRealm.enabled | bool | `true` |  |
 | keycloak-operator.jobs.keycloakUrl | string | `""` | Keycloak URL used by the realm-import jobs (keycloak-config-cli). Empty = in-cluster service (http://keycloak-service:8080). Set only when the jobs must reach Keycloak via another URL; note the public admin host can sit behind a gateway IP-allowlist that blocks cluster egress (403). |
 | keycloak-operator.jobs.repairClientScopes.enabled | bool | `true` | Run the keycloak-repair-client-scopes Job on every deploy; see docs/apps/keycloak/keycloak-default-client-scopes.md. |
-| keycloak-operator.jobs.repairClientScopes.resources | object | `{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources for the kcadm.sh (JVM) container of that Job. |
+| keycloak-operator.jobs.repairClientScopes.resources | object | `{"limits":{"cpu":"2","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources for the kcadm.sh (JVM) container of that Job. |
 | keycloak-operator.jobs.resources | object | `{"limits":{"cpu":"200m","memory":"128Mi"},"requests":{"cpu":"50m","memory":"64Mi"}}` | Resources applied to lightweight keycloak job containers (curl, python, psql): ensure-operator-sa, ensure-podiumd-admin-user. |
 | keycloak-operator.operator.config.keycloakImage.repository | string | `"quay.io/keycloak/keycloak"` |  |
 | keycloak-operator.operator.config.keycloakImage.sha | string | `"79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244"` |  |
@@ -431,7 +431,7 @@ PodiumD Helm chart
 | keycloak.podTemplate.spec.containers[0].livenessProbe.httpGet.path | string | `"/health/live"` |  |
 | keycloak.podTemplate.spec.containers[0].livenessProbe.httpGet.port | int | `9000` |  |
 | keycloak.podTemplate.spec.containers[0].livenessProbe.httpGet.scheme | string | `"HTTP"` |  |
-| keycloak.podTemplate.spec.containers[0].livenessProbe.initialDelaySeconds | int | `120` |  |
+| keycloak.podTemplate.spec.containers[0].livenessProbe.initialDelaySeconds | int | `0` |  |
 | keycloak.podTemplate.spec.containers[0].livenessProbe.periodSeconds | int | `30` |  |
 | keycloak.podTemplate.spec.containers[0].livenessProbe.timeoutSeconds | int | `5` |  |
 | keycloak.podTemplate.spec.containers[0].name | string | `"keycloak"` |  |
@@ -439,7 +439,7 @@ PodiumD Helm chart
 | keycloak.podTemplate.spec.containers[0].readinessProbe.httpGet.path | string | `"/health/ready"` |  |
 | keycloak.podTemplate.spec.containers[0].readinessProbe.httpGet.port | int | `9000` |  |
 | keycloak.podTemplate.spec.containers[0].readinessProbe.httpGet.scheme | string | `"HTTP"` |  |
-| keycloak.podTemplate.spec.containers[0].readinessProbe.initialDelaySeconds | int | `60` |  |
+| keycloak.podTemplate.spec.containers[0].readinessProbe.initialDelaySeconds | int | `0` |  |
 | keycloak.podTemplate.spec.containers[0].readinessProbe.periodSeconds | int | `10` |  |
 | keycloak.podTemplate.spec.containers[0].readinessProbe.timeoutSeconds | int | `5` |  |
 | keycloak.podTemplate.spec.containers[0].resources.limits.cpu | string | `"1000m"` |  |
@@ -451,41 +451,17 @@ PodiumD Helm chart
 | keycloak.podTemplate.spec.containers[0].securityContext.runAsNonRoot | bool | `true` |  |
 | keycloak.podTemplate.spec.containers[0].securityContext.runAsUser | int | `1000` |  |
 | keycloak.podTemplate.spec.containers[0].securityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
-| keycloak.podTemplate.spec.containers[0].startupProbe.failureThreshold | int | `30` |  |
+| keycloak.podTemplate.spec.containers[0].startupProbe.failureThreshold | int | `66` |  |
 | keycloak.podTemplate.spec.containers[0].startupProbe.httpGet.path | string | `"/health/started"` |  |
 | keycloak.podTemplate.spec.containers[0].startupProbe.httpGet.port | int | `9000` |  |
 | keycloak.podTemplate.spec.containers[0].startupProbe.httpGet.scheme | string | `"HTTP"` |  |
-| keycloak.podTemplate.spec.containers[0].startupProbe.initialDelaySeconds | int | `30` |  |
-| keycloak.podTemplate.spec.containers[0].startupProbe.periodSeconds | int | `10` |  |
+| keycloak.podTemplate.spec.containers[0].startupProbe.initialDelaySeconds | int | `0` |  |
+| keycloak.podTemplate.spec.containers[0].startupProbe.periodSeconds | int | `5` |  |
 | keycloak.podTemplate.spec.containers[0].startupProbe.timeoutSeconds | int | `5` |  |
-| keycloak.podTemplate.spec.containers[0].volumeMounts[0].mountPath | string | `"/opt/keycloak/lib/quarkus"` |  |
-| keycloak.podTemplate.spec.containers[0].volumeMounts[0].name | string | `"keycloak-build-data"` |  |
-| keycloak.podTemplate.spec.containers[0].volumeMounts[0].subPath | string | `"quarkus"` |  |
-| keycloak.podTemplate.spec.containers[0].volumeMounts[1].mountPath | string | `"/opt/keycloak/providers"` |  |
-| keycloak.podTemplate.spec.containers[0].volumeMounts[1].name | string | `"keycloak-build-data"` |  |
-| keycloak.podTemplate.spec.containers[0].volumeMounts[1].subPath | string | `"providers"` |  |
-| keycloak.podTemplate.spec.initContainers[0].command[0] | string | `"/bin/bash"` |  |
-| keycloak.podTemplate.spec.initContainers[0].command[1] | string | `"-c"` |  |
-| keycloak.podTemplate.spec.initContainers[0].command[2] | string | `"set -e\nexport KC_DB=postgres\nexport KC_PROXY_HEADERS=xforwarded\nexport KC_CACHE=ispn\nexport KC_METRICS_ENABLED=true\nexport KC_HEALTH_ENABLED=true\n/opt/keycloak/bin/kc.sh build\nrm -rf /opt/keycloak/build/quarkus /opt/keycloak/build/providers\nmkdir -p /opt/keycloak/build/quarkus /opt/keycloak/build/providers\ncp -a /opt/keycloak/lib/quarkus/. /opt/keycloak/build/quarkus/\ncp -a /opt/keycloak/providers/. /opt/keycloak/build/providers/ 2>/dev/null || true\n"` |  |
-| keycloak.podTemplate.spec.initContainers[0].name | string | `"keycloak-builder"` |  |
-| keycloak.podTemplate.spec.initContainers[0].resources.limits.cpu | string | `"1000m"` |  |
-| keycloak.podTemplate.spec.initContainers[0].resources.limits.memory | string | `"1Gi"` |  |
-| keycloak.podTemplate.spec.initContainers[0].resources.requests.cpu | string | `"250m"` |  |
-| keycloak.podTemplate.spec.initContainers[0].resources.requests.memory | string | `"512Mi"` |  |
-| keycloak.podTemplate.spec.initContainers[0].securityContext.allowPrivilegeEscalation | bool | `false` |  |
-| keycloak.podTemplate.spec.initContainers[0].securityContext.capabilities.drop[0] | string | `"ALL"` |  |
-| keycloak.podTemplate.spec.initContainers[0].securityContext.runAsNonRoot | bool | `true` |  |
-| keycloak.podTemplate.spec.initContainers[0].securityContext.runAsUser | int | `1000` |  |
-| keycloak.podTemplate.spec.initContainers[0].securityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
-| keycloak.podTemplate.spec.initContainers[0].volumeMounts[0].mountPath | string | `"/opt/keycloak/build"` |  |
-| keycloak.podTemplate.spec.initContainers[0].volumeMounts[0].name | string | `"keycloak-build-data"` |  |
-| keycloak.podTemplate.spec.initContainers[0].volumeMounts[0].subPath | string | `""` |  |
 | keycloak.podTemplate.spec.securityContext.fsGroup | int | `1000` |  |
 | keycloak.podTemplate.spec.securityContext.runAsNonRoot | bool | `true` |  |
 | keycloak.podTemplate.spec.securityContext.runAsUser | int | `1000` |  |
 | keycloak.podTemplate.spec.securityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
-| keycloak.podTemplate.spec.volumes[0].emptyDir | object | `{}` |  |
-| keycloak.podTemplate.spec.volumes[0].name | string | `"keycloak-build-data"` |  |
 | keycloak.proxy | object | `{"headers":"xforwarded"}` | new keycloak entrypoint configuration, falls back to proxyHeaders if headers is not set |
 | keycloak.resources.limits.cpu | string | `"1000m"` |  |
 | keycloak.resources.limits.memory | string | `"2Gi"` |  |
@@ -605,7 +581,7 @@ PodiumD Helm chart
 | kiss.settings.syncJobs.crawlerImage | object | `{"pullPolicy":"IfNotPresent","repository":"docker.elastic.co/integrations/crawler","tag":"1.1.0@sha256:7e87a0571129681cfd3053e9bd7998926633e69fbd8da7c29a384f0d7e9ef26e"}` | Elastic Open Crawler, vervangt de Enterprise Search web crawler. Draait als CronJob per site uit syncJobs.website en schrijft rechtstreeks naar Elasticsearch. |
 | kiss.settings.syncJobs.image.pullPolicy | string | `"IfNotPresent"` |  |
 | kiss.settings.syncJobs.image.tag | string | `"3.2.0@sha256:8ebfe45802a4d7c09ecc8d9c237e11ba6c893479e6f59957e09116594ea52c49"` |  |
-| kiss.settings.syncJobs.indexTemplateImage | object | `{"pullPolicy":"IfNotPresent","repository":"curlimages/curl","tag":"8.23.0@sha256:11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac"}` | pre-install/pre-upgrade hook die het search-website* index-template in Elasticsearch registreert. Heeft alleen curl nodig. |
+| kiss.settings.syncJobs.indexTemplateImage | object | `{"pullPolicy":"IfNotPresent","repository":"curlimages/curl","tag":"8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93"}` | pre-install/pre-upgrade hook die het search-website* index-template in Elasticsearch registreert. Heeft alleen curl nodig. |
 | kiss.settings.syncJobs.kennisbank.baseUrl | string | `""` |  |
 | kiss.settings.syncJobs.kennisbank.historyLimit | int | `1` |  |
 | kiss.settings.syncJobs.kennisbank.objectTypeUrl | string | `""` |  |
@@ -771,11 +747,15 @@ PodiumD Helm chart
 | openarchiefbeheer.settings.cache.choices | string | `"redis-ha-master:6379/14"` |  |
 | openarchiefbeheer.settings.cache.default | string | `"redis-ha-master:6379/13"` |  |
 | openarchiefbeheer.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/14"` |  |
-| openarchiefbeheer.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
+| openarchiefbeheer.settings.celery.logLevel | string | `"info"` | Log level of the celery worker and beat. On warning beat logs only its startup banner and the worker a few lines a day, so they hardly show in Grafana. Set to debug for test/acceptance environments. |
 | openarchiefbeheer.settings.celery.resultBackend | string | `"redis://redis-ha-master:6379/14"` |  |
 | openarchiefbeheer.settings.environment | string | `""` | Name of the environment (used for displaying purposes) |
-| openarchiefbeheer.settings.frontend | object | `{"apiPath":"/api/v1","apiUrl":"","zaakUrlTemplate":""}` | Controls the log levels of project code and of the OIDC library. Possible values: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL.   level: INFO |
+| openarchiefbeheer.settings.frontend.apiPath | string | `"/api/v1"` |  |
+| openarchiefbeheer.settings.frontend.apiUrl | string | `""` |  |
+| openarchiefbeheer.settings.frontend.zaakUrlTemplate | string | `""` |  |
 | openarchiefbeheer.settings.frontendUrl | string | `""` |  |
+| openarchiefbeheer.settings.logging.level | string | `"INFO"` | Log level of project code and of the OIDC library. Possible values: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL. |
+| openarchiefbeheer.settings.logging.toStdout | bool | `true` | Write the application logs to stdout (true) or to a file in the container (false, subchart default). Grafana only collects container stdout/stderr, so the logs are only visible there with true. |
 | openarchiefbeheer.settings.oidcRenewIdTokenExpirySeconds | int | `1800` |  |
 | openarchiefbeheer.settings.postDestructionVisibilityPeriod | int | `7` | Number of days for which destruction lists will be visible after successful destruction. Defaults to 7. |
 | openarchiefbeheer.settings.relatedCountDisabled | bool | `false` | If true, the inline presentation of related objects is disabled, reducing load on external registers. |
@@ -846,7 +826,7 @@ PodiumD Helm chart
 | openbao.server.extraSecretEnvironmentVars[0].envName | string | `"BAO_PG_CONNECTION_URL"` |  |
 | openbao.server.extraSecretEnvironmentVars[0].secretKey | string | `"connection-url"` |  |
 | openbao.server.extraSecretEnvironmentVars[0].secretName | string | `"openbao-db"` |  |
-| openbao.server.ha.config | string | `"ui = true\n{{- if or (.Values.global.serverTelemetry).prometheusOperator .Values.serverTelemetry.serviceMonitor.enabled }}\n\n# Prometheus metrics on /v1/sys/metrics?format=prometheus. Only when the\n# subchart renders its ServiceMonitor: openbao.serverTelemetry.serviceMonitor.enabled\n# (see values-enable-observability.yaml) or\n# openbao.global.serverTelemetry.prometheusOperator. They are served without a token,\n# but only on the metrics-only listener on 9101 below; the API listener\n# on 8200 keeps requiring a token for them.\ntelemetry {\n  prometheus_retention_time = \"30s\"\n  disable_hostname          = true\n}\n{{- end }}\n\nlistener \"tcp\" {\n  tls_disable     = 1\n  address         = \"[::]:8200\"\n  cluster_address = \"[::]:8201\"\n}\n{{- if or (.Values.global.serverTelemetry).prometheusOperator .Values.serverTelemetry.serviceMonitor.enabled }}\n\n# Metrics-only listener for the ServiceMonitor (Service port \"metrics\").\n# metrics_only blocks every other API path on it.\nlistener \"tcp\" {\n  tls_disable = 1\n  address     = \"[::]:9101\"\n  telemetry {\n    metrics_only                   = true\n    unauthenticated_metrics_access = true\n  }\n}\n{{- end }}\n\n# Loopback-only listener for break-glass root-token generation from the\n# recovery/unseal key. OpenBao >= 2.5.3 disables the unauthenticated\n# generate-root endpoints by default, and they must stay off on the\n# listener the Service exposes. This one is reachable only from inside\n# the pod (kubectl exec); scripts/openbao-activate.sh uses it on the\n# active pod to mint tokens on an initialised vault.\nlistener \"tcp\" {\n  tls_disable                              = 1\n  address                                  = \"127.0.0.1:8210\"\n  cluster_address                          = \"127.0.0.1:8211\"\n  disable_unauthed_generate_root_endpoints = false\n}\n\nstorage \"postgresql\" {\n  table      = \"openbao_kv_store\"\n  ha_enabled = \"true\"\n  ha_table   = \"openbao_ha_locks\"\n}\n\nservice_registration \"kubernetes\" {}\n"` |  |
+| openbao.server.ha.config | string | `"ui = true\n{{- if or (.Values.global.serverTelemetry).prometheusOperator .Values.serverTelemetry.serviceMonitor.enabled }}\n\n# Prometheus metrics on /v1/sys/metrics?format=prometheus. Only when the\n# subchart renders its ServiceMonitor: openbao.serverTelemetry.serviceMonitor.enabled\n# (see values-enable-observability.yaml) or\n# openbao.global.serverTelemetry.prometheusOperator. They are served without a token,\n# but only on the metrics-only listener on 9101 below; the API listener\n# on 8200 keeps requiring a token for them.\ntelemetry {\n  prometheus_retention_time = \"30s\"\n  disable_hostname          = true\n}\n{{- end }}\n\nlistener \"tcp\" {\n  tls_disable     = 1\n  address         = \"[::]:8200\"\n  cluster_address = \"[::]:8201\"\n  # The public openbao host must send it too, also where no edge adds it.\n  custom_response_headers {\n    \"default\" = {\n      \"X-Content-Type-Options\" = [\"nosniff\"]\n    }\n  }\n}\n{{- if or (.Values.global.serverTelemetry).prometheusOperator .Values.serverTelemetry.serviceMonitor.enabled }}\n\n# Metrics-only listener for the ServiceMonitor (Service port \"metrics\").\n# metrics_only blocks every other API path on it.\nlistener \"tcp\" {\n  tls_disable = 1\n  address     = \"[::]:9101\"\n  telemetry {\n    metrics_only                   = true\n    unauthenticated_metrics_access = true\n  }\n}\n{{- end }}\n\n# Loopback-only listener for break-glass root-token generation from the\n# recovery/unseal key. OpenBao >= 2.5.3 disables the unauthenticated\n# generate-root endpoints by default, and they must stay off on the\n# listener the Service exposes. This one is reachable only from inside\n# the pod (kubectl exec); scripts/openbao-activate.sh uses it on the\n# active pod to mint tokens on an initialised vault.\nlistener \"tcp\" {\n  tls_disable                              = 1\n  address                                  = \"127.0.0.1:8210\"\n  cluster_address                          = \"127.0.0.1:8211\"\n  disable_unauthed_generate_root_endpoints = false\n}\n\nstorage \"postgresql\" {\n  table      = \"openbao_kv_store\"\n  ha_enabled = \"true\"\n  ha_table   = \"openbao_ha_locks\"\n}\n\nservice_registration \"kubernetes\" {}\n"` |  |
 | openbao.server.ha.enabled | bool | `true` |  |
 | openbao.server.ha.raft.enabled | bool | `false` |  |
 | openbao.server.ha.replicas | int | `3` |  |
@@ -1281,7 +1261,7 @@ PodiumD Helm chart
 | openzaak.extraEnvVars | list | `[{"name":"OPENZAAK_PORT","value":"8000"}]` | Override OPENZAAK_PORT to prevent Kubernetes service-discovery injection (tcp://<ip>:80) from being passed to uwsgi as the port number. Since Open Zaak 1.27.3 the app reads OPENZAAK_PORT for uwsgi_port; K8s auto-injects OPENZAAK_PORT=tcp://<svc-ip>:80 for the openzaak Service, which uwsgi cannot parse. See https://github.com/open-zaak/open-zaak/issues/2415 |
 | openzaak.flower.enabled | bool | `false` |  |
 | openzaak.fullnameOverride | string | `"openzaak"` |  |
-| openzaak.image.tag | string | `"1.29.3@sha256:7ac22da287ac190a0e1c14849a370c433d3511678dcc8f3897007fd6de6dd4ac"` |  |
+| openzaak.image.tag | string | `"1.31.1@sha256:63448221142145b0f56eabadaa9ef9578dd4aacc7f95476bd5368f767883ada0"` |  |
 | openzaak.nameOverride | string | `"openzaak"` |  |
 | openzaak.nginx.config.proxyConnectTimeoutSeconds | int | `1800` | Same as ZAC's nginx proxy_timeout: ZAC uploads large documents to Open Zaak in parts (bestandsdelen) through this nginx; the chart default is 300. |
 | openzaak.nginx.config.proxyReadTimeoutSeconds | int | `1800` | See proxyConnectTimeoutSeconds. |
@@ -1487,9 +1467,9 @@ PodiumD Helm chart
 | zac.gemeente.naam | string | `"Example Gemeente"` |  |
 | zac.global.curlImage.pullPolicy | string | `"IfNotPresent"` |  |
 | zac.global.curlImage.repository | string | `"curlimages/curl"` |  |
-| zac.global.curlImage.tag | string | `"8.23.0@sha256:11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac"` |  |
+| zac.global.curlImage.tag | string | `"8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93"` |  |
 | zac.image.pullPolicy | string | `"IfNotPresent"` |  |
-| zac.image.tag | string | `"5.9.1@sha256:d2b43634c21205183ed7ce9591791fa0112501bb2e4b04baff0362da9e001da4"` |  |
+| zac.image.tag | string | `"5.11.0@sha256:2ec89c039149a306827f5bafb518d00bd39496c253e50473a72ce5cc8b6d9634"` |  |
 | zac.initContainer.enabled | bool | `true` |  |
 | zac.initContainer.resources.requests.cpu | string | `"50m"` |  |
 | zac.initContainer.resources.requests.memory | string | `"256Mi"` |  |
@@ -1521,13 +1501,13 @@ PodiumD Helm chart
 | zac.notificationsSecretKey | string | `"changeme"` |  |
 | zac.objectenApi.token | string | `"objectentoken"` |  |
 | zac.objectenApi.url | string | `"https://objecten.example.nl"` |  |
-| zac.office_converter.image.tag | string | `"8.38.1@sha256:aa552cc115db488e0f0bcb07446aac13071ad51505b642c84bb894500907b42b"` |  |
+| zac.office_converter.image.tag | string | `"8.39.0@sha256:13672f317b443c793e972b1bd2155ec62a3e7b6891b411e8196442cc053ee5f5"` |  |
 | zac.office_converter.password | string | `"dummy"` | Basic auth password for the office converter; see username. |
 | zac.office_converter.securityContext.runAsGroup | string | `nil` |  |
 | zac.office_converter.securityContext.runAsNonRoot | bool | `true` |  |
 | zac.office_converter.securityContext.runAsUser | int | `1001` |  |
 | zac.office_converter.username | string | `"dummy"` | Basic auth user shared by ZAC and its office converter (Gotenberg). Override per environment: the converter Service is reachable from any pod in the cluster. |
-| zac.opa.image.tag | string | `"1.21.3-static@sha256:bf27411c17e72f3d16063725a74c69f711fb267eb9a4cebdae78028b72adc847"` |  |
+| zac.opa.image.tag | string | `"1.21.4-static@sha256:47f93480b09e24c220ae75f1e9133585ba6d698059951668d35e6a4fc32ebc82"` |  |
 | zac.opa.resources.requests.cpu | string | `"10m"` |  |
 | zac.opa.resources.requests.memory | string | `"20Mi"` |  |
 | zac.opa.securityContext.runAsGroup | string | `nil` |  |
@@ -1536,7 +1516,7 @@ PodiumD Helm chart
 | zac.opa.sidecar | bool | `true` |  |
 | zac.openForms.url | string | `"https://open-forms.example.nl"` |  |
 | zac.opentelemetry-collector.image.repository | string | `"otel/opentelemetry-collector-contrib"` |  |
-| zac.opentelemetry-collector.image.tag | string | `"0.161.0@sha256:fd328de2552466ad78385e1b1289c3f2402b1c45f265b252aab1955b42845ac1"` |  |
+| zac.opentelemetry-collector.image.tag | string | `"0.164.0@sha256:340c9ca6a36617084c6661bdc4f0fe92b7cda5a805d61673ec8db375fddc522b"` |  |
 | zac.organizations.bron.rsin | string | `"000000000"` |  |
 | zac.organizations.verantwoordelijke.rsin | string | `"000000000"` |  |
 | zac.pabcApi.apiKey | string | `""` |  |
@@ -1560,7 +1540,7 @@ PodiumD Helm chart
 | zac.solr-operator.solr.busyBoxImage.tag | string | `"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"` |  |
 | zac.solr-operator.solr.dataStorage.persistent.reclaimPolicy | string | `"Retain"` | Retain PVCs when the operator scales down Solr (e.g. during node rotation). The default "Delete" causes the operator to destroy PVC data on scale-down, which requires a full index resync from another replica. |
 | zac.solr-operator.solr.enabled | bool | `true` | set enabled to provision solrcloud as well |
-| zac.solr-operator.solr.image.tag | string | `"9.11.0-slim@sha256:3b70e899b1cca19729c49c110a1aa8e937f727be4cca3ad07ea67f151f5cc07d"` |  |
+| zac.solr-operator.solr.image.tag | string | `"9.11.0-slim@sha256:5bc07412dffc1198ff6ace3587e09f8eea2126f821109a849506f4541b228aca"` |  |
 | zac.solr-operator.solr.javaMem | string | `"-Xms512m -Xmx768m"` | define memory settings for solr in the solrcloud |
 | zac.solr-operator.solr.jobs | object | `{}` |  |
 | zac.solr-operator.solr.resources.limits.cpu | string | `"2000m"` |  |
