@@ -24,10 +24,15 @@
 -- v1 is  <mount>/<path>       -> body.data
 -- v2 is  <mount>/data/<path>  -> body.data.data
 --
--- Caching: per-worker lrucache, 300 s TTL (successes only), successes only. A rotation in
+-- Caching: per-worker lrucache, 300 s TTL, successes only. A rotation in
 -- OpenBao is picked up within the TTL, or immediately after a pod restart.
 -- Failures are never cached: a transient outage would otherwise persist for
--- the full TTL after OpenBao came back.
+-- the full TTL after OpenBao came back. `invalid_stale` is required: without
+-- it APISIX re-arms an expired entry with its old value for another TTL
+-- instead of re-reading, so a removed consumer kept its access until the pod
+-- restarted (IN-3417, measured on ontw-dim1). Not `refresh_stale`: that would
+-- keep serving the expired entry as a success while a timer retries OpenBao,
+-- which bypasses the stale_ttl bound below.
 --
 -- Stale-on-error (opt-in per call, `stale_ttl`): the last value successfully
 -- read for a path is remembered per POD, in the `openbao-last-good` shared
@@ -46,7 +51,7 @@ local core = require("apisix.core")
 local http = require("resty.http")
 local ngx  = ngx
 
-local cache = core.lrucache.new({ ttl = 300, count = 32 })
+local cache = core.lrucache.new({ ttl = 300, count = 32, invalid_stale = true })
 
 local SHARED_DICT = "openbao-last-good"
 local dict = ngx.shared[SHARED_DICT]

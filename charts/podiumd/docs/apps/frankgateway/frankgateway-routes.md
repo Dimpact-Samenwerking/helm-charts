@@ -318,7 +318,9 @@ frankgateway:
   overlap during a rotation:
   `bao kv patch <mount>/frankgateway/consumers zaaksysteem-x=ab12…ef,98fe…01`.
   Removing a field revokes the consumer. Changes are live within 300 s (the
-  gateway's cache).
+  gateway's cache). The cache is per nginx worker, so inside those 300 s the
+  old and the new list answer side by side; after 300 s every worker has the
+  new one.
 - **Options:** `path` (required), `header` (default `X-Client-Cert-Fingerprint`),
   `verificationHeader` (when set, must read `SUCCESS`), `allow` (consumer names
   this route admits; omit to admit every known consumer), `stale_ttl` (seconds
