@@ -68,9 +68,12 @@ mirroren"), never "spiegelen", "triaged" (the known-issue group), never "getriee
    (access: the PodiumD team). Read it with
    `gh api repos/infonl/podiumd-known-issues/contents/README.md -H 'Accept: application/vnd.github.raw'`,
    or clone it.
-   - **The index:** the table in `README.md`, with one row per issue: Severity,
-     report, product and version, the status of the last verification round,
-     and the Fix column (scheduled or open).
+   - **The index:** `README.md`, one section per state (needs triage, to do,
+     in a PR, fixed not released, fixed upstream, waiting on upstream,
+     mitigated, fixed, won't fix), each a table with the same columns:
+     Severity, Issue, Component, What, Fix or next step, Last check, Source.
+     "Bekende problemen" takes the rows that still affect the release: not
+     the fixed, mitigated-without-impact or won't-fix ones.
    - **The detail:** each report in `issues/<id>-*.md`. Line 1 is an HTML
      comment with the upstream repository, the status, what was checked, and
      the last verification with its severity. Read the report before you judge
@@ -140,6 +143,56 @@ mirroren"), never "spiegelen", "triaged" (the known-issue group), never "getriee
      gemerged; Jira nog bijwerken". Report it to the user too.
    - Jira and GitHub change during the day. Fetch both again right before
      every rebuild, and put the date (`stand <datum>`) in the section.
+9. **Work outside helm-charts** for "Werk buiten helm-charts": run
+   `python3 -I .claude/skills/release-notes/repo_metrics.py <version> <out.json>`.
+   - It counts, from the baseline tag to the target tag (or today), the work
+     in podiumd-tests, podiumd-minikube, the known-issues repository, the QA
+     infrastructure (podiumd-infra), the review tooling
+     (podiumd-local-review) and the setup of the external development
+     environments (an Azure DevOps repository; it needs a local clone, there
+     is no `gh` fallback), plus two parts of helm-charts itself: the release tooling
+     (`charts/podiumd/{bin,scripts,etc}`, `.claude`, `.github`) and the
+     monitoring-logging chart. Per part: commits on the default branch and the
+     integration branches, matched by exact name (`feature/podiumd-X.Y.Z`,
+     `release/podiumd-X.Y.Z`, `feature/monitoring-logging-X.Y.Z`,
+     `feature/info-podiumd-X.Y`; for podiumd-infra all branches), without the
+     release-PR squash commits on `main` (they repeat the release branch),
+     authors, lines and merged PRs, selected by author date; and separately
+     the commits that are only on other branches (`other_branches`).
+   - Per repository it adds:
+     - podiumd-tests: test functions added and removed (approximate: a
+       renamed or moved test counts as one added and one removed), and the
+       test runs against this chart version by tier, with their totals. The
+       JSON also has them per environment; environment names stay out of the
+       notes;
+     - known-issues: reports added, and issues per state;
+     - review tooling: local-LLM reviews of release PRs from the review
+       ledger.
+   - It uses the clones in `~/IdeaProjects` (`--clones-dir`) and fetches
+     them first. Test runs are only on the machine that ran them: run it
+     there, or pass `--tests-results`.
+   - **Disclosure:** the known-issues repository, podiumd-infra and
+     podiumd-local-review are private. Name them by role, as the `notes_name`
+     field does ("het interne overzicht van bekende problemen", "de
+     QA-infrastructuur", "de reviewtooling", "de inrichting van de externe
+     ontwikkelomgevingen"), and give counts only.
+   - Write it as one short table plus one line on the test runs. Lines of
+     code are not a measure of value: show them, but lead with tests added,
+     test runs and issues found.
+   - **A release whose branch was deleted** counts through its release-PR
+     squash commit on `main` (`release_squash_commits`): its lines are right,
+     but it is one commit, and its contributors come from the
+     `Co-authored-by` lines. Write the commits for such a period as "(incl.
+     n samengevoegde releasecommit)". Tools (Claude, Copilot, Renovate, bots)
+     never count as contributors.
+   - **The numbers are indications, not exact.** Use the default-branch
+     figures in the table. Mention `other_branches` only as "nog niet
+     gemerged of op andere branches", never added to the table: it can hold
+     the original commits of a squash-merged PR whose branch was kept. Say
+     "ongeveer" for the test count.
+   - A repository whose clone or tool (`gh`, `kubectl`) is missing gets an
+     `error` entry; the others are still counted. Leave its row out, or
+     write "niet gemeten".
 
 ## Size
 

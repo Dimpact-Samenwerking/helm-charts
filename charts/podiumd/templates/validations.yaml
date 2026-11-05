@@ -9,8 +9,8 @@
 {{- if (index .Values "keycloak-operator").jobs.importPodiumdRealm.enabled -}}
 {{- $clients := .Values.keycloak.config.clients -}}
 {{- $required := list
-      (list $clients.monitoring.enabled "keycloak.config.clients.monitoring.secret" $clients.monitoring.secret)
-      (list $clients.datamigratie.enabled "keycloak.config.clients.datamigratie.secret" $clients.datamigratie.secret)
+      (list (include "podiumd.keycloak.externalClientEnabled" $clients.monitoring) "keycloak.config.clients.monitoring.secret" $clients.monitoring.secret)
+      (list (include "podiumd.keycloak.externalClientEnabled" $clients.datamigratie) "keycloak.config.clients.datamigratie.secret" $clients.datamigratie.secret)
       (list (and .Values.zaakbrug.enabled (ne (toString $clients.zaakbrug.enabled) "false")) "keycloak.config.clients.zaakbrug.secret" $clients.zaakbrug.secret)
       (list .Values.kiss.enabled "kiss.settings.oidc.clientSecret" .Values.kiss.settings.oidc.clientSecret)
       (list .Values.zac.enabled "zac.auth.secret" .Values.zac.auth.secret)
@@ -104,6 +104,26 @@
 {{- if or $flat (not (has $item.oidc_provider_identifier $providerIds)) -}}
 {{- fail (printf "openinwoner.configuration.data: oidc_db_config_admin_auth item %q must use the providers schema: a providers entry named in oidc_provider_identifier%s. Migrate the values with scripts/migrate-openinwoner-admin-oidc.py; see docs/_UPGRADE_PATHS/4.9.5-to-4.10.0-values-deltas.md, \"Admin OIDC login: the providers schema\"" ($item.identifier | toString) (ternary (printf ", and no old flat fields (found: %s)" (join ", " $flat)) "" (gt (len $flat) 0))) -}}
 {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- /* Open Inwoner 2.5.0 dropped its environment-variable configuration steps and
+     ignores these variables without an error, so the setting would be lost
+     silently. openinwoner.extraEnvVars is the only list the subchart passes to
+     the pods. */ -}}
+{{- if or $oip.enabled (not (hasKey $oip "enabled")) -}}
+{{- $removedEnv := list -}}
+{{- $envs := $oip.extraEnvVars | default list -}}
+{{- /* The subchart renders extraEnvVars through tpl, so it may also be a template string. */ -}}
+{{- if kindIs "string" $envs }}{{ $envs = fromYamlArray (tpl $envs $) }}{{ end -}}
+{{- range $e := $envs -}}
+{{- $n := (get ($e | default dict) "name") | default "" | toString -}}
+{{- if or (regexMatch "^(KIC_|ADMIN_OIDC_|DIGID_OIDC_|DIGID_SAML_|EHERKENNING_OIDC_|EHERKENNING_SAML_|CMS_)" $n) (and (hasPrefix "SITE_" $n) (ne $n "SITE_ID")) (has $n (list "ZGW_CONFIG_ENABLE" "ZGW_ZAAK_SERVICE_API_ROOT" "ZGW_ZAAK_SERVICE_API_CLIENT_ID" "ZGW_ZAAK_SERVICE_API_SECRET" "ZGW_CATALOGI_SERVICE_API_ROOT" "ZGW_CATALOGI_SERVICE_API_CLIENT_ID" "ZGW_CATALOGI_SERVICE_API_SECRET" "ZGW_DOCUMENTEN_SERVICE_API_ROOT" "ZGW_DOCUMENTEN_SERVICE_API_CLIENT_ID" "ZGW_DOCUMENTEN_SERVICE_API_SECRET" "ZGW_FORM_SERVICE_API_ROOT" "ZGW_FORM_SERVICE_API_CLIENT_ID" "ZGW_FORM_SERVICE_API_SECRET" "ZGW_SERVER_CERTIFICATE_LABEL" "ZGW_SERVER_CERTIFICATE_TYPE" "ZGW_ALLOWED_FILE_EXTENSIONS" "ZGW_ZAAK_MAX_CONFIDENTIALITY" "ZGW_DOCUMENT_MAX_CONFIDENTIALITY" "ZGW_ENABLE_CATEGORIES_FILTERING_WITH_ZAKEN" "ZGW_FETCH_EHERKENNING_ZAKEN_WITH_RSIN" "ZGW_MIJN_AANVRAGEN_TITLE_TEXT" "ZGW_REFORMAT_ESUITE_ZAAK_IDENTIFICATIE" "ZGW_SKIP_NOTIFICATION_STATUSTYPE_INFORMEREN" "OIP_ORGANIZATION" "ACTION_REQUIRED_DEADLINE_DAYS" "SEARCH_ZERO_RESULTS_TEXT")) -}}
+{{- $removedEnv = append $removedEnv $n -}}
+{{- end -}}
+{{- end -}}
+{{- if $removedEnv -}}
+{{- fail (printf "openinwoner.extraEnvVars: Open Inwoner 2.5.0 ignores %s. Move the setting to openinwoner.configuration.data (setup-configuration YAML) and remove the variable; see docs/_UPGRADE_PATHS/4.10.0-to-4.10.1-upgrade.md, \"Reference: Open Inwoner 2.5.0\"" (join ", " $removedEnv)) -}}
 {{- end -}}
 {{- end -}}
 

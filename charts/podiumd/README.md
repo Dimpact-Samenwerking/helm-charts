@@ -1,6 +1,6 @@
 # podiumd
 
-![Version: 4.10.0](https://img.shields.io/badge/Version-4.10.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 4.10.0](https://img.shields.io/badge/AppVersion-4.10.0-informational?style=flat-square)
+![Version: 4.10.1](https://img.shields.io/badge/Version-4.10.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 4.10.1](https://img.shields.io/badge/AppVersion-4.10.1-informational?style=flat-square)
 
 PodiumD Helm chart
 
@@ -13,7 +13,7 @@ PodiumD Helm chart
 | @maykinmedia | openarchiefbeheer | 2.1.0 |
 | @maykinmedia | openbeheer | 0.1.3 |
 | @maykinmedia | openformulieren(openforms) | 1.13.0 |
-| @maykinmedia | openinwoner | 2.6.0 |
+| @maykinmedia | openinwoner | 2.7.0 |
 | @maykinmedia | openklant | 1.11.0 |
 | @maykinmedia | opennotificaties | 2.1.0 |
 | @maykinmedia | objecten(openobject) | 1.2.0 |
@@ -27,8 +27,8 @@ PodiumD Helm chart
 | @zgw-office-addin | zgw-office-addin | 0.0.93 |
 | file://../mi-data | mi(mi-data) | 1.1.0 |
 | https://helm.elastic.co | eck-operator | 3.5.0 |
-| https://openbao.github.io/openbao-helm | openbao | 0.30.3 |
-| https://wearefrank.github.io/charts | zaakbrug | 2.3.33 |
+| https://openbao.github.io/openbao-helm | openbao | 0.30.6 |
+| https://wearefrank.github.io/charts | zaakbrug | 2.3.36 |
 | oci://ghcr.io/interne-taak-afhandeling | ita(internetaakafhandeling) | 3.3.4 |
 | oci://ghcr.io/klantinteractie-servicesysteem | kiss(kiss-chart) | 3.2.0 |
 | oci://ghcr.io/platform-autorisatie-beheer-component | pabc(pabc) | 2.1.0 |
@@ -92,10 +92,10 @@ PodiumD Helm chart
 | clamav.freshclamConfig | string | `"###############\n# General\n###############\n\nDatabaseDirectory /var/lib/clamav\nPidFile /tmp/freshclam.pid\n# CUSTOM: Set defined user\nDatabaseOwner 2000\n\n###############\n# Updates\n###############\n\nDatabaseMirror database.clamav.net\nScriptedUpdates yes\nNotifyClamd /etc/clamav/clamd.conf\nBytecode yes\n"` |  |
 | clamav.fullnameOverride | string | `"clamav"` |  |
 | clamav.image.repository | string | `"clamav/clamav"` |  |
-| clamav.image.tag | string | `"1.5.4@sha256:e19130cdebaeacc71fa46eab3ed6f69941f2f22aa5e08d55e9197f8edf43ce5e"` |  |
+| clamav.image.tag | string | `"1.5.4@sha256:6d87c712e3391e13c1ba6e05dfb074d4b1ddb5a6834b23bb9da990d2a4ef042a"` |  |
 | clamav.metrics.enabled | bool | `false` |  |
 | clamav.metrics.image.repository | string | `"docker.io/sergeymakinen/clamav_exporter"` |  |
-| clamav.metrics.image.tag | string | `"v2.1.9@sha256:ac694b06337090d0ad1d5fb3a44f46e905bdd3f1901758587ae0d650854f8600"` |  |
+| clamav.metrics.image.tag | string | `"v2.1.12@sha256:66bc4f313d4c1f3baa73a75cb57a5c55c1095fb8687c6eb6cd66954eed084911"` |  |
 | clamav.metrics.serviceMonitor.enabled | bool | `false` |  |
 | clamav.nameOverride | string | `"clamav"` |  |
 | clamav.persistentVolume.enabled | bool | `true` |  |
@@ -182,7 +182,7 @@ PodiumD Helm chart
 | frankgateway.etcd.storageClassName | string | `""` |  |
 | frankgateway.etcd.topologySpreadConstraints | list | `[]` |  |
 | frankgateway.image.repository | string | `"ghcr.io/wearefrank/frank-gateway"` |  |
-| frankgateway.image.tag | string | `"1.1.4@sha256:eb03ea3df1b89f37357e500f6635d2c2ba16296fdc62a0a82e2441de04576217"` |  |
+| frankgateway.image.tag | string | `"1.2.1@sha256:f22de6b89d5586e3d92950f98dce4da6c301dd60d4454704b6417db90a2324b3"` |  |
 | frankgateway.instances.internal.enabled | bool | `true` |  |
 | frankgateway.instances.inway.enabled | bool | `true` |  |
 | frankgateway.instances.outway.enabled | bool | `true` |  |
@@ -218,7 +218,7 @@ PodiumD Helm chart
 | frankgateway.seed.job.backoffLimit | int | `3` |  |
 | frankgateway.seed.job.image.pullPolicy | string | `"IfNotPresent"` |  |
 | frankgateway.seed.job.image.repository | string | `"curlimages/curl"` |  |
-| frankgateway.seed.job.image.tag | string | `"8.23.0@sha256:11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac"` |  |
+| frankgateway.seed.job.image.tag | string | `"8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93"` |  |
 | frankgateway.seed.job.nodeSelector | object | `{}` |  |
 | frankgateway.seed.job.ttlSecondsAfterFinished | int | `600` | How long the finished Job (and its per-route log) is kept. Must outlast the deploy's Helm timeout, or the Job vanishes under --wait. |
 | frankgateway.seed.prune | bool | `false` | Delete routes labelled `managed-by: iac` that are NOT in this render. Off: a route removed from values lingers in etcd until this is turned on. On: values are the complete truth. Routes without the label (made in the dashboard) are never touched either way. |
@@ -253,19 +253,19 @@ PodiumD Helm chart
 | global.configuration.overwrite | bool | `true` |  |
 | global.imageRegistry | string | `""` |  |
 | global.images.alpineK8s.repository | string | `"docker.io/alpine/k8s"` |  |
-| global.images.alpineK8s.tag | string | `"1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"` |  |
+| global.images.alpineK8s.tag | string | `"1.37.2@sha256:dcb7185e112a453aa72f426754849a97357727ef8f40168fb208c8cf59952042"` |  |
 | global.images.busybox.pullPolicy | string | `"IfNotPresent"` |  |
 | global.images.busybox.repository | string | `"library/busybox"` |  |
 | global.images.busybox.tag | string | `"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"` |  |
 | global.images.curl.pullPolicy | string | `"IfNotPresent"` |  |
 | global.images.curl.repository | string | `"curlimages/curl"` |  |
-| global.images.curl.tag | string | `"8.23.0@sha256:11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac"` |  |
+| global.images.curl.tag | string | `"8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93"` |  |
 | global.images.nginx.pullPolicy | string | `"IfNotPresent"` |  |
 | global.images.nginx.repository | string | `"nginxinc/nginx-unprivileged"` |  |
 | global.images.nginx.tag | string | `"1.31.7@sha256:09b0d3eda2aa592d2487f284519419015cab010d7df16cd0fe224b585fc60eb6"` |  |
 | global.images.postgres.pullPolicy | string | `"IfNotPresent"` |  |
 | global.images.postgres.repository | string | `"library/postgres"` |  |
-| global.images.postgres.tag | string | `"16.15-alpine@sha256:deb28ee471183cb0c303113dac9b2433c51eeeeb678def7af9a9ec5820367815"` |  |
+| global.images.postgres.tag | string | `"16.15-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab"` |  |
 | global.settings.databaseHost | string | `""` |  |
 | ita.afdeling.type | string | `"https://ontw-objecten.example.nl/api/v2/objecttypes/REP_CONTACT_AFDELING_UUID_REP"` |  |
 | ita.afdeling.typeVersion | int | `1` |  |
@@ -329,30 +329,30 @@ PodiumD Helm chart
 | keycloak-operator.enableServiceMonitor | bool | `true` | Render the write Role and RoleBinding the Keycloak operator needs to manage the ServiceMonitor for Keycloak metrics (templates/keycloak-operator-servicemonitor-rbac.yaml). On by default. Set false on a cluster without Prometheus (no monitoring.coreos.com ServiceMonitor CRD) to leave out that Role. With the CRD installed the Role is rendered anyway: the operator then manages a ServiceMonitor whatever this value says, and without the Role the Keycloak CR stays InProgress. |
 | keycloak-operator.enabled | bool | `true` |  |
 | keycloak-operator.fullnameOverride | string | `"keycloak"` |  |
-| keycloak-operator.jobs.configCliResources | object | `{"limits":{"cpu":"200m","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources for the kc-config-cli containers (Spring Boot JVM app) in import-podiumd-realm and import-master-realm jobs. |
+| keycloak-operator.jobs.configCliResources | object | `{"limits":{"cpu":"2","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources for the kc-config-cli containers (Spring Boot JVM app) in import-podiumd-realm and import-master-realm jobs. |
 | keycloak-operator.jobs.ensureOperatorSa.clientSecret | string | `""` |  |
 | keycloak-operator.jobs.ensureOperatorSa.enabled | bool | `true` |  |
 | keycloak-operator.jobs.ensureOperatorSa.image.pullPolicy | string | `"IfNotPresent"` |  |
 | keycloak-operator.jobs.ensureOperatorSa.image.repository | string | `"curlimages/curl"` |  |
-| keycloak-operator.jobs.ensureOperatorSa.image.tag | string | `"8.23.0@sha256:11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac"` |  |
+| keycloak-operator.jobs.ensureOperatorSa.image.tag | string | `"8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93"` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.enabled | bool | `true` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.image.pullPolicy | string | `"IfNotPresent"` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.image.repository | string | `"library/postgres"` |  |
-| keycloak-operator.jobs.ensurePodiumdAdminUser.image.tag | string | `"16.15-alpine@sha256:deb28ee471183cb0c303113dac9b2433c51eeeeb678def7af9a9ec5820367815"` |  |
+| keycloak-operator.jobs.ensurePodiumdAdminUser.image.tag | string | `"16.15-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab"` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.registry | string | `""` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.repository | string | `"python"` |  |
-| keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.tag | string | `"3.14.7-slim@sha256:51dafde81dbdb6ebde285137a295cf18a47ca95234fe388a343719cb97305b3d"` |  |
+| keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.tag | string | `"3.15.2-slim@sha256:8c13a3f37a6a5b71498228e902c4b9f51c1f7900d49fabf71f9a650c6120e0d0"` |  |
 | keycloak-operator.jobs.importMasterRealm.enabled | bool | `true` |  |
 | keycloak-operator.jobs.importPodiumdRealm.enabled | bool | `true` |  |
 | keycloak-operator.jobs.keycloakUrl | string | `""` | Keycloak URL used by the realm-import jobs (keycloak-config-cli). Empty = in-cluster service (http://keycloak-service:8080). Set only when the jobs must reach Keycloak via another URL; note the public admin host can sit behind a gateway IP-allowlist that blocks cluster egress (403). |
 | keycloak-operator.jobs.repairClientScopes.enabled | bool | `true` | Run the keycloak-repair-client-scopes Job on every deploy; see docs/apps/keycloak/keycloak-default-client-scopes.md. |
-| keycloak-operator.jobs.repairClientScopes.resources | object | `{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources for the kcadm.sh (JVM) container of that Job. |
+| keycloak-operator.jobs.repairClientScopes.resources | object | `{"limits":{"cpu":"2","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources for the kcadm.sh (JVM) container of that Job. |
 | keycloak-operator.jobs.resources | object | `{"limits":{"cpu":"200m","memory":"128Mi"},"requests":{"cpu":"50m","memory":"64Mi"}}` | Resources applied to lightweight keycloak job containers (curl, python, psql): ensure-operator-sa, ensure-podiumd-admin-user. |
 | keycloak-operator.operator.config.keycloakImage.repository | string | `"quay.io/keycloak/keycloak"` |  |
-| keycloak-operator.operator.config.keycloakImage.sha | string | `"79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244"` |  |
+| keycloak-operator.operator.config.keycloakImage.sha | string | `"3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332"` |  |
 | keycloak-operator.operator.config.keycloakImage.tag | string | `"26.8.1"` |  |
 | keycloak-operator.operator.image.repository | string | `"quay.io/keycloak/keycloak-operator"` |  |
-| keycloak-operator.operator.image.sha | string | `"60996d513b9e9945657b348655c98071c366bb0212deefa1508785941b1651dc"` |  |
+| keycloak-operator.operator.image.sha | string | `"4c88e4e9a9d488efd6487ab602974d3cb762ff2ee6f173b2716df418bfe33e53"` |  |
 | keycloak-operator.operator.image.tag | string | `"26.8.1"` |  |
 | keycloak-operator.operator.resources.limits.cpu | string | `"500m"` |  |
 | keycloak-operator.operator.resources.limits.memory | string | `"768Mi"` |  |
@@ -374,11 +374,11 @@ PodiumD Helm chart
 | keycloak.config.adminFrontendUrl | string | `"https://keycloak-admin.example.nl"` |  |
 | keycloak.config.clients.datamigratie.enabled | bool | `true` |  |
 | keycloak.config.clients.datamigratie.name | string | `"Datamigratie"` |  |
-| keycloak.config.clients.datamigratie.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while this client is enabled (keycloak.config.clients.datamigratie.enabled) and this is empty or an example.nl URL. E.g. `https://datamigratie.example.nl`. |
+| keycloak.config.clients.datamigratie.oidcUrl | string | `""` | Public https URL of the standalone Datamigratie app; the Keycloak client's redirect URIs are built from it. Empty: Datamigratie is not installed and the realm gets no `datamigratie` client. The render fails on an example.nl URL. E.g. `https://datamigratie.example.nl`. |
 | keycloak.config.clients.datamigratie.secret | string | `""` |  |
 | keycloak.config.clients.monitoring.enabled | bool | `true` |  |
 | keycloak.config.clients.monitoring.name | string | `"Monitoring (Grafana)"` |  |
-| keycloak.config.clients.monitoring.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while this client is enabled (keycloak.config.clients.monitoring.enabled) and this is empty or an example.nl URL. E.g. `https://monitoring.example.nl`. |
+| keycloak.config.clients.monitoring.oidcUrl | string | `""` | Public https URL of Grafana from the monitoring-logging chart; the Keycloak client's redirect URIs are built from it. Empty: monitoring-logging is not installed and the realm gets no `monitoring` client. The render fails on an example.nl URL. E.g. `https://monitoring.example.nl`. |
 | keycloak.config.clients.monitoring.secret | string | `""` |  |
 | keycloak.config.clients.zaakbrug.enabled | bool | `true` |  |
 | keycloak.config.clients.zaakbrug.name | string | `"Zaakbrug Frank!Framework console"` |  |
@@ -403,11 +403,12 @@ PodiumD Helm chart
 | keycloak.externalDatabase.user | string | `""` |  |
 | keycloak.externalDatabase.vendor | string | `"postgres"` |  |
 | keycloak.features.enabled | list | `[]` |  |
-| keycloak.hostname | object | `{"admin":"","hostname":""}` | new hostname configuration for keycloak-operator, falls back to config.adminFrontendUrl if not defined |
+| keycloak.hostname | object | `{"admin":"","hostname":"","useRealmFrontendUrl":false}` | hostname configuration for keycloak-operator. `hostname` falls back to config.adminFrontendUrl, or with `useRealmFrontendUrl` to config.realmFrontendUrl first; `admin` falls back to config.adminFrontendUrl |
+| keycloak.hostname.useRealmFrontendUrl | bool | `false` | Without `hostname`, use config.realmFrontendUrl as Keycloak's public hostname instead of config.adminFrontendUrl. For fresh installs; on an existing environment, turning it on moves the public hostname and restarts Keycloak (see docs/apps/keycloak/keycloak-BASICS.md). |
 | keycloak.http.httpEnabled | bool | `true` |  |
 | keycloak.image.registry | string | `""` |  |
 | keycloak.image.repository | string | `"quay.io/keycloak/keycloak"` |  |
-| keycloak.image.sha | string | `"79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244"` |  |
+| keycloak.image.sha | string | `"3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332"` |  |
 | keycloak.image.tag | string | `"26.8.1"` |  |
 | keycloak.ingress.enabled | bool | `false` |  |
 | keycloak.instances | string | `"2"` | instances is the new operator-style replica count (falls back to replicaCount) |
@@ -431,7 +432,7 @@ PodiumD Helm chart
 | keycloak.podTemplate.spec.containers[0].livenessProbe.httpGet.path | string | `"/health/live"` |  |
 | keycloak.podTemplate.spec.containers[0].livenessProbe.httpGet.port | int | `9000` |  |
 | keycloak.podTemplate.spec.containers[0].livenessProbe.httpGet.scheme | string | `"HTTP"` |  |
-| keycloak.podTemplate.spec.containers[0].livenessProbe.initialDelaySeconds | int | `120` |  |
+| keycloak.podTemplate.spec.containers[0].livenessProbe.initialDelaySeconds | int | `0` |  |
 | keycloak.podTemplate.spec.containers[0].livenessProbe.periodSeconds | int | `30` |  |
 | keycloak.podTemplate.spec.containers[0].livenessProbe.timeoutSeconds | int | `5` |  |
 | keycloak.podTemplate.spec.containers[0].name | string | `"keycloak"` |  |
@@ -439,7 +440,7 @@ PodiumD Helm chart
 | keycloak.podTemplate.spec.containers[0].readinessProbe.httpGet.path | string | `"/health/ready"` |  |
 | keycloak.podTemplate.spec.containers[0].readinessProbe.httpGet.port | int | `9000` |  |
 | keycloak.podTemplate.spec.containers[0].readinessProbe.httpGet.scheme | string | `"HTTP"` |  |
-| keycloak.podTemplate.spec.containers[0].readinessProbe.initialDelaySeconds | int | `60` |  |
+| keycloak.podTemplate.spec.containers[0].readinessProbe.initialDelaySeconds | int | `0` |  |
 | keycloak.podTemplate.spec.containers[0].readinessProbe.periodSeconds | int | `10` |  |
 | keycloak.podTemplate.spec.containers[0].readinessProbe.timeoutSeconds | int | `5` |  |
 | keycloak.podTemplate.spec.containers[0].resources.limits.cpu | string | `"1000m"` |  |
@@ -451,41 +452,17 @@ PodiumD Helm chart
 | keycloak.podTemplate.spec.containers[0].securityContext.runAsNonRoot | bool | `true` |  |
 | keycloak.podTemplate.spec.containers[0].securityContext.runAsUser | int | `1000` |  |
 | keycloak.podTemplate.spec.containers[0].securityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
-| keycloak.podTemplate.spec.containers[0].startupProbe.failureThreshold | int | `30` |  |
+| keycloak.podTemplate.spec.containers[0].startupProbe.failureThreshold | int | `66` |  |
 | keycloak.podTemplate.spec.containers[0].startupProbe.httpGet.path | string | `"/health/started"` |  |
 | keycloak.podTemplate.spec.containers[0].startupProbe.httpGet.port | int | `9000` |  |
 | keycloak.podTemplate.spec.containers[0].startupProbe.httpGet.scheme | string | `"HTTP"` |  |
-| keycloak.podTemplate.spec.containers[0].startupProbe.initialDelaySeconds | int | `30` |  |
-| keycloak.podTemplate.spec.containers[0].startupProbe.periodSeconds | int | `10` |  |
+| keycloak.podTemplate.spec.containers[0].startupProbe.initialDelaySeconds | int | `0` |  |
+| keycloak.podTemplate.spec.containers[0].startupProbe.periodSeconds | int | `5` |  |
 | keycloak.podTemplate.spec.containers[0].startupProbe.timeoutSeconds | int | `5` |  |
-| keycloak.podTemplate.spec.containers[0].volumeMounts[0].mountPath | string | `"/opt/keycloak/lib/quarkus"` |  |
-| keycloak.podTemplate.spec.containers[0].volumeMounts[0].name | string | `"keycloak-build-data"` |  |
-| keycloak.podTemplate.spec.containers[0].volumeMounts[0].subPath | string | `"quarkus"` |  |
-| keycloak.podTemplate.spec.containers[0].volumeMounts[1].mountPath | string | `"/opt/keycloak/providers"` |  |
-| keycloak.podTemplate.spec.containers[0].volumeMounts[1].name | string | `"keycloak-build-data"` |  |
-| keycloak.podTemplate.spec.containers[0].volumeMounts[1].subPath | string | `"providers"` |  |
-| keycloak.podTemplate.spec.initContainers[0].command[0] | string | `"/bin/bash"` |  |
-| keycloak.podTemplate.spec.initContainers[0].command[1] | string | `"-c"` |  |
-| keycloak.podTemplate.spec.initContainers[0].command[2] | string | `"set -e\nexport KC_DB=postgres\nexport KC_PROXY_HEADERS=xforwarded\nexport KC_CACHE=ispn\nexport KC_METRICS_ENABLED=true\nexport KC_HEALTH_ENABLED=true\n/opt/keycloak/bin/kc.sh build\nrm -rf /opt/keycloak/build/quarkus /opt/keycloak/build/providers\nmkdir -p /opt/keycloak/build/quarkus /opt/keycloak/build/providers\ncp -a /opt/keycloak/lib/quarkus/. /opt/keycloak/build/quarkus/\ncp -a /opt/keycloak/providers/. /opt/keycloak/build/providers/ 2>/dev/null || true\n"` |  |
-| keycloak.podTemplate.spec.initContainers[0].name | string | `"keycloak-builder"` |  |
-| keycloak.podTemplate.spec.initContainers[0].resources.limits.cpu | string | `"1000m"` |  |
-| keycloak.podTemplate.spec.initContainers[0].resources.limits.memory | string | `"1Gi"` |  |
-| keycloak.podTemplate.spec.initContainers[0].resources.requests.cpu | string | `"250m"` |  |
-| keycloak.podTemplate.spec.initContainers[0].resources.requests.memory | string | `"512Mi"` |  |
-| keycloak.podTemplate.spec.initContainers[0].securityContext.allowPrivilegeEscalation | bool | `false` |  |
-| keycloak.podTemplate.spec.initContainers[0].securityContext.capabilities.drop[0] | string | `"ALL"` |  |
-| keycloak.podTemplate.spec.initContainers[0].securityContext.runAsNonRoot | bool | `true` |  |
-| keycloak.podTemplate.spec.initContainers[0].securityContext.runAsUser | int | `1000` |  |
-| keycloak.podTemplate.spec.initContainers[0].securityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
-| keycloak.podTemplate.spec.initContainers[0].volumeMounts[0].mountPath | string | `"/opt/keycloak/build"` |  |
-| keycloak.podTemplate.spec.initContainers[0].volumeMounts[0].name | string | `"keycloak-build-data"` |  |
-| keycloak.podTemplate.spec.initContainers[0].volumeMounts[0].subPath | string | `""` |  |
 | keycloak.podTemplate.spec.securityContext.fsGroup | int | `1000` |  |
 | keycloak.podTemplate.spec.securityContext.runAsNonRoot | bool | `true` |  |
 | keycloak.podTemplate.spec.securityContext.runAsUser | int | `1000` |  |
 | keycloak.podTemplate.spec.securityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
-| keycloak.podTemplate.spec.volumes[0].emptyDir | object | `{}` |  |
-| keycloak.podTemplate.spec.volumes[0].name | string | `"keycloak-build-data"` |  |
 | keycloak.proxy | object | `{"headers":"xforwarded"}` | new keycloak entrypoint configuration, falls back to proxyHeaders if headers is not set |
 | keycloak.resources.limits.cpu | string | `"1000m"` |  |
 | keycloak.resources.limits.memory | string | `"2Gi"` |  |
@@ -495,16 +472,16 @@ PodiumD Helm chart
 | keycloak.update.strategy | string | `"Auto"` | Keycloak operator update strategy: Auto, Explicit or RecreateOnImageChange. |
 | kiss-eck.eck-elasticsearch.enabled | bool | `true` |  |
 | kiss-eck.eck-elasticsearch.fullnameOverride | string | `"kiss"` |  |
-| kiss-eck.eck-elasticsearch.image | object | `{"repository":"docker.elastic.co/elasticsearch/elasticsearch","tag":"8.19.23@sha256:4d0724bb8d78d7a2330693623e26ca4d621079d062ecc8a30b3e1fc180ec14c1"}` | elasticsearch image; spec.version is the tag's version part. ACR: override repository only. |
+| kiss-eck.eck-elasticsearch.image | object | `{"repository":"docker.elastic.co/elasticsearch/elasticsearch","tag":"8.19.24@sha256:d6dfe6626d645cfec66e91009aca60c6c1bb6f94d34253528f24d8cea2f94ba6"}` | elasticsearch image; spec.version is the tag's version part. ACR: override repository only. |
 | kiss-eck.eck-elasticsearch.nodeSets | list | `[{"config":{"node.roles":["data","ingest","master"],"node.store.allow_mmap":false},"count":3,"name":"default","podTemplate":{"spec":{"containers":[{"name":"elasticsearch","resources":{"limits":{"cpu":"2000m","memory":"2Gi"},"requests":{"cpu":"250m","memory":"2Gi"}}}],"nodeSelector":{}}}}]` | default sizing, kept equal to the previous release (kiss-elastic used elasticsearchCount: 3). Environments can override nodeSets (e.g. nodeSelector, count, storage), the same way openinwoner.eck-elasticsearch.nodeSets is set. Note: volumeClaimTemplates is immutable — during a migration keep it equal to the existing PVCs; changing the size needs a manual recreate (see docs/apps/elastic/migrating-to-eck-stack.md). |
-| kiss-eck.eck-enterprise-search | object | `{"config":{"app_search.engine.total_fields.limit":1000,"connector.crawler.crawl.threads.limit":1,"connector.crawler.http.user_agent":"PodiumD-Contact-Elastic-Crawler","connector.crawler.workers.pool_size.limit":1,"kibana.host":"https://kiss-kb-http:5601"},"count":1,"elasticsearchRef":{"name":"kiss"},"enabled":false,"fullnameOverride":"kiss","image":{"repository":"docker.elastic.co/enterprise-search/enterprise-search","tag":"8.19.23@sha256:08d6d698cdd2a0d00f463def05200bfeb0e3c123bfc4a1a799a2577f36ca2bc6"},"podTemplate":{"spec":{"nodeSelector":{}}}}` | Uit sinds KISS 3.0.0. KISS bevraagt de Elasticsearch-indices rechtstreeks en crawlt met de Elastic Open Crawler, dus Enterprise Search wordt nergens meer voor gebruikt. De connector.crawler-instellingen hieronder waren voor de oude crawler; die zitten nu per site onder kiss.settings.syncJobs.website. Relevance- en precision-tuning gebeurde in Kibana en werd in Enterprise Search opgeslagen; dat had al geen effect meer, KISS 3.0.0 gebruikt vast precision 6. Aanzetten kan nog, maar levert alleen een ongebruikte pod op. |
-| kiss-eck.eck-enterprise-search.image | object | `{"repository":"docker.elastic.co/enterprise-search/enterprise-search","tag":"8.19.23@sha256:08d6d698cdd2a0d00f463def05200bfeb0e3c123bfc4a1a799a2577f36ca2bc6"}` | enterprise-search image; spec.version is the tag's version part. ACR: override repository only. |
+| kiss-eck.eck-enterprise-search | object | `{"config":{"app_search.engine.total_fields.limit":1000,"connector.crawler.crawl.threads.limit":1,"connector.crawler.http.user_agent":"PodiumD-Contact-Elastic-Crawler","connector.crawler.workers.pool_size.limit":1,"kibana.host":"https://kiss-kb-http:5601"},"count":1,"elasticsearchRef":{"name":"kiss"},"enabled":false,"fullnameOverride":"kiss","image":{"repository":"docker.elastic.co/enterprise-search/enterprise-search","tag":"8.19.24@sha256:68a919341aa7c04528d49f4e7375ba603fe5c37080caab918731a6cab9f4a906"},"podTemplate":{"spec":{"nodeSelector":{}}}}` | Uit sinds KISS 3.0.0. KISS bevraagt de Elasticsearch-indices rechtstreeks en crawlt met de Elastic Open Crawler, dus Enterprise Search wordt nergens meer voor gebruikt. De connector.crawler-instellingen hieronder waren voor de oude crawler; die zitten nu per site onder kiss.settings.syncJobs.website. Relevance- en precision-tuning gebeurde in Kibana en werd in Enterprise Search opgeslagen; dat had al geen effect meer, KISS 3.0.0 gebruikt vast precision 6. Aanzetten kan nog, maar levert alleen een ongebruikte pod op. |
+| kiss-eck.eck-enterprise-search.image | object | `{"repository":"docker.elastic.co/enterprise-search/enterprise-search","tag":"8.19.24@sha256:68a919341aa7c04528d49f4e7375ba603fe5c37080caab918731a6cab9f4a906"}` | enterprise-search image; spec.version is the tag's version part. ACR: override repository only. |
 | kiss-eck.eck-kibana.config."server.publicBaseUrl" | string | `"https://kiss-kb-http:5601"` |  |
 | kiss-eck.eck-kibana.count | int | `1` |  |
 | kiss-eck.eck-kibana.elasticsearchRef.name | string | `"kiss"` |  |
 | kiss-eck.eck-kibana.enabled | bool | `true` |  |
 | kiss-eck.eck-kibana.fullnameOverride | string | `"kiss"` |  |
-| kiss-eck.eck-kibana.image | object | `{"repository":"docker.elastic.co/kibana/kibana","tag":"8.19.23@sha256:920b24f689833d34205f426f5359864378a572e829c53016073f0a6837c2e995"}` | kibana image; spec.version is the tag's version part. ACR: override repository only. |
+| kiss-eck.eck-kibana.image | object | `{"repository":"docker.elastic.co/kibana/kibana","tag":"8.19.24@sha256:c712b5ab0a82d272eff6192edd4ae75b6b07477b3d1b13cabaa2934744727b4d"}` | kibana image; spec.version is the tag's version part. ACR: override repository only. |
 | kiss-eck.eck-kibana.podTemplate.spec.containers[0].name | string | `"kibana"` |  |
 | kiss-eck.eck-kibana.podTemplate.spec.containers[0].resources.limits.cpu | string | `"1000m"` |  |
 | kiss-eck.eck-kibana.podTemplate.spec.containers[0].resources.limits.memory | string | `"2Gi"` |  |
@@ -605,7 +582,7 @@ PodiumD Helm chart
 | kiss.settings.syncJobs.crawlerImage | object | `{"pullPolicy":"IfNotPresent","repository":"docker.elastic.co/integrations/crawler","tag":"1.1.0@sha256:7e87a0571129681cfd3053e9bd7998926633e69fbd8da7c29a384f0d7e9ef26e"}` | Elastic Open Crawler, vervangt de Enterprise Search web crawler. Draait als CronJob per site uit syncJobs.website en schrijft rechtstreeks naar Elasticsearch. |
 | kiss.settings.syncJobs.image.pullPolicy | string | `"IfNotPresent"` |  |
 | kiss.settings.syncJobs.image.tag | string | `"3.2.0@sha256:8ebfe45802a4d7c09ecc8d9c237e11ba6c893479e6f59957e09116594ea52c49"` |  |
-| kiss.settings.syncJobs.indexTemplateImage | object | `{"pullPolicy":"IfNotPresent","repository":"curlimages/curl","tag":"8.23.0@sha256:11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac"}` | pre-install/pre-upgrade hook die het search-website* index-template in Elasticsearch registreert. Heeft alleen curl nodig. |
+| kiss.settings.syncJobs.indexTemplateImage | object | `{"pullPolicy":"IfNotPresent","repository":"curlimages/curl","tag":"8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93"}` | pre-install/pre-upgrade hook die het search-website* index-template in Elasticsearch registreert. Heeft alleen curl nodig. |
 | kiss.settings.syncJobs.kennisbank.baseUrl | string | `""` |  |
 | kiss.settings.syncJobs.kennisbank.historyLimit | int | `1` |  |
 | kiss.settings.syncJobs.kennisbank.objectTypeUrl | string | `""` |  |
@@ -655,7 +632,7 @@ PodiumD Helm chart
 | objecten.configuration.demo.enabled | bool | `false` |  |
 | objecten.configuration.enabled | bool | `true` |  |
 | objecten.configuration.initContainer.enabled | bool | `false` |  |
-| objecten.configuration.job.backoffLimit | int | `6` |  |
+| objecten.configuration.job.backoffLimit | int | `12` |  |
 | objecten.configuration.job.enabled | bool | `true` |  |
 | objecten.configuration.job.resources | object | `{}` |  |
 | objecten.configuration.job.restartPolicy | string | `"OnFailure"` |  |
@@ -670,6 +647,7 @@ PodiumD Helm chart
 | objecten.create_required_objecttypen_job.resources.limits.memory | string | `"128Mi"` |  |
 | objecten.create_required_objecttypen_job.resources.requests.cpu | string | `"50m"` |  |
 | objecten.create_required_objecttypen_job.resources.requests.memory | string | `"64Mi"` |  |
+| objecten.create_required_objecttypen_job.updateExistingVersions | list | `[]` |  |
 | objecten.flower.enabled | bool | `false` |  |
 | objecten.fullnameOverride | string | `"objecten"` |  |
 | objecten.image.repository | string | `"maykinmedia/open-object"` |  |
@@ -734,7 +712,7 @@ PodiumD Helm chart
 | openarchiefbeheer.beat.resources.requests.memory | string | `"128Mi"` |  |
 | openarchiefbeheer.configuration.data | string | `""` |  |
 | openarchiefbeheer.configuration.enabled | bool | `true` |  |
-| openarchiefbeheer.configuration.job.backoffLimit | int | `6` |  |
+| openarchiefbeheer.configuration.job.backoffLimit | int | `12` |  |
 | openarchiefbeheer.configuration.job.enabled | bool | `true` |  |
 | openarchiefbeheer.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | openarchiefbeheer.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://abc.example.nl`. |
@@ -771,11 +749,15 @@ PodiumD Helm chart
 | openarchiefbeheer.settings.cache.choices | string | `"redis-ha-master:6379/14"` |  |
 | openarchiefbeheer.settings.cache.default | string | `"redis-ha-master:6379/13"` |  |
 | openarchiefbeheer.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/14"` |  |
-| openarchiefbeheer.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
+| openarchiefbeheer.settings.celery.logLevel | string | `"info"` | Log level of the celery worker and beat. On warning beat logs only its startup banner and the worker a few lines a day, so they hardly show in Grafana. Set to debug for test/acceptance environments. |
 | openarchiefbeheer.settings.celery.resultBackend | string | `"redis://redis-ha-master:6379/14"` |  |
 | openarchiefbeheer.settings.environment | string | `""` | Name of the environment (used for displaying purposes) |
-| openarchiefbeheer.settings.frontend | object | `{"apiPath":"/api/v1","apiUrl":"","zaakUrlTemplate":""}` | Controls the log levels of project code and of the OIDC library. Possible values: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL.   level: INFO |
+| openarchiefbeheer.settings.frontend.apiPath | string | `"/api/v1"` |  |
+| openarchiefbeheer.settings.frontend.apiUrl | string | `""` |  |
+| openarchiefbeheer.settings.frontend.zaakUrlTemplate | string | `""` |  |
 | openarchiefbeheer.settings.frontendUrl | string | `""` |  |
+| openarchiefbeheer.settings.logging.level | string | `"INFO"` | Log level of project code and of the OIDC library. Possible values: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL. |
+| openarchiefbeheer.settings.logging.toStdout | bool | `true` | Write the application logs to stdout (true) or to a file in the container (false, subchart default). Grafana only collects container stdout/stderr, so the logs are only visible there with true. |
 | openarchiefbeheer.settings.oidcRenewIdTokenExpirySeconds | int | `1800` |  |
 | openarchiefbeheer.settings.postDestructionVisibilityPeriod | int | `7` | Number of days for which destruction lists will be visible after successful destruction. Defaults to 7. |
 | openarchiefbeheer.settings.relatedCountDisabled | bool | `false` | If true, the inline presentation of related objects is disabled, reducing load on external registers. |
@@ -793,7 +775,7 @@ PodiumD Helm chart
 | openbao.configuration.enabled | bool | `true` |  |
 | openbao.configuration.job.backoffLimit | int | `6` |  |
 | openbao.configuration.job.image.repository | string | `"quay.io/openbao/openbao"` |  |
-| openbao.configuration.job.image.tag | string | `"2.7.1@sha256:6d2b93856e3fcf7b18ad855a0b51eaba474dc8b79cf554379ea32034797d2acf"` |  |
+| openbao.configuration.job.image.tag | string | `"2.7.2@sha256:5046911075e137e154ce49ab051502f4ec7cf367d484ae4a4dce665d9b90561f"` |  |
 | openbao.configuration.job.nodeSelector | object | `{}` |  |
 | openbao.configuration.job.resources.limits.cpu | string | `"250m"` |  |
 | openbao.configuration.job.resources.limits.memory | string | `"128Mi"` |  |
@@ -819,7 +801,7 @@ PodiumD Helm chart
 | openbao.database.schemaJob.backoffLimit | int | `6` |  |
 | openbao.database.schemaJob.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openbao.database.schemaJob.image.repository | string | `"library/postgres"` |  |
-| openbao.database.schemaJob.image.tag | string | `"16.15-alpine@sha256:deb28ee471183cb0c303113dac9b2433c51eeeeb678def7af9a9ec5820367815"` |  |
+| openbao.database.schemaJob.image.tag | string | `"16.15-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab"` |  |
 | openbao.database.schemaJob.nodeSelector | object | `{}` |  |
 | openbao.database.schemaJob.resources.limits.cpu | string | `"250m"` |  |
 | openbao.database.schemaJob.resources.limits.memory | string | `"128Mi"` |  |
@@ -832,7 +814,7 @@ PodiumD Helm chart
 | openbao.enabled | bool | `false` |  |
 | openbao.injector.enabled | bool | `false` |  |
 | openbao.injector.image.repository | string | `"hashicorp/vault-k8s"` |  |
-| openbao.injector.image.tag | string | `"1.7.6@sha256:55e27b080c9b0469fd420dfb3631243488c6319504b779423caa46c529a95490"` |  |
+| openbao.injector.image.tag | string | `"1.7.7@sha256:ecb3a6f77a756d5e7209bd9c5ded027c71ce86691d6f308b0e5bf7b6e61b5eb0"` |  |
 | openbao.seal.static.key | string | `""` | AES-256 key for the static seal: 32 raw characters, 64 hex, or base64 (44 standard / 43 unpadded URL-safe). Empty keeps the Shamir seal. Pipeline-substituted from the environment Key Vault, never committed. Setting it on an initialised Shamir vault requires a one-time `bao operator unseal -migrate` (docs §3.6). |
 | openbao.seal.static.keyId | string | `"1"` | Permanent identifier of `key`; change it together with the key, never on its own. |
 | openbao.seal.static.previousKey | string | `""` | Previous key during a rotation: set `key`/`keyId` to the new key and these to the old one until OpenBao has re-wrapped its root key, then clear them. |
@@ -846,13 +828,13 @@ PodiumD Helm chart
 | openbao.server.extraSecretEnvironmentVars[0].envName | string | `"BAO_PG_CONNECTION_URL"` |  |
 | openbao.server.extraSecretEnvironmentVars[0].secretKey | string | `"connection-url"` |  |
 | openbao.server.extraSecretEnvironmentVars[0].secretName | string | `"openbao-db"` |  |
-| openbao.server.ha.config | string | `"ui = true\n{{- if or (.Values.global.serverTelemetry).prometheusOperator .Values.serverTelemetry.serviceMonitor.enabled }}\n\n# Prometheus metrics on /v1/sys/metrics?format=prometheus. Only when the\n# subchart renders its ServiceMonitor: openbao.serverTelemetry.serviceMonitor.enabled\n# (see values-enable-observability.yaml) or\n# openbao.global.serverTelemetry.prometheusOperator. They are served without a token,\n# but only on the metrics-only listener on 9101 below; the API listener\n# on 8200 keeps requiring a token for them.\ntelemetry {\n  prometheus_retention_time = \"30s\"\n  disable_hostname          = true\n}\n{{- end }}\n\nlistener \"tcp\" {\n  tls_disable     = 1\n  address         = \"[::]:8200\"\n  cluster_address = \"[::]:8201\"\n}\n{{- if or (.Values.global.serverTelemetry).prometheusOperator .Values.serverTelemetry.serviceMonitor.enabled }}\n\n# Metrics-only listener for the ServiceMonitor (Service port \"metrics\").\n# metrics_only blocks every other API path on it.\nlistener \"tcp\" {\n  tls_disable = 1\n  address     = \"[::]:9101\"\n  telemetry {\n    metrics_only                   = true\n    unauthenticated_metrics_access = true\n  }\n}\n{{- end }}\n\n# Loopback-only listener for break-glass root-token generation from the\n# recovery/unseal key. OpenBao >= 2.5.3 disables the unauthenticated\n# generate-root endpoints by default, and they must stay off on the\n# listener the Service exposes. This one is reachable only from inside\n# the pod (kubectl exec); scripts/openbao-activate.sh uses it on the\n# active pod to mint tokens on an initialised vault.\nlistener \"tcp\" {\n  tls_disable                              = 1\n  address                                  = \"127.0.0.1:8210\"\n  cluster_address                          = \"127.0.0.1:8211\"\n  disable_unauthed_generate_root_endpoints = false\n}\n\nstorage \"postgresql\" {\n  table      = \"openbao_kv_store\"\n  ha_enabled = \"true\"\n  ha_table   = \"openbao_ha_locks\"\n}\n\nservice_registration \"kubernetes\" {}\n"` |  |
+| openbao.server.ha.config | string | `"ui = true\n{{- if or (.Values.global.serverTelemetry).prometheusOperator .Values.serverTelemetry.serviceMonitor.enabled }}\n\n# Prometheus metrics on /v1/sys/metrics?format=prometheus. Only when the\n# subchart renders its ServiceMonitor: openbao.serverTelemetry.serviceMonitor.enabled\n# (see values-enable-observability.yaml) or\n# openbao.global.serverTelemetry.prometheusOperator. They are served without a token,\n# but only on the metrics-only listener on 9101 below; the API listener\n# on 8200 keeps requiring a token for them.\ntelemetry {\n  prometheus_retention_time = \"30s\"\n  disable_hostname          = true\n}\n{{- end }}\n\nlistener \"tcp\" {\n  tls_disable     = 1\n  address         = \"[::]:8200\"\n  cluster_address = \"[::]:8201\"\n  # The public openbao host must send it too, also where no edge adds it.\n  custom_response_headers {\n    \"default\" = {\n      \"X-Content-Type-Options\" = [\"nosniff\"]\n    }\n  }\n}\n{{- if or (.Values.global.serverTelemetry).prometheusOperator .Values.serverTelemetry.serviceMonitor.enabled }}\n\n# Metrics-only listener for the ServiceMonitor (Service port \"metrics\").\n# metrics_only blocks every other API path on it.\nlistener \"tcp\" {\n  tls_disable = 1\n  address     = \"[::]:9101\"\n  telemetry {\n    metrics_only                   = true\n    unauthenticated_metrics_access = true\n  }\n}\n{{- end }}\n\n# Loopback-only listener for break-glass root-token generation from the\n# recovery/unseal key. OpenBao >= 2.5.3 disables the unauthenticated\n# generate-root endpoints by default, and they must stay off on the\n# listener the Service exposes. This one is reachable only from inside\n# the pod (kubectl exec); scripts/openbao-activate.sh uses it on the\n# active pod to mint tokens on an initialised vault.\nlistener \"tcp\" {\n  tls_disable                              = 1\n  address                                  = \"127.0.0.1:8210\"\n  cluster_address                          = \"127.0.0.1:8211\"\n  disable_unauthed_generate_root_endpoints = false\n}\n\nstorage \"postgresql\" {\n  table      = \"openbao_kv_store\"\n  ha_enabled = \"true\"\n  ha_table   = \"openbao_ha_locks\"\n}\n\nservice_registration \"kubernetes\" {}\n"` |  |
 | openbao.server.ha.enabled | bool | `true` |  |
 | openbao.server.ha.raft.enabled | bool | `false` |  |
 | openbao.server.ha.replicas | int | `3` |  |
 | openbao.server.image.registry | string | `"quay.io"` |  |
 | openbao.server.image.repository | string | `"openbao/openbao"` |  |
-| openbao.server.image.tag | string | `"2.7.1@sha256:6d2b93856e3fcf7b18ad855a0b51eaba474dc8b79cf554379ea32034797d2acf"` |  |
+| openbao.server.image.tag | string | `"2.7.2@sha256:5046911075e137e154ce49ab051502f4ec7cf367d484ae4a4dce665d9b90561f"` |  |
 | openbao.server.ingress.enabled | bool | `false` |  |
 | openbao.server.livenessProbe | object | `{"enabled":true,"execCommand":["/bin/sh","-c","[ -f /openbao/seal/seal.hcl ] || exit 0; s=$(bao status -format=json 2>/dev/null); case \"$s\" in *'\"initialized\": true'*) ;; *) exit 0 ;; esac; case \"$s\" in *'\"migration\": true'*) exit 0 ;; esac; case \"$s\" in *'\"sealed\": true'*) exit 1 ;; esac; exit 0"],"failureThreshold":3,"initialDelaySeconds":60,"periodSeconds":10,"timeoutSeconds":5}` | Restarts a running node that sealed itself; only with the static seal (see the comment above). |
 | openbao.server.readinessProbe.enabled | bool | `true` |  |
@@ -874,7 +856,7 @@ PodiumD Helm chart
 | openbao.snapshotAgent.image.tag | string | `"0.4.5@sha256:ef2c80770e30bba3fcf4d7911cb829607efcea7e7c1a917210c9fa1ba55a8249"` |  |
 | openbeheer.configuration.data | string | `""` |  |
 | openbeheer.configuration.enabled | bool | `true` |  |
-| openbeheer.configuration.job.backoffLimit | int | `6` |  |
+| openbeheer.configuration.job.backoffLimit | int | `12` |  |
 | openbeheer.configuration.job.enabled | bool | `true` |  |
 | openbeheer.configuration.job.resources | object | `{}` |  |
 | openbeheer.configuration.job.restartPolicy | string | `"Never"` |  |
@@ -952,7 +934,7 @@ PodiumD Helm chart
 | openformulieren.clamavConfigJob.backoffLimit | int | `15` | Retries generously: on first deploy this Job can race both the openformulieren DB migration (image entrypoint) and ClamAV's own cold-start (up to ~5 minutes to load its signature database, see docs/apps/clamav/clamav-BASICS.md) — it fails fast and lets Kubernetes' Job backoff retry until both are ready, rather than needing a wait container or Helm hook ordering. |
 | openformulieren.configuration.data | string | `""` |  |
 | openformulieren.configuration.enabled | bool | `true` |  |
-| openformulieren.configuration.job.backoffLimit | int | `6` |  |
+| openformulieren.configuration.job.backoffLimit | int | `12` |  |
 | openformulieren.configuration.job.enabled | bool | `true` |  |
 | openformulieren.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | openformulieren.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openformulieren.example.nl`. |
@@ -963,7 +945,7 @@ PodiumD Helm chart
 | openformulieren.customerInteractionsConfigJob.serviceIdentifier | string | `"openklant-api"` | zgw_consumers service identifier (Service.slug) of the Open Klant klantinteracties service; must have api_type `kc`. |
 | openformulieren.flower.enabled | bool | `false` |  |
 | openformulieren.fullnameOverride | string | `"openformulieren"` |  |
-| openformulieren.image.tag | string | `"4.0.2@sha256:e1cad4bcf2319a3eb106e51156bf69c6be83da9dd070e977f52ec1079455b8e3"` |  |
+| openformulieren.image.tag | string | `"4.0.7@sha256:12c975259f37eb91973a722d1f4e3f0ccf09aa037c08ecbd200350efd4ed493a"` |  |
 | openformulieren.nameOverride | string | `"openformulieren"` |  |
 | openformulieren.nginx.config.clientMaxBodySize | string | `"100M"` |  |
 | openformulieren.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
@@ -984,7 +966,7 @@ PodiumD Helm chart
 | openformulieren.persistentVolume.volumeAttributeShareName | string | `"openformulieren"` |  |
 | openformulieren.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | openformulieren.resources.requests.cpu | string | `"250m"` |  |
-| openformulieren.resources.requests.memory | string | `"1Gi"` |  |
+| openformulieren.resources.requests.memory | string | `"1792Mi"` |  |
 | openformulieren.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | openformulieren.securityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | openformulieren.settings.allowedHosts | string | `".svc.cluster.local"` |  |
@@ -1002,7 +984,7 @@ PodiumD Helm chart
 | openformulieren.worker.maxWorkerLivenessDelta | string | `"300"` |  |
 | openformulieren.worker.replicaCount | int | `1` |  |
 | openformulieren.worker.resources.requests.cpu | string | `"200m"` |  |
-| openformulieren.worker.resources.requests.memory | string | `"1Gi"` |  |
+| openformulieren.worker.resources.requests.memory | string | `"1536Mi"` |  |
 | openinwoner.beat.resources.requests.cpu | string | `"50m"` |  |
 | openinwoner.beat.resources.requests.memory | string | `"128Mi"` |  |
 | openinwoner.celeryMonitor.resources.requests.cpu | string | `"50m"` |  |
@@ -1012,7 +994,7 @@ PodiumD Helm chart
 | openinwoner.configuration.data | string | `""` |  |
 | openinwoner.configuration.enabled | bool | `true` |  |
 | openinwoner.configuration.initContainer.enabled | bool | `false` |  |
-| openinwoner.configuration.job.backoffLimit | int | `6` |  |
+| openinwoner.configuration.job.backoffLimit | int | `12` |  |
 | openinwoner.configuration.job.enabled | bool | `true` |  |
 | openinwoner.configuration.job.resources | object | `{}` |  |
 | openinwoner.configuration.job.restartPolicy | string | `"OnFailure"` |  |
@@ -1024,7 +1006,7 @@ PodiumD Helm chart
 | openinwoner.eck-elasticsearch.version | string | `"9.2.0"` |  |
 | openinwoner.eck-operator.enabled | bool | `false` |  |
 | openinwoner.fullnameOverride | string | `"openinwoner"` |  |
-| openinwoner.image.tag | string | `"2.4.7@sha256:f78563302f20a0b8f8f156e5328aae4343261c3b91994f6e1b964104ed66d58e"` |  |
+| openinwoner.image.tag | string | `"2.5.0@sha256:079c98ceae963ea78ef2d9848a5aed88857dee415938e00b666ad2636deec4e0"` |  |
 | openinwoner.kvk.apiKey | string | `""` | KvK API key. Empty when a proxy adds the key; when set, the chart stores it in the Secret `openinwoner-kvk`. With apiRoot set, the Job writes this value, also when empty. |
 | openinwoner.kvk.apiRoot | string | `""` | KvK API root without version or endpoint, e.g. `http://api-proxy.podiumd.svc.cluster.local/api/` (a dotted host name or localhost: Django's URLField rejects `http://api-proxy/api/`). Empty: the chart leaves KvKConfig alone (configure it in the admin). |
 | openinwoner.kvk.existingSecret | string | `""` | Existing Secret with the API key, instead of apiKey. Rename the Secret or the key to re-run the Job after rotating it. |
@@ -1087,7 +1069,7 @@ PodiumD Helm chart
 | openklant.configuration.data | string | `""` |  |
 | openklant.configuration.enabled | bool | `true` |  |
 | openklant.configuration.initContainer.enabled | bool | `false` |  |
-| openklant.configuration.job.backoffLimit | int | `6` |  |
+| openklant.configuration.job.backoffLimit | int | `12` |  |
 | openklant.configuration.job.enabled | bool | `true` |  |
 | openklant.configuration.job.resources | object | `{}` |  |
 | openklant.configuration.job.restartPolicy | string | `"OnFailure"` |  |
@@ -1141,7 +1123,7 @@ PodiumD Helm chart
 | opennotificaties.configuration.data | string | `""` |  |
 | opennotificaties.configuration.http_request_job.enabled | bool | `false` |  |
 | opennotificaties.configuration.initContainer.enabled | bool | `false` |  |
-| opennotificaties.configuration.job.backoffLimit | int | `6` |  |
+| opennotificaties.configuration.job.backoffLimit | int | `12` |  |
 | opennotificaties.configuration.job.enabled | bool | `true` |  |
 | opennotificaties.configuration.job.resources | object | `{}` |  |
 | opennotificaties.configuration.job.restartPolicy | string | `"OnFailure"` |  |
@@ -1191,7 +1173,7 @@ PodiumD Helm chart
 | opennotificaties.worker.resources.requests.memory | string | `"386Mi"` |  |
 | openvtb.configuration.data | string | `""` |  |
 | openvtb.configuration.enabled | bool | `true` |  |
-| openvtb.configuration.job.backoffLimit | int | `6` |  |
+| openvtb.configuration.job.backoffLimit | int | `12` |  |
 | openvtb.configuration.job.enabled | bool | `true` |  |
 | openvtb.configuration.job.resources | object | `{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources of the setup-configuration Job (one Django process). |
 | openvtb.configuration.job.restartPolicy | string | `"Never"` |  |
@@ -1258,7 +1240,7 @@ PodiumD Helm chart
 | openzaak.configuration.data | string | `""` |  |
 | openzaak.configuration.enabled | bool | `true` |  |
 | openzaak.configuration.initContainer.enabled | bool | `false` |  |
-| openzaak.configuration.job.backoffLimit | int | `6` |  |
+| openzaak.configuration.job.backoffLimit | int | `12` |  |
 | openzaak.configuration.job.enabled | bool | `true` |  |
 | openzaak.configuration.job.resources | object | `{}` |  |
 | openzaak.configuration.job.restartPolicy | string | `"Never"` |  |
@@ -1302,7 +1284,7 @@ PodiumD Helm chart
 | openzaak.persistentVolume.volumeAttributeShareName | string | `"openzaak"` |  |
 | openzaak.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | openzaak.resources.requests.cpu | string | `"250m"` |  |
-| openzaak.resources.requests.memory | string | `"512Mi"` |  |
+| openzaak.resources.requests.memory | string | `"1Gi"` |  |
 | openzaak.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | openzaak.settings.allowedHosts | string | `".svc.cluster.local"` |  |
 | openzaak.settings.cache.axes | string | `"redis-ha-master:6379/4"` |  |
@@ -1377,15 +1359,15 @@ PodiumD Helm chart
 | persistentVolume.volumeAttributeShareName | string | `""` |  |
 | redis-operator.enabled | bool | `true` |  |
 | redis-operator.featureGates.GenerateConfigInInitContainer | bool | `true` |  |
-| redis-operator.redis-ha | object | `{"databases":32,"enabled":true,"image":{"repository":"quay.io/opstree/redis","tag":"v8.10.1@sha256:d3ef5a7f11eb501034b6612b842c864e1946088c52c04b29a22f38b1fe37c99b"},"initContainerImage":{"pullPolicy":"IfNotPresent","repository":"library/busybox","tag":"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"},"initContainerResources":{"limits":{"cpu":"50m","memory":"32Mi"},"requests":{"cpu":"10m","memory":"16Mi"}},"labelMasterCronJob":{"enabled":true,"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"},"nodeSelector":{},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"schedule":"*/2 * * * *"},"masterReadinessCheck":{"enabled":true},"pdb":{"enabled":true,"maxUnavailable":1},"podSecurityContext":{"fsGroup":1000,"runAsGroup":1000,"runAsNonRoot":true,"runAsUser":1000,"seccompProfile":{"type":"RuntimeDefault"}},"preDeleteJob":{"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"},"nodeSelector":{}},"redisConfig":{"additionalRedisConfig":""},"redisExporter":{"enabled":false,"image":{"repository":"quay.io/opstree/redis-exporter","tag":"v1.89.0@sha256:00a3628bdd3bb3423a15c5daefa328c471ee609798eed1744fe578c906d20cab"},"podMonitor":{"enabled":false,"interval":"30s","scrapeTimeout":"10s"},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}}},"replicaCount":3,"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"256Mi"}},"serviceName":"redis-ha","storage":{"volumeClaimTemplate":{"spec":{"accessModes":["ReadWriteOnce"],"resources":{"requests":{"storage":"2Gi"}},"storageClassName":"managed-csi-premiumv2"}}},"topologySpreadConstraints":[{"maxSkew":1,"topologyKey":"kubernetes.io/hostname","whenUnsatisfiable":"ScheduleAnyway"}]}` | Shared Redis HA cluster using the RedisReplication CRD from the OT Redis Operator. When redis-operator.redis-ha.enabled is true, individual Redis subcharts per service should be disabled:   servicename:     tags:       redis: false   # disables template references to .Subcharts.redis     redis:       enabled: false # prevents subchart installation  Database allocation:   objecten           : db 1  (cache), db 2  (celery) — since the objecten/objecttypen                        merge (H.3), also covers what used to be objecttypen's traffic;                        db 0 is freed.   opennotificaties   : db 3  (cache), db 6  (celery result backend; broker nu ook Redis i.p.v. RabbitMQ vanaf chart 2.0.0)   openzaak           : db 4  (cache), db 5  (celery)   openklant          : db 7  (cache), db 8  (celery)   openformulieren    : db 9  (cache), db 10 (celery)   openinwoner        : db 11 (cache), db 12 (celery)   openarchiefbeheer  : db 13 (cache+axes), db 14 (choices + celery)   referentielijsten  : db 15 (cache), db 16 (reserved — celery not yet used)   openbeheer         : db 17 (cache), db 18 (reserved — celery not yet used)   openvtb            : db 19 (cache+axes), db 20 (celery broker/result; no worker deployed)   <future component> : db 21 (cache), db 22 (celery)   db 23–31           : unallocated See docs/apps/redis/redis-ha-databases.md for the full allocation table and guidance. |
+| redis-operator.redis-ha | object | `{"databases":32,"enabled":true,"image":{"repository":"quay.io/opstree/redis","tag":"v8.10.1@sha256:d3ef5a7f11eb501034b6612b842c864e1946088c52c04b29a22f38b1fe37c99b"},"initContainerImage":{"pullPolicy":"IfNotPresent","repository":"library/busybox","tag":"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"},"initContainerResources":{"limits":{"cpu":"50m","memory":"32Mi"},"requests":{"cpu":"10m","memory":"16Mi"}},"labelMasterCronJob":{"enabled":true,"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.2@sha256:dcb7185e112a453aa72f426754849a97357727ef8f40168fb208c8cf59952042"},"nodeSelector":{},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"schedule":"*/2 * * * *"},"masterReadinessCheck":{"enabled":true},"pdb":{"enabled":true,"maxUnavailable":1},"podSecurityContext":{"fsGroup":1000,"runAsGroup":1000,"runAsNonRoot":true,"runAsUser":1000,"seccompProfile":{"type":"RuntimeDefault"}},"preDeleteJob":{"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.2@sha256:dcb7185e112a453aa72f426754849a97357727ef8f40168fb208c8cf59952042"},"nodeSelector":{}},"redisConfig":{"additionalRedisConfig":""},"redisExporter":{"enabled":false,"image":{"repository":"quay.io/opstree/redis-exporter","tag":"v1.89.0@sha256:00a3628bdd3bb3423a15c5daefa328c471ee609798eed1744fe578c906d20cab"},"podMonitor":{"enabled":false,"interval":"30s","scrapeTimeout":"10s"},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}}},"replicaCount":3,"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"256Mi"}},"serviceName":"redis-ha","storage":{"volumeClaimTemplate":{"spec":{"accessModes":["ReadWriteOnce"],"resources":{"requests":{"storage":"2Gi"}},"storageClassName":"managed-csi-premiumv2"}}},"topologySpreadConstraints":[{"maxSkew":1,"topologyKey":"kubernetes.io/hostname","whenUnsatisfiable":"ScheduleAnyway"}]}` | Shared Redis HA cluster using the RedisReplication CRD from the OT Redis Operator. When redis-operator.redis-ha.enabled is true, individual Redis subcharts per service should be disabled:   servicename:     tags:       redis: false   # disables template references to .Subcharts.redis     redis:       enabled: false # prevents subchart installation  Database allocation:   objecten           : db 1  (cache), db 2  (celery) — since the objecten/objecttypen                        merge (H.3), also covers what used to be objecttypen's traffic;                        db 0 is freed.   opennotificaties   : db 3  (cache), db 6  (celery result backend; broker nu ook Redis i.p.v. RabbitMQ vanaf chart 2.0.0)   openzaak           : db 4  (cache), db 5  (celery)   openklant          : db 7  (cache), db 8  (celery)   openformulieren    : db 9  (cache), db 10 (celery)   openinwoner        : db 11 (cache), db 12 (celery)   openarchiefbeheer  : db 13 (cache+axes), db 14 (choices + celery)   referentielijsten  : db 15 (cache), db 16 (reserved — celery not yet used)   openbeheer         : db 17 (cache), db 18 (reserved — celery not yet used)   openvtb            : db 19 (cache+axes), db 20 (celery broker/result; no worker deployed)   <future component> : db 21 (cache), db 22 (celery)   db 23–31           : unallocated See docs/apps/redis/redis-ha-databases.md for the full allocation table and guidance. |
 | redis-operator.redis-ha.databases | int | `32` | Number of Redis databases to configure. Applied via an initContainer because `databases` is a startup-only parameter and the OT redis-operator does not include the additionalRedisConfig ConfigMap in the main redis.conf (operator limitation in v0.24.0). |
 | redis-operator.redis-ha.initContainerImage | object | `{"pullPolicy":"IfNotPresent","repository":"library/busybox","tag":"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"}` | Image used by the initContainer that appends `databases N` to redis.conf. Override this in environments that restrict public Docker Hub pulls (e.g. point to an ACR mirror). |
 | redis-operator.redis-ha.initContainerResources | object | `{"limits":{"cpu":"50m","memory":"32Mi"},"requests":{"cpu":"10m","memory":"16Mi"}}` | Resources for the initContainer that configures redis.conf. |
-| redis-operator.redis-ha.labelMasterCronJob | object | `{"enabled":true,"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"},"nodeSelector":{},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"schedule":"*/2 * * * *"}` | CronJob that reconciles the redis-role labels on the redis-ha pods from RedisReplication.status.masterNode, every 2 minutes; it changes nothing when the labels already match. Required while masterReadinessCheck is on: an old master that comes back as a replica but keeps redis-role=master is NotReady, the operator then skips it, and only this Job removes the stale label. The render fails when masterReadinessCheck is on and this Job is off. It was first a workaround for an OT Redis Operator 0.24.0 bug (PR #1720, missing labels after a simultaneous pod restart), fixed since operator 0.25.0. See docs/apps/redis/redis-ha.md. |
-| redis-operator.redis-ha.masterReadinessCheck | object | `{"enabled":true}` | Readiness check that keeps the `redis-ha-master` Service on the real master (IN-2961). During a failover the operator sets the new `redis-role=master` label before it removes the old one, so for some seconds the Service also points at a replica, and clients that connect then write to a read-only replica (IN-2869). With this check a pod labelled master that reports `role:slave` itself is NotReady and drops out of the Service. The pod reads its own labels through a downward API volume (/etc/podinfo). A correctly labelled replica is never NotReady, so rolling updates are not blocked. Disable to fall back to the operator's PING probe. |
+| redis-operator.redis-ha.labelMasterCronJob | object | `{"enabled":true,"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.2@sha256:dcb7185e112a453aa72f426754849a97357727ef8f40168fb208c8cf59952042"},"nodeSelector":{},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"schedule":"*/2 * * * *"}` | CronJob that reconciles the redis-role labels on the redis-ha pods from RedisReplication.status.masterNode, every 2 minutes; it changes nothing when the labels already match. Required while masterReadinessCheck is on: an old master that comes back as a replica but keeps redis-role=master is NotReady, the operator then skips it, and only this Job removes the stale label. The render fails when masterReadinessCheck is on and this Job is off. It was first a workaround for an OT Redis Operator 0.24.0 bug (PR #1720, missing labels after a simultaneous pod restart), fixed since operator 0.25.0. See docs/apps/redis/redis-ha.md. |
+| redis-operator.redis-ha.masterReadinessCheck | object | `{"enabled":true}` | Readiness check that keeps the `redis-ha-master` Service on the real master (IN-2961). During a failover the operator sets the new `redis-role=master` label before it removes the old one, so for some seconds the Service also points at a replica, and clients that connect then write to a read-only replica (IN-2869). With this check a pod labelled master that reports `role:slave` itself is NotReady and drops out of the Service. The pod reads its own labels through a downward API volume (/etc/podinfo). A correctly labelled replica is never NotReady, so rolling updates are not blocked. A replica also closes its app connections older than 10 s: apps that connected before replication was set up (fresh install) or during a failover keep them otherwise, and every write fails with READONLY (podiumd-chart-28). Disable to fall back to the operator's PING probe. |
 | redis-operator.redis-ha.pdb | object | `{"enabled":true,"maxUnavailable":1}` | PodDisruptionBudget the redis-operator creates for the Redis pods: a node drain evicts one Redis pod at a time, so a replica is always left to take over as master. The operator selects the pods with `app: redis-ha` (the CR name), so the render fails when it is enabled with another `serviceName`. |
 | redis-operator.redis-ha.podSecurityContext | object | `{"fsGroup":1000,"runAsGroup":1000,"runAsNonRoot":true,"runAsUser":1000,"seccompProfile":{"type":"RuntimeDefault"}}` | Pod security context for Redis pods. fsGroup must match the redis container's GID (1000) so that mounted PVC data directories are writable by the redis process. runAsUser 1000 also covers the operator's init-config, the busybox init and the redis-exporter (their images default to root or 65532); they only write the /etc/redis emptyDir and /data. |
-| redis-operator.redis-ha.preDeleteJob | object | `{"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"},"nodeSelector":{}}` | pre-delete hook Job (templates/redis-ha-pre-delete.yaml) that drains the RedisReplication CR before the redis-operator's Deployment is torn down. |
+| redis-operator.redis-ha.preDeleteJob | object | `{"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.2@sha256:dcb7185e112a453aa72f426754849a97357727ef8f40168fb208c8cf59952042"},"nodeSelector":{}}` | pre-delete hook Job (templates/redis-ha-pre-delete.yaml) that drains the RedisReplication CR before the redis-operator's Deployment is torn down. |
 | redis-operator.redis-ha.redisConfig.additionalRedisConfig | string | `""` | Optional extra redis.conf directives for runtime-configurable parameters. Note: startup-only parameters (e.g. databases) will NOT take effect here due to an operator limitation; use the databases field above instead. |
 | redis-operator.redis-ha.redisExporter.podMonitor | object | `{"enabled":false,"interval":"30s","scrapeTimeout":"10s"}` | PodMonitor for the redis_exporter sidecar (port 9121). Requires Prometheus Operator CRDs (monitoring.coreos.com/v1). Enable via values-enable-observability.yaml. |
 | redis-operator.redis-ha.redisExporter.resources | object | `{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}}` | Resources of the redis_exporter sidecar. |
@@ -1403,7 +1385,7 @@ PodiumD Helm chart
 | referentielijsten.configuration.data | string | `""` |  |
 | referentielijsten.configuration.enabled | bool | `true` |  |
 | referentielijsten.configuration.initContainer.enabled | bool | `false` |  |
-| referentielijsten.configuration.job.backoffLimit | int | `6` |  |
+| referentielijsten.configuration.job.backoffLimit | int | `12` |  |
 | referentielijsten.configuration.job.enabled | bool | `true` |  |
 | referentielijsten.configuration.job.resources | object | `{}` |  |
 | referentielijsten.configuration.job.restartPolicy | string | `"OnFailure"` |  |
@@ -1447,7 +1429,7 @@ PodiumD Helm chart
 | serviceAccount.name | string | `""` |  |
 | tags."eck-operator.enabled" | bool | `false` |  |
 | tags.redis | bool | `false` |  |
-| zaakbrug | object | `{"enabled":false,"frank":{"zakenApi":{"jwt":{"password":"","username":"zaakbrug"}}},"image":{"registry":"wearefrank","repository":"zaakbrug","tag":"1.26.19@sha256:4c90dddac58fdbe813566417c796b5890ab86a4ffd70f143460b6b9b379eec8c"},"oauthRoleMapping":{"IbisAdmin":"administrators","IbisDataAdmin":"dataadmin","IbisTester":"zaakbrug_admin"},"resources":{"limits":{"cpu":"2","memory":"6Gi"},"requests":{"cpu":"250m","memory":"5Gi"}},"staging":{"enabled":false}}` | --------------------------------------------------------------------------- |
+| zaakbrug | object | `{"enabled":false,"frank":{"zakenApi":{"jwt":{"password":"","username":"zaakbrug"}}},"image":{"registry":"wearefrank","repository":"zaakbrug","tag":"1.27.1@sha256:5f87a0b971a49af7b995d9b3fd7118b5b03ebe419ce0c1593417d1a28235272a"},"oauthRoleMapping":{"IbisAdmin":"administrators","IbisDataAdmin":"dataadmin","IbisTester":"zaakbrug_admin"},"resources":{"limits":{"cpu":"2","memory":"6Gi"},"requests":{"cpu":"250m","memory":"5Gi"}},"staging":{"enabled":false}}` | --------------------------------------------------------------------------- |
 | zaakbrug.frank | object | `{"zakenApi":{"jwt":{"password":"","username":"zaakbrug"}}}` | ------------------------------------------------------------------------- |
 | zaakbrug.oauthRoleMapping | object | `{"IbisAdmin":"administrators","IbisDataAdmin":"dataadmin","IbisTester":"zaakbrug_admin"}` | ------------------------------------------------------------------------- |
 | zac.auth.clientId | string | `"zac"` |  |
@@ -1487,7 +1469,7 @@ PodiumD Helm chart
 | zac.gemeente.naam | string | `"Example Gemeente"` |  |
 | zac.global.curlImage.pullPolicy | string | `"IfNotPresent"` |  |
 | zac.global.curlImage.repository | string | `"curlimages/curl"` |  |
-| zac.global.curlImage.tag | string | `"8.23.0@sha256:11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac"` |  |
+| zac.global.curlImage.tag | string | `"8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93"` |  |
 | zac.image.pullPolicy | string | `"IfNotPresent"` |  |
 | zac.image.tag | string | `"5.9.1@sha256:d2b43634c21205183ed7ce9591791fa0112501bb2e4b04baff0362da9e001da4"` |  |
 | zac.initContainer.enabled | bool | `true` |  |
@@ -1515,6 +1497,7 @@ PodiumD Helm chart
 | zac.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | zac.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
 | zac.nginx.image.tag | string | `"1.31.7@sha256:09b0d3eda2aa592d2487f284519419015cab010d7df16cd0fe224b585fc60eb6"` |  |
+| zac.nginx.resources.limits.memory | string | `"256Mi"` |  |
 | zac.nginx.resources.requests.cpu | string | `"50m"` |  |
 | zac.nginx.resources.requests.memory | string | `"64Mi"` |  |
 | zac.nginx.securityContext.allowPrivilegeEscalation | bool | `false` |  |
@@ -1523,6 +1506,9 @@ PodiumD Helm chart
 | zac.objectenApi.url | string | `"https://objecten.example.nl"` |  |
 | zac.office_converter.image.tag | string | `"8.38.1@sha256:aa552cc115db488e0f0bcb07446aac13071ad51505b642c84bb894500907b42b"` |  |
 | zac.office_converter.password | string | `"dummy"` | Basic auth password for the office converter; see username. |
+| zac.office_converter.resources.limits.memory | string | `"2Gi"` |  |
+| zac.office_converter.resources.requests.cpu | string | `"100m"` |  |
+| zac.office_converter.resources.requests.memory | string | `"512Mi"` |  |
 | zac.office_converter.securityContext.runAsGroup | string | `nil` |  |
 | zac.office_converter.securityContext.runAsNonRoot | bool | `true` |  |
 | zac.office_converter.securityContext.runAsUser | int | `1001` |  |
@@ -1541,6 +1527,8 @@ PodiumD Helm chart
 | zac.organizations.verantwoordelijke.rsin | string | `"000000000"` |  |
 | zac.pabcApi.apiKey | string | `""` |  |
 | zac.pabcApi.url | string | `""` |  |
+| zac.restartAfterOpenzaakConfig | object | `{"enabled":true,"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.2@sha256:dcb7185e112a453aa72f426754849a97357727ef8f40168fb208c8cf59952042"},"nodeSelector":{},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"timeoutSeconds":1200}` | Job (templates/zac-restart-after-openzaak-config.yaml) that restarts ZAC when its deployment failed because ZAC started before Open Zaak had its client and catalogus (podiumd-chart-30). Without it, only the liveness probe above restarts ZAC, 8 minutes later. |
+| zac.restartAfterOpenzaakConfig.timeoutSeconds | int | `1200` | Seconds to wait for openzaak-config and create-required-catalogi-job; after that the Job gives up without restarting ZAC. |
 | zac.securityContext.runAsGroup | string | `nil` |  |
 | zac.securityContext.runAsNonRoot | bool | `true` |  |
 | zac.securityContext.runAsUser | int | `1001` |  |
@@ -1560,7 +1548,7 @@ PodiumD Helm chart
 | zac.solr-operator.solr.busyBoxImage.tag | string | `"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"` |  |
 | zac.solr-operator.solr.dataStorage.persistent.reclaimPolicy | string | `"Retain"` | Retain PVCs when the operator scales down Solr (e.g. during node rotation). The default "Delete" causes the operator to destroy PVC data on scale-down, which requires a full index resync from another replica. |
 | zac.solr-operator.solr.enabled | bool | `true` | set enabled to provision solrcloud as well |
-| zac.solr-operator.solr.image.tag | string | `"9.11.0-slim@sha256:3b70e899b1cca19729c49c110a1aa8e937f727be4cca3ad07ea67f151f5cc07d"` |  |
+| zac.solr-operator.solr.image.tag | string | `"9.11.0-slim@sha256:54cec2ced0f2c26436605a7dd5dde5ae78f26d5c0d19a7358349d5cb71fdfc1a"` |  |
 | zac.solr-operator.solr.javaMem | string | `"-Xms512m -Xmx768m"` | define memory settings for solr in the solrcloud |
 | zac.solr-operator.solr.jobs | object | `{}` |  |
 | zac.solr-operator.solr.resources.limits.cpu | string | `"2000m"` |  |
@@ -1568,7 +1556,7 @@ PodiumD Helm chart
 | zac.solr-operator.solr.resources.requests.cpu | string | `"500m"` |  |
 | zac.solr-operator.solr.resources.requests.memory | string | `"1Gi"` |  |
 | zac.solr-operator.watchNamespaces | string | `"podiumd"` | Namespaces to watch for solr-operator. MUST equal the namespace the chart is deployed into (Helm cannot template values.yaml with `.Release.Namespace`). Default assumes `podiumd`; override when deploying elsewhere (e.g. `--set zac.solr-operator.watchNamespaces=<namespace>` or ci/values-namespace-scope.example.yaml). Empty ("") watches ALL namespaces and needs cluster-scoped RBAC — avoided by design. See docs/misc/deploying-to-a-custom-namespace.md. |
-| zac.solr-operator.zookeeper-operator | object | `{"crd":{"create":false},"hooks":{"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"},"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"runAsGroup":65534,"runAsNonRoot":true,"runAsUser":65534,"seccompProfile":{"type":"RuntimeDefault"}}},"image":{"tag":"0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e"},"resources":{"limits":{"cpu":"200m","memory":"128Mi"},"requests":{"cpu":"50m","memory":"64Mi"}},"watchNamespace":"podiumd","zookeeper":{"image":{"tag":"0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8"},"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"256Mi"}},"storage":{"reclaimPolicy":"Retain"}}}` | install crds using https://github.com/pravega/zookeeper-operator/blob/master/charts/zookeeper-operator/templates/zookeeper.pravega.io_zookeeperclusters_crd.yaml |
+| zac.solr-operator.zookeeper-operator | object | `{"crd":{"create":false},"hooks":{"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.2@sha256:dcb7185e112a453aa72f426754849a97357727ef8f40168fb208c8cf59952042"},"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"runAsGroup":65534,"runAsNonRoot":true,"runAsUser":65534,"seccompProfile":{"type":"RuntimeDefault"}}},"image":{"tag":"0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e"},"resources":{"limits":{"cpu":"200m","memory":"128Mi"},"requests":{"cpu":"50m","memory":"64Mi"}},"watchNamespace":"podiumd","zookeeper":{"image":{"tag":"0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8"},"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"256Mi"}},"storage":{"reclaimPolicy":"Retain"}}}` | install crds using https://github.com/pravega/zookeeper-operator/blob/master/charts/zookeeper-operator/templates/zookeeper.pravega.io_zookeeperclusters_crd.yaml |
 | zac.solr-operator.zookeeper-operator.watchNamespace | string | `"podiumd"` | Namespaces to watch for zookeeper-operator. MUST equal the namespace the chart is deployed into (Helm cannot template values.yaml with `.Release.Namespace`). Default assumes `podiumd`; override when deploying elsewhere (e.g. `--set zac.solr-operator.zookeeper-operator.watchNamespace=<namespace>` or ci/values-namespace-scope.example.yaml). Empty ("") watches ALL namespaces and needs cluster-scoped RBAC — avoided by design. See docs/misc/deploying-to-a-custom-namespace.md. |
 | zac.solr-operator.zookeeper-operator.zookeeper.storage.reclaimPolicy | string | `"Retain"` | Retain PVCs when the operator scales down ZooKeeper (e.g. during node rotation). The default "Delete" causes the operator to destroy PVC data on scale-down, which prevents the cluster from recovering quorum after a node replacement event. |
 | zac.solr.password | string | `""` | Basic auth password of the external Solr; required when url is set. |

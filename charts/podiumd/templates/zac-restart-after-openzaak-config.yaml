@@ -1,0 +1,162 @@
+{{- /* podiumd-chart-30: ZAC reads its catalogus from Open Zaak while its WAR deploys. When ZAC
+     starts before openzaak-config has created ZAC's client (and create-required-catalogi-job
+     its catalogus), Open Zaak answers 403, the deployment fails with WFLYCTL0080 and WildFly
+     does not retry; only the liveness probe restarts ZAC, 8 minutes later. The zac chart has no
+     extra init containers to wait instead, so this Job restarts ZAC once those Jobs are done.
+     A plain Job, not a Helm hook: a post-install hook would only run after ZAC is Ready. */ -}}
+{{- $cfg := .Values.zac.restartAfterOpenzaakConfig }}
+{{- if and .Values.zac.enabled (include "podiumd.dependencyEnabled" .Values.openzaak) $cfg.enabled }}
+{{- $jobs := list }}
+{{- if .Values.openzaak.configuration.enabled }}
+{{- if and .Values.global.configuration.enabled .Values.openzaak.configuration.job.enabled }}
+{{- $jobs = append $jobs (printf "%s-config" (.Values.openzaak.nameOverride | default "openzaak" | trunc 56 | trimSuffix "-")) }}
+{{- end }}
+{{- if .Values.openzaak.create_required_catalogi_job.enabled }}
+{{- $jobs = append $jobs "create-required-catalogi-job" }}
+{{- end }}
+{{- end }}
+{{- if $jobs }}
+{{- $zac := .Values.zac.fullnameOverride | default "zac" }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: zac-restart-after-openzaak-config
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: zac-restart-after-openzaak-config
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: [{{ $zac | quote }}]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: zac-restart-after-openzaak-config
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: zac-restart-after-openzaak-config
+subjects:
+  - kind: ServiceAccount
+    name: zac-restart-after-openzaak-config
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # Per revision: a Job's pod template cannot change, and each deploy needs its own run.
+  name: zac-restart-after-openzaak-config-{{ .Release.Revision }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 0
+  activeDeadlineSeconds: {{ add $cfg.timeoutSeconds 300 }}
+  template:
+    metadata:
+      labels:
+        {{- include "podiumd.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: zac-restart-after-openzaak-config
+      automountServiceAccountToken: true
+      restartPolicy: Never
+      {{- with $cfg.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: restart-zac
+          image: {{ include "podiumd.image" $cfg.image }}
+          resources:
+            {{- toYaml $cfg.resources | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          env:
+            - name: NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            - name: DEPLOYMENT
+              value: {{ $zac | quote }}
+            - name: SELECTOR
+              value: {{ printf "app.kubernetes.io/instance=%s,app.kubernetes.io/name=%s" .Release.Name (.Values.zac.nameOverride | default "zac") | quote }}
+            - name: JOBS
+              value: {{ join " " $jobs | quote }}
+            - name: TIMEOUT
+              value: {{ $cfg.timeoutSeconds | quote }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -u
+              # A timeout only leaves ZAC to its liveness probe, as without this Job: never fail the deploy for it.
+              give_up() { echo "WARNING: $1; ZAC is not restarted"; exit 0; }
+              DEADLINE=$(( $(date +%s) + TIMEOUT ))
+              for JOB in $JOBS; do
+                # Helm may create this Job before the ones it waits for.
+                until kubectl get job "$JOB" -n "$NAMESPACE" >/dev/null 2>&1; do
+                  [ "$(date +%s)" -lt "$DEADLINE" ] || give_up "job/$JOB not found within ${TIMEOUT}s"
+                  sleep 5
+                done
+                # kubectl wait reads a negative --timeout as a week: give up before it gets one.
+                LEFT=$(( DEADLINE - $(date +%s) ))
+                [ "$LEFT" -gt 0 ] || give_up "job/$JOB did not complete within ${TIMEOUT}s"
+                kubectl wait --for=condition=complete "job/$JOB" -n "$NAMESPACE" \
+                  --timeout="${LEFT}s" || give_up "job/$JOB did not complete within ${TIMEOUT}s"
+              done
+              # shellcheck disable=SC2086 # JOBS is a space-separated list of names
+              DONE=$(kubectl get job $JOBS -n "$NAMESPACE" -o jsonpath='{range .items[*]}{.status.completionTime}{"\n"}{end}' | sort | tail -n 1)
+              echo "Open Zaak has ZAC's client and catalogus since $DONE"
+              # A zac container that started before then may have read the catalogus too early. On an
+              # upgrade it may also still be starting normally (the Jobs rerun with a client that already
+              # exists): only its WFLYCTL0080 log line tells the two apart, so wait for Ready or that line.
+              PODS=$(kubectl get pods -n "$NAMESPACE" -l "$SELECTOR" -o jsonpath='{range .items[*]}{.metadata.name}{" "}{range .status.containerStatuses[?(@.name=="zac")]}{.ready}{" "}{.state.running.startedAt}{end}{"\n"}{end}' \
+                | awk -v done="$DONE" '$2 == "false" && $3 != "" && $3 < done { print $1 }')
+              [ -n "$PODS" ] || { echo "No zac container started before $DONE without being Ready: nothing to do"; exit 0; }
+              CHECK_UNTIL=$(( $(date +%s) + 180 ))
+              while [ -n "$PODS" ] && [ "$(date +%s)" -lt "$CHECK_UNTIL" ]; do
+                LEFT=""
+                for POD in $PODS; do
+                  READY=$(kubectl get pod "$POD" -n "$NAMESPACE" -o jsonpath='{.status.containerStatuses[?(@.name=="zac")].ready}' 2>/dev/null) || continue
+                  if kubectl logs "$POD" -c zac -n "$NAMESPACE" 2>/dev/null | grep -q WFLYCTL0080; then
+                    echo "$POD: ZAC's deployment failed (WFLYCTL0080) after starting before $DONE: restarting deployment/$DEPLOYMENT"
+                    kubectl rollout restart "deployment/$DEPLOYMENT" -n "$NAMESPACE"
+                    exit $?
+                  fi
+                  [ "$READY" = true ] && echo "$POD: Ready" || LEFT="$LEFT $POD"
+                done
+                PODS="${LEFT# }"
+                [ -z "$PODS" ] || sleep 10
+              done
+              [ -z "$PODS" ] && echo "ZAC started normally: nothing to do" || echo "WARNING: $PODS neither Ready nor failed within 180s; ZAC is not restarted"
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}
+{{- end }}

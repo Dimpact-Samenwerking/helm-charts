@@ -2,7 +2,9 @@
 
 Covers docs/_UPGRADE_PATHS/*-to-<version>-upgrade.md and docs/images/images-<version>.yaml;
 given upgrade_docs_baseline, every component changed since it must appear in the right
-doc. Uses only upgrade_docs_baseline, never release_table_baseline.
+doc. Uses only upgrade_docs_baseline and the side paths, never release_table_baseline.
+A side path's docs are checked the same way against their own baseline, except the
+images manifest, which belongs to upgrade_docs_baseline.
 """
 
 from collections.abc import Sequence
@@ -86,7 +88,7 @@ def parse_upgrade_doc_rows(doc_path: Path) -> list[TableRow]:
     return _parse_upgrade_doc_rows(doc_path.read_text(encoding="utf-8"))
 
 
-def _pointer_consistency_mismatches(doc_dir: Path, upgrade_docs_baseline: str, podiumd_version: str):
+def _pointer_consistency_mismatches(doc_dir: Path, upgrade_docs_baseline: str, podiumd_version: str, *, side: bool):
     """Stale sibling-doc/images-manifest reference findings for the caller's `mismatches`.
 
     Returned rather than returning early, so one stale link doesn't hide every other finding.
@@ -94,10 +96,13 @@ def _pointer_consistency_mismatches(doc_dir: Path, upgrade_docs_baseline: str, p
     images_dir = doc_dir.parent / "images"
     pointer_docs = [doc_dir / doc_name(upgrade_docs_baseline, podiumd_version, suffix) for suffix in STANDARD_SUFFIXES]
     images_path_for_pointers = images_manifest_path(images_dir, podiumd_version)
-    if images_path_for_pointers.is_file():
+    if images_path_for_pointers.is_file() and not side:
         pointer_docs.append(images_path_for_pointers)
+    side_path = upgrade_docs_baseline if side else None
     return [
-        issue for doc in pointer_docs for issue in check_pointer_consistency(doc, podiumd_version, doc_dir, images_dir)
+        issue
+        for doc in pointer_docs
+        for issue in check_pointer_consistency(doc, podiumd_version, doc_dir, images_dir, side_path)
     ]
 
 
@@ -146,7 +151,9 @@ def _resolve_baseline(
     return baseline_ref, baseline_deps, baseline_values, mismatch
 
 
-def _build_docs_check_context(chart_dir: Path, doc_dir: Path, podiumd_version: str, upgrade_docs_baseline: str | None):
+def _build_docs_check_context(
+    chart_dir: Path, doc_dir: Path, podiumd_version: str, upgrade_docs_baseline: str | None, *, side: bool
+):
     """Load the chart, resolve the baseline and derived image maps into a DocsCheckContext.
 
     Returns (ctx, baseline_mismatch); the caller adds baseline_mismatch to `findings`.
@@ -172,6 +179,7 @@ def _build_docs_check_context(chart_dir: Path, doc_dir: Path, podiumd_version: s
             podiumd_version,
             upgrade_docs_baseline,
             is_bare_version(upgrade_docs_baseline),
+            owns_images_manifest=not side,
         ),
         images=StateImages(
             ChartImageIndex(chart_dir, deps, values),
@@ -461,7 +469,7 @@ def _stale_changes_item_mismatches(
 ) -> list[str]:
     """An images-manifest "# Changes:" item contradicts its upgrade-doc table row."""
     images_path = images_manifest_path(ctx.doc_query.doc_dir.parent / "images", ctx.doc_query.podiumd_version)
-    if not images_path.is_file():
+    if not ctx.doc_query.owns_images_manifest or not images_path.is_file():
         return []
     text = images_path.read_text(encoding="utf-8")
     lines = text.splitlines(keepends=True)
@@ -665,7 +673,7 @@ def _values_delta_inputs(ctx: DocsCheckContext) -> ValuesDeltaInputs:
 
 
 def _check_baseline_doc_set_and_pointers(
-    doc_dir: Path, upgrade_docs_baseline: str | None, podiumd_version: str, findings: Findings
+    doc_dir: Path, upgrade_docs_baseline: str | None, podiumd_version: str, findings: Findings, *, side: bool
 ):
     """Baseline doc-set precheck and pointer-consistency checks for a bare-version baseline.
 
@@ -683,29 +691,41 @@ def _check_baseline_doc_set_and_pointers(
         for issue in sorted(precheck_issues):
             print(" ", issue)
         return False, f"{len(precheck_issues)} upgrade_docs_baseline doc issue(s)"
-    findings.mismatches.extend(_pointer_consistency_mismatches(doc_dir, upgrade_docs_baseline, podiumd_version))
+    findings.mismatches.extend(
+        _pointer_consistency_mismatches(doc_dir, upgrade_docs_baseline, podiumd_version, side=side)
+    )
     return None
 
 
-def _check_docs(chart_dir: Path, doc_dir: Path, upgrade_docs_baseline: str | None) -> Findings | tuple[bool, str]:
-    """Every finding about the docs in doc_dir; an early (ok, detail) result when the doc set itself is malformed."""
+def _check_docs(
+    chart_dir: Path, doc_dir: Path, upgrade_docs_baseline: str | None, *, side: bool = False
+) -> Findings | tuple[bool, str]:
+    """Every finding about the docs in doc_dir; an early (ok, detail) result when the doc set itself is malformed.
+
+    `side`: the docs of a side path, whose images manifest is the main path's and is not checked here.
+    """
     podiumd_version = chart_version(chart_dir / "Chart.yaml")
     sibling_fields = digest_pinning_exceptions(chart_dir)
     findings = Findings([], [])
 
-    precheck_result = _check_baseline_doc_set_and_pointers(doc_dir, upgrade_docs_baseline, podiumd_version, findings)
+    precheck_result = _check_baseline_doc_set_and_pointers(
+        doc_dir, upgrade_docs_baseline, podiumd_version, findings, side=side
+    )
     if precheck_result is not None:
         return precheck_result
 
     if upgrade_docs_baseline:
         _check_companion_docs(doc_dir, upgrade_docs_baseline, podiumd_version, findings)
 
-    ctx, baseline_mismatch = _build_docs_check_context(chart_dir, doc_dir, podiumd_version, upgrade_docs_baseline)
+    ctx, baseline_mismatch = _build_docs_check_context(
+        chart_dir, doc_dir, podiumd_version, upgrade_docs_baseline, side=side
+    )
     if baseline_mismatch:
         findings.mismatches.append(baseline_mismatch)
 
     _check_component_versions_table(ctx, findings)
-    _check_images_manifest(ctx, sibling_fields, findings)
+    if not side:
+        _check_images_manifest(ctx, sibling_fields, findings)
 
     if is_bare_version(upgrade_docs_baseline):
         _check_values_deltas(ctx, upgrade_docs_baseline, findings)
@@ -723,7 +743,7 @@ def _print_doc_changes(changes: list[DocChange]) -> None:
     print("  run fix-doc-consistency")
 
 
-def check_docs_consistency(chart_dir: Path, upgrade_docs_baseline: str | None = None):
+def check_docs_consistency(chart_dir: Path, upgrade_docs_baseline: str | None = None, side_paths: Sequence[str] = ()):
     """Check the upgrade doc set and images manifest against Chart.yaml, values.yaml and the baseline.
 
     With a bare MAJOR.MINOR.PATCH `upgrade_docs_baseline`, fix-doc-consistency
@@ -739,6 +759,9 @@ def check_docs_consistency(chart_dir: Path, upgrade_docs_baseline: str | None = 
     verify-podiumd's release-baseline step already fails on a missing or
     unresolvable upgrade_docs baseline.
 
+    Each of `side_paths` (release-baseline.yaml's side_paths) whose docs exist
+    is checked as one more upgrade path to the same target, and reported on its own.
+
     Returns (True, "no matching docs found — skipped") when there's nothing to check,
     (False, "<detail>") with findings printed, or (True, "matches ...").
     """
@@ -749,14 +772,31 @@ def check_docs_consistency(chart_dir: Path, upgrade_docs_baseline: str | None = 
         )
         result = _check_docs(chart_dir, chart_dir / "docs" / "_UPGRADE_PATHS", upgrade_docs_baseline)
         return result if isinstance(result, tuple) else _report(None, result)
-    with fix_docs_dry_run(chart_dir, chart_version(chart_dir / "Chart.yaml"), upgrade_docs_baseline) as dry:
+    target = chart_version(chart_dir / "Chart.yaml")
+    with fix_docs_dry_run(chart_dir, target, upgrade_docs_baseline, side_paths) as dry:
         if dry.error is not None:
             print(f"fix-doc-consistency can't run on these docs:\n{dry.error}")
             return False, "fix-doc-consistency refused to run"
-        result = _check_docs(chart_dir, dry.docs_dir / "_UPGRADE_PATHS", upgrade_docs_baseline)
-    if isinstance(result, tuple):
-        return result
-    return _report(dry.changes, result)
+        doc_dir = dry.docs_dir / "_UPGRADE_PATHS"
+        hops = [(upgrade_docs_baseline, _check_docs(chart_dir, doc_dir, upgrade_docs_baseline))]
+        hops += [
+            (side, _check_docs(chart_dir, doc_dir, side, side=True))
+            for side in side_paths
+            if side != upgrade_docs_baseline and any(doc_dir.glob(doc_name(side, target, "*")))
+        ]
+    if len(hops) == 1:
+        result = hops[0][1]
+        return result if isinstance(result, tuple) else _report(dry.changes, result)
+    results = [
+        (f"{baseline} → {target}", result if isinstance(result, tuple) else _report(None, result))
+        for baseline, result in hops
+    ]
+    if dry.changes:
+        _print_doc_changes(dry.changes)
+        results.insert(0, ("", (False, f"{len(dry.changes)} doc(s) fix-doc-consistency would change")))
+    return all(ok for _hop, (ok, _detail) in results), "; ".join(
+        f"{hop}: {detail}" if hop else detail for hop, (_ok, detail) in results
+    )
 
 
 def _report(changes: list[DocChange] | None, findings: Findings):

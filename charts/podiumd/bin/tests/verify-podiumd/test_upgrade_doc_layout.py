@@ -210,6 +210,20 @@ def _write(chart_dir: Path, name: str, text: str):
     (chart_dir / "docs" / "_UPGRADE_PATHS" / name).write_text(text, encoding="utf-8")
 
 
+def test_check_covers_a_declared_side_path(chart_dir: Path, capsys: pytest.CaptureFixture[str]):
+    (chart_dir / "etc" / "release-baseline.yaml").write_text(
+        'upgrade_docs: "4.9.5"\nside_paths: ["4.9.4"]\n', encoding="utf-8"
+    )
+    _write(chart_dir, GUIDE, _stub("upgrade"))
+    _write(chart_dir, "4.9.4-to-4.10.0-upgrade.md", "# Upgrade guide: PodiumD 4.9.4 → 4.10.0\n\n## Changes\n")
+
+    ok, detail = check_upgrade_doc_layout(chart_dir)
+
+    assert ok
+    assert "layout issue(s)" in detail
+    assert "4.9.4-to-4.10.0-upgrade.md: missing" in capsys.readouterr().out
+
+
 def test_check_passes_on_the_stubs_and_ignores_released_guides(chart_dir: Path, capsys: pytest.CaptureFixture[str]):
     _write(chart_dir, GUIDE, _stub("upgrade"))
     _write(chart_dir, DELTAS, _stub("values-deltas"))

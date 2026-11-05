@@ -92,6 +92,24 @@ Bron: GitHub, PR's naar `feature/podiumd-{version}` (stand {datum}).
 - **Zonder review gemerged:** {grote PR's met wat het testte; kleine alleen tellen}.
 - **Release-PR:** {commits, bestanden, regels, reviews}.
 
+## Werk buiten helm-charts
+
+Bron: git, {baseline-datum} tot {datum}. Privérepositories alleen als aantal.
+
+| Onderdeel | Commits | Bijdragers | Regels | Wat |
+| --- | --- | --- | --- | --- |
+| podiumd-tests (testset) | {n} | {n} | +{n} / −{n} | {n} tests toegevoegd, {n} verwijderd |
+| podiumd-minikube (lokale testomgeving) | {n} | {n} | +{n} / −{n} | {wat} |
+| Het interne overzicht van bekende problemen | {n} | {n} | +{n} / −{n} | {n} nieuwe meldingen |
+| De QA-infrastructuur | {n} | {n} | +{n} / −{n} | {wat} |
+| De reviewtooling | {n} | {n} | +{n} / −{n} | {n} lokale LLM-reviews van {n} PR's |
+| De inrichting van de externe ontwikkelomgevingen | {n} | {n} | +{n} / −{n} | {n} PR's gemerged |
+| Releasetooling in helm-charts (scripts, controles, skills, workflows) | {n} | {n} | +{n} / −{n} | {wat} |
+| De monitoring-logging-chart | {n} | {n} | +{n} / −{n} | {wat} |
+
+Testruns tegen {version}: {n} ({n} full, {n} core, {n} smoke), samen {n}
+testresultaten waarvan {n} geslaagd.
+
 ## Documentatie voor SSC
 
 - [Upgradehandleiding {baseline} → {version}](https://github.com/Dimpact-Samenwerking/helm-charts/blob/main/charts/podiumd/docs/_UPGRADE_PATHS/{baseline}-to-{version}-upgrade.md)

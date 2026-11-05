@@ -10,7 +10,8 @@ Never changes an existing doc. Then runs fix-helm-doc (README.md).
 
 Exits 1 when release-baseline.yaml or its upgrade_docs key is missing
 (run create-podiumd-version), or when docs for the target exist under a
-different baseline (run fix-doc-consistency to rebase them).
+different baseline that is not one of release-baseline.yaml's
+"side_paths" (run fix-doc-consistency to rebase them).
 
 Usage:
     create-doc-version
@@ -36,6 +37,7 @@ from lib.chart.paths import DOC_DIR
 from lib.chart.paths import IMAGES_DIR
 from lib.chart.release_baseline_basics import chart_version
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
+from lib.chart.release_baseline_basics import upgrade_docs_side_paths as read_upgrade_docs_side_paths
 from lib.cli import positional_args
 from lib.cli import print_section
 from lib.component_docs.baseline_doc_stubs import create_missing_docs
@@ -69,10 +71,12 @@ def main():
     target = current_chart_version()
 
     # Creating and rebasing stay separate: stubs next to docs of another
-    # baseline would leave two doc sets for one target.
+    # baseline would leave two doc sets for one target. A declared side path
+    # is a second doc set on purpose.
+    declared = {upgrade_docs_baseline, *read_upgrade_docs_side_paths(CHART_DIR)}
     by_suffix = existing_doc_baselines(DOC_DIR, target)
     mismatched = {
-        suffix: entries for suffix, entries in by_suffix.items() if any(b != upgrade_docs_baseline for b, _ in entries)
+        suffix: entries for suffix, entries in by_suffix.items() if any(b not in declared for b, _ in entries)
     }
     if mismatched:
         print(

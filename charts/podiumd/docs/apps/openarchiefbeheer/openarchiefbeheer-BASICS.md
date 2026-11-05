@@ -88,7 +88,11 @@ four containers.
   (`auth_type: no_auth`).
 - **Objecten** — consumed via token auth; the same token must be registered on
   the Objecten side (`objecten` tokenauth item `identifier: openarchiefbeheer`,
-  placeholder `REP_OBJECTEN_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP`).
+  placeholder `REP_OBJECTEN_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP`). The
+  item needs `permissions` with `mode: read_and_write` on the object types of
+  the objects linked to the zaken it destroys (in PodiumD: `REP_ZAC_PRODUCTAANVRAAG_UUID_REP`):
+  destroying a zaak deletes its related objects, and a token without
+  `permissions` can reach no object at all.
 - **Open Klant** — klantinteracties API via token auth (`openklant` tokenauth
   item `identifier: openarchiefbeheer`, placeholder
   `REP_OPENKLANT_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP`). The service

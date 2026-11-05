@@ -87,6 +87,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from lib.chart.release_baseline_basics import RELEASE_BASELINES_FILE_NAME
 from lib.chart.release_baseline_basics import release_table_baseline as read_release_table_baseline
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
+from lib.chart.release_baseline_basics import upgrade_docs_side_paths as read_upgrade_docs_side_paths
 from lib.chart.upgrade_check import check_chart_upgrades
 from lib.chart.values_tree_primitives import UTF8_BOM
 from lib.checks.cve import check_cves
@@ -169,7 +170,7 @@ def check_utf8_format(chart_dir: Path):
 
 
 def check_release_baseline(chart_dir: Path):
-    """(ok, detail): both release-baseline.yaml keys resolve to a real release.
+    """(ok, detail): both release-baseline.yaml keys, and every side path, resolve to a real release.
 
     A missing file or key fails too.
     """
@@ -183,6 +184,7 @@ def check_release_baseline(chart_dir: Path):
     for key, baseline in (
         ("upgrade_docs", read_upgrade_docs_baseline(chart_dir)),
         ("release_table", read_release_table_baseline(chart_dir)),
+        *(("side_paths", side) for side in read_upgrade_docs_side_paths(chart_dir)),
     ):
         if baseline is None:
             failures.append(f"{key}: missing from {baselines_file.name}")
@@ -515,6 +517,7 @@ def _run_all_steps(runner: StepRunner, chart_dir: Path, args: argparse.Namespace
         check_docs_consistency,
         chart_dir,
         upgrade_docs_baseline,
+        read_upgrade_docs_side_paths(chart_dir),
     )
 
     extra_args = lint_args_for(chart_dir)

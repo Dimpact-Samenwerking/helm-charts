@@ -57,7 +57,9 @@ import sys
 from migrate_common import MigrationError
 from migrate_common import load_rt
 from migrate_common import load_safe
+from migrate_common import plain_scalar
 from migrate_common import run
+from migrate_common import seq_offset
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 ELASTICSEARCH = {"requests": {"cpu": "250m", "memory": "2Gi"}, "limits": {"cpu": "2000m", "memory": "2Gi"}}
@@ -106,41 +108,24 @@ def _child_col(mapping: CommentedMap, parent_col: int) -> int:
     return parent_col + 2
 
 
-def _emit(value, col: int, seq_offset: int) -> list[str]:
+def _emit(value, col: int, offset: int) -> list[str]:
     """Block YAML lines for a dict/list of plain scalars, keys at column col."""
     lines: list[str] = []
     if isinstance(value, dict):
         for key, item in value.items():
             if isinstance(item, (dict, list)):
                 lines.append(" " * col + f"{key}:")
-                lines += _emit(item, col + 2 if isinstance(item, dict) else col + seq_offset, seq_offset)
+                lines += _emit(item, col + 2 if isinstance(item, dict) else col + offset, offset)
             else:
-                lines.append(" " * col + f"{key}: {item}")
+                # A copied quantity such as requests.cpu: "3" must stay a string.
+                text = plain_scalar(item) if isinstance(item, str) else item
+                lines.append(" " * col + f"{key}: {text}")
     else:  # a list of mappings: "- " at col, keys at col + 2
         for item in value:
-            body = _emit(item, col + 2, seq_offset)
+            body = _emit(item, col + 2, offset)
             lines.append(" " * col + "- " + body[0].lstrip())
             lines += body[1:]
     return lines
-
-
-def _seq_offset(doc) -> int:
-    """How far this file indents "- " under its key (0 or 2), from its first block sequence.
-
-    ruamel reports an item's column after its "- ", hence the - 2.
-    """
-    def walk(node, col):
-        if isinstance(node, CommentedMap):
-            for key, value in node.items():
-                key_col = node.lc.key(key)[1]
-                if isinstance(value, CommentedSeq) and value and isinstance(value[0], CommentedMap):
-                    return value.lc.item(0)[1] - 2 - key_col
-                found = walk(value, key_col)
-                if found is not None:
-                    return found
-        return None
-    found = walk(doc, 0)
-    return found if found is not None and found >= 0 else 2
 
 
 class Inserts:
@@ -161,8 +146,9 @@ class Inserts:
         return out
 
 
-def _ensure(parent: CommentedMap, parent_line: int, parent_col: int, missing: dict, ins: Inserts, offset: int) -> None:
-    """Add the keys of `missing` that `parent` lacks, recursing into existing mappings.
+def _ensure(parent: CommentedMap, parent_line: int, parent_col: int, missing: dict, ins: Inserts, offset: int,
+            where: str) -> None:
+    """Add the keys of `missing` that `parent` (at path `where`) lacks, recursing into existing mappings.
 
     Existing mappings go first: when one is parent's last key, its inserts and a new
     sibling block anchor at the same line, and inserts keep the order they are added in.
@@ -170,11 +156,17 @@ def _ensure(parent: CommentedMap, parent_line: int, parent_col: int, missing: di
     """
     for key, value in missing.items():
         existing = parent.get(key)
-        if isinstance(value, dict) and isinstance(existing, CommentedMap):
+        if isinstance(value, dict) and key in parent:
+            # `resources:` without a value has nothing to add keys to.
+            if not isinstance(existing, CommentedMap):
+                raise MigrationError(f"{where}.{key} is not a mapping; add the resources by hand")
             key_line, key_col = parent.lc.key(key)
-            _ensure(existing, key_line, key_col, value, ins, offset)
+            _ensure(existing, key_line, key_col, value, ins, offset, f"{where}.{key}")
     for key, value in missing.items():
         if key not in parent:
+            # Block lines after a {...} mapping do not parse.
+            if parent.fa.flow_style():
+                raise MigrationError(f"{where} is a flow-style mapping ({{...}}); add the resources by hand")
             last = _last_line(parent, parent_line)
             ins.after(last, _emit({key: value}, _child_col(parent, parent_col), offset))
 
@@ -212,22 +204,20 @@ def _fitted(resources: dict, current) -> dict:
     return fitted
 
 
-def _ensure_container(spec: CommentedMap, spec_line: int, spec_col: int, name: str, resources: dict,
-                      ins: Inserts, offset: int) -> None:
-    if "containers" not in spec:
-        _ensure(spec, spec_line, spec_col, {"containers": [{"name": name, "resources": resources}]}, ins, offset)
-        return
+def _ensure_container(spec: CommentedMap, name: str, resources: dict, ins: Inserts, where: str) -> None:
+    """Add the resources to container `name` in spec.containers, or add that container."""
     containers = spec["containers"]
     if not isinstance(containers, CommentedSeq) or not containers or containers.fa.flow_style():
-        raise MigrationError("podTemplate.spec.containers is empty or not a block list; add the resources by hand")
+        raise MigrationError(f"{where}.containers is empty or not a block list; add the resources by hand")
+    key_line, key_col = spec.lc.key("containers")
+    offset = seq_offset(containers, key_col, 2)
     for index, container in enumerate(containers):
         if isinstance(container, CommentedMap) and container.get("name") == name:
             line, col = containers.lc.item(index)
             _ensure(container, line, col - 2, {"resources": _fitted(resources, container.get("resources"))},
-                    ins, offset)
+                    ins, offset, f"{where}.containers[{name}]")
             return
-    key_line, key_col = spec.lc.key("containers")
-    dash_col = containers.lc.item(0)[1] - 2 if containers else key_col + offset
+    dash_col = key_col + offset
     ins.after(_last_line(containers, key_line), _emit([{"name": name, "resources": resources}], dash_col, offset))
 
 
@@ -250,7 +240,6 @@ def migrate_text(text: str, _args: argparse.Namespace | None = None) -> tuple[st
     if not isinstance(doc, CommentedMap):
         return text, []
     want = load_safe(text)
-    offset = _seq_offset(doc)
     ins = Inserts()
     notes: list[str] = []
 
@@ -260,34 +249,37 @@ def migrate_text(text: str, _args: argparse.Namespace | None = None) -> tuple[st
             continue
         if not isinstance(node_sets, CommentedSeq):
             raise MigrationError(f"{'.'.join(path)} is not a block list; add the resources by hand")
-        # Indent new lists like this one: ruamel reports an item's column after its "- ".
-        key_col = _get(doc, path[:-1]).lc.key(path[-1])[1]
-        local = node_sets.lc.item(0)[1] - 2 - key_col if node_sets else offset
+        if not node_sets:
+            continue
+        # Indent new lists like this one.
+        offset = seq_offset(node_sets, _get(doc, path[:-1]).lc.key(path[-1])[1], 2)
         for index, node_set in enumerate(node_sets):
             line, col = node_sets.lc.item(index)
             set_name = node_set.get("name", index)
+            where = f"{'.'.join(path)}[{set_name}]"
+            before = len(ins.ops)
             pod_template = node_set.get("podTemplate")
-            if pod_template is None or (isinstance(pod_template, CommentedMap) and "spec" not in pod_template):
-                _ensure(node_set, line, col - 2,
-                        {"podTemplate": {"spec": {"containers": [{"name": name, "resources": resources}]}}}, ins, local)
+            spec = pod_template.get("spec") if isinstance(pod_template, CommentedMap) else None
+            if isinstance(spec, CommentedMap) and "containers" in spec:
+                _ensure_container(spec, name, resources, ins, f"{where}.podTemplate.spec")
             else:
-                spec = pod_template["spec"]
-                spec_line, spec_col = pod_template.lc.key("spec")
-                if not isinstance(spec, CommentedMap):
-                    raise MigrationError(f"{'.'.join(path)}[{set_name}].podTemplate.spec is not a mapping")
-                _ensure_container(spec, spec_line, spec_col, name, resources, ins, local)
+                _ensure(node_set, line, col - 2,
+                        {"podTemplate": {"spec": {"containers": [{"name": name, "resources": resources}]}}},
+                        ins, offset, where)
             expected_set = _get(want, path)[index]
             _expected_container(expected_set.setdefault("podTemplate", {}).setdefault("spec", {}), name, resources)
-            notes.append(f"{'.'.join(path)}[{set_name}]: {name} resources")
+            if len(ins.ops) > before:
+                notes.append(f"{where}: {name} resources")
 
     for path, name, resources in PODTEMPLATE_TARGETS:
         spec = _get(doc, (*path, "spec"))
         if not isinstance(spec, CommentedMap) or "containers" not in spec:
             continue  # no containers in the override: the chart's container resources apply
-        spec_line, spec_col = _get(doc, path).lc.key("spec")
-        _ensure_container(spec, spec_line, spec_col, name, resources, ins, offset)
+        before = len(ins.ops)
+        _ensure_container(spec, name, resources, ins, f"{'.'.join(path)}.spec")
         _expected_container(_get(want, (*path, "spec")), name, resources)
-        notes.append(f"{'.'.join(path)}: {name} resources")
+        if len(ins.ops) > before:
+            notes.append(f"{'.'.join(path)}: {name} resources")
 
     if not ins.ops:
         return text, []

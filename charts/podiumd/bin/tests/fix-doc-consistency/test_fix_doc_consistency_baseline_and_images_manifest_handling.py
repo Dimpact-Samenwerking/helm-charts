@@ -314,7 +314,7 @@ def test_main_corrects_mi_shaped_stale_name_and_new_dependency_wording_everywher
     values_deltas = (repo_with_mi_shaped_stale_docs / "4.9.0-to-4.9.1-values-deltas.md").read_text(encoding="utf-8")
 
     assert "| mi-data (MI-data exports) | 2.90.0 (new) | 1.0.0 → 1.1.0 | - |" in upgrade
-    assert "### mi-data (MI-data exports) 2.90.0 (new) (chart 1.1.0, unchanged)" in upgrade
-    assert "## mi-data (MI-data exports) 2.90.0 (new) (chart 1.1.0, unchanged)" in values_deltas
+    assert "### mi-data (MI-data exports) 2.90.0 (new) (chart 1.0.0 → 1.1.0)" in upgrade
+    assert "## mi-data (MI-data exports) 2.90.0 (new) (chart 1.0.0 → 1.1.0)" in values_deltas
     assert "2.71.0" not in upgrade
     assert "2.71.0" not in values_deltas

@@ -18,7 +18,7 @@ global:
       pullPolicy: IfNotPresent
     curl: &curlImage
       repository: curlimages/curl
-      tag: "8.23.0@sha256:11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac"
+      tag: "8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93"
       pullPolicy: IfNotPresent
     busybox: &busyboxImage
       repository: library/busybox
@@ -26,16 +26,16 @@ global:
       pullPolicy: IfNotPresent
     postgres: &postgresImage
       repository: library/postgres
-      tag: "16.15-alpine@sha256:deb28ee471183cb0c303113dac9b2433c51eeeeb678def7af9a9ec5820367815"
+      tag: "16.15-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab"
       pullPolicy: IfNotPresent
-    # kubectl for the redis-ha Jobs and the zookeeper-operator hooks. No template
-    # reads this key: the anchor is resolved in this file only, so overriding it
-    # in an environment changes nothing. Environments set their ACR mirror on
-    # each of the three image paths that use it (global.imageRegistry does not
-    # apply to them).
+    # kubectl for the redis-ha Jobs, the zookeeper-operator hooks and the ZAC
+    # restart Job. No template reads this key: the anchor is resolved in this
+    # file only, so overriding it in an environment changes nothing.
+    # Environments set their ACR mirror on each of the four image paths that
+    # use it (global.imageRegistry does not apply to them).
     alpineK8s: &alpineK8sImage
       repository: docker.io/alpine/k8s
-      tag: "1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4"
+      tag: "1.37.2@sha256:dcb7185e112a453aa72f426754849a97357727ef8f40168fb208c8cf59952042"
 
 tags:
   eck-operator.enabled: false
@@ -119,13 +119,13 @@ keycloak:
         name: Monitoring (Grafana)
         enabled: true
         secret: ""
-        # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while this client is enabled (keycloak.config.clients.monitoring.enabled) and this is empty or an example.nl URL. E.g. `https://monitoring.example.nl`.
+        # -- Public https URL of Grafana from the monitoring-logging chart; the Keycloak client's redirect URIs are built from it. Empty: monitoring-logging is not installed and the realm gets no `monitoring` client. The render fails on an example.nl URL. E.g. `https://monitoring.example.nl`.
         oidcUrl: ""
       datamigratie:
         name: Datamigratie
         enabled: true
         secret: ""
-        # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while this client is enabled (keycloak.config.clients.datamigratie.enabled) and this is empty or an example.nl URL. E.g. `https://datamigratie.example.nl`.
+        # -- Public https URL of the standalone Datamigratie app; the Keycloak client's redirect URIs are built from it. Empty: Datamigratie is not installed and the realm gets no `datamigratie` client. The render fails on an example.nl URL. E.g. `https://datamigratie.example.nl`.
         oidcUrl: ""
       # zaakbrug Frank!Framework console OAuth2 client. Only rendered into the
       # podiumd realm import when zaakbrug.enabled=true. Env values supply the
@@ -140,10 +140,12 @@ keycloak:
   name: "keycloak"
   features:
     enabled: []
-  # -- new hostname configuration for keycloak-operator, falls back to config.adminFrontendUrl if not defined
+  # -- hostname configuration for keycloak-operator. `hostname` falls back to config.adminFrontendUrl, or with `useRealmFrontendUrl` to config.realmFrontendUrl first; `admin` falls back to config.adminFrontendUrl
   hostname:
     hostname: ""
     admin: ""
+    # -- Without `hostname`, use config.realmFrontendUrl as Keycloak's public hostname instead of config.adminFrontendUrl. For fresh installs; on an existing environment, turning it on moves the public hostname and restarts Keycloak (see docs/apps/keycloak/keycloak-BASICS.md).
+    useRealmFrontendUrl: false
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
@@ -160,7 +162,7 @@ keycloak:
     registry: ""
     repository: &keycloakImageRepo quay.io/keycloak/keycloak
     tag: &keycloakImageVersion "26.8.1"
-    sha: &keycloakImageDigest "79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244"
+    sha: &keycloakImageDigest "3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332"
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   # How the Keycloak operator applies a change of the Keycloak CR (IN-3176).
@@ -169,9 +171,8 @@ keycloak:
   # checks whether the old and new versions can run side by side; if so it
   # replaces the pods one at a time, otherwise it still recreates them. That
   # rolls a patch release or the same version from another registry; a minor
-  # or major upgrade is still recreated. Any
-  # field of the CR's spec.update (strategy, revision, labels, scheduling) can
-  # be set here.
+  # or major upgrade is still recreated. Any field of the CR's spec.update
+  # (strategy, revision, labels, scheduling) can be set here.
   update:
     # -- Keycloak operator update strategy: Auto, Explicit or RecreateOnImageChange.
     strategy: Auto
@@ -256,46 +257,6 @@ keycloak:
                       values:
                         - keycloak
                 topologyKey: kubernetes.io/hostname
-      initContainers:
-        - name: keycloak-builder
-          # image is intentionally not set here - it will be automatically populated
-          # by the keycloak-cr.yaml template to match the main Keycloak image version
-          # (see line 69 in templates/keycloak-cr.yaml)
-          securityContext:
-            allowPrivilegeEscalation: false
-            runAsNonRoot: true
-            runAsUser: 1000
-            capabilities:
-              drop:
-                - ALL
-            seccompProfile:
-              type: RuntimeDefault
-          resources:
-            requests:
-              memory: "512Mi"
-              cpu: "250m"
-            limits:
-              memory: "1Gi"
-              cpu: "1000m"
-          command:
-            - /bin/bash
-            - -c
-            - |
-              set -e
-              export KC_DB=postgres
-              export KC_PROXY_HEADERS=xforwarded
-              export KC_CACHE=ispn
-              export KC_METRICS_ENABLED=true
-              export KC_HEALTH_ENABLED=true
-              /opt/keycloak/bin/kc.sh build
-              rm -rf /opt/keycloak/build/quarkus /opt/keycloak/build/providers
-              mkdir -p /opt/keycloak/build/quarkus /opt/keycloak/build/providers
-              cp -a /opt/keycloak/lib/quarkus/. /opt/keycloak/build/quarkus/
-              cp -a /opt/keycloak/providers/. /opt/keycloak/build/providers/ 2>/dev/null || true
-          volumeMounts:
-            - name: keycloak-build-data
-              mountPath: /opt/keycloak/build
-              subPath: ""
       containers:
         - name: keycloak
           securityContext:
@@ -314,12 +275,14 @@ keycloak:
             limits:
               memory: "1Gi"
               cpu: "1000m"
+          # Liveness and readiness start only after the startup probe succeeds, so
+          # an initial delay only holds back Ready.
           livenessProbe:
             httpGet:
               path: /health/live
               port: 9000
               scheme: HTTP
-            initialDelaySeconds: 120
+            initialDelaySeconds: 0
             periodSeconds: 30
             timeoutSeconds: 5
             failureThreshold: 5
@@ -328,7 +291,7 @@ keycloak:
               path: /health/ready
               port: 9000
               scheme: HTTP
-            initialDelaySeconds: 60
+            initialDelaySeconds: 0
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
@@ -337,20 +300,10 @@ keycloak:
               path: /health/started
               port: 9000
               scheme: HTTP
-            initialDelaySeconds: 30
-            periodSeconds: 10
+            initialDelaySeconds: 0
+            periodSeconds: 5
             timeoutSeconds: 5
-            failureThreshold: 30
-          volumeMounts:
-            - name: keycloak-build-data
-              mountPath: /opt/keycloak/lib/quarkus
-              subPath: quarkus
-            - name: keycloak-build-data
-              mountPath: /opt/keycloak/providers
-              subPath: providers
-      volumes:
-        - name: keycloak-build-data
-          emptyDir: {}
+            failureThreshold: 66  # 330 s, as before
   # -- new keycloak entrypoint configuration, falls back to proxyHeaders if headers is not set
   proxy:
     headers: "xforwarded"
@@ -406,7 +359,7 @@ keycloak-operator:
       # `operator.image.sha: ""`. See
       # docs/_UPGRADE_PATHS/4.7.3-to-4.7.4-upgrade.md.
       tag: "26.8.1"
-      sha: "60996d513b9e9945657b348655c98071c366bb0212deefa1508785941b1651dc"
+      sha: "4c88e4e9a9d488efd6487ab602974d3cb762ff2ee6f173b2716df418bfe33e53"
     resources:
       requests:
         cpu: 100m
@@ -443,8 +396,8 @@ keycloak-operator:
       initImage:
         registry: ""
         repository: python
-        # Digest-pinned to a specific patch rather than the floating 3.14-slim minor tag.
-        tag: "3.14.7-slim@sha256:51dafde81dbdb6ebde285137a295cf18a47ca95234fe388a343719cb97305b3d"
+        # Digest-pinned to a specific patch rather than the floating 3.15-slim minor tag.
+        tag: "3.15.2-slim@sha256:8c13a3f37a6a5b71498228e902c4b9f51c1f7900d49fabf71f9a650c6120e0d0"
       # Main container: runs psql to execute the generated SQL against the Keycloak DB.
       image: *postgresImage
     ensureOperatorSa:
@@ -467,7 +420,7 @@ keycloak-operator:
           cpu: 50m
           memory: 256Mi
         limits:
-          cpu: 500m
+          cpu: "2"
           memory: 512Mi
     # -- Resources applied to lightweight keycloak job containers (curl, python, psql): ensure-operator-sa, ensure-podiumd-admin-user.
     resources:
@@ -483,7 +436,7 @@ keycloak-operator:
         cpu: 50m
         memory: 256Mi
       limits:
-        cpu: 200m
+        cpu: "2"
         memory: 512Mi
 
 redis-operator:
@@ -633,8 +586,10 @@ redis-operator:
     # then write to a read-only replica (IN-2869). With this check a pod labelled master that
     # reports `role:slave` itself is NotReady and drops out of the Service. The pod reads its own
     # labels through a downward API volume (/etc/podinfo). A correctly labelled replica is never
-    # NotReady, so rolling updates are not blocked. Disable to fall back to the operator's PING
-    # probe.
+    # NotReady, so rolling updates are not blocked. A replica also closes its app connections older
+    # than 10 s: apps that connected before replication was set up (fresh install) or during a
+    # failover keep them otherwise, and every write fails with READONLY (podiumd-chart-28).
+    # Disable to fall back to the operator's PING probe.
     masterReadinessCheck:
       enabled: true
     redisConfig:
@@ -695,7 +650,9 @@ openzaak:
       enabled: false
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       ttlSecondsAfterFinished: 600
       restartPolicy: Never
       resources: {}
@@ -891,7 +848,8 @@ openzaak:
   resources:
     requests:
       cpu: 250m
-      memory: 512Mi
+      # Peaked at 872Mi storing four concurrent 45 MB documents.
+      memory: 1Gi
   worker:
     replicaCount: 1
     livenessProbe:
@@ -976,7 +934,9 @@ opennotificaties:
       enabled: false
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       restartPolicy: OnFailure
       resources: {}
     secrets:
@@ -1239,7 +1199,9 @@ objecten:
       enabled: false
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
@@ -1289,6 +1251,13 @@ objecten:
     #         token: "REP_OBJECTEN_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
     #         contact_person: Person 1
     #         email: person-1@example.com
+    #         # Destroying a zaak deletes its productaanvraag object: needs read_and_write.
+    #         # Without permissions the token can reach no object at all. The object type must
+    #         # be in objecttypes.items below: that step runs first, and a permission on an
+    #         # unknown object type fails the configuration job.
+    #         permissions:
+    #           - object_type: "REP_ZAC_PRODUCTAANVRAAG_UUID_REP"
+    #             mode: read_and_write
     #       # IN-2345: this token MUST equal the 'Token <...>' value in the
     #       # openbeheer objecttypen-service header (same OBJECTTYPEN_OPENBEHEER_TOKEN
     #       # secret on both sides). Only enable this entry when openbeheer is
@@ -1318,6 +1287,8 @@ objecten:
     #       - uuid: 366c9b88-a870-438c-b0ec-a121cd51f1dd
     #         name: demo
     #         # NOTE: `service_identifier` removed upstream in 4.0.0 — objecttypes are local now
+    #       - uuid: "REP_ZAC_PRODUCTAANVRAAG_UUID_REP"
+    #         name: Productaanvraag-Dimpact
     #   oidc_db_config_enable: true
     #   oidc_use_pkce: false -- not read by the app yet (mozilla-django-oidc-db has no OIDC_USE_PKCE field); keep configuration.pkceEnabled false
     #   oidc_db_config_admin_auth:
@@ -1448,6 +1419,13 @@ objecten:
   # objecttypen.create_required_objecttypen_job.* block.
   create_required_objecttypen_job:
     enabled: true
+    # Objecttypes (by objecttypes_data "name", e.g. Medewerker, Afdeling, Groep, InterneTaak,
+    # Kennisartikel, VAC, Productaanvraag-Dimpact, Activiteitenlog) that get a new published
+    # version when their latest published version's jsonSchema differs from the chart's
+    # files/objecttypen/<name>.json. Objecttypes not listed here are never updated.
+    # Empty by default: a listed type's own published versions are superseded by the
+    # chart's schema on every deploy, so an environment opts in per type.
+    updateExistingVersions: []
     # Total wall-clock window in which the job is allowed to keep retrying (seconds). Default: 15 minutes.
     activeDeadlineSeconds: 900
     # Number of retries before the job is marked failed. Aligned with django-config jobs.
@@ -1479,7 +1457,9 @@ openarchiefbeheer:
       enabled: true
       # Chart 2.1.0 runs this Job as a post-install/post-upgrade hook (defaults 0 and
       # Never): retries keep a Keycloak that is not ready yet from failing the release.
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       restartPolicy: OnFailure
     secrets:
       keycloak_client_secret: ""
@@ -1663,12 +1643,11 @@ openarchiefbeheer:
     postDestructionVisibilityPeriod: 7
     # -- If true, the inline presentation of related objects is disabled, reducing load on external registers.
     relatedCountDisabled: false
-    # logging:
-    # -- Controls whether the logs are output to standard output (true) or to a file (false, default)
-    #   toStdout: false
-    # -- Controls the log levels of project code and of the OIDC library.
-    # Possible values: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL.
-    #   level: INFO
+    logging:
+      # -- Write the application logs to stdout (true) or to a file in the container (false, subchart default). Grafana only collects container stdout/stderr, so the logs are only visible there with true.
+      toStdout: true
+      # -- Log level of project code and of the OIDC library. Possible values: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL.
+      level: INFO
     frontend:
       apiUrl: ""
       apiPath: "/api/v1"
@@ -1684,8 +1663,8 @@ openarchiefbeheer:
       axes: redis-ha-master:6379/13
       choices: redis-ha-master:6379/14
     celery:
-      # -- Set to debug for test/acceptance environments
-      logLevel: warning
+      # -- Log level of the celery worker and beat. On warning beat logs only its startup banner and the worker a few lines a day, so they hardly show in Grafana. Set to debug for test/acceptance environments.
+      logLevel: info
       brokerUrl: redis://redis-ha-master:6379/14
       # The openarchiefbeheer chart 2.1.0 reads resultBackend; the misspelled resultBackendl left it empty.
       resultBackend: redis://redis-ha-master:6379/14
@@ -1718,7 +1697,9 @@ openklant:
       enabled: false
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
@@ -1884,7 +1865,9 @@ openformulieren:
     enabled: true
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       restartPolicy: OnFailure
     secrets:
       keycloak_client_secret: ""
@@ -2146,11 +2129,12 @@ openformulieren:
     volumeAttributeShareName: openformulieren
     storageClassName: podiumd-standard
   image:
-    tag: "4.0.2@sha256:e1cad4bcf2319a3eb106e51156bf69c6be83da9dd070e977f52ec1079455b8e3"
+    tag: "4.0.7@sha256:12c975259f37eb91973a722d1f4e3f0ccf09aa037c08ecbd200350efd4ed493a"
   resources:
     requests:
       cpu: 250m
-      memory: 1Gi
+      # Four concurrent 45 MB uploads with ZGW registration peaked at 1606Mi.
+      memory: 1792Mi
   worker:
     replicaCount: 1
     livenessProbe:
@@ -2159,7 +2143,8 @@ openformulieren:
     resources:
       requests:
         cpu: 200m
-        memory: 1Gi
+        # Peaked at 1375Mi registering four concurrent 45 MB submissions.
+        memory: 1536Mi
   nameOverride: openformulieren
   fullnameOverride: openformulieren
   flower:
@@ -2207,7 +2192,9 @@ openinwoner:
       enabled: false
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       restartPolicy: OnFailure
       resources: {}
     data: ""
@@ -2442,7 +2429,7 @@ openinwoner:
     volumeAttributeShareName: openinwoner
     storageClassName: podiumd-standard
   image:
-    tag: "2.4.7@sha256:f78563302f20a0b8f8f156e5328aae4343261c3b91994f6e1b964104ed66d58e"
+    tag: "2.5.0@sha256:079c98ceae963ea78ef2d9848a5aed88857dee415938e00b666ad2636deec4e0"
   resources:
     requests:
       cpu: 200m
@@ -2573,7 +2560,9 @@ referentielijsten:
       enabled: false
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
@@ -2682,7 +2671,9 @@ openbeheer:
     overwrite: false
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       ttlSecondsAfterFinished: 600
       restartPolicy: Never
       resources: {}
@@ -2863,7 +2854,9 @@ openvtb:
     overwrite: false
     job:
       enabled: true
-      backoffLimit: 6
+      # Enough retries to outlast Keycloak still pulling its image on a fresh
+      # install (podiumd-chart-31).
+      backoffLimit: 12
       ttlSecondsAfterFinished: 600
       restartPolicy: Never
       # -- Resources of the setup-configuration Job (one Django process).
@@ -3061,7 +3054,7 @@ kiss-eck:
     # -- elasticsearch image; spec.version is the tag's version part. ACR: override repository only.
     image:
       repository: docker.elastic.co/elasticsearch/elasticsearch
-      tag: "8.19.23@sha256:4d0724bb8d78d7a2330693623e26ca4d621079d062ecc8a30b3e1fc180ec14c1"
+      tag: "8.19.24@sha256:d6dfe6626d645cfec66e91009aca60c6c1bb6f94d34253528f24d8cea2f94ba6"
     # -- default sizing, kept equal to the previous release (kiss-elastic used
     # elasticsearchCount: 3). Environments can override nodeSets (e.g. nodeSelector,
     # count, storage), the same way openinwoner.eck-elasticsearch.nodeSets is set.
@@ -3112,7 +3105,7 @@ kiss-eck:
     # -- enterprise-search image; spec.version is the tag's version part. ACR: override repository only.
     image:
       repository: docker.elastic.co/enterprise-search/enterprise-search
-      tag: "8.19.23@sha256:08d6d698cdd2a0d00f463def05200bfeb0e3c123bfc4a1a799a2577f36ca2bc6"
+      tag: "8.19.24@sha256:68a919341aa7c04528d49f4e7375ba603fe5c37080caab918731a6cab9f4a906"
     config:
       app_search.engine.total_fields.limit: 1000
       kibana.host: https://kiss-kb-http:5601
@@ -3131,7 +3124,7 @@ kiss-eck:
     # -- kibana image; spec.version is the tag's version part. ACR: override repository only.
     image:
       repository: docker.elastic.co/kibana/kibana
-      tag: "8.19.23@sha256:920b24f689833d34205f426f5359864378a572e829c53016073f0a6837c2e995"
+      tag: "8.19.24@sha256:c712b5ab0a82d272eff6192edd4ae75b6b07477b3d1b13cabaa2934744727b4d"
     count: 1
     config:
       server.publicBaseUrl: https://kiss-kb-http:5601
@@ -3574,6 +3567,23 @@ zac:
     failureThreshold: 16
     periodSeconds: 30
     timeoutSeconds: 1
+  # -- Job (templates/zac-restart-after-openzaak-config.yaml) that restarts ZAC when its
+  # deployment failed because ZAC started before Open Zaak had its client and catalogus
+  # (podiumd-chart-30). Without it, only the liveness probe above restarts ZAC, 8 minutes later.
+  restartAfterOpenzaakConfig:
+    enabled: true
+    image: *alpineK8sImage
+    # -- Seconds to wait for openzaak-config and create-required-catalogi-job; after that the
+    # Job gives up without restarting ZAC.
+    timeoutSeconds: 1200
+    nodeSelector: {}
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
   initContainer:
     securityContext:
       runAsNonRoot: true
@@ -3615,6 +3625,10 @@ zac:
       requests:
         cpu: 50m
         memory: 64Mi
+      # The zac chart's 128Mi filled to 119Mi with page cache during two
+      # concurrent 500 MB uploads.
+      limits:
+        memory: 256Mi
   notificationsSecretKey: "changeme"
   # Since the objecten/objecttypen merge ZAC reads only objectenApi: the merged
   # Objecten app serves the Objecttypen API too. zac.objecttypenApi is gone in
@@ -3636,6 +3650,15 @@ zac:
     image:
       # repository: gotenberg/gotenberg
       tag: "8.38.1@sha256:aa552cc115db488e0f0bcb07446aac13071ad51505b642c84bb894500907b42b"
+    # Gotenberg needs about 200Mi plus 60Mi per 12-megapixel photo, and ZAC accepts
+    # files up to 500 MB: the zac chart's 1Gi limit OOM-kills a Word file with 40
+    # photos (podiumd-chart-39).
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        memory: 2Gi
   opa:
     securityContext:
       runAsNonRoot: true
@@ -3706,10 +3729,10 @@ zac:
       busyBoxImage: *busyboxImage
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.11.0-slim@sha256:3b70e899b1cca19729c49c110a1aa8e937f727be4cca3ad07ea67f151f5cc07d
+      # library/solr:9.11.0-slim@sha256:54cec2ced0f2c26436605a7dd5dde5ae78f26d5c0d19a7358349d5cb71fdfc1a
       image:
         #repository:
-        tag: 9.11.0-slim@sha256:3b70e899b1cca19729c49c110a1aa8e937f727be4cca3ad07ea67f151f5cc07d
+        tag: 9.11.0-slim@sha256:54cec2ced0f2c26436605a7dd5dde5ae78f26d5c0d19a7358349d5cb71fdfc1a
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       # Solr jobs (affinity, annotations, nodeSelector, tolerations): ZAC chart defaults.
@@ -3857,12 +3880,12 @@ clamav:
   # serviceMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 ServiceMonitor).
   image:
     repository: clamav/clamav
-    tag: "1.5.4@sha256:e19130cdebaeacc71fa46eab3ed6f69941f2f22aa5e08d55e9197f8edf43ce5e"
+    tag: "1.5.4@sha256:6d87c712e3391e13c1ba6e05dfb074d4b1ddb5a6834b23bb9da990d2a4ef042a"
   metrics:
     enabled: false
     image:
       repository: docker.io/sergeymakinen/clamav_exporter
-      tag: "v2.1.9@sha256:ac694b06337090d0ad1d5fb3a44f46e905bdd3f1901758587ae0d650854f8600"
+      tag: "v2.1.12@sha256:66bc4f313d4c1f3baa73a75cb57a5c55c1095fb8687c6eb6cd66954eed084911"
     serviceMonitor:
       enabled: false
   nameOverride: clamav
@@ -4280,7 +4303,9 @@ pabc:
     # functional roles, so without these a seeded PABC still grants nothing.
     # The Job only adds (kcadm create/add-roles) and never touches client
     # roles or removes anything. Needs keycloak-operator.enabled and
-    # keycloak-operator.jobs.ensureOperatorSa.clientSecret.
+    # keycloak-operator.jobs.ensureOperatorSa.clientSecret. Left out when
+    # keycloak.config.skipRoles and skipGroups are both false: the realm import
+    # then creates the same roles and groups.
     keycloak:
       enabled: true
       resources:
@@ -4526,7 +4551,7 @@ frankgateway:
   # Digest-pinned; matches docs/images/images-baseline.yaml.
   image:
     repository: ghcr.io/wearefrank/frank-gateway
-    tag: "1.1.4@sha256:eb03ea3df1b89f37357e500f6635d2c2ba16296fdc62a0a82e2441de04576217"
+    tag: "1.2.1@sha256:f22de6b89d5586e3d92950f98dce4da6c301dd60d4454704b6417db90a2324b3"
   # Per class. Two, not one: one replica means every pod event — a crash, an
   # eviction, a node image upgrade, an autoscaler consolidation — is an outage
   # of that traffic class. Raise for load, never lower below 2 in an
@@ -5115,7 +5140,7 @@ zaakbrug:
   image:
     registry: wearefrank
     repository: zaakbrug
-    tag: "1.26.19@sha256:4c90dddac58fdbe813566417c796b5890ab86a4ffd70f143460b6b9b379eec8c"
+    tag: "1.27.1@sha256:5f87a0b971a49af7b995d9b3fd7118b5b03ebe419ce0c1593417d1a28235272a"
   # K8s cgroup limits sized for the Frank!Framework JVM heap (subchart
   # default Xms=Xmx=4G via .Values.frank.memory.{minimum,maximum}).
   # Overhead ≈1Gi headroom for non-heap (metaspace, code cache, direct
@@ -5214,7 +5239,7 @@ openbao:
     enabled: false
     image:
       repository: hashicorp/vault-k8s
-      tag: "1.7.6@sha256:55e27b080c9b0469fd420dfb3631243488c6319504b779423caa46c529a95490"
+      tag: "1.7.7@sha256:ecb3a6f77a756d5e7209bd9c5ded027c71ce86691d6f308b0e5bf7b6e61b5eb0"
 
   # CSI Provider (upstream subchart default: OFF, same as here). Not currently
   # used — PodiumD's secrets consumption doesn't go through the Secrets Store
@@ -5294,7 +5319,7 @@ openbao:
       # its anchor), so the server and this Job always run the same OpenBao.
       image:
         repository: quay.io/openbao/openbao
-        tag: &openbaoImageTag "2.7.1@sha256:6d2b93856e3fcf7b18ad855a0b51eaba474dc8b79cf554379ea32034797d2acf"
+        tag: &openbaoImageTag "2.7.2@sha256:5046911075e137e154ce49ab051502f4ec7cf367d484ae4a4dce665d9b90561f"
       nodeSelector: {}
       resources:
         requests:
@@ -5531,6 +5556,12 @@ openbao:
           tls_disable     = 1
           address         = "[::]:8200"
           cluster_address = "[::]:8201"
+          # The public openbao host must send it too, also where no edge adds it.
+          custom_response_headers {
+            "default" = {
+              "X-Content-Type-Options" = ["nosniff"]
+            }
+          }
         }
         {{- if or (.Values.global.serverTelemetry).prometheusOperator .Values.serverTelemetry.serviceMonitor.enabled }}
 

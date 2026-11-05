@@ -12,9 +12,11 @@ Run a script as `python3 <script>`: Python then finds this module next to it.
 from __future__ import annotations
 
 import argparse
+import copy
 import difflib
 import glob
 import os
+import re
 import sys
 from collections.abc import Callable
 
@@ -57,6 +59,103 @@ def load_safe_all(text: str) -> list:
     return list(YAML(typ="safe", pure=True).load_all(text))
 
 
+def plain_scalar(value) -> str:
+    """A scalar for an inserted `key: value` line, quoted only when YAML would read it differently."""
+    text = str(value)
+    safe = load_safe(f"k: {text}")
+    return text if safe == {"k": text} else "'" + text.replace("'", "''") + "'"
+
+
+def seq_offset(seq, key_col: int, default: int) -> int:
+    """How far a block list indents "- " under its key; ruamel reports an item's column after its "- "."""
+    if seq:
+        found = seq.lc.item(0)[1] - 2 - key_col
+        if found >= 0:
+            return found
+    return default
+
+
+# `key: |`, `|-` or `|+`, optionally followed by a comment.
+_LITERAL_HEADER = re.compile(r":\s*\|[-+]?\s*(#.*)?$")
+
+
+def line_indent(line: str) -> int:
+    """The number of leading spaces of `line`."""
+    return len(line) - len(line.lstrip(" "))
+
+
+def literal_block(lines: list[str], mapping, key: str, path: str) -> tuple[int, int, int]:
+    """(start, end, indent) of the content lines of the literal block `key: |`.
+
+    `mapping` is the round-trip-loaded mapping that holds `key`; `lines` are the
+    file's lines. Content line j of the block is lines[start + j] without its
+    first `indent` columns, so the line numbers of a round-trip load of the
+    block's value map onto the file. Trailing blank lines belong to what
+    follows. Raises MigrationError when it is not a literal block.
+    """
+    line = mapping.lc.key(key)[0]
+    if not _LITERAL_HEADER.search(lines[line]):
+        raise MigrationError(f"line {line + 1}: {path} is not a literal block (|)")
+    start = line + 1
+    indent = line_indent(next((ln for ln in lines[start:] if ln.strip()), ""))
+    end = start
+    while end < len(lines) and (not lines[end].strip() or lines[end].startswith(" " * indent)):
+        end += 1
+    while end > start and not lines[end - 1].strip():
+        end -= 1
+    return start, end, indent
+
+
+def block_end(lines: list[str], first: int, end: int, key_col: int) -> int:
+    """The line after the block that starts at lines[first] and whose keys are at
+    column key_col: before the first non-blank line left of key_col, at most `end`.
+
+    Trailing blank lines and comments left of the keys belong to what follows.
+    """
+    stop = first + 1
+    for n in range(first + 1, end):
+        line = lines[n]
+        if not line.strip():
+            continue
+        if line_indent(line) < key_col:
+            break
+        stop = n + 1
+    return stop
+
+
+OBJECTEN_DATA_PATH = "objecten.configuration.data"
+
+
+def objecten_data(doc: dict) -> tuple[str | None, dict]:
+    """(the objecten.configuration.data block, its parsed value); (None, {}) without it."""
+    data = ((doc.get("objecten") or {}).get("configuration") or {}).get("data")
+    if not data:
+        return None, {}
+    if not isinstance(data, str):
+        raise MigrationError(f"{OBJECTEN_DATA_PATH} is not a block scalar string")
+    return data, load_safe(data) or {}
+
+
+def creates_object_type(inner: dict, uuid: str, name: str) -> bool:
+    """Whether objecten's objecttypes.items creates the object type, by uuid or by name.
+
+    Objecten runs the objecttypes step before tokenauth, and a permission on an
+    unknown object type fails the configuration job.
+    """
+    objecttypes = (inner.get("objecttypes") or {}).get("items") or []
+    return any(isinstance(t, dict) and (t.get("uuid") == uuid or t.get("name") == name) for t in objecttypes)
+
+
+def verify_objecten_data_edit(new: str, doc: dict, want: dict) -> None:
+    """Raise MigrationError unless `new` parses to `doc` with objecten.configuration.data replaced by `want`."""
+    expected = copy.deepcopy(doc)
+    expected["objecten"]["configuration"]["data"] = want
+    got = load_safe(new)
+    got["objecten"]["configuration"]["data"] = load_safe(got["objecten"]["configuration"]["data"])
+    if got != expected:
+        raise MigrationError("self-check failed: the edited file does not match the intended values; nothing written")
+
+
 def error_note(e: Exception) -> str:
     """The note for a file that failed: a MigrationError's own text, else the
     exception type with the YAML error's line and problem when it has them."""
@@ -85,6 +184,8 @@ def migrate_file(
     check_notes: Callable[[list[str]], list[str]] | None = None,
 ) -> tuple[str, list[str]]:
     """(status, notes) for one file; writes it unless --dry-run or --check.
+
+    Under --dry-run the status is still "migrated"; run() shows it as "would migrate".
 
     Universal newlines read CRLF as LF, so a migrated file is written with LF.
     check_notes picks the notes shown for a file that needs migrating under --check.
@@ -150,14 +251,19 @@ def run(
     all_notes: list[list[str]] = []
     # Under --dry-run stdout carries the diff only.
     out = sys.stderr if args.dry_run else sys.stdout
+
+    def label(status: str) -> str:
+        # --dry-run writes nothing, so its output must not say "migrated".
+        return "would migrate" if args.dry_run and status == "migrated" else status
+
     for path in files:
         status, notes = migrate_file(path, migrate, args, check_notes)
         counts[status] += 1
         all_notes.append(notes)
-        print(f"[{status}] {path}", file=out)
+        print(f"[{label(status)}] {path}", file=out)
         for note in notes:
             print(f"    - {note}", file=out)
-    summary = ", ".join(f"{v} {k}" for k, v in counts.items() if v or k in ("unchanged", "error"))
+    summary = ", ".join(f"{v} {label(k)}" for k, v in counts.items() if v or k in ("unchanged", "error"))
     if summary_suffix:
         summary += summary_suffix(counts, all_notes)
     print(f"\n{summary}", file=out)
