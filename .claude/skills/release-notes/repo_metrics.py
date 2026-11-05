@@ -140,7 +140,10 @@ def window_head(path, ref, until):
 
 
 def tests_added(path, ref, since, until):
-    base, head = window_base(path, ref, since), window_head(path, ref, until)
+    head = window_head(path, ref, until)
+    if not head:  # the repository has no commit yet at the end of the period
+        return {"test_functions_added": 0, "test_functions_removed": 0, "test_files_added": 0}
+    base = window_base(path, ref, since)
     diff = run(["git", "diff", base, head, "--", "tests", "unit_tests"], cwd=path)
     plus = sum(1 for m in TEST_DEF.finditer(diff) if m[0].startswith("+"))
     minus = sum(1 for m in TEST_DEF.finditer(diff) if m[0].startswith("-"))
@@ -170,7 +173,10 @@ def test_runs(results_dir, version, since, until):
 
 
 def known_issue_counts(path, ref, since, until):
-    base, head = window_base(path, ref, since), window_head(path, ref, until)
+    head = window_head(path, ref, until)
+    if not head:  # the repository has no commit yet at the end of the period
+        return {"reports_added": 0, "issues_per_state": {}}
+    base = window_base(path, ref, since)
     added = run(["git", "diff", "--diff-filter=A", "--name-only", base, head, "--", "issues"], cwd=path)
     readme = run(["git", "show", f"{head}:README.md"], cwd=path, check=False)
     states = {}
@@ -211,7 +217,8 @@ def main():
     ap.add_argument("--namespace", default="podiumd")
     a = ap.parse_args()
 
-    baseline = a.baseline or baseline_version()
+    # With an explicit --since the baseline is only a label: don't guess it.
+    baseline = a.baseline or (None if a.since else baseline_version())
     since = a.since or (baseline and tag_date(f"podiumd-{baseline}"))
     until = a.until or tag_date(f"podiumd-{a.version}") or dt.date.today().isoformat()
     if not since:
