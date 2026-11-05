@@ -151,12 +151,16 @@ mirroren"), never "spiegelen", "triaged" (the known-issue group), never "getriee
      (podiumd-local-review) and the ExternalsPodiumD environments (Azure
      DevOps), plus two parts of helm-charts itself: the release tooling
      (`charts/podiumd/{bin,scripts,etc}`, `.claude`, `.github`) and the
-     monitoring-logging chart. Per part: commits on all branches, authors,
-     lines, merged PRs.
+     monitoring-logging chart. Per part: commits on the default branch and the
+     integration branches (release branches; for podiumd-infra all branches),
+     authors, lines and merged PRs, selected by author date; and separately
+     the commits that are only on other branches (`other_branches`).
    - Per repository it adds:
-     - podiumd-tests: test functions added and removed, and the test runs
-       against this chart version, by tier and environment, with their
-       totals;
+     - podiumd-tests: test functions added and removed (approximate: a
+       renamed or moved test counts as one added and one removed), and the
+       test runs against this chart version by tier, with their totals. The
+       JSON also has them per environment; environment names stay out of the
+       notes;
      - known-issues: reports added, and issues per state;
      - review tooling: local-LLM reviews of release PRs from the review
        ledger.
@@ -172,6 +176,14 @@ mirroren"), never "spiegelen", "triaged" (the known-issue group), never "getriee
    - Write it as one short table plus one line on the test runs. Lines of
      code are not a measure of value: show them, but lead with tests added,
      test runs and issues found.
+   - **The numbers are indications, not exact.** Use the default-branch
+     figures in the table. Mention `other_branches` only as "nog niet
+     gemerged of op andere branches", never added to the table: it can hold
+     the original commits of a squash-merged PR whose branch was kept. Say
+     "ongeveer" for the test count.
+   - A repository whose clone or tool (`gh`, `kubectl`) is missing gets an
+     `error` entry; the others are still counted. Leave its row out, or
+     write "niet gemeten".
 
 ## Size
 

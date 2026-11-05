@@ -18,11 +18,19 @@ same period, the work in the repositories around it:
 | release-tooling | helm-charts: bin, scripts, etc, .claude, .github | public | - |
 | monitoring-logging | helm-charts: charts/monitoring-logging | public | - |
 
-Per repository: commits (no merges) on all branches of origin, each counted
-once, so work on feature branches that is not merged yet counts too (the QA
-infrastructure works on long-lived branches); authors; lines added and
-deleted; merged PRs (from the commit subjects: "Merge pull request #N" or
-"... (#N)"). The test and report counts use the default branch.
+Per repository: commits (no merges) on the default branch and the repository's
+integration branches (helm-charts: feature/podiumd-*, feature/monitoring-logging-*,
+release/*; ExternalsPodiumD: feature/info-podiumd-*; podiumd-infra: all branches,
+it does not squash-merge), authors, lines
+added and deleted, merged PRs (from the commit subjects: "Merge pull request
+#N", "... (#N)" or "Merged PR N:"); and, separately in "other_branches", the
+commits that are only on other branches of origin. Those are unmerged work
+(the QA infrastructure works on long-lived branches), but can also be the
+original commits of a squash-merged PR whose branch was kept: never add them
+to the default-branch figures. Commits are selected by author date, which a
+rebase keeps. The test and report counts use the default branch; the test
+count compares `def test_` lines, so a renamed or moved test counts as one
+added and one removed (approximate).
 
 Period: from the date of the tag podiumd-<baseline> (baseline from
 charts/podiumd/etc/release-baseline.yaml, or --baseline) to the date of the tag
@@ -55,17 +63,23 @@ import sys
 import tempfile
 
 HELM_CHARTS = "Dimpact-Samenwerking/helm-charts"
+HC_INTEGRATION = ["feature/podiumd-*", "feature/monitoring-logging-*", "release/*"]
 REPOS = [
-    # key, slug, public, role for the notes (Dutch), paths (None: the whole repository)
-    ("podiumd-tests", "infonl/podiumd-tests", True, "podiumd-tests (testset)", None),
-    ("podiumd-minikube", "infonl/podiumd-minikube", True, "podiumd-minikube (lokale testomgeving)", None),
-    ("known-issues", "infonl/podiumd-known-issues", False, "het interne overzicht van bekende problemen", None),
-    ("qa-infra", "ICATT-Menselijk-Digitaal/podiumd-infra", False, "de QA-infrastructuur", None),
-    ("review-tooling", "infonl/podiumd-local-review", False, "de reviewtooling (lokale LLM-reviews)", None),
-    ("externals", "ssctwente/ExternalsPodiumD", False, "de ExternalsPodiumD-omgevingen (waarden en pipelines)", None),
+    # key, slug, public, role for the notes (Dutch), paths (None: whole repository),
+    # integration branches next to the default branch: the branches work is merged into.
+    # Their commits count as done work; commits only on other branches are reported apart.
+    ("podiumd-tests", "infonl/podiumd-tests", True, "podiumd-tests (testset)", None, []),
+    ("podiumd-minikube", "infonl/podiumd-minikube", True, "podiumd-minikube (lokale testomgeving)", None, []),
+    ("known-issues", "infonl/podiumd-known-issues", False, "het interne overzicht van bekende problemen", None, []),
+    # podiumd-infra works on long-lived branches and does not squash-merge: every branch counts.
+    ("qa-infra", "ICATT-Menselijk-Digitaal/podiumd-infra", False, "de QA-infrastructuur", None, ["*"]),
+    ("review-tooling", "infonl/podiumd-local-review", False, "de reviewtooling (lokale LLM-reviews)", None, []),
+    ("externals", "ssctwente/ExternalsPodiumD", False, "de ExternalsPodiumD-omgevingen (waarden en pipelines)", None,
+     ["feature/info-podiumd-*"]),
     ("release-tooling", HELM_CHARTS, True, "de releasetooling in helm-charts (scripts, controles, skills)",
-     ["charts/podiumd/bin", "charts/podiumd/scripts", "charts/podiumd/etc", ".claude", ".github"]),
-    ("monitoring-logging", HELM_CHARTS, True, "de monitoring-logging-chart", ["charts/monitoring-logging"]),
+     ["charts/podiumd/bin", "charts/podiumd/scripts", "charts/podiumd/etc", ".claude", ".github"], HC_INTEGRATION),
+    ("monitoring-logging", HELM_CHARTS, True, "de monitoring-logging-chart", ["charts/monitoring-logging"],
+     HC_INTEGRATION),
 ]
 PR_SUBJECT = re.compile(r"Merge pull request #(\d+)|\(#(\d+)\)\s*$|^Merged PR (\d+):")
 TEST_DEF = re.compile(r"^[+-]\s*(?:async\s+)?def test_\w+", re.M)
@@ -80,8 +94,11 @@ def run(args, cwd=None, check=True):
 
 def tag_date(tag):
     """Date of a helm-charts tag (from GitHub), or None when it does not exist."""
-    p = subprocess.run(["gh", "api", f"repos/Dimpact-Samenwerking/helm-charts/commits/{tag}",
-                        "--jq", ".commit.committer.date"], capture_output=True, text=True)
+    try:
+        p = subprocess.run(["gh", "api", f"repos/Dimpact-Samenwerking/helm-charts/commits/{tag}",
+                            "--jq", ".commit.committer.date"], capture_output=True, text=True)
+    except OSError:
+        return None
     return p.stdout.strip()[:10] if p.returncode == 0 and p.stdout.strip() else None
 
 
@@ -89,7 +106,8 @@ def baseline_version():
     here = os.path.dirname(os.path.abspath(__file__))
     path = os.path.join(here, "..", "..", "..", "charts", "podiumd", "etc", "release-baseline.yaml")
     try:
-        text = open(path, encoding="utf-8").read()
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
     except OSError:
         return None
     m = re.search(r"^\s*upgrade_docs:\s*\"?([\d.]+)", text, re.M)
@@ -114,14 +132,18 @@ def default_ref(path):
     return out or "origin/main"
 
 
-def git_metrics(path, ref, since, until, paths=None):
-    window = [f"--since={since}T00:00:00Z", f"--until={until}T23:59:59Z"]
-    only = ["--", *paths] if paths else []
+def _log_metrics(path, refs, since, until, only):
+    """Commits (no merges), authors, lines and PR numbers of the commits reachable from
+    refs whose author date is in the period. Author date, not committer date: a
+    rebase resets the committer date, so rebased older work would count as new."""
     commits, authors, prs, added, deleted = 0, set(), set(), 0, 0
-    log = run(["git", "log", ref, *window, "--no-merges", "--format=%x00%H%x09%an%x09%s", "--numstat", *only], cwd=path)
+    log = run(["git", "log", *refs, "--no-merges", "--format=%x00%aI%x09%an%x09%s", "--numstat", *only],
+              cwd=path)
     for block in log.split("\x00")[1:]:
         head, _, stats = block.partition("\n")
-        _, author, subject = head.split("\t", 2)
+        date, author, subject = head.split("\t", 2)
+        if not since <= date[:10] <= until:
+            continue
         commits += 1
         authors.add(author)
         for m in PR_SUBJECT.finditer(subject):
@@ -130,12 +152,36 @@ def git_metrics(path, ref, since, until, paths=None):
             a, d, *_ = line.split("\t") + ["", ""]
             if a.isdigit() and d.isdigit():
                 added, deleted = added + int(a), deleted + int(d)
-    merges = run(["git", "log", ref, *window, "--merges", "--format=%s", *only], cwd=path)
-    for subject in merges.splitlines():
-        for m in PR_SUBJECT.finditer(subject):
-            prs.add(int(m[1] or m[2] or m[3]))
+    return commits, authors, prs, added, deleted
+
+
+def integration_refs(ref, patterns):
+    """The default branch plus the integration branches (git log arguments)."""
+    if "*" in patterns:
+        return [ref, "--remotes=origin"]
+    return [ref, *[f"--glob=refs/remotes/origin/{p}" for p in patterns]]
+
+
+def git_metrics(path, ref, since, until, paths=None, integration=()):
+    """Work on the default and integration branches (merged), plus commits that are
+    only on other branches of origin (not merged yet, or the pre-squash commits of a
+    squash-merged PR whose branch was kept), reported separately so the two are never
+    added up."""
+    only = ["--", *paths] if paths else []
+    refs = integration_refs(ref, integration)
+    commits, authors, prs, added, deleted = _log_metrics(path, refs, since, until, only)
+    merges = run(["git", "log", *refs, "--merges", "--format=%aI%x09%s", *only], cwd=path)
+    for line in merges.splitlines():
+        date, _, subject = line.partition("\t")
+        if since <= date[:10] <= until:
+            for m in PR_SUBJECT.finditer(subject):
+                prs.add(int(m[1] or m[2] or m[3]))
+    o_commits, o_authors, _, o_added, o_deleted = _log_metrics(
+        path, ["--remotes=origin", "--not", *refs], since, until, only)
     return {"commits": commits, "authors": len(authors), "merged_prs": len(prs),
-            "lines_added": added, "lines_deleted": deleted}
+            "lines_added": added, "lines_deleted": deleted,
+            "other_branches": {"commits": o_commits, "authors": len(o_authors),
+                               "lines_added": o_added, "lines_deleted": o_deleted}}
 
 
 def window_base(path, ref, since):
@@ -166,7 +212,8 @@ def test_runs(results_dir, version, since, until):
     totals = collections.Counter()
     for path in glob.glob(os.path.join(results_dir, "*", "*", "run.json")):
         try:
-            r = json.load(open(path, encoding="utf-8"))
+            with open(path, encoding="utf-8") as f:
+                r = json.load(f)
         except (OSError, ValueError):
             continue
         day = str(r.get("started", ""))[:10]
@@ -235,12 +282,14 @@ def main():
 
     out = {"target": a.version, "baseline": baseline, "since": since, "until": until, "repos": {}}
     with tempfile.TemporaryDirectory() as tmp:
-        for key, slug, public, role, paths in REPOS:
+        for key, slug, public, role, paths, integration in REPOS:
             entry = {"public": public, "notes_name": role}
             try:
                 path = clone(slug, a.clones_dir, tmp)
                 ref = default_ref(path)
-                entry.update(git_metrics(path, "--remotes=origin", since, until, paths))
+                entry.update(git_metrics(path, ref, since, until, paths, integration))
+                if integration:
+                    entry["integration_branches"] = integration
                 if paths:
                     entry["paths"] = paths
                 if key == "podiumd-tests":
@@ -251,7 +300,7 @@ def main():
                     entry.update(known_issue_counts(path, ref, since, until))
                 if key == "review-tooling":
                     entry["review_ledger"] = review_ledger(a.context, a.namespace, since, until)
-            except RuntimeError as e:
+            except (RuntimeError, OSError, ValueError) as e:
                 entry["error"] = str(e)[:300]
             out["repos"][key] = entry
 
@@ -264,6 +313,9 @@ def main():
             continue
         line = (f"{key:16} {e['commits']:4} commits, {e['merged_prs']:3} PRs, {e['authors']} authors, "
                 f"+{e['lines_added']}/-{e['lines_deleted']}")
+        ob = e.get("other_branches") or {}
+        if ob.get("commits"):
+            line += f" (other branches: {ob['commits']} commits)"
         if "test_functions_added" in e:
             r = e["test_runs"]
             line += (f"; tests +{e['test_functions_added']}/-{e['test_functions_removed']}, "
