@@ -103,7 +103,7 @@ Bron: git, {baseline-datum} tot {datum}. Privérepositories alleen als aantal.
 | Het interne overzicht van bekende problemen | {n} | {n} | +{n} / −{n} | {n} nieuwe meldingen |
 | De QA-infrastructuur | {n} | {n} | +{n} / −{n} | {wat} |
 | De reviewtooling | {n} | {n} | +{n} / −{n} | {n} lokale LLM-reviews van {n} PR's |
-| De ExternalsPodiumD-omgevingen (waarden en pipelines) | {n} | {n} | +{n} / −{n} | {n} PR's gemerged |
+| De inrichting van de externe ontwikkelomgevingen | {n} | {n} | +{n} / −{n} | {n} PR's gemerged |
 | Releasetooling in helm-charts (scripts, controles, skills, workflows) | {n} | {n} | +{n} / −{n} | {wat} |
 | De monitoring-logging-chart | {n} | {n} | +{n} / −{n} | {wat} |
 

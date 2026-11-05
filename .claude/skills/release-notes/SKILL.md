@@ -148,11 +148,15 @@ mirroren"), never "spiegelen", "triaged" (the known-issue group), never "getriee
    - It counts, from the baseline tag to the target tag (or today), the work
      in podiumd-tests, podiumd-minikube, the known-issues repository, the QA
      infrastructure (podiumd-infra), the review tooling
-     (podiumd-local-review) and the ExternalsPodiumD environments (Azure
-     DevOps), plus two parts of helm-charts itself: the release tooling
+     (podiumd-local-review) and the setup of the external development
+     environments (an Azure DevOps repository; it needs a local clone, there
+     is no `gh` fallback), plus two parts of helm-charts itself: the release tooling
      (`charts/podiumd/{bin,scripts,etc}`, `.claude`, `.github`) and the
      monitoring-logging chart. Per part: commits on the default branch and the
-     integration branches (release branches; for podiumd-infra all branches),
+     integration branches, matched by exact name (`feature/podiumd-X.Y.Z`,
+     `release/podiumd-X.Y.Z`, `feature/monitoring-logging-X.Y.Z`,
+     `feature/info-podiumd-X.Y`; for podiumd-infra all branches), without the
+     release-PR squash commits on `main` (they repeat the release branch),
      authors, lines and merged PRs, selected by author date; and separately
      the commits that are only on other branches (`other_branches`).
    - Per repository it adds:
@@ -170,9 +174,8 @@ mirroren"), never "spiegelen", "triaged" (the known-issue group), never "getriee
    - **Disclosure:** the known-issues repository, podiumd-infra and
      podiumd-local-review are private. Name them by role, as the `notes_name`
      field does ("het interne overzicht van bekende problemen", "de
-     QA-infrastructuur", "de reviewtooling"), and give counts only.
-     ExternalsPodiumD is named as the environments the guides already name,
-     with counts only.
+     QA-infrastructuur", "de reviewtooling", "de inrichting van de externe
+     ontwikkelomgevingen"), and give counts only.
    - Write it as one short table plus one line on the test runs. Lines of
      code are not a measure of value: show them, but lead with tests added,
      test runs and issues found.

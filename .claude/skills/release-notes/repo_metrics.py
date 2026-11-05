@@ -14,14 +14,15 @@ same period, the work in the repositories around it:
 | known-issues | infonl/podiumd-known-issues | private | reports added, issues per state in the index |
 | qa-infra | ICATT-Menselijk-Digitaal/podiumd-infra | private | - |
 | review-tooling | infonl/podiumd-local-review | private | local-LLM reviews of release PRs (review ledger) |
-| externals | ssctwente/ExternalsPodiumD (Azure DevOps) | private | merged PRs from "Merged PR N:" |
+| externals | ExternalsPodiumD (Azure DevOps; local clone only) | private | merged PRs from "Merged PR N:" |
 | release-tooling | helm-charts: bin, scripts, etc, .claude, .github | public | - |
 | monitoring-logging | helm-charts: charts/monitoring-logging | public | - |
 
 Per repository: commits (no merges) on the default branch and the repository's
-integration branches (helm-charts: feature/podiumd-*, feature/monitoring-logging-*,
-release/*; ExternalsPodiumD: feature/info-podiumd-*; podiumd-infra: all branches,
-it does not squash-merge), authors, lines
+integration branches, matched by exact name (helm-charts: feature/podiumd-X.Y.Z,
+feature/monitoring-logging-X.Y.Z, release/podiumd-X.Y.Z, leaving out the release-PR
+squash commits on main; ExternalsPodiumD: feature/info-podiumd-X.Y; podiumd-infra: all
+branches, it does not squash-merge), authors, lines
 added and deleted, merged PRs (from the commit subjects: "Merge pull request
 #N", "... (#N)" or "Merged PR N:"); and, separately in "other_branches", the
 commits that are only on other branches of origin. Those are unmerged work
@@ -63,7 +64,14 @@ import sys
 import tempfile
 
 HELM_CHARTS = "Dimpact-Samenwerking/helm-charts"
-HC_INTEGRATION = ["feature/podiumd-*", "feature/monitoring-logging-*", "release/*"]
+# Integration branches by exact name (regex on the branch name under origin/): a glob
+# like feature/podiumd-* would also take PR and work branches such as
+# feature/podiumd-4.10.0-keycloak-hostname, whose commits come back squashed.
+HC_INTEGRATION = [r"feature/podiumd-\d+\.\d+\.\d+", r"feature/monitoring-logging-\d+(\.\d+)+",
+                  r"release/podiumd-\d+\.\d+\.\d+"]
+# The release PR squash-merges feature/podiumd-X.Y.Z into main ("feature: PodiumD 4.10.0 (#482)"):
+# that commit repeats the release branch's commits, so it is not counted on main.
+HC_RELEASE_SQUASH = r"(?i)^(feature:?\s+)?podiumd \d+\.\d+\.\d+\b.*\(#\d+\)$"
 REPOS = [
     # key, slug, public, role for the notes (Dutch), paths (None: whole repository),
     # integration branches next to the default branch: the branches work is merged into.
@@ -74,8 +82,10 @@ REPOS = [
     # podiumd-infra works on long-lived branches and does not squash-merge: every branch counts.
     ("qa-infra", "ICATT-Menselijk-Digitaal/podiumd-infra", False, "de QA-infrastructuur", None, ["*"]),
     ("review-tooling", "infonl/podiumd-local-review", False, "de reviewtooling (lokale LLM-reviews)", None, []),
-    ("externals", "ssctwente/ExternalsPodiumD", False, "de ExternalsPodiumD-omgevingen (waarden en pipelines)", None,
-     ["feature/info-podiumd-*"]),
+    # Not on GitHub (Azure DevOps): only a local clone works. Only the PodiumD-release
+    # integration branches count (feature/info-podiumd-<minor>), where the environment PRs land.
+    ("externals", "ssctwente/ExternalsPodiumD", False, "de inrichting van de externe ontwikkelomgevingen", None,
+     [r"feature/info-podiumd-\d+\.\d+"]),
     ("release-tooling", HELM_CHARTS, True, "de releasetooling in helm-charts (scripts, controles, skills)",
      ["charts/podiumd/bin", "charts/podiumd/scripts", "charts/podiumd/etc", ".claude", ".github"], HC_INTEGRATION),
     ("monitoring-logging", HELM_CHARTS, True, "de monitoring-logging-chart", ["charts/monitoring-logging"],
@@ -114,7 +124,7 @@ def baseline_version():
     return m and m[1]
 
 
-def clone(slug, clones_dir, tmp):
+def clone(slug, clones_dir, tmp, github=True):
     name = slug.split("/")[1]
     path = os.path.join(clones_dir, name)
     if os.path.isdir(os.path.join(path, ".git")):
@@ -122,6 +132,8 @@ def clone(slug, clones_dir, tmp):
         if slug.lower() in remotes.lower():
             run(["git", "fetch", "-q", "origin"], cwd=path)
             return path
+    if not github:
+        raise RuntimeError(f"no local clone of {slug} in {clones_dir} (not on GitHub, so no gh clone)")
     path = os.path.join(tmp, name)
     run(["gh", "repo", "clone", slug, path, "--", "-q", "--filter=blob:none"])
     return path
@@ -132,7 +144,7 @@ def default_ref(path):
     return out or "origin/main"
 
 
-def _log_metrics(path, refs, since, until, only):
+def _log_metrics(path, refs, since, until, only, skip_subject=None):
     """Commits (no merges), authors, lines and PR numbers of the commits reachable from
     refs whose author date is in the period. Author date, not committer date: a
     rebase resets the committer date, so rebased older work would count as new."""
@@ -142,7 +154,7 @@ def _log_metrics(path, refs, since, until, only):
     for block in log.split("\x00")[1:]:
         head, _, stats = block.partition("\n")
         date, author, subject = head.split("\t", 2)
-        if not since <= date[:10] <= until:
+        if not since <= date[:10] <= until or (skip_subject and re.search(skip_subject, subject)):
             continue
         commits += 1
         authors.add(author)
@@ -155,21 +167,23 @@ def _log_metrics(path, refs, since, until, only):
     return commits, authors, prs, added, deleted
 
 
-def integration_refs(ref, patterns):
-    """The default branch plus the integration branches (git log arguments)."""
+def integration_refs(path, ref, patterns):
+    """The default branch plus the integration branches whose name fully matches one of
+    the regexes (git log arguments). "*" means every branch of origin."""
     if "*" in patterns:
         return [ref, "--remotes=origin"]
-    return [ref, *[f"--glob=refs/remotes/origin/{p}" for p in patterns]]
+    names = run(["git", "for-each-ref", "--format=%(refname:strip=3)", "refs/remotes/origin"], cwd=path).split()
+    return [ref, *[f"origin/{n}" for n in names if any(re.fullmatch(p, n) for p in patterns)]]
 
 
-def git_metrics(path, ref, since, until, paths=None, integration=()):
+def git_metrics(path, ref, since, until, paths=None, integration=(), skip_subject=None):
     """Work on the default and integration branches (merged), plus commits that are
     only on other branches of origin (not merged yet, or the pre-squash commits of a
     squash-merged PR whose branch was kept), reported separately so the two are never
     added up."""
     only = ["--", *paths] if paths else []
-    refs = integration_refs(ref, integration)
-    commits, authors, prs, added, deleted = _log_metrics(path, refs, since, until, only)
+    refs = integration_refs(path, ref, integration)
+    commits, authors, prs, added, deleted = _log_metrics(path, refs, since, until, only, skip_subject)
     merges = run(["git", "log", *refs, "--merges", "--format=%aI%x09%s", *only], cwd=path)
     for line in merges.splitlines():
         date, _, subject = line.partition("\t")
@@ -285,9 +299,10 @@ def main():
         for key, slug, public, role, paths, integration in REPOS:
             entry = {"public": public, "notes_name": role}
             try:
-                path = clone(slug, a.clones_dir, tmp)
+                path = clone(slug, a.clones_dir, tmp, github=key != "externals")
                 ref = default_ref(path)
-                entry.update(git_metrics(path, ref, since, until, paths, integration))
+                entry.update(git_metrics(path, ref, since, until, paths, integration,
+                                         HC_RELEASE_SQUASH if slug == HELM_CHARTS else None))
                 if integration:
                     entry["integration_branches"] = integration
                 if paths:
