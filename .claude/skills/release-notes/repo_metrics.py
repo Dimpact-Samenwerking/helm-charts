@@ -21,7 +21,8 @@ same period, the work in the repositories around it:
 Per repository: commits (no merges) on the default branch and the repository's
 integration branches, matched by exact name (helm-charts: feature/podiumd-X.Y.Z,
 feature/monitoring-logging-X.Y.Z, release/podiumd-X.Y.Z, leaving out the release-PR
-squash commits on main; ExternalsPodiumD: feature/info-podiumd-X.Y; podiumd-infra: all
+squash commits on main while the release branch's commits are still counted;
+ExternalsPodiumD: feature/info-podiumd-X.Y; podiumd-infra: all
 branches, it does not squash-merge), authors, lines
 added and deleted, merged PRs (from the commit subjects: "Merge pull request
 #N", "... (#N)" or "Merged PR N:"); and, separately in "other_branches", the
@@ -33,10 +34,11 @@ rebase keeps. The test and report counts use the default branch; the test
 count compares `def test_` lines, so a renamed or moved test counts as one
 added and one removed (approximate).
 
-Period: from the date of the tag podiumd-<baseline> (baseline from
-charts/podiumd/etc/release-baseline.yaml, or --baseline) to the date of the tag
-podiumd-<version>, or today while the release is not tagged. --since/--until
-override both (dates, UTC, inclusive).
+Period: from the commit time of the tag podiumd-<baseline> (exclusive) (baseline from
+charts/podiumd/etc/release-baseline.yaml, or --baseline) to the commit time of the tag
+podiumd-<version> (inclusive), or now while the release is not tagged, so a tag's own
+commit counts for that release only. --since/--until override both (dates, UTC, whole
+days, inclusive).
 
 Clones: <clones-dir>/<repo name> (default ~/IdeaProjects) when it exists and
 has the remote; otherwise a blobless clone in a temporary directory. Every
@@ -69,9 +71,11 @@ HELM_CHARTS = "Dimpact-Samenwerking/helm-charts"
 # feature/podiumd-4.10.0-keycloak-hostname, whose commits come back squashed.
 HC_INTEGRATION = [r"feature/podiumd-\d+\.\d+\.\d+", r"feature/monitoring-logging-\d+(\.\d+)+",
                   r"release/podiumd-\d+\.\d+\.\d+"]
-# The release PR squash-merges feature/podiumd-X.Y.Z into main ("feature: PodiumD 4.10.0 (#482)"):
-# that commit repeats the release branch's commits, so it is not counted on main.
-HC_RELEASE_SQUASH = r"(?i)^(feature:?\s+)?podiumd \d+\.\d+\.\d+\b.*\(#\d+\)$"
+# The release PR squash-merges feature/podiumd-X.Y.Z into main ("feature: PodiumD 4.10.0 (#482)",
+# "Feature/podiumd 4.8.2 (#389)"). That commit repeats the release branch's commits, but only
+# while those commits are still counted, i.e. reachable from an integration branch. Once the
+# release branch is deleted, the squash commit is the only copy of the release work and counts.
+HC_RELEASE_SQUASH = r"(?i)^(feature[:/]?\s*)?podiumd \d+\.\d+\.\d+\b.*\(#(\d+)\)$"
 REPOS = [
     # key, slug, public, role for the notes (Dutch), paths (None: whole repository),
     # integration branches next to the default branch: the branches work is merged into.
@@ -92,6 +96,8 @@ REPOS = [
      HC_INTEGRATION),
 ]
 PR_SUBJECT = re.compile(r"Merge pull request #(\d+)|\(#(\d+)\)\s*$|^Merged PR (\d+):")
+# Tools, not people: never count them as contributors (authors or Co-authored-by).
+NOT_A_PERSON = re.compile(r"(?i)\b(claude|copilot|renovate|dependabot)\b|\[bot\]")
 TEST_DEF = re.compile(r"^[+-]\s*(?:async\s+)?def test_\w+", re.M)
 
 
@@ -102,14 +108,27 @@ def run(args, cwd=None, check=True):
     return p.stdout
 
 
+def utc(iso):
+    """An ISO 8601 timestamp as an aware UTC datetime."""
+    return dt.datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone(dt.timezone.utc)
+
+
+def in_window(iso, since, until):
+    """since < t <= until: a tag's own commit belongs to that tag's release, not to the next."""
+    try:
+        return since < utc(iso) <= until
+    except ValueError:
+        return False
+
+
 def tag_date(tag):
-    """Date of a helm-charts tag (from GitHub), or None when it does not exist."""
+    """Commit time of a helm-charts tag (from GitHub, ISO 8601), or None when it does not exist."""
     try:
         p = subprocess.run(["gh", "api", f"repos/Dimpact-Samenwerking/helm-charts/commits/{tag}",
                             "--jq", ".commit.committer.date"], capture_output=True, text=True)
     except OSError:
         return None
-    return p.stdout.strip()[:10] if p.returncode == 0 and p.stdout.strip() else None
+    return p.stdout.strip() if p.returncode == 0 and p.stdout.strip() else None
 
 
 def baseline_version():
@@ -144,27 +163,71 @@ def default_ref(path):
     return out or "origin/main"
 
 
+def _pr_head(pr):
+    """The head commit of a helm-charts PR, or None (gh missing, PR unknown)."""
+    try:
+        p = subprocess.run(["gh", "pr", "view", str(pr), "-R", HELM_CHARTS, "--json", "headRefOid",
+                            "--jq", ".headRefOid"], capture_output=True, text=True)
+    except OSError:
+        return None
+    return p.stdout.strip() or None if p.returncode == 0 else None
+
+
+def squash_skipper(path, refs, pattern):
+    """A predicate: skip a release-PR squash commit on main only when the PR's head commit
+    is reachable from one of the integration branches (so its commits are counted there).
+    Without gh, fall back to: the release branch named in the subject exists."""
+    if not pattern:
+        return None
+    branches = [r for r in refs if r.startswith("origin/")]
+    cache = {}
+
+    def skip(subject):
+        m = re.search(pattern, subject)
+        if not m:
+            return False
+        pr = m[2]
+        if pr not in cache:
+            head = _pr_head(pr)
+            if head is None:
+                v = re.search(r"\d+\.\d+\.\d+", subject)[0]
+                cache[pr] = f"origin/feature/podiumd-{v}" in branches
+            else:
+                cache[pr] = any(subprocess.run(["git", "merge-base", "--is-ancestor", head, b], cwd=path,
+                                               capture_output=True).returncode == 0 for b in branches)
+        return cache[pr]
+    return skip
+
+
 def _log_metrics(path, refs, since, until, only, skip_subject=None):
-    """Commits (no merges), authors, lines and PR numbers of the commits reachable from
-    refs whose author date is in the period. Author date, not committer date: a
-    rebase resets the committer date, so rebased older work would count as new."""
-    commits, authors, prs, added, deleted = 0, set(), set(), 0, 0
-    log = run(["git", "log", *refs, "--no-merges", "--format=%x00%aI%x09%an%x09%s", "--numstat", *only],
+    """Commits (no merges), authors, lines, PR numbers and counted release-squash commits of
+    the commits reachable from refs whose author date is in the period. Author date, not
+    committer date: a rebase resets the committer date, so rebased older work would count
+    as new. A counted release-squash commit (its release branch is gone) stands for the
+    whole release branch: its Co-authored-by authors count too."""
+    commits, authors, prs, added, deleted, squashes = 0, set(), set(), 0, 0, 0
+    log = run(["git", "log", *refs, "--no-merges", "--format=%x00%H%x09%aI%x09%an%x09%s", "--numstat", *only],
               cwd=path)
     for block in log.split("\x00")[1:]:
         head, _, stats = block.partition("\n")
-        date, author, subject = head.split("\t", 2)
-        if not since <= date[:10] <= until or (skip_subject and re.search(skip_subject, subject)):
+        sha, date, author, subject = head.split("\t", 3)
+        if not in_window(date, since, until) or (skip_subject and skip_subject(subject)):
             continue
         commits += 1
-        authors.add(author)
+        if not NOT_A_PERSON.search(author):
+            authors.add(author)
+        if skip_subject and re.search(HC_RELEASE_SQUASH, subject):
+            squashes += 1
+            body = run(["git", "show", "-s", "--format=%b", sha], cwd=path)
+            authors.update(n for n in (m.strip() for m in re.findall(r"^Co-authored-by:\s*([^<]+)<", body, re.M))
+                           if not NOT_A_PERSON.search(n))
         for m in PR_SUBJECT.finditer(subject):
             prs.add(int(m[1] or m[2] or m[3]))
         for line in stats.splitlines():
             a, d, *_ = line.split("\t") + ["", ""]
             if a.isdigit() and d.isdigit():
                 added, deleted = added + int(a), deleted + int(d)
-    return commits, authors, prs, added, deleted
+    return commits, authors, prs, added, deleted, squashes
 
 
 def integration_refs(path, ref, patterns):
@@ -183,29 +246,30 @@ def git_metrics(path, ref, since, until, paths=None, integration=(), skip_subjec
     added up."""
     only = ["--", *paths] if paths else []
     refs = integration_refs(path, ref, integration)
-    commits, authors, prs, added, deleted = _log_metrics(path, refs, since, until, only, skip_subject)
+    skip = squash_skipper(path, refs, skip_subject)
+    commits, authors, prs, added, deleted, squashes = _log_metrics(path, refs, since, until, only, skip)
     merges = run(["git", "log", *refs, "--merges", "--format=%aI%x09%s", *only], cwd=path)
     for line in merges.splitlines():
         date, _, subject = line.partition("\t")
-        if since <= date[:10] <= until:
+        if in_window(date, since, until):
             for m in PR_SUBJECT.finditer(subject):
                 prs.add(int(m[1] or m[2] or m[3]))
-    o_commits, o_authors, _, o_added, o_deleted = _log_metrics(
+    o_commits, o_authors, _, o_added, o_deleted, _ = _log_metrics(
         path, ["--remotes=origin", "--not", *refs], since, until, only)
     return {"commits": commits, "authors": len(authors), "merged_prs": len(prs),
-            "lines_added": added, "lines_deleted": deleted,
+            "lines_added": added, "lines_deleted": deleted, "release_squash_commits": squashes,
             "other_branches": {"commits": o_commits, "authors": len(o_authors),
                                "lines_added": o_added, "lines_deleted": o_deleted}}
 
 
 def window_base(path, ref, since):
     """The last commit before the period, or the root when there is none."""
-    base = run(["git", "rev-list", "-1", f"--before={since}T00:00:00Z", ref], cwd=path).strip()
+    base = run(["git", "rev-list", "-1", f"--before={since.isoformat()}", ref], cwd=path).strip()
     return base or run(["git", "rev-list", "--max-parents=0", ref], cwd=path).split()[0]
 
 
 def window_head(path, ref, until):
-    return run(["git", "rev-list", "-1", f"--before={until}T23:59:59Z", ref], cwd=path).strip()
+    return run(["git", "rev-list", "-1", f"--before={until.isoformat()}", ref], cwd=path).strip()
 
 
 def tests_added(path, ref, since, until):
@@ -230,8 +294,7 @@ def test_runs(results_dir, version, since, until):
                 r = json.load(f)
         except (OSError, ValueError):
             continue
-        day = str(r.get("started", ""))[:10]
-        if str(r.get("chart_version")) != version or not since <= day <= until:
+        if str(r.get("chart_version")) != version or not in_window(str(r.get("started", "")), since, until):
             continue
         runs += 1
         tiers[r.get("tier") or "?"] += 1
@@ -264,8 +327,7 @@ def review_ledger(context, namespace, since, until):
     jobs = json.loads(p.stdout or "{}").get("jobs", {})
     reviewed, minutes, posted, prs = 0, 0.0, 0, set()
     for job in jobs.values():
-        day = str(job.get("reviewed_at") or "")[:10]
-        if not day or not since <= day <= until or job.get("repo") != "helm-charts":
+        if not in_window(str(job.get("reviewed_at") or ""), since, until) or job.get("repo") != "helm-charts":
             continue
         reviewed += 1
         minutes += float(job.get("minutes") or 0)
@@ -289,12 +351,22 @@ def main():
 
     # With an explicit --since the baseline is only a label: don't guess it.
     baseline = a.baseline or (None if a.since else baseline_version())
-    since = a.since or (baseline and tag_date(f"podiumd-{baseline}"))
-    until = a.until or tag_date(f"podiumd-{a.version}") or dt.date.today().isoformat()
-    if not since:
-        sys.exit("no start date: pass --since or --baseline (tag podiumd-<baseline> not found)")
+    # A date from the command line covers that whole day (UTC); a tag means its exact commit time.
+    if a.since:
+        since = utc(f"{a.since}T00:00:00Z") - dt.timedelta(microseconds=1)
+    else:
+        start = baseline and tag_date(f"podiumd-{baseline}")
+        if not start:
+            sys.exit("no start date: pass --since or --baseline (tag podiumd-<baseline> not found)")
+        since = utc(start)
+    if a.until:
+        until = utc(f"{a.until}T23:59:59Z")
+    else:
+        end = tag_date(f"podiumd-{a.version}")
+        until = utc(end) if end else dt.datetime.now(dt.timezone.utc)
 
-    out = {"target": a.version, "baseline": baseline, "since": since, "until": until, "repos": {}}
+    out = {"target": a.version, "baseline": baseline, "since": since.isoformat(), "until": until.isoformat(),
+           "repos": {}}
     with tempfile.TemporaryDirectory() as tmp:
         for key, slug, public, role, paths, integration in REPOS:
             entry = {"public": public, "notes_name": role}
@@ -321,7 +393,7 @@ def main():
 
     with open(a.out, "w", encoding="utf-8") as f:
         json.dump(out, f, indent=1, ensure_ascii=False)
-    print(f"{since} to {until} (baseline {baseline}, target {a.version})")
+    print(f"{since.isoformat()} to {until.isoformat()} (baseline {baseline}, target {a.version})")
     for key, e in out["repos"].items():
         if "error" in e:
             print(f"{key:16} error: {e['error']}")

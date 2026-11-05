@@ -179,6 +179,12 @@ mirroren"), never "spiegelen", "triaged" (the known-issue group), never "getriee
    - Write it as one short table plus one line on the test runs. Lines of
      code are not a measure of value: show them, but lead with tests added,
      test runs and issues found.
+   - **A release whose branch was deleted** counts through its release-PR
+     squash commit on `main` (`release_squash_commits`): its lines are right,
+     but it is one commit, and its contributors come from the
+     `Co-authored-by` lines. Write the commits for such a period as "(incl.
+     n samengevoegde releasecommit)". Tools (Claude, Copilot, Renovate, bots)
+     never count as contributors.
    - **The numbers are indications, not exact.** Use the default-branch
      figures in the table. Mention `other_branches` only as "nog niet
      gemerged of op andere branches", never added to the table: it can hold
