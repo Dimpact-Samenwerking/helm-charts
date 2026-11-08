@@ -123,6 +123,87 @@ def block_end(lines: list[str], first: int, end: int, key_col: int) -> int:
     return stop
 
 
+def mapping_at(doc, path: tuple[str, ...]):
+    """The mapping at `path` in a loaded document, or None when a key is missing or not a mapping."""
+    node = doc
+    for key in path:
+        if not isinstance(node, dict) or key not in node:
+            return None
+        node = node[key]
+    return node if isinstance(node, dict) else None
+
+
+def replace_scalar(text: str, doc, path: tuple[str, ...], key: str, new: str) -> str:
+    """`text` with the string value of `key` in the mapping at `path` replaced by `new`.
+
+    `doc` is the round-trip load of `text`. Only that value changes on its line,
+    so comments, quoting and REP_..._REP placeholders stay as they are. Raises
+    MigrationError when the value's layout is unexpected, or when the result does
+    not parse to the original values with only that one value changed.
+    """
+    mapping = mapping_at(doc, path)
+    old = mapping[key]
+    dotted = ".".join((*path, key))
+    line, col = mapping.lc.value(key)
+    lines = text.split("\n")
+    value_text = lines[line][col:]
+    quote = value_text[:1] if value_text[:1] in "'\"" else ""
+    if not value_text.startswith(f"{quote}{old}{quote}"):
+        raise MigrationError(f"{dotted}: unexpected value layout on line {line + 1}; nothing written")
+    lines[line] = lines[line][:col] + f"{quote}{new}{quote}" + value_text[len(old) + 2 * len(quote) :]
+    out = "\n".join(lines)
+
+    want = load_safe(text)
+    mapping_at(want, path)[key] = new
+    if load_safe(out) != want:
+        raise MigrationError("self-check failed: the edited file does not match the intended values; nothing written")
+    return out
+
+
+def migrate_image_repository(
+    text: str,
+    path: tuple[str, ...],
+    new_repository: Callable[[str, dict], str | None],
+    old_image: str,
+    new_image: str,
+    chart_version: str,
+) -> tuple[str, list[str]]:
+    """(text, notes) with the repository of the image block at `path` moved to a new image.
+
+    new_repository maps an old repository (and its image block) to the new one,
+    or None to leave it.
+    A tag override with the old image's "v" prefix is a MigrationError (the new
+    image has no such tag); any other tag than chart_version is a CHECK note.
+    """
+    doc = load_rt(text)
+    notes: list[str] = []
+    node = mapping_at(doc, path)
+    if node is None:
+        return text, notes
+    dotted = ".".join(path)
+    tag = node.get("tag")
+    if tag is not None:
+        version = str(tag).split("@", 1)[0].strip()
+        if version.startswith("v"):
+            raise MigrationError(
+                f"{dotted}.tag is {tag!r}, a tag of {old_image} that {new_image} does not have; "
+                f"remove it (the chart pins {chart_version}) and run again; nothing written"
+            )
+        if version != chart_version:
+            notes.append(
+                f"CHECK {dotted}.tag is set ({tag!r}): it must be the chart's {chart_version} pin, or be removed"
+            )
+    repo = node.get("repository")
+    if not isinstance(repo, str):
+        return text, notes
+    new = new_repository(repo, node)
+    if new is None:
+        return text, notes
+    out = replace_scalar(text, doc, path, "repository", new)
+    notes.append(f"{dotted}.repository: {repo} -> {new}")
+    return out, notes
+
+
 OBJECTEN_DATA_PATH = "objecten.configuration.data"
 
 

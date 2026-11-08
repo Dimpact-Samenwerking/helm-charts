@@ -47,9 +47,7 @@ import argparse
 import re
 import sys
 
-from migrate_common import MigrationError
-from migrate_common import load_rt
-from migrate_common import load_safe
+from migrate_common import migrate_image_repository
 from migrate_common import run
 
 HOOKS_PATH = ("zac", "solr-operator", "zookeeper-operator", "hooks", "image")
@@ -60,7 +58,7 @@ CHART_VERSION = "1.37.1"
 OLD_REPO = re.compile(r"^(?P<registry>(?:[^/]+/)*?)(?:lachlanevenson/)?k8s-kubectl$")
 
 
-def new_repository(repo: str) -> str | None:
+def new_repository(repo: str, _image: dict) -> str | None:
     """The alpine/k8s repository for an old k8s-kubectl one, or None when nothing changes."""
     m = OLD_REPO.match(repo.strip())
     if not m:
@@ -72,61 +70,7 @@ def new_repository(repo: str) -> str | None:
 
 
 def migrate_text(text: str, _args: argparse.Namespace | None = None) -> tuple[str, list[str]]:
-    doc = load_rt(text)
-    notes: list[str] = []
-    node = doc
-    for key in HOOKS_PATH:
-        if not isinstance(node, dict) or key not in node:
-            return text, notes
-        node = node[key]
-    if not isinstance(node, dict):
-        return text, notes
-    path = ".".join(HOOKS_PATH)
-    tag = node.get("tag")
-    if tag is not None:
-        version = str(tag).split("@", 1)[0].strip()
-        if version.startswith("v"):
-            raise MigrationError(
-                f"{path}.tag is {tag!r}, a k8s-kubectl tag that alpine/k8s does not have; "
-                f"remove it (the chart pins {CHART_VERSION}) and run again; nothing written"
-            )
-        if version != CHART_VERSION:
-            notes.append(f"CHECK {path}.tag is set ({tag!r}): it must be the chart's {CHART_VERSION} pin, or be removed")
-    repo = node.get("repository")
-    if not isinstance(repo, str):
-        return text, notes
-    new = new_repository(repo)
-    if new is None:
-        return text, notes
-
-    line, col = node.lc.value("repository")
-    lines = text.split("\n")
-    old_line = lines[line]
-    # The value starts at col; keep its quoting.
-    value_text = old_line[col:]
-    quote = value_text[:1] if value_text[:1] in "'\"" else ""
-    if not value_text.startswith(f"{quote}{repo}{quote}"):
-        raise MigrationError(
-            f"{path}.repository: unexpected value layout on line {line + 1}; nothing written"
-        )
-    lines[line] = (
-        old_line[:col]
-        + f"{quote}{new}{quote}"
-        + value_text[len(repo) + 2 * len(quote) :]
-    )
-    out = "\n".join(lines)
-
-    want = load_safe(text)
-    target = want
-    for key in HOOKS_PATH:
-        target = target[key]
-    target["repository"] = new
-    if load_safe(out) != want:
-        raise MigrationError(
-            "self-check failed: the edited file does not match the intended values; nothing written"
-        )
-    notes.append(f"{path}.repository: {repo} -> {new}")
-    return out, notes
+    return migrate_image_repository(text, HOOKS_PATH, new_repository, "k8s-kubectl", NEW_IMAGE, CHART_VERSION)
 
 
 if __name__ == "__main__":

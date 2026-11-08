@@ -442,6 +442,7 @@ keycloak-operator:
 redis-operator:
   enabled: true
   featureGates:
+    # Required by redis-ha's official redis image (see redis-ha.image).
     GenerateConfigInInitContainer: true
   redisOperator:
     imageName: quay.io/opstree/redis-operator
@@ -496,9 +497,14 @@ redis-operator:
     # from the shared chart labels and show up in Grafana as "podiumd" instead of
     # "redis-ha". Set to "" to omit the override.
     serviceName: redis-ha
+    # The official image, not quay.io/opstree/redis: with
+    # featureGates.GenerateConfigInInitContainer the operator writes redis.conf in its
+    # init-config container and starts `redis-server /etc/redis/redis.conf`, bypassing the
+    # image entrypoint, so opstree's entrypoint.sh is not needed and redis-ha can follow
+    # Redis releases without waiting for opstree. templates/validations.yaml enforces the gate.
     image:
-      repository: quay.io/opstree/redis
-      tag: "v8.10.1@sha256:d3ef5a7f11eb501034b6612b842c864e1946088c52c04b29a22f38b1fe37c99b"
+      repository: docker.io/library/redis
+      tag: "8.10.3-alpine@sha256:71885d8cc6e42f2bc0aa2eb853bfc4be200b5108a46ac50e117ae1df0531fb80"
     # override: values-enable-observability.yaml sets redisExporter.enabled: true
     redisExporter:
       enabled: false

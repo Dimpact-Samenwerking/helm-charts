@@ -3,10 +3,15 @@
 # Images new or changed in podiumd 4.10.2 vs 4.10.1.
 #
 # Changes:
+#   1. redis-operator - redis v8.10.1 -> 8.10.3-alpine.
 #
 # See docs/_UPGRADE_PATHS/4.10.1-to-4.10.2-upgrade.md for the operator upgrade notes.
 #
 # Digests are the OCI image index (multi-arch manifest) digest as returned in
 # the Docker-Content-Digest response header from the source registry.
 
-[]
+#   sidecar: redis-operator - redis v8.10.1 -> 8.10.3-alpine
+- name: library/redis
+  url: docker.io/library/redis
+  version: "8.10.3-alpine"
+  digest: "sha256:71885d8cc6e42f2bc0aa2eb853bfc4be200b5108a46ac50e117ae1df0531fb80"

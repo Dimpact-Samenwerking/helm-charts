@@ -17,9 +17,15 @@ operator.
 
 - Upstream: [Redis](https://redis.io/), deployed and managed by the
   [OT-CONTAINER-KIT redis-operator](https://github.com/OT-CONTAINER-KIT/redis-operator).
-- Images: `quay.io/opstree/redis` tag `v8.6.6`
-  (`redis-operator.redis-ha.image`); operator `quay.io/opstree/redis-operator`
-  tag `v0.26.0` (`redis-operator.redisOperator`).
+- Images: the official `docker.io/library/redis` tag `8.10.3-alpine`
+  (`redis-operator.redis-ha.image`, since 4.10.2; before that
+  `quay.io/opstree/redis`); operator `quay.io/opstree/redis-operator` tag
+  `v0.27.0` (`redis-operator.redisOperator`). Any redis image works because
+  the operator's feature gate `GenerateConfigInInitContainer` (on in
+  values.yaml, enforced by `templates/validations.yaml`) writes `redis.conf`
+  in an `init-config` container and starts `redis-server /etc/redis/redis.conf`,
+  bypassing the image entrypoint. The official image logs
+  `Failed to write PID file` at startup; that is harmless.
 - Role in PodiumD: one shared HA Redis cluster replaces the per-component
   Redis subcharts. Each app gets its own **logical databases** (32 configured,
   `redis-operator.redis-ha.databases`) — see the allocation table in

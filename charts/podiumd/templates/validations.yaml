@@ -348,6 +348,26 @@
 {{- if and $redisHaCheck.enabled ($redisHaCheck.masterReadinessCheck | default dict).enabled (not ($redisHaCheck.labelMasterCronJob | default dict).enabled) -}}
 {{- fail "redis-operator.redis-ha.masterReadinessCheck.enabled needs redis-operator.redis-ha.labelMasterCronJob.enabled: an old master that comes back as a replica keeps its redis-role=master label and stays NotReady, and only the label-master CronJob removes that label. Turn the CronJob on, or turn masterReadinessCheck off." -}}
 {{- end -}}
+{{- /* redis-ha: 4.10.2 pins the official library/redis by tag. An environment that
+     still overrides the repository with its mirror of opstree/redis gets
+     <mirror>/opstree/redis:8.10.3-alpine@sha256:..., which does not exist, and the
+     redis-ha pods fail to pull. */ -}}
+{{- $redisOperatorCheck := index .Values "redis-operator" | default dict -}}
+{{- $redisHaOn := and $redisOperatorCheck.enabled $redisHaCheck.enabled -}}
+{{- $redisHaImage := $redisHaCheck.image | default dict -}}
+{{- if not (kindIs "map" $redisHaImage) -}}{{- $redisHaImage = dict -}}{{- end -}}
+{{- $redisHaRepo := toString ($redisHaImage.repository | default "") -}}
+{{- if and $redisHaOn (regexMatch "(^|/)opstree/redis$" $redisHaRepo) (not (hasPrefix "v" (toString ($redisHaImage.tag | default "")))) -}}
+{{- fail (printf "redis-operator.redis-ha.image.repository is %q, the old opstree/redis image, but 4.10.2 pins library/redis %s. Point it at the same registry's library/redis (scripts/migrate-redis-ha-image-4.10.2.py does that), and mirror library/redis by digest. See \"redis-ha: official redis image\" in docs/_UPGRADE_PATHS/4.10.1-to-4.10.2-upgrade.md" $redisHaRepo (toString $redisHaImage.tag)) -}}
+{{- end -}}
+{{- /* Only opstree/redis has an entrypoint that configures redis-server itself. Any
+     other image (the official library/redis) relies on the operator writing
+     redis.conf in its init-config container, which only GenerateConfigInInitContainer
+     turns on. Without it redis starts on its defaults: protected mode, no AOF on
+     /data and 16 databases, while the apps use up to db 20. */ -}}
+{{- if and $redisHaOn $redisHaRepo (not (regexMatch "(^|/)opstree/redis$" $redisHaRepo)) (ne (toString (dig "featureGates" "GenerateConfigInInitContainer" false $redisOperatorCheck)) "true") -}}
+{{- fail (printf "redis-operator.redis-ha.image.repository %q needs redis-operator.featureGates.GenerateConfigInInitContainer: true: only then does the operator write redis.conf and start redis-server with it; the image's own entrypoint does not configure redis-ha" $redisHaRepo) -}}
+{{- end -}}
 {{- /* zac.auth.pkceEnabled only set PKCE on the Keycloak client, not in ZAC
      itself, so turning it on alone broke the login. zac.auth.enablePkce (the
      ZAC sub-chart's own key) now drives both sides. Only `true` is refused:

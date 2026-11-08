@@ -67,10 +67,10 @@
   version: "v0.27.0"
   digest: "sha256:25799bf10231167ee1cb76a21cc7b1890ed521cbdb6d1724a912ee07b02fd958"
 
-- name: opstree/redis
-  url: quay.io/opstree/redis
-  version: "v8.10.1"
-  digest: "sha256:d3ef5a7f11eb501034b6612b842c864e1946088c52c04b29a22f38b1fe37c99b"
+- name: library/redis
+  url: docker.io/library/redis
+  version: "8.10.3-alpine"
+  digest: "sha256:71885d8cc6e42f2bc0aa2eb853bfc4be200b5108a46ac50e117ae1df0531fb80"
 
 - name: opstree/redis-exporter
   url: quay.io/opstree/redis-exporter
