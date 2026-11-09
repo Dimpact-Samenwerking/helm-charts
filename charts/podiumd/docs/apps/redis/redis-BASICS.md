@@ -24,8 +24,9 @@ operator.
   the operator's feature gate `GenerateConfigInInitContainer` (on in
   values.yaml, enforced by `templates/validations.yaml`) writes `redis.conf`
   in an `init-config` container and starts `redis-server /etc/redis/redis.conf`,
-  bypassing the image entrypoint. The official image logs
-  `Failed to write PID file` at startup; that is harmless.
+  bypassing the image entrypoint. Redis logs `Failed to write PID file` at
+  startup (the generated config's `/var/run` is not writable for uid 1000);
+  that is harmless.
 - Role in PodiumD: one shared HA Redis cluster replaces the per-component
   Redis subcharts. Each app gets its own **logical databases** (32 configured,
   `redis-operator.redis-ha.databases`) — see the allocation table in
