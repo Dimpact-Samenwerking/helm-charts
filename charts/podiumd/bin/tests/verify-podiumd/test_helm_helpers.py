@@ -109,7 +109,8 @@ def test_report_largest_templates_output(vp: ModuleType, capsys: pytest.CaptureF
     text = "# Source: a.yaml\nline\nline\n# Source: b.yaml\nline\n"
     vp.report_largest_templates(text, 5)
     out = capsys.readouterr().out
-    assert "a.yaml" in out and "b.yaml" in out
+    assert "a.yaml" in out
+    assert "b.yaml" in out
 
 
 def test_report_largest_templates_no_sources_prints_nothing(vp: ModuleType, capsys: pytest.CaptureFixture[str]):
@@ -203,9 +204,9 @@ def test_resource_line_none_when_not_found(librenderscope: ModuleType):
 def _clear_render_cache(librenderscope: ModuleType):
     """Clear render_chart's module-level cache so cached renders don't leak between tests
     (librenderscope is session-scoped)."""
-    librenderscope._render_cache.clear()
+    librenderscope.render_cache.clear()
     yield
-    librenderscope._render_cache.clear()
+    librenderscope.render_cache.clear()
 
 
 def _sequenced_run(rendered, returncode=0, stderr=""):
@@ -236,7 +237,8 @@ def test_render_chart_passes_extra_args_through(
 
     monkeypatch.setattr(librenderscope, "run", _run)
     librenderscope.render_chart(tmp_path, ["-f", "values.yaml"])
-    assert "-f" in captured["cmd"] and "values.yaml" in captured["cmd"]
+    assert "-f" in captured["cmd"]
+    assert "values.yaml" in captured["cmd"]
 
 
 def test_render_chart_propagates_failure(librenderscope: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

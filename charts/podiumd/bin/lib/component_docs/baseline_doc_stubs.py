@@ -5,15 +5,12 @@ create-doc-version and fix-doc-consistency."""
 
 from pathlib import Path
 
-from lib.chart.chart_yaml import ChartDependency
-from lib.release_baseline import resolve_baseline_chart_state
 from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
 from lib.upgradedoc.doc_names import doc_name
 from lib.upgradedoc.doc_names import doc_name_re
 from lib.upgradedoc.doc_names import images_manifest_path
 from lib.upgradedoc.sorting_and_ordering import CHANGES_HEADING
 from lib.upgradedoc.string_and_parsing_basics import heading_slug
-from lib.yaml_types import YamlMapping
 
 # Bare placeholder lines the stubs write; shared with the "is this just the
 # stub" checks so they can't drift. Both upgrade-doc placeholders are cleared
@@ -142,15 +139,19 @@ IMAGES_STUB_TEMPLATE = (
 )
 
 
-def existing_doc_baselines(doc_dir: Path, target: str) -> dict[str, list[tuple[str, Path]]]:
+# (upgrade_docs_baseline, path) of one existing upgrade doc.
+type BaselineDoc = tuple[str, Path]
+
+
+def existing_doc_baselines(doc_dir: Path, target: str) -> dict[str, list[BaselineDoc]]:
     """{suffix: [(upgrade_docs_baseline, path), ...]} for every *-to-<target>-<suffix>.md in doc_dir."""
     pattern = doc_name_re(target)
-    by_suffix: dict[str, list[tuple[str, Path]]] = {}
+    by_suffix: dict[str, list[BaselineDoc]] = {}
     for path in doc_dir.glob(f"*-to-{target}-*.md"):
-        m = pattern.fullmatch(path.name)
-        if not m:
+        name_match = pattern.fullmatch(path.name)
+        if not name_match:
             continue
-        by_suffix.setdefault(m.group("suffix"), []).append((m.group("baseline"), path))
+        by_suffix.setdefault(name_match.group("suffix"), []).append((name_match.group("baseline"), path))
     return by_suffix
 
 
@@ -174,22 +175,3 @@ def create_missing_docs(doc_dir: Path, images_dir: Path, upgrade_docs_baseline: 
         )
         created.append(images_path.name)
     return created
-
-
-def load_baseline_state(
-    # kept for signature compat
-    chart_yaml_path: Path,  # pylint: disable=unused-argument  # noqa: ARG001
-    values_path: Path,
-    upgrade_docs_baseline: str,
-) -> tuple[list[ChartDependency], YamlMapping] | tuple[None, None]:
-    """(baseline_deps, baseline_values) at the upgrade_docs_baseline's git ref.
-
-    Includes Chart.yaml so callers can detect chart version moves, letting a
-    component bumped twice in one cycle still document baseline -> final.
-    Returns (None, None) if the ref or Chart.yaml can't be resolved; callers
-    then fall back to their own before/after comparison. chart_yaml_path is
-    unused (derived from values_path.parent)."""
-    _ref, baseline_deps, baseline_values, _lines, error = resolve_baseline_chart_state(
-        values_path.parent, upgrade_docs_baseline
-    )
-    return (None, None) if error else (baseline_deps, baseline_values)

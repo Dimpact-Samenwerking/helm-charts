@@ -12,10 +12,10 @@ from lib.component_docs.changes_section import changes_body_kinds
 from lib.component_docs.changes_section import edited_changes_lines
 from lib.component_docs.changes_section import fix_pointer_issues
 from lib.component_docs.changes_section import make_changes_section
+from lib.component_docs.changes_section import make_image_changes_section
 from lib.component_docs.changes_section import pointer_issues
 from lib.component_docs.changes_section import render_changes_section
 from lib.component_docs.changes_section import replace_changes_section
-from lib.image.docs import make_image_changes_section
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
 from lib.upgradedoc.version_cells import pin_version_text
 from lib.upgradedoc.version_cells import version_transition
@@ -176,10 +176,10 @@ POINTER = "- Image / digest: see [`images-4.9.3.yaml`](../images/images-4.9.3.ya
 def test_render_changes_section_separates_parts_with_one_blank_line():
     bullets = ["- Image tag pin `a.image.tag` `1` → `2` in\n", "  `charts/podiumd/values.yaml`.\n"]
     assert render_changes_section("a 1 → 2", ["Intro\n", "more.\n"], bullets, "4.9.3") == (
-        "### a 1 → 2\n\nIntro\nmore.\n\n" + "".join(bullets) + "\n" + POINTER + "\n"
+        "".join(["### a 1 → 2\n\nIntro\nmore.\n\n", *bullets, "\n", POINTER, "\n"])
     )
     assert render_changes_section("a 2", [], ["- `a.tag` `2` (new)\n"], "4.9.3") == (
-        "### a 2\n\n- `a.tag` `2` (new)\n\n" + POINTER + "\n"
+        f"### a 2\n\n- `a.tag` `2` (new)\n\n{POINTER}\n"
     )
 
 
@@ -199,10 +199,10 @@ def test_version_transition_and_pin_version_text(old: str | None, new: str, head
 DOC = (
     "# Upgrade guide\n\n## Changes\n\n"
     "### zac 1 → 2\n\n"
-    "- Image tag pin `zac.image.tag` `1` → `2` in\n  `charts/podiumd/values.yaml`.\n" + POINTER + "\n"
-    "### curl 1 → 2\n\npinned at:\n\n- `global.images.curl.tag` `1` → `2`\n" + POINTER + "\n"
-    "### ok 1 → 2\n\n- `ok.tag` `1` → `2`\n\n" + POINTER + "\n"
-    "## Notes\n\nText\n" + POINTER
+    f"- Image tag pin `zac.image.tag` `1` → `2` in\n  `charts/podiumd/values.yaml`.\n{POINTER}\n"
+    f"### curl 1 → 2\n\npinned at:\n\n- `global.images.curl.tag` `1` → `2`\n{POINTER}\n"
+    f"### ok 1 → 2\n\n- `ok.tag` `1` → `2`\n\n{POINTER}\n"
+    f"## Notes\n\nText\n{POINTER}"
 )
 
 
@@ -217,9 +217,9 @@ def test_pointer_without_blank_line_is_reported_only_inside_changes_blocks():
 def test_fix_pointer_issues_adds_blank_lines_and_is_idempotent():
     text, fixed = fix_pointer_issues(DOC, "4.9.3")
     assert [i.heading for i in fixed] == ["zac 1 → 2", "curl 1 → 2"]
-    assert "  `charts/podiumd/values.yaml`.\n\n" + POINTER in text
-    assert "- `global.images.curl.tag` `1` → `2`\n\n" + POINTER in text
-    assert text.endswith("Text\n" + POINTER)
+    assert f"  `charts/podiumd/values.yaml`.\n\n{POINTER}" in text
+    assert f"- `global.images.curl.tag` `1` → `2`\n\n{POINTER}" in text
+    assert text.endswith(f"Text\n{POINTER}")
     assert not pointer_issues(text)
     assert fix_pointer_issues(text, "4.9.3") == (text, [])
 
@@ -228,7 +228,7 @@ MISSING = (
     "## Changes\n\n"
     "### keycloak - keycloak-config-cli 6.5.1-26 → 6.5.1-26.5.5\n\n"
     "pinned at:\n\n- `keycloak.keycloakConfigCli.image.tag` `6.5.1-26` → `6.5.1-26.5.5`\n\n"
-    "### zac 1 → 2\n\n- `zac.image.tag` `1` → `2`\n\n" + POINTER
+    f"### zac 1 → 2\n\n- `zac.image.tag` `1` → `2`\n\n{POINTER}"
 )
 
 
@@ -239,12 +239,12 @@ def test_missing_pointer_is_reported_and_appended_after_a_blank_line():
     text, fixed = fix_pointer_issues(MISSING, "4.9.3")
 
     assert len(fixed) == 1
-    assert "- `keycloak.keycloakConfigCli.image.tag` `6.5.1-26` → `6.5.1-26.5.5`\n\n" + POINTER + "\n### zac" in text
+    assert f"- `keycloak.keycloakConfigCli.image.tag` `6.5.1-26` → `6.5.1-26.5.5`\n\n{POINTER}\n### zac" in text
     assert not pointer_issues(text)
 
 
 def test_duplicate_pointer_is_reported_but_not_fixed():
-    doc = "## Changes\n\n### zac 1 → 2\n\n- `zac.image.tag` `1` → `2`\n\n" + POINTER + "\n" + POINTER
+    doc = f"## Changes\n\n### zac 1 → 2\n\n- `zac.image.tag` `1` → `2`\n\n{POINTER}\n{POINTER}"
     assert [(i.heading, i.kind, i.count) for i in pointer_issues(doc)] == [("zac 1 → 2", "duplicate", 2)]
     assert fix_pointer_issues(doc, "4.9.3") == (doc, [])
 
@@ -252,7 +252,7 @@ def test_duplicate_pointer_is_reported_but_not_fixed():
 @pytest.mark.parametrize(
     "section",
     [
-        "### zac 1 → 2\n\n- `zac.image.tag` `1` → `2`\n\n" + POINTER + "\nNote after the pointer.\n",
+        f"### zac 1 → 2\n\n- `zac.image.tag` `1` → `2`\n\n{POINTER}\nNote after the pointer.\n",
         (
             "### widget 2.0.0\n\nTODO: describe this component's changes — its app version could not be resolved "
             "from the table row.\n"
@@ -261,7 +261,7 @@ def test_duplicate_pointer_is_reported_but_not_fixed():
     ids=["text-after-pointer", "todo-stub"],
 )
 def test_sections_that_need_no_pointer_fix_are_not_reported(section: str):
-    assert not pointer_issues("## Changes\n\n" + section)
+    assert not pointer_issues(f"## Changes\n\n{section}")
 
 
 @pytest.mark.parametrize("section", [p.values[1] for p in IMAGE_CASES] + [p.values[4] for p in COMPONENT_CASES])
@@ -299,7 +299,7 @@ def test_replace_changes_section_keeps_user_text_in_place():
     doc_lines = ["# Upgrade\n", "\n", "## Changes\n", "\n", *first.splitlines(keepends=True)]
     pointer_at = next(i for i, line in enumerate(doc_lines) if line.startswith("- Image / digest"))
     doc_lines[pointer_at:pointer_at] = [user_para, "\n"]
-    doc = "".join(doc_lines).rstrip("\n") + "\n" + user_bullet
+    doc = "\n".join(("".join(doc_lines).rstrip("\n"), user_bullet))
 
     second = make_changes_section(ZAC, "4.9.3", VersionChange("5.4.4", "5.4.6", "1.0.297", "1.0.297"), ["image"])
     new_doc = replace_changes_section(doc, second, "zac", ordering)
@@ -307,7 +307,8 @@ def test_replace_changes_section_keeps_user_text_in_place():
     assert "### zac 5.4.4 → 5.4.6 (chart 1.0.297, unchanged)\n" in new_doc
     assert "- Image tag pin `zac.image.tag` `5.4.4` → `5.4.6` in\n" in new_doc
     assert "5.4.5" not in new_doc
-    assert user_para in new_doc and user_bullet in new_doc
+    assert user_para in new_doc
+    assert user_bullet in new_doc
     assert new_doc.index(user_para) < new_doc.index("- Image / digest") < new_doc.index(user_bullet)
 
 
@@ -316,7 +317,7 @@ def test_edited_changes_lines_finds_hand_edited_generated_lines():
     edited = section.replace("to 5.4.5.\n", "to 5.4.5 (fixes CVE-X).\n").replace(
         "`5.4.5` in\n", "`5.4.5` in values.yaml, see below\n"
     )
-    doc = "# Upgrade\n\n## Changes\n\n" + edited
+    doc = f"# Upgrade\n\n## Changes\n\n{edited}"
 
     assert [line for _heading, line in edited_changes_lines(doc)] == [
         "to 5.4.5 (fixes CVE-X).",
@@ -326,6 +327,6 @@ def test_edited_changes_lines_finds_hand_edited_generated_lines():
 
 def test_edited_changes_lines_ignores_user_lines_and_untouched_sections():
     section = make_changes_section(ZAC, "4.9.3", VersionChange("5.4.4", "5.4.5", "1.0.297", "1.0.297"), ["image"])
-    doc = "# Upgrade\n\n## Changes\n\n" + section + "\nto be safe, restart the pods.\n\npinned at: see below\n"
+    doc = f"# Upgrade\n\n## Changes\n\n{section}\nto be safe, restart the pods.\n\npinned at: see below\n"
 
     assert edited_changes_lines(doc) == []

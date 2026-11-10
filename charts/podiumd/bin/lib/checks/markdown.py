@@ -57,19 +57,19 @@ def find_markdown_files(chart_dir: Path):
     current_baseline = read_upgrade_docs_baseline(chart_dir)
     current_baselines = {current_baseline, *read_upgrade_docs_side_paths(chart_dir)}
 
-    def in_scope(p: Path):
-        if vendored in p.parents or bin_dir in p.parents or p == readme:
+    def in_scope(path: Path):
+        if vendored in path.parents or bin_dir in path.parents or path == readme:
             return False
-        if upgrade_paths_dir in p.parents:
-            m = doc_name_re().fullmatch(p.name)
-            if m:
-                if m.group("target") != current_target:
+        if upgrade_paths_dir in path.parents:
+            name_match = doc_name_re().fullmatch(path.name)
+            if name_match:
+                if name_match.group("target") != current_target:
                     return False
-                if current_baseline is not None and m.group("baseline") not in current_baselines:
+                if current_baseline is not None and name_match.group("baseline") not in current_baselines:
                     return False
         return True
 
-    return sorted(p for p in chart_dir.rglob("*.md") if in_scope(p))
+    return sorted(markdown_path for markdown_path in chart_dir.rglob("*.md") if in_scope(markdown_path))
 
 
 def find_pymarkdown(chart_dir: Path):
@@ -113,28 +113,28 @@ def check_markdown(chart_dir: Path):
             "explicit",
             *pymarkdown_rule_args(chart_dir),
             "scan",
-            *[str(f) for f in files],
+            *[str(markdown_file) for markdown_file in files],
         ],
         capture_output=True,
         text=True,
     )
-    if result.returncode not in (0, 4):
+    if result.returncode not in {0, 4}:
         return False, f"pymarkdown failed (exit {result.returncode}): {result.stderr.strip() or result.stdout.strip()}"
     output = result.stdout + result.stderr
 
     findings: list[dict[str, str]] = []
-    for m in MARKDOWN_FINDING_RE.finditer(output):
-        d = m.groupdict()
-        d["path"] = _relative_path(d["path"], chart_dir)
-        findings.append(d)
+    for finding_match in MARKDOWN_FINDING_RE.finditer(output):
+        fields = finding_match.groupdict()
+        fields["path"] = _relative_path(fields["path"], chart_dir)
+        findings.append(fields)
 
     if findings:
         print(f"Found {len(findings)} markdown finding(s) across {len(files)} file(s):")
         print_grouped_findings(
             findings,
-            key_fn=lambda f: (f["rule"], f["aliases"].split(",")[0]),
-            item_fn=lambda f: f"{f['path']}:{f['line']}:{f['col']}  {f['message']}",
-            label_fn=lambda k: f"{k[0]} ({k[1]})",
+            key_fn=lambda finding: (finding["rule"], finding["aliases"].split(",")[0]),
+            item_fn=lambda finding: f"{finding['path']}:{finding['line']}:{finding['col']}  {finding['message']}",
+            label_fn=lambda key: f"{key[0]} ({key[1]})",
             items_label="location(s)",
         )
     else:

@@ -14,7 +14,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 SCRIPT_PATH = SCRIPTS_DIR / "render-podiumd"
 
-import lib.render_scope as render_scope
+from lib import render_scope
 
 
 def _load_module():

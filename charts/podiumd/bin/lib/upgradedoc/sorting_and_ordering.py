@@ -5,19 +5,17 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from dataclasses import field
 from typing import TypedDict
-from typing import TypeVar
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import is_primary_image_path
+from lib.chart.values_tree_primitives import ValuesPath
 from lib.upgradedoc.string_and_parsing_basics import MarkdownHeading
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
+from lib.upgradedoc.string_and_parsing_basics import is_named_by_text
 from lib.upgradedoc.string_and_parsing_basics import markdown_headings
 from lib.upgradedoc.string_and_parsing_basics import next_level2_line
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
-from lib.upgradedoc.string_and_parsing_basics import text_names
 from lib.yaml_types import YamlMapping
-
-OrderKeyT = TypeVar("OrderKeyT", int, tuple[int, ...])
 
 
 class HeadingBlock(TypedDict):
@@ -57,7 +55,7 @@ def _key_index(values_key: str, key_order: list[str]) -> int:
 
 
 def path_order_key(
-    path: tuple[str, ...] | None, deps: list[ChartDependency], key_order: list[str], values: YamlMapping | None = None
+    path: ValuesPath | None, deps: list[ChartDependency], key_order: list[str], values: YamlMapping | None = None
 ) -> tuple[int, ...]:
     """Sort key (values_key_index, is_sidecar[, *nested position]) of a values-tree path.
 
@@ -116,17 +114,21 @@ class OrderingContext:
         key = component_order_key(name, self.deps, key_order, self.canonical_names, self.values)
         if key != path_order_key(None, self.deps, key_order):
             return key
-        removed = [k for removed, k in self.removed_keys.items() if name == removed or text_names(name, removed)]
+        removed = [
+            removed_key
+            for removed_name, removed_key in self.removed_keys.items()
+            if name == removed_name or is_named_by_text(name, removed_name)
+        ]
         return min(removed, default=key)
 
 
-def insertion_index(new_key: OrderKeyT, existing_keys: list[OrderKeyT]) -> int:
+def insertion_index[OrderKeyT: (int, tuple[int, ...])](new_key: OrderKeyT, existing_keys: list[OrderKeyT]) -> int:
     """Index in existing_keys before the first key greater than new_key, or the end.
 
     Items sharing the unmatched sentinel key keep a new item after them."""
-    for i, k in enumerate(existing_keys):
-        if k > new_key:
-            return i
+    for position, existing_key in enumerate(existing_keys):
+        if existing_key > new_key:
+            return position
     return len(existing_keys)
 
 
@@ -149,7 +151,7 @@ def changes_section_bounds(lines: list[str]) -> tuple[int | None, int]:
     section_end is the next "## " heading or len(lines). Headings in fenced
     code or HTML comments do not count (markdown_headings)."""
     headings = markdown_headings(lines)
-    changes_idx = next((h.line for h in headings if is_changes_heading(h)), None)
+    changes_idx = next((heading.line for heading in headings if is_changes_heading(heading)), None)
     if changes_idx is None:
         return None, len(lines)
     return changes_idx, next_level2_line(headings, changes_idx, len(lines))
@@ -165,15 +167,21 @@ def parse_upgrade_doc_changes_blocks(text: str) -> list[HeadingBlock]:
     if changes_idx is None:
         return []
     return _heading_blocks(
-        [h for h in markdown_headings(lines) if h.marks == "###" and changes_idx < h.line < changes_end], changes_end
+        [
+            heading
+            for heading in markdown_headings(lines)
+            if heading.marks == "###" and changes_idx < heading.line < changes_end
+        ],
+        changes_end,
     )
 
 
 def _heading_blocks(headings: Sequence[MarkdownHeading], end: int) -> list[HeadingBlock]:
     """A HeadingBlock per heading, each ending where the next starts, the last at `end`."""
+    ends = [*(heading.line for heading in headings[1:]), end]
     return [
-        {"heading": h.text, "start": h.line, "end": headings[j + 1].line if j + 1 < len(headings) else end}
-        for j, h in enumerate(headings)
+        {"heading": heading.text, "start": heading.line, "end": block_end}
+        for heading, block_end in zip(headings, ends, strict=False)
     ]
 
 
@@ -196,7 +204,10 @@ def block_for_component(
     target = changes_heading_identities(friendly, deps, canonical_names)
     if not target:
         return None
-    return next((b for b in blocks if changes_heading_identities(b["heading"], deps, canonical_names) == target), None)
+    return next(
+        (block for block in blocks if changes_heading_identities(block["heading"], deps, canonical_names) == target),
+        None,
+    )
 
 
 def reorder_heading_blocks(text: str, blocks: list[HeadingBlock], order: list[int]) -> str:
@@ -208,26 +219,36 @@ def reorder_heading_blocks(text: str, blocks: list[HeadingBlock], order: list[in
     lines = text.splitlines(keepends=True)
     # A block's own trailing blank lines depend on its old place (the last
     # block at EOF has none), so they are dropped and the join adds them back.
-    original_texts = ["".join(lines[b["start"] : b["end"]]).rstrip("\n") + "\n" for b in blocks]
+    block_texts = ["".join(lines[block["start"] : block["end"]]) for block in blocks]
+    original_texts = [f"{block_text.rstrip('\n')}\n" for block_text in block_texts]
     prefix = "".join(lines[: blocks[0]["start"]])
     suffix = "".join(lines[blocks[-1]["end"] :])
-    body = "\n".join(original_texts[i] for i in order)
-    if suffix:
-        body += "\n"
-    return prefix + body + suffix
+    body = "\n".join(original_texts[position] for position in order)
+    separator = "\n" if suffix else ""
+    return f"{prefix}{body}{separator}{suffix}"
 
 
-def _doc_item_order(names: list[str], ordering: OrderingContext) -> tuple[list[int], list[tuple[str, int, int]]]:
+# (name, old position, new position), 1-based, of a doc item that a sort moves.
+type MovedItem = tuple[str, int, int]
+
+
+def _doc_item_order(names: list[str], ordering: OrderingContext) -> tuple[list[int], list[MovedItem]]:
     """(order, moved) for doc items by ordering.key.
 
     order is the stable sorted permutation of `names`' indices; moved is
     [(name, old_pos, new_pos)] (1-based) for each item that moves.
     """
-    order = sorted(range(len(names)), key=lambda i: ordering.key(names[i]))
-    return order, [(names[i], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]
+    order = sorted(range(len(names)), key=lambda position: ordering.key(names[position]))
+    return order, moved_items(names, order)
 
 
-def sort_upgrade_doc_rows(text: str, ordering: OrderingContext) -> tuple[str, list[tuple[str, int, int]]]:
+def moved_items(names: Sequence[str], order: Sequence[int]) -> list[MovedItem]:
+    """The MovedItem of each of `names` that `order`, a permutation of their indices, moves."""
+    moves = [(slot, position) for slot, position in enumerate(order) if position != slot]
+    return [(names[position], position + 1, slot + 1) for slot, position in moves]
+
+
+def sort_upgrade_doc_rows(text: str, ordering: OrderingContext) -> tuple[str, list[MovedItem]]:
     """Reorder the "Component versions" table rows into values.yaml order.
 
     Returns (new_text, moved), moved being [(name, old_pos, new_pos)] (1-based)
@@ -241,17 +262,17 @@ def sort_upgrade_doc_rows(text: str, ordering: OrderingContext) -> tuple[str, li
     lines = text.splitlines(keepends=True)
     slots = [row["line_index"] for row in rows]
     original_lines = [lines[slot] for slot in slots]
-    for slot, i in zip(slots, order, strict=True):
-        lines[slot] = original_lines[i]
+    for slot, source in zip(slots, order, strict=True):
+        lines[slot] = original_lines[source]
     return "".join(lines), moved
 
 
-def sort_changes_blocks(text: str, ordering: OrderingContext) -> tuple[str, list[tuple[str, int, int]]]:
+def sort_changes_blocks(text: str, ordering: OrderingContext) -> tuple[str, list[MovedItem]]:
     """Reorder the "## Changes" "### ..." blocks into values.yaml order.
 
     Returns (new_text, moved) as sort_upgrade_doc_rows does."""
     blocks = parse_upgrade_doc_changes_blocks(text)
-    order, moved = _doc_item_order([b["heading"] for b in blocks], ordering)
+    order, moved = _doc_item_order([block["heading"] for block in blocks], ordering)
     if not moved:
         return text, []
 
@@ -264,16 +285,16 @@ def parse_values_delta_sections(text: str) -> list[HeadingBlock]:
     end is the next "## " heading or EOF. Content before the first "## " heading
     belongs to no section."""
     lines = text.splitlines(keepends=True)
-    return _heading_blocks([h for h in markdown_headings(lines) if h.marks == "##"], len(lines))
+    return _heading_blocks([heading for heading in markdown_headings(lines) if heading.marks == "##"], len(lines))
 
 
-def sort_values_delta_sections(text: str, ordering: OrderingContext) -> tuple[str, list[tuple[str, int, int]]]:
+def sort_values_delta_sections(text: str, ordering: OrderingContext) -> tuple[str, list[MovedItem]]:
     """Reorder values-deltas "## ..." sections into values.yaml order.
 
     Section content is never changed. Returns (new_text, moved) as
     sort_upgrade_doc_rows does."""
     sections = parse_values_delta_sections(text)
-    order, moved = _doc_item_order([s["heading"] for s in sections], ordering)
+    order, moved = _doc_item_order([section["heading"] for section in sections], ordering)
     if not moved:
         return text, []
 

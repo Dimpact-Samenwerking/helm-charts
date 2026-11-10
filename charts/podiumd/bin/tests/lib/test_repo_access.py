@@ -14,39 +14,39 @@ import yaml
 
 import lib.image.digests as image_digests
 
+from tests.fixture_data import SHA256_A
+from tests.fixture_data import raising
+from tests.fixture_data import write_chart_dependencies
+from tests.fixture_data import write_values_text
+
 TIMEOUT_SECONDS = 10
 DENYLISTED_HOST_SUFFIXES = ("azurecr.io",)
-
-
-def write_chart_yaml(chart_dir, deps):
-    (chart_dir / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}), encoding="utf-8")
-
-
-def write_values(chart_dir, text):
-    (chart_dir / "values.yaml").write_text(text, encoding="utf-8")
 
 
 # --- dependency_repos ---
 
 
 def test_dependency_repos_resolves_alias_to_http(librepoaccess: ModuleType, tmp_path: Path):
-    write_chart_yaml(tmp_path, [{"name": "openzaak", "version": "1.14.2", "repository": "@maykinmedia"}])
+    write_chart_dependencies(
+        tmp_path / "Chart.yaml", [{"name": "openzaak", "version": "1.14.2", "repository": "@maykinmedia"}]
+    )
     name, line, kind, target = librepoaccess.dependency_repos(tmp_path)[0]
     assert (name, kind, target) == ("openzaak", "http", "https://maykinmedia.github.io/charts/")
     assert line == 2
 
 
 def test_dependency_repos_direct_http_url_passed_through(librepoaccess: ModuleType, tmp_path: Path):
-    write_chart_yaml(
-        tmp_path, [{"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"}]
+    write_chart_dependencies(
+        tmp_path / "Chart.yaml",
+        [{"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"}],
     )
     name, _line, kind, target = librepoaccess.dependency_repos(tmp_path)[0]
     assert (name, kind, target) == ("zaakbrug", "http", "https://wearefrank.github.io/charts")
 
 
 def test_dependency_repos_oci_combines_path_and_chart_name(librepoaccess: ModuleType, tmp_path: Path):
-    write_chart_yaml(
-        tmp_path,
+    write_chart_dependencies(
+        tmp_path / "Chart.yaml",
         [{"name": "kiss-chart", "version": "3.0.0", "repository": "oci://ghcr.io/klantinteractie-servicesysteem"}],
     )
     name, _line, kind, target = librepoaccess.dependency_repos(tmp_path)[0]
@@ -58,13 +58,16 @@ def test_dependency_repos_oci_combines_path_and_chart_name(librepoaccess: Module
 
 
 def test_dependency_repos_skips_local_file_dependency(librepoaccess: ModuleType, tmp_path: Path):
-    write_chart_yaml(tmp_path, [{"name": "mi-data", "version": "1.0.0", "repository": "file://../mi-data"}])
+    write_chart_dependencies(
+        tmp_path / "Chart.yaml", [{"name": "mi-data", "version": "1.0.0", "repository": "file://../mi-data"}]
+    )
     assert librepoaccess.dependency_repos(tmp_path) == []
 
 
 def test_dependency_repos_uses_alias_name_when_present(librepoaccess: ModuleType, tmp_path: Path):
-    write_chart_yaml(
-        tmp_path, [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"}]
+    write_chart_dependencies(
+        tmp_path / "Chart.yaml",
+        [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"}],
     )
     names = [name for name, _, _, _ in librepoaccess.dependency_repos(tmp_path)]
     assert names == ["zac"]
@@ -94,7 +97,7 @@ def test_dependency_repos_finds_correct_line_for_each_dependency(librepoaccess: 
 
 
 def test_image_repos_groups_by_repository_and_version(librepoaccess: ModuleType, tmp_path: Path):
-    write_values(
+    write_values_text(
         tmp_path,
         (
             "pabc:\n"
@@ -109,7 +112,7 @@ def test_image_repos_groups_by_repository_and_version(librepoaccess: ModuleType,
 
 
 def test_image_repos_groups_multiple_pins_of_the_same_image(librepoaccess: ModuleType, tmp_path: Path):
-    write_values(
+    write_values_text(
         tmp_path,
         (
             "a:\n"
@@ -132,7 +135,7 @@ def test_image_repos_groups_multiple_pins_of_the_same_image(librepoaccess: Modul
 def test_image_repos_returns_pins_needing_subchart_default_fallback_as_unresolved(
     librepoaccess: ModuleType, tmp_path: Path
 ):
-    write_values(tmp_path, (f'openzaak:\n  image:\n    tag: "1.14.2@sha256:{"a" * 64}"\n'))
+    write_values_text(tmp_path, (f'openzaak:\n  image:\n    tag: "1.14.2@sha256:{"a" * 64}"\n'))
     resolved, unresolved = librepoaccess.image_repos(tmp_path / "values.yaml")
     assert resolved == []
     assert [(p["path"], p["line"]) for p in unresolved] == [(("openzaak", "image"), 3)]
@@ -146,14 +149,14 @@ def test_check_repo_access_names_the_pins_it_cannot_check(
         "dependencies:\n  - name: openzaak\n    version: 1.0.0\n    repository: file://../openzaak\n",
         encoding="utf-8",
     )
-    write_values(tmp_path, (f'openzaak:\n  image:\n    tag: "1.14.2@sha256:{"a" * 64}"\n'))
+    write_values_text(tmp_path, (f'openzaak:\n  image:\n    tag: "1.14.2@sha256:{"a" * 64}"\n'))
     librepoaccess.check_repo_access(tmp_path)
     out = capsys.readouterr().out
     assert "Not checked: 1 pin(s) without a known repository:" in out
     assert "openzaak.image (values.yaml:3): its subchart is not vendored yet (Dependencies runs later)" in out
 
 
-# --- _check_http_repo ---
+# --- check_http_repo ---
 
 
 class FakeResponse:
@@ -170,8 +173,8 @@ def test_check_http_repo_ok(librepoaccess: ModuleType, monkeypatch: pytest.Monke
         assert timeout == TIMEOUT_SECONDS
         return FakeResponse()
 
-    monkeypatch.setattr(librepoaccess.urllib.request, "urlopen", fake_urlopen)
-    ok, error = librepoaccess._check_http_repo("https://maykinmedia.github.io/charts/", TIMEOUT_SECONDS)
+    monkeypatch.setattr(librepoaccess, "urlopen", fake_urlopen)
+    ok, error = librepoaccess.check_http_repo("https://maykinmedia.github.io/charts/", TIMEOUT_SECONDS)
     assert ok is True
     assert error is None
 
@@ -181,8 +184,8 @@ def test_check_http_repo_adds_missing_trailing_slash(librepoaccess: ModuleType, 
         assert url == "https://wearefrank.github.io/charts/index.yaml"
         return FakeResponse()
 
-    monkeypatch.setattr(librepoaccess.urllib.request, "urlopen", fake_urlopen)
-    ok, _ = librepoaccess._check_http_repo("https://wearefrank.github.io/charts", TIMEOUT_SECONDS)
+    monkeypatch.setattr(librepoaccess, "urlopen", fake_urlopen)
+    ok, _ = librepoaccess.check_http_repo("https://wearefrank.github.io/charts", TIMEOUT_SECONDS)
     assert ok is True
 
 
@@ -190,8 +193,8 @@ def test_check_http_repo_http_error(librepoaccess: ModuleType, monkeypatch: pyte
     def fake_urlopen(url, timeout=None):
         raise urllib.error.HTTPError(url, 403, "Forbidden", Message(), None)
 
-    monkeypatch.setattr(librepoaccess.urllib.request, "urlopen", fake_urlopen)
-    ok, error = librepoaccess._check_http_repo("https://private.example.com/charts/", TIMEOUT_SECONDS)
+    monkeypatch.setattr(librepoaccess, "urlopen", fake_urlopen)
+    ok, error = librepoaccess.check_http_repo("https://private.example.com/charts/", TIMEOUT_SECONDS)
     assert ok is False
     assert "HTTP 403" in error
 
@@ -201,22 +204,22 @@ def test_check_http_repo_unreachable(librepoaccess: ModuleType, monkeypatch: pyt
         msg = "Name or service not known"
         raise urllib.error.URLError(msg)
 
-    monkeypatch.setattr(librepoaccess.urllib.request, "urlopen", fake_urlopen)
-    ok, error = librepoaccess._check_http_repo("https://nonexistent.invalid/charts/", TIMEOUT_SECONDS)
+    monkeypatch.setattr(librepoaccess, "urlopen", fake_urlopen)
+    ok, error = librepoaccess.check_http_repo("https://nonexistent.invalid/charts/", TIMEOUT_SECONDS)
     assert ok is False
     assert "not known" in error
 
 
-# --- _check_registry_repo ---
+# --- check_registry_repo ---
 
 
 def test_check_registry_repo_ok(librepoaccess: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
         librepoaccess,
         "cached_tag_exists",
-        lambda chart_dir, repository, version, timeout=None: (True, "sha256:" + "a" * 64),
+        lambda chart_dir, repository, version, timeout=None: (True, SHA256_A),
     )
-    ok, error = librepoaccess._check_registry_repo(tmp_path, "ghcr.io", "org/chart", "1.0.0", TIMEOUT_SECONDS)
+    ok, error = librepoaccess.check_registry_repo(tmp_path, "ghcr.io", "org/chart", "1.0.0", TIMEOUT_SECONDS)
     assert ok is True
     assert error is None
 
@@ -225,7 +228,7 @@ def test_check_registry_repo_not_found(librepoaccess: ModuleType, tmp_path: Path
     monkeypatch.setattr(
         librepoaccess, "cached_tag_exists", lambda chart_dir, repository, version, timeout=None: (False, None)
     )
-    ok, error = librepoaccess._check_registry_repo(tmp_path, "ghcr.io", "org/chart", "9.9.9", TIMEOUT_SECONDS)
+    ok, error = librepoaccess.check_registry_repo(tmp_path, "ghcr.io", "org/chart", "9.9.9", TIMEOUT_SECONDS)
     assert ok is False
     assert "not found" in error
 
@@ -236,7 +239,7 @@ def test_check_registry_repo_network_error(librepoaccess: ModuleType, tmp_path: 
         raise urllib.error.URLError(msg)
 
     monkeypatch.setattr(librepoaccess, "cached_tag_exists", raise_error)
-    ok, error = librepoaccess._check_registry_repo(tmp_path, "ghcr.io", "org/chart", "1.0.0", TIMEOUT_SECONDS)
+    ok, error = librepoaccess.check_registry_repo(tmp_path, "ghcr.io", "org/chart", "1.0.0", TIMEOUT_SECONDS)
     assert ok is False
     assert "timed out" in error
 
@@ -246,10 +249,10 @@ def test_check_registry_repo_passes_timeout(librepoaccess: ModuleType, tmp_path:
 
     def fake_cached_tag_exists(chart_dir, repository, version, timeout=None):
         seen["timeout"] = timeout
-        return True, "sha256:" + "a" * 64
+        return True, SHA256_A
 
     monkeypatch.setattr(librepoaccess, "cached_tag_exists", fake_cached_tag_exists)
-    librepoaccess._check_registry_repo(tmp_path, "ghcr.io", "org/chart", "1.0.0", TIMEOUT_SECONDS)
+    librepoaccess.check_registry_repo(tmp_path, "ghcr.io", "org/chart", "1.0.0", TIMEOUT_SECONDS)
     assert seen["timeout"] == TIMEOUT_SECONDS
 
 
@@ -262,10 +265,10 @@ def test_check_registry_repo_passes_chart_dir_and_canonical_repository_key(
     def fake_cached_tag_exists(chart_dir, repository, version, timeout=None):
         seen["chart_dir"] = chart_dir
         seen["repository"] = repository
-        return True, "sha256:" + "a" * 64
+        return True, SHA256_A
 
     monkeypatch.setattr(librepoaccess, "cached_tag_exists", fake_cached_tag_exists)
-    librepoaccess._check_registry_repo(tmp_path, "ghcr.io", "org/chart", "1.0.0", TIMEOUT_SECONDS)
+    librepoaccess.check_registry_repo(tmp_path, "ghcr.io", "org/chart", "1.0.0", TIMEOUT_SECONDS)
     assert seen["chart_dir"] == tmp_path
     assert seen["repository"] == "ghcr.io/org/chart"
 
@@ -274,14 +277,14 @@ def test_check_registry_repo_passes_chart_dir_and_canonical_repository_key(
 
 
 def test_check_repo_access_all_reachable(librepoaccess: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    write_chart_yaml(
-        tmp_path,
+    write_chart_dependencies(
+        tmp_path / "Chart.yaml",
         [
             {"name": "openzaak", "version": "1.14.2", "repository": "@maykinmedia"},
             {"name": "kiss-chart", "version": "3.0.0", "repository": "oci://ghcr.io/klantinteractie-servicesysteem"},
         ],
     )
-    write_values(
+    write_values_text(
         tmp_path,
         (
             "pabc:\n"
@@ -290,8 +293,8 @@ def test_check_repo_access_all_reachable(librepoaccess: ModuleType, tmp_path: Pa
             f'    tag: "1.1.1@sha256:{"a" * 64}"\n'
         ),
     )
-    monkeypatch.setattr(librepoaccess, "_check_http_repo", lambda url, timeout: (True, None))
-    monkeypatch.setattr(librepoaccess, "_check_registry_repo", lambda chart_dir, host, repo, tag, timeout: (True, None))
+    monkeypatch.setattr(librepoaccess, "check_http_repo", lambda url, timeout: (True, None))
+    monkeypatch.setattr(librepoaccess, "check_registry_repo", lambda chart_dir, host, repo, tag, timeout: (True, None))
     ok, detail = librepoaccess.check_repo_access(tmp_path)
     assert ok is True
     assert "3 repo(s)/image(s) reachable" in detail
@@ -301,11 +304,12 @@ def test_check_repo_access_dedupes_shared_repo(
     librepoaccess: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     """Eight dependencies on one repo trigger a single reachability check."""
-    write_chart_yaml(
-        tmp_path, [{"name": f"comp-{i}", "version": "1.0.0", "repository": "@maykinmedia"} for i in range(8)]
+    write_chart_dependencies(
+        tmp_path / "Chart.yaml",
+        [{"name": f"comp-{i}", "version": "1.0.0", "repository": "@maykinmedia"} for i in range(8)],
     )
     calls = []
-    monkeypatch.setattr(librepoaccess, "_check_http_repo", lambda url, timeout: (calls.append(url), (True, None))[1])
+    monkeypatch.setattr(librepoaccess, "check_http_repo", lambda url, timeout: (calls.append(url), (True, None))[1])
     ok, detail = librepoaccess.check_repo_access(tmp_path)
     assert ok is True
     assert len(calls) == 1
@@ -315,8 +319,10 @@ def test_check_repo_access_dedupes_shared_repo(
 def test_check_repo_access_no_values_yaml_only_checks_charts(
     librepoaccess: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    write_chart_yaml(tmp_path, [{"name": "openzaak", "version": "1.14.2", "repository": "@maykinmedia"}])
-    monkeypatch.setattr(librepoaccess, "_check_http_repo", lambda url, timeout: (True, None))
+    write_chart_dependencies(
+        tmp_path / "Chart.yaml", [{"name": "openzaak", "version": "1.14.2", "repository": "@maykinmedia"}]
+    )
+    monkeypatch.setattr(librepoaccess, "check_http_repo", lambda url, timeout: (True, None))
     ok, detail = librepoaccess.check_repo_access(tmp_path)
     assert ok is True
     assert "1 repo(s)/image(s) reachable (1 references)" in detail
@@ -325,10 +331,11 @@ def test_check_repo_access_no_values_yaml_only_checks_charts(
 def test_check_repo_access_reports_kind_file_and_line_for_chart_repo(
     librepoaccess: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    write_chart_yaml(
-        tmp_path, [{"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"}]
+    write_chart_dependencies(
+        tmp_path / "Chart.yaml",
+        [{"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"}],
     )
-    monkeypatch.setattr(librepoaccess, "_check_http_repo", lambda url, timeout: (True, None))
+    monkeypatch.setattr(librepoaccess, "check_http_repo", lambda url, timeout: (True, None))
     librepoaccess.check_repo_access(tmp_path)
     out = capsys.readouterr().out
     assert "[OK] chart" in out
@@ -339,8 +346,8 @@ def test_check_repo_access_reports_kind_file_and_line_for_chart_repo(
 def test_check_repo_access_reports_kind_file_and_line_for_image(
     librepoaccess: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    write_chart_yaml(tmp_path, [])
-    write_values(
+    write_chart_dependencies(tmp_path / "Chart.yaml", [])
+    write_values_text(
         tmp_path,
         (
             "pabc:\n"
@@ -349,7 +356,7 @@ def test_check_repo_access_reports_kind_file_and_line_for_image(
             f'    tag: "1.1.1@sha256:{"a" * 64}"\n'
         ),
     )
-    monkeypatch.setattr(librepoaccess, "_check_registry_repo", lambda chart_dir, host, repo, tag, timeout: (True, None))
+    monkeypatch.setattr(librepoaccess, "check_registry_repo", lambda chart_dir, host, repo, tag, timeout: (True, None))
     librepoaccess.check_repo_access(tmp_path)
     out = capsys.readouterr().out
     assert "[OK] image" in out
@@ -360,8 +367,8 @@ def test_check_repo_access_reports_kind_file_and_line_for_image(
 def test_check_repo_access_fails_on_unreachable_chart_repo(
     librepoaccess: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    write_chart_yaml(
-        tmp_path,
+    write_chart_dependencies(
+        tmp_path / "Chart.yaml",
         [
             {"name": "openzaak", "version": "1.14.2", "repository": "@maykinmedia"},
             {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
@@ -369,8 +376,8 @@ def test_check_repo_access_fails_on_unreachable_chart_repo(
     )
     monkeypatch.setattr(
         librepoaccess,
-        "_check_http_repo",
-        lambda url, timeout: (True, None) if "maykinmedia" in url else (False, "HTTP 403 fetching " + url),
+        "check_http_repo",
+        lambda url, timeout: (True, None) if "maykinmedia" in url else (False, f"HTTP 403 fetching {url}"),
     )
     ok, detail = librepoaccess.check_repo_access(tmp_path)
     assert ok is False
@@ -381,13 +388,13 @@ def test_check_repo_access_fails_on_unreachable_chart_repo(
 def test_check_repo_access_fails_on_unreachable_image(
     librepoaccess: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    write_chart_yaml(tmp_path, [])
-    write_values(
+    write_chart_dependencies(tmp_path / "Chart.yaml", [])
+    write_values_text(
         tmp_path,
         (f'pabc:\n  image:\n    repository: ghcr.io/groundnuty/k8s-wait-for\n    tag: "v2.0@sha256:{"a" * 64}"\n'),
     )
     monkeypatch.setattr(
-        librepoaccess, "_check_registry_repo", lambda chart_dir, host, repo, tag, timeout: (False, "not found")
+        librepoaccess, "check_registry_repo", lambda chart_dir, host, repo, tag, timeout: (False, "not found")
     )
     ok, detail = librepoaccess.check_repo_access(tmp_path)
     assert ok is False
@@ -398,8 +405,10 @@ def test_check_repo_access_fails_on_unreachable_image(
 
 
 def test_check_repo_access_no_network_dependencies_or_images(librepoaccess: ModuleType, tmp_path: Path):
-    write_chart_yaml(tmp_path, [{"name": "mi-data", "version": "1.0.0", "repository": "file://../mi-data"}])
-    write_values(tmp_path, "mi-data:\n  enabled: true\n")
+    write_chart_dependencies(
+        tmp_path / "Chart.yaml", [{"name": "mi-data", "version": "1.0.0", "repository": "file://../mi-data"}]
+    )
+    write_values_text(tmp_path, "mi-data:\n  enabled: true\n")
     ok, detail = librepoaccess.check_repo_access(tmp_path)
     assert ok is True
     assert "0 repo(s)/image(s) reachable" in detail
@@ -424,15 +433,16 @@ def test_is_denylisted_host_ignores_unrelated_host(librepoaccess: ModuleType):
 def test_check_repo_access_fails_on_denylisted_chart_repo(
     librepoaccess: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    write_chart_yaml(
-        tmp_path, [{"name": "pabc", "version": "1.1.1", "repository": "oci://acrprodmgmt.azurecr.io/some-namespace"}]
+    write_chart_dependencies(
+        tmp_path / "Chart.yaml",
+        [{"name": "pabc", "version": "1.1.1", "repository": "oci://acrprodmgmt.azurecr.io/some-namespace"}],
     )
 
     def fail_if_called(*a, **kw):
         msg = "a denylisted host must never actually be checked"
         raise AssertionError(msg)
 
-    monkeypatch.setattr(librepoaccess, "_check_registry_repo", fail_if_called)
+    monkeypatch.setattr(librepoaccess, "check_registry_repo", fail_if_called)
     ok, detail = librepoaccess.check_repo_access(tmp_path)
     assert ok is False
     assert "1 repo(s)/image(s) may not be used (denylisted host)" in detail
@@ -445,8 +455,8 @@ def test_check_repo_access_fails_on_denylisted_chart_repo(
 def test_check_repo_access_fails_on_denylisted_image(
     librepoaccess: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    write_chart_yaml(tmp_path, [])
-    write_values(
+    write_chart_dependencies(tmp_path / "Chart.yaml", [])
+    write_values_text(
         tmp_path,
         (
             "pabc:\n"
@@ -460,7 +470,7 @@ def test_check_repo_access_fails_on_denylisted_image(
         msg = "a denylisted host must never actually be checked"
         raise AssertionError(msg)
 
-    monkeypatch.setattr(librepoaccess, "_check_registry_repo", fail_if_called)
+    monkeypatch.setattr(librepoaccess, "check_registry_repo", fail_if_called)
     ok, detail = librepoaccess.check_repo_access(tmp_path)
     assert ok is False
     assert "1 repo(s)/image(s) may not be used (denylisted host)" in detail
@@ -472,8 +482,8 @@ def test_check_repo_access_denylist_failure_combines_with_unrelated_failure(
     librepoaccess: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     """Denylist and reachability failures are both reported; neither masks the other."""
-    write_chart_yaml(
-        tmp_path,
+    write_chart_dependencies(
+        tmp_path / "Chart.yaml",
         [
             {"name": "pabc", "version": "1.1.1", "repository": "oci://acrprodmgmt.azurecr.io/some-namespace"},
             {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
@@ -481,10 +491,10 @@ def test_check_repo_access_denylist_failure_combines_with_unrelated_failure(
     )
     monkeypatch.setattr(
         librepoaccess,
-        "_check_registry_repo",
-        lambda *a: (_ for _ in ()).throw(AssertionError("denylisted host checked")),
+        "check_registry_repo",
+        raising(AssertionError("denylisted host checked")),
     )
-    monkeypatch.setattr(librepoaccess, "_check_http_repo", lambda url, timeout: (False, "HTTP 403"))
+    monkeypatch.setattr(librepoaccess, "check_http_repo", lambda url, timeout: (False, "HTTP 403"))
     ok, detail = librepoaccess.check_repo_access(tmp_path)
     assert ok is False
     assert "1/1 repo(s)/image(s) unreachable" in detail
@@ -497,15 +507,18 @@ def test_check_repo_access_denylist_failure_combines_with_unrelated_failure(
 def test_check_repo_access_second_run_uses_cache_not_network(
     librepoaccess: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    write_chart_yaml(tmp_path, [{"name": "openzaak", "version": "1.14.2", "repository": "@maykinmedia"}])
+    write_chart_dependencies(
+        tmp_path / "Chart.yaml", [{"name": "openzaak", "version": "1.14.2", "repository": "@maykinmedia"}]
+    )
     calls = []
-    monkeypatch.setattr(librepoaccess, "_check_http_repo", lambda url, timeout: (calls.append(url), (True, None))[1])
+    monkeypatch.setattr(librepoaccess, "check_http_repo", lambda url, timeout: (calls.append(url), (True, None))[1])
 
     ok1, _ = librepoaccess.check_repo_access(tmp_path)
     capsys.readouterr()
     ok2, detail2 = librepoaccess.check_repo_access(tmp_path)
 
-    assert ok1 is True and ok2 is True
+    assert ok1 is True
+    assert ok2 is True
     assert len(calls) == 1  # second run hit the cache
     assert "1 repo(s)/image(s) reachable" in detail2
     assert "(cached)" in capsys.readouterr().out
@@ -514,25 +527,30 @@ def test_check_repo_access_second_run_uses_cache_not_network(
 def test_check_repo_access_failure_is_never_cached(
     librepoaccess: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    write_chart_yaml(tmp_path, [{"name": "openzaak", "version": "1.14.2", "repository": "@maykinmedia"}])
+    write_chart_dependencies(
+        tmp_path / "Chart.yaml", [{"name": "openzaak", "version": "1.14.2", "repository": "@maykinmedia"}]
+    )
     calls = []
     monkeypatch.setattr(
-        librepoaccess, "_check_http_repo", lambda url, timeout: (calls.append(url), (False, "HTTP 500"))[1]
+        librepoaccess, "check_http_repo", lambda url, timeout: (calls.append(url), (False, "HTTP 500"))[1]
     )
 
     ok1, _ = librepoaccess.check_repo_access(tmp_path)
     ok2, _ = librepoaccess.check_repo_access(tmp_path)
 
-    assert ok1 is False and ok2 is False
+    assert ok1 is False
+    assert ok2 is False
     assert len(calls) == 2
 
 
 def test_check_repo_access_stale_cache_entry_is_not_used(
     librepoaccess: ModuleType, librepoaccesscache: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    write_chart_yaml(tmp_path, [{"name": "openzaak", "version": "1.14.2", "repository": "@maykinmedia"}])
+    write_chart_dependencies(
+        tmp_path / "Chart.yaml", [{"name": "openzaak", "version": "1.14.2", "repository": "@maykinmedia"}]
+    )
     calls = []
-    monkeypatch.setattr(librepoaccess, "_check_http_repo", lambda url, timeout: (calls.append(url), (True, None))[1])
+    monkeypatch.setattr(librepoaccess, "check_http_repo", lambda url, timeout: (calls.append(url), (True, None))[1])
     librepoaccess.check_repo_access(tmp_path)
     assert len(calls) == 1
 
@@ -550,8 +568,8 @@ def test_check_repo_access_cache_is_per_entry_not_all_or_nothing(
     librepoaccess: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     """A cache hit for one entry does not skip checking an uncached one."""
-    write_chart_yaml(
-        tmp_path,
+    write_chart_dependencies(
+        tmp_path / "Chart.yaml",
         [
             {"name": "openzaak", "version": "1.14.2", "repository": "@maykinmedia"},
             {"name": "kiss-chart", "version": "3.0.0", "repository": "oci://ghcr.io/klantinteractie-servicesysteem"},
@@ -559,14 +577,15 @@ def test_check_repo_access_cache_is_per_entry_not_all_or_nothing(
     )
     http_calls, registry_calls = [], []
     monkeypatch.setattr(
-        librepoaccess, "_check_http_repo", lambda url, timeout: (http_calls.append(url), (True, None))[1]
+        librepoaccess, "check_http_repo", lambda url, timeout: (http_calls.append(url), (True, None))[1]
     )
-    monkeypatch.setattr(librepoaccess, "_check_registry_repo", lambda *a: (registry_calls.append(a), (True, None))[1])
+    monkeypatch.setattr(librepoaccess, "check_registry_repo", lambda *a: (registry_calls.append(a), (True, None))[1])
     librepoaccess.check_repo_access(tmp_path)
-    assert len(http_calls) == 1 and len(registry_calls) == 1
+    assert len(http_calls) == 1
+    assert len(registry_calls) == 1
 
-    write_chart_yaml(
-        tmp_path,
+    write_chart_dependencies(
+        tmp_path / "Chart.yaml",
         [
             {"name": "openzaak", "version": "1.14.2", "repository": "@maykinmedia"},
             {"name": "kiss-chart", "version": "3.0.1", "repository": "oci://ghcr.io/klantinteractie-servicesysteem"},
@@ -585,8 +604,8 @@ def test_check_repo_access_and_check_image_digests_share_one_cache_entry(
 ):
     """A pin looked up by check_repo_access is served from disk cache to check_image_digests."""
     digest = "a" * 64
-    write_chart_yaml(tmp_path, [])
-    write_values(
+    write_chart_dependencies(tmp_path / "Chart.yaml", [])
+    write_values_text(
         tmp_path,
         (
             "pabc:\n"

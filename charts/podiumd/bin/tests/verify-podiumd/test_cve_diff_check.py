@@ -864,15 +864,18 @@ def test_check_cve_diff_splits_own_partner_other_in_order_with_correct_content(
 
     assert "ghcr.io/infonl/zac: 1.0.0 -> 1.1.0  [upgrade]" in own_section
     assert "closed: 1 CRIT" in own_section
-    assert "ghcr.io/infonl/zac" not in partner_section and "ghcr.io/infonl/zac" not in other_section
+    assert "ghcr.io/infonl/zac" not in partner_section
+    assert "ghcr.io/infonl/zac" not in other_section
 
     assert "maykinmedia/objects-api: 1.0.0 -> 1.1.0  [upgrade]" in partner_section
     assert "introduced: 1 HIGH" in partner_section
-    assert "maykinmedia/objects-api" not in own_section and "maykinmedia/objects-api" not in other_section
+    assert "maykinmedia/objects-api" not in own_section
+    assert "maykinmedia/objects-api" not in other_section
 
     assert "docker.io/alpine/k8s: 1.36.2 -> 1.36.3  [upgrade]" in other_section
     assert "introduced: 1 LOW" in other_section
-    assert "docker.io/alpine/k8s" not in own_section and "docker.io/alpine/k8s" not in partner_section
+    assert "docker.io/alpine/k8s" not in own_section
+    assert "docker.io/alpine/k8s" not in partner_section
 
 
 def test_check_cve_diff_bucket_with_no_candidates_prints_no_header(

@@ -14,8 +14,8 @@ from lib.upgradedoc.grouped_comments_and_changes_block import parse_changes_bloc
 from lib.upgradedoc.images_manifest_ordering import match_changes_item_display_name
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.resolve_component_row import ResolvedRow
+from lib.upgradedoc.resolve_component_row import is_resolved_row_unchanged
 from lib.upgradedoc.resolve_component_row import resolve_component_row
-from lib.upgradedoc.resolve_component_row import resolved_row_unchanged
 from lib.upgradedoc.string_and_parsing_basics import match_located_line
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.version_cells import image_manifest_version_text
@@ -71,7 +71,7 @@ def expected_changes_items(
             continue
         if resolved["kind"] != "native" and resolved["baseline_resolved"] is not True:
             continue
-        digest_only = resolved_row_unchanged(resolved)
+        digest_only = is_resolved_row_unchanged(resolved)
         if digest_only and name in rows:
             continue
         item = _expected_changes_item(name, resolved, digest_only=digest_only)
@@ -90,8 +90,8 @@ def _expected_changes_item(name: str, resolved: ResolvedRow, *, digest_only: boo
         change = VersionChange(
             resolved["baseline_app"], resolved["target_app"], resolved["baseline_chart"], resolved["target_chart"]
         )
-        m = _CHART_CLAUSE_RE.search(changes_header_item_text(name, change))
-        chart_clause = m.group(1) if m else None
+        clause_match = _CHART_CLAUSE_RE.search(changes_header_item_text(name, change))
+        chart_clause = clause_match.group(1) if clause_match else None
         chart_changed = normalize_version(resolved["baseline_chart"]) != normalize_version(resolved["target_chart"])
     version_text = image_manifest_version_text(
         resolved["baseline_app"], resolved["target_app"], digest_only_change=digest_only
@@ -130,7 +130,7 @@ def fix_stale_changes_items(lines: list[str], expected: Mapping[str, ExpectedCha
     """Rewrite the items stale_changes_items reports, keeping their numbers; returns [(old, new), ...]."""
     fixed: list[tuple[str, str]] = []
     for idx, current, wanted in stale_changes_items(lines, expected):
-        m = match_located_line(CHANGES_ITEM_RE, lines[idx])
-        lines[idx] = f"#   {m.group('num')}. {wanted}\n"
+        item_match = match_located_line(CHANGES_ITEM_RE, lines[idx])
+        lines[idx] = f"#   {item_match.group('num')}. {wanted}\n"
         fixed.append((current, wanted))
     return fixed

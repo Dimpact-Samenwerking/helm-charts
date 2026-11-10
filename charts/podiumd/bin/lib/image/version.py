@@ -4,15 +4,16 @@ Covers one image pinned in several places; update-component-version uses it
 too, as a component's images may be named differently (zgw-office-addin).
 """
 
+import sys
+
 from pathlib import Path
 from typing import TypedDict
-from typing import TypeVar
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.values_tree_primitives import dotted_key_path
 from lib.chart.values_tree_primitives import find_dependency
+from lib.chart.values_tree_primitives import is_same_name
 from lib.chart.values_tree_primitives import replace_scalar_value
-from lib.chart.values_tree_primitives import same_name
 from lib.chart.values_tree_primitives import values_key_of
 from lib.image.digests import DigestPin
 from lib.image.digests import ImagePin
@@ -55,9 +56,7 @@ def find_matches(lines: list[str], basename: str) -> list[DigestPin]:
 
     Pins relying on a subchart-default repository never match.
     """
-    return [
-        p for p in scan_digest_pins(lines) if p["repository"] and same_name(image_basename(p["repository"]), basename)
-    ]
+    return _with_basename(scan_digest_pins(lines), basename)
 
 
 def find_matches_any_tag(lines: list[str], basename: str) -> list[VersionPin]:
@@ -66,9 +65,12 @@ def find_matches_any_tag(lines: list[str], basename: str) -> list[VersionPin]:
     Only for release-table comparisons (the CSV has no digests); writers and
     digest checks must use find_matches.
     """
-    return [
-        p for p in scan_version_pins(lines) if p["repository"] and same_name(image_basename(p["repository"]), basename)
-    ]
+    return _with_basename(scan_version_pins(lines), basename)
+
+
+def _with_basename[PinT: (DigestPin, VersionPin)](pins: list[PinT], basename: str) -> list[PinT]:
+    """The `pins` whose resolved repository has this basename."""
+    return [pin for pin in pins if pin["repository"] and is_same_name(image_basename(pin["repository"]), basename)]
 
 
 def basenames_under_scope(lines: list[str], scope_key: str) -> dict[str, list[DigestPin]]:
@@ -85,10 +87,9 @@ def basenames_under_scope_any_tag(lines: list[str], scope_key: str) -> dict[str,
     return _group_by_basename_in_scope(lines, scan_version_pins(lines), scope_key)
 
 
-PinT = TypeVar("PinT", DigestPin, VersionPin)
-
-
-def _group_by_basename_in_scope(lines: list[str], pins: list[PinT], scope_key: str) -> dict[str, list[PinT]]:
+def _group_by_basename_in_scope[PinT: (DigestPin, VersionPin)](
+    lines: list[str], pins: list[PinT], scope_key: str
+) -> dict[str, list[PinT]]:
     """{basename: [pin, ...]} for the `pins` whose values.yaml path is
     under top-level `scope_key` (ignoring case, like find_matches_in_
     scope) and ends in "...tag"."""
@@ -97,7 +98,7 @@ def _group_by_basename_in_scope(lines: list[str], pins: list[PinT], scope_key: s
         if not pin["repository"]:
             continue
         path = dotted_key_path(lines, pin["line"] - 1).split(".")
-        if not same_name(path[0], scope_key) or path[-1] != "tag":
+        if not is_same_name(path[0], scope_key) or path[-1] != "tag":
             continue
         result.setdefault(image_basename(pin["repository"]), []).append(pin)
     return result
@@ -116,7 +117,7 @@ def repository_for_basename_in_scope(lines: list[str], scope_key: str, basename:
     pins = scoped or find_matches_any_tag(lines, basename)
     if not pins:
         return None
-    repos = {p["repository"] for p in pins if p["repository"]}
+    repos = {pin["repository"] for pin in pins if pin["repository"]}
     return next(iter(repos)) if len(repos) == 1 else None
 
 
@@ -131,38 +132,37 @@ def resolve_key_scope(key: str, deps: list[ChartDependency]) -> str:
     MULTIPLE_KEY and keys matching no dependency (components defined in
     podiumd itself, typos) pass through; resolve_scoped_matches reports a bad one.
     """
-    if same_name(key, MULTIPLE_KEY):
+    if is_same_name(key, MULTIPLE_KEY):
         return MULTIPLE_KEY
     dep = find_dependency(deps, key)
     return values_key_of(dep) if dep is not None else key
 
 
-def _in_scope(top_key: str, repository: str | None, scope_key: str, basename: str) -> bool:
+def _is_in_scope(top_key: str, repository: str | None, scope_key: str, basename: str) -> bool:
     """Whether a pin under top-level `top_key` with `repository` is <scope_key> <basename> (ignoring case)."""
-    return bool(repository) and same_name(image_basename(repository), basename) and same_name(top_key, scope_key)
+    return bool(repository) and is_same_name(image_basename(repository), basename) and is_same_name(top_key, scope_key)
 
 
 def _scope_key(key: str) -> str:
     """The top-level values.yaml key CLI <key> searches: global for MULTIPLE_KEY."""
-    return GLOBAL_IMAGES_SCOPE if same_name(key, MULTIPLE_KEY) else key
+    return GLOBAL_IMAGES_SCOPE if is_same_name(key, MULTIPLE_KEY) else key
 
 
-ScopedT = TypeVar("ScopedT", ScopedPin, ImagePin)
-
-
-def _require_one_repository(matches: list[ScopedT], key: str, basename: str) -> list[ScopedT]:
+def _require_one_repository[ScopedT: (ScopedPin, ImagePin)](
+    matches: list[ScopedT], key: str, basename: str
+) -> list[ScopedT]:
     """`matches`, or SystemExit if it is empty or holds more than one distinct repository."""
     if not matches:
         msg = f"error: no image pin with image basename '{basename}' found under '{key}'"
-        raise SystemExit(msg)
-    repositories = {str(m["repository"]) for m in matches}
+        sys.exit(msg)
+    repositories = {str(match["repository"]) for match in matches}
     if len(repositories) > 1:
         msg = (
             f"error: '{basename}' under '{key}' is not unique — "
             f"{len(repositories)} distinct repositories match: "
             f"{', '.join(sorted(repositories))}"
         )
-        raise SystemExit(msg)
+        sys.exit(msg)
     return matches
 
 
@@ -172,7 +172,7 @@ def find_matches_in_scope(lines: list[str], scope_key: str, basename: str) -> li
     for pin in scan_digest_pins(lines):
         repository = pin["repository"]
         top_key = dotted_key_path(lines, pin["line"] - 1).split(".", maxsplit=1)[0]
-        if repository is None or not _in_scope(top_key, repository, scope_key, basename):
+        if repository is None or not _is_in_scope(top_key, repository, scope_key, basename):
             continue
         matches.append(
             {"line": pin["line"], "version": pin["version"], "digest": pin["digest"], "repository": repository}
@@ -192,7 +192,7 @@ def resolve_scoped_matches(lines: list[str], key: str, basename: str) -> list[Sc
 def resolve_scoped_image_pins(pins: list[ImagePin], key: str, basename: str) -> list[ImagePin]:
     """resolve_scoped_matches over scan_image_pins pins, so sibling digests (keycloak's "sha:") match too."""
     scope_key = _scope_key(key)
-    matches = [p for p in pins if _in_scope(p["path"][0], p["repository"], scope_key, basename)]
+    matches = [pin for pin in pins if _is_in_scope(pin["path"][0], pin["repository"], scope_key, basename)]
     return _require_one_repository(matches, key, basename)
 
 
@@ -205,14 +205,20 @@ def check_basename_version(lines: list[str], key: str, basename: str, new_versio
 
     results: list[TagCheck] = []
     seen_repositories: set[str] = set()
-    for m in matches:
-        if m["repository"] in seen_repositories:
+    for match in matches:
+        if match["repository"] in seen_repositories:
             continue
-        seen_repositories.add(m["repository"])
-        host, repo_path = parse_repo(m["repository"])
+        seen_repositories.add(match["repository"])
+        host, repo_path = parse_repo(match["repository"])
         exists, digest = registry_tag_exists(host, repo_path, new_version)
         results.append(
-            {"repository": m["repository"], "host": host, "repo_path": repo_path, "exists": exists, "digest": digest}
+            {
+                "repository": match["repository"],
+                "host": host,
+                "repo_path": repo_path,
+                "exists": exists,
+                "digest": digest,
+            }
         )
     return results
 
@@ -223,15 +229,15 @@ def _resolve_pending_digests(pending: list[ScopedPin], new_version: str) -> dict
     Raises SystemExit if new_version is missing upstream, before anything is written.
     """
     digests: dict[str, str] = {}
-    for m in pending:
-        if m["repository"] in digests:
+    for match in pending:
+        if match["repository"] in digests:
             continue
-        host, repo_path = parse_repo(m["repository"])
+        host, repo_path = parse_repo(match["repository"])
         exists, digest = registry_tag_exists(host, repo_path, new_version)
         if not exists or not digest:
             msg = f"error: {host}/{repo_path}:{new_version} not found upstream"
-            raise SystemExit(msg)
-        digests[m["repository"]] = digest
+            sys.exit(msg)
+        digests[match["repository"]] = digest
     return digests
 
 
@@ -243,21 +249,29 @@ def plan_image_version_update(values_path: Path, key: str, basename: str, new_ve
     new_version doesn't exist upstream.
     """
     matches = resolve_scoped_matches(values_path.read_text(encoding="utf-8").splitlines(), key, basename)
-    pending = [m for m in matches if m["version"] != new_version]
+    pending = [match for match in matches if match["version"] != new_version]
     if not pending:
         return []
     digests = _resolve_pending_digests(pending, new_version)
     return [
         {
-            "line": m["line"],
-            "repository": m["repository"],
-            "old_version": m["version"],
-            "old_digest": f"sha256:{m['digest']}",
+            "line": match["line"],
+            "repository": match["repository"],
+            "old_version": match["version"],
+            "old_digest": f"sha256:{match['digest']}",
             "new_version": new_version,
-            "new_digest": digests[m["repository"]],
+            "new_digest": digests[match["repository"]],
         }
-        for m in pending
+        for match in pending
     ]
+
+
+def print_pin_updates(updates: list[PinUpdate]) -> None:
+    """Print each planned pin update: its values.yaml line, repository and old and new pin."""
+    for update in updates:
+        print(f"  values.yaml:{update['line']}  ({update['repository']})")
+        print(f"    {update['old_version']}@{update['old_digest']}")
+        print(f"    {update['new_version']}@{update['new_digest']}")
 
 
 def write_pin_updates(values_path: Path, updates: list[PinUpdate]) -> None:
@@ -265,11 +279,11 @@ def write_pin_updates(values_path: Path, updates: list[PinUpdate]) -> None:
     if not updates:
         return
     lines = values_path.read_text(encoding="utf-8").splitlines(keepends=True)
-    for u in updates:
-        i = u["line"] - 1
-        lines[i] = replace_scalar_value(lines[i], f"{u['new_version']}@{u['new_digest']}")
+    for update in updates:
+        line_index = update["line"] - 1
+        lines[line_index] = replace_scalar_value(lines[line_index], f"{update['new_version']}@{update['new_digest']}")
     # The "# host/repo:tag[@sha256:...]" reference comment above a bumped pin names the same pin.
-    text, _ = sync_reference_comments("".join(lines), {u["line"] for u in updates})
+    text, _ = sync_reference_comments("".join(lines), {update["line"] for update in updates})
     values_path.write_text(text, encoding="utf-8")
 
 

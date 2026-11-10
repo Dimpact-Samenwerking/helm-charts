@@ -21,8 +21,10 @@ def _python_scripts() -> list[Path]:
     return sorted(
         path
         for path in BIN_DIR.iterdir()
-        if path.is_file() and path.stat().st_mode & 0o100 and path.read_text(encoding="utf-8").startswith("#!")
-        if "python" in path.read_text(encoding="utf-8").splitlines()[0]
+        if path.is_file()
+        and path.stat().st_mode & 0o100
+        and path.read_text(encoding="utf-8").startswith("#!")
+        and "python" in path.read_text(encoding="utf-8").splitlines()[0]
     )
 
 
@@ -39,7 +41,7 @@ def _help_entries(doc: str) -> dict[str, str]:
             current = match.group("name")
             entries[current] = match.group("text").strip()
         elif current and line.startswith("      ") and line.strip():
-            entries[current] += " " + line.strip()
+            entries[current] = " ".join((entries[current], line.strip()))
         else:
             current = None
     return entries
@@ -67,6 +69,6 @@ def test_one_argument_name_has_one_explanation_in_every_script():
     drifted = {name: dict(texts) for name, texts in _explanations_by_name().items() if len(texts) > 1}
 
     assert not drifted, "\n".join(
-        f"{name}:\n" + "\n".join(f"  {scripts}: {text}" for text, scripts in texts.items())
+        "\n".join([f"{name}:", *(f"  {scripts}: {text}" for text, scripts in texts.items())])
         for name, texts in drifted.items()
     )

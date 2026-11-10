@@ -13,6 +13,8 @@ import yaml
 
 from dep_helpers import make_dep
 
+from tests.fixture_data import write_chart_dependencies
+
 DIGEST_A = "a" * 64
 
 
@@ -21,7 +23,7 @@ def write_values_yaml(chart_dir, text):
 
 
 def write_chart_yaml(chart_dir, deps):
-    (chart_dir / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}), encoding="utf-8")
+    write_chart_dependencies(chart_dir / "Chart.yaml", deps)
 
 
 def make_tgz(charts_dir, name, version, values):

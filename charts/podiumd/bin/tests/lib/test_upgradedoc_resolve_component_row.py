@@ -422,7 +422,7 @@ def test_changes_heading_has_app_version_chart_only_stub_has_none(libupgradedocr
     assert not libupgradedocresolverow.changes_heading_has_app_version("openbao 0.28.4")
 
 
-# --- resolved_row_unchanged ---
+# --- is_resolved_row_unchanged ---
 
 
 def test_resolved_row_unchanged_true_when_app_and_chart_equal_baseline(libupgradedocresolverow: ModuleType):
@@ -431,7 +431,7 @@ def test_resolved_row_unchanged_true_when_app_and_chart_equal_baseline(libupgrad
     resolved = libupgradedocresolverow.resolve_component_row(
         "ZAC", {}, _resolution(libupgradedocresolverow, None, deps, values, deps, values)
     )
-    assert libupgradedocresolverow.resolved_row_unchanged(resolved) is True
+    assert libupgradedocresolverow.is_resolved_row_unchanged(resolved) is True
 
 
 def test_resolved_row_unchanged_false_when_only_chart_equals_baseline(libupgradedocresolverow: ModuleType):
@@ -441,7 +441,7 @@ def test_resolved_row_unchanged_false_when_only_chart_equals_baseline(libupgrade
     resolved = libupgradedocresolverow.resolve_component_row(
         "ZAC", {}, _resolution(libupgradedocresolverow, None, deps, values, deps, baseline_values)
     )
-    assert libupgradedocresolverow.resolved_row_unchanged(resolved) is False
+    assert libupgradedocresolverow.is_resolved_row_unchanged(resolved) is False
 
 
 def test_resolved_row_unchanged_false_without_baseline(libupgradedocresolverow: ModuleType):
@@ -450,4 +450,4 @@ def test_resolved_row_unchanged_false_without_baseline(libupgradedocresolverow: 
     resolved = libupgradedocresolverow.resolve_component_row(
         "ZAC", {}, _resolution(libupgradedocresolverow, None, deps, values)
     )
-    assert libupgradedocresolverow.resolved_row_unchanged(resolved) is False
+    assert libupgradedocresolverow.is_resolved_row_unchanged(resolved) is False

@@ -1,4 +1,4 @@
-"""lib.baseline_report.show_baseline_section, shared by the show-*-baseline-version scripts."""
+"""lib.baseline_report.has_shown_baseline_section, shared by the show-*-baseline-version scripts."""
 
 from types import ModuleType
 
@@ -6,7 +6,7 @@ import pytest
 
 
 def test_show_baseline_section_prints_header(libbaselinereport: ModuleType, capsys: pytest.CaptureFixture[str]):
-    libbaselinereport.show_baseline_section("upgrade_docs", "4.8.5", lambda baseline: None)
+    libbaselinereport.has_shown_baseline_section("upgrade_docs", "4.8.5", lambda baseline: None)
     assert "=== upgrade_docs baseline ===" in capsys.readouterr().out
 
 
@@ -14,7 +14,7 @@ def test_show_baseline_section_none_baseline_is_skipped_without_calling_resolve(
     libbaselinereport: ModuleType, capsys: pytest.CaptureFixture[str]
 ):
     called = []
-    result = libbaselinereport.show_baseline_section("release_table", None, lambda baseline: called.append(baseline))
+    result = libbaselinereport.has_shown_baseline_section("release_table", None, called.append)
     assert result is False
     assert called == []
     out = capsys.readouterr().out
@@ -26,9 +26,8 @@ def test_show_baseline_section_calls_resolve_with_the_baseline_value(libbaseline
 
     def resolve(baseline):
         received.append(baseline)
-        return
 
-    libbaselinereport.show_baseline_section("upgrade_docs", "4.8.5", resolve)
+    libbaselinereport.has_shown_baseline_section("upgrade_docs", "4.8.5", resolve)
     assert received == ["4.8.5"]
 
 
@@ -37,9 +36,8 @@ def test_show_baseline_section_success_returns_true_and_prints_no_error_line(
 ):
     def resolve(baseline):
         print("  Component: zac")
-        return
 
-    result = libbaselinereport.show_baseline_section("upgrade_docs", "4.8.5", resolve)
+    result = libbaselinereport.has_shown_baseline_section("upgrade_docs", "4.8.5", resolve)
     assert result is True
     out = capsys.readouterr().out
     assert "Component: zac" in out
@@ -50,7 +48,7 @@ def test_show_baseline_section_error_is_printed_verbatim_and_returns_false(
     libbaselinereport: ModuleType, capsys: pytest.CaptureFixture[str]
 ):
     """`resolve`'s error is printed as-is, without a second "error: " prefix (callers may include one)."""
-    result = libbaselinereport.show_baseline_section("upgrade_docs", "4.8.5", lambda baseline: "error: boom")
+    result = libbaselinereport.has_shown_baseline_section("upgrade_docs", "4.8.5", lambda baseline: "error: boom")
     assert result is False
     out = capsys.readouterr().out
     assert "  error: boom" in out
@@ -60,11 +58,11 @@ def test_show_baseline_section_error_is_printed_verbatim_and_returns_false(
 def test_show_baseline_section_always_ends_with_one_blank_line(
     libbaselinereport: ModuleType, capsys: pytest.CaptureFixture[str]
 ):
-    libbaselinereport.show_baseline_section("upgrade_docs", "4.8.5", lambda baseline: None)
+    libbaselinereport.has_shown_baseline_section("upgrade_docs", "4.8.5", lambda baseline: None)
     assert capsys.readouterr().out.endswith("\n\n")
 
-    libbaselinereport.show_baseline_section("upgrade_docs", None, lambda baseline: None)
+    libbaselinereport.has_shown_baseline_section("upgrade_docs", None, lambda baseline: None)
     assert capsys.readouterr().out.endswith("\n\n")
 
-    libbaselinereport.show_baseline_section("upgrade_docs", "4.8.5", lambda baseline: "error: boom")
+    libbaselinereport.has_shown_baseline_section("upgrade_docs", "4.8.5", lambda baseline: "error: boom")
     assert capsys.readouterr().out.endswith("\n\n")

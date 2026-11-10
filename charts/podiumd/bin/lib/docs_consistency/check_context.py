@@ -7,8 +7,8 @@ from pathlib import Path
 
 from lib.chart.chart_state import BaselineState
 from lib.chart.chart_state import ComponentState
+from lib.chart.values_tree_primitives import ValuesPath
 from lib.settings import DigestPinningException
-from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.removed_items import RemovedItem
 from lib.upgradedoc.removed_items import removed_items
@@ -16,7 +16,7 @@ from lib.upgradedoc.string_and_parsing_basics import TableRow
 
 # A component as resolve_component_identity names it: ("dep", values_key)
 # or ("sidecar", values-tree path).
-ComponentIdentity = tuple[str, str | ImagePath]
+ComponentIdentity = tuple[str, str | ValuesPath]
 
 
 @dataclass
@@ -76,7 +76,7 @@ class DocScanState:
 
     doc_path: Path
     rows: list[TableRow]
-    canonical_names: dict[str, ImagePath]
+    canonical_names: dict[str, ValuesPath]
     removed: dict[str, RemovedItem] = field(default_factory=dict[str, RemovedItem])
 
 
@@ -96,7 +96,7 @@ class RowLookup:
     so they're skipped here rather than reported again.
     """
 
-    canonical_names: dict[str, ImagePath]
+    canonical_names: dict[str, ValuesPath]
     stale_names: set[str]
 
 
@@ -114,8 +114,8 @@ class ComponentRowsResult:
 
 @dataclass
 class ManifestEntryScan:
-    """images_path/repo_map/sibling_fields for _check_images_manifest_entry."""
+    """images_path/repo_map/sibling_fields for check_images_manifest_entry."""
 
     images_path: Path
-    repo_map: dict[str, ImagePath]
-    sibling_fields: dict[ImagePath, DigestPinningException]
+    repo_map: dict[str, ValuesPath]
+    sibling_fields: dict[ValuesPath, DigestPinningException]

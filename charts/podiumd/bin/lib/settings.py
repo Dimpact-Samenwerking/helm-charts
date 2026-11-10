@@ -6,6 +6,7 @@ The file is parsed once per version and cached (accessors run thousands of times
 each read copies only the value it returns."""
 
 import copy
+import sys
 
 from pathlib import Path
 from typing import NoReturn
@@ -21,7 +22,7 @@ from lib.yaml_types import shape_problem
 SETTINGS_FILE_NAME = "etc/settings.yaml"
 
 
-def _load_settings(chart_dir: Path) -> YamlMapping:
+def load_settings(chart_dir: Path) -> YamlMapping:
     """The parsed settings.yaml, or {} if missing. Shared cached mapping: never mutate it."""
     path = chart_dir / SETTINGS_FILE_NAME
     if not path.is_file():
@@ -29,19 +30,18 @@ def _load_settings(chart_dir: Path) -> YamlMapping:
     return cached_file_mapping(path, "", lambda: load_yaml_mapping(path)) or {}
 
 
-def _setting(chart_dir: Path, section: str, key: str) -> YamlValue:
+def setting(chart_dir: Path, section: str, key: str) -> YamlValue:
     """A copy of settings[section][key], or None when missing or null."""
-    return copy.deepcopy(get_path(_load_settings(chart_dir), f"{section}.{key}"))
+    return copy.deepcopy(get_path(load_settings(chart_dir), f"{section}.{key}"))
 
 
 def _wrong_type(section: str, key: str, expected: str) -> NoReturn:
-    msg = f"error: {SETTINGS_FILE_NAME}: {section}.{key} must be {expected}"
-    raise SystemExit(msg)
+    sys.exit(f"error: {SETTINGS_FILE_NAME}: {section}.{key} must be {expected}")
 
 
 def _checked(chart_dir: Path, section: str, key: str, shape: object, expected: str) -> YamlValue:
-    """_setting, exiting with an error naming the key if a present value lacks `shape`."""
-    value = _setting(chart_dir, section, key)
+    """setting, exiting with an error naming the key if a present value lacks `shape`."""
+    value = setting(chart_dir, section, key)
     if value is not None and shape_problem(value, shape) is not None:
         _wrong_type(section, key, expected)
     return value
@@ -64,30 +64,41 @@ def _text(chart_dir: Path, section: str, key: str, default: str) -> str:
 
 def _text_list(chart_dir: Path, section: str, key: str, default: list[str]) -> list[str]:
     value = _checked(chart_dir, section, key, [str], "a list of strings")
-    return [v for v in value if isinstance(v, str)] if isinstance(value, list) else default
+    return _strings(value) if isinstance(value, list) else default
 
 
 def _int_list(chart_dir: Path, section: str, key: str, default: list[int]) -> list[int]:
     value = _checked(chart_dir, section, key, [int], "a list of integers")
-    return [v for v in value if isinstance(v, int)] if isinstance(value, list) else default
+    if not isinstance(value, list):
+        return default
+    return [item for item in value if isinstance(item, int)]
 
 
 def _text_map(chart_dir: Path, section: str, key: str, default: dict[str, str]) -> dict[str, str]:
     value = _checked(chart_dir, section, key, dict, "a mapping of strings")
     if not isinstance(value, dict):
         return default
-    if not all(isinstance(v, str) for v in value.values()):
+    if not all(isinstance(item, str) for item in value.values()):
         _wrong_type(section, key, "a mapping of strings")
-    return {k: v for k, v in value.items() if isinstance(v, str)}
+    return {map_key: item for map_key, item in value.items() if isinstance(item, str)}
 
 
-def _text_list_map(chart_dir: Path, section: str, key: str, default: dict[str, list[str]]) -> dict[str, list[str]]:
+def _text_list_map(
+    chart_dir: Path,
+    section: str,
+    key: str,
+    default: dict[str, list[str]],
+) -> dict[str, list[str]]:
     value = _checked(chart_dir, section, key, dict, "a mapping of string lists")
     if not isinstance(value, dict):
         return default
-    if any(shape_problem(v, [str]) is not None for v in value.values()):
+    if any(shape_problem(items, [str]) is not None for items in value.values()):
         _wrong_type(section, key, "a mapping of string lists")
-    return {k: [item for item in v if isinstance(item, str)] for k, v in value.items() if isinstance(v, list)}
+    return {map_key: _strings(items) for map_key, items in value.items() if isinstance(items, list)}
+
+
+def _strings(items: list[YamlValue]) -> list[str]:
+    return [item for item in items if isinstance(item, str)]
 
 
 def cve_max_cves_per_package_before_summarizing(chart_dir: Path):
@@ -162,7 +173,7 @@ def release_secret_kubernetes_limit_bytes(chart_dir: Path):
 
 def release_secret_warn_at_fraction_of_limit(chart_dir: Path):
     """release_secret.warn_at_fraction_of_limit."""
-    return _number(chart_dir, "release_secret", "warn_at_fraction_of_limit", 0.90)
+    return _number(chart_dir, "release_secret", "warn_at_fraction_of_limit", 0.9)
 
 
 def dependency_fetch_retry_attempts(chart_dir: Path):
@@ -293,7 +304,7 @@ def helm_repos_urls_by_alias(chart_dir: Path):
     )
 
 
-def component_resolution_chart_version_lockstep_components(chart_dir: Path):
+def component_resolution_lockstep_components(chart_dir: Path):
     """component_resolution.chart_version_lockstep_components."""
     return frozenset(
         _text_list(

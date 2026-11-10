@@ -13,7 +13,9 @@ import yaml
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import native_components
+from lib.chart.repo_and_path_resolution import RepoGroups
 from lib.chart.repo_and_path_resolution import repository_group_key
+from lib.chart.values_tree_primitives import ValuesPath
 from lib.chart.values_tree_primitives import dep_for_values_key
 from lib.chart.values_tree_primitives import values_key_of
 from lib.component_docs.images_manifest_changes_header import covered_display_names
@@ -23,7 +25,6 @@ from lib.images_manifest import ParsedManifest
 from lib.images_manifest import entry_line_indices
 from lib.images_manifest import images_manifest_problem
 from lib.images_manifest import is_images_manifest
-from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
@@ -38,9 +39,9 @@ from lib.upgradedoc.images_manifest_list_diff import ManifestDiffInputs
 from lib.upgradedoc.images_manifest_list_diff import find_images_manifest_list_diff
 from lib.upgradedoc.images_manifest_ordering import EntryResolution
 from lib.upgradedoc.images_manifest_ordering import ManifestSortContext
+from lib.upgradedoc.images_manifest_ordering import are_manifest_entries_grouped
 from lib.upgradedoc.images_manifest_ordering import find_images_manifest_faulty_headers
 from lib.upgradedoc.images_manifest_ordering import images_manifest_display_name_positions
-from lib.upgradedoc.images_manifest_ordering import images_manifest_entries_share_group
 from lib.upgradedoc.images_manifest_ordering import images_manifest_entry_positions
 from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
@@ -69,7 +70,7 @@ class ResolvedManifest:
 
     entries: list[ManifestEntry]
     resolution: EntryResolution
-    repo_groups: dict[str, list[ImagePath]]
+    repo_groups: RepoGroups
 
 
 @dataclass
@@ -77,7 +78,7 @@ class ListDiffInputs:
     """find_images_manifest_list_diff's caller-varying inputs (manifest, baseline_paths)."""
 
     manifest: ResolvedManifest
-    baseline_paths: dict[ImagePath, str]
+    baseline_paths: dict[ValuesPath, str]
 
 
 def _uncovered_entry_display_names(
@@ -101,9 +102,7 @@ def _uncovered_entry_display_names(
     return missing
 
 
-def find_images_manifest_entries_missing_changes_mention(
-    text: str, entries: list[ManifestEntry], context: ManifestSortContext
-) -> list[str]:
+def entries_missing_changes_mention(text: str, entries: list[ManifestEntry], context: ManifestSortContext) -> list[str]:
     """Display names of every entry group with no "# Changes:" item resolving to it.
 
     The check counterpart of add_missing_images_manifest_entries' backfill pass:
@@ -127,7 +126,7 @@ def find_images_manifest_entries_missing_changes_mention(
     return sorted(_uncovered_entry_display_names(entries, entry_positions, resolution, covered_names))
 
 
-def _manifest_resolution_context(context: ManifestCheckContext) -> tuple[dict[str, list[ImagePath]], EntryResolution]:
+def _manifest_resolution_context(context: ManifestCheckContext) -> tuple[RepoGroups, EntryResolution]:
     """(repo_groups, EntryResolution) derived from `context`, computed once up front.
 
     Needed early: canonical "<key> - <image-basename>" Changes items resolve via their known
@@ -159,10 +158,10 @@ def _changes_item_version_mismatches(
     return issues
 
 
-def _entries_by_path(resolved: ResolvedManifest) -> dict[ImagePath, ManifestEntry]:
+def _entries_by_path(resolved: ResolvedManifest) -> dict[ValuesPath, ManifestEntry]:
     """{values path: entry} for every path of every entry's repository (one entry covers all its paths)."""
     resolution = resolved.resolution
-    by_path: dict[ImagePath, ManifestEntry] = {}
+    by_path: dict[ValuesPath, ManifestEntry] = {}
     for entry in resolved.entries:
         path = resolve_entry_image_path(entry["name"], resolution.current_paths.keys(), resolution.repo_map)
         for group_path in resolved.repo_groups.get(entry["name"], [path] if path is not None else []):
@@ -199,7 +198,7 @@ def _changes_item_issues(
     if identity is not None and identity[0] == "sidecar":
         entry = entries.get(identity[1])
     elif identity is not None:
-        entry = next((e for path, e in entries.items() if path[0] == identity[1]), None)
+        entry = next((manifest_entry for path, manifest_entry in entries.items() if path[0] == identity[1]), None)
     if entry is None:
         return [
             (
@@ -233,7 +232,7 @@ def _changes_block_item_issues(name: str, text: str, resolved: ResolvedManifest,
 
 
 def _entry_comment_version_mismatches(
-    name: str, entry: ManifestEntry, comment: str, resolution: EntryResolution, baseline_paths: dict[ImagePath, str]
+    name: str, entry: ManifestEntry, comment: str, resolution: EntryResolution, baseline_paths: dict[ValuesPath, str]
 ):
     """Issues for one entry's preceding comment: target vs actual, source vs baseline."""
     issues: list[str] = []
@@ -260,7 +259,7 @@ def _entry_comment_issues(
     lines: list[str],
     resolved: ResolvedManifest,
     entry_starts: list[int],
-    baseline_paths: dict[ImagePath, str],
+    baseline_paths: dict[ValuesPath, str],
 ):
     """One issue per entry whose preceding comment is missing or disagrees on versions.
 
@@ -277,14 +276,14 @@ def _entry_comment_issues(
             )
         ]
 
-    def same_group(entry_a: ManifestEntry, entry_b: ManifestEntry) -> bool:
-        return images_manifest_entries_share_group(
+    def is_same_group(entry_a: ManifestEntry, entry_b: ManifestEntry) -> bool:
+        return are_manifest_entries_grouped(
             entry_a, entry_b, resolved.resolution.current_paths, resolved.resolution.repo_map
         )
 
     issues: list[str] = []
     for index, (entry, _line_idx) in enumerate(zip(resolved.entries, entry_starts, strict=True)):
-        comment = find_grouped_preceding_comment(lines, resolved.entries, entry_starts, index, same_group)
+        comment = find_grouped_preceding_comment(lines, resolved.entries, entry_starts, index, is_same_group)
         if not comment:
             issues.append(f'{name}: entry "{entry["name"]}" has no preceding comment')
             continue
@@ -295,7 +294,7 @@ def _entry_comment_issues(
 def _sidecar_header_issues(name: str, parsed: ParsedManifest, resolution: EntryResolution):
     """One issue per sidecar entry lacking its own "# sidecar: <parent> - <image-basename> ..." header.
 
-    Borrowing a preceding entry's header via same_group is wrong when versions merely
+    Borrowing a preceding entry's header via is_same_group is wrong when versions merely
     coincide (kiss-elastic-sync 0.3.3 -> 3.0.0 under "# KISS — 2.2.4 -> 3.0.0").
     """
     issues: list[str] = []
@@ -315,10 +314,10 @@ def _missing_changes_mention_issues(
     name: str, text: str, entries: list[ManifestEntry], sort_context: ManifestSortContext
 ):
     """One issue per entry with no "# Changes:" mention at all (see
-    find_images_manifest_entries_missing_changes_mention)."""
+    entries_missing_changes_mention)."""
     return [
         f'{name}: image "{entry_name}" has an entry but no mention in the "# Changes:" list'
-        for entry_name in find_images_manifest_entries_missing_changes_mention(text, entries, sort_context)
+        for entry_name in entries_missing_changes_mention(text, entries, sort_context)
     ]
 
 
@@ -342,7 +341,7 @@ def expected_entry_name(entry: ManifestEntry) -> str | None:
     return repository_group_key(url) if isinstance(url, str) else None
 
 
-def _renamable_entry_names(entries: list[ManifestEntry], repo_map: Mapping[str, ImagePath]) -> set[str]:
+def _renamable_entry_names(entries: list[ManifestEntry], repo_map: Mapping[str, ValuesPath]) -> set[str]:
     """Names that differ from expected_entry_name but are known repositories.
 
     Renaming would make them resolve, so _entry_name_issues already reports them.
@@ -420,10 +419,10 @@ def check_images_manifest_format(images_path: Path, context: ManifestCheckContex
     text = images_path.read_text(encoding="utf-8")
     try:
         entries = parse_yaml(text, images_path.name)
-    except yaml.YAMLError as e:
-        return [f"{images_path.name} is not valid YAML: {e}"]
-    except YamlShapeError as e:
-        return [str(e)]
+    except yaml.YAMLError as error:
+        return [f"{images_path.name} is not valid YAML: {error}"]
+    except YamlShapeError as error:
+        return [str(error)]
     problem = images_manifest_problem(entries)
     if problem is not None or not is_images_manifest(entries):
         return [f"{images_path.name} {problem}"]

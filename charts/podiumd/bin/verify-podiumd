@@ -84,10 +84,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 # sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
-from lib.chart.release_baseline_basics import RELEASE_BASELINES_FILE_NAME
-from lib.chart.release_baseline_basics import release_table_baseline as read_release_table_baseline
-from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
-from lib.chart.release_baseline_basics import upgrade_docs_side_paths as read_upgrade_docs_side_paths
+from lib.chart import release_baseline_basics
 from lib.chart.upgrade_check import check_chart_upgrades
 from lib.chart.values_tree_primitives import UTF8_BOM
 from lib.checks.cve import check_cves
@@ -112,7 +109,7 @@ from lib.checks.yamllint import check_yamllint
 from lib.dependencies import check_dependencies
 from lib.dependencies import ensure_repos_configured
 from lib.dependencies import ensure_vendored_dependencies
-from lib.docs_consistency import check_docs_consistency
+from lib.docs_consistency.check import check_docs_consistency
 from lib.gitutil import find_repo_root
 from lib.gitutil import resolve_baseline_ref
 from lib.image.digests import check_image_digests
@@ -174,7 +171,7 @@ def check_release_baseline(chart_dir: Path):
 
     A missing file or key fails too.
     """
-    baselines_file = chart_dir / RELEASE_BASELINES_FILE_NAME
+    baselines_file = chart_dir / release_baseline_basics.RELEASE_BASELINES_FILE_NAME
     repo_root = find_repo_root(chart_dir)
     if repo_root is None:
         return False, f"{baselines_file.name}: not inside a git repository"
@@ -182,9 +179,9 @@ def check_release_baseline(chart_dir: Path):
     failures: list[str] = []
     resolved: list[str] = []
     for key, baseline in (
-        ("upgrade_docs", read_upgrade_docs_baseline(chart_dir)),
-        ("release_table", read_release_table_baseline(chart_dir)),
-        *(("side_paths", side) for side in read_upgrade_docs_side_paths(chart_dir)),
+        ("upgrade_docs", release_baseline_basics.upgrade_docs_baseline(chart_dir)),
+        ("release_table", release_baseline_basics.release_table_baseline(chart_dir)),
+        *(("side_paths", side) for side in release_baseline_basics.upgrade_docs_side_paths(chart_dir)),
     ):
         if baseline is None:
             failures.append(f"{key}: missing from {baselines_file.name}")
@@ -241,12 +238,18 @@ def check_render(chart_dir: Path, extra_args: list[str]):
 StepResult = tuple[str, bool | None, str | None]
 
 
+def _step_status(*, ok: bool | None) -> str:
+    if ok is None:
+        return "SKIP"
+    return "PASS" if ok else "FAIL"
+
+
 def print_summary(results: list[StepResult], *, overall_ok: bool):
     """Print the PASS/FAIL/SKIP table (ok None is SKIP) and a closing line."""
     log("VERIFY SUMMARY")
     width = max(len(name) for name, _, _ in results)
     for name, ok, detail in results:
-        status = "SKIP" if ok is None else ("PASS" if ok else "FAIL")
+        status = _step_status(ok=ok)
         print(f"  {name.ljust(width)} : {status} ({detail})")
     print()
     if overall_ok:
@@ -334,7 +337,8 @@ def prerequisites_for(step_name: str) -> set[str]:
 STEPS_HELP = (
     "\nSteps usable with --skip=/--include= (in run order):\n"
     + "\n".join(
-        f"  {flag:<{max(len(f) for f, _ in SKIPPABLE_STEPS) + 2}}{step_name}" for flag, step_name in SKIPPABLE_STEPS
+        f"  {flag:<{max(len(skippable) for skippable, _ in SKIPPABLE_STEPS) + 2}}{step_name}"
+        for flag, step_name in SKIPPABLE_STEPS
     )
     + "\n"
 )
@@ -427,8 +431,8 @@ def _parse_cli_args():
     def parse_step_list(raw: str | None, option_name: str) -> list[str]:
         if not raw:
             return []
-        flags = [f for f in raw.split(",") if f]
-        unknown = [f for f in flags if f not in valid_flags]
+        flags = [flag for flag in raw.split(",") if flag]
+        unknown = [flag for flag in flags if flag not in valid_flags]
         if unknown:
             parser.error(
                 f"{option_name}: unknown step(s): {', '.join(unknown)} — valid steps: "
@@ -454,7 +458,7 @@ def _parse_cli_args():
     return args, skipped_steps, skip_flags, include_flags
 
 
-def _run_all_steps(runner: StepRunner, chart_dir: Path, args: argparse.Namespace):
+def run_all_steps(runner: StepRunner, chart_dir: Path, args: argparse.Namespace):
     """Run every step in SKIPPABLE_STEPS order.
 
     An explicit skip never marks a step failed_or_blocked, so it never blocks
@@ -510,14 +514,14 @@ def _run_all_steps(runner: StepRunner, chart_dir: Path, args: argparse.Namespace
 
     runner.run("Dependencies", "Resolving dependencies (re-vendoring what changed)", check_dependencies, chart_dir)
 
-    upgrade_docs_baseline = read_upgrade_docs_baseline(chart_dir)
+    upgrade_docs_baseline = release_baseline_basics.upgrade_docs_baseline(chart_dir)
     runner.run(
         "Doc consistency",
         "Checking versions against upgrade docs",
         check_docs_consistency,
         chart_dir,
         upgrade_docs_baseline,
-        read_upgrade_docs_side_paths(chart_dir),
+        release_baseline_basics.upgrade_docs_side_paths(chart_dir),
     )
 
     extra_args = lint_args_for(chart_dir)
@@ -577,7 +581,7 @@ def _run_all_steps(runner: StepRunner, chart_dir: Path, args: argparse.Namespace
     )
 
 
-def _ensure_vendored_dependencies_if_skipped(chart_dir: Path, skipped_steps: set[str]):
+def ensure_vendored_dependencies_if_skipped(chart_dir: Path, skipped_steps: set[str]):
     """With "Dependencies" skipped, re-vendor a stale state when a step that needs it still runs."""
     if "Dependencies" not in skipped_steps:
         return
@@ -598,10 +602,10 @@ def main():
     log("Resolving chart source")
     chart_dir = resolve_chart_dir()
     print(f"Using local chart source: {chart_dir}")
-    _ensure_vendored_dependencies_if_skipped(chart_dir, skipped_steps)
+    ensure_vendored_dependencies_if_skipped(chart_dir, skipped_steps)
 
     runner = StepRunner(skipped_steps=skipped_steps, skip_flags=skip_flags, include_flags=include_flags)
-    _run_all_steps(runner, chart_dir, args)
+    run_all_steps(runner, chart_dir, args)
 
     overall_ok = not runner.failed_or_blocked
     print_summary(runner.results, overall_ok=overall_ok)

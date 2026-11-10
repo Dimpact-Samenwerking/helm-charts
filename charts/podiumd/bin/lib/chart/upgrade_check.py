@@ -10,15 +10,13 @@ count as newer. Results are cached per (repository, chart, version) in the
 gitignored .cache/chart-upgrade-cache.json. Never fails on findings.
 """
 
-import urllib.error
-import urllib.request
-
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from typing import TypeGuard
+from urllib.request import urlopen
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import load_chart_dependencies
@@ -123,7 +121,7 @@ def chart_sources(chart_dir: Path, deps: list[ChartDependency]) -> list[ChartSou
 
 
 @dataclass
-class _Fetcher:
+class Fetcher:
     """Published versions per source; an index.yaml is downloaded once per repository."""
 
     timeout_seconds: float
@@ -142,7 +140,7 @@ class _Fetcher:
         if source.repository not in self.index_texts:
             index_url = f"{source.repository}/index.yaml"
             # index_url comes from Chart.yaml/settings.yaml, never an attacker-controlled scheme.
-            with urllib.request.urlopen(index_url, timeout=self.timeout_seconds) as resp:  # nosec B310
+            with urlopen(index_url, timeout=self.timeout_seconds) as resp:  # nosec B310
                 self.index_texts[source.repository] = resp.read().decode("utf-8")
         releases = index_chart_releases(self.index_texts[source.repository], source.chart, source.repository)
         newer = newer_stable_versions(source.version, list(releases))
@@ -163,19 +161,20 @@ def _scan(chart_dir: Path, sources: list[ChartSource], ttl_days: int) -> ChartUp
     cache_path = cache_file(chart_dir, CACHE_FILENAME)
     old_cache = load_json_cache(cache_path, is_chart_upgrade_entry)
     new_cache: dict[str, ChartUpgradeEntry] = {}
-    fetcher = _Fetcher(repo_access_request_timeout_seconds(chart_dir))
+    fetcher = Fetcher(repo_access_request_timeout_seconds(chart_dir))
     scan = ChartUpgradeScan()
-    for i, source in enumerate(sources, 1):
+    for position, source in enumerate(sources, 1):
         cached = old_cache.get(source.cache_key)
         if cached and cache_entry_is_fresh(cached, ttl_days):
             scan.cache_hits += 1
             entry = cached
         else:
-            print(f"  [{i}/{len(sources)}] checking {source.name} ({source.chart} {source.version})...", flush=True)
+            progress = f"[{position}/{len(sources)}]"
+            print(f"  {progress} checking {source.name} ({source.chart} {source.version})...", flush=True)
             try:
                 newer, app_versions = fetcher.newer(source)
-            except (urllib.error.URLError, OSError, UnicodeDecodeError, YamlShapeError) as e:
-                print(f"  [FETCH-ERR] {source.name}  {e}")
+            except (OSError, UnicodeDecodeError, YamlShapeError) as error:  # URLError is an OSError
+                print(f"  [FETCH-ERR] {source.name}  {error}")
                 scan.fetch_errors.append(source)
                 continue
             entry: ChartUpgradeEntry = {
@@ -196,7 +195,11 @@ def _with_app_version(version: str, app_version: str | None) -> str:
 
 def _print_findings(scan: ChartUpgradeScan, total: int, ttl_days: int) -> None:
     """Print upgradable charts, then OK/INCOMPLETE and the cache summary."""
-    upgradable = [(s, e) for s, e in scan.newer.items() if e["newer"]]
+    upgradable = [
+        (upgradable_source, upgradable_entry)
+        for upgradable_source, upgradable_entry in scan.newer.items()
+        if upgradable_entry["newer"]
+    ]
     for source, entry in upgradable:
         newer = " | ".join(map(_with_app_version, entry["newer"], entry["app_versions"]))
         current = _with_app_version(source.version, source.app_version)
@@ -220,5 +223,5 @@ def check_chart_upgrades(chart_dir: Path) -> tuple[bool, str]:
     print(f"Checking {len(sources)} dependency chart(s) for a newer published version...")
     scan = _scan(chart_dir, sources, ttl_days)
     _print_findings(scan, len(sources), ttl_days)
-    upgradable = sum(1 for e in scan.newer.values() if e["newer"])
+    upgradable = sum(1 for entry in scan.newer.values() if entry["newer"])
     return True, f"upgradable: {upgradable}/{len(sources)} chart(s); {len(scan.fetch_errors)} fetch error(s)"

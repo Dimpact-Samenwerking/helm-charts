@@ -42,7 +42,7 @@ def write_chart_yaml(path, version, app_version=None):
     )
 
 
-# --- current_chart_version / version_tuple ---
+# --- current_chart_version ---
 
 
 def test_current_chart_version_reads_chart_yaml(cpv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -50,11 +50,6 @@ def test_current_chart_version_reads_chart_yaml(cpv: ModuleType, tmp_path: Path,
     write_chart_yaml(chart_yaml, "4.9.0")
     monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
     assert cpv.current_chart_version() == "4.9.0"
-
-
-def test_version_tuple_orders_numerically_not_lexically(cpv: ModuleType):
-    assert cpv.version_tuple("4.9.0") < cpv.version_tuple("4.10.0")
-    assert cpv.version_tuple("4.9.0") == (4, 9, 0)
 
 
 # --- bump_kind ---

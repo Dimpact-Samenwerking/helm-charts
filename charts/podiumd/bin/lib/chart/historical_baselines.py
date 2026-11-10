@@ -11,7 +11,8 @@ from lib.chart.repo_and_path_resolution import full_repository_for_path
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repo_group_representative
 from lib.chart.repo_and_path_resolution import repository_group_key
-from lib.chart.values_tree_primitives import image_version_changed
+from lib.chart.values_tree_primitives import ValuesPath
+from lib.chart.values_tree_primitives import is_image_version_changed
 from lib.chart.values_tree_primitives import version_of
 from lib.images_manifest import try_parse_images_manifest
 from lib.upgradedoc.chart_image_index import ChartImageIndex
@@ -37,17 +38,16 @@ def historical_images_manifest_paths(chart_dir: Path | None, at_or_before: str |
     if not images_dir.is_dir():
         return []
     limit = stable_semver_key(at_or_before) if at_or_before else None
-    dated: list[tuple[tuple[int, ...], Path]] = []
+    versions: dict[Path, tuple[int, ...]] = {}
     for path in images_dir.glob("images-*.yaml"):
-        m = IMAGES_MANIFEST_NAME_RE.fullmatch(path.name)
-        if not m:
+        name_match = IMAGES_MANIFEST_NAME_RE.fullmatch(path.name)
+        if not name_match:
             continue
-        version_tuple = dotted_numbers(m.group(1))
+        version_tuple = dotted_numbers(name_match.group(1))
         if limit is not None and version_tuple > limit:
             continue
-        dated.append((version_tuple, path))
-    dated.sort(key=lambda pair: pair[0], reverse=True)
-    return [path for _version_tuple, path in dated]
+        versions[path] = version_tuple
+    return sorted(versions, key=versions.__getitem__, reverse=True)
 
 
 def historical_app_version_for_repository(
@@ -79,7 +79,7 @@ def historical_app_version_for_path(
     chart_dir: Path | None,
     deps: list[ChartDependency],
     values: YamlMapping,
-    path: tuple[str, ...],
+    path: ValuesPath,
     at_or_before: str | None = None,
 ) -> str | None:
     """historical_app_version_for_repository for `path`'s resolved repository.
@@ -103,10 +103,10 @@ class BaselineSetup(Protocol):  # pylint: disable=too-few-public-methods
     """What baseline_lookup reads from a caller's baseline bundle."""
 
     @property
-    def baseline_paths(self) -> Mapping[tuple[str, ...], str | None]: ...  # pylint: disable=missing-function-docstring
+    def baseline_paths(self) -> Mapping[ValuesPath, str | None]: ...  # pylint: disable=missing-function-docstring
 
     @property
-    def baseline_repo_groups(self) -> Mapping[str, list[tuple[str, ...]]]: ...  # pylint: disable=missing-function-docstring
+    def baseline_repo_groups(self) -> Mapping[str, list[ValuesPath]]: ...  # pylint: disable=missing-function-docstring
 
 
 @dataclass
@@ -117,8 +117,8 @@ class BaselineLookup:
     deps: list[ChartDependency]
     target_values: YamlMapping
     baseline_values: YamlMapping | None
-    baseline_paths: Mapping[tuple[str, ...], str | None]
-    baseline_repo_groups: Mapping[str, list[tuple[str, ...]]]
+    baseline_paths: Mapping[ValuesPath, str | None]
+    baseline_repo_groups: Mapping[str, list[ValuesPath]]
 
     @cached_property
     def target_index(self) -> ChartImageIndex:
@@ -144,7 +144,7 @@ def baseline_lookup(
     )
 
 
-def baseline_tag_for_sidecar_path(lookup: BaselineLookup, path: tuple[str, ...]) -> str | None:
+def baseline_tag_for_sidecar_path(lookup: BaselineLookup, path: ValuesPath) -> str | None:
     """The baseline (pre-upgrade) tag for a sidecar/shared-image or bare-version values-tree `path`.
 
     Shared by the "Component versions" table, the upgrade doc's Changes
@@ -175,10 +175,10 @@ def baseline_tag_for_sidecar_path(lookup: BaselineLookup, path: tuple[str, ...])
     # Compare fully-qualified repositories: stripped names can collide.
     expected_url = full_repository_for_path(lookup.chart_dir, lookup.deps, lookup.target_values, path)
     matching = [
-        p
-        for p in candidates
+        candidate
+        for candidate in candidates
         if expected_url is not None
-        and full_repository_for_path(lookup.chart_dir, lookup.deps, lookup.baseline_values, p) == expected_url
+        and full_repository_for_path(lookup.chart_dir, lookup.deps, lookup.baseline_values, candidate) == expected_url
     ]
     if not matching:
         return None
@@ -187,7 +187,7 @@ def baseline_tag_for_sidecar_path(lookup: BaselineLookup, path: tuple[str, ...])
     return representative_tag.split("@", 1)[0] if representative_tag else None
 
 
-def sidecar_baseline_version(lookup: BaselineLookup, path: tuple[str, ...], at_or_before: str | None) -> str | None:
+def sidecar_baseline_version(lookup: BaselineLookup, path: ValuesPath, at_or_before: str | None) -> str | None:
     """A sidecar/shared image's baseline version: baseline_tag_for_sidecar_path, then
     this chart's past images-<version>.yaml manifests up to `at_or_before`.
 
@@ -203,13 +203,13 @@ def sidecar_baseline_version(lookup: BaselineLookup, path: tuple[str, ...], at_o
             lookup.chart_dir, lookup.deps, lookup.target_values, path, at_or_before
         )
     if path[0] == "global" and (
-        version is None or not image_version_changed(version, lookup.target_index.paths.get(path))
+        version is None or not is_image_version_changed(version, lookup.target_index.paths.get(path))
     ):
         return _switched_consumer_baseline_tag(lookup, path) or version
     return version
 
 
-def _switched_consumer_baseline_tag(lookup: BaselineLookup, path: tuple[str, ...]) -> str | None:
+def _switched_consumer_baseline_tag(lookup: BaselineLookup, path: ValuesPath) -> str | None:
     """The baseline version of the first path (values.yaml order) in global.images
     `path`'s repository group whose baseline version differs from `path`'s current
     one; None when no such path exists."""
@@ -220,10 +220,11 @@ def _switched_consumer_baseline_tag(lookup: BaselineLookup, path: tuple[str, ...
         return None
     key_order = values_key_order(lookup.target_values)
     consumers = sorted(
-        (p for p in group if p != path), key=lambda p: path_order_key(p, lookup.deps, key_order, lookup.target_values)
+        (other_path for other_path in group if other_path != path),
+        key=lambda other_path: path_order_key(other_path, lookup.deps, key_order, lookup.target_values),
     )
     for consumer in consumers:
         baseline_tag = lookup.baseline_paths.get(consumer)
-        if baseline_tag and image_version_changed(baseline_tag, current_tag):
+        if baseline_tag and is_image_version_changed(baseline_tag, current_tag):
             return version_of(baseline_tag)
     return None

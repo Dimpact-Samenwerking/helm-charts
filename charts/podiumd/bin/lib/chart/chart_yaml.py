@@ -31,17 +31,21 @@ ChartDependency = TypedDict(
 )
 
 
-class ChartYaml(TypedDict):
-    """A Chart.yaml, with the keys this repo reads."""
-
-    apiVersion: str
-    name: str
-    version: str
-    description: NotRequired[str]
-    type: NotRequired[str]
-    # Always a string (see normalize_app_version).
-    appVersion: NotRequired[str]
-    dependencies: NotRequired[list[ChartDependency]]
+# A Chart.yaml, with the keys this repo reads. Functional syntax: as class
+# fields the camelCase keys would be upper-case constants to WPS115.
+ChartYaml = TypedDict(  # noqa: UP013 -- Chart.yaml's camelCase keys, see above
+    "ChartYaml",
+    {
+        "apiVersion": str,
+        "name": str,
+        "version": str,
+        "description": NotRequired[str],
+        "type": NotRequired[str],
+        # Always a string (see normalize_app_version).
+        "appVersion": NotRequired[str],
+        "dependencies": NotRequired[list[ChartDependency]],
+    },
+)
 
 
 _DEPENDENCY_OPTIONAL_STR_KEYS = ("repository", "condition", "alias")
@@ -102,7 +106,7 @@ def dependencies_problem(
         return None  # a bare "dependencies:" key
     if not isinstance(deps, list):
         return f"dependencies: expected a list, got {type(deps).__name__}"
-    return first_problem(*(entry_problem(dep, f"dependencies[{i}]") for i, dep in enumerate(deps)))
+    return first_problem(*(entry_problem(dep, f"dependencies[{index}]") for index, dep in enumerate(deps)))
 
 
 def chart_yaml_problem(mapping: YamlMapping) -> str | None:

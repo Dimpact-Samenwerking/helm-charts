@@ -16,7 +16,7 @@ def make_chart(tmp_path: Path, tgz_names=(), extracted_names=()):
         (charts_dir / f"{name}-1.0.0.tgz").write_bytes(FAKE_TGZ)
     for name in extracted_names:
         (charts_dir / name).mkdir()
-        (charts_dir / name / "Chart.yaml").write_text("name: " + name + "\n", encoding="utf-8")
+        (charts_dir / name / "Chart.yaml").write_text(f"name: {name}\n", encoding="utf-8")
     return tmp_path
 
 

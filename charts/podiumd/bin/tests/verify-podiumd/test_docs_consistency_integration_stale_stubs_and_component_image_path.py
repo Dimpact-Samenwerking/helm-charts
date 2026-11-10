@@ -134,7 +134,8 @@ def test_bare_changes_todo_stub_with_no_real_block_is_not_flagged(
 
     The bare section trips an unrelated row/section check, so only this finding is asserted."""
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
-    doc.write_text(doc.read_text() + "\n## Changes\n\nTODO\n")
+    original = doc.read_text()
+    doc.write_text(f"{original}\n## Changes\n\nTODO\n")
 
     vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
 
@@ -212,7 +213,7 @@ def test_unmatched_row_is_reported_as_a_wrong_phrasing_mismatch(
     update-image-version "<component> - <image-basename>"/"<image-basename>" row."""
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(
-        doc.read_text().replace(ZAC_ROW, ZAC_ROW + "| Grafana | 1.0.0 → 1.0.1 | 1.0.0 (unchanged) | n/a |\n")
+        doc.read_text().replace(ZAC_ROW, f"{ZAC_ROW}| Grafana | 1.0.0 → 1.0.1 | 1.0.0 (unchanged) | n/a |\n")
     )
 
     ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
@@ -230,7 +231,7 @@ def test_duplicate_row_names_are_reported(vp: ModuleType, chart_repo, capsys: py
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(
         doc.read_text().replace(
-            ZAC_ROW, ZAC_ROW + "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | dup |\n"
+            ZAC_ROW, f"{ZAC_ROW}| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | dup |\n"
         )
     )
 
@@ -252,7 +253,7 @@ def test_exact_dependency_match_wins_over_a_fuzzy_duplicate_claim(
     This holds even when its cells are correct, so the per-row content check would miss it."""
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(
-        doc.read_text().replace(ZAC_ROW, ZAC_ROW + "| zac | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | exact match |\n")
+        doc.read_text().replace(ZAC_ROW, f"{ZAC_ROW}| zac | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | exact match |\n")
     )
 
     ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
@@ -301,7 +302,7 @@ def test_undocumented_new_component_is_caught_everywhere(
 ):
     """An undocumented new component gets its upgrade.md row and manifest item."""
     (chart_repo / "Chart.yaml").write_text(
-        CHART_YAML + '  - name: openformulieren\n    version: "1.12.0"\n    repository: "@openformulieren"\n'
+        f'{CHART_YAML}  - name: openformulieren\n    version: "1.12.0"\n    repository: "@openformulieren"\n'
     )
     (chart_repo / "values.yaml").write_text(
         values_yaml("5.4.3")
@@ -458,7 +459,8 @@ def test_stale_pointer_reference_does_not_block_every_other_check(
 
     The link is repaired and an unrelated by-hand finding is still reported in the same run."""
     gemeente = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-gemeente-specific.md"
-    gemeente.write_text(gemeente.read_text() + "\nSee [4.8.3-to-4.9.0-upgrade.md](4.8.3-to-4.9.0-upgrade.md).\n")
+    original = gemeente.read_text()
+    gemeente.write_text(f"{original}\nSee [4.8.3-to-4.9.0-upgrade.md](4.8.3-to-4.9.0-upgrade.md).\n")
 
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(doc.read_text().replace("ZAC (Zaakafhandelcomponent)", "Some Unrelated Name"))

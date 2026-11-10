@@ -3,6 +3,7 @@
 import io
 
 from pathlib import Path
+from typing import override
 
 import pytest
 
@@ -103,9 +104,11 @@ dependencies:
 
 
 class _Response(io.BytesIO):
+    @override
     def __enter__(self):
         return self
 
+    @override
     def __exit__(self, *_exc: object) -> None:
         self.close()
 
@@ -125,7 +128,7 @@ def test_check_reports_newer_charts_with_app_versions_caches_them_and_never_fail
         calls.append(f"{host}/{repo}")
         return ["2.0.0", "2.1.0", "3.0.0"]
 
-    monkeypatch.setattr(upgrade_check.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(upgrade_check, "urlopen", fake_urlopen)
     monkeypatch.setattr(upgrade_check, "list_tags", fake_list_tags)
     monkeypatch.setattr(upgrade_check, "chart_app_version", lambda host, repo, version, timeout: f"app-{version}")
     monkeypatch.setattr(upgrade_check, "subchart_app_version", lambda chart_dir, dep: "5.9.1")
@@ -153,7 +156,7 @@ def test_check_omits_an_unset_app_version(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
     (tmp_path / "Chart.yaml").write_text(CHART_YAML)
-    monkeypatch.setattr(upgrade_check.urllib.request, "urlopen", lambda url, timeout: _Response(INDEX.encode()))
+    monkeypatch.setattr(upgrade_check, "urlopen", lambda url, timeout: _Response(INDEX.encode()))
     monkeypatch.setattr(upgrade_check, "list_tags", lambda host, repo: ["2.0.0"])
     monkeypatch.setattr(upgrade_check, "subchart_app_version", lambda chart_dir, dep: None)
 
@@ -173,7 +176,7 @@ def test_check_reports_a_fetch_error_as_incomplete(
         msg = "unreachable"
         raise OSError(msg)
 
-    monkeypatch.setattr(upgrade_check._Fetcher, "newer", failing_newer)  # pyright: ignore[reportPrivateUsage]
+    monkeypatch.setattr(upgrade_check.Fetcher, "newer", failing_newer)
 
     assert check_chart_upgrades(tmp_path) == (True, "upgradable: 0/2 chart(s); 2 fetch error(s)")
     out = capsys.readouterr().out

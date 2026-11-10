@@ -103,7 +103,7 @@ def test_main_new_sidecar_path_at_its_version_in_a_historical_manifest_gets_no_r
     cdb: ModuleType, repo_with_new_sidecar_pinned_to_a_known_mirrored_image, monkeypatch: pytest.MonkeyPatch
 ):
     """A new sidecar path whose pin is in an earlier manifest at the same version
-    is unchanged, as the checker resolves it (resolved_row_unchanged): no row."""
+    is unchanged, as the checker resolves it (is_resolved_row_unchanged): no row."""
     doc_dir = repo_with_new_sidecar_pinned_to_a_known_mirrored_image
     set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
     cdb.main()
@@ -228,7 +228,7 @@ def test_main_adds_sections_for_both_rows_named_by_a_two_component_heading(
     combined_heading = "### ZAC (Zaakafhandelcomponent) 5.0.1 → 5.0.2 + redis-operator 0.26.0 → 0.26.1\n\n"
     doc.write_text(
         doc.read_text(encoding="utf-8").replace(
-            "## Changes\n\n", "## Changes\n\n" + combined_heading + "Some shared prose that must not be touched.\n\n"
+            "## Changes\n\n", f"## Changes\n\n{combined_heading}Some shared prose that must not be touched.\n\n"
         ),
         encoding="utf-8",
     )

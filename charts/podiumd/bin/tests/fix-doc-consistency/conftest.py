@@ -15,8 +15,9 @@ from typing import TypedDict
 import pytest
 import yaml
 
-from lib.docs_consistency import check_docs_consistency
+from lib.docs_consistency.check import check_docs_consistency
 from lib.image import baseline_refresh
+from tests.fixture_data import sha256_digest
 
 SCRIPT_PATH = Path(__file__).resolve().parents[2] / "fix-doc-consistency"
 
@@ -48,7 +49,7 @@ def stub_registry_tag_exists(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch):
     import lib.image.docs as image_docs
 
     monkeypatch.setattr(
-        image_docs, "cached_tag_exists", lambda chart_dir, repository, version: (True, "sha256:" + "0" * 64)
+        image_docs, "cached_tag_exists", lambda chart_dir, repository, version: (True, sha256_digest("0"))
     )
 
 

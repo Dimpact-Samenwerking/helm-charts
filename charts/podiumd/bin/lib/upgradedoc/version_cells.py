@@ -107,7 +107,7 @@ def replace_version_spec(line: str, new_spec: str):
     A spec is an arrow pair (VERSION_PAIR_RE) or a "<version> (new)"/"(unchanged)"/
     "(digest changed)" form. Whole-spec replacement, since the correct text can switch
     shape (a wrong "X -> X" must become "X (new)")."""
-    new_line, count = VERSION_SPEC_RE.subn(lambda _m: new_spec, line, count=1)
+    new_line, count = VERSION_SPEC_RE.subn(lambda _spec_match: new_spec, line, count=1)
     return new_line if count else line
 
 

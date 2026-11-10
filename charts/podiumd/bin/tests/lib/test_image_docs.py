@@ -10,6 +10,12 @@ import pytest
 import yaml
 
 from lib.component_docs.changes_section import DocContext
+from tests.fixture_data import SHA256_A
+from tests.fixture_data import SHA256_B
+from tests.fixture_data import SHA256_C
+from tests.fixture_data import SHA256_D
+from tests.fixture_data import SHA256_E
+from tests.fixture_data import SHA256_F
 
 # --- add_missing_sidecar_rows ---
 
@@ -268,11 +274,11 @@ def test_regenerate_images_baseline_manifest_full_enumeration_and_sort_order(lib
     ]
     values = {
         "zac": {
-            "image": {"repository": "infonl/zaakafhandelcomponent", "tag": "1.0.297@sha256:" + "a" * 64},
-            "opa": {"image": {"repository": "openpolicyagent/opa", "tag": "0.60.0@sha256:" + "b" * 64}},
+            "image": {"repository": "infonl/zaakafhandelcomponent", "tag": f"1.0.297@{SHA256_A}"},
+            "opa": {"image": {"repository": "openpolicyagent/opa", "tag": f"0.60.0@{SHA256_B}"}},
         },
         "openbao": {
-            "image": {"repository": "openbao/openbao", "tag": "2.0.0@sha256:" + "c" * 64},
+            "image": {"repository": "openbao/openbao", "tag": f"2.0.0@{SHA256_C}"},
         },
     }
     images_baseline_path = tmp_path / "images-baseline.yaml"
@@ -303,10 +309,10 @@ def test_regenerate_images_baseline_manifest_global_images_use_their_own_real_su
     values = {
         "global": {
             "images": {
-                "nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.5@sha256:" + "a" * 64},
-                "curl": {"repository": "curlimages/curl", "tag": "8.22.0@sha256:" + "b" * 64},
-                "busybox": {"repository": "library/busybox", "tag": "1.38.0-glibc@sha256:" + "c" * 64},
-                "redis": {"repository": "redis", "tag": "8.10.1@sha256:" + "d" * 64},
+                "nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": f"1.31.5@{SHA256_A}"},
+                "curl": {"repository": "curlimages/curl", "tag": f"8.22.0@{SHA256_B}"},
+                "busybox": {"repository": "library/busybox", "tag": f"1.38.0-glibc@{SHA256_C}"},
+                "redis": {"repository": "redis", "tag": f"8.10.1@{SHA256_D}"},
             }
         }
     }
@@ -333,11 +339,11 @@ def test_regenerate_images_baseline_manifest_collapses_shared_repository(libimag
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     values = {
         "zac": {
-            "image": {"repository": "infonl/zaakafhandelcomponent", "tag": "1.0.297@sha256:" + "a" * 64},
-            "nginx": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.25.0@sha256:" + "d" * 64}},
+            "image": {"repository": "infonl/zaakafhandelcomponent", "tag": f"1.0.297@{SHA256_A}"},
+            "nginx": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": f"1.25.0@{SHA256_D}"}},
         },
         "global": {
-            "images": {"nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.25.0@sha256:" + "d" * 64}},
+            "images": {"nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": f"1.25.0@{SHA256_D}"}},
         },
     }
     images_baseline_path = tmp_path / "images-baseline.yaml"
@@ -357,7 +363,7 @@ def test_regenerate_images_baseline_manifest_embedded_digest_used_directly(
 ):
     """A tag with an embedded "@sha256:" digest is used directly, without registry lookup."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    values = {"zac": {"image": {"repository": "infonl/zaakafhandelcomponent", "tag": "1.0.297@sha256:" + "a" * 64}}}
+    values = {"zac": {"image": {"repository": "infonl/zaakafhandelcomponent", "tag": f"1.0.297@{SHA256_A}"}}}
     images_baseline_path = tmp_path / "images-baseline.yaml"
 
     def fail_if_called(chart_dir, repository, version, timeout=None):
@@ -387,7 +393,7 @@ def test_regenerate_images_baseline_manifest_live_lookup_for_bare_tag(
 
     def fake_cached_tag_exists(chart_dir, repository, version, timeout=None):
         calls.append((repository, version))
-        return True, "sha256:" + "e" * 64
+        return True, SHA256_E
 
     monkeypatch.setattr(libimagedocs, "cached_tag_exists", fake_cached_tag_exists)
 
@@ -426,12 +432,12 @@ def test_regenerate_images_baseline_manifest_wholesale_overwrite(libimagedocs: M
     """A second run replaces the file wholesale; no leftover entries from removed components."""
     images_baseline_path = tmp_path / "images-baseline.yaml"
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    values = {"zac": {"image": {"repository": "infonl/zaakafhandelcomponent", "tag": "1.0.297@sha256:" + "a" * 64}}}
+    values = {"zac": {"image": {"repository": "infonl/zaakafhandelcomponent", "tag": f"1.0.297@{SHA256_A}"}}}
     libimagedocs.regenerate_images_baseline_manifest(tmp_path, deps, values, images_baseline_path, set())
     assert "infonl/zaakafhandelcomponent" in images_baseline_path.read_text(encoding="utf-8")
 
     new_deps = [{"name": "openbao", "version": "2.0.0"}]
-    new_values = {"openbao": {"image": {"repository": "openbao/openbao", "tag": "2.0.0@sha256:" + "f" * 64}}}
+    new_values = {"openbao": {"image": {"repository": "openbao/openbao", "tag": f"2.0.0@{SHA256_F}"}}}
     written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
         tmp_path, new_deps, new_values, images_baseline_path, set()
     )
@@ -450,7 +456,7 @@ def test_regenerate_images_baseline_manifest_second_identical_run_does_not_rewri
     """An identical second run leaves the file untouched and reports changed=False (no git churn)."""
     images_baseline_path = tmp_path / "images-baseline.yaml"
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    values = {"zac": {"image": {"repository": "infonl/zaakafhandelcomponent", "tag": "1.0.297@sha256:" + "a" * 64}}}
+    values = {"zac": {"image": {"repository": "infonl/zaakafhandelcomponent", "tag": f"1.0.297@{SHA256_A}"}}}
 
     written1, _skipped1, changed1 = libimagedocs.regenerate_images_baseline_manifest(
         tmp_path, deps, values, images_baseline_path, set()
@@ -479,8 +485,8 @@ def test_regenerate_images_baseline_manifest_blank_line_between_entries_not_at_e
         {"name": "openbao", "version": "2.0.0"},
     ]
     values = {
-        "zac": {"image": {"repository": "infonl/zaakafhandelcomponent", "tag": "1.0.297@sha256:" + "a" * 64}},
-        "openbao": {"image": {"repository": "openbao/openbao", "tag": "2.0.0@sha256:" + "c" * 64}},
+        "zac": {"image": {"repository": "infonl/zaakafhandelcomponent", "tag": f"1.0.297@{SHA256_A}"}},
+        "openbao": {"image": {"repository": "openbao/openbao", "tag": f"2.0.0@{SHA256_C}"}},
     }
     images_baseline_path = tmp_path / "images-baseline.yaml"
 
@@ -491,7 +497,7 @@ def test_regenerate_images_baseline_manifest_blank_line_between_entries_not_at_e
     assert skipped == []
     assert written == 2
     text = images_baseline_path.read_text(encoding="utf-8")
-    assert '  digest: "sha256:' + "a" * 64 + '"\n\n- name: openbao/openbao\n' in text
+    assert f'  digest: "{SHA256_A}"\n\n- name: openbao/openbao\n' in text
     assert not text.endswith("\n\n")
     assert text.endswith("\n")
 
@@ -533,9 +539,7 @@ def test_regenerate_images_baseline_manifest_includes_subchart_default_only_imag
         chart_yaml={"name": "eck-operator", "version": "3.5.0", "appVersion": "3.5.0"},
     )
     images_baseline_path = tmp_path / "images-baseline.yaml"
-    monkeypatch.setattr(
-        libimagedocs, "cached_tag_exists", lambda chart_dir, repository, version: (True, "sha256:" + "a" * 64)
-    )
+    monkeypatch.setattr(libimagedocs, "cached_tag_exists", lambda chart_dir, repository, version: (True, SHA256_A))
 
     written, skipped, _changed = libimagedocs.regenerate_images_baseline_manifest(
         tmp_path, deps, values, images_baseline_path, {"podiumd/charts/eck-operator"}

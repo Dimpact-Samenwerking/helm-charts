@@ -50,6 +50,7 @@ from lib.gitutil import current_branch
 from lib.gitutil import find_repo_root
 from lib.gitutil import resolve_baseline_ref
 from lib.procutil import run_script
+from lib.version_numbers import dotted_numbers
 from lib.version_numbers import is_bare_version
 
 CREATE_DOC_VERSION_SCRIPT = SCRIPT_DIR / "create-doc-version"
@@ -62,15 +63,10 @@ def current_chart_version():
     return chart_version(CHART_YAML)
 
 
-def version_tuple(v: str):
-    """Parse "MAJOR.MINOR.PATCH" into an int tuple; ValueError if not dot-separated ints."""
-    return tuple(int(part) for part in v.split("."))
-
-
 def bump_kind(baseline: str, target: str):
     """ "patch", "minor", or None when not a single patch/minor increment."""
-    b_major, b_minor, b_patch = version_tuple(baseline)
-    t_major, t_minor, t_patch = version_tuple(target)
+    b_major, b_minor, b_patch = dotted_numbers(baseline)
+    t_major, t_minor, t_patch = dotted_numbers(target)
     if b_major == t_major and b_minor == t_minor and t_patch == b_patch + 1:
         return "patch"
     if b_major == t_major and t_minor == b_minor + 1 and t_patch == 0:
@@ -86,18 +82,17 @@ def update_chart_version(new_version: str) -> list[str]:
     lines = CHART_YAML.read_text(encoding="utf-8").splitlines(keepends=True)
     changed: list[str] = []
     found_version = False
-    for i, line in enumerate(lines):
-        m = re.match(r"^(version|appVersion):\s", line)
-        if not m:
+    for index, line in enumerate(lines):
+        field_match = re.match(r"^(version|appVersion):\s", line)
+        if not field_match:
             continue
-        found_version = found_version or m.group(1) == "version"
+        found_version = found_version or field_match.group(1) == "version"
         new_line = replace_scalar_value(line, new_version)
         if new_line != line:
-            lines[i] = new_line
-            changed.append(m.group(1))
+            lines[index] = new_line
+            changed.append(field_match.group(1))
     if not found_version:
-        msg = f"error: could not find a top-level 'version:' line in {CHART_YAML}"
-        raise SystemExit(msg)
+        sys.exit(f"error: could not find a top-level 'version:' line in {CHART_YAML}")
     if changed:
         CHART_YAML.write_text("".join(lines), encoding="utf-8")
     return changed
@@ -150,14 +145,14 @@ def main():
         sys.exit(1)
 
     branch = current_branch(repo_root)
-    m = BRANCH_RE.match(branch)
-    if not m:
+    branch_match = BRANCH_RE.match(branch)
+    if not branch_match:
         print(
             f"error: current branch '{branch or '(detached HEAD)'}' does not match "
             f"'feature/podiumd-<MAJOR.MINOR.PATCH>' — refusing to guess the target version"
         )
         sys.exit(1)
-    target = m.group(1)
+    target = branch_match.group(1)
 
     chart_version_now = current_chart_version()
     if not is_bare_version(chart_version_now):

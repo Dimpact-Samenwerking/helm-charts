@@ -80,7 +80,7 @@ def test_hand_edited_generated_line_warns_without_failing(
     chart_dir, doc_dir = order_chart_dir
     doc = order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump 1.27.4 → 1.27.4", "Open Inwoner bump 2.4.2 → 2.4.2"])
     edited_line = "- Image tag pin `openzaak.image.tag` `1.27.3` → `1.27.4` in values.yaml, see the note"
-    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(doc.replace("Details.\n", edited_line + "\n", 1))
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(doc.replace("Details.\n", f"{edited_line}\n", 1))
 
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
 
@@ -533,7 +533,7 @@ def test_changes_heading_correct_transition_wording_passes(vp: ModuleType, chart
         "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | n/a |\n\n"
         "## Changes\n\n"
         "### ZAC (Zaakafhandelcomponent) 5.0.2 → 5.4.3 (chart 1.0.297, unchanged)\n\n"
-        "blah\n\n" + POINTER
+        f"blah\n\n{POINTER}"
     )
     ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is True, detail

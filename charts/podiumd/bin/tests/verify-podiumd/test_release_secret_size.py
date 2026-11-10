@@ -260,7 +260,7 @@ def test_build_release_unknown_version_when_metadata_has_none(
 # --- encoded_secret_size ---
 
 SECRET_LIMIT = 1024 * 1024
-WARN_THRESHOLD = 0.90
+WARN_THRESHOLD = 0.9
 
 
 def test_encoded_secret_size_round_trips_gzip_base64(librelease_secret_size: ModuleType):

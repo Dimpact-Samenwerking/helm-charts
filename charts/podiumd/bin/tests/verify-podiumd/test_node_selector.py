@@ -170,7 +170,8 @@ def test_job_missing_selector_in_referenced_define_block_still_flagged(
 def test_unrelated_same_file_define_block_never_credited(vp: ModuleType, tmp_path: Path):
     """A same-file `define` that this chunk never `include`s isn't credited."""
     text = (
-        DEFINE_BLOCK_JOB_WITHOUT_SELECTOR + '\n---\n{{- define "podiumd.unused.podTemplate" -}}\n'
+        f"{DEFINE_BLOCK_JOB_WITHOUT_SELECTOR}\n---\n"
+        '{{- define "podiumd.unused.podTemplate" -}}\n'
         "nodeSelector: {}\n"
         "{{- end }}\n"
     )

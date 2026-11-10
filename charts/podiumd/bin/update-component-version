@@ -83,6 +83,7 @@ from lib.dependencies import ensure_vendored_dependencies
 from lib.image.version import PinUpdate
 from lib.image.version import image_basename
 from lib.image.version import plan_image_version_update
+from lib.image.version import print_pin_updates
 from lib.image.version import write_pin_updates
 from lib.procutil import run_script
 from lib.registry import ImagePathTagCheck
@@ -103,11 +104,11 @@ def _check_and_print_image_versions(
 ):
     """check_image_versions with FOUND/MISSING output; exits 1 if any is missing. Returns results by path."""
     image_results = check_image_versions(CHART_DIR, dep, values_for_check, pins, app_version)
-    if not print_image_version_results(image_results, app_version):
+    if print_image_version_results(image_results, app_version):
         print()
         print("FAIL: one or more app image versions do not exist yet — refusing to change any files")
         sys.exit(1)
-    return {r["path"]: r for r in image_results}
+    return {result["path"]: result for result in image_results}
 
 
 def verify_component_version(
@@ -152,20 +153,18 @@ def update_chart_yaml(chart_name: str, new_chart_version: str):
     lines = CHART_YAML.read_text(encoding="utf-8").splitlines(keepends=True)
     entry_re = re.compile(r"^(\s*)-\s*name:\s*(\S+)\s*$")
     block = None
-    for i, line in enumerate(lines):
-        m = entry_re.match(line)
-        if m and m.group(2) == chart_name:
-            block = (i, len(m.group(1)))
+    for index, line in enumerate(lines):
+        entry_match = entry_re.match(line)
+        if entry_match and entry_match.group(2) == chart_name:
+            block = (index, len(entry_match.group(1)))
             break
     if block is None:
-        msg = f"error: could not find '- name: {chart_name}' in {CHART_YAML}"
-        raise SystemExit(msg)
+        sys.exit(f"error: could not find '- name: {chart_name}' in {CHART_YAML}")
     entry_line, entry_indent = block
     block_end = find_block_end(lines, entry_line, entry_indent)
     version_line = find_child_key_line(lines, "version", entry_indent, entry_line, block_end)
     if version_line is None:
-        msg = f"error: could not find 'version:' under '- name: {chart_name}' in {CHART_YAML}"
-        raise SystemExit(msg)
+        sys.exit(f"error: could not find 'version:' under '- name: {chart_name}' in {CHART_YAML}")
 
     old_line = lines[version_line]
     lines[version_line] = replace_scalar_value(old_line, new_chart_version)
@@ -183,8 +182,7 @@ def update_values_yaml(
         dotted = f"{values_key}.{pin.version_key}"
         located = locate_dotted_key_line(lines, dotted)
         if located is None:
-            msg = f"error: could not find '{dotted}' in {VALUES_YAML}"
-            raise SystemExit(msg)
+            sys.exit(f"error: could not find '{dotted}' in {VALUES_YAML}")
         line_idx, _ = located
         old_line = lines[line_idx]
         lines[line_idx] = replace_scalar_value(old_line, new_tags_by_path[pin.path])
@@ -257,7 +255,7 @@ def _parse_cli_args():
 # Split "tag:" + sibling ("sha:"/"digest:") pins from settings.yaml
 # digest_pinning.exceptions. Classified before the repository split: these
 # paths also have a "repository:".
-def _load_split_tag_sha_paths() -> dict[tuple[str, str], str]:
+def load_split_tag_sha_paths() -> dict[tuple[str, str], str]:
     """(values_key, path) -> sibling_field for writable exceptions with a sibling_field.
 
     Writable entries without one take the ordinary tag-update route.
@@ -397,29 +395,28 @@ def _write_split_tag_sha_pins(
     if not split_paths:
         return
     values_lines = VALUES_YAML.read_text(encoding="utf-8").splitlines(keepends=True)
-    print_section(f"Writing split tag/sha pin(s) for {', '.join(f'{ctx.values_key}.{p.path}' for p in split_paths)}")
+    print_section(
+        f"Writing split tag/sha pin(s) for {', '.join(f'{ctx.values_key}.{pin.path}' for pin in split_paths)}"
+    )
     for pin in split_paths:
         sibling_field = split_tag_sha_paths[(ctx.values_key, pin.path)]
-        _write_split_tag_sha_pin(ctx, values_lines, pin.path, sibling_field, upstream_images.get(pin.path))
+        write_split_tag_sha_pin(ctx, values_lines, pin.path, sibling_field, upstream_images.get(pin.path))
     VALUES_YAML.write_text("".join(values_lines), encoding="utf-8")
 
 
-def _write_split_tag_sha_pin(
+def write_split_tag_sha_pin(
     ctx: BumpContext, values_lines: list[str], path: str, sibling_field: str, checked: ImagePathTagCheck | None
 ):
     """Write one split pin pair into values_lines; `checked` is check_image_versions' result for `path`."""
     if checked is None:
-        msg = f"error: no repository found for {ctx.values_key}.{path} in {VALUES_YAML}"
-        raise SystemExit(msg)
+        sys.exit(f"error: no repository found for {ctx.values_key}.{path} in {VALUES_YAML}")
     host, repo_path, digest = checked["host"], checked["repo_path"], checked["digest"]
     if not checked["exists"] or not digest:
-        msg = f"error: {host}/{repo_path}:{ctx.app_version} not found upstream"
-        raise SystemExit(msg)
+        sys.exit(f"error: {host}/{repo_path}:{ctx.app_version} not found upstream")
     digest_hex = digest.split("sha256:", 1)[1]
     located = locate_tag_and_sha(values_lines, ctx.values_key, path, sibling_field)
     if located is None:
-        msg = f"error: could not find '{ctx.values_key}.{path}.tag' in {VALUES_YAML}"
-        raise SystemExit(msg)
+        sys.exit(f"error: could not find '{ctx.values_key}.{path}.tag' in {VALUES_YAML}")
     write_tag_and_sha(
         values_lines, located, SiblingWrite(ctx.app_version, digest_hex, sibling_field, f"{ctx.values_key}.{path}")
     )
@@ -446,8 +443,7 @@ def _delegated_paths_by_basename(ctx: BumpContext, delegated_paths: list[PinPath
     for pin in delegated_paths:
         repo = repos.get(pin.path)
         if repo is None:
-            msg = f"error: no repository found for {ctx.values_key}.{pin.path} in {VALUES_YAML}"
-            raise SystemExit(msg)
+            sys.exit(f"error: no repository found for {ctx.values_key}.{pin.path} in {VALUES_YAML}")
         by_basename.setdefault(image_basename(repo), []).append(pin)
     return by_basename
 
@@ -459,14 +455,13 @@ def _change_for_tag_path(
     for candidate in (tag_path, *groups.get(tag_path, ())):
         if candidate in change_by_path:
             return change_by_path[candidate]
-    msg = (
+    sys.exit(
         f"error: no pin to update for {tag_path}; is it already at the target "
         "version, or does another path share this basename?"
     )
-    raise SystemExit(msg)
 
 
-def _plan_delegated_tags(ctx: BumpContext, delegated_paths: list[PinPath]) -> list[DelegatedUpdate]:
+def plan_delegated_tags(ctx: BumpContext, delegated_paths: list[PinPath]) -> list[DelegatedUpdate]:
     """Resolve every delegated path's pins and digests, one call per basename, writing nothing.
 
     update_image_version bumps every pin of a basename under the key at once,
@@ -478,22 +473,19 @@ def _plan_delegated_tags(ctx: BumpContext, delegated_paths: list[PinPath]) -> li
     updates: list[DelegatedUpdate] = []
     for basename, paths in _delegated_paths_by_basename(ctx, delegated_paths).items():
         changes = plan_image_version_update(VALUES_YAML, ctx.values_key, basename, ctx.app_version)
-        change_by_path = {dotted_key_path(values_lines, c["line"] - 1): c for c in changes}
+        change_by_path = {dotted_key_path(values_lines, change["line"] - 1): change for change in changes}
         for pin in paths:
             _change_for_tag_path(f"{ctx.values_key}.{pin.version_key}", change_by_path, groups)
         updates.append(DelegatedUpdate(basename, paths, changes))
     return updates
 
 
-def _write_delegated_tags(ctx: BumpContext, updates: list[DelegatedUpdate]) -> None:
-    """Write the pin updates _plan_delegated_tags resolved."""
+def write_delegated_tags(ctx: BumpContext, updates: list[DelegatedUpdate]) -> None:
+    """Write the pin updates plan_delegated_tags resolved."""
     for update in updates:
-        paths = ", ".join(f"{ctx.values_key}.{p.path}" for p in update.paths)
+        paths = ", ".join(f"{ctx.values_key}.{pin.path}" for pin in update.paths)
         print_section(f"Updating '{update.basename}' image pin(s) for {paths}")
-        for c in update.changes:
-            print(f"  values.yaml:{c['line']}  ({c['repository']})")
-            print(f"    {c['old_version']}@{c['old_digest']}")
-            print(f"    {c['new_version']}@{c['new_digest']}")
+        print_pin_updates(update.changes)
         write_pin_updates(VALUES_YAML, update.changes)
 
 
@@ -505,15 +497,15 @@ def _write_fallback_tags(
     """Write the already-resolved sub-chart-default digests for fallback_paths."""
     if not fallback_paths:
         return
-    print_section(f"Using sub-chart default digests for: {', '.join(p.path for p in fallback_paths)}")
+    print_section(f"Using sub-chart default digests for: {', '.join(pin.path for pin in fallback_paths)}")
     new_tags_by_path: dict[str, str] = {}
     for pin in fallback_paths:
-        r = upstream_images.get(pin.path)
-        if r is None or not r["exists"] or not r["digest"]:
-            msg = f"error: no repository found at {pin.path}.repository in {ctx.chart_name}'s own values.yaml"
-            raise SystemExit(msg)
-        new_tags_by_path[pin.path] = f"{ctx.app_version}@{r['digest']}"
-        print(f"  {ctx.values_key}.{pin.path}: {r['host']}/{r['repo_path']}:{ctx.app_version} -> {r['digest']}")
+        checked = upstream_images.get(pin.path)
+        if checked is None or not checked["exists"] or not checked["digest"]:
+            sys.exit(f"error: no repository found at {pin.path}.repository in {ctx.chart_name}'s own values.yaml")
+        new_tags_by_path[pin.path] = f"{ctx.app_version}@{checked['digest']}"
+        image = f"{checked['host']}/{checked['repo_path']}:{ctx.app_version}"
+        print(f"  {ctx.values_key}.{pin.path}: {image} -> {checked['digest']}")
     print_section(f"Writing {VALUES_YAML}")
     for dotted, old_v, new_v in update_values_yaml(ctx.values_key, fallback_paths, new_tags_by_path):
         print(f"  {dotted}:")
@@ -532,9 +524,9 @@ def _update_image_tags(
         return
     plan = _classify_paths_to_update(ctx, paths_to_update, split_tag_sha_paths)
     # Resolve the delegated pins before writing anything, so an error leaves values.yaml untouched.
-    delegated = _plan_delegated_tags(ctx, plan.delegated_paths)
+    delegated = plan_delegated_tags(ctx, plan.delegated_paths)
     _write_split_tag_sha_pins(ctx, plan.split_paths, split_tag_sha_paths, upstream_images)
-    _write_delegated_tags(ctx, delegated)
+    write_delegated_tags(ctx, delegated)
     _write_fallback_tags(ctx, plan.fallback_paths, upstream_images)
 
 
@@ -543,15 +535,14 @@ def _run_fix_helm_doc() -> None:
     print_section("Regenerating README.md (fix-helm-doc)")
     result = run_script([sys.executable, str(FIX_HELM_DOC_SCRIPT)])
     if result.returncode != 0:
-        msg = f"error: fix-helm-doc failed (exit {result.returncode}); README.md was not regenerated"
-        raise SystemExit(msg)
+        sys.exit(f"error: fix-helm-doc failed (exit {result.returncode}); README.md was not regenerated")
 
 
 def main():
     """CLI entry point."""
     component, app_version, chart_version = _parse_cli_args()
     ensure_vendored_dependencies(CHART_DIR)
-    split_tag_sha_paths = _load_split_tag_sha_paths()
+    split_tag_sha_paths = load_split_tag_sha_paths()
     ctx = _resolve_bump_context(component, app_version, chart_version)
     check_chart_version_lockstep(ctx.chart_name, app_version, chart_version, no_chart=ctx.no_chart)
     refuse_unwritable_pins(ctx)

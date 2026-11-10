@@ -13,7 +13,9 @@ from lib.chart.chart_yaml import parse_chart_app_version
 from lib.chart.chart_yaml import parse_chart_dependencies
 from lib.chart.nested_subchart_identity import nested_subchart_raw_text
 from lib.chart.registered_paths import image_paths_for
+from lib.chart.values_tree_primitives import ValuesPath
 from lib.chart.values_tree_primitives import deep_merge
+from lib.chart.values_tree_primitives import field_text
 from lib.chart.values_tree_primitives import mapping_at
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
@@ -32,9 +34,9 @@ from lib.yaml_types import scalar_text
 
 def resolved_digest_pin(
     values: YamlMapping | None,
-    path: tuple[str, ...],
+    path: ValuesPath,
     tag: str,
-    sibling_fields: Mapping[tuple[str, ...], DigestPinningException],
+    sibling_fields: Mapping[ValuesPath, DigestPinningException],
 ) -> str | None:
     """`tag` with its digest: its own "@sha256:" suffix, or one read from a registered sibling field.
 
@@ -49,7 +51,7 @@ def resolved_digest_pin(
     sibling_field = exception.get("sibling_field") if exception is not None else None
     if sibling_field is None:
         return None
-    digest = text_at(values, ".".join(path) + f".{sibling_field}")
+    digest = field_text(values, path, sibling_field)
     if not isinstance(digest, str) or not digest:
         return None
     return f"{tag}@{digest}" if digest.startswith("sha256:") else f"{tag}@sha256:{digest}"
@@ -69,7 +71,7 @@ def chart_ref(dep: ChartDependency):
     if repo.startswith("file://"):
         return None, None
     msg = f"error: unsupported repository scheme: {repo}"
-    raise SystemExit(msg)
+    sys.exit(msg)
 
 
 def local_chart_dir(chart_dir: Path, dep: ChartDependency):
@@ -87,7 +89,7 @@ def require_local_chart_dir(local_dir: Path, dep: ChartDependency) -> None:
             f"error: dependency '{dep['name']}' declares local path repository "
             f"({dep.get('repository')}), but {local_dir} does not exist"
         )
-        raise SystemExit(msg)
+        sys.exit(msg)
 
 
 def pull_chart(dep: ChartDependency, version: str, dest: Path):
@@ -107,10 +109,10 @@ def pull_chart(dep: ChartDependency, version: str, dest: Path):
 
 def pulled_chart_dir(tmpdir: Path):
     """The single chart directory `helm pull --untar` produced under tmpdir."""
-    chart_dirs = [p for p in Path(tmpdir).iterdir() if p.is_dir()]
+    chart_dirs = [entry for entry in Path(tmpdir).iterdir() if entry.is_dir()]
     if not chart_dirs:
         msg = f"error: helm pull produced no chart directory in {tmpdir}"
-        raise SystemExit(msg)
+        sys.exit(msg)
     return chart_dirs[0]
 
 
@@ -121,7 +123,7 @@ def pull_chart_values(dep: ChartDependency, version: str):
         ok, stderr = pull_chart(dep, version, tmpdir)
         if not ok:
             msg = f"error: could not pull {dep['name']} {version}: {stderr}"
-            raise SystemExit(msg)
+            sys.exit(msg)
         chart_dir = pulled_chart_dir(tmpdir)
         return load_yaml_mapping(chart_dir / "values.yaml")
     finally:
@@ -158,15 +160,15 @@ def formatted_repo(repo: str):
     return f"{host}/{repo_path}"
 
 
-def own_full_repository(values: YamlMapping | None, path: tuple[str, ...]):
+def own_full_repository(values: YamlMapping | None, path: ValuesPath):
     """The host-qualified repository of the image block at `path`, honouring a sibling "registry:"; or None.
 
     First tier of full_repository_for_path.
     """
-    own_repo = text_at(values, ".".join(path) + ".repository")
+    own_repo = field_text(values, path, "repository")
     if not (isinstance(own_repo, str) and own_repo):
         return None
-    registry = text_at(values, ".".join(path) + ".registry")
+    registry = field_text(values, path, "registry")
     if isinstance(registry, str) and registry:
         registry_head = registry.partition("/")[0]
         if "." in registry_head or ":" in registry_head or registry_head == "localhost":
@@ -182,17 +184,17 @@ def component_check_values(chart_values: YamlMapping, component_values: YamlMapp
     return merged
 
 
-def print_image_version_results(results: list[ImagePathTagCheck], app_version: str) -> bool:
-    """Print a FOUND/MISSING line per distinct image; True when every image version exists."""
+def print_image_version_results(results: list[ImagePathTagCheck], app_version: str) -> list[ImagePathTagCheck]:
+    """Print a FOUND/MISSING line per distinct image; returns the results whose image version is missing."""
     printed: set[tuple[str, str]] = set()
-    for r in results:
-        if (r["host"], r["repo_path"]) in printed:
+    for result in results:
+        if (result["host"], result["repo_path"]) in printed:
             continue
-        printed.add((r["host"], r["repo_path"]))
-        status = "FOUND  " if r["exists"] else "MISSING"
-        suffix = f"  digest={r['digest']}" if r["digest"] else ""
-        print(f"  [{status}] {r['host']}/{r['repo_path']}:{app_version}{suffix}")
-    return all(r["exists"] for r in results)
+        printed.add((result["host"], result["repo_path"]))
+        status = "FOUND  " if result["exists"] else "MISSING"
+        suffix = f"  digest={result['digest']}" if result["digest"] else ""
+        print(f"  [{status}] {result['host']}/{result['repo_path']}:{app_version}{suffix}")
+    return [result for result in results if not result["exists"]]
 
 
 def subchart_values(chart_dir: Path, dep: ChartDependency, version: str | None = None):
@@ -228,7 +230,7 @@ def subchart_dependencies(chart_dir: Path, dep: ChartDependency, version: str | 
     return [] if raw is None else parse_chart_dependencies(raw.decode("utf-8"), f"{dep['name']} Chart.yaml")
 
 
-def resolve_subchart_default(chart_dir: Path, dep: ChartDependency, chart_name: str, path: tuple[str, ...]):
+def resolve_subchart_default(chart_dir: Path, dep: ChartDependency, chart_name: str, path: ValuesPath):
     """(chart_tree_path, version) for image `path` in `dep`'s vendored default values.
 
     chart_tree_path is the chart-tree directory owning `path`, for the
@@ -241,8 +243,10 @@ def resolve_subchart_default(chart_dir: Path, dep: ChartDependency, chart_name: 
     openinwoner's bundled eck-operator), both come from that nested chart.
     """
     base_path = f"{chart_name}/charts/{dep.get('alias') or dep['name']}"
+    nested_deps = subchart_dependencies(chart_dir, dep)
     nested = next(
-        (d for d in subchart_dependencies(chart_dir, dep) if path and path[0] in (d.get("alias"), d["name"])), None
+        (nested_dep for nested_dep in nested_deps if path and path[0] in {nested_dep.get("alias"), nested_dep["name"]}),
+        None,
     )
     if nested is None:
         return base_path, subchart_app_version(chart_dir, dep)
@@ -312,7 +316,7 @@ def primary_image_repositories(
     return results, error
 
 
-def global_image_paths(values: YamlMapping) -> list[tuple[tuple[str, ...], str]]:
+def global_image_paths(values: YamlMapping) -> list[tuple[ValuesPath, str]]:
     """[(path, tag), ...] for every entry directly under global.images.
 
     These shared anchors are skipped by find_image_tag_paths' "...Image"

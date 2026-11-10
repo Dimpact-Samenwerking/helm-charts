@@ -5,6 +5,10 @@ from types import ModuleType
 
 import yaml
 
+from tests.fixture_data import HEX_A
+from tests.fixture_data import SHA256_A
+from tests.fixture_data import SHA256_B
+
 # --- scan_digest_pins ---
 
 
@@ -12,10 +16,10 @@ def test_scan_digest_pins_quoted_and_bare(libimagedigests: ModuleType):
     lines = [
         "  a:",
         "    repository: org/repo-a",
-        '    tag: "1.0.0@sha256:' + "a" * 64 + '"',
+        f'    tag: "1.0.0@{SHA256_A}"',
         "  b:",
         "    repository: org/repo-b",
-        "    tag: 2.0.0@sha256:" + "b" * 64,
+        f"    tag: 2.0.0@{SHA256_B}",
     ]
     pins = libimagedigests.scan_digest_pins(lines)
     assert [(p["version"], p["digest"], p["repository"]) for p in pins] == [
@@ -37,14 +41,14 @@ def test_scan_digest_pins_resolves_split_registry_style(libimagedigests: ModuleT
         "    image:",
         "      registry: quay.io",
         "      repository: opstree/redis",
-        '      tag: "v8.6.6@sha256:' + "a" * 64 + '"',
+        f'      tag: "v8.6.6@{SHA256_A}"',
     ]
     pins = libimagedigests.scan_digest_pins(lines)
     assert pins[0]["repository"] == "quay.io/opstree/redis"
 
 
 def test_scan_digest_pins_combined_style(libimagedigests: ModuleType):
-    lines = ["  image:", "    repository: org/repo", '    tag: "1.0.0@sha256:' + "a" * 64 + '"']
+    lines = ["  image:", "    repository: org/repo", f'    tag: "1.0.0@{SHA256_A}"']
     pins = libimagedigests.scan_digest_pins(lines)
     assert pins[0]["repository"] == "org/repo"
 
@@ -54,7 +58,7 @@ def test_scan_digest_pins_tolerates_anchor_tag_on_digest_pinned_line(libimagedig
 
     Keeps DIGEST_PIN_RE in sync with VERSION_PIN_RE's anchor tolerance.
     """
-    lines = ["  image:", "    repository: &repoAnchor org/repo", '    tag: &tagAnchor "1.0.0@sha256:' + "a" * 64 + '"']
+    lines = ["  image:", "    repository: &repoAnchor org/repo", f'    tag: &tagAnchor "1.0.0@{SHA256_A}"']
     pins = libimagedigests.scan_digest_pins(lines)
     assert [(p["version"], p["digest"], p["repository"]) for p in pins] == [("1.0.0", "a" * 64, "org/repo")]
 
@@ -77,10 +81,10 @@ def test_scan_version_pins_still_finds_digest_pinned_tags(libimagedigests: Modul
     lines = [
         "  a:",
         "    repository: org/repo-a",
-        '    tag: "1.0.0@sha256:' + "a" * 64 + '"',
+        f'    tag: "1.0.0@{SHA256_A}"',
         "  b:",
         "    repository: org/repo-b",
-        "    tag: 2.0.0@sha256:" + "b" * 64,
+        f"    tag: 2.0.0@{SHA256_B}",
     ]
     pins = libimagedigests.scan_version_pins(lines)
     assert [(p["version"], p["digest"], p["repository"]) for p in pins] == [
@@ -108,7 +112,7 @@ def test_scan_version_pins_tolerates_anchor_tag(libimagedigests: ModuleType):
         "      keycloakImage:",
         "        repository: &keycloakImageRepo quay.io/keycloak/keycloak",
         '        tag: &keycloakImageVersion "26.7.3"',
-        '        sha: &keycloakImageDigest "' + "a" * 64 + '"',
+        f'        sha: &keycloakImageDigest "{HEX_A}"',
     ]
     pins = libimagedigests.scan_version_pins(lines)
     assert [(p["version"], p["digest"], p["repository"]) for p in pins] == [

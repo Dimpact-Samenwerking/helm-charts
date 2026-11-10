@@ -42,7 +42,7 @@ def run_fix(pymarkdown: str, files: list[Path], disabled_rules: str):
     Detection stays on in verify-podiumd.
     """
     result = run(
-        [pymarkdown, "-d", disabled_rules, *MARKDOWN_PLUGIN_SETTINGS, "fix", *[str(f) for f in files]],
+        [pymarkdown, "-d", disabled_rules, *MARKDOWN_PLUGIN_SETTINGS, "fix", *[str(md_file) for md_file in files]],
         capture_output=True,
         text=True,
     )
@@ -55,19 +55,19 @@ def dry_run_fix(pymarkdown: str, files: list[Path], chart_dir: Path, disabled_ru
     with tempfile.TemporaryDirectory() as tmp:
         tmp_dir = Path(tmp)
         tmp_files: list[Path] = []
-        for f in files:
-            rel = f.relative_to(chart_dir)
+        for md_file in files:
+            rel = md_file.relative_to(chart_dir)
             tmp_path = tmp_dir / rel
             tmp_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(f, tmp_path)
+            shutil.copy2(md_file, tmp_path)
             tmp_files.append(tmp_path)
 
         run_fix(pymarkdown, tmp_files, disabled_rules)
 
         changed: list[Path] = []
-        for f in files:
-            rel = f.relative_to(chart_dir)
-            if f.read_bytes() != (tmp_dir / rel).read_bytes():
+        for md_file in files:
+            rel = md_file.relative_to(chart_dir)
+            if md_file.read_bytes() != (tmp_dir / rel).read_bytes():
                 changed.append(rel)
         return changed
 

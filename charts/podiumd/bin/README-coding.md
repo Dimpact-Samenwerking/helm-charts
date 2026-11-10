@@ -10,11 +10,13 @@ installing the tools, see
 - [Running the linters](#running-the-linters)
   - [ruff (lint + format)](#ruff-lint--format)
   - [shellcheck (shell scripts)](#shellcheck-shell-scripts)
+  - [flake8 (wemake-python-styleguide)](#flake8-wemake-python-styleguide)
   - [jscpd (duplicate code)](#jscpd-duplicate-code)
   - [vulture (dead code)](#vulture-dead-code)
   - [bandit (security)](#bandit-security)
   - [pylint](#pylint)
   - [basedpyright (type checking)](#basedpyright-type-checking)
+  - [pip-audit (known vulnerabilities)](#pip-audit-known-vulnerabilities)
 - [Before committing](#before-committing)
 
 ## Running the tests
@@ -85,6 +87,21 @@ Covers every file under `bin/` with a `sh`/`bash`/`dash`/`ksh` shebang, plus
 any `*.sh` file. No configuration: a deliberate exception gets a
 `# shellcheck disable=SCxxxx` comment on its line, with the reason.
 
+### flake8 (wemake-python-styleguide)
+
+```bash
+cd charts/podiumd/bin
+flake8 lib tests $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
+```
+
+Settings are in `pyproject.toml` `[tool.flake8]` (read through
+`flake8-pyproject`). The WPS rules run, plus the plugin rules ruff lacks
+(B042, CCE001, FNE005); limits and ignores follow podiumd-tests. A rule that
+ruff or pylint already checks is ignored there, so one tool owns each check.
+tests/ has its own exemptions (`per-file-ignores`), and the kebab-case scripts
+are exempt from the module name rule. A deliberate exception gets
+`# noqa: <code>` on its line, with the reason.
+
 ### jscpd (duplicate code)
 
 ```bash
@@ -135,7 +152,11 @@ bandit -c pyproject.toml -r lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -ty
 
 pylint has no per-directory configuration, so it runs twice: `lib` and the
 scripts get the full rule set; `tests/` also disables the rules listed in
-`[tool.podiumd.pylint-tests]` in `pyproject.toml`.
+`[tool.podiumd.pylint-tests]` in `pyproject.toml`. The pylint checks that ruff
+also has (the `PL` rules: sizes, imports outside the top level, `open()`
+without an encoding) are ruff's: pylint disables them in
+`[tool.pylint."messages control"]`, and a deliberate exception is a
+`# noqa: PLRxxxx` comment.
 
 ```bash
 cd charts/podiumd/bin
@@ -158,6 +179,19 @@ basedpyright lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x
 needs a type annotation. `tests/` allows unannotated fixture parameters and
 monkeypatch lambdas (see `executionEnvironments` in `pyproject.toml`).
 
+### pip-audit (known vulnerabilities)
+
+```bash
+pip-audit --progress-spinner off
+```
+
+Audits the packages installed in the active environment against the PyPI
+vulnerability service. It can fail without a code change (a new advisory):
+upgrade the package. In `run_python_checks` a finding is a warning, so it
+blocks no commit or PR, and the step is skipped when pypi.org is not
+reachable. The `podiumd-pip-audit` workflow runs it weekly and when
+`requirements.txt` or `pyproject.toml` changes.
+
 ## Before committing
 
 ```bash
@@ -165,8 +199,9 @@ cd charts/podiumd/bin
 ./run_python_checks
 ```
 
-Upgrades the tools in `requirements.txt` first, then runs everything above,
-fastest first, stopping at the first failure. By hand, in the same order (`pymarkdown` lints this directory's `*.md` with the
+Upgrades pip and the tools in `requirements.txt` first, then runs everything
+above, fastest first, stopping at the first failure; pip-audit runs last, as a
+warning only. By hand, in the same order (`pymarkdown` lints this directory's `*.md` with the
 rules of `verify-podiumd`'s markdown check, which skips `bin/`):
 
 ```bash
@@ -174,6 +209,7 @@ cd charts/podiumd/bin
 ruff check . $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 shellcheck run_python_checks
 ruff format --check . $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
+flake8 lib tests $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 jscpd lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 pymarkdown $(python3 -c 'from lib.chart.paths import CHART_DIR; from lib.checks.markdown import pymarkdown_rule_args; print(*pymarkdown_rule_args(CHART_DIR))') scan ./*.md
 vulture lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
@@ -182,6 +218,7 @@ basedpyright lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x
 pylint lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 PYTHONPATH=. pylint --disable="$tests_disable" $(find tests -name '*.py')  # tests_disable: see pylint above
 python3 -m pytest -q --cov --cov-report=term-missing:skip-covered
+pip-audit --progress-spinner off
 ```
 
 Coverage of `lib/` and the scripts must stay at or above `fail_under` in

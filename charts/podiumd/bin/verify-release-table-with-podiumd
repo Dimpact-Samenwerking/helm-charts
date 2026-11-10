@@ -77,26 +77,28 @@ SECTIONS = [
 ]
 
 
-def print_report(findings: Mapping[str, list[str]], unresolved: list[ReleaseTableRow]) -> bool:
-    """Print non-empty sections, unresolved rows, or "OK"; True when there were findings."""
-    any_findings = False
+def has_findings(findings: Mapping[str, list[str]]) -> bool:
+    """Whether any SECTIONS category has a finding."""
+    return any(findings.get(key) for key, _title in SECTIONS)
+
+
+def print_report(findings: Mapping[str, list[str]], unresolved: list[ReleaseTableRow]) -> None:
+    """Print non-empty sections, unresolved rows, or "OK"."""
     for key, title in SECTIONS:
         items = findings.get(key)
         if not items:
             continue
-        any_findings = True
         print(f"\n{title}:")
         for item in sorted(items):
             print(f"  {item}")
 
     if unresolved:
         print(f"\nSkipped ({len(unresolved)} row(s) with an unresolved component in release-table.csv):")
-        for row in sorted(unresolved, key=lambda r: r["name"]):
+        for row in sorted(unresolved, key=lambda row: row["name"]):
             print(f"  - '{row['name']}' (component={row['component'] or '(blank)'})")
 
-    if not any_findings:
+    if not has_findings(findings):
         print("OK: release-table.csv matches Chart.yaml / values.yaml")
-    return any_findings
 
 
 def _resolve_baseline_state(chart_dir: Path):
@@ -108,11 +110,11 @@ def _resolve_baseline_state(chart_dir: Path):
     if baseline_ref is None:
         print("WARNING: release_table baseline not set in release-baseline.yaml — skipping source-version checks\n")
         return None
-    _resolved_ref, deps, values, lines, error = resolve_baseline_chart_state(chart_dir, baseline_ref)
-    if error:
-        print(f'WARNING: release_table baseline "{baseline_ref}": {error} — skipping source-version checks\n')
+    state = resolve_baseline_chart_state(chart_dir, baseline_ref)
+    if state.error:
+        print(f'WARNING: release_table baseline "{baseline_ref}": {state.error} — skipping source-version checks\n')
         return None
-    return ChartState(chart_dir, deps, values, lines)
+    return ChartState(chart_dir, state.deps, state.values, state.lines)
 
 
 def main():
@@ -154,8 +156,8 @@ def main():
         baseline=baseline,
         baseline_only=baseline_only,
     )
-    any_findings = print_report(findings, unresolved)
-    sys.exit(1 if any_findings else 0)
+    print_report(findings, unresolved)
+    sys.exit(1 if has_findings(findings) else 0)
 
 
 if __name__ == "__main__":

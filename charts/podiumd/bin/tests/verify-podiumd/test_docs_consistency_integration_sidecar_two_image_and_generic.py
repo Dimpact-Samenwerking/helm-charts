@@ -153,9 +153,9 @@ def test_new_sidecar_row_known_in_historical_images_manifest_is_not_a_warning(
     git("commit", "-q", "-m", "baseline", cwd=repo_root)
     git("tag", "podiumd-4.8.5", cwd=repo_root)
 
+    redis = redis_values("8.6.2")
     (chart_dir / "values.yaml").write_text(
-        redis_values("8.6.2") + "  k8s:\n    image:\n      repository: quay.io/alpine/k8s\n"
-        '      tag: "1.36.2@sha256:cccc"\n'
+        f'{redis}  k8s:\n    image:\n      repository: quay.io/alpine/k8s\n      tag: "1.36.2@sha256:cccc"\n'
     )
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
         "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
@@ -305,7 +305,7 @@ def test_chart_only_component_with_no_app_image_is_not_flagged(
 ):
     """A component without an app image of its own never triggers a target-app mismatch."""
     (chart_repo / "Chart.yaml").write_text(
-        CHART_YAML + '  - name: redis-operator\n    version: "0.26.1"\n    repository: "@opstree"\n'
+        f'{CHART_YAML}  - name: redis-operator\n    version: "0.26.1"\n    repository: "@opstree"\n'
     )
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     new_text = doc.read_text().replace(
@@ -415,7 +415,7 @@ def test_changes_block_needs_a_blank_line_before_the_image_digest_pointer(
     extra = "- `redis-operator.redis-ha.preDeleteJob.image.tag` `1.37.0` → `1.37.1`\n"
     doc = ALIASED_PIN_DOC.replace("{extra}", extra)
     if blank_line == "missing":
-        doc = doc.replace(extra + "\n", extra)
+        doc = doc.replace(f"{extra}\n", extra)
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(doc)
     (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(REDIS_GEMEENTE_DOC.format(baseline="4.8.5"))
     (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(

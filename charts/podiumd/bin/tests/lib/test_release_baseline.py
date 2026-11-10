@@ -45,17 +45,18 @@ def repo(tmp_path: Path):
 
 
 def test_resolve_baseline_chart_state_resolves_real_baseline(librelease_baseline: ModuleType, repo):
-    ref, deps, values, lines, error = librelease_baseline.resolve_baseline_chart_state(repo, "4.8.5")
-    assert error is None
-    assert ref == "podiumd-4.8.5"
-    assert deps == [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.251"}]
-    assert values == {"zac": {"image": {"tag": "5.0.2@sha256:aaaa"}}}
-    assert lines == ["zac:", "  image:", '    tag: "5.0.2@sha256:aaaa"']
+    assert librelease_baseline.resolve_baseline_chart_state(repo, "4.8.5") == (
+        "podiumd-4.8.5",
+        [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.251"}],
+        {"zac": {"image": {"tag": "5.0.2@sha256:aaaa"}}},
+        ["zac:", "  image:", '    tag: "5.0.2@sha256:aaaa"'],
+        None,
+    )
 
 
 def test_resolve_baseline_chart_state_lines_match_current_values_yaml_convention(librelease_baseline: ModuleType, repo):
     """`lines` has the splitlines() shape used for the current side, so raw-line scanners match both."""
-    _ref, _deps, _values, lines, _error = librelease_baseline.resolve_baseline_chart_state(repo, "4.8.5")
+    lines = librelease_baseline.resolve_baseline_chart_state(repo, "4.8.5")[3]
     text = (repo / "values.yaml").read_text(encoding="utf-8")
     # Compare with the ref's own content, not today's.
     shown = subprocess.run(
@@ -66,22 +67,16 @@ def test_resolve_baseline_chart_state_lines_match_current_values_yaml_convention
 
 
 def test_resolve_baseline_chart_state_error_when_ref_unresolvable(librelease_baseline: ModuleType, repo):
-    ref, deps, values, lines, error = librelease_baseline.resolve_baseline_chart_state(repo, "9.9.9")
-    assert ref is None
-    assert deps == []
-    assert values == {}
-    assert lines == []
+    *empty_state, error = librelease_baseline.resolve_baseline_chart_state(repo, "9.9.9")
+    assert empty_state == [None, [], {}, []]
     assert "could not resolve baseline '9.9.9' to a git ref" in error
 
 
 def test_resolve_baseline_chart_state_error_outside_git_repo(librelease_baseline: ModuleType, tmp_path: Path):
     outside = tmp_path / "not-a-repo"
     outside.mkdir()
-    ref, deps, values, lines, error = librelease_baseline.resolve_baseline_chart_state(outside, "4.8.5")
-    assert ref is None
-    assert deps == []
-    assert values == {}
-    assert lines == []
+    *empty_state, error = librelease_baseline.resolve_baseline_chart_state(outside, "4.8.5")
+    assert empty_state == [None, [], {}, []]
     assert "is not inside a git repository" in error
 
 
@@ -97,11 +92,8 @@ def test_resolve_baseline_chart_state_error_when_chart_yaml_unreadable_at_ref(
     git("commit", "-q", "-m", "no chart yet", cwd=tmp_path)
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
-    ref, deps, values, lines, error = librelease_baseline.resolve_baseline_chart_state(tmp_path, "4.8.5")
-    assert ref is None
-    assert deps == []
-    assert values == {}
-    assert lines == []
+    *empty_state, error = librelease_baseline.resolve_baseline_chart_state(tmp_path, "4.8.5")
+    assert empty_state == [None, [], {}, []]
     assert "could not read Chart.yaml at that ref" in error
 
 
@@ -179,8 +171,6 @@ def test_resolve_baseline_chart_state_empty_dependencies_is_not_a_failure(
     git("commit", "-q", "-m", "no deps yet", cwd=tmp_path)
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
-    ref, deps, values, _lines, error = librelease_baseline.resolve_baseline_chart_state(tmp_path, "4.8.5")
+    *ref_deps_values, _lines, error = librelease_baseline.resolve_baseline_chart_state(tmp_path, "4.8.5")
     assert error is None
-    assert ref == "podiumd-4.8.5"
-    assert deps == []
-    assert values == {}
+    assert ref_deps_values == ["podiumd-4.8.5", [], {}]

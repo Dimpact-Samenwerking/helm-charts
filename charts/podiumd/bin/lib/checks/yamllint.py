@@ -36,8 +36,23 @@ YAMLLINT_FINDING_RE = re.compile(
     re.MULTILINE,
 )
 
-# A finding as (rendered line, source, level, message, rule).
+# A finding as (rendered line, source, level, message, rule), grouped by all
+# but its line.
 YamllintFinding = tuple[int, str | None, str, str, str]
+type YamllintGroupKey = tuple[str | None, str, str, str]
+
+
+def _group_key(finding: YamllintFinding) -> YamllintGroupKey:
+    return finding[1:]
+
+
+def _rendered_line(finding: YamllintFinding) -> str:
+    return str(finding[0])
+
+
+def _own_label(key: YamllintGroupKey) -> str:
+    source, level, message, rule = key
+    return f"[{level.upper():7s}] {source}  {message}  ({rule})"
 
 
 def _classify_yamllint_findings(
@@ -47,13 +62,13 @@ def _classify_yamllint_findings(
     own_real: list[YamllintFinding] = []
     vendored_friendly: list[YamllintFinding] = []
     vendored_other: list[YamllintFinding] = []
-    for m in YAMLLINT_FINDING_RE.finditer(output):
-        line_no = int(m.group("line"))
-        rule = m.group("rule")
+    for finding_match in YAMLLINT_FINDING_RE.finditer(output):
+        line_no = int(finding_match.group("line"))
+        rule = finding_match.group("rule")
         source = sources.get(line_no)
         if rule not in failing_rules:
             continue  # cosmetic — never reported, own or vendored
-        finding = (line_no, source, m.group("level"), m.group("message"), rule)
+        finding = (line_no, source, finding_match.group("level"), finding_match.group("message"), rule)
         if source and source.startswith(OWN_TEMPLATES_PREFIX):
             own_real.append(finding)
         elif chart_name_from_source(source) in vendor_map:
@@ -61,6 +76,48 @@ def _classify_yamllint_findings(
         else:
             vendored_other.append(finding)
     return own_real, vendored_friendly, vendored_other
+
+
+def _print_yamllint_findings(
+    own_real: list[YamllintFinding],
+    vendored_friendly: list[YamllintFinding],
+    vendored_other: list[YamllintFinding],
+    vendor_map: dict[str, str],
+) -> None:
+    """Print the own/vendored-friendly/vendored-other sections, or OK when there are none."""
+
+    def vendored_label(key: YamllintGroupKey) -> str:
+        source, level, message, rule = key
+        return f"[{level.upper():7s}] {source} ({vendor_map[chart_name_from_source(source)]})  {message}  ({rule})"
+
+    if own_real:
+        print_own_findings_heading("yamllint", len(own_real))
+        print_grouped_findings(
+            own_real,
+            key_fn=_group_key,
+            item_fn=_rendered_line,
+            label_fn=_own_label,
+            items_label="rendered line(s)",
+        )
+        print()
+
+    if vendored_friendly:
+        print_partner_findings_heading("yamllint", len(vendored_friendly))
+        print_grouped_findings(
+            vendored_friendly,
+            key_fn=_group_key,
+            item_fn=_rendered_line,
+            label_fn=vendored_label,
+            items_label="rendered line(s)",
+        )
+        print()
+
+    if vendored_other:
+        by_chart = Counter(chart_name_from_source(source) for _, source, _, _, _ in vendored_other)
+        print_other_vendor_summary("yamllint", len(vendored_other), len(by_chart))
+
+    if not (own_real or vendored_friendly or vendored_other):
+        print("OK: no yamllint findings in the rendered chart")
 
 
 def check_yamllint(chart_dir: Path, extra_args: list[str]):
@@ -91,35 +148,5 @@ def check_yamllint(chart_dir: Path, extra_args: list[str]):
         output, sources, vendor_map, failing_rules
     )
 
-    if own_real:
-        print_own_findings_heading("yamllint", len(own_real))
-        print_grouped_findings(
-            own_real,
-            key_fn=lambda f: (f[1], f[2], f[3], f[4]),
-            item_fn=lambda f: str(f[0]),
-            label_fn=lambda k: f"[{k[1].upper():7s}] {k[0]}  {k[2]}  ({k[3]})",
-            items_label="rendered line(s)",
-        )
-        print()
-
-    if vendored_friendly:
-        print_partner_findings_heading("yamllint", len(vendored_friendly))
-        print_grouped_findings(
-            vendored_friendly,
-            key_fn=lambda f: (f[1], f[2], f[3], f[4]),
-            item_fn=lambda f: str(f[0]),
-            label_fn=lambda k: (
-                f"[{k[1].upper():7s}] {k[0]} ({vendor_map[chart_name_from_source(k[0])]})  {k[2]}  ({k[3]})"
-            ),
-            items_label="rendered line(s)",
-        )
-        print()
-
-    if vendored_other:
-        by_chart = Counter(chart_name_from_source(source) for _, source, _, _, _ in vendored_other)
-        print_other_vendor_summary("yamllint", len(vendored_other), len(by_chart))
-
-    if not (own_real or vendored_friendly or vendored_other):
-        print("OK: no yamllint findings in the rendered chart")
-
+    _print_yamllint_findings(own_real, vendored_friendly, vendored_other, vendor_map)
     return scan_outcome(own_real, vendored_friendly, vendored_other)

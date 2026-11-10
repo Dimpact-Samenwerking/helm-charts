@@ -53,7 +53,7 @@ from lib.chart.pull_and_subchart_resolution import subchart_dependencies
 from lib.chart.registered_paths import version_paths_for
 from lib.chart.repo_and_path_resolution import full_repository_for_path
 from lib.chart.values_tree_primitives import find_images
-from lib.chart.values_tree_primitives import same_name
+from lib.chart.values_tree_primitives import is_same_name
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.values_tree_primitives import version_of
@@ -112,8 +112,7 @@ def pull_chart(dep: ChartDependency, dest: Path):
     """Pull `dep` at its pinned version into `dest`; SystemExit on failure."""
     ok, stderr = _pull_chart(dep, dep["version"], dest)
     if not ok:
-        msg = f"error: helm pull failed for {dep['name']}@{dep['version']}\n{stderr}"
-        raise SystemExit(msg)
+        sys.exit(f"error: helm pull failed for {dep['name']}@{dep['version']}\n{stderr}")
 
 
 def safe_extract_tgz(tgz_path: Path, dest: Path):
@@ -129,8 +128,7 @@ def safe_extract_tgz(tgz_path: Path, dest: Path):
         for member in tf.getmembers():
             member_path = (dest / member.name).resolve()
             if member_path != dest_resolved and dest_resolved not in member_path.parents:
-                msg = f"error: {tgz_path} member '{member.name}' would extract outside {dest}"
-                raise SystemExit(msg)
+                sys.exit(f"error: {tgz_path} member '{member.name}' would extract outside {dest}")
         # Member paths validated above.
         if hasattr(tarfile, "data_filter"):
             tf.extractall(dest, filter="data")
@@ -182,14 +180,14 @@ def resolution_note(values_lines: list[str], key: str, basename: str):
     Suggests MULTIPLE_KEY when the image only resolves under global.images
     (the usual cause).
     """
-    if _resolves(values_lines, key, basename):
+    if _is_resolvable(values_lines, key, basename):
         return None
-    if not same_name(key, MULTIPLE_KEY) and _resolves(values_lines, MULTIPLE_KEY, basename):
+    if not is_same_name(key, MULTIPLE_KEY) and _is_resolvable(values_lines, MULTIPLE_KEY, basename):
         return f"use {MULTIPLE_KEY} {basename}"
     return "unresolvable"
 
 
-def _resolves(values_lines: list[str], key: str, basename: str) -> bool:
+def _is_resolvable(values_lines: list[str], key: str, basename: str) -> bool:
     """True if resolve_scoped_matches accepts <key> <image-basename>; it exits on failure."""
     try:
         resolve_scoped_matches(values_lines, key, basename)
@@ -204,15 +202,15 @@ def _sorted_image_entries(rows: list[ImageRow]) -> list[ImageEntry]:
         ImageEntry(key, image_basename(repo), version_of(tag), repo, tag, path, disabled)
         for key, path, repo, tag, disabled in rows
     ]
-    entries.sort(key=lambda e: (e.key, e.path))
+    entries.sort(key=lambda entry: (entry.key, entry.path))
     return entries
 
 
 def _column_widths(entries: list[ImageEntry]):
     return ColumnWidths(
-        key=max(len(e.key) for e in entries),
-        basename=max(len(e.basename) for e in entries),
-        version=max(len(e.version) for e in entries),
+        key=max(len(entry.key) for entry in entries),
+        basename=max(len(entry.basename) for entry in entries),
+        version=max(len(entry.version) for entry in entries),
     )
 
 
@@ -224,9 +222,11 @@ def _print_image_entry(entry: ImageEntry, values_lines: list[str], widths: Colum
         f"  {entry.key.ljust(widths.key)}  {entry.basename.ljust(widths.basename)}  "
         f"{entry.version.ljust(widths.version)}"
     )
-    hints = (["disabled"] if entry.disabled else []) + ([note] if note else [])
+    hints = ["disabled"] if entry.disabled else []
+    if note:
+        hints.append(note)
     if hints:
-        line += "  — " + "; ".join(hints)
+        line = f"{line}  — {'; '.join(hints)}"
     print(line.rstrip())
     print(f"      {entry.repo}:{entry.tag}")
     print(f"      (path: {entry.path})")
@@ -252,7 +252,12 @@ def row_chart_tree_path(chart_dir: Path, dep: ChartDependency, first_segment: st
     alias when set: Helm's "# Source:" paths do (kiss-eck, not eck-stack).
     """
     nested = next(
-        (d for d in subchart_dependencies(chart_dir, dep) if first_segment in (d.get("alias"), d["name"])), None
+        (
+            sub_dep
+            for sub_dep in subchart_dependencies(chart_dir, dep)
+            if first_segment in {sub_dep.get("alias"), sub_dep["name"]}
+        ),
+        None,
     )
     base = f"{CHART_NAME}/charts/{dep.get('alias') or dep['name']}"
     if nested is None:
@@ -296,8 +301,7 @@ def _compute_rendered_paths():
     extra_args = lint_args_for(chart_dir)
     render_result = render_chart(chart_dir, extra_args)
     if render_result.returncode != 0:
-        msg = f"error: helm template failed to render\n{render_result.stderr}"
-        raise SystemExit(msg)
+        sys.exit(f"error: helm template failed to render\n{render_result.stderr}")
     return rendered_chart_paths(render_result.stdout)
 
 
@@ -339,8 +343,8 @@ def _print_dependency_images(
 
     try:
         chart_yaml, defaults = load_chart(dep, tmproot, refresh=refresh)
-    except SystemExit as e:
-        print(f"  {e}\n")
+    except SystemExit as pull_error:
+        print(f"  {pull_error}\n")
         return
 
     print(f"  appVersion: {chart_yaml.get('appVersion', 'n/a')}")
@@ -348,8 +352,8 @@ def _print_dependency_images(
     sub_deps = chart_yaml.get("dependencies", [])
     if sub_deps:
         print("  sub-chart dependencies:")
-        for d in sub_deps:
-            print(f"    - {d['name']}: {d['version']}")
+        for sub_dep in sub_deps:
+            print(f"    - {sub_dep['name']}: {sub_dep['version']}")
 
     overrides = ctx.root_values.get(key, {})
     merged = deep_merge(defaults, overrides)

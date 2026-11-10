@@ -9,8 +9,10 @@ import pytest
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import PinPath
 from lib.chart.registered_paths import pin_paths_for
+from tests.fixture_data import SHA256_B
+from tests.fixture_data import SHA256_E
 
-DIGEST = "sha256:" + "e" * 64
+DIGEST = SHA256_E
 
 
 def image_pins(*paths: str) -> list[PinPath]:
@@ -43,7 +45,7 @@ def test_write_split_tag_sha_pin_leaves_an_alias_tag_line(ucv: ModuleType):
     ]
     ctx = _ctx({"keycloak": {"image": {"repository": "quay.io/keycloak/keycloak"}}})
 
-    ucv._write_split_tag_sha_pin(ctx, values_lines, "image", "sha", KEYCLOAK_CHECKED)
+    ucv.write_split_tag_sha_pin(ctx, values_lines, "image", "sha", KEYCLOAK_CHECKED)
 
     assert values_lines[3] == "    tag: *keycloakImageVersion\n"
 
@@ -57,7 +59,7 @@ def test_write_split_tag_sha_pin_writes_tag_and_sha(ucv: ModuleType):
     ]
     ctx = _ctx({"keycloak": {"image": {"repository": "quay.io/keycloak/keycloak"}}})
 
-    ucv._write_split_tag_sha_pin(ctx, values_lines, "image", "sha", KEYCLOAK_CHECKED)
+    ucv.write_split_tag_sha_pin(ctx, values_lines, "image", "sha", KEYCLOAK_CHECKED)
 
     assert values_lines[3] == '    tag: "26.7.3"\n'
     assert values_lines[4] == f'    sha: "{DIGEST.removeprefix("sha256:")}"\n'
@@ -76,11 +78,11 @@ def test_plan_delegated_tags_exits_cleanly_when_own_line_unchanged(
     )
 
     with pytest.raises(SystemExit, match=r"no pin to update for zac\.image\.tag"):
-        ucv._plan_delegated_tags(ctx, image_pins("image"))
+        ucv.plan_delegated_tags(ctx, image_pins("image"))
 
 
 OLD_DIGEST = "a" * 64
-NEW_DIGEST = "sha256:" + "b" * 64
+NEW_DIGEST = SHA256_B
 
 # openbao in 4.9.3: server.image.tag is a bare alias of the job image's anchored literal.
 OPENBAO_VALUES = f"""\
@@ -137,7 +139,7 @@ def _bump_delegated(
     monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
     monkeypatch.setattr("lib.image.version.registry_tag_exists", lambda host, repo, tag: (True, NEW_DIGEST))
     ctx = SimpleNamespace(values=ucv.load_yaml_mapping(values_yaml), values_key=key, app_version=version, dep=dep)
-    ucv._write_delegated_tags(ctx, ucv._plan_delegated_tags(ctx, pins))
+    ucv.write_delegated_tags(ctx, ucv.plan_delegated_tags(ctx, pins))
     return values_yaml.read_text(encoding="utf-8")
 
 
@@ -185,7 +187,7 @@ def test_resolve_error_leaves_values_yaml_untouched(ucv: ModuleType, tmp_path: P
         values=ucv.load_yaml_mapping(values_yaml), values_key="openbao", app_version="9.9.9", dep=None
     )
     with pytest.raises(SystemExit, match="not found upstream"):
-        ucv._plan_delegated_tags(ctx, image_pins("server.image", "extra.cron.image"))
+        ucv.plan_delegated_tags(ctx, image_pins("server.image", "extra.cron.image"))
     assert values_yaml.read_text(encoding="utf-8") == text
 
 

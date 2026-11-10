@@ -6,6 +6,8 @@ from types import ModuleType
 
 import pytest
 
+from lib.release_baseline import BaselineChartState
+
 DIGEST = "a" * 64
 
 
@@ -475,7 +477,7 @@ def test_main_baseline_only_end_to_end(
     monkeypatch.setattr(
         vrt,
         "resolve_baseline_chart_state",
-        lambda chart_dir, baseline: (
+        lambda chart_dir, baseline: BaselineChartState(
             baseline,
             [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.290"}],
             {},
@@ -568,4 +570,5 @@ def test_main_guards_vendored_dependencies_unless_baseline_only(
     monkeypatch.setattr(vrt.sys, "argv", ["verify-release-table-with-podiumd", *argv])
     with pytest.raises(SystemExit):
         vrt.main()
-    assert calls == ([vrt.CHART_DIR] if expect_guard else [])
+    expected_calls = [vrt.CHART_DIR] if expect_guard else []
+    assert calls == expected_calls

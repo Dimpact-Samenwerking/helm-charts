@@ -9,7 +9,7 @@ from typing import TypedDict
 from typing import TypeGuard
 
 from lib.json_cache import cache_file
-from lib.json_cache import checked_within
+from lib.json_cache import is_checked_within
 from lib.json_cache import load_json_cache
 from lib.json_cache import save_json_cache
 from lib.version_numbers import major_line
@@ -58,7 +58,7 @@ def cache_key(repository: str, version: str):
 
 def cache_entry_is_fresh(entry: UpgradeEntry, ttl_days: int):
     """Whether `entry` was checked within the last `ttl_days` days."""
-    return checked_within(entry.get("checked_at"), timedelta(days=ttl_days))
+    return is_checked_within(entry.get("checked_at"), timedelta(days=ttl_days))
 
 
 def same_major_upgrade(cache: dict[str, UpgradeEntry], repository: str, version: str, ttl_days: int) -> str | None:

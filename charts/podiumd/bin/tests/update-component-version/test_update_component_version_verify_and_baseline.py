@@ -5,12 +5,14 @@ from types import SimpleNamespace
 
 import pytest
 
+from tests.fixture_data import SHA256_C
+
 # --- verify_component_version ---
 
 
 def test_verify_component_version_returns_upstream_image_results(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch):
     dep = {"name": "openforms", "alias": "openformulieren", "version": "1.11.0", "repository": "@maykinmedia"}
-    digest = "sha256:" + "c" * 64
+    digest = SHA256_C
 
     monkeypatch.setattr(
         ucv,
@@ -129,7 +131,7 @@ def test_check_chart_version_lockstep_refuses_differing_versions(
     ucv: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
     monkeypatch.setattr(
-        ucv, "chart_version_lockstep_components", lambda chart_dir: frozenset({"internetaakafhandeling"})
+        ucv, "chart_version_lockstep_components", lambda chart_dir: frozenset(("internetaakafhandeling",))
     )
 
     with pytest.raises(SystemExit) as exc_info:
@@ -141,20 +143,20 @@ def test_check_chart_version_lockstep_refuses_differing_versions(
 
 def test_check_chart_version_lockstep_accepts_equal_versions(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
-        ucv, "chart_version_lockstep_components", lambda chart_dir: frozenset({"internetaakafhandeling"})
+        ucv, "chart_version_lockstep_components", lambda chart_dir: frozenset(("internetaakafhandeling",))
     )
     ucv.check_chart_version_lockstep("internetaakafhandeling", "3.3.3", "3.3.3", no_chart=False)
 
 
 def test_check_chart_version_lockstep_ignores_unregistered_component(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
-        ucv, "chart_version_lockstep_components", lambda chart_dir: frozenset({"internetaakafhandeling"})
+        ucv, "chart_version_lockstep_components", lambda chart_dir: frozenset(("internetaakafhandeling",))
     )
     ucv.check_chart_version_lockstep("zac", "5.4.3", "1.0.297", no_chart=False)
 
 
 def test_check_chart_version_lockstep_ignores_native_component(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(ucv, "chart_version_lockstep_components", lambda chart_dir: frozenset({"frankgateway"}))
+    monkeypatch.setattr(ucv, "chart_version_lockstep_components", lambda chart_dir: frozenset(("frankgateway",)))
     ucv.check_chart_version_lockstep("frankgateway", "104", "native", no_chart=True)
 
 

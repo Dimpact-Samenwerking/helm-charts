@@ -10,7 +10,9 @@ BASELINE_INTRO_RE = re.compile(rf"(?P<prefix>environments already on \*\*)(?P<ba
 
 def fix_baseline_intro(text: str, upgrade_docs_baseline: str) -> tuple[str, bool]:
     """Point the intro sentence at upgrade_docs_baseline. Returns (new_text, changed)."""
-    new_text = BASELINE_INTRO_RE.sub(lambda m: f"{m['prefix']}{upgrade_docs_baseline}**", text, count=1)
+    new_text = BASELINE_INTRO_RE.sub(
+        lambda intro_match: f"{intro_match['prefix']}{upgrade_docs_baseline}**", text, count=1
+    )
     return new_text, new_text != text
 
 

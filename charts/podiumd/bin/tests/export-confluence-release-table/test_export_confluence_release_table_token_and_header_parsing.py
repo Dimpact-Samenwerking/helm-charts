@@ -5,10 +5,7 @@ from types import ModuleType
 
 import pytest
 
-
-def write_chart_yaml(chart_dir, version):
-    (chart_dir / "Chart.yaml").write_text(f"apiVersion: v2\nname: podiumd\nversion: {version}\n", encoding="utf-8")
-
+from tests.fixture_data import write_chart_version
 
 PRODUCT_TABLE_HTML = """
 <h2>Product component versies</h2>
@@ -91,7 +88,8 @@ def make_args(**overrides):
 def test_resolve_token_prefers_token_file(ecrt: ModuleType, tmp_path: Path):
     token_file = tmp_path / "token.txt"
     token_file.write_text("  s3cr3t-from-file  \n", encoding="utf-8")
-    args = make_args(token_file=str(token_file), token="ignored-since-file-wins")
+    from_arg = "ignored-since-file-wins"
+    args = make_args(token_file=str(token_file), token=from_arg)
     assert ecrt.resolve_token(args) == "s3cr3t-from-file"
 
 
@@ -127,7 +125,8 @@ def test_resolve_token_aborted_prompt_exits_with_message(ecrt: ModuleType, monke
 
 
 def test_resolve_token_falls_back_to_token_arg(ecrt: ModuleType):
-    args = make_args(token="s3cr3t-from-arg")
+    from_arg = "s3cr3t-from-arg"
+    args = make_args(token=from_arg)
     assert ecrt.resolve_token(args) == "s3cr3t-from-arg"
 
 
@@ -224,7 +223,7 @@ def test_extract_release_rows_handles_inconsistent_th_tagging(ecrt: ModuleType):
 def test_check_target_matches_chart_version_silent_when_major_minor_matches(
     ecrt: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
-    write_chart_yaml(tmp_path, "4.9.0")
+    write_chart_version(tmp_path, "4.9.0")
     ecrt.check_target_matches_chart_version(["Versie 4.9"], tmp_path)
     assert capsys.readouterr().err == ""
 
@@ -232,7 +231,7 @@ def test_check_target_matches_chart_version_silent_when_major_minor_matches(
 def test_check_target_matches_chart_version_warns_on_mismatch(
     ecrt: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
-    write_chart_yaml(tmp_path, "4.9.0")
+    write_chart_version(tmp_path, "4.9.0")
     ecrt.check_target_matches_chart_version(["Versie 5.0"], tmp_path)
     err = capsys.readouterr().err
     assert "WARNING" in err
@@ -244,7 +243,7 @@ def test_check_target_matches_chart_version_ignores_patch(
     ecrt: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
     """Only major.minor is compared: 4.9.3 vs "Versie 4.9" doesn't warn."""
-    write_chart_yaml(tmp_path, "4.9.3")
+    write_chart_version(tmp_path, "4.9.3")
     ecrt.check_target_matches_chart_version(["Versie 4.9"], tmp_path)
     assert capsys.readouterr().err == ""
 
@@ -252,7 +251,7 @@ def test_check_target_matches_chart_version_ignores_patch(
 def test_check_target_matches_chart_version_dedupes_repeated_labels(
     ecrt: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
-    write_chart_yaml(tmp_path, "4.9.0")
+    write_chart_version(tmp_path, "4.9.0")
     ecrt.check_target_matches_chart_version(["Versie 5.0", "Versie 5.0", "Versie 5.0"], tmp_path)
     err = capsys.readouterr().err
     assert err.count("'Versie 5.0'") == 1
@@ -261,7 +260,7 @@ def test_check_target_matches_chart_version_dedupes_repeated_labels(
 def test_check_target_matches_chart_version_no_labels_is_silent(
     ecrt: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
-    write_chart_yaml(tmp_path, "4.9.0")
+    write_chart_version(tmp_path, "4.9.0")
     ecrt.check_target_matches_chart_version([], tmp_path)
     assert capsys.readouterr().err == ""
 

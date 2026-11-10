@@ -41,7 +41,7 @@ def test_parse_chart_yaml_reads_dependencies():
 
 
 def test_parse_chart_yaml_keeps_keys_outside_the_type():
-    chart = parse_chart_yaml(CHART_YAML + "keywords: [zgw]\n", "Chart.yaml")
+    chart = parse_chart_yaml(f"{CHART_YAML}keywords: [zgw]\n", "Chart.yaml")
     assert "keywords" in chart
 
 

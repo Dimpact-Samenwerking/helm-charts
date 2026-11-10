@@ -25,7 +25,6 @@ import contextlib
 import sys
 
 from pathlib import Path
-from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -46,58 +45,68 @@ from lib.settings import render_report_top_n_largest_templates_shown
 DEFAULT_OUTPUT = CHART_DIR / render_report_default_output_file_name(CHART_DIR)
 
 
+def _parse_args(args: list[str]) -> tuple[Path | None, list[str]]:
+    """(output path, None for --stdout; helm args)."""
+    if args and args[0] == "--stdout":
+        return None, args[1:]
+    if args and not args[0].startswith("-"):
+        return Path(args[0]), args[1:]
+    return DEFAULT_OUTPUT, args
+
+
+def _status(message: str, output_path: Path | None, end: str = "\n") -> None:
+    # With --stdout, messages go to stderr to keep stdout pure YAML.
+    print(message, file=sys.stderr if output_path is None else None, end=end)
+
+
+def _report_render_failure(stderr: str, output_path: Path | None) -> None:
+    _status(stderr, output_path, end="" if stderr.endswith("\n") else "\n")
+    if output_path is None:
+        with contextlib.redirect_stdout(sys.stderr):
+            report_errors_by_subchart(stderr)
+    else:
+        report_errors_by_subchart(stderr)
+    dest = "stdout" if output_path is None else str(output_path)
+    _status(f"error: helm template failed to render (nothing written to {dest})", output_path)
+
+
+def _write_rendered(rendered: str, output_path: Path | None) -> None:
+    doc_count = sum(1 for line in rendered.splitlines() if line.startswith("---"))
+    top_n = render_report_top_n_largest_templates_shown(CHART_DIR)
+    if output_path is None:
+        _status(f"OK: rendered {doc_count} manifest(s) to stdout", output_path)
+        with contextlib.redirect_stdout(sys.stderr):
+            report_largest_templates(rendered, top_n)
+        sys.stdout.write(rendered)
+    else:
+        output_path.write_text(rendered, encoding="utf-8")
+        _status(f"OK: rendered {doc_count} manifest(s) to {output_path}", output_path)
+        report_largest_templates(rendered, top_n)
+
+
 def main():
     """CLI entry point."""
     exit_on_help(__doc__)
     ensure_vendored_dependencies(CHART_DIR)
 
-    args = sys.argv[1:]
-    to_stdout = bool(args) and args[0] == "--stdout"
-    if to_stdout:
-        args = args[1:]
-        output_path = None
-    elif args and not args[0].startswith("-"):
-        output_path = Path(args[0])
-        args = args[1:]
-    else:
-        output_path = DEFAULT_OUTPUT
+    output_path, extra_args = _parse_args(sys.argv[1:])
     if output_path is not None:
         check_output_path(output_path, "output-file")
 
-    # With --stdout, messages go to stderr to keep stdout pure YAML.
-    def status(*a: Any, **kw: Any):
-        print(*a, file=sys.stderr if to_stdout else None, **kw)
-
-    if args:
-        extra_args = args
-        status(f"Rendering with custom args (default -f ci/lint-values.yaml NOT applied): {' '.join(extra_args)}")
+    if extra_args:
+        _status(
+            f"Rendering with custom args (default -f ci/lint-values.yaml NOT applied): {' '.join(extra_args)}",
+            output_path,
+        )
     else:
         extra_args = lint_args_for(CHART_DIR)
-        status(f"Rendering with default CI values: {' '.join(extra_args) or '(none found)'}")
+        _status(f"Rendering with default CI values: {' '.join(extra_args) or '(none found)'}", output_path)
 
     result = render_chart(CHART_DIR, extra_args)
     if result.returncode != 0:
-        status(result.stderr, end="" if result.stderr.endswith("\n") else "\n")
-        if to_stdout:
-            with contextlib.redirect_stdout(sys.stderr):
-                report_errors_by_subchart(result.stderr)
-        else:
-            report_errors_by_subchart(result.stderr)
-        dest = "stdout" if to_stdout else str(output_path)
-        status(f"error: helm template failed to render (nothing written to {dest})")
+        _report_render_failure(result.stderr, output_path)
         sys.exit(1)
-
-    doc_count = sum(1 for line in result.stdout.splitlines() if line.startswith("---"))
-    top_n = render_report_top_n_largest_templates_shown(CHART_DIR)
-    if output_path is None:
-        status(f"OK: rendered {doc_count} manifest(s) to stdout")
-        with contextlib.redirect_stdout(sys.stderr):
-            report_largest_templates(result.stdout, top_n)
-        sys.stdout.write(result.stdout)
-    else:
-        output_path.write_text(result.stdout, encoding="utf-8")
-        status(f"OK: rendered {doc_count} manifest(s) to {output_path}")
-        report_largest_templates(result.stdout, top_n)
+    _write_rendered(result.stdout, output_path)
 
 
 if __name__ == "__main__":

@@ -11,6 +11,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from tests.fixture_data import SHA256_D
+
 DIGEST_A = "a" * 64  # own: frankgateway
 DIGEST_B = "b" * 64  # partner: openzaak (Maykin)
 DIGEST_C = "c" * 64  # other: redis-operator
@@ -99,12 +101,13 @@ def template_run(rendered=RENDERED, returncode=0):
     return render_chart
 
 
-def newer_tags_for(**by_repo_path):
+def newer_tags_for(by_repo_path: dict[str, str] | None = None):
     """find_newer_same_variant_tags stub: returns [by_repo_path[repo_path]] if
     given, else [] (no newer tag)."""
+    newer = by_repo_path or {}
 
     def find(host, repo_path, version):
-        return [by_repo_path[repo_path]] if repo_path in by_repo_path else []
+        return [newer[repo_path]] if repo_path in newer else []
 
     return find
 
@@ -163,7 +166,7 @@ def test_check_image_upgrades_splits_own_partner_other_and_never_fails(
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr("lib.checks.cve.render_chart", template_run())
     monkeypatch.setattr(
-        libimageupgradecheck, "find_newer_same_variant_tags", newer_tags_for(**{"wearefrank/frank-gateway": "999"})
+        libimageupgradecheck, "find_newer_same_variant_tags", newer_tags_for({"wearefrank/frank-gateway": "999"})
     )
 
     ok, detail = vp.check_image_upgrades(chart_dir, [])
@@ -195,7 +198,7 @@ def test_check_image_upgrades_partner_upgrade_shown_with_vendor_label(
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr("lib.checks.cve.render_chart", template_run())
     monkeypatch.setattr(
-        libimageupgradecheck, "find_newer_same_variant_tags", newer_tags_for(**{"maykinmedia/objects-api": "2.0.0"})
+        libimageupgradecheck, "find_newer_same_variant_tags", newer_tags_for({"maykinmedia/objects-api": "2.0.0"})
     )
 
     ok, detail = vp.check_image_upgrades(chart_dir, [])
@@ -215,9 +218,7 @@ def test_check_image_upgrades_other_vendor_itemized_like_partner(
 ):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr("lib.checks.cve.render_chart", template_run())
-    monkeypatch.setattr(
-        libimageupgradecheck, "find_newer_same_variant_tags", newer_tags_for(**{"alpine/k8s": "1.37.0"})
-    )
+    monkeypatch.setattr(libimageupgradecheck, "find_newer_same_variant_tags", newer_tags_for({"alpine/k8s": "1.37.0"}))
 
     ok, detail = vp.check_image_upgrades(chart_dir, [])
     assert ok is True
@@ -380,12 +381,10 @@ def test_check_image_upgrades_heuristic_fallback_for_disabled_component(
 ):
     """A component absent from the render (e.g. disabled in CI values) falls
     back to the values-key heuristic: not a Chart.yaml dependency -> own."""
-    values = VALUES_YAML + (f'apiproxy:\n  image:\n    repository: org/apiproxy\n    tag: "1.0.0@sha256:{"d" * 64}"\n')
+    values = f'{VALUES_YAML}apiproxy:\n  image:\n    repository: org/apiproxy\n    tag: "1.0.0@{SHA256_D}"\n'
     chart_dir = make_chart_dir(tmp_path, values=values)
     monkeypatch.setattr("lib.checks.cve.render_chart", template_run())
-    monkeypatch.setattr(
-        libimageupgradecheck, "find_newer_same_variant_tags", newer_tags_for(**{"org/apiproxy": "2.0.0"})
-    )
+    monkeypatch.setattr(libimageupgradecheck, "find_newer_same_variant_tags", newer_tags_for({"org/apiproxy": "2.0.0"}))
 
     ok, detail = vp.check_image_upgrades(chart_dir, [])
     assert ok is True

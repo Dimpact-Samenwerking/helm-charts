@@ -7,32 +7,9 @@ import pytest
 
 from lib.release_table.component_resolution import name_candidates
 from lib.upgradedoc.string_and_parsing_basics import normalize_name
-
-
-def write_chart_yaml_with_dependencies(chart_dir, deps):
-    """`deps`: [(name, alias_or_None), ...]."""
-    lines = ["apiVersion: v2", "name: podiumd", "version: 1.0.0", "dependencies:"]
-    for name, alias in deps:
-        lines.append(f"  - name: {name}")
-        if alias:
-            lines.append(f"    alias: {alias}")
-        lines += ["    version: 1.0.0", '    repository: "@x"']
-    (chart_dir / "Chart.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def write_values_yaml(chart_dir, keys):
-    """values.yaml with each of `keys` as an empty top-level block."""
-    (chart_dir / "values.yaml").write_text(
-        "".join(f"{key}: {{}}\n" for key in keys),
-        encoding="utf-8",
-    )
-
-
-def write_values_yaml_with_global_images(chart_dir, image_keys):
-    """values.yaml with a global.images map of `image_keys` (shared-image anchors)."""
-    lines = ["global:", "  images:"] + [f"    {key}: {{}}" for key in image_keys]
-    (chart_dir / "values.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
-
+from tests.fixture_data import write_chart_with_dependencies
+from tests.fixture_data import write_empty_value_blocks
+from tests.fixture_data import write_global_images
 
 PRODUCT_TABLE_HTML = """
 <h2>Product component versies</h2>
@@ -134,7 +111,7 @@ INCOMPLETE_UNDER_TARGET_HEADING_HTML = (
 
 
 def test_chart_dependencies_reads_chart_yaml(ecrt: ModuleType, tmp_path: Path):
-    write_chart_yaml_with_dependencies(tmp_path, [("internetaakafhandeling", "ita"), ("openzaak", None)])
+    write_chart_with_dependencies(tmp_path, [("internetaakafhandeling", "ita"), ("openzaak", None)])
     assert ecrt.chart_dependencies(tmp_path) == [("internetaakafhandeling", "ita"), ("openzaak", "")]
 
 
@@ -239,7 +216,7 @@ def test_component_and_alias_shared_prefix_is_unknown_not_multiple(ecrt: ModuleT
 
 
 def test_component_and_alias_never_relates_mid_word(ecrt: ModuleType) -> None:
-    """Loose matching is on whole words only (as word_contains): "Referentielijst"
+    """Loose matching is on whole words only (as has_word_run): "Referentielijst"
     does not relate to "referentielijsten", nor "mi" to "ensurePodiumdAdminUser"."""
     assert ecrt.component_and_alias("Referentielijst", [("referentielijsten", "")]) == ("UNKNOWN", "")
     assert ecrt.component_and_alias("mi", [("ensurePodiumdAdminUser", "")]) == ("UNKNOWN", "")
@@ -256,7 +233,7 @@ def test_component_and_alias_clean_exact_match_short_circuits_ambiguous_lower_ti
 
 
 def test_orphan_values_yaml_keys_returns_keys_not_covered_by_any_dependency(ecrt: ModuleType, tmp_path: Path):
-    write_values_yaml(tmp_path, ["frankgateway", "global", "zac"])
+    write_empty_value_blocks(tmp_path, ["frankgateway", "global", "zac"])
     deps = [("zaakafhandelcomponent", "zac")]
     assert sorted(ecrt.orphan_values_yaml_keys(tmp_path, deps)) == [("frankgateway", ""), ("global", "")]
 
@@ -264,7 +241,7 @@ def test_orphan_values_yaml_keys_returns_keys_not_covered_by_any_dependency(ecrt
 def test_orphan_values_yaml_keys_excludes_keys_matching_a_dependency_name(ecrt: ModuleType, tmp_path: Path):
     """A values.yaml key equal to a dependency's name (not just its alias)
     is excluded too."""
-    write_values_yaml(tmp_path, ["keycloak-operator", "frankgateway"])
+    write_empty_value_blocks(tmp_path, ["keycloak-operator", "frankgateway"])
     deps = [("keycloak-operator", "")]
     assert ecrt.orphan_values_yaml_keys(tmp_path, deps) == [("frankgateway", "")]
 
@@ -316,7 +293,7 @@ def test_component_and_alias_still_unknown_when_no_orphan_key_relates_either(ecr
 
 
 def test_global_image_names_returns_keys_under_global_images(ecrt: ModuleType, tmp_path: Path):
-    write_values_yaml_with_global_images(tmp_path, ["nginx", "curl", "busybox"])
+    write_global_images(tmp_path, ["nginx", "curl", "busybox"])
     assert ecrt.global_image_names(tmp_path) == ["nginx", "curl", "busybox"]
 
 
@@ -334,7 +311,7 @@ def test_global_image_names_missing_values_yaml_returns_empty(ecrt: ModuleType, 
 
 
 def test_global_image_names_missing_global_images_returns_empty(ecrt: ModuleType, tmp_path: Path):
-    write_values_yaml(tmp_path, ["frankgateway"])
+    write_empty_value_blocks(tmp_path, ["frankgateway"])
     assert ecrt.global_image_names(tmp_path) == []
 
 
@@ -395,7 +372,7 @@ def test_extract_release_rows_matches_and_reports(ecrt: ModuleType, capsys: pyte
 def test_extract_release_rows_resolves_component_and_alias_by_exact_match(ecrt: ModuleType, tmp_path: Path):
     """An exact dependency-name match resolves component/alias; "Open Zaak"
     stays UNKNOWN. The alias is chosen not to substring-match "Open Zaak"."""
-    write_chart_yaml_with_dependencies(tmp_path, [("zac", "zacalias")])
+    write_chart_with_dependencies(tmp_path, [("zac", "zacalias")])
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
     assert rows == [
         ["Product", "Info(NL)", "", "ZAC", "zac", "zacalias", "", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
@@ -406,7 +383,7 @@ def test_extract_release_rows_resolves_component_and_alias_by_exact_match(ecrt: 
 def test_extract_release_rows_resolves_component_and_alias_by_alias_substring(ecrt: ModuleType, tmp_path: Path):
     """ "ZAC" resolves via the dependency's alias being a substring of it,
     the rule most real components rely on."""
-    write_chart_yaml_with_dependencies(tmp_path, [("zaakafhandelcomponent", "zac")])
+    write_chart_with_dependencies(tmp_path, [("zaakafhandelcomponent", "zac")])
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
     assert rows[0] == [
         "Product",
@@ -426,7 +403,7 @@ def test_extract_release_rows_resolves_component_and_alias_by_alias_substring(ec
 def test_extract_release_rows_resolves_component_without_alias_via_name_relation(ecrt: ModuleType, tmp_path: Path):
     """A name relation against an alias-less dependency sets component only;
     "ZAC" stays UNKNOWN."""
-    write_chart_yaml_with_dependencies(tmp_path, [("openzaak", None)])
+    write_chart_with_dependencies(tmp_path, [("openzaak", None)])
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
     assert rows[0][4] == "UNKNOWN"
     assert rows[1] == ["Product", "Maykin", "", "Open Zaak", "openzaak", "", "", "1.27.0", "1.14.0", "1.27.4", "1.14.2"]

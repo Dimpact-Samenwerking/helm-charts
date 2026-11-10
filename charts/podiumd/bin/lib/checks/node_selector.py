@@ -27,12 +27,16 @@ INCLUDE_CALL_RE = re.compile(r'include\s+"(?P<name>[^"]+)"')
 
 def _referenced_define_bodies(doc: str, define_bodies: dict[str, str]):
     """Bodies of same-file define blocks this chunk calls via a plain `include "X"`."""
-    return [define_bodies[m.group("name")] for m in INCLUDE_CALL_RE.finditer(doc) if m.group("name") in define_bodies]
+    return [
+        define_bodies[include_match.group("name")]
+        for include_match in INCLUDE_CALL_RE.finditer(doc)
+        if include_match.group("name") in define_bodies
+    ]
 
 
 def file_define_bodies(text: str) -> dict[str, str]:
     """{name: body} for every `{{ define "X" }}...{{ end }}` block in the text."""
-    return {m.group("name"): m.group("body") for m in DEFINE_BLOCK_RE.finditer(text)}
+    return {define_match.group("name"): define_match.group("body") for define_match in DEFINE_BLOCK_RE.finditer(text)}
 
 
 def missing_node_selector(doc: str, define_bodies: dict[str, str]) -> tuple[str, str] | None:

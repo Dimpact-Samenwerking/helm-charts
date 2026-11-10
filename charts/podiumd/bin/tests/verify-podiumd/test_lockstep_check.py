@@ -6,6 +6,10 @@ from types import ModuleType
 
 import pytest
 
+from tests.fixture_data import SHA256_A
+from tests.fixture_data import SHA256_B
+from tests.fixture_data import SHA256_F
+
 
 @pytest.fixture(autouse=True)
 def _lockstep_registries(liblockstepcheck: ModuleType, monkeypatch: pytest.MonkeyPatch):
@@ -19,7 +23,7 @@ def _lockstep_registries(liblockstepcheck: ModuleType, monkeypatch: pytest.Monke
         lambda: {"eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"]},
     )
     monkeypatch.setattr(
-        liblockstepcheck, "chart_version_lockstep_components", lambda: frozenset({"kiss-chart", "pabc"})
+        liblockstepcheck, "chart_version_lockstep_components", lambda: frozenset(("kiss-chart", "pabc"))
     )
     monkeypatch.setattr(
         liblockstepcheck,
@@ -105,8 +109,8 @@ def test_digest_ignored_when_comparing_image_tag_versions(liblockstepcheck: Modu
     deps = [{"name": "zgw-office-addin", "alias": "", "version": "0.9.352"}]
     values = {
         "zgw-office-addin": {
-            "frontend": {"image": {"tag": "0.9.352@sha256:" + "a" * 64}},
-            "backend": {"image": {"tag": "0.9.352@sha256:" + "b" * 64}},
+            "frontend": {"image": {"tag": f"0.9.352@{SHA256_A}"}},
+            "backend": {"image": {"tag": f"0.9.352@{SHA256_B}"}},
         }
     }
     assert liblockstepcheck.find_lockstep_mismatches(deps, values) == []
@@ -192,7 +196,7 @@ def test_chart_version_component_with_no_dependency_skipped(liblockstepcheck: Mo
 
 def test_chart_version_digest_ignored_when_comparing(liblockstepcheck: ModuleType):
     dep = {"name": "kiss-chart", "alias": "kiss", "version": "3.1.1"}
-    values = {"kiss": {"image": {"tag": "3.1.1@sha256:" + "f" * 64}}}
+    values = {"kiss": {"image": {"tag": f"3.1.1@{SHA256_F}"}}}
     assert liblockstepcheck.find_chart_version_mismatches([dep], values) == []
 
 
@@ -200,7 +204,7 @@ def test_eck_operator_chart_version_lockstep_registered(liblockstepcheck: Module
     """eck-operator is registered because its chart and operator image share
     one version. Opts back in past the autouse isolation fixture."""
     monkeypatch.setattr(
-        liblockstepcheck, "chart_version_lockstep_components", lambda: frozenset({"kiss-chart", "pabc", "eck-operator"})
+        liblockstepcheck, "chart_version_lockstep_components", lambda: frozenset(("kiss-chart", "pabc", "eck-operator"))
     )
     dep = {"name": "eck-operator", "version": "3.5.0"}
     values = {"eck-operator": {"image": {"tag": "3.5.0"}}}
@@ -211,7 +215,7 @@ def test_eck_operator_chart_version_drift_reported(liblockstepcheck: ModuleType,
     """An eck-operator dependency bump without the matching image tag bump
     (or vice versa) is caught."""
     monkeypatch.setattr(
-        liblockstepcheck, "chart_version_lockstep_components", lambda: frozenset({"kiss-chart", "pabc", "eck-operator"})
+        liblockstepcheck, "chart_version_lockstep_components", lambda: frozenset(("kiss-chart", "pabc", "eck-operator"))
     )
     dep = {"name": "eck-operator", "version": "3.5.0"}
     values = {"eck-operator": {"image": {"tag": "3.4.0"}}}
@@ -224,7 +228,7 @@ def test_eck_operator_chart_version_drift_reported(liblockstepcheck: ModuleType,
 
 def make_chart(tmp_path: Path, chart_yaml_deps, values_text):
     (tmp_path / "Chart.yaml").write_text(
-        "name: podiumd\nversion: 1.0.0\ndependencies:\n" + chart_yaml_deps, encoding="utf-8"
+        f"name: podiumd\nversion: 1.0.0\ndependencies:\n{chart_yaml_deps}", encoding="utf-8"
     )
     (tmp_path / "values.yaml").write_text(values_text, encoding="utf-8")
     return tmp_path
@@ -254,7 +258,8 @@ def test_check_fails_and_reports_chart_version_drift(
     assert "1 mismatch(es)" in detail
     out = capsys.readouterr().out
     assert "pabc" in out
-    assert "1.1.1" in out and "1.1.0" in out
+    assert "1.1.1" in out
+    assert "1.1.0" in out
 
 
 def test_check_fails_and_reports_multi_path_drift(
@@ -272,7 +277,8 @@ def test_check_fails_and_reports_multi_path_drift(
     assert "1 mismatch(es)" in detail
     out = capsys.readouterr().out
     assert "zgw-office-addin" in out
-    assert "frontend.image" in out and "backend.image" in out
+    assert "frontend.image" in out
+    assert "backend.image" in out
 
 
 # --- find_embedded_version_mismatches ---
@@ -305,15 +311,17 @@ def test_floating_tag_without_full_embedded_version_reported(liblockstepcheck: M
 
 def test_embedded_version_other_major_reported(liblockstepcheck: ModuleType):
     values = _keycloak_values("6.5.1-25.0.1")
-    [(path, problem)] = liblockstepcheck.find_embedded_version_mismatches(values)
-    assert path == "keycloak.keycloakConfigCli.image"
-    assert "built for major 25" in problem
+    findings = liblockstepcheck.find_embedded_version_mismatches(values)
+    assert len(findings) == 1
+    assert findings[0][0] == "keycloak.keycloakConfigCli.image"
+    assert "built for major 25" in findings[0][1]
 
 
 def test_embedded_version_newer_than_followed_image_reported(liblockstepcheck: ModuleType):
     values = _keycloak_values("6.5.1-26.8.0")
-    [(_path, problem)] = liblockstepcheck.find_embedded_version_mismatches(values)
-    assert "newer version than keycloak.image 26.7.3" in problem
+    findings = liblockstepcheck.find_embedded_version_mismatches(values)
+    assert len(findings) == 1
+    assert "newer version than keycloak.image 26.7.3" in findings[0][1]
 
 
 def test_embedded_version_compares_numerically(liblockstepcheck: ModuleType):

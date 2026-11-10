@@ -14,12 +14,13 @@ import pytest
 import lib.image.docs as image_docs
 import lib.image.version as image_version
 
-from lib.docs_consistency import check_docs_consistency
-from lib.fix_doc_consistency.run import FixDocPaths
+from lib.docs_consistency.check import check_docs_consistency
+from lib.fix_doc_consistency.rebase_state import FixDocPaths
 from lib.fix_doc_consistency.run import fix_docs
 from lib.image import baseline_refresh
+from tests.fixture_data import sha256_digest
 
-DIGEST = {c: "sha256:" + c * 64 for c in "abcdef0"}
+DIGEST = {fill: sha256_digest(fill) for fill in "abcdef0"}
 UPGRADE = "_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md"
 MANIFEST = "images/images-4.9.0.yaml"
 USER_NOTE = "USER NOTE: check the OPA policies.\n"

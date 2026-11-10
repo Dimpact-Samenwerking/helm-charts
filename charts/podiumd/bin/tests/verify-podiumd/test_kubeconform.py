@@ -281,7 +281,7 @@ def test_check_kubeconform_repeated_root_cause_is_grouped(
                     "kind": "Deployment",
                     "name": "frankgateway",
                     "status": "statusError",
-                    "msg": msg + '\n  line 29: key "app.kubernetes.io/name" already set in map',
+                    "msg": f'{msg}\n  line 29: key "app.kubernetes.io/name" already set in map',
                 },
             ]
         ),
@@ -293,7 +293,8 @@ def test_check_kubeconform_repeated_root_cause_is_grouped(
     out = capsys.readouterr().out
     assert out.count("[ERROR  ]") == 1  # one grouped line, not three
     assert "x3" in out
-    assert "Service/frankgateway-shim" in out and "Deployment/frankgateway" in out
+    assert "Service/frankgateway-shim" in out
+    assert "Deployment/frankgateway" in out
 
 
 def test_check_kubeconform_other_vendor_finding_never_fails(

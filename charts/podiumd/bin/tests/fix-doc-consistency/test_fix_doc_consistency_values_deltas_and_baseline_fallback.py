@@ -542,11 +542,11 @@ def test_main_leaves_key_lines_alone(
     cdb: ModuleType, repo_with_undocumented_schema_change, monkeypatch: pytest.MonkeyPatch, key_line: str
 ):
     """Key lines are user text: neither checked against values.yaml nor written."""
-    body = "## zac 5.0.2 → 5.1.0 (chart 1.0.297, unchanged)\n\n" + key_line + "\nNo longer needed.\n"
+    body = f"## zac 5.0.2 → 5.1.0 (chart 1.0.297, unchanged)\n\n{key_line}\nNo longer needed.\n"
     doc = repo_with_undocumented_schema_change / "4.8.3-to-4.9.0-values-deltas.md"
-    doc.write_text("# Values deltas — PodiumD 4.8.3 → 4.9.0\n\n" + body, encoding="utf-8")
+    doc.write_text(f"# Values deltas — PodiumD 4.8.3 → 4.9.0\n\n{body}", encoding="utf-8")
     set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_schema_change, "4.8.5")
     cdb.main()
 
     deltas = (repo_with_undocumented_schema_change / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
-    assert deltas == "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n" + body
+    assert deltas == f"# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n{body}"

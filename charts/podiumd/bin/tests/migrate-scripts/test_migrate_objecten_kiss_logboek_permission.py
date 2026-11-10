@@ -13,7 +13,7 @@ KISS = (
     f'      token: "{CONTACT_PLACEHOLDER}"\n'
 )
 OBJECTTYPES = f'      objecttypes:\n        items:\n          - uuid: "{LOG_TYPE}"\n'
-PREFIX = "objecten:\n  configuration:\n    data: |\n" + OBJECTTYPES + "      tokenauth:\n        items:\n"
+PREFIX = f"objecten:\n  configuration:\n    data: |\n{OBJECTTYPES}      tokenauth:\n        items:\n"
 CONTACT = [
     "- identifier: contact",
     f'  token: "{CONTACT_PLACEHOLDER}"',

@@ -38,7 +38,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 # sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
-from lib.baseline_report import show_baseline_section
+from lib.baseline_report import has_shown_baseline_section
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.paths import CHART_DIR
 from lib.chart.release_baseline_basics import release_table_baseline as read_release_table_baseline
@@ -59,15 +59,15 @@ def show_at_baseline(chart_dir: Path, label: str, baseline: str | None, key: str
 
         try:
             matches = resolve_scoped_matches(baseline_lines, key, basename)
-        except SystemExit as e:
-            return str(e)  # already prefixed with "error: "
+        except SystemExit as resolve_error:
+            return str(resolve_error)  # already prefixed with "error: "
 
         print(f"  Baseline: {baseline_value} (resolved to {ref})")
-        for m in matches:
-            print(f"    {m['repository']}: {m['version']}  (sha256:{m['digest']})")
+        for match in matches:
+            print(f"    {match['repository']}: {match['version']}  (sha256:{match['digest']})")
         return None
 
-    return show_baseline_section(label, baseline, resolve)
+    return has_shown_baseline_section(label, baseline, resolve)
 
 
 def main():

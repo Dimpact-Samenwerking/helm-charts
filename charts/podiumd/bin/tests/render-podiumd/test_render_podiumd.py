@@ -1,5 +1,7 @@
 """render-podiumd main(), with rp.render_chart mocked (no real helm)."""
 
+import sys
+
 from pathlib import Path
 from types import ModuleType
 from types import SimpleNamespace
@@ -306,7 +308,7 @@ def test_stale_vendored_dependencies_re_vendored_before_rendering(
 
     def fake_render(chart_dir, extra_args):
         rendered.append(dependencies.vendored_dependency_problems(chart_dir))
-        raise SystemExit(0)
+        sys.exit(0)
 
     monkeypatch.setattr(rp, "render_chart", fake_render)
 

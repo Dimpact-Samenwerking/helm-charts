@@ -11,7 +11,6 @@ import pytest
 SCRIPTS_DIR = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-import lib.baseline_report as baseline_report
 import lib.chart.historical_baselines as chart_historical_baselines
 import lib.chart.nested_subchart_identity as chart_nested_subchart_identity
 import lib.chart.pull_and_subchart_resolution as chart_pull_and_subchart_resolution
@@ -19,25 +18,15 @@ import lib.chart.registered_paths as chart_registered_paths
 import lib.chart.release_baseline_basics as chart_release_baseline_basics
 import lib.chart.repo_and_path_resolution as chart_repo_and_path_resolution
 import lib.chart.values_tree_primitives as chart_values_tree_primitives
-import lib.chart_lock as chart_lock
-import lib.component_docs as component_docs
 import lib.component_docs.baseline_doc_stubs as component_docs_baseline_doc_stubs
 import lib.component_docs.changes_section as component_docs_changes_section
 import lib.component_docs.images_manifest_changes_header as component_docs_images_manifest_changes_header
 import lib.component_docs.images_manifest_entries as component_docs_images_manifest_entries
 import lib.component_docs.values_delta_sections as component_docs_values_delta_sections
-import lib.confluence_tables as confluence_tables
-import lib.dependencies as dependencies
-import lib.docs_consistency as docs_consistency
+import lib.docs_consistency.component_versions_table as docs_consistency
 import lib.docs_consistency.images_manifest_format as docs_consistency_images_manifest_format
-import lib.gitutil as gitutil
 import lib.image.docs as image_docs
 import lib.image.version as image_version
-import lib.procutil as procutil
-import lib.registry as registry
-import lib.release_baseline as release_baseline
-import lib.repo_access as repo_access
-import lib.repo_access_cache as repo_access_cache
 import lib.upgradedoc.app_version_and_image_paths as upgradedoc_app_version_and_image_paths
 import lib.upgradedoc.consistency_checks as upgradedoc_consistency_checks
 import lib.upgradedoc.grouped_comments_and_changes_block as upgradedoc_grouped_comments_and_changes_block
@@ -47,6 +36,18 @@ import lib.upgradedoc.resolve_component_row as upgradedoc_resolve_component_row
 import lib.upgradedoc.sorting_and_ordering as upgradedoc_sorting_and_ordering
 import lib.upgradedoc.string_and_parsing_basics as upgradedoc_string_and_parsing_basics
 import lib.upgradedoc.version_cells as upgradedoc_version_cells
+
+from lib import baseline_report
+from lib import chart_lock
+from lib import component_docs
+from lib import confluence_tables
+from lib import dependencies
+from lib import gitutil
+from lib import procutil
+from lib import registry
+from lib import release_baseline
+from lib import repo_access
+from lib import repo_access_cache
 
 
 @pytest.fixture(scope="session")

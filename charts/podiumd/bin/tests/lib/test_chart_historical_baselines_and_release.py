@@ -261,12 +261,13 @@ def test_write_release_baselines_escapes_backslash_and_double_quote_correctly(
     libchartreleasebaselinebasics: ModuleType, tmp_path: Path
 ):
     """Backslashes and double quotes are escaped by PyYAML and round-trip through the reader."""
-    pathological = 'has "quotes" and a \\ backslash'
+    pathological = r'has "quotes" and a \ backslash'
     libchartreleasebaselinebasics.write_release_baselines(tmp_path, upgrade_docs=pathological)
     assert libchartreleasebaselinebasics.upgrade_docs_baseline(tmp_path) == pathological
 
     text = (tmp_path / "etc" / "release-baseline.yaml").read_text(encoding="utf-8")
-    assert text == 'upgrade_docs: "has \\"quotes\\" and a \\\\ backslash"\n'
+    expected_line = r'upgrade_docs: "has \"quotes\" and a \\ backslash"'
+    assert text == f"{expected_line}\n"
 
 
 # --- side_paths ---

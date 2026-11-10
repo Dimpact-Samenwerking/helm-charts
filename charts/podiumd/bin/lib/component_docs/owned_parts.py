@@ -25,12 +25,16 @@ _GENERATED_HEADING_RE = re.compile(
 
 def _template_pattern(template: str, field_patterns: Mapping[str, str]) -> str:
     parts = re.split(r"\{(\w+)\}", template)
-    return "".join(re.escape(part) if i % 2 == 0 else field_patterns[part] for i, part in enumerate(parts))
+    # re.split with one group alternates literal text (even index) and field names.
+    pieces: list[str] = []
+    for index, part in enumerate(parts):
+        pieces.append(re.escape(part) if index % 2 == 0 else field_patterns[part])
+    return "".join(pieces)
 
 
 def template_re(template: str, field_patterns: Mapping[str, str]) -> re.Pattern[str]:
     """A full-line regex for `template`, each {field} matched by field_patterns[field]."""
-    return re.compile(_template_pattern(template, field_patterns) + r"$")
+    return re.compile(f"{_template_pattern(template, field_patterns)}$")
 
 
 def template_prefix_re(template: str, field_patterns: Mapping[str, str]) -> re.Pattern[str]:
@@ -41,9 +45,9 @@ def template_prefix_re(template: str, field_patterns: Mapping[str, str]) -> re.P
 def generated_heading_name(heading: str, *other_shapes: re.Pattern[str]) -> str | None:
     """The "name" group of the first generated shape `heading` matches (version shape first), else None."""
     for shape in (_GENERATED_HEADING_RE, *other_shapes):
-        m = shape.match(heading)
-        if m:
-            return m.group("name")
+        shape_match = shape.match(heading)
+        if shape_match:
+            return shape_match.group("name")
     return None
 
 
@@ -74,13 +78,13 @@ def _anchors(old_kinds: Sequence[str | None], order: list[str], *, absent_first:
 
     With no such next kind: the end of the body, or with `absent_first` its first non-blank line."""
     first: dict[str, int] = {}
-    for i, kind in enumerate(old_kinds):
+    for line_index, kind in enumerate(old_kinds):
         if kind is not None and kind != BLANK:
-            first.setdefault(kind, i)
+            first.setdefault(kind, line_index)
     anchors: dict[str, int] = {}
     following = len(old_kinds)
     if absent_first:
-        following = next((i for i, kind in enumerate(old_kinds) if kind != BLANK), following)
+        following = next((line_index for line_index, kind in enumerate(old_kinds) if kind != BLANK), following)
     for kind in reversed(order):
         following = first.get(kind, following)
         anchors[kind] = following
@@ -105,16 +109,17 @@ def replace_owned_parts(
     anchors = _anchors(old_kinds, list(new_groups), absent_first=absent_first)
     old_groups = set(_grouped(old_body, old_kinds))
     out: list[str] = []
-    for i in range(len(old_body) + 1):
+    for position in range(len(old_body) + 1):
         for kind, group in new_groups.items():
-            if anchors[kind] != i:
+            if anchors[kind] != position:
                 continue
             if kind in old_groups:
                 out.extend(group)  # the old blank lines around it stay as they were
             else:
-                out.extend(["\n", *group, "\n"] if out and out[-1].strip() else [*group, "\n"])
-        if i < len(old_body) and old_kinds[i] in (None, BLANK):
-            out.append(old_body[i])
+                gap = ["\n"] if out and out[-1].strip() else []
+                out.extend([*gap, *group, "\n"])
+        if position < len(old_body) and old_kinds[position] in {None, BLANK}:
+            out.append(old_body[position])
     return _collapse_blank_runs(out)
 
 
@@ -128,6 +133,8 @@ def remove_owned_parts(body: Sequence[str], kinds: Sequence[str | None]) -> list
 BodyKinds = Callable[[Sequence[str]], list[str | None]]
 # The component a generated heading line names (None: hand-written), given its body's kinds.
 HeadingName = Callable[[str, Sequence[str | None]], str | None]
+# A heading line and its body's kinds.
+type HeadingWithKinds = tuple[str, Sequence[str | None]]
 
 
 @dataclass(frozen=True)
@@ -153,9 +160,7 @@ def _with_section_gap(body: list[str], *, followed: bool) -> list[str]:
     return [*body, "\n"] if followed else body
 
 
-def _kept_or_new_heading(
-    old: tuple[str, Sequence[str | None]], new: tuple[str, Sequence[str | None]], heading_name: HeadingName
-) -> str:
+def _kept_or_new_heading(old: HeadingWithKinds, new: HeadingWithKinds, heading_name: HeadingName) -> str:
     """The new heading line when the old one is generated for the same component, else the old one."""
     old_name = heading_name(*old)
     return new[0] if old_name is not None and old_name == heading_name(*new) else old[0]
@@ -174,8 +179,8 @@ def replace_section_owned_parts(text: str, block: HeadingBlock, section_text: st
     old_kinds, new_kinds = shape.body_kinds(old_body), shape.body_kinds(new_body)
     heading = _kept_or_new_heading((lines[start], old_kinds), (new_lines[0], new_kinds), shape.heading_name)
     body = replace_owned_parts(old_body, old_kinds, new_body, new_kinds, absent_first=shape.absent_first)
-    lines[start:end] = [heading, *_with_section_gap(body, followed=end < len(lines))]
-    return "".join(lines)
+    section = [heading, *_with_section_gap(body, followed=end < len(lines))]
+    return "".join([*lines[:start], *section, *lines[end:]])
 
 
 def remove_section_owned_parts(text: str, block: HeadingBlock | None, shape: SectionShape) -> tuple[str, bool, bool]:
@@ -193,8 +198,8 @@ def remove_section_owned_parts(text: str, block: HeadingBlock | None, shape: Sec
     kinds = shape.body_kinds(body)
     if has_user_lines(kinds):
         kept = _with_section_gap(remove_owned_parts(body, kinds), followed=end < len(lines))
-        lines[start:end] = [lines[start], *kept]
-        return "".join(lines), True, True
+        new_text = "".join([*lines[: start + 1], *kept, *lines[end:]])
+        return new_text, True, True
     while end < len(lines) and not lines[end].strip():
         end += 1
     del lines[start:end]
@@ -215,7 +220,7 @@ def edited_generated_lines(text: str, blocks: Sequence[HeadingBlock], shape: Sec
         for line, kind in zip(body, shape.body_kinds(body), strict=True):
             text_line = line.rstrip("\n")
             prefixes = [*shape.edited_openers, *(shape.edited_continuations if after_owned else ())]
-            if kind is None and any(r.match(text_line) for r in prefixes):
+            if kind is None and any(prefix.match(text_line) for prefix in prefixes):
                 found.append((block["heading"], text_line))
-            after_owned = kind not in (None, BLANK)
+            after_owned = kind not in {None, BLANK}
     return found

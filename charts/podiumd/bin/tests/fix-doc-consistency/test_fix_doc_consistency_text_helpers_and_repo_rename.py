@@ -315,7 +315,7 @@ def test_main_is_tracked_by_git_after_rename(cdb: ModuleType, repo, monkeypatch:
     set_argv_and_dir(cdb, monkeypatch, repo, "4.8.3")
     cdb.main()
     status = subprocess.run(
-        ["git", "status", "--porcelain"], cwd=repo.parents[1], capture_output=True, text=True
+        ["git", "status", "--porcelain"], cwd=repo.parents[1], capture_output=True, text=True, check=True
     ).stdout
     assert "R  " in status or "renamed" in status.lower() or "4.8.3-to-4.9.0-upgrade.md" in status
 
@@ -543,15 +543,16 @@ def test_stale_placeholder_functions_are_reused_not_reimplemented(cdb: ModuleTyp
 
     fix-doc-consistency clears the TODO stubs (verify-podiumd reports that through its
     dry-run); only the gemeente-specific placeholder, which nothing clears, is checked."""
-    import lib.component_docs.changes_section as changes_section
-    import lib.component_docs.values_delta_sections as values_delta_sections
-    import lib.docs_consistency as docs_consistency
-    import lib.fix_doc_consistency.run as run
+    from lib.component_docs import changes_section
+    from lib.component_docs import values_delta_sections
+    from lib.docs_consistency import check as docs_consistency
+    from lib.fix_doc_consistency import run
 
-    assert run.strip_stale_upgrade_placeholders is changes_section.strip_stale_upgrade_placeholders
-    assert run.strip_stale_values_deltas_todo_stub is values_delta_sections.strip_stale_values_deltas_todo_stub
+    # vars(): the modules import these names for their own use, they do not re-export them.
+    assert vars(run)["strip_stale_upgrade_placeholders"] is changes_section.strip_stale_upgrade_placeholders
+    assert vars(run)["strip_stale_values_deltas_todo_stub"] is values_delta_sections.strip_stale_values_deltas_todo_stub
     assert (
-        docs_consistency.has_stale_gemeente_specific_placeholder
+        vars(docs_consistency)["has_stale_gemeente_specific_placeholder"]
         is values_delta_sections.has_stale_gemeente_specific_placeholder
     )
 

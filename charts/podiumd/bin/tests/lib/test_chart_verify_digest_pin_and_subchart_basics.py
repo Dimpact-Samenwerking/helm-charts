@@ -259,7 +259,7 @@ def test_print_image_version_results_prints_a_shared_image_once(
         {**result, "path": "redisOperator.imageTag", "exists": True, "digest": "sha256:fake"},
         {**result, "path": "redisOperator.initContainerImageTag", "exists": True, "digest": "sha256:fake"},
     ]
-    assert libchartpullandsubchartresolution.print_image_version_results(results, "v0.27.0") is True
+    assert libchartpullandsubchartresolution.print_image_version_results(results, "v0.27.0") == []
     assert capsys.readouterr().out == "  [FOUND  ] quay.io/opstree/redis-operator:v0.27.0  digest=sha256:fake\n"
 
 
@@ -472,8 +472,8 @@ def test_subchart_values_missing_tgz_returns_none(tmp_path: Path, libchartpullan
 def test_subchart_values_missing_member_returns_none(tmp_path: Path, libchartpullandsubchartresolution: ModuleType):
     charts_dir = tmp_path / "charts"
     charts_dir.mkdir()
-    with tarfile.open(charts_dir / "openzaak-1.14.2.tgz", "w:gz"):
-        pass  # empty archive, no values.yaml member
+    with tarfile.open(charts_dir / "openzaak-1.14.2.tgz", "w:gz") as tar:
+        tar.addfile(tarfile.TarInfo("openzaak/Chart.yaml"))
     dep = {"name": "openzaak", "version": "1.14.2"}
     assert libchartpullandsubchartresolution.subchart_values(tmp_path, dep) is None
 

@@ -3,6 +3,9 @@
 from pathlib import Path
 from types import ModuleType
 
+from tests.fixture_data import SHA256_A
+from tests.fixture_data import SHA256_B
+
 # --- find_images_manifest_list_diff ---
 
 
@@ -89,10 +92,10 @@ def test_find_images_manifest_list_diff_catches_digest_only_repin_when_both_side
     """Same version, different digest is reported missing: the manifest tracks exact mirroring
     (unlike compute_changed_components, which stays version-only)."""
     entries = []
-    current_paths = {("zac",): "1.1.0@sha256:" + "b" * 64}
-    baseline_paths = {("zac",): "1.1.0@sha256:" + "a" * 64}
-    values = {"zac": {"image": {"repository": "zac", "tag": "1.1.0@sha256:" + "b" * 64}}}
-    baseline_values = {"zac": {"image": {"repository": "zac", "tag": "1.1.0@sha256:" + "a" * 64}}}
+    current_paths = {("zac",): f"1.1.0@{SHA256_B}"}
+    baseline_paths = {("zac",): f"1.1.0@{SHA256_A}"}
+    values = {"zac": {"image": {"repository": "zac", "tag": f"1.1.0@{SHA256_B}"}}}
+    baseline_values = {"zac": {"image": {"repository": "zac", "tag": f"1.1.0@{SHA256_A}"}}}
     missing, stale, unmatched = libupgradedocmanifestdiff.find_images_manifest_list_diff(
         libupgradedocmanifestdiff.ManifestDiffInputs(
             entries,
@@ -118,9 +121,9 @@ def test_find_images_manifest_list_diff_ignores_digest_only_repin_when_only_one_
     """A digest missing on one side is nothing to diff, so it is not treated as changed."""
     entries = []
     current_paths = {("zac",): "1.1.0"}
-    baseline_paths = {("zac",): "1.1.0@sha256:" + "a" * 64}
+    baseline_paths = {("zac",): f"1.1.0@{SHA256_A}"}
     values = {"zac": {"image": {"repository": "zac", "tag": "1.1.0"}}}
-    baseline_values = {"zac": {"image": {"repository": "zac", "tag": "1.1.0@sha256:" + "a" * 64}}}
+    baseline_values = {"zac": {"image": {"repository": "zac", "tag": f"1.1.0@{SHA256_A}"}}}
     missing, stale, unmatched = libupgradedocmanifestdiff.find_images_manifest_list_diff(
         libupgradedocmanifestdiff.ManifestDiffInputs(
             entries,
@@ -215,7 +218,7 @@ def test_find_images_manifest_list_diff_eck_operator_new_pin_still_reported_as_m
             "image": {
                 "repository": "docker.elastic.co/eck/eck-operator",
                 "tag": "3.5.0",
-                "digest": "sha256:" + "b" * 64,
+                "digest": SHA256_B,
             }
         }
     }

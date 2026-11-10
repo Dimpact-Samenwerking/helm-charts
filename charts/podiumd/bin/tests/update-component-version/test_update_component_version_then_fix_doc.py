@@ -11,19 +11,21 @@ from types import SimpleNamespace
 
 import pytest
 
-import lib.chart.repo_and_path_resolution as repo_and_path_resolution
 import lib.image.docs as image_docs
 import lib.image.version as image_version
 
-from lib.docs_consistency import check_docs_consistency
-from lib.fix_doc_consistency.run import FixDocPaths
+from lib.chart import repo_and_path_resolution
+from lib.docs_consistency.check import check_docs_consistency
+from lib.fix_doc_consistency.rebase_state import FixDocPaths
 from lib.fix_doc_consistency.run import fix_docs
 from lib.image import baseline_refresh
+from tests.fixture_data import sha256_digest
 
-DIGEST = {c: "sha256:" + c * 64 for c in "abcdef0"}
+DIGEST = {fill: sha256_digest(fill) for fill in "abcdef0"}
 UPGRADE = "_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md"
 MANIFEST = "images/images-4.9.0.yaml"
 USER_NOTE = "USER NOTE: restart zac.\n"
+REDIS_OPERATOR_TAG = f"v0.26.0@{DIGEST['a']}"
 
 
 def git(*args: str, cwd: Path) -> None:
@@ -41,7 +43,7 @@ def chart_yaml(zac_chart: str, kiss_chart: str = "3.0.0", redis_operator_chart: 
     )
 
 
-def values_yaml(zac: str, opa: str, kiss: str, redis_operator: str = f"v0.26.0@{DIGEST['a']}") -> str:
+def values_yaml(zac: str, opa: str, kiss: str, redis_operator: str = REDIS_OPERATOR_TAG) -> str:
     return (
         f'zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n    tag: "{zac}"\n'
         f'  opa:\n    image:\n      repository: openpolicyagent/opa\n      tag: "{opa}"\n'

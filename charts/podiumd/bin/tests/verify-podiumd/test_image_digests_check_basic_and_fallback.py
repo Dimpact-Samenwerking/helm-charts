@@ -13,6 +13,9 @@ import yaml
 
 from dep_helpers import make_dep
 
+from tests.fixture_data import raising
+from tests.fixture_data import write_chart_dependencies
+
 
 @pytest.fixture(autouse=True)
 def _clear_tag_exists_cache(libimagedigests: ModuleType):
@@ -35,7 +38,7 @@ def make_tgz(charts_dir, name, version, values):
 
 
 def write_chart_yaml(chart_dir, deps):
-    (chart_dir / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}), encoding="utf-8")
+    write_chart_dependencies(chart_dir / "Chart.yaml", deps)
 
 
 # --- check_image_digests (mocked registry) ---
@@ -205,7 +208,7 @@ def test_check_image_digests_unresolved_line_names_the_file(
 ):
     """Prefix "line N" with values.yaml, as check_duplicate_keys does."""
     write_values(tmp_path, (f'a:\n  image:\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
-    monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda *a: (_ for _ in ()).throw(AssertionError))
+    monkeypatch.setattr(libimagedigests, "registry_tag_exists", raising(AssertionError))
     vp.check_image_digests(tmp_path)
     out = capsys.readouterr().out
     assert "values.yaml:3: 1.0.0" in out

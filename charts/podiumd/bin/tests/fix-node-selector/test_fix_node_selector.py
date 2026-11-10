@@ -161,13 +161,13 @@ def test_apply_fixes_inserts_at_correct_position(sub: ModuleType):
 
 
 def test_apply_fixes_handles_multiple_documents_without_offset_corruption(sub: ModuleType):
-    combined = DEPLOYMENT_MISSING + "---\n" + CRONJOB_MISSING
+    combined = f"{DEPLOYMENT_MISSING}---\n{CRONJOB_MISSING}"
     fixes, unresolved = sub.find_fixes(combined)
     assert unresolved == []
     assert len(fixes) == 2
 
     result = sub.apply_fixes(combined, fixes)
-    assert result == DEPLOYMENT_WITH_NODE_SELECTOR + "---\n" + CRONJOB_WITH_NODE_SELECTOR
+    assert result == f"{DEPLOYMENT_WITH_NODE_SELECTOR}---\n{CRONJOB_WITH_NODE_SELECTOR}"
 
 
 # --- main() integration ---

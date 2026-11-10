@@ -11,8 +11,6 @@ from collections.abc import Hashable
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Generic
-from typing import TypeVar
 
 import yaml
 
@@ -43,7 +41,10 @@ def lint_args_for(chart_dir: Path) -> list[str]:
     return []
 
 
-_render_cache: dict[tuple[str, tuple[str, ...]], RunResult] = {}
+# (chart_dir, extra_args) of one render_chart call.
+type RenderCacheKey = tuple[str, tuple[str, ...]]
+
+render_cache: dict[RenderCacheKey, RunResult] = {}
 
 
 def render_chart(chart_dir: Path, extra_args: list[str]) -> RunResult:
@@ -56,10 +57,10 @@ def render_chart(chart_dir: Path, extra_args: list[str]) -> RunResult:
     their own `run` call because their tests monkeypatch `run` in their
     own module."""
     key = (str(chart_dir), tuple(extra_args))
-    if key in _render_cache:
-        return _render_cache[key]
+    if key in render_cache:
+        return render_cache[key]
     result = run(["helm", "template", CHART_NAME, str(chart_dir), *extra_args], capture_output=True, text=True)
-    _render_cache[key] = result
+    render_cache[key] = result
     return result
 
 
@@ -70,17 +71,17 @@ def report_largest_templates(rendered_text: str, top_n: int):
     counts: Counter[str] = Counter()
     current = None
     for line in rendered_text.splitlines():
-        m = source_re.match(line)
-        if m:
-            current = m.group(1)
+        source_match = source_re.match(line)
+        if source_match:
+            current = source_match.group(1)
         elif current:
             counts[current] += 1
 
     if not counts:
         return
     print("Largest rendered templates (by line count):")
-    for path, n in counts.most_common(top_n):
-        print(f"  {n:6d}  {path}")
+    for path, line_count in counts.most_common(top_n):
+        print(f"  {line_count:6d}  {path}")
 
 
 # Chart-tree directory before "/templates/" in a "# Source:" path or helm
@@ -105,15 +106,15 @@ def report_errors_by_subchart(error_text: str):
     if not counts:
         return
     print("Errors by sub-chart:")
-    for chart, n in counts.most_common():
-        print(f"  {chart}: {n}")
+    for chart, error_count in counts.most_common():
+        print(f"  {chart}: {error_count}")
 
 
 def chart_name_from_source(source: str | None) -> str:
     """Leaf chart name of `source`'s chart-tree path, e.g. "eck-operator";
     falls back to `source` or "(unknown source)"."""
-    m = CHART_TREE_PATH_RE.search(source or "")
-    return m.group(1).rsplit("/", 1)[-1] if m else (source or "(unknown source)")
+    path_match = CHART_TREE_PATH_RE.search(source or "")
+    return path_match.group(1).rsplit("/", 1)[-1] if path_match else (source or "(unknown source)")
 
 
 def rendered_chart_paths(rendered_text: str) -> set[str]:
@@ -134,8 +135,10 @@ def rendered_chart_paths(rendered_text: str) -> set[str]:
     ancestors: set[str] = set()
     for path in paths:
         segments = path.split("/charts/")
-        for depth in range(2, len(segments)):
-            ancestors.add("/charts/".join(segments[:depth]))
+        ancestor = segments[0]
+        for segment in segments[1:-1]:
+            ancestor = f"{ancestor}/charts/{segment}"
+            ancestors.add(ancestor)
     return paths | ancestors
 
 
@@ -183,10 +186,10 @@ def build_line_sources(rendered_text: str) -> dict[int, str | None]:
     line-only findings (yamllint) can be attributed to a template."""
     sources: dict[int, str | None] = {}
     current: str | None = None
-    for i, line in enumerate(rendered_text.splitlines(), 1):
+    for line_number, line in enumerate(rendered_text.splitlines(), 1):
         if line.startswith("# Source: "):
             current = line[len("# Source: ") :].strip()
-        sources[i] = current
+        sources[line_number] = current
     return sources
 
 
@@ -194,20 +197,22 @@ def build_line_sources(rendered_text: str) -> dict[int, str | None]:
 # split before validation (see split_rendered_by_source).
 # (kind, namespace, name) -> 1-based rendered line; see build_resource_locations.
 ResourceLocations = dict[tuple[str, str, str], int]
+# (source, doc_text) of one "# Source:" block; see split_rendered_by_source.
+type RenderedDoc = tuple[str, str]
 
 SOURCE_DOC_SPLIT_RE = re.compile(r"(?m)^---\n(?=# Source: )")
 
 
-def split_rendered_by_source(rendered_text: str) -> list[tuple[str, str]]:
+def split_rendered_by_source(rendered_text: str) -> list[RenderedDoc]:
     """Split a render into (source, doc_text) pairs per "# Source:" block.
     Each doc_text keeps its "---" header, so any subset concatenates into a
     valid YAML stream."""
     docs = SOURCE_DOC_SPLIT_RE.split(rendered_text)
-    result: list[tuple[str, str]] = []
+    result: list[RenderedDoc] = []
     for doc in docs:
-        m = re.match(r"# Source: (.+)\n", doc)
-        if m:
-            result.append((m.group(1).strip(), f"---\n{doc}"))
+        source_match = re.match(r"# Source: (.+)\n", doc)
+        if source_match:
+            result.append((source_match.group(1).strip(), f"---\n{doc}"))
     return result
 
 
@@ -268,9 +273,10 @@ def rendered_containers(docs: Sequence[tuple[str, str]]) -> list[RenderedContain
             )
             for field, init in (("initContainers", True), ("containers", False)):
                 items = pod_spec.get(field)
+                listed = items if isinstance(items, list) else []
                 containers.extend(
                     RenderedContainer(source, kind, name, namespace, pod_spec, container, init)
-                    for container in (items if isinstance(items, list) else [])
+                    for container in listed
                     if is_yaml_mapping(container)
                 )
     return containers
@@ -281,7 +287,7 @@ def build_resource_locations(rendered_text: str) -> ResourceLocations:
     starts in the render, for tools without line numbers. namespace is ""
     when unset (most resources; some set it explicitly)."""
     lines = rendered_text.splitlines()
-    marker_indices = [i for i, line in enumerate(lines) if line.startswith("# Source: ")]
+    marker_indices = [index for index, line in enumerate(lines) if line.startswith("# Source: ")]
     locations: ResourceLocations = {}
     for pos, start in enumerate(marker_indices):
         end = marker_indices[pos + 1] - 1 if pos + 1 < len(marker_indices) else len(lines)
@@ -313,15 +319,15 @@ def resource_line(
         return None
     if namespace is not None:
         return locations.get((kind, namespace, name))
-    candidates = {line for (k, _ns, n), line in locations.items() if k == kind and n == name}
+    candidates = {
+        line
+        for (located_kind, _ns, located_name), line in locations.items()
+        if located_kind == kind and located_name == name
+    }
     return candidates.pop() if len(candidates) == 1 else None
 
 
-FindingT = TypeVar("FindingT")
-GroupKeyT = TypeVar("GroupKeyT", bound=Hashable)
-
-
-def print_grouped_findings(
+def print_grouped_findings[FindingT, GroupKeyT: Hashable](
     findings: Sequence[FindingT],
     key_fn: Callable[[FindingT], GroupKeyT],
     item_fn: Callable[[FindingT], object],
@@ -337,16 +343,12 @@ def print_grouped_findings(
         count = f" x{len(group)}" if len(group) > 1 else ""
         print(f"  {label_fn(key)}{count}")
         print(f"      {items_label}:")
-        for f in group:
-            print(f"        {item_fn(f)}")
-
-
-OwnFindingT = TypeVar("OwnFindingT")
-VendoredFindingT = TypeVar("VendoredFindingT")
+        for finding in group:
+            print(f"        {item_fn(finding)}")
 
 
 @dataclass
-class VendorBucketScan(Generic[OwnFindingT, VendoredFindingT]):
+class VendorBucketScan[OwnFindingT, VendoredFindingT]:
     """A render + tool pass: line lookup, friendly-vendor map, and findings
     split into own / vendored-friendly / vendored-other."""
 
@@ -364,7 +366,7 @@ class RenderedDocs:
     (source, text) docs (see split_rendered_by_source)."""
 
     locations: ResourceLocations
-    docs: list[tuple[str, str]]
+    docs: list[RenderedDoc]
 
 
 def render_chart_docs(chart_dir: Path, extra_args: list[str]) -> tuple[RenderedDocs | None, str | None]:
@@ -376,15 +378,22 @@ def render_chart_docs(chart_dir: Path, extra_args: list[str]) -> tuple[RenderedD
     return RenderedDocs(build_resource_locations(result.stdout), split_rendered_by_source(result.stdout)), None
 
 
-def scan_rendered_chart(
+# (findings or None, error) of a check tool run over own docs.
+type OwnFindingsResult[ResultT] = tuple[list[ResultT] | None, str | None]
+# (friendly, other or None, error) of a check tool run over vendored docs.
+type VendoredFindingsResult[ResultT] = tuple[list[ResultT] | None, list[ResultT] | None, str | None]
+type OwnFindingsRun[ResultT] = Callable[[list[RenderedDoc]], OwnFindingsResult[ResultT]]
+type VendoredFindingsRun[ResultT] = Callable[[list[RenderedDoc], dict[str, str]], VendoredFindingsResult[ResultT]]
+# (scan or None, error) of scan_rendered_chart.
+type ScanResult[OwnT, VendoredT] = tuple[VendorBucketScan[OwnT, VendoredT] | None, str | None]
+
+
+def scan_rendered_chart[OwnFindingT, VendoredFindingT](
     chart_dir: Path,
     extra_args: list[str],
-    own_findings: Callable[[list[tuple[str, str]]], tuple[list[OwnFindingT] | None, str | None]],
-    vendored_findings: Callable[
-        [list[tuple[str, str]], dict[str, str]],
-        tuple[list[VendoredFindingT] | None, list[VendoredFindingT] | None, str | None],
-    ],
-) -> tuple[VendorBucketScan[OwnFindingT, VendoredFindingT] | None, str | None]:
+    own_findings: OwnFindingsRun[OwnFindingT],
+    vendored_findings: VendoredFindingsRun[VendoredFindingT],
+) -> ScanResult[OwnFindingT, VendoredFindingT]:
     """Render the chart and run one tool over it, as check_kubeconform and
     check_shellcheck do. own_findings(own_docs) returns (own_real, error);
     vendored_findings(vendored_docs, vendor_map) returns
@@ -393,8 +402,8 @@ def scan_rendered_chart(
     rendered, error = render_chart_docs(chart_dir, extra_args)
     if rendered is None:
         return None, error
-    own_docs = [(s, t) for s, t in rendered.docs if s.startswith(OWN_TEMPLATES_PREFIX)]
-    vendored_docs = [(s, t) for s, t in rendered.docs if not s.startswith(OWN_TEMPLATES_PREFIX)]
+    own_docs = [doc for doc in rendered.docs if doc[0].startswith(OWN_TEMPLATES_PREFIX)]
+    vendored_docs = [doc for doc in rendered.docs if not doc[0].startswith(OWN_TEMPLATES_PREFIX)]
     own_real, error = own_findings(own_docs)
     if own_real is None:
         return None, error

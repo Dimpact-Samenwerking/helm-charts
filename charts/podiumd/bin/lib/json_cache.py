@@ -9,7 +9,6 @@ from datetime import datetime
 from datetime import timedelta
 from pathlib import Path
 from typing import TypeGuard
-from typing import TypeVar
 
 from lib.gitutil import find_repo_root
 from lib.yaml_types import is_object_dict
@@ -23,10 +22,7 @@ def cache_file(chart_dir: Path, filename: str) -> Path:
     return root / ".cache" / filename
 
 
-EntryT = TypeVar("EntryT")
-
-
-def load_json_cache(path: Path, is_entry: Callable[[object], TypeGuard[EntryT]]) -> dict[str, EntryT]:
+def load_json_cache[EntryT](path: Path, is_entry: Callable[[object], TypeGuard[EntryT]]) -> dict[str, EntryT]:
     """The entries at path that pass is_entry; {} if missing or unparsable. Never raises."""
     if not path.is_file():
         return {}
@@ -45,7 +41,7 @@ def save_json_cache(path: Path, cache: Mapping[str, object]) -> None:
     path.write_text(json.dumps(cache, indent=2, sort_keys=True), encoding="utf-8")
 
 
-def checked_within(timestamp: object, max_age: timedelta) -> bool:
+def is_checked_within(timestamp: object, max_age: timedelta) -> bool:
     """Whether the ISO `timestamp` a cache entry was recorded at is less than `max_age` old.
 
     A missing, malformed or timezone-less timestamp counts as stale, so the entry is refetched.

@@ -51,19 +51,19 @@ def _lock_problems(chart_dir: Path, chart_deps: list[ChartDependency]):
         return ["Chart.lock is missing"]
     try:
         lock_deps = parse_chart_lock_dependencies(lock_path.read_text(encoding="utf-8"), "Chart.lock") or []
-    except (OSError, UnicodeDecodeError) as e:
-        return [f"Chart.lock can not be read: {e}"]
+    except (OSError, UnicodeDecodeError) as error:
+        return [f"Chart.lock can not be read: {error}"]
     except yaml.YAMLError:
         return ["Chart.lock is not valid YAML"]
-    except YamlShapeError as e:
-        return [str(e)]
+    except YamlShapeError as error:
+        return [str(error)]
 
     required_repos = helm_repos_urls_by_alias(chart_dir)
-    wanted = {_dependency_key(d, required_repos) for d in chart_deps}
-    locked = {_dependency_key(d, required_repos) for d in lock_deps}
+    wanted = {_dependency_key(dep, required_repos) for dep in chart_deps}
+    locked = {_dependency_key(dep, required_repos) for dep in lock_deps}
 
     problems = [_describe_lock_mismatch(key, locked) for key in sorted(wanted - locked)]
-    wanted_names = {k[0] for k in wanted}
+    wanted_names = {wanted_key[0] for wanted_key in wanted}
     problems.extend(
         f"{name}: in Chart.lock ({version}) but no longer in Chart.yaml"
         for name, version, _repo in sorted(locked - wanted)
@@ -77,12 +77,14 @@ def _lock_problems(chart_dir: Path, chart_deps: list[ChartDependency]):
 def _describe_lock_mismatch(wanted_key: tuple[str, str, str], locked: set[tuple[str, str, str]]):
     """Describe a Chart.yaml triple missing from Chart.lock: other repository, other version, or absent."""
     name, version, repo = wanted_key
-    same_name = sorted(k for k in locked if k[0] == name)
-    same_version_repos = sorted({k[2] for k in same_name if k[1] == version})
+    same_name = sorted(locked_key for locked_key in locked if locked_key[0] == name)
+    same_version_repos = sorted({locked_key[2] for locked_key in same_name if locked_key[1] == version})
     if same_version_repos:
         return f"{name}: Chart.yaml wants repository {repo}, Chart.lock has {', '.join(same_version_repos)}"
     if same_name:
-        return f"{name}: Chart.yaml wants {version}, Chart.lock has {', '.join(k[1] for k in same_name)}"
+        return (
+            f"{name}: Chart.yaml wants {version}, Chart.lock has {', '.join(locked_key[1] for locked_key in same_name)}"
+        )
     return f"{name}: missing from Chart.lock"
 
 
@@ -97,7 +99,7 @@ def _tgz_problems(chart_dir: Path, chart_deps: list[ChartDependency]):
                 vendored.setdefault(match["name"], []).append(match["version"])
 
     problems: list[str] = []
-    for name, version in sorted({(d.get("name"), str(d.get("version"))) for d in chart_deps}):
+    for name, version in sorted({(dep.get("name"), str(dep.get("version"))) for dep in chart_deps}):
         if (charts_dir / f"{name}-{version}.tgz").is_file():
             continue
         others = sorted(vendored.get(name, []))
@@ -115,12 +117,12 @@ def _dependency_state(chart_dir: Path) -> tuple[list[ChartDependency], list[str]
         return [], ["Chart.yaml is missing"]
     try:
         chart_deps = parse_chart_dependencies(chart_yaml_path.read_text(encoding="utf-8"), "Chart.yaml")
-    except (OSError, UnicodeDecodeError) as e:
-        return [], [f"Chart.yaml can not be read: {e}"]
+    except (OSError, UnicodeDecodeError) as error:
+        return [], [f"Chart.yaml can not be read: {error}"]
     except yaml.YAMLError:
         return [], ["Chart.yaml is not valid YAML"]
-    except YamlShapeError as e:
-        return [], [str(e)]
+    except YamlShapeError as error:
+        return [], [str(error)]
     if not chart_deps:
         return [], []
     return chart_deps, _lock_problems(chart_dir, chart_deps) + _tgz_problems(chart_dir, chart_deps)
@@ -168,8 +170,7 @@ def ensure_vendored_dependencies(chart_dir: Path):
         return
     reason = detail if not ok else "re-vendored, but still out of sync"
     details = "".join(f"\n  - {problem}" for problem in remaining)
-    message = f"error: could not re-vendor {shown}/charts/ ({reason}){details}\nRun: helm dependency update {shown}"
-    raise SystemExit(message)
+    sys.exit(f"error: could not re-vendor {shown}/charts/ ({reason}){details}\nRun: helm dependency update {shown}")
 
 
 def ensure_repos_configured(chart_dir: Path):
@@ -212,9 +213,12 @@ def _run_with_retries(chart_dir: Path, cmd: list[str], label: str, out: TextIO, 
             print(f"{label} failed (attempt {attempt}/{retry_attempts}), retrying in {delay}s...", file=out)
             time.sleep(delay)
     if result is None:
-        msg = f"error: settings.yaml dependency_fetch.retry_attempts must be at least 1, got {retry_attempts}"
-        raise SystemExit(msg)
+        sys.exit(f"error: settings.yaml dependency_fetch.retry_attempts must be at least 1, got {retry_attempts}")
     return result
+
+
+def _is_exact_version(dep: ChartDependency) -> bool:
+    return bool(_EXACT_VERSION_RE.match(str(dep.get("version"))))
 
 
 def _usable_lock_dependencies(chart_dir: Path):
@@ -245,7 +249,7 @@ def _changed_dependencies(
     return list(changed.values())
 
 
-def _fetch_command(chart_dir: Path, dep: ChartDependency, required_repos: dict[str, str], dest: Path):
+def fetch_command(chart_dir: Path, dep: ChartDependency, required_repos: dict[str, str], dest: Path):
     """The helm command that writes dep's .tgz into `dest`, from the same source `helm dependency update` uses.
 
     `helm pull --repo` avoids needing `helm repo add`. None for an "@alias"
@@ -265,7 +269,7 @@ def _fetch_command(chart_dir: Path, dep: ChartDependency, required_repos: dict[s
 def _fetch_dependency(chart_dir: Path, dep: ChartDependency, required_repos: dict[str, str], dest: Path, out: TextIO):
     """Fetch one dependency's .tgz into `dest` with retries; (ok, reason-if-not)."""
     name, version = dep.get("name"), str(dep.get("version"))
-    cmd = _fetch_command(chart_dir, dep, required_repos, dest)
+    cmd = fetch_command(chart_dir, dep, required_repos, dest)
     if cmd is None:
         return False, f"{name}: repository {dep.get('repository')} is not in settings.yaml helm_repos.urls_by_alias"
     label = f"{' '.join(cmd[:2])} {name} {version}"
@@ -304,7 +308,7 @@ def update_changed_dependencies(chart_dir: Path, out: TextIO | None = None):
     lock_deps = _usable_lock_dependencies(chart_dir)
     if lock_deps is None:
         return False, "no usable Chart.lock to update"
-    ranged = sorted(dep.get("name") for dep in chart_deps if not _EXACT_VERSION_RE.match(str(dep.get("version"))))
+    ranged = sorted(dep.get("name") for dep in chart_deps if not _is_exact_version(dep))
     if ranged:
         return False, f"version range for {', '.join(ranged)}"
 

@@ -45,7 +45,7 @@ COMPONENT_VERSIONS_HEADING = "## Component versions (4.9.0 vs 4.8.5)\n\n"
 
 def test_update_component_table_adds_new_row(libcomponentdocschanges: ModuleType):
     text = (
-        COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n"
+        f"{COMPONENT_VERSIONS_HEADING}| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n"
         "| zac | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | - |\n"
     )
@@ -64,7 +64,7 @@ def test_update_component_table_without_new_app_keeps_the_rows_app_cell(libcompo
     """Regression: no new app version left the cell None and join() raised
     TypeError; the app cell is now left as is."""
     text = (
-        COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n"
+        f"{COMPONENT_VERSIONS_HEADING}| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n"
         "| zac | 5.0.2 → 5.1.0 | 1.0.290 → 1.0.297 | - |\n"
     )
@@ -81,7 +81,7 @@ def test_update_component_table_without_new_app_keeps_the_rows_app_cell(libcompo
 def test_update_component_table_new_row_without_app_version_writes_dash(libcomponentdocschanges: ModuleType):
     """Regression: a new row without an app version got the text "None"."""
     text = (
-        COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n"
+        f"{COMPONENT_VERSIONS_HEADING}| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n"
         "| zac | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | - |\n"
     )
@@ -99,7 +99,7 @@ def test_update_component_table_new_row_not_absorbed_by_own_sidecar_rows(libcomp
     """Regression: with sidecar rows present but the owner's own row missing,
     the owner gets a new row instead of overwriting a sidecar row."""
     text = (
-        COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n"
+        f"{COMPONENT_VERSIONS_HEADING}| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n"
         "| openbao - openbao-csi-provider | 2.0.2 (new) | - | - |\n"
         "| openbao - openbao-snapshot-agent | 0.3.0 (new) | - | - |\n"
@@ -119,7 +119,7 @@ def test_update_component_table_new_row_not_absorbed_by_own_sidecar_rows(libcomp
 def test_update_component_table_new_row_inserted_in_values_yaml_order(libcomponentdocschanges: ModuleType):
     """New rows follow values.yaml key order, not always appended."""
     text = (
-        COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n"
+        f"{COMPONENT_VERSIONS_HEADING}| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n"
         "| zac | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | - |\n"
     )
@@ -139,7 +139,7 @@ def test_update_component_table_new_row_inserted_in_values_yaml_order(libcompone
 
 def test_update_component_table_updates_existing_row(libcomponentdocschanges: ModuleType):
     text = (
-        COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n"
+        f"{COMPONENT_VERSIONS_HEADING}| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n"
         "| openformulieren | 3.4.9 → 3.4.10 | 1.12.0 (unchanged) | - |\n"
     )
@@ -167,7 +167,7 @@ def test_update_component_table_no_table_returns_none_action(libcomponentdocscha
 
 def test_update_component_table_new_component_no_baseline_is_annotated_new(libcomponentdocschanges: ModuleType):
     """A brand-new component (old versions None) gets "(new)" cells."""
-    text = COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n| --- | --- | --- | --- |\n"
+    text = f"{COMPONENT_VERSIONS_HEADING}| Component | App version | Helm chart | Notes |\n| --- | --- | --- | --- |\n"
     new_text, action = libcomponentdocschanges.update_component_table(
         text,
         "openklant",
@@ -182,7 +182,7 @@ def test_update_component_table_empty_table_ignores_unrelated_lower_pipe_table(l
     """An empty table's new row goes under its own separator, not the doc's
     last "| --- |" (which may belong to another table)."""
     text = (
-        COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n"
+        f"{COMPONENT_VERSIONS_HEADING}| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n"
         "\n"
         "## Changes\n\n"
@@ -207,7 +207,7 @@ def test_update_component_table_empty_table_ignores_unrelated_lower_pipe_table(l
 
 def test_update_component_table_new_sidecar_chart_placeholder_stays_bare(libcomponentdocschanges: ModuleType):
     """A sidecar row's chart cell stays the "-" placeholder, never "(new)"."""
-    text = COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n| --- | --- | --- | --- |\n"
+    text = f"{COMPONENT_VERSIONS_HEADING}| Component | App version | Helm chart | Notes |\n| --- | --- | --- | --- |\n"
     new_text, action = libcomponentdocschanges.update_component_table(
         text,
         "kiss - crawler",

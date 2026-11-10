@@ -166,9 +166,9 @@ def component_and_alias(
 
 
 def _exact_options(text: str, options: Collection[str]) -> set[str]:
-    """{o for o in options if normalize_name(o) is one of name_candidates(text)}."""
+    """The `options` whose normalize_name is one of name_candidates(text)."""
     candidates = name_candidates(text)
-    return {o for o in options if normalize_name(o) in candidates}
+    return {option for option in options if normalize_name(option) in candidates}
 
 
 def exact_match(text: str, options: Collection[str]) -> str | None:

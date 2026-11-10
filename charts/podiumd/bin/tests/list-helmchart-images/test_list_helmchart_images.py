@@ -1,15 +1,17 @@
 """find_dependency, report_chart and main() glue, with `helm pull` faked."""
 
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 import yaml
 
+from tests.fixture_data import write_chart_dependencies
 
-def write_chart_yaml(lhi, dependencies):
+
+def write_chart_yaml(lhi: ModuleType, dependencies):
     """Chart.yaml with `dependencies`, each versioned unless the test sets one."""
-    versioned = [{"version": "1.0.0", **dep} for dep in dependencies]
-    lhi.CHART_YAML.write_text(yaml.safe_dump({"dependencies": versioned}))
+    write_chart_dependencies(lhi.CHART_YAML, [{"version": "1.0.0", **dep} for dep in dependencies])
 
 
 # --- find_dependency ---

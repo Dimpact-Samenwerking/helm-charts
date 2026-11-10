@@ -7,15 +7,13 @@ from types import ModuleType
 
 import pytest
 
+from tests.fixture_data import write_values_text
+
 DIGEST_A = "a" * 64
 
 
-def write_values_yaml_raw(chart_dir, text):
-    (chart_dir / "values.yaml").write_text(text, encoding="utf-8")
-
-
 def test_recompute_image_basenames_updates_only_the_changed_row(ecrt: ModuleType, tmp_path: Path):
-    write_values_yaml_raw(
+    write_values_text(
         tmp_path,
         """\
 omc:
@@ -67,7 +65,7 @@ omc:
 
 
 def test_recompute_image_basenames_no_changes_returns_empty_and_leaves_file_untouched(ecrt: ModuleType, tmp_path: Path):
-    write_values_yaml_raw(
+    write_values_text(
         tmp_path,
         f"""\
 zac:
@@ -119,7 +117,7 @@ def test_recompute_image_basenames_wrong_header_raises(ecrt: ModuleType, tmp_pat
 def test_main_recompute_image_basenames_flag_skips_confluence_fetch(
     ecrt: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    write_values_yaml_raw(
+    write_values_text(
         tmp_path,
         """\
 omc:

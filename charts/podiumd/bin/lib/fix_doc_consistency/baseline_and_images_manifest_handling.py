@@ -18,8 +18,8 @@ VS_LINE_RE = re.compile(
 
 def extract_images_baseline(text: str):
     """The version on the "Baseline: podiumd X" line, or None if absent."""
-    m = BASELINE_LINE_RE.search(text)
-    return m.group("baseline") if m else None
+    baseline_match = BASELINE_LINE_RE.search(text)
+    return baseline_match.group("baseline") if baseline_match else None
 
 
 def update_sibling_doc_refs(text: str, target: str, new_baseline: str, other_paths: Collection[str] = ()):
@@ -31,8 +31,10 @@ def update_sibling_doc_refs(text: str, target: str, new_baseline: str, other_pat
     reference matches too). Returns (new_text, changed)."""
     pattern = doc_name_re(target, STANDARD_SUFFIXES)
     new_text = pattern.sub(
-        lambda m: (
-            m.group(0) if m.group("baseline") in other_paths else doc_name(new_baseline, target, m.group("suffix"))
+        lambda baseline_match: (
+            baseline_match.group(0)
+            if baseline_match.group("baseline") in other_paths
+            else doc_name(new_baseline, target, baseline_match.group("suffix"))
         ),
         text,
     )
@@ -46,11 +48,11 @@ def fix_images_manifest_header_lines(text: str, target: str, new_baseline: str):
     line first, the "vs" line after it. Returns (new_text, changed)."""
     new_text, found = BASELINE_LINE_RE.subn(rf"\g<prefix>{new_baseline}", text, count=1)
     if not found:
-        new_text = f"# Baseline: podiumd {new_baseline}. Re-verify before release.\n" + new_text
+        new_text = f"# Baseline: podiumd {new_baseline}. Re-verify before release.\n{new_text}"
     new_text, found = VS_LINE_RE.subn(rf"\g<prefix>{target}\g<vs>{new_baseline}", new_text, count=1)
     if not found:
         lines = new_text.splitlines(keepends=True)
-        baseline_idx = next(i for i, line in enumerate(lines) if BASELINE_LINE_RE.search(line))
+        baseline_idx = next(index for index, line in enumerate(lines) if BASELINE_LINE_RE.search(line))
         lines.insert(baseline_idx + 1, f"#\n# Images new or changed in podiumd {target} vs {new_baseline}.\n")
         new_text = "".join(lines)
     return new_text, new_text != text

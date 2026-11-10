@@ -149,8 +149,7 @@ def test_extract_shell_scripts_carries_resource_identity(libshellcheckcheck: Mod
     ]
     found = libshellcheckcheck.extract_shell_scripts(docs, SHELL_NAMES)
     assert len(found) == 1
-    _source, _path, _shell, _script, kind, namespace, name = found[0]
-    assert (kind, namespace, name) == ("Job", "bar", "foo")
+    assert found[0][-3:] == ("Job", "bar", "foo")
 
 
 def test_extract_shell_scripts_no_identity_when_doc_is_not_a_single_object(libshellcheckcheck: ModuleType):
@@ -159,8 +158,7 @@ def test_extract_shell_scripts_no_identity_when_doc_is_not_a_single_object(libsh
     docs = [("podiumd/templates/x.yaml", '- command: ["sh", "-c", "echo hi"]\n')]
     found = libshellcheckcheck.extract_shell_scripts(docs, SHELL_NAMES)
     assert len(found) == 1
-    _source, _path, _shell, _script, kind, namespace, name = found[0]
-    assert (kind, namespace, name) == (None, None, None)
+    assert found[0][-3:] == (None, None, None)
 
 
 def test_extract_shell_scripts_skips_unparseable_doc(libshellcheckcheck: ModuleType):
@@ -374,13 +372,14 @@ def test_check_shellcheck_repeated_root_cause_is_grouped(
         "spec:\n"
         "  containers:\n"
         '    - command: ["/bin/sh", "-c"]\n'
-        '      args: ["set -euo pipefail\\necho a"]\n'
-        "---\n"
+        r'      args: ["set -euo pipefail\necho a"]'
+        "\n---\n"
         "# Source: podiumd/templates/b.yaml\n"
         "spec:\n"
         "  containers:\n"
         '    - command: ["/bin/sh", "-c"]\n'
-        '      args: ["set -euo pipefail\\necho b"]\n'
+        r'      args: ["set -euo pipefail\necho b"]'
+        "\n"
     )
     monkeypatch.setattr("lib.render_scope.render_chart", fake_render_chart(rendered))
 

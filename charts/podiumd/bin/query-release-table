@@ -35,7 +35,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
 from lib.chart.paths import CHART_DIR
-from lib.cli import exit_on_help
+from lib.cli import positional_args
 from lib.release_table.csv_rows import ReleaseTableRow
 from lib.release_table.csv_rows import read_release_table
 
@@ -99,8 +99,8 @@ def used_by_rows_for(rows: list[ReleaseTableRow], matches: list[ReleaseTableRow]
 
     Matches without a real component (blank, MULTIPLE, UNKNOWN) add nothing.
     """
-    components = {m["component"] for m in matches if m["component"] not in ("", "MULTIPLE", "UNKNOWN")}
-    match_ids = {id(m) for m in matches}
+    components = {match["component"] for match in matches if match["component"] not in {"", "MULTIPLE", "UNKNOWN"}}
+    match_ids = {id(match) for match in matches}
     return [row for row in rows if row["used_by"] and id(row) not in match_ids and row["component"] in components]
 
 
@@ -120,19 +120,17 @@ def print_table(rows: list[ReleaseTableRow]) -> None:
         + [display_value(row, col) for col in VERSION_COLUMNS]
         for row in rows
     ]
-    widths = [max(len(headers[i]), *(len(r[i]) for r in table)) for i in range(len(headers))]
-    print("  ".join(h.ljust(w) for h, w in zip(headers, widths, strict=False)))
-    for r in table:
-        print("  ".join(v.ljust(w) for v, w in zip(r, widths, strict=False)))
+    widths = [max(map(len, column)) for column in zip(headers, *table, strict=True)]
+    for line in (headers, *table):
+        print("  ".join(cell.ljust(width) for cell, width in zip(line, widths, strict=False)))
 
 
 def main():
     """CLI entry point."""
-    exit_on_help(__doc__)
-    if len(sys.argv) != 3 or not is_query_column(sys.argv[1]):
+    column, text = positional_args(__doc__, 2)
+    if not is_query_column(column):
         print(__doc__)
         sys.exit(1)
-    column, text = sys.argv[1], sys.argv[2]
 
     if not DEFAULT_INPUT.is_file():
         print(f"error: {DEFAULT_INPUT} not found")

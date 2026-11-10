@@ -16,6 +16,7 @@ from typing import TypeGuard
 
 from lib.procutil import run
 from lib.render_scope import OWN_TEMPLATES_PREFIX
+from lib.render_scope import RenderedDoc
 from lib.render_scope import ResourceLocations
 from lib.render_scope import chart_name_from_source
 from lib.render_scope import friendly_vendor_charts
@@ -61,6 +62,11 @@ class KubeScoreObject(TypedDict):
     checks: NotRequired[list[KubeScoreCheck]]
 
 
+# kube-score's grade of a check that passes.
+_FULL_GRADE = 10
+# "Kind/apiVersion/namespace/name"; apiVersion can hold a "/" too.
+_MIN_OBJECT_NAME_PARTS = 4
+
 _OBJECT_LIST_SHAPE = [
     {
         "object_name?": str,
@@ -104,12 +110,12 @@ def extract_resource_findings(
     findings: list[KubeScoreFinding] = []
     for obj in kube_score_objects or []:
         object_name = obj.get("object_name", "?")
-        for c in obj.get("checks", []):
-            if c["check"]["id"] != check_id or c.get("skipped") or c["grade"] >= 10:
+        for check in obj.get("checks", []):
+            if check["check"]["id"] != check_id or check.get("skipped") or check["grade"] >= _FULL_GRADE:
                 continue
             findings.extend(
                 (object_name, comment.get("path", ""), comment.get("summary", ""))
-                for comment in c.get("comments") or []
+                for comment in check.get("comments") or []
             )
     return findings
 
@@ -120,7 +126,7 @@ def parse_kube_score_object_name(object_name: str):
     Split from both ends because apiVersion itself can contain "/" (e.g. "batch/v1").
     """
     parts = object_name.split("/")
-    if len(parts) < 4:
+    if len(parts) < _MIN_OBJECT_NAME_PARTS:
         return None, None, None
     return parts[0], parts[-2], parts[-1]
 
@@ -143,7 +149,7 @@ class KubeScoreResult:
     vendored_other: list[VendoredKubeScoreFinding]
 
 
-def _score_vendored_charts(docs: list[tuple[str, str]], check_id: str, vendor_map: dict[str, str]):
+def _score_vendored_charts(docs: list[RenderedDoc], check_id: str, vendor_map: dict[str, str]):
     """Score each vendored sub-chart separately and split findings into (partner, other).
 
     kube-score's JSON has no source info, hence one run per sub-chart. Returns
@@ -188,6 +194,11 @@ def _score_rendered_chart(chart_dir: Path, extra_args: list[str], check_id: str)
 
 def _print_kube_score_findings(scored: KubeScoreResult):
     """Print the own/partner-vendor/other-vendor sections for `result`."""
+
+    def vendored_label(key: tuple[str, str, str]) -> str:
+        suffix = _kube_score_line_suffix(key[1], scored.locations)
+        return f"[{key[0]}] {key[1]} ({key[2]}){suffix}"
+
     if scored.own_real:
         print(
             f"Found {len(scored.own_real)} real kube-score issue(s) in this chart's own templates "
@@ -196,9 +207,9 @@ def _print_kube_score_findings(scored: KubeScoreResult):
         )
         print_grouped_findings(
             scored.own_real,
-            key_fn=lambda f: (f[0], f[1]),
-            item_fn=lambda f: f[2],
-            label_fn=lambda k: f"{k[0]} ({k[1]}){_kube_score_line_suffix(k[0], scored.locations)}",
+            key_fn=lambda finding: (finding[0], finding[1]),
+            item_fn=lambda finding: finding[2],
+            label_fn=lambda key: f"{key[0]} ({key[1]}){_kube_score_line_suffix(key[0], scored.locations)}",
             items_label="issue(s)",
         )
         print()
@@ -212,9 +223,9 @@ def _print_kube_score_findings(scored: KubeScoreResult):
         )
         print_grouped_findings(
             scored.vendored_partner,
-            key_fn=lambda f: (f[0], f[1], f[2]),
-            item_fn=lambda f: f[3],
-            label_fn=lambda k: f"[{k[0]}] {k[1]} ({k[2]}){_kube_score_line_suffix(k[1], scored.locations)}",
+            key_fn=lambda finding: (finding[0], finding[1], finding[2]),
+            item_fn=lambda finding: finding[3],
+            label_fn=vendored_label,
             items_label="issue(s)",
         )
         print()

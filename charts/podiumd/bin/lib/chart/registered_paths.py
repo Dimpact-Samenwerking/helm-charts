@@ -1,17 +1,20 @@
 """Lookups of settings.yaml's component_resolution.* registrations: image/version paths, lockstep, primaries."""
 
+import sys
+
 from pathlib import Path
 from typing import NamedTuple
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.paths import CHART_DIR
+from lib.chart.values_tree_primitives import ValuesPath
 from lib.chart.values_tree_primitives import dep_for_values_key
-from lib.chart.values_tree_primitives import same_name
+from lib.chart.values_tree_primitives import is_same_name
 from lib.chart.values_tree_primitives import values_key_of
-from lib.settings import component_resolution_chart_version_lockstep_components
 from lib.settings import component_resolution_default_image_paths
 from lib.settings import component_resolution_embedded_version_images
 from lib.settings import component_resolution_image_paths
+from lib.settings import component_resolution_lockstep_components
 from lib.settings import component_resolution_native_components
 from lib.settings import component_resolution_version_paths
 from lib.settings import component_resolution_version_repository_paths
@@ -74,12 +77,12 @@ def native_components(chart_dir: Path | None = None):
 def is_native_chart_version(chart_version: str) -> bool:
     """Whether a <chart-version> argument is "native" (any case): the
     component has no Chart.yaml dependency (native_components)."""
-    return same_name(chart_version.strip(), "native")
+    return is_same_name(chart_version.strip(), "native")
 
 
 def native_component_named(chart_dir: Path, name: str) -> str | None:
     """The native_components entry equal to `name` ignoring case, or None."""
-    return next((n for n in native_components(chart_dir) if same_name(n, name)), None)
+    return next((native for native in native_components(chart_dir) if is_same_name(native, name)), None)
 
 
 def resolve_native_component(chart_dir: Path, name: str) -> str:
@@ -92,14 +95,14 @@ def resolve_native_component(chart_dir: Path, name: str) -> str:
             f"settings.yaml's component_resolution.native_components ({natives}); "
             f"'{name}' isn't one — did you mean to pass its real chart version?"
         )
-        raise SystemExit(msg)
+        sys.exit(msg)
     return native
 
 
 def chart_version_lockstep_components(chart_dir: Path | None = None):
-    """component_resolution_chart_version_lockstep_components; chart_dir defaults to CHART_DIR."""
+    """component_resolution_lockstep_components; chart_dir defaults to CHART_DIR."""
     chart_dir = chart_dir or CHART_DIR
-    return component_resolution_chart_version_lockstep_components(chart_dir)
+    return component_resolution_lockstep_components(chart_dir)
 
 
 class PinPath(NamedTuple):
@@ -132,7 +135,9 @@ def pin_paths_for(component: str, chart_dir: Path | None = None) -> list[PinPath
         image_paths = []
     else:
         image_paths = image_paths_for(component, chart_dir)
-    return [PinPath(p, f"{p}.tag") for p in image_paths] + [PinPath(p, p) for p in version_paths]
+    return [PinPath(image_path, f"{image_path}.tag") for image_path in image_paths] + [
+        PinPath(version_path, version_path) for version_path in version_paths
+    ]
 
 
 def is_primary_rel_path(owner_name: str, rel_path: str, chart_dir: Path | None = None):
@@ -145,7 +150,7 @@ def is_primary_rel_path(owner_name: str, rel_path: str, chart_dir: Path | None =
     return any(pin.path == rel_path for pin in pin_paths_for(owner_name, chart_dir))
 
 
-def is_primary_image_path(path: tuple[str, ...], deps: list[ChartDependency], chart_dir: Path | None = None):
+def is_primary_image_path(path: ValuesPath, deps: list[ChartDependency], chart_dir: Path | None = None):
     """Whether `path` is a dependency's primary image/version field rather than a sidecar.
 
     Also True for a path with no owning dependency (native components,

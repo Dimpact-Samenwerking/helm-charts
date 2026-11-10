@@ -50,7 +50,7 @@ def _single_heading_identities(
     headings: list[str], deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]]
 ) -> list[ComponentRef | None]:
     """Per heading, the one component it names, or None when it names none or several."""
-    identities = [changes_heading_identities(h, deps, canonical_names) for h in headings]
+    identities = [changes_heading_identities(heading, deps, canonical_names) for heading in headings]
     return [next(iter(idents)) if len(idents) == 1 else None for idents in identities]
 
 
@@ -109,7 +109,11 @@ def find_changes_row_correspondence_gaps(
     return rows_without_heading, headings_without_row
 
 
-def _group_by_identity(texts_and_identities: Sequence[tuple[str, ComponentRef]]) -> list[tuple[str, ...]]:
+# Texts (row names or headings) that name the same component.
+type SameIdentityTexts = tuple[str, ...]
+
+
+def _group_by_identity(texts_and_identities: Sequence[tuple[str, ComponentRef]]) -> list[SameIdentityTexts]:
     """Every group of texts sharing one identity with at least one other
     text, in order of each group's first text."""
     groups: dict[ComponentRef, list[str]] = {}
@@ -123,7 +127,7 @@ def find_changes_duplicate_identities(
     headings: list[str],
     deps: list[ChartDependency],
     canonical_names: Mapping[str, tuple[str, ...]],
-) -> tuple[list[tuple[str, ...]], list[tuple[str, ...]]]:
+) -> tuple[list[SameIdentityTexts], list[SameIdentityTexts]]:
     """(duplicate_row_groups, duplicate_heading_groups) naming the same component more than once.
 
     E.g. rows "KISS" and "Kiss". Only single-identity headings count; others
@@ -143,7 +147,7 @@ def is_exact_dependency_match(name: str, dep: ChartDependency) -> bool:
     Separates "KISS" (is the dependency) from "Kiss Elasticsearch" (merely
     mentions it)."""
     norm = normalize_name(name)
-    return any(normalize_name(c) == norm for c in (dep.get("name"), dep.get("alias")) if c)
+    return any(normalize_name(dep_name) == norm for dep_name in (dep.get("name"), dep.get("alias")) if dep_name)
 
 
 def _claimed_dependency(name: str, deps: list[ChartDependency]) -> ChartDependency | None:

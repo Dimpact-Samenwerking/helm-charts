@@ -12,6 +12,11 @@ from types import ModuleType
 import pytest
 import yaml
 
+from tests.fixture_data import SHA256_A
+from tests.fixture_data import raising
+from tests.fixture_data import write_chart_dependencies
+from tests.fixture_data import write_lines
+
 
 def make_tgz(charts_dir, name, version, values):
     """Minimal vendored <name>-<version>.tgz with just <name>/values.yaml."""
@@ -22,10 +27,6 @@ def make_tgz(charts_dir, name, version, values):
         info = tarfile.TarInfo(name=f"{name}/values.yaml")
         info.size = len(data)
         tar.addfile(info, io.BytesIO(data))
-
-
-def write_chart_yaml(chart_dir, deps):
-    (chart_dir / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}), encoding="utf-8")
 
 
 # --- parse_repo ---
@@ -49,7 +50,7 @@ def test_parse_repo_explicit_host(sid: ModuleType):
 def find_stale_in(sid: ModuleType, chart_dir: Path, lines: list[str]):
     """find_stale_digests on a values.yaml holding `lines`."""
     values_path = chart_dir / "values.yaml"
-    values_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    write_lines(values_path, lines)
     return sid.find_stale_digests(values_path)
 
 
@@ -66,8 +67,7 @@ def test_find_stale_digests_reports_mismatch(sid: ModuleType, tmp_path: Path, mo
     assert unresolved == []
     assert fetch_errors == []
     assert len(stale) == 1
-    repository, version, old_digest, new_digest, pin_lines, sliding = stale[0]
-    assert (repository, version, old_digest, new_digest, pin_lines, sliding) == (
+    assert stale[0] == (
         "docker.io/org/repo",
         "1.0.0",
         "a" * 64,
@@ -81,14 +81,18 @@ def test_find_stale_digests_no_change_when_matching(sid: ModuleType, tmp_path: P
     lines = ["a:", "  image:", "    repository: org/repo", f'    tag: "1.0.0@sha256:{"a" * 64}"']
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'a' * 64}"))
     stale, unresolved, fetch_errors = find_stale_in(sid, tmp_path, lines)
-    assert stale == [] and unresolved == [] and fetch_errors == []
+    assert stale == []
+    assert unresolved == []
+    assert fetch_errors == []
 
 
 def test_find_stale_digests_records_unresolved(sid: ModuleType, tmp_path: Path):
     lines = ["a:", "  image:", f'    tag: "1.0.0@sha256:{"a" * 64}"']
     stale, unresolved, fetch_errors = find_stale_in(sid, tmp_path, lines)
-    assert stale == [] and fetch_errors == []
-    assert len(unresolved) == 1 and unresolved[0]["line"] == 3
+    assert stale == []
+    assert fetch_errors == []
+    assert len(unresolved) == 1
+    assert unresolved[0]["line"] == 3
 
 
 # --- find_stale_digests: subchart-default repository fallback ---
@@ -100,7 +104,9 @@ def test_find_stale_digests_falls_back_to_subchart_default_repository(
     """No repository in values.yaml: resolved from the vendored subchart's
     default, as Helm merges it at render time."""
     lines = ["openzaak:", "  image:", f'    tag: "1.27.4@sha256:{"a" * 64}"']
-    write_chart_yaml(tmp_path, [{"name": "openzaak", "version": "1.14.2", "repository": "@example"}])
+    write_chart_dependencies(
+        tmp_path / "Chart.yaml", [{"name": "openzaak", "version": "1.14.2", "repository": "@example"}]
+    )
     make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {"repository": "openzaak/open-zaak"}})
 
     called = []
@@ -111,7 +117,9 @@ def test_find_stale_digests_falls_back_to_subchart_default_repository(
 
     monkeypatch.setattr(sid, "registry_tag_exists", spy)
     stale, unresolved, fetch_errors = find_stale_in(sid, tmp_path, lines)
-    assert unresolved == [] and stale == [] and fetch_errors == []
+    assert unresolved == []
+    assert stale == []
+    assert fetch_errors == []
     assert called == [("docker.io", "openzaak/open-zaak", "1.27.4")]
 
 
@@ -119,7 +127,9 @@ def test_find_stale_digests_stays_unresolved_when_subchart_has_no_default_either
     sid: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     lines = ["openzaak:", "  image:", f'    tag: "1.27.4@sha256:{"a" * 64}"']
-    write_chart_yaml(tmp_path, [{"name": "openzaak", "version": "1.14.2", "repository": "@example"}])
+    write_chart_dependencies(
+        tmp_path / "Chart.yaml", [{"name": "openzaak", "version": "1.14.2", "repository": "@example"}]
+    )
     make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {}})  # subchart doesn't default one either
 
     calls = []
@@ -127,7 +137,8 @@ def test_find_stale_digests_stays_unresolved_when_subchart_has_no_default_either
     monkeypatch.setattr(sid, "vendor_dependencies", lambda cd: calls.append("vendor") or (True, "ok"))
 
     stale, unresolved, fetch_errors = find_stale_in(sid, tmp_path, lines)
-    assert stale == [] and fetch_errors == []
+    assert stale == []
+    assert fetch_errors == []
     assert len(unresolved) == 1
     assert calls == []  # .tgz already present -> nothing to gain from re-vendoring, never triggered
 
@@ -138,7 +149,9 @@ def test_find_stale_digests_vendors_dependencies_when_tgz_missing(
     """Dependency present but its .tgz not vendored yet: a re-vendor is worth
     triggering."""
     lines = ["openzaak:", "  image:", f'    tag: "1.27.4@sha256:{"a" * 64}"']
-    write_chart_yaml(tmp_path, [{"name": "openzaak", "version": "1.14.2", "repository": "@example"}])
+    write_chart_dependencies(
+        tmp_path / "Chart.yaml", [{"name": "openzaak", "version": "1.14.2", "repository": "@example"}]
+    )
     # no .tgz vendored at all yet
 
     calls = []
@@ -159,14 +172,17 @@ def test_find_stale_digests_vendors_dependencies_when_tgz_missing(
     stale, unresolved, fetch_errors = find_stale_in(sid, tmp_path, lines)
     assert calls == ["ensure", "vendor"]
     assert unresolved == []
-    assert stale == [] and fetch_errors == []
+    assert stale == []
+    assert fetch_errors == []
 
 
 def test_find_stale_digests_warns_and_stays_unresolved_when_repos_configuration_fails(
     sid: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
     lines = ["openzaak:", "  image:", f'    tag: "1.27.4@sha256:{"a" * 64}"']
-    write_chart_yaml(tmp_path, [{"name": "openzaak", "version": "1.14.2", "repository": "@example"}])
+    write_chart_dependencies(
+        tmp_path / "Chart.yaml", [{"name": "openzaak", "version": "1.14.2", "repository": "@example"}]
+    )
 
     def fail_if_called(*args, **kwargs):
         msg = "vendor_dependencies must never run when ensure_repos_configured failed"
@@ -179,7 +195,8 @@ def test_find_stale_digests_warns_and_stays_unresolved_when_repos_configuration_
 
     stale, unresolved, fetch_errors = find_stale_in(sid, tmp_path, lines)
     assert len(unresolved) == 1
-    assert stale == [] and fetch_errors == []
+    assert stale == []
+    assert fetch_errors == []
     err = capsys.readouterr().err
     assert "network unreachable" in err
     assert "will stay unresolved" in err
@@ -189,7 +206,9 @@ def test_find_stale_digests_warns_and_stays_unresolved_when_vendoring_fails(
     sid: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
     lines = ["openzaak:", "  image:", f'    tag: "1.27.4@sha256:{"a" * 64}"']
-    write_chart_yaml(tmp_path, [{"name": "openzaak", "version": "1.14.2", "repository": "@example"}])
+    write_chart_dependencies(
+        tmp_path / "Chart.yaml", [{"name": "openzaak", "version": "1.14.2", "repository": "@example"}]
+    )
 
     monkeypatch.setattr(sid, "ensure_repos_configured", lambda chart_dir: (True, "ok"))
     monkeypatch.setattr(sid, "vendor_dependencies", lambda cd: (False, "helm dependency update failed"))
@@ -206,7 +225,7 @@ def test_find_stale_digests_never_vendors_when_no_matching_dependency(
     """No Chart.yaml dependency: vendoring can't help, so the network-touching
     re-vendor path must not trigger."""
     lines = ["a:", "  image:", f'    tag: "1.0.0@sha256:{"a" * 64}"']
-    write_chart_yaml(tmp_path, [])  # no dependencies at all
+    write_chart_dependencies(tmp_path / "Chart.yaml", [])  # no dependencies at all
 
     def fail_if_called(*args, **kwargs):
         msg = "vendoring must never be attempted for an unmatched component"
@@ -226,11 +245,13 @@ def test_find_stale_digests_retries_once_then_gives_up(
     monkeypatch.setattr(
         sid,
         "registry_tag_exists",
-        lambda host, repo, tag: (_ for _ in ()).throw(urllib.error.URLError("down")),
+        raising(urllib.error.URLError("down")),
     )
     stale, unresolved, fetch_errors = find_stale_in(sid, tmp_path, lines)
-    assert stale == [] and unresolved == []
-    assert len(fetch_errors) == 1 and fetch_errors[0][0] == "docker.io/org/repo"
+    assert stale == []
+    assert unresolved == []
+    assert len(fetch_errors) == 1
+    assert fetch_errors[0][0] == "docker.io/org/repo"
 
 
 def test_find_stale_digests_dedupes_shared_repo_and_tag(
@@ -494,7 +515,7 @@ def test_main_unresolved_report_names_the_file(
     sid: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
     values_path = tmp_path / "values.yaml"
-    write_values(values_path, 'a:\n  image:\n    tag: "1.0.0@sha256:' + "a" * 64 + '"\n')
+    write_values(values_path, f'a:\n  image:\n    tag: "1.0.0@{SHA256_A}"\n')
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
     monkeypatch.setattr("sys.argv", ["fix-image-digests"])
 
@@ -538,7 +559,7 @@ def test_main_exits_nonzero_on_fetch_error(sid: ModuleType, tmp_path: Path, monk
     monkeypatch.setattr(
         sid,
         "registry_tag_exists",
-        lambda host, repo, tag: (_ for _ in ()).throw(urllib.error.URLError("down")),
+        raising(urllib.error.URLError("down")),
     )
     monkeypatch.setattr("sys.argv", ["fix-image-digests"])
 
@@ -608,8 +629,10 @@ def test_main_default_updates_sliding_and_pinned_alike(
         sid.main()
     assert exc_info.value.code == 0
     updated = values_path.read_text(encoding="utf-8")
-    assert old_nginx not in updated and new_nginx in updated  # sliding pin updated too
-    assert old_zac not in updated and new_zac in updated
+    assert old_nginx not in updated
+    assert new_nginx in updated
+    assert old_zac not in updated
+    assert new_zac in updated
     out = capsys.readouterr().out
     assert "nginxinc/nginx-unprivileged:1.31.3  (sliding)" in out
 
@@ -666,7 +689,8 @@ def test_main_target_leaves_other_stale_pins_untouched(
     assert exc_info.value.code == 0
     updated = values_path.read_text(encoding="utf-8")
     assert new_nginx in updated
-    assert old_zac in updated and new_zac not in updated
+    assert old_zac in updated
+    assert new_zac not in updated
 
 
 def test_main_target_no_stale_digest_reports_nothing_to_do(
@@ -720,7 +744,8 @@ def test_main_target_resolves_given_key_and_basename(
         sid.main()
     assert exc_info.value.code == 0
     updated = values_path.read_text(encoding="utf-8")
-    assert old_zac not in updated and new_zac in updated
+    assert old_zac not in updated
+    assert new_zac in updated
     assert old_nginx in updated  # untouched -- not the named target
 
 

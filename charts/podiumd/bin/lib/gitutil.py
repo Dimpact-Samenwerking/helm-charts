@@ -4,8 +4,6 @@ from pathlib import Path
 
 from lib.procutil import run
 from lib.version_numbers import is_bare_version
-from lib.yaml_types import YamlMapping
-from lib.yaml_types import parse_yaml_mapping
 
 
 def find_repo_root(start_path: Path):
@@ -57,9 +55,3 @@ def git_show_text(repo_root: Path, ref: str, relpath: str) -> str | None:
     if result.returncode != 0:
         return None
     return result.stdout
-
-
-def git_show_yaml(repo_root: Path, ref: str, relpath: str) -> YamlMapping | None:
-    """relpath at ref parsed as a YAML mapping, or None if it doesn't exist there."""
-    text = git_show_text(repo_root, ref, relpath)
-    return parse_yaml_mapping(text, f"{ref}:{relpath}") if text is not None else None

@@ -76,7 +76,9 @@ def main():
     declared = {upgrade_docs_baseline, *read_upgrade_docs_side_paths(CHART_DIR)}
     by_suffix = existing_doc_baselines(DOC_DIR, target)
     mismatched = {
-        suffix: entries for suffix, entries in by_suffix.items() if any(b not in declared for b, _ in entries)
+        suffix: entries
+        for suffix, entries in by_suffix.items()
+        if any(baseline not in declared for baseline, _ in entries)
     }
     if mismatched:
         print(
@@ -84,8 +86,8 @@ def main():
             f"than '{upgrade_docs_baseline}' — refusing to create fresh docs next to them:"
         )
         for _suffix, entries in sorted(mismatched.items()):
-            for b, path in sorted(entries):
-                print(f"  {path.name}  (upgrade_docs_baseline {b})")
+            for baseline, path in sorted(entries):
+                print(f"  {path.name}  (upgrade_docs_baseline {baseline})")
         print()
         print("If this upgrade_docs_baseline change is intentional (a rebase), use fix-doc-consistency instead.")
         sys.exit(1)

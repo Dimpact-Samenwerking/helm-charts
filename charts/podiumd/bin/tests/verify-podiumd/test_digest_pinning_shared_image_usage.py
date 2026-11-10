@@ -17,15 +17,10 @@ import yaml
 
 from dep_helpers import make_dep
 
+from tests.fixture_data import write_chart_dependencies
+from tests.fixture_data import write_values_text
+
 DIGEST_A = "a" * 64
-
-
-def write_values_yaml(chart_dir, text):
-    (chart_dir / "values.yaml").write_text(text, encoding="utf-8")
-
-
-def write_chart_yaml(chart_dir, deps):
-    (chart_dir / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}), encoding="utf-8")
 
 
 def make_tgz(charts_dir, name, version, values, templates=None, chart_yaml=None, extra_files=None):
@@ -84,8 +79,8 @@ def test_global_image_with_zero_consumers_fails(
     libdigestpinningcheck: ModuleType,
     capsys: pytest.CaptureFixture[str],
 ):
-    write_chart_yaml(tmp_path, [])
-    write_values_yaml(
+    write_chart_dependencies(tmp_path / "Chart.yaml", [])
+    write_values_text(
         tmp_path,
         f"""\
 global:
@@ -114,8 +109,8 @@ def test_global_image_with_exactly_one_consumer_fails(
     capsys: pytest.CaptureFixture[str],
 ):
     """One consumer is under-used: no better than setting the value there."""
-    write_chart_yaml(tmp_path, [])
-    write_values_yaml(
+    write_chart_dependencies(tmp_path / "Chart.yaml", [])
+    write_values_text(
         tmp_path,
         f"""\
 global:
@@ -150,8 +145,8 @@ def test_global_image_with_two_or_more_consumers_passes(
     capsys: pytest.CaptureFixture[str],
 ):
     """2+ consumers is genuinely shared: report only, with the consumer list."""
-    write_chart_yaml(tmp_path, [])
-    write_values_yaml(
+    write_chart_dependencies(tmp_path / "Chart.yaml", [])
+    write_values_text(
         tmp_path,
         f"""\
 global:
@@ -193,8 +188,8 @@ def test_global_image_consumer_under_a_genuinely_enabled_dependency_counts_norma
     capsys: pytest.CaptureFixture[str],
 ):
     """A path under an enabled (rendered) dependency still counts as a consumer."""
-    write_chart_yaml(tmp_path, [make_dep("zaakafhandelcomponent", "1.0.297", alias="zac")])
-    write_values_yaml(
+    write_chart_dependencies(tmp_path / "Chart.yaml", [make_dep("zaakafhandelcomponent", "1.0.297", alias="zac")])
+    write_values_text(
         tmp_path,
         f"""\
 global:
@@ -235,7 +230,7 @@ def test_global_image_zero_live_consumers_because_nested_dependency_tags_disable
     """openzaak.redis.image configures a nested redis sub-subchart disabled
     via tags, so it never renders: global.images.redis has zero live
     consumers, not one."""
-    write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
+    write_chart_dependencies(tmp_path / "Chart.yaml", [make_dep("openzaak", "1.14.2")])
     make_tgz(
         tmp_path / "charts",
         "openzaak",
@@ -247,7 +242,7 @@ def test_global_image_zero_live_consumers_because_nested_dependency_tags_disable
             "dependencies": [{"name": "redis", "version": "18.0.0", "repository": "@bitnami", "tags": ["redis"]}],
         },
     )
-    write_values_yaml(
+    write_values_text(
         tmp_path,
         f"""\
 global:
@@ -285,8 +280,8 @@ def test_non_global_repository_shared_at_two_or_more_paths_never_fails(
     capsys: pytest.CaptureFixture[str],
 ):
     """An incidentally shared repository (not global.images.*) never fails."""
-    write_chart_yaml(tmp_path, [])
-    write_values_yaml(
+    write_chart_dependencies(tmp_path / "Chart.yaml", [])
+    write_values_text(
         tmp_path,
         f"""\
 keycloak-operator:
@@ -321,8 +316,8 @@ def test_check_shared_image_usage_does_not_report_a_single_use_repository_as_sha
     capsys: pytest.CaptureFixture[str],
 ):
     """A repository pinned at one path isn't shared: no noise."""
-    write_chart_yaml(tmp_path, [])
-    write_values_yaml(
+    write_chart_dependencies(tmp_path / "Chart.yaml", [])
+    write_values_text(
         tmp_path,
         f"""\
 zac:
@@ -344,8 +339,8 @@ zac:
 def test_check_shared_image_usage_render_failure(
     vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, libdigestpinningcheck: ModuleType
 ):
-    write_chart_yaml(tmp_path, [])
-    write_values_yaml(tmp_path, "{}\n")
+    write_chart_dependencies(tmp_path / "Chart.yaml", [])
+    write_values_text(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, [], returncode=1)
 
     ok, detail = vp.check_shared_image_usage(tmp_path, [])
@@ -355,7 +350,7 @@ def test_check_shared_image_usage_render_failure(
 
 
 def test_global_image_usage_excludes_single_use_repos(libdigestpinningcheck: ModuleType, tmp_path: Path):
-    write_values_yaml(
+    write_values_text(
         tmp_path,
         f"""\
 zac:
@@ -366,13 +361,13 @@ zac:
     )
     values = libdigestpinningcheck.load_yaml_mapping(tmp_path / "values.yaml")
     deps = []
-    repo_groups = libdigestpinningcheck._repository_groups(tmp_path, values, deps)
-    assert libdigestpinningcheck._global_image_usage(values, repo_groups) == {}
-    assert libdigestpinningcheck._non_global_shared_repo_groups(values, repo_groups, {}) == {}
+    repo_groups = libdigestpinningcheck.repository_groups(tmp_path, values, deps)
+    assert libdigestpinningcheck.global_image_usage(values, repo_groups) == {}
+    assert libdigestpinningcheck.non_global_shared_repo_groups(values, repo_groups, {}) == {}
 
 
 def test_global_image_usage_finds_multi_path_repos(libdigestpinningcheck: ModuleType, tmp_path: Path):
-    write_values_yaml(
+    write_values_text(
         tmp_path,
         f"""\
 global:
@@ -389,14 +384,14 @@ zac:
     )
     values = libdigestpinningcheck.load_yaml_mapping(tmp_path / "values.yaml")
     deps = []
-    repo_groups = libdigestpinningcheck._repository_groups(tmp_path, values, deps)
-    usage = libdigestpinningcheck._global_image_usage(values, repo_groups)
+    repo_groups = libdigestpinningcheck.repository_groups(tmp_path, values, deps)
+    usage = libdigestpinningcheck.global_image_usage(values, repo_groups)
     assert set(usage) == {("global", "images", "curl")}
     assert usage[("global", "images", "curl")] == [("zac", "curl", "image")]
 
 
 def test_path_chart_tree_path_orphan_key_is_always_chart_name(libdigestpinningcheck: ModuleType, tmp_path: Path):
-    assert libdigestpinningcheck._path_chart_tree_path(tmp_path, [], ("global", "images", "nginx")) == "podiumd"
+    assert libdigestpinningcheck.path_chart_tree_path(tmp_path, [], ("global", "images", "nginx")) == "podiumd"
 
 
 def test_path_chart_tree_path_dependency_resolves_via_resolve_subchart_default(
@@ -404,13 +399,13 @@ def test_path_chart_tree_path_dependency_resolves_via_resolve_subchart_default(
 ):
     deps = [make_dep("openzaak", "1.14.2")]
     assert (
-        libdigestpinningcheck._path_chart_tree_path(tmp_path, deps, ("openzaak", "image")) == "podiumd/charts/openzaak"
+        libdigestpinningcheck.path_chart_tree_path(tmp_path, deps, ("openzaak", "image")) == "podiumd/charts/openzaak"
     )
 
 
 def test_live_repository_groups_drops_dead_consumer_paths(libdigestpinningcheck: ModuleType, tmp_path: Path):
     """A path whose chart-tree path never rendered is dropped entirely."""
-    write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
+    write_chart_dependencies(tmp_path / "Chart.yaml", [make_dep("openzaak", "1.14.2")])
     make_tgz(
         tmp_path / "charts",
         "openzaak",
@@ -429,6 +424,6 @@ def test_live_repository_groups_drops_dead_consumer_paths(libdigestpinningcheck:
     deps = [make_dep("openzaak", "1.14.2")]
     rendered_paths = {"podiumd", "podiumd/charts/openzaak"}  # nested redis never rendered
 
-    live = libdigestpinningcheck._live_repository_groups(tmp_path, deps, values, rendered_paths)
+    live = libdigestpinningcheck.live_repository_groups(tmp_path, deps, values, rendered_paths)
 
     assert live == {"library/redis": [("global", "images", "redis")]}  # only the (always-live) definition survives

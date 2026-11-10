@@ -6,6 +6,7 @@ from types import ModuleType
 import pytest
 
 BOM = b"\xef\xbb\xbf"
+BOM_VALUES = b"".join((BOM, b"zac:\n  enabled: true\n"))
 
 
 def write(path, data):
@@ -17,7 +18,7 @@ def test_main_help_flag_prints_usage_and_exits_zero_without_touching_the_file(
     sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], flag
 ):
     values_path = tmp_path / "values.yaml"
-    original = BOM + b"zac:\n  enabled: true\n"
+    original = BOM_VALUES
     write(values_path, original)
     monkeypatch.setattr(sub, "VALUES_PATH", values_path)
     monkeypatch.setattr("sys.argv", ["fix-utf8-bom", flag])
@@ -44,7 +45,7 @@ def test_no_bom_exits_zero_and_leaves_file_untouched(sub: ModuleType, tmp_path: 
 
 def test_bom_is_stripped_and_exits_zero(sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     values_path = tmp_path / "values.yaml"
-    write(values_path, BOM + b"zac:\n  enabled: true\n")
+    write(values_path, BOM_VALUES)
     monkeypatch.setattr(sub, "VALUES_PATH", values_path)
     monkeypatch.setattr("sys.argv", ["fix-utf8-bom"])
 
@@ -58,7 +59,7 @@ def test_dry_run_reports_bom_but_does_not_write(
     sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
     values_path = tmp_path / "values.yaml"
-    original = BOM + b"zac:\n  enabled: true\n"
+    original = BOM_VALUES
     write(values_path, original)
     monkeypatch.setattr(sub, "VALUES_PATH", values_path)
     monkeypatch.setattr("sys.argv", ["fix-utf8-bom", "--dry-run"])

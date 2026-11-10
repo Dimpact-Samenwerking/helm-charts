@@ -10,6 +10,9 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
+from tests.fixture_data import raising
+from tests.fixture_data import write_chart_dependencies
+
 
 def write_pulled_chart(dest, name, chart_yaml, values_yaml):
     """Mimic `helm pull --untar` creating dest/<name>/, which load_chart expects."""
@@ -389,9 +392,7 @@ def test_load_chart_reads_local_source_for_file_dependency(lpi, tmp_path: Path, 
     monkeypatch.setattr(
         lpi,
         "pull_chart",
-        lambda dep, dest: (_ for _ in ()).throw(
-            AssertionError("pull_chart should not be called for a file:// dependency")
-        ),
+        raising(AssertionError("pull_chart should not be called for a file:// dependency")),
     )
 
     tmproot = tmp_path / "tmproot"
@@ -577,7 +578,7 @@ def test_main_nested_tags_disabled_sidecar_is_labeled_disabled_not_dropped(
 
 
 def test_main_render_failure_raises(lpi, monkeypatch: pytest.MonkeyPatch):
-    lpi.CHART_YAML.write_text(yaml.safe_dump({"dependencies": []}))
+    write_chart_dependencies(lpi.CHART_YAML, [])
     lpi.VALUES_YAML.write_text("{}\n")
     monkeypatch.setattr(
         lpi, "render_chart", lambda chart_dir, extra_args: SimpleNamespace(returncode=1, stdout="", stderr="boom")

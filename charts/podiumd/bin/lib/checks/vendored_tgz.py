@@ -21,9 +21,9 @@ def find_extracted_vendored_dirs(chart_dir: Path) -> list[str]:
 
     tgz_names: set[str] = set()
     for path in charts_subdir.glob("*.tgz"):
-        m = TGZ_NAME_RE.match(path.name)
-        if m:
-            tgz_names.add(m.group("name"))
+        name_match = TGZ_NAME_RE.match(path.name)
+        if name_match:
+            tgz_names.add(name_match.group("name"))
 
     return sorted(name for name in tgz_names if (charts_subdir / name).is_dir())
 

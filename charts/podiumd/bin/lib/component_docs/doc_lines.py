@@ -14,12 +14,12 @@ def normalize_blank_line_before_insert(lines: list[str], insert_at: int):
     index. Section text starts with a heading and the preceding trailing blank
     may already be gone (EOF collapsing), which would break MD022/MD032."""
     blank_count = 0
-    i = insert_at - 1
-    while i >= 0 and not lines[i].strip():
+    line_index = insert_at - 1
+    while line_index >= 0 and not lines[line_index].strip():
         blank_count += 1
-        i -= 1
+        line_index -= 1
     if blank_count == 0:
-        lines[insert_at:insert_at] = ["\n"]
+        lines.insert(insert_at, "\n")
         insert_at += 1
     elif blank_count > 1:
         del lines[insert_at - (blank_count - 1) : insert_at]
@@ -32,13 +32,13 @@ def _find_standalone_placeholder_line(lines: list[str], end: int, placeholder_te
     and is its own paragraph (blank or doc edge on both sides), else None.
     Other content may surround it, e.g. the intro blockquote."""
     target = placeholder_text.strip()
-    for i in range(end):
-        if lines[i].strip() != target:
+    for line_index in range(end):
+        if lines[line_index].strip() != target:
             continue
-        before_ok = i == 0 or not lines[i - 1].strip()
-        after_ok = i + 1 == end or not lines[i + 1].strip()
+        before_ok = line_index == 0 or not lines[line_index - 1].strip()
+        after_ok = line_index + 1 == end or not lines[line_index + 1].strip()
         if before_ok and after_ok:
-            return i
+            return line_index
     return None
 
 
@@ -49,6 +49,7 @@ def strip_standalone_placeholder_line(lines: list[str], end: int, placeholder_te
     if idx is None:
         return False
     del lines[idx]
-    if 0 < idx < len(lines) and not lines[idx].strip() and not lines[idx - 1].strip():
+    in_range = 0 < idx < len(lines)
+    if in_range and not lines[idx].strip() and not lines[idx - 1].strip():
         del lines[idx]
     return True

@@ -14,18 +14,22 @@ HELPER_CALL_RE = re.compile(r'include\s+"podiumd\.image"')
 
 def scan_image_references(templates_dir: Path) -> list[tuple[Path, int, str]]:
     """(path, line_no, value) for every templates/*.yaml `image:` line not calling podiumd.image."""
+    return [
+        finding
+        for path in sorted(templates_dir.rglob("*.yaml"))
+        if path.is_file()
+        for finding in _template_violations(path)
+    ]
+
+
+def _template_violations(path: Path) -> list[tuple[Path, int, str]]:
+    """scan_image_references' findings in one template file."""
     findings: list[tuple[Path, int, str]] = []
-    for path in sorted(templates_dir.rglob("*.yaml")):
-        if not path.is_file():
-            continue
-        for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            m = IMAGE_LINE_RE.match(line)
-            if not m:
-                continue
-            value = m.group(1).strip()
-            if HELPER_CALL_RE.search(value):
-                continue
-            findings.append((path, i, value))
+    for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        image_match = IMAGE_LINE_RE.match(line)
+        value = image_match.group(1).strip() if image_match else None
+        if value is not None and not HELPER_CALL_RE.search(value):
+            findings.append((path, line_no, value))
     return findings
 
 

@@ -20,13 +20,15 @@ from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.pull_and_subchart_resolution import resolve_subchart_default
 from lib.chart.pull_and_subchart_resolution import subchart_values
+from lib.chart.repo_and_path_resolution import RepoGroups
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repository_group_key
 from lib.chart.repo_and_path_resolution import subchart_template_text
+from lib.chart.values_tree_primitives import ValuesPath
+from lib.chart.values_tree_primitives import field_text
 from lib.chart.values_tree_primitives import find_dependency
 from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import resolve_values_path_source
-from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
 from lib.image.digests import find_stale_reference_comments
 from lib.render_scope import CHART_NAME
@@ -43,23 +45,23 @@ DIGEST_SUFFIX_RE = re.compile(r"@sha256:[0-9a-f]{64}$")
 
 # Exempt fields live in etc/settings.yaml "digest_pinning.exceptions".
 
-# A dotted values.yaml path as its keys, and repository -> the paths using it.
-ValuesPath = tuple[str, ...]
-RepoGroups = dict[str, list[ValuesPath]]
+# A global.images.* entry with fewer consumers should be inlined.
+_MIN_SHARED_CONSUMERS = 2
+
 # A find_unresolved_subchart_images finding: (scope_key, subpath, tag, already_pinned).
 SubchartImageFinding = tuple[str, str, str, bool]
 
 
-def _repository_groups(chart_dir: Path, values: YamlMapping, deps: list[ChartDependency]) -> RepoGroups:
+def repository_groups(chart_dir: Path, values: YamlMapping, deps: list[ChartDependency]) -> RepoGroups:
     """{stripped_repo: [path, ...]} for every image/version path in values.yaml.
 
     Static: says nothing about whether the path renders. Never report consumer counts
-    from this alone; see _live_repository_groups.
+    from this alone; see live_repository_groups.
     """
     return paths_by_repository(chart_dir, deps, values, chart_image_paths(values, deps).keys())
 
 
-def _path_chart_tree_path(chart_dir: Path, deps: list[ChartDependency], path: tuple[str, ...]):
+def path_chart_tree_path(chart_dir: Path, deps: list[ChartDependency], path: tuple[str, ...]):
     """The chart-tree path that must render for `path` to be a live consumer.
 
     A path whose top-level key isn't a Chart.yaml dependency (apiproxy, keycloak,
@@ -72,40 +74,40 @@ def _path_chart_tree_path(chart_dir: Path, deps: list[ChartDependency], path: tu
     return chart_tree_path
 
 
-def _live_repository_groups(
+def live_repository_groups(
     chart_dir: Path, deps: list[ChartDependency], values: YamlMapping, rendered_paths: set[str]
 ) -> RepoGroups:
-    """_repository_groups(...) with every path whose chart-tree path didn't render removed.
+    """repository_groups(...) with every path whose chart-tree path didn't render removed.
 
     Needed because e.g. every Maykin "<name>.redis.image" configures a nested redis
     disabled via "tags: {redis: false}"; counted statically they inflate
     global.images.redis to 10 consumers instead of 0. Repositories left with no live
     path are dropped.
     """
-    raw = _repository_groups(chart_dir, values, deps)
+    raw = repository_groups(chart_dir, values, deps)
     live: RepoGroups = {}
     for repo, paths in raw.items():
-        live_paths = [p for p in paths if _path_chart_tree_path(chart_dir, deps, p) in rendered_paths]
+        live_paths = [path for path in paths if path_chart_tree_path(chart_dir, deps, path) in rendered_paths]
         if live_paths:
             live[repo] = live_paths
     return live
 
 
-def _global_image_usage(values: YamlMapping, repo_groups: RepoGroups) -> dict[ValuesPath, list[ValuesPath]]:
+def global_image_usage(values: YamlMapping, repo_groups: RepoGroups) -> dict[ValuesPath, list[ValuesPath]]:
     """{def_path: [consumer_path, ...]} for every global.images.* entry.
 
     Consumers are other paths with the same repository, excluding the definition itself.
     """
     usage: dict[ValuesPath, list[ValuesPath]] = {}
     for def_path, _tag in global_image_paths(values):
-        repo = text_at(values, ".".join(def_path) + ".repository")
+        repo = field_text(values, def_path, "repository")
         stripped = repository_group_key(repo) if isinstance(repo, str) and repo else None
-        consumers = [p for p in repo_groups.get(stripped, []) if p != def_path] if stripped else []
+        consumers = [path for path in repo_groups.get(stripped, []) if path != def_path] if stripped else []
         usage[def_path] = consumers
     return usage
 
 
-def _non_global_shared_repo_groups(
+def non_global_shared_repo_groups(
     values: YamlMapping, repo_groups: RepoGroups, global_usage: dict[ValuesPath, list[ValuesPath]]
 ) -> RepoGroups:
     """repo_groups minus global.images.* repositories and single-path repositories.
@@ -114,7 +116,7 @@ def _non_global_shared_repo_groups(
     """
     claimed: set[str] = set()
     for def_path in global_usage:
-        repo = text_at(values, ".".join(def_path) + ".repository")
+        repo = field_text(values, def_path, "repository")
         if isinstance(repo, str) and repo:
             claimed.add(repository_group_key(repo))
     return {repo: paths for repo, paths in repo_groups.items() if repo not in claimed and len(paths) > 1}
@@ -140,9 +142,17 @@ def _print_shared_image_usage(
     paths (informational). Each path is annotated with resolve_values_path_source.
     Inputs must already be render-gated.
     """
-    underused = {p: c for p, c in global_usage.items() if len(c) <= 1}
-    well_used = {p: c for p, c in global_usage.items() if len(c) >= 2}
-    plain_shared = _non_global_shared_repo_groups(values, repo_groups, global_usage)
+    underused = {
+        global_path: path_consumers
+        for global_path, path_consumers in global_usage.items()
+        if len(path_consumers) < _MIN_SHARED_CONSUMERS
+    }
+    well_used = {
+        global_path: path_consumers
+        for global_path, path_consumers in global_usage.items()
+        if len(path_consumers) >= _MIN_SHARED_CONSUMERS
+    }
+    plain_shared = non_global_shared_repo_groups(values, repo_groups, global_usage)
 
     if not underused and not well_used and not plain_shared:
         print("OK: no shared-image concerns found")
@@ -213,9 +223,9 @@ def check_digest_pinning(chart_dir: Path):
             f"Found {len(stale)} reference comment(s) that don't match the pin below them "
             "(fix-image-digests rewrites them):"
         )
-        for s in stale:
-            print(f"  values.yaml:{s.line}: {s.written.strip()}")
-            print(f"    expected: {s.expected.strip()}")
+        for stale_comment in stale:
+            print(f"  values.yaml:{stale_comment.line}: {stale_comment.written.strip()}")
+            print(f"    expected: {stale_comment.expected.strip()}")
 
     parts: list[str] = []
     if missing:
@@ -228,7 +238,7 @@ def check_digest_pinning(chart_dir: Path):
 def check_shared_image_usage(chart_dir: Path, extra_args: list[str]):
     """Report every repository shared across 2+ live values.yaml paths.
 
-    Paths are render-gated (see _live_repository_groups); a render failure fails the step.
+    Paths are render-gated (see live_repository_groups); a render failure fails the step.
     Fails only for a global.images.* entry with 0 or 1 live consumers (the shared anchor
     is pointless, inline it). Other shared repositories are informational.
     """
@@ -244,8 +254,8 @@ def check_shared_image_usage(chart_dir: Path, extra_args: list[str]):
 
     values = load_yaml_mapping(values_path)
     deps = chart_dir_dependencies(chart_dir)
-    repo_groups = _live_repository_groups(chart_dir, deps, values, rendered_paths)
-    global_usage = _global_image_usage(values, repo_groups)
+    repo_groups = live_repository_groups(chart_dir, deps, values, rendered_paths)
+    global_usage = global_image_usage(values, repo_groups)
     underused = _print_shared_image_usage(chart_dir, deps, values, repo_groups, global_usage)
 
     if underused:
@@ -342,8 +352,8 @@ def check_subchart_image_visibility(chart_dir: Path, extra_args: list[str]):
     own_values = load_yaml_mapping(chart_dir / "values.yaml")
     deps = load_chart_dependencies(chart_dir / "Chart.yaml")
     findings = find_unresolved_subchart_images(chart_dir, deps, own_values, rendered_paths)
-    floating = [f for f in findings if not f[3]]
-    pinned = [f for f in findings if f[3]]
+    floating = [unresolved for unresolved in findings if not unresolved[3]]
+    pinned = [unresolved for unresolved in findings if unresolved[3]]
 
     if floating:
         print(

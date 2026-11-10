@@ -34,20 +34,15 @@ import lib.checks.node_selector as node_selector_check
 import lib.checks.shellcheck as shellcheck_check
 import lib.checks.vendored_tgz as vendored_tgz_check
 import lib.checks.yamllint as yamllint_check
-import lib.docs_consistency as docs_consistency
+import lib.docs_consistency.component_versions_table as docs_consistency
 import lib.docs_consistency.images_manifest_format as docs_consistency_images_manifest_format
 import lib.docs_consistency.markdown_format as docs_consistency_markdown_format
 import lib.docs_consistency.pointer_consistency as docs_consistency_pointer_consistency
 import lib.docs_consistency.values_diff as docs_consistency_values_diff
-import lib.gitutil as gitutil
 import lib.image.digests as image_digests
 import lib.image.references_check as image_references_check
 import lib.image.upgrade_cache as image_upgrade_cache
 import lib.image.upgrade_check as image_upgrade_check
-import lib.registry as registry
-import lib.release_secret_size as release_secret_size
-import lib.render_scope as render_scope
-import lib.settings as settings
 import lib.upgradedoc.app_version_and_image_paths as upgradedoc_app_version_and_image_paths
 import lib.upgradedoc.consistency_checks as upgradedoc_consistency_checks
 import lib.upgradedoc.grouped_comments_and_changes_block as upgradedoc_grouped_comments_and_changes_block
@@ -57,6 +52,12 @@ import lib.upgradedoc.resolve_component_row as upgradedoc_resolve_component_row
 import lib.upgradedoc.sorting_and_ordering as upgradedoc_sorting_and_ordering
 import lib.upgradedoc.string_and_parsing_basics as upgradedoc_string_and_parsing_basics
 import lib.upgradedoc.version_cells as upgradedoc_version_cells
+
+from lib import gitutil
+from lib import registry
+from lib import release_secret_size
+from lib import render_scope
+from lib import settings
 
 
 def _load_module():

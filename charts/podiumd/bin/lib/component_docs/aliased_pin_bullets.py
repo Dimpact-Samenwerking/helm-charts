@@ -45,17 +45,17 @@ class _Bullet:
 def _block_bullets(lines: list[str], start: int, end: int) -> list[_Bullet]:
     """Pin bullets in lines[start:end]; a bullet runs on over its "  "-indented continuation lines."""
     bullets: list[_Bullet] = []
-    i = start
-    while i < end:
-        m = _PIN_BULLET_RE.match(lines[i])
-        if not m:
-            i += 1
+    start_index = start
+    while start_index < end:
+        bullet_match = _PIN_BULLET_RE.match(lines[start_index])
+        if not bullet_match:
+            start_index += 1
             continue
-        j = i + 1
-        while j < end and lines[j].startswith("  ") and lines[j].strip():
-            j += 1
-        bullets.append(_Bullet(i, j, m.group("path")))
-        i = j
+        end_index = start_index + 1
+        while end_index < end and lines[end_index].startswith("  ") and lines[end_index].strip():
+            end_index += 1
+        bullets.append(_Bullet(start_index, end_index, bullet_match.group("path")))
+        start_index = end_index
     return bullets
 
 
@@ -87,12 +87,16 @@ def _aliased_bullet(
         first = f"{first[: pin.start()]}{pin_version_text(own_old, new)}{first[pin.end() :]}"
     note = ALIAS_NOTE.format(path=documented_path)
     first = f"{first[: -len(' in')]} {note} in" if first.endswith(" in") else f"{first} {note}"
-    return [first + "\n", *bullet_lines[1:]]
+    return [f"{first}\n", *bullet_lines[1:]]
+
+
+# A pin bullet and the alias paths missing next to it.
+type _UndocumentedAliases = tuple[_Bullet, list[str]]
 
 
 def _scan(
     text: str, alias_groups: dict[str, tuple[str, ...]], baseline_values: YamlValue
-) -> tuple[list[str], list[tuple[_Bullet, list[str]]]]:
+) -> tuple[list[str], list[_UndocumentedAliases]]:
     """(lines, [(bullet, paths missing next to it), ...]) in document order.
 
     An alias with another old version than the bullet shows is missing only when no
@@ -100,17 +104,17 @@ def _scan(
     """
     lines, blocks = changes_blocks_with_lines(text)
     block_bullets = [_block_bullets(lines, block["start"] + 1, block["end"]) for block in blocks]
-    documented_anywhere = {b.path for bullets in block_bullets for b in bullets}
-    found: list[tuple[_Bullet, list[str]]] = []
+    documented_anywhere = {documented_bullet.path for bullets in block_bullets for documented_bullet in bullets}
+    found: list[_UndocumentedAliases] = []
     for bullets in block_bullets:
-        documented = {b.path for b in bullets}
+        documented = {documented_bullet.path for documented_bullet in bullets}
         for bullet in bullets:
             old = _shown_old(lines[bullet.start])
             missing = [
-                p
-                for p in alias_groups.get(bullet.path, ())
-                if p not in documented
-                and (_baseline_version(baseline_values, p) == old or p not in documented_anywhere)
+                path
+                for path in alias_groups.get(bullet.path, ())
+                if path not in documented
+                and (_baseline_version(baseline_values, path) == old or path not in documented_anywhere)
             ]
             documented.update(missing)
             if missing:
@@ -119,12 +123,18 @@ def _scan(
 
 
 def _headings_by_line(text: str) -> dict[int, str]:
-    return {i: b["heading"] for b in parse_upgrade_doc_changes_blocks(text) for i in range(b["start"], b["end"])}
+    return {
+        line_index: block["heading"]
+        for block in parse_upgrade_doc_changes_blocks(text)
+        for line_index in range(block["start"], block["end"])
+    }
 
 
-def _missing_pin_bullets(text: str, found: list[tuple[_Bullet, list[str]]]) -> list[MissingPinBullet]:
+def _missing_pin_bullets(text: str, found: list[_UndocumentedAliases]) -> list[MissingPinBullet]:
     headings = _headings_by_line(text)
-    return [MissingPinBullet(headings[b.start], b.path, p) for b, missing in found for p in missing]
+    return [
+        MissingPinBullet(headings[bullet.start], bullet.path, path) for bullet, missing in found for path in missing
+    ]
 
 
 def add_missing_pin_bullets(
@@ -138,7 +148,8 @@ def add_missing_pin_bullets(
     added = _missing_pin_bullets(text, found)
     for bullet, missing in reversed(found):
         bullet_lines = lines[bullet.start : bullet.end]
-        lines[bullet.end : bullet.end] = [
+        aliased = [
             line for path in missing for line in _aliased_bullet(bullet_lines, bullet.path, path, baseline_values)
         ]
+        lines = [*lines[: bullet.end], *aliased, *lines[bullet.end :]]
     return "".join(lines), added

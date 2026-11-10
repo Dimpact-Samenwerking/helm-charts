@@ -8,8 +8,8 @@ import pytest
 import yaml
 
 from lib.chart.chart_yaml import ChartDependency
-from lib.fix_doc_consistency.manifest_entries_new_and_urls import MissingEntriesContext
-from lib.fix_doc_consistency.manifest_entries_new_and_urls import add_missing_images_manifest_entries
+from lib.fix_doc_consistency.manifest_entries_new_and_removed import MissingEntriesContext
+from lib.fix_doc_consistency.manifest_entries_new_and_removed import add_missing_images_manifest_entries
 from lib.yaml_types import YamlMapping
 
 
@@ -75,8 +75,8 @@ def _ordered_baseline_values() -> YamlMapping:
 def test_add_missing_images_manifest_entries_ignores_wrapped_line_that_looks_like_an_item(
     cdb: ModuleType, ordered_images_manifest_chart_dir
 ):
-    """A continuation line starting with a version ("1.19.1-static, ...")
-    is not a numbered item; a loose "\\d+\\." regex split item prose this
+    r"""A continuation line starting with a version ("1.19.1-static, ...")
+    is not a numbered item; a loose "\d+\." regex split item prose this
     way, CHANGES_ITEM_RE (whitespace after the period) does not."""
     text = (
         "# One change:\n"

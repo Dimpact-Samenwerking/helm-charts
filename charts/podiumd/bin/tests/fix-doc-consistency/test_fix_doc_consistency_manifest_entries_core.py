@@ -8,6 +8,8 @@ from lib.fix_doc_consistency.manifest_entries_core import BaselineRelease
 from lib.fix_doc_consistency.manifest_entries_core import ManifestEntriesContext
 from lib.fix_doc_consistency.manifest_entries_core import fix_images_manifest_entries
 from lib.fix_doc_consistency.manifest_entries_core import resolve_entry_version
+from tests.fixture_data import SHA256_A
+from tests.fixture_data import SHA256_B
 
 if TYPE_CHECKING:
     from lib.chart.chart_yaml import ChartDependency
@@ -272,14 +274,14 @@ def test_fix_images_manifest_entries_correctly_verified_digest_changed_untouched
         "- name: python\n"
         "  url: docker.io/library/python\n"
         '  version: "3.14.7-slim"\n'
-        '  digest: "sha256:' + "b" * 64 + '"\n'
+        f'  digest: "{SHA256_B}"\n'
     )
     deps: list[ChartDependency] = [{"name": "keycloak-operator", "version": "1.13.0"}]
     target_values: YamlMapping = {
         "keycloak-operator": {
             "jobs": {
                 "ensurePodiumdAdminUser": {
-                    "initImage": {"repository": "docker.io/library/python", "tag": "3.14.7-slim@sha256:" + "b" * 64}
+                    "initImage": {"repository": "docker.io/library/python", "tag": f"3.14.7-slim@{SHA256_B}"}
                 }
             }
         }
@@ -288,7 +290,7 @@ def test_fix_images_manifest_entries_correctly_verified_digest_changed_untouched
         "keycloak-operator": {
             "jobs": {
                 "ensurePodiumdAdminUser": {
-                    "initImage": {"repository": "docker.io/library/python", "tag": "3.14.7-slim@sha256:" + "a" * 64}
+                    "initImage": {"repository": "docker.io/library/python", "tag": f"3.14.7-slim@{SHA256_A}"}
                 }
             }
         }

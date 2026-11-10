@@ -6,6 +6,7 @@ Partial-file fallback is only covered for dry_check/cve_scan/release_secret.
 from pathlib import Path
 from types import ModuleType
 
+import pytest
 import yaml
 
 FULL_SETTINGS = {
@@ -89,7 +90,7 @@ ACCESSOR_CASES = [
     ("dry_check_high_similarity_threshold", 0.75, 0.8, None),
     ("dry_check_min_significant_lines", 8, 12, None),
     ("release_secret_kubernetes_limit_bytes", 1024 * 1024, 2097152, None),
-    ("release_secret_warn_at_fraction_of_limit", 0.90, 0.75, None),
+    ("release_secret_warn_at_fraction_of_limit", 0.9, 0.75, None),
     ("dependency_fetch_retry_attempts", 3, 5, None),
     ("dependency_fetch_retry_backoff_seconds", (5, 15, 45), (1, 2, 3), tuple),
     ("quality_gates_kubeconform_failing_statuses", {"statusError", "statusInvalid"}, {"statusError"}, set),
@@ -130,15 +131,15 @@ ACCESSOR_CASES = [
         dict,
     ),
     (
-        "component_resolution_chart_version_lockstep_components",
-        frozenset({"kiss-chart", "pabc", "eck-operator", "internetaakafhandeling"}),
-        frozenset({"kiss-chart", "pabc"}),
+        "component_resolution_lockstep_components",
+        frozenset(("kiss-chart", "pabc", "eck-operator", "internetaakafhandeling")),
+        frozenset(("kiss-chart", "pabc")),
         frozenset,
     ),
     (
         "component_resolution_native_components",
-        frozenset({"frankgateway", "keycloak", "kiss-eck"}),
-        frozenset({"other-native"}),
+        frozenset(("frankgateway", "keycloak", "kiss-eck")),
+        frozenset(("other-native",)),
         frozenset,
     ),
     (
@@ -178,7 +179,8 @@ ACCESSOR_CASES = [
 
 def test_every_accessor_documented_and_present(libsettings: ModuleType):
     """A typo'd accessor name must not silently drop out of the parametrized tests."""
-    for name, *_ in ACCESSOR_CASES:
+    names = [case[0] for case in ACCESSOR_CASES]
+    for name in names:
         assert hasattr(libsettings, name), f"lib.settings.{name} missing"
 
 
@@ -190,7 +192,7 @@ def test_missing_settings_file_falls_back_to_defaults(libsettings: ModuleType, t
 
 def test_no_etc_directory_at_all_does_not_crash(libsettings: ModuleType, tmp_path: Path):
     """A chart_dir with no etc/ directory at all must not crash."""
-    assert libsettings._load_settings(tmp_path) == {}
+    assert libsettings.load_settings(tmp_path) == {}
     for name, default, _override, _cast in ACCESSOR_CASES:
         assert getattr(libsettings, name)(tmp_path) == default
 
@@ -217,8 +219,8 @@ def test_partial_settings_file_mixes_overrides_and_defaults(libsettings: ModuleT
             },
         },
     )
-    assert libsettings.dry_check_similarity_threshold(tmp_path) == 0.5
-    assert libsettings.dry_check_high_similarity_threshold(tmp_path) == 0.8
+    assert libsettings.dry_check_similarity_threshold(tmp_path) == pytest.approx(0.5)
+    assert libsettings.dry_check_high_similarity_threshold(tmp_path) == pytest.approx(0.8)
     assert libsettings.dry_check_min_significant_lines(tmp_path) == 12
 
     assert libsettings.cve_max_cves_per_package_before_summarizing(tmp_path) == 5
@@ -234,14 +236,14 @@ def test_partial_settings_file_mixes_overrides_and_defaults(libsettings: ModuleT
         },
     )
     assert libsettings.release_secret_kubernetes_limit_bytes(tmp_path) == 2097152
-    assert libsettings.release_secret_warn_at_fraction_of_limit(tmp_path) == 0.90
+    assert libsettings.release_secret_warn_at_fraction_of_limit(tmp_path) == pytest.approx(0.9)
 
 
 def test_empty_settings_file_does_not_crash(libsettings: ModuleType, tmp_path: Path):
     """A settings.yaml that parses to None (empty file) behaves like a missing one."""
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "settings.yaml").write_text("", encoding="utf-8")
-    assert libsettings._load_settings(tmp_path) == {}
+    assert libsettings.load_settings(tmp_path) == {}
     for name, default, _override, _cast in ACCESSOR_CASES:
         assert getattr(libsettings, name)(tmp_path) == default
 
@@ -303,10 +305,10 @@ def test_digest_pinning_exceptions_partial_entry_defaults_missing_keys(libsettin
 
 def test_setting_returns_a_copy_of_the_cached_value(libsettings: ModuleType, tmp_path: Path):
     write_settings(tmp_path, FULL_SETTINGS)
-    suffixes = libsettings._setting(tmp_path, "repo_access", "never_probe_host_suffixes")
+    suffixes = libsettings.setting(tmp_path, "repo_access", "never_probe_host_suffixes")
     assert isinstance(suffixes, list)
     suffixes.append("CHANGED")
-    assert libsettings._setting(tmp_path, "repo_access", "never_probe_host_suffixes") == [
+    assert libsettings.setting(tmp_path, "repo_access", "never_probe_host_suffixes") == [
         "azurecr.io",
         "example.internal",
     ]

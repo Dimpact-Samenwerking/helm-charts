@@ -37,18 +37,18 @@ def _entries_problem(entries: YamlValue, *, complete: bool) -> str | None:
     """What is wrong with `entries` as a list of ManifestEntry (with all four
     keys present when `complete`), or None. Entries are counted from 1, as
     a reader of the file counts them."""
-    if not isinstance(entries, list) or not all(isinstance(e, dict) for e in entries):
+    if not isinstance(entries, list) or not all(isinstance(entry, dict) for entry in entries):
         return "does not contain a YAML list of mappings"
-    for i, entry in enumerate(entries, start=1):
+    for entry_number, entry in enumerate(entries, start=1):
         if not isinstance(entry, dict):
             continue
         required = MANIFEST_ENTRY_KEYS if complete else ("name",)
-        missing = [k for k in required if k not in entry]
+        missing = [key for key in required if key not in entry]
         if missing:
-            return f"entry #{i} is missing key(s): {', '.join(missing)}"
-        wrong = [k for k in MANIFEST_ENTRY_KEYS if k in entry and not isinstance(entry[k], str)]
+            return f"entry #{entry_number} is missing key(s): {', '.join(missing)}"
+        wrong = [key for key in MANIFEST_ENTRY_KEYS if key in entry and not isinstance(entry[key], str)]
         if wrong:
-            return f"entry #{i}: {', '.join(wrong)} must be a quoted string"
+            return f"entry #{entry_number}: {', '.join(wrong)} must be a quoted string"
     return None
 
 
@@ -97,20 +97,24 @@ class ParsedManifest:
 
 def entry_line_indices(lines: list[str]) -> list[int]:
     """Index of each entry's "- name:" line."""
-    return [i for i, line in enumerate(lines) if ENTRY_START_RE.match(line)]
+    return [index for index, line in enumerate(lines) if ENTRY_START_RE.match(line)]
 
 
 def entry_block_end(lines: list[str], start: int) -> int:
     """End (exclusive) of the entry starting at lines[start]: the next entry or blank line."""
-    return next(
-        (i for i in range(start + 1, len(lines)) if ENTRY_START_RE.match(lines[i]) or not lines[i].strip()), len(lines)
-    )
+    following = range(start + 1, len(lines))
+    return next((index for index in following if _is_entry_block_end(lines[index])), len(lines))
+
+
+def _is_entry_block_end(line: str) -> bool:
+    return bool(ENTRY_START_RE.match(line)) or not line.strip()
 
 
 def entry_field_line(lines: list[str], start: int, field: str) -> int | None:
     """Index of the "<field>:" line with a value in the entry starting at lines[start], or None."""
     field_re = re.compile(rf"^\s*{re.escape(field)}:\s*\S")
-    return next((i for i in range(start, entry_block_end(lines, start)) if field_re.match(lines[i])), None)
+    block = range(start, entry_block_end(lines, start))
+    return next((index for index in block if field_re.match(lines[index])), None)
 
 
 def parse_manifest_lines(text: str) -> ParsedManifest | None:

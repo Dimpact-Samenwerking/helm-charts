@@ -51,20 +51,20 @@ def _scan_list_item_line(
     km = key_re.match(rest)
     if km:
         key = km.group(2).strip()
-        scope_id = tuple(k for _, k in scan.stack)
+        scope_id = tuple(scope_key for _, scope_key in scan.stack)
         _register_duplicate_key(scan, scope_id, key, line_no)
         scan.stack.append((list_indent + 2, key))
 
 
 def _scan_key_line(scan: DuplicateKeyScan, key_re: re.Pattern[str], line: str, line_no: int):
-    m = key_re.match(line)
-    if not m:
+    key_match = key_re.match(line)
+    if not key_match:
         return
-    indent = len(m.group(1))
-    key = m.group(2).strip()
+    indent = len(key_match.group(1))
+    key = key_match.group(2).strip()
     while scan.stack and scan.stack[-1][0] >= indent:
         scan.stack.pop()
-    scope_id = tuple(k for _, k in scan.stack)
+    scope_id = tuple(scope_key for _, scope_key in scan.stack)
     _register_duplicate_key(scan, scope_id, key, line_no)
     scan.stack.append((indent, key))
 
@@ -77,19 +77,19 @@ def check_duplicate_keys(chart_dir: Path):
     dash_re = re.compile(r"^(\s*)-\s*(.*)$")
     scan = DuplicateKeyScan(filename=values_path.name)
 
-    for i, line in enumerate(lines, 1):
+    for line_no, line in enumerate(lines, 1):
         stripped = line.lstrip()
         if stripped.startswith("#"):
             continue
         if stripped.startswith("-"):
-            _scan_list_item_line(scan, key_re, dash_re, line, i)
+            _scan_list_item_line(scan, key_re, dash_re, line, line_no)
             continue
-        _scan_key_line(scan, key_re, line, i)
+        _scan_key_line(scan, key_re, line, line_no)
 
     if scan.duplicates:
         print(f"FOUND {len(scan.duplicates)} duplicate(s):")
-        for d in scan.duplicates:
-            print(" ", d)
+        for duplicate in scan.duplicates:
+            print(" ", duplicate)
         return False, f"{len(scan.duplicates)} duplicate(s) found"
     print(f"OK: no duplicate keys in {values_path.name}")
     return True, "0 duplicates"

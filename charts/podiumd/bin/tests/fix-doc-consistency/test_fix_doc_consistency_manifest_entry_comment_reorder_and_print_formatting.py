@@ -276,7 +276,8 @@ def test_main_reorders_table_and_changes_to_match_values_yaml(
     table_rows = [line for line in lines if line.startswith("| Open")]
     assert table_rows == ["| Open Zaak | 1.27.4 | 1.14.2 | - |", "| Open Inwoner | 2.4.2 | 2.4.0 | - |"]
     assert upgrade.index("### Open Zaak") < upgrade.index("### Open Inwoner")
-    assert "Zaak details." in upgrade and "Inwoner details." in upgrade  # block content preserved
+    assert "Zaak details." in upgrade
+    assert "Inwoner details." in upgrade
 
     out = capsys.readouterr().out
     assert "Reordering" in out

@@ -11,13 +11,13 @@ from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
 from lib.chart.registered_paths import native_components
 from lib.chart.repo_and_path_resolution import full_repository_for_path
-from lib.chart.values_tree_primitives import image_version_changed
+from lib.chart.values_tree_primitives import ValuesPath
+from lib.chart.values_tree_primitives import is_image_version_changed
 from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.values_tree_primitives import version_of
 from lib.images_manifest import ManifestEntry
 from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
-from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
@@ -48,16 +48,17 @@ def compute_changed_components(
     # Baseline pins as the baseline's own dependencies registered them (a chart's bare version fields).
     baseline_paths = dict(find_all_image_and_version_paths(baseline_values, baseline_deps)) if baseline_values else {}
 
-    global_tags = {tag for _path, tag in global_image_paths(values)}
+    global_tags = {tag for _, tag in global_image_paths(values)}
     if baseline_values:
-        global_tags |= {tag for _path, tag in global_image_paths(baseline_values)}
+        global_tags |= {tag for _, tag in global_image_paths(baseline_values)}
 
-    def subtree_paths(key: str, paths: dict[ImagePath, str]):
-        return {p: version_of(t) for p, t in paths.items() if p[0] == key and t not in global_tags}
+    def subtree_paths(key: str, paths: dict[ValuesPath, str]):
+        owned = {path: tag for path, tag in paths.items() if path[0] == key and tag not in global_tags}
+        return {path: version_of(tag) for path, tag in owned.items()}
 
     natives = native_components(chart_dir)
 
-    def differs(key: str) -> bool:
+    def is_different(key: str) -> bool:
         if subtree_paths(key, current_paths) != subtree_paths(key, baseline_paths):
             return True
         if key in natives:
@@ -69,7 +70,7 @@ def compute_changed_components(
             or normalize_version(cur_dep["version"]) != normalize_version(base_dep["version"])
         )
 
-    return {key for key in set(current_by_key) | set(baseline_by_key) | set(natives) if differs(key)}
+    return {key for key in set(current_by_key) | set(baseline_by_key) | set(natives) if is_different(key)}
 
 
 @dataclass
@@ -91,16 +92,16 @@ class ManifestDiffInputs:
 
     entries: list[ManifestEntry]
     current_paths: dict[tuple[str, ...], str]
-    baseline_paths: dict[ImagePath, str]
+    baseline_paths: dict[ValuesPath, str]
     repo_map: dict[str, tuple[str, ...]]
-    repo_groups: dict[str, list[ImagePath]]
-    unresolvable_paths: set[ImagePath]
+    repo_groups: dict[str, list[ValuesPath]]
+    unresolvable_paths: set[ValuesPath]
     context: ManifestDiffContext = field(default_factory=ManifestDiffContext)
 
 
-def _digest_changed(
+def _is_digest_changed(
     inputs: ManifestDiffInputs,
-    sibling_fields: dict[ImagePath, DigestPinningException],
+    sibling_fields: dict[ValuesPath, DigestPinningException],
     path: tuple[str, ...],
     tag: str,
     baseline_tag: str,
@@ -116,16 +117,16 @@ def _digest_changed(
     return current_digest.split("@", 1)[1] != baseline_digest.split("@", 1)[1]
 
 
-def _pin_changed(
+def _is_pin_changed(
     inputs: ManifestDiffInputs,
-    path_to_repo: dict[ImagePath, str],
-    sibling_fields: dict[ImagePath, DigestPinningException],
+    path_to_repo: dict[ValuesPath, str],
+    sibling_fields: dict[ValuesPath, DigestPinningException],
     path: tuple[str, ...],
     tag: str,
 ) -> bool:
     baseline_tag = inputs.baseline_paths.get(path)
     if baseline_tag is not None:
-        return image_version_changed(baseline_tag, tag) or _digest_changed(
+        return is_image_version_changed(baseline_tag, tag) or _is_digest_changed(
             inputs, sibling_fields, path, tag, baseline_tag
         )
     # New path: check past images-<version>.yaml manifests for this
@@ -150,16 +151,16 @@ def _pin_changed(
         )
     if historical_version is None:
         return True
-    return image_version_changed(historical_version, tag)
+    return is_image_version_changed(historical_version, tag)
 
 
 def _match_entries(
-    inputs: ManifestDiffInputs, representative_of: dict[ImagePath, ImagePath], changed_paths: set[ImagePath]
-) -> tuple[set[ImagePath], list[str], list[str]]:
+    inputs: ManifestDiffInputs, representative_of: dict[ValuesPath, ValuesPath], changed_paths: set[ValuesPath]
+) -> tuple[set[ValuesPath], list[str], list[str]]:
     """(matched_paths, stale_entry_names, unmatched_entry_names): each entry
     resolved to its (group-representative) values path and classified
     against changed_paths."""
-    matched_paths: set[ImagePath] = set()
+    matched_paths: set[ValuesPath] = set()
     stale_entry_names: list[str] = []
     unmatched_entry_names: list[str] = []
     for entry in inputs.entries:
@@ -176,7 +177,7 @@ def _match_entries(
     return matched_paths, stale_entry_names, unmatched_entry_names
 
 
-def find_images_manifest_list_diff(inputs: ManifestDiffInputs) -> tuple[list[ImagePath], list[str], list[str]]:
+def find_images_manifest_list_diff(inputs: ManifestDiffInputs) -> tuple[list[ValuesPath], list[str], list[str]]:
     """(missing_paths, stale_entry_names, unmatched_entry_names): the
     manifest's entries checked against every image pin whose version, or
     digest, differs between current_paths and baseline_paths. All empty
@@ -212,7 +213,7 @@ def find_images_manifest_list_diff(inputs: ManifestDiffInputs) -> tuple[list[Ima
         if repo in inputs.repo_map
     }
     path_to_repo = {path: repo for repo, paths in inputs.repo_groups.items() for path in paths}
-    # Resolved once, None-safe, instead of per _digest_changed call.
+    # Resolved once, None-safe, instead of per _is_digest_changed call.
     sibling_fields = digest_pinning_exceptions(inputs.context.chart_dir) if inputs.context.chart_dir is not None else {}
 
     changed_paths = {
@@ -220,7 +221,7 @@ def find_images_manifest_list_diff(inputs: ManifestDiffInputs) -> tuple[list[Ima
         for path, tag in inputs.current_paths.items()
         if representative_of.get(path, path) == path
         and path not in inputs.unresolvable_paths
-        and _pin_changed(inputs, path_to_repo, sibling_fields, path, tag)
+        and _is_pin_changed(inputs, path_to_repo, sibling_fields, path, tag)
     }
 
     matched_paths, stale_entry_names, unmatched_entry_names = _match_entries(inputs, representative_of, changed_paths)

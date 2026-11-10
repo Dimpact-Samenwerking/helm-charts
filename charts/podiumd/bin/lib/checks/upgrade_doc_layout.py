@@ -21,6 +21,7 @@ trailing note on a YAML block reads the same as prose to a parser.
 import re
 import shutil
 
+from itertools import takewhile
 from pathlib import Path
 
 from lib.chart.release_baseline_basics import chart_version
@@ -56,6 +57,8 @@ _ORDER = ", ".join(f'"## {name}"' for name in UPGRADE_GUIDE_SECTIONS)
 # would let insert_changes_section add a second "## Changes").
 _SUFFIXED_SECTIONS = (CHECKLIST_SECTION, *RUNBOOK_SECTIONS)
 _CHANGES_INDEX = UPGRADE_GUIDE_SECTIONS.index(CHANGES_SECTION)
+# The UPGRADE_GUIDE_SECTIONS indices of the A to F runbook sections.
+_RUNBOOK_INDICES = range(1, len(RUNBOOK_SECTIONS) + 1)
 
 
 def _section_index(heading: MarkdownHeading) -> int | None:
@@ -97,16 +100,16 @@ def _section_issues(name: str, level2: list[MarkdownHeading]) -> tuple[list[str]
         last_index, last_text = max((index, heading.text), (last_index, last_text))
     for index, section in enumerate(UPGRADE_GUIDE_SECTIONS):
         if index not in found:
-            before = [UPGRADE_GUIDE_SECTIONS[i] for i in range(index) if i in found]
+            before = [UPGRADE_GUIDE_SECTIONS[position] for position in range(index) if position in found]
             after = f' after "## {found[UPGRADE_GUIDE_SECTIONS.index(before[-1])].text}"' if before else ""
             issues.append(f'{name}: missing "## {section}"{after}')
     return issues, found
 
 
 def _if_the_run_fails_issues(name: str, headings: list[MarkdownHeading], deploy_run: MarkdownHeading) -> list[str]:
-    start = headings.index(deploy_run) + 1
-    end = next((i for i in range(start, len(headings)) if headings[i].marks == "##"), len(headings))
-    if any(h.marks == "###" and h.text == IF_THE_RUN_FAILS_SECTION for h in headings[start:end]):
+    after_deploy_run = headings[headings.index(deploy_run) + 1 :]
+    subsections = takewhile(lambda heading: heading.marks != "##", after_deploy_run)
+    if any(heading.marks == "###" and heading.text == IF_THE_RUN_FAILS_SECTION for heading in subsections):
         return []
     return [f'{name}: "## {deploy_run.text}" has no "### {IF_THE_RUN_FAILS_SECTION}" section']
 
@@ -116,21 +119,21 @@ def _checklist_link_issues(name: str, lines: list[str], found: dict[int, Markdow
 
     Nothing when the Checklist is not before them: the order finding covers that."""
     checklist = found[UPGRADE_GUIDE_SECTIONS.index(CHECKLIST_SECTION)]
-    first_runbook = min(found[i].line for i in range(1, len(RUNBOOK_SECTIONS) + 1) if i in found)
+    first_runbook = min(found[position].line for position in _RUNBOOK_INDICES if position in found)
     if first_runbook < checklist.line:
         return []
     checklist_text = "".join(lines[checklist.line : first_runbook])
     return [
         f'{name}: the Checklist does not link "## {heading.text}" (#{heading_slug(heading.text)})'
-        for i, heading in sorted(found.items())
-        if 1 <= i <= len(RUNBOOK_SECTIONS) and f"](#{heading_slug(heading.text)})" not in checklist_text
+        for position, heading in sorted(found.items())
+        if position in _RUNBOOK_INDICES and f"](#{heading_slug(heading.text)})" not in checklist_text
     ]
 
 
 def upgrade_guide_layout_issues(name: str, text: str, upgrade_docs_baseline: str, target: str) -> list[str]:
     """Layout findings for the upgrade guide `name` with content `text`."""
     headings = markdown_headings(text)
-    level2 = [h for h in headings if h.marks == "##"]
+    level2 = [heading for heading in headings if heading.marks == "##"]
     lines = text.splitlines(keepends=True)
     opening = "".join(lines[: level2[0].line] if level2 else lines)
 
@@ -150,7 +153,7 @@ def upgrade_guide_layout_issues(name: str, text: str, upgrade_docs_baseline: str
     if deploy_run is not None:
         issues.extend(_if_the_run_fails_issues(name, headings, deploy_run))
     if UPGRADE_GUIDE_SECTIONS.index(CHECKLIST_SECTION) in found and any(
-        i in found for i in range(1, len(RUNBOOK_SECTIONS) + 1)
+        position in found for position in _RUNBOOK_INDICES
     ):
         issues.extend(_checklist_link_issues(name, lines, found))
     return issues
@@ -159,9 +162,9 @@ def upgrade_guide_layout_issues(name: str, text: str, upgrade_docs_baseline: str
 def values_deltas_layout_issues(name: str, text: str) -> list[str]:
     """Layout findings for the values-deltas doc `name` with content `text`."""
     headings = markdown_headings(text)
-    level2 = [h for h in headings if h.marks == "##"]
+    level2 = [candidate for candidate in headings if candidate.marks == "##"]
     lines = text.splitlines()
-    title_end = next((h.line + 1 for h in headings if h.marks == "#"), 0)
+    title_end = next((candidate.line + 1 for candidate in headings if candidate.marks == "#"), 0)
     opening = lines[title_end : level2[0].line if level2 else len(lines)]
 
     issues: list[str] = []

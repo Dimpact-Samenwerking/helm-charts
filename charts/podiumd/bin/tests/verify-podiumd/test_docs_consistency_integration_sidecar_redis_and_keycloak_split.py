@@ -8,6 +8,10 @@ from types import ModuleType
 
 import pytest
 
+from tests.fixture_data import HEX_C
+from tests.fixture_data import HEX_E
+from tests.fixture_data import SHA256_E
+
 
 def git(*args, cwd):
     subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
@@ -404,13 +408,13 @@ def test_split_tag_sha_path_real_mismatch_is_still_caught(
 ):
     """A real digest mismatch on a resolved sha: field must still be caught."""
     values_path = keycloak_split_chart_repo / "values.yaml"
-    values_path.write_text(values_path.read_text().replace('"' + "c" * 64 + '"', '"' + "e" * 64 + '"'))
+    values_path.write_text(values_path.read_text().replace(f'"{HEX_C}"', f'"{HEX_E}"'))
 
     ok, _detail = vp.check_docs_consistency(keycloak_split_chart_repo, upgrade_docs_baseline="4.8.5")
     out = capsys.readouterr().out
 
     assert ok is False
-    assert_would_change(out, '+  digest: "sha256:' + "e" * 64)
+    assert_would_change(out, f'+  digest: "{SHA256_E}')
 
 
 def test_sidecar_with_no_row_at_all_is_caught_as_missing(

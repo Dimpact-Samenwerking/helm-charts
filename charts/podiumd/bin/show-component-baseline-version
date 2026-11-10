@@ -34,7 +34,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 # sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
-from lib.baseline_report import show_baseline_section
+from lib.baseline_report import has_shown_baseline_section
 from lib.chart.paths import CHART_DIR
 from lib.chart.release_baseline_basics import release_table_baseline as read_release_table_baseline
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
@@ -46,9 +46,9 @@ def show_at_baseline(chart_dir: Path, label: str, baseline: str | None, componen
     """Print the component's state at `baseline`; True if shown."""
 
     def resolve(baseline_value: str):
-        ref, dep, values_key, image_paths, app_versions, error = component_state_at_baseline(
-            chart_dir, "charts/podiumd", baseline_value, component
-        )
+        state = component_state_at_baseline(chart_dir, "charts/podiumd", baseline_value, component)
+        ref, dep, values_key = state[:3]
+        image_paths, app_versions, error = state[3:]
         if error or image_paths is None:
             return f"error: {error}"
 
@@ -71,12 +71,12 @@ def show_at_baseline(chart_dir: Path, label: str, baseline: str | None, componen
             )
         return None
 
-    return show_baseline_section(label, baseline, resolve)
+    return has_shown_baseline_section(label, baseline, resolve)
 
 
 def main():
     """CLI entry point; exits 1 only when neither baseline can be shown."""
-    (component,) = positional_args(__doc__, 1)
+    component = positional_args(__doc__, 1)[0]
 
     chart_dir = CHART_DIR
 

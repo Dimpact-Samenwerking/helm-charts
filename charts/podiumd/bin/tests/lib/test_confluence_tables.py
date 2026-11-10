@@ -6,6 +6,7 @@ import urllib.request
 
 from email.message import Message
 from types import ModuleType
+from typing import override
 
 import pytest
 
@@ -85,7 +86,7 @@ def test_api_base_url_server_site(libconfluencetables: ModuleType):
 
 class FakeResponse:
     def __init__(self, payload):
-        self._payload = json.dumps(payload).encode("utf-8")
+        self._payload: bytes = json.dumps(payload).encode("utf-8")
 
     def read(self):
         return self._payload
@@ -115,7 +116,8 @@ def test_fetch_page_html_sends_basic_auth_and_returns_body_storage(libconfluence
     assert captured["url"] == "https://example.atlassian.net/wiki/rest/api/content/123?expand=body.storage"
     import base64
 
-    assert captured["auth"] == "Basic " + base64.b64encode(b"kees@info.nl:s3cr3t").decode()
+    token = base64.b64encode(b"kees@info.nl:s3cr3t").decode()
+    assert captured["auth"] == f"Basic {token}"
 
 
 def test_fetch_page_html_missing_body_storage_raises(libconfluencetables: ModuleType):
@@ -160,6 +162,7 @@ def test_fetch_page_html_url_error_raises(libconfluencetables: ModuleType):
 
 def test_fetch_page_html_non_json_response_raises(libconfluencetables: ModuleType):
     class LoginPageResponse(FakeResponse):
+        @override
         def read(self):
             return b"<html>Log in</html>"
 

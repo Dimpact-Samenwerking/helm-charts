@@ -8,23 +8,10 @@ from types import ModuleType
 import pytest
 
 from lib.image import version as image_version
-
-
-def write_values(tmp_path: Path, text):
-    path = tmp_path / "values.yaml"
-    path.write_text(text, encoding="utf-8")
-    return path
-
-
-def write_chart_yaml(chart_dir, deps):
-    """`deps`: [(name, alias_or_none), ...]."""
-    lines = ["apiVersion: v2", "name: podiumd", "version: 1.0.0", "dependencies:"]
-    for name, alias in deps:
-        lines.append(f"  - name: {name}")
-        if alias:
-            lines.append(f"    alias: {alias}")
-        lines += ["    version: 1.0.0", '    repository: "@x"']
-    (chart_dir / "Chart.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
+from tests.fixture_data import SHA256_A
+from tests.fixture_data import SHA256_B
+from tests.fixture_data import write_chart_with_dependencies
+from tests.fixture_data import write_values_text
 
 
 def test_help_flag_prints_docstring_and_exits_zero(
@@ -50,7 +37,7 @@ def test_wrong_arg_count_prints_docstring_and_exits_one(
 def test_main_updates_matching_pin(
     uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    values_path = write_values(
+    values_path = write_values_text(
         tmp_path,
         (
             "pabc:\n"
@@ -60,7 +47,7 @@ def test_main_updates_matching_pin(
         ),
     )
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
-    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
     monkeypatch.setattr("sys.argv", ["update-image-version", "pabc", "pabc-api", "1.1.2"])
 
     uiv.main()
@@ -72,7 +59,7 @@ def test_main_updates_matching_pin(
 
 def pabc_values(tmp_path: Path, version: str) -> Path:
     """values.yaml with one pabc-api pin at `version`."""
-    return write_values(
+    return write_values_text(
         tmp_path,
         (
             "pabc:\n"
@@ -84,7 +71,7 @@ def pabc_values(tmp_path: Path, version: str) -> Path:
 
 
 def registry_has_b_digest(_host: str, _repo: str, _tag: str) -> tuple[bool, str]:
-    return True, "sha256:" + "b" * 64
+    return True, SHA256_B
 
 
 def test_main_ends_with_fix_doc_consistency(
@@ -121,7 +108,7 @@ def test_main_already_at_target_still_runs_fix_doc_consistency(
 def test_main_reports_noop_when_already_at_target(
     uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    values_path = write_values(
+    values_path = write_values_text(
         tmp_path,
         (
             "pabc:\n"
@@ -144,14 +131,14 @@ def test_main_resolves_given_component_key_and_basename(
     uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
     """<key> scopes the search to that component's values.yaml subtree."""
-    write_chart_yaml(tmp_path, [("openklant", None)])
-    values_path = write_values(
+    write_chart_with_dependencies(tmp_path, [("openklant", None)])
+    values_path = write_values_text(
         tmp_path,
         (f'openklant:\n  image:\n    repository: maykinmedia/open-klant\n    tag: "2.15.0@sha256:{"a" * 64}"\n'),
     )
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
-    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
     monkeypatch.setattr("sys.argv", ["update-image-version", "openklant", "open-klant", "2.15.1"])
 
     uiv.main()
@@ -162,14 +149,14 @@ def test_main_resolves_given_component_key_and_basename(
 def test_main_accepts_dependency_name_not_just_alias(uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Regression: <key> accepts the Chart.yaml name as well as the alias
     (the values.yaml key), like update-component-version's <component>."""
-    write_chart_yaml(tmp_path, [("zaakafhandelcomponent", "zac")])
-    values_path = write_values(
+    write_chart_with_dependencies(tmp_path, [("zaakafhandelcomponent", "zac")])
+    values_path = write_values_text(
         tmp_path,
         (f'zac:\n  image:\n    repository: infonl/zaakafhandelcomponent\n    tag: "5.4.3@sha256:{"a" * 64}"\n'),
     )
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
-    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
     monkeypatch.setattr("sys.argv", ["update-image-version", "zaakafhandelcomponent", "zaakafhandelcomponent", "5.4.4"])
 
     uiv.main()
@@ -182,8 +169,8 @@ def test_main_raises_when_basename_not_unique_under_key(
 ):
     """Distinct repositories sharing a basename under one <key> is an error,
     never a guess."""
-    write_chart_yaml(tmp_path, [("zaakafhandelcomponent", "zac")])
-    values_path = write_values(
+    write_chart_with_dependencies(tmp_path, [("zaakafhandelcomponent", "zac")])
+    values_path = write_values_text(
         tmp_path,
         (
             "zac:\n"
@@ -205,9 +192,7 @@ def test_main_raises_when_basename_not_unique_under_key(
 def test_main_exits_on_no_match(
     uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    values_path = write_values(
-        tmp_path, 'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:' + "a" * 64 + '"\n'
-    )
+    values_path = write_values_text(tmp_path, f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@{SHA256_A}"\n')
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
     monkeypatch.setattr("sys.argv", ["update-image-version", "a", "curl", "8.22.0"])
 

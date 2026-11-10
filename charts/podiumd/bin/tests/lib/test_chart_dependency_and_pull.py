@@ -5,12 +5,15 @@
 
 from pathlib import Path
 from types import ModuleType
+from typing import TYPE_CHECKING
 
 import pytest
 import yaml
 
-from lib.chart.chart_yaml import ChartDependency
-from lib.yaml_types import YamlMapping
+from lib.release_baseline import BaselineChartState
+
+if TYPE_CHECKING:
+    from lib.yaml_types import YamlMapping
 
 # --- find_dependency ---
 
@@ -129,7 +132,7 @@ def test_component_state_at_baseline_success(
     monkeypatch.setattr(
         libchartrepoandpathresolution,
         "resolve_baseline_chart_state",
-        lambda chart_dir, baseline: (
+        lambda chart_dir, baseline: BaselineChartState(
             "podiumd-4.8.5",
             [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}],
             {"zac": {"image": {"tag": "5.0.2@sha256:abc"}}},
@@ -138,16 +141,14 @@ def test_component_state_at_baseline_success(
         ),
     )
 
-    ref, dep, values_key, image_paths, app_versions, error = libchartrepoandpathresolution.component_state_at_baseline(
-        tmp_path, "charts/podiumd", "4.8.5", "zac"
-    )
+    state = libchartrepoandpathresolution.component_state_at_baseline(tmp_path, "charts/podiumd", "4.8.5", "zac")
 
-    assert error is None
-    assert ref == "podiumd-4.8.5"
-    assert dep["name"] == "zaakafhandelcomponent"
-    assert values_key == "zac"
-    assert image_paths == ["image"]
-    assert app_versions == [("image", "5.0.2@sha256:abc")]
+    assert state.error is None
+    assert state.baseline_ref == "podiumd-4.8.5"
+    assert state.dep["name"] == "zaakafhandelcomponent"
+    assert state.values_key == "zac"
+    assert state.image_paths == ["image"]
+    assert state.app_versions == [("image", "5.0.2@sha256:abc")]
 
 
 def test_component_state_at_baseline_split_image_fields(
@@ -166,7 +167,7 @@ def test_component_state_at_baseline_split_image_fields(
     monkeypatch.setattr(
         libchartrepoandpathresolution,
         "resolve_baseline_chart_state",
-        lambda chart_dir, baseline: (
+        lambda chart_dir, baseline: BaselineChartState(
             "podiumd-4.9.4",
             [{"name": "redis-operator", "version": "0.26.1"}],
             {
@@ -183,14 +184,14 @@ def test_component_state_at_baseline_split_image_fields(
         ),
     )
 
-    ref, _dep, _values_key, image_paths, app_versions, error = (
-        libchartrepoandpathresolution.component_state_at_baseline(tmp_path, "charts/podiumd", "4.9.4", "redis-operator")
+    state = libchartrepoandpathresolution.component_state_at_baseline(
+        tmp_path, "charts/podiumd", "4.9.4", "redis-operator"
     )
 
-    assert error is None
-    assert ref == "podiumd-4.9.4"
-    assert image_paths == ["redisOperator.imageTag", "redisOperator.initContainerImageTag"]
-    assert app_versions == [
+    assert state.error is None
+    assert state.baseline_ref == "podiumd-4.9.4"
+    assert state.image_paths == ["redisOperator.imageTag", "redisOperator.initContainerImageTag"]
+    assert state.app_versions == [
         ("redisOperator.imageTag", "v0.26.0@sha256:abc"),
         ("redisOperator.initContainerImageTag", "v0.26.0@sha256:abc"),
     ]
@@ -202,15 +203,16 @@ def test_component_state_at_baseline_propagates_resolve_baseline_chart_state_err
     monkeypatch.setattr(
         libchartrepoandpathresolution,
         "resolve_baseline_chart_state",
-        lambda chart_dir, baseline: (None, [], {}, [], "could not resolve baseline '9.9.9' to a git ref (tried ...)"),
+        lambda chart_dir, baseline: BaselineChartState(
+            None, [], {}, [], "could not resolve baseline '9.9.9' to a git ref (tried ...)"
+        ),
     )
 
-    ref, dep, values_key, image_paths, app_versions, error = libchartrepoandpathresolution.component_state_at_baseline(
-        "chart_dir", "charts/podiumd", "9.9.9", "zac"
-    )
+    state = libchartrepoandpathresolution.component_state_at_baseline("chart_dir", "charts/podiumd", "9.9.9", "zac")
 
-    assert ref is dep is values_key is image_paths is app_versions is None
-    assert error == "could not resolve baseline '9.9.9' to a git ref (tried ...)"
+    assert state == libchartrepoandpathresolution.BaselineComponentState(
+        error="could not resolve baseline '9.9.9' to a git ref (tried ...)"
+    )
 
 
 def test_component_state_at_baseline_dependency_not_found(
@@ -219,15 +221,16 @@ def test_component_state_at_baseline_dependency_not_found(
     monkeypatch.setattr(
         libchartrepoandpathresolution,
         "resolve_baseline_chart_state",
-        lambda chart_dir, baseline: ("podiumd-4.8.5", [], {}, [], None),
+        lambda chart_dir, baseline: BaselineChartState("podiumd-4.8.5", [], {}, [], None),
     )
 
-    ref, dep, values_key, image_paths, app_versions, error = libchartrepoandpathresolution.component_state_at_baseline(
+    state = libchartrepoandpathresolution.component_state_at_baseline(
         tmp_path, "charts/podiumd", "4.8.5", "totally-unknown"
     )
 
-    assert ref is dep is values_key is image_paths is app_versions is None
-    assert error == ("no dependency named or aliased 'totally-unknown' in charts/podiumd/Chart.yaml at podiumd-4.8.5")
+    assert state == libchartrepoandpathresolution.BaselineComponentState(
+        error="no dependency named or aliased 'totally-unknown' in charts/podiumd/Chart.yaml at podiumd-4.8.5"
+    )
 
 
 def test_component_state_at_baseline_native_component(
@@ -237,20 +240,18 @@ def test_component_state_at_baseline_native_component(
     without a Chart.yaml dependency: dep None, its own name as the key."""
     values: YamlMapping = {"frankgateway": {"image": {"tag": "104@sha256:abc"}}}
 
-    def baseline_state(
-        _chart_dir: Path, _baseline: str
-    ) -> tuple[str, list[ChartDependency], YamlMapping, list[str], None]:
-        return "podiumd-4.9.1", [], values, [], None
+    def baseline_state(_chart_dir: Path, _baseline: str) -> BaselineChartState:
+        return BaselineChartState("podiumd-4.9.1", [], values, [], None)
 
     monkeypatch.setattr(libchartrepoandpathresolution, "resolve_baseline_chart_state", baseline_state)
 
-    ref, dep, values_key, image_paths, app_versions, error = libchartrepoandpathresolution.component_state_at_baseline(
+    state = libchartrepoandpathresolution.component_state_at_baseline(
         tmp_path, "charts/podiumd", "4.9.1", "FrankGateway"
     )
 
-    assert (ref, dep, values_key, error) == ("podiumd-4.9.1", None, "frankgateway", None)
-    assert image_paths == ["image"]
-    assert app_versions == [("image", "104@sha256:abc")]
+    assert state == libchartrepoandpathresolution.BaselineComponentState(
+        "podiumd-4.9.1", None, "frankgateway", ["image"], [("image", "104@sha256:abc")], None
+    )
 
 
 # --- chart_ref ---

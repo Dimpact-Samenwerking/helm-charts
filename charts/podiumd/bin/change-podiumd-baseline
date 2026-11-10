@@ -43,7 +43,7 @@ FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 
 def main():
     """CLI entry point; exits with the first failing sub-run's code."""
-    (new_baseline,) = positional_args(__doc__, 1)
+    new_baseline = positional_args(__doc__, 1)[0]
 
     # resolve_baseline_ref would also accept refs like "main" or "HEAD~2";
     # downstream consumers assume semver.

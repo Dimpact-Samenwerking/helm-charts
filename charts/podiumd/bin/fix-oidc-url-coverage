@@ -56,7 +56,7 @@ def client_block(values_path: str) -> tuple[str, str]:
     if values_path.startswith(KEYCLOAK_CLIENTS_PREFIX):
         name = values_path.removeprefix(KEYCLOAK_CLIENTS_PREFIX).split(".")[0]
         return name, KEYCLOAK_CLIENTS_PREFIX + name
-    top = values_path.split(".")[0]
+    top = values_path.split(".", maxsplit=1)[0]
     return top, top
 
 
@@ -69,13 +69,13 @@ def has_enabled_switch(block: str, values: YamlMapping, deps: list[ChartDependen
         return True
     dep = dep_for_values_key(deps, block)
     conditions = (dep or {}).get("condition", "")
-    return f"{block}.enabled" in [c.strip() for c in conditions.split(",")]
+    return f"{block}.enabled" in [condition.strip() for condition in conditions.split(",")]
 
 
 def _pad_to(text: str, column: int) -> str:
     """`text` padded with spaces to `column` characters, or with one
     space when it's already that long."""
-    return text.ljust(column) if len(text) < column else text + " "
+    return text.ljust(column) if len(text) < column else f"{text} "
 
 
 def entry_line(values_path: str, first_entry: str) -> str:
@@ -86,10 +86,8 @@ def entry_line(values_path: str, first_entry: str) -> str:
     indent = first_entry[: len(first_entry) - len(first_entry.lstrip())]
     line = _pad_to(f'{indent}(dict "name" "{name}"', first_entry.find('"enabled"'))
     line = _pad_to(f'{line}"enabled" .Values.{block}.enabled', first_entry.find('"oidcUrl"'))
-    line += f'"oidcUrl" .Values.{values_path}'
-    if values_path != f"{name}.configuration.oidcUrl":
-        line += f' "field" "{values_path}"'
-    return line + ")"
+    field = f' "field" "{values_path}"' if values_path != f"{name}.configuration.oidcUrl" else ""
+    return f'{line}"oidcUrl" .Values.{values_path}{field})'
 
 
 def find_fixes(text: str, values: YamlMapping, deps: list[ChartDependency]) -> tuple[list[str], list[str]] | None:
@@ -161,10 +159,8 @@ def main():
         sys.exit(1)
     if entries:
         template.write_text(apply_fixes(text, entries), encoding="utf-8")
-    print(
-        f"\nAdded {len(entries)} $oidcClients entry(ies)"
-        + (f"; {len(unresolved)} left unresolved — review by hand" if unresolved else "")
-    )
+    unresolved_note = f"; {len(unresolved)} left unresolved — review by hand" if unresolved else ""
+    print(f"\nAdded {len(entries)} $oidcClients entry(ies){unresolved_note}")
     sys.exit(1 if unresolved else 0)
 
 

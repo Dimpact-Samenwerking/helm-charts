@@ -25,17 +25,17 @@ def _significant_template_lines(path: Path) -> list[str]:
 
 def find_similar_template_pairs(templates_dir: Path, similarity_threshold: float, min_significant_lines: int):
     """(ratio, path_a, path_b) for every template pair at or above `similarity_threshold`, highest first."""
-    paths = sorted(p for p in templates_dir.rglob("*.yaml") if p.is_file())
-    significant = {p: _significant_template_lines(p) for p in paths}
-    candidates = [p for p in paths if len(significant[p]) >= min_significant_lines]
+    paths = sorted(path for path in templates_dir.rglob("*.yaml") if path.is_file())
+    significant = {path: _significant_template_lines(path) for path in paths}
+    candidates = [path for path in paths if len(significant[path]) >= min_significant_lines]
 
     findings: list[tuple[float, Path, Path]] = []
-    for i, a in enumerate(candidates):
-        for b in candidates[i + 1 :]:
-            ratio = difflib.SequenceMatcher(None, significant[a], significant[b]).ratio()
+    for index, path_a in enumerate(candidates):
+        for path_b in candidates[index + 1 :]:
+            ratio = difflib.SequenceMatcher(None, significant[path_a], significant[path_b]).ratio()
             if ratio >= similarity_threshold:
-                findings.append((ratio, a, b))
-    findings.sort(key=lambda f: -f[0])
+                findings.append((ratio, path_a, path_b))
+    findings.sort(key=lambda finding: -finding[0])
     return findings, len(candidates)
 
 
@@ -58,9 +58,9 @@ def check_dry(chart_dir: Path):
         return True, "0 candidate(s)"
 
     print(f"Found {len(findings)} structurally-similar template pair(s):")
-    for ratio, a, b in findings:
+    for ratio, path_a, path_b in findings:
         pct = round(ratio * 100)
-        rel_a, rel_b = a.relative_to(chart_dir), b.relative_to(chart_dir)
+        rel_a, rel_b = path_a.relative_to(chart_dir), path_b.relative_to(chart_dir)
         if ratio >= high_similarity_threshold:
             advice = (
                 "likely worth deduping — near-identical shape, probably just a "

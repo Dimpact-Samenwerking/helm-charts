@@ -8,10 +8,12 @@ from types import ModuleType
 
 import pytest
 
-import lib.chart.repo_and_path_resolution as repo_and_path_resolution
 import lib.image.version as image_version
 
+from lib.chart import repo_and_path_resolution
 from lib.chart import values_tag_sha_lines as tag_sha_lines
+from tests.fixture_data import SHA256_E
+from tests.fixture_data import sha256_digest
 
 OLD_DIGEST = "a" * 64
 
@@ -50,7 +52,7 @@ def setup_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType)
 def mock_registry_passes(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, digest_char="b"):
     """Mock registry_tag_exists in lib.image.version: the delegated tag update
     for explicit-repository images resolves it via that module's globals."""
-    digest = "sha256:" + digest_char * 64
+    digest = sha256_digest(digest_char)
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, digest))
 
 
@@ -59,7 +61,7 @@ def mock_verify_passes(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, digest_
     so tests need no helm/network. If `calls` is given, each
     check_image_versions call's pin paths are appended, to assert the
     check ran exactly once."""
-    digest = "sha256:" + digest_char * 64
+    digest = sha256_digest(digest_char)
 
     def fake_check_image_versions(_chart_dir, _dep, values, pins, app_version):
         image_paths = [pin.path for pin in pins]
@@ -157,7 +159,7 @@ def test_main_invokes_fix_helm_doc(
 ):
     """values.yaml changed, so fix-helm-doc must run or README.md goes stale."""
     calls = block_real_subprocess_calls
-    _chart_yaml, _values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
+    setup_repo(tmp_path, monkeypatch, ucv)
     mock_verify_passes(monkeypatch, ucv)
     mock_registry_passes(monkeypatch, ucv, "b")
     monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
@@ -377,7 +379,7 @@ def test_main_keycloak_operator_bumps_only_operator_image_not_server_image(
     server image is left untouched."""
     _chart_yaml, values_yaml = setup_keycloak_operator_repo(tmp_path, monkeypatch, ucv)
 
-    mock_registry_check(monkeypatch, ucv, lambda host, repo, tag: (True, "sha256:" + NEW_KEYCLOAK_DIGEST))
+    mock_registry_check(monkeypatch, ucv, lambda host, repo, tag: (True, f"sha256:{NEW_KEYCLOAK_DIGEST}"))
     monkeypatch.setattr("sys.argv", ["update-component-version", "keycloak-operator", "26.7.3", "1.12.1"])
 
     ucv.main()  # success path does not raise
@@ -405,7 +407,7 @@ def test_main_native_keycloak_bumps_server_image_anchor_site_only(
     chart_yaml, values_yaml = setup_keycloak_operator_repo(tmp_path, monkeypatch, ucv)
     original_chart_yaml = chart_yaml.read_text(encoding="utf-8")
 
-    mock_registry_check(monkeypatch, ucv, lambda host, repo, tag: (True, "sha256:" + NEW_KEYCLOAK_DIGEST))
+    mock_registry_check(monkeypatch, ucv, lambda host, repo, tag: (True, f"sha256:{NEW_KEYCLOAK_DIGEST}"))
     monkeypatch.setattr("sys.argv", ["update-component-version", "keycloak", "26.7.3", "native"])
 
     ucv.main()  # success path does not raise
@@ -461,7 +463,7 @@ def test_main_eck_operator_writes_digest_field_correctly_regression(
     it must be updated in place (no bogus "sha:" inserted) and keep the
     "sha256:" prefix its chart requires."""
     _chart_yaml, values_yaml = setup_eck_operator_repo(tmp_path, monkeypatch, ucv)
-    mock_registry_check(monkeypatch, ucv, lambda host, repo, tag: (True, "sha256:" + "e" * 64))
+    mock_registry_check(monkeypatch, ucv, lambda host, repo, tag: (True, SHA256_E))
     monkeypatch.setattr("sys.argv", ["update-component-version", "eck-operator", "3.6.0", "3.6.0"])
 
     ucv.main()  # success path does not raise
@@ -593,7 +595,7 @@ def test_write_tag_and_sha_alias_reference_left_untouched_anchor_still_updated_r
     assert located is not None
     anchor_tag_idx, anchor_tag_indent, anchor_sha_idx = located
     assert anchor_sha_idx is not None
-    assert tag_sha_lines.write_tag_and_sha(
+    tag_sha_lines.write_tag_and_sha(
         lines,
         (anchor_tag_idx, anchor_tag_indent, anchor_sha_idx),
         tag_sha_lines.SiblingWrite("26.7.3", "d" * 64, "sha", "keycloak-operator.operator.config.keycloakImage"),
@@ -610,13 +612,11 @@ def test_write_tag_and_sha_alias_reference_left_untouched_anchor_still_updated_r
     original_alias_tag_line = lines[alias_tag_idx]
     original_alias_sha_line = lines[alias_sha_idx]
 
-    tag_written = tag_sha_lines.write_tag_and_sha(
+    tag_sha_lines.write_tag_and_sha(
         lines,
         (alias_tag_idx, alias_tag_indent, alias_sha_idx),
         tag_sha_lines.SiblingWrite("26.7.3", "d" * 64, "sha", "keycloak.image"),
     )
-
-    assert tag_written is False
 
     # never clobbered into a literal
     assert lines[alias_tag_idx] == original_alias_tag_line == "    tag: *keycloakImageVersion\n"

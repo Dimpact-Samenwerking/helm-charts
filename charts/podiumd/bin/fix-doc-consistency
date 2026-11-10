@@ -58,7 +58,7 @@ from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgr
 from lib.chart.release_baseline_basics import upgrade_docs_side_paths as read_upgrade_docs_side_paths
 from lib.cli import positional_args
 from lib.dependencies import ensure_vendored_dependencies
-from lib.fix_doc_consistency.run import FixDocPaths
+from lib.fix_doc_consistency.rebase_state import FixDocPaths
 from lib.fix_doc_consistency.run import fix_docs
 from lib.image.baseline_refresh import refresh_images_baseline
 from lib.version_numbers import is_bare_version

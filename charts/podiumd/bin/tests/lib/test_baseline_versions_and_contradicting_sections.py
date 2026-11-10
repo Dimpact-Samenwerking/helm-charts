@@ -107,7 +107,7 @@ def test_contradicting_section_is_reported_and_rebuilt_from_its_row(chart_dir: P
 def test_rebuild_keeps_hand_written_text_of_the_section(chart_dir: Path):
     """Only the generated heading, intro and bullets are rewritten; the user's note stays in place."""
     note = "Restart the vault pods after the upgrade.\n"
-    doc = DOC.replace("- Image / digest", note + "\n- Image / digest")
+    doc = DOC.replace("- Image / digest", f"{note}\n- Image / digest")
     doc_context, ordering = _contexts(chart_dir)
 
     text, rebuilt = rebuild_changes_sections_contradicting_rows(doc, doc_context, ordering)

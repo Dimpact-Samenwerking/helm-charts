@@ -89,7 +89,7 @@ def main():
 
     print()
     print(f"Checking app version {app_version!r} for {component}:")
-    ok = print_image_version_results(results, app_version)
+    ok = not print_image_version_results(results, app_version)
 
     print()
     print("OK: chart + image version(s) exist" if ok else "FAIL: one or more app image versions do not exist yet")

@@ -5,6 +5,10 @@ from types import ModuleType
 
 import pytest
 
+from tests.fixture_data import SHA256_A
+from tests.fixture_data import SHA256_B
+from tests.fixture_data import SHA256_C
+
 
 def write_values(tmp_path: Path, text):
     path = tmp_path / "values.yaml"
@@ -39,7 +43,7 @@ def test_find_matches_single_pin(libimageversion: ModuleType):
         "a:",
         "  image:",
         "    repository: curlimages/curl",
-        '    tag: "8.21.0@sha256:' + "a" * 64 + '"',
+        f'    tag: "8.21.0@{SHA256_A}"',
     ]
     matches = libimageversion.find_matches(lines, "curl")
     assert len(matches) == 1
@@ -51,12 +55,12 @@ def test_find_matches_multiple_locations(libimageversion: ModuleType):
         "a:",
         "  image:",
         "    repository: curlimages/curl",
-        '    tag: "8.21.0@sha256:' + "a" * 64 + '"',
+        f'    tag: "8.21.0@{SHA256_A}"',
         "b:",
         "  sub:",
         "    image:",
         "      repository: curlimages/curl",
-        '      tag: "8.21.0@sha256:' + "a" * 64 + '"',
+        f'      tag: "8.21.0@{SHA256_A}"',
     ]
     matches = libimageversion.find_matches(lines, "curl")
     assert [m["line"] for m in matches] == [4, 9]
@@ -67,7 +71,7 @@ def test_find_matches_ignores_different_basename(libimageversion: ModuleType):
         "a:",
         "  image:",
         "    repository: org/repo-a",
-        '    tag: "1.0.0@sha256:' + "a" * 64 + '"',
+        f'    tag: "1.0.0@{SHA256_A}"',
     ]
     assert libimageversion.find_matches(lines, "curl") == []
 
@@ -77,7 +81,7 @@ def test_find_matches_ignores_unresolved_repository(libimageversion: ModuleType)
     lines = [
         "openzaak:",
         "  image:",
-        '    tag: "1.29.3@sha256:' + "a" * 64 + '"',
+        f'    tag: "1.29.3@{SHA256_A}"',
     ]
     assert libimageversion.find_matches(lines, "openzaak") == []
 
@@ -120,11 +124,11 @@ def test_find_matches_in_scope_finds_pins_under_key(libimageversion: ModuleType)
         "a:",
         "  image:",
         "    repository: curlimages/curl",
-        '    tag: "8.21.0@sha256:' + "a" * 64 + '"',
+        f'    tag: "8.21.0@{SHA256_A}"',
         "b:",
         "  image:",
         "    repository: curlimages/curl",
-        '    tag: "8.21.0@sha256:' + "a" * 64 + '"',
+        f'    tag: "8.21.0@{SHA256_A}"',
     ]
     matches = libimageversion.find_matches_in_scope(lines, "a", "curl")
     assert [m["line"] for m in matches] == [4]
@@ -137,7 +141,7 @@ def test_resolve_scoped_matches_multiple_key_translates_to_global_scope(libimage
         "  images:",
         "    curl:",
         "      repository: curlimages/curl",
-        '      tag: "8.21.0@sha256:' + "a" * 64 + '"',
+        f'      tag: "8.21.0@{SHA256_A}"',
     ]
     matches = libimageversion.resolve_scoped_matches(lines, libimageversion.MULTIPLE_KEY, "curl")
     assert [m["line"] for m in matches] == [5]
@@ -149,11 +153,11 @@ def test_resolve_scoped_matches_ignores_case_of_key_and_basename(libimageversion
         "  images:",
         "    curl:",
         "      repository: curlimages/curl",
-        '      tag: "8.21.0@sha256:' + "a" * 64 + '"',
+        f'      tag: "8.21.0@{SHA256_A}"',
         "zac:",
         "  image:",
         "    repository: ghcr.io/infonl/zaakafhandelcomponent",
-        '    tag: "5.0.2@sha256:' + "b" * 64 + '"',
+        f'    tag: "5.0.2@{SHA256_B}"',
     ]
     assert [m["line"] for m in libimageversion.resolve_scoped_matches(lines, "multiple", "CURL")] == [5]
     assert [m["line"] for m in libimageversion.resolve_scoped_matches(lines, "ZAC", "ZaakAfhandelComponent")] == [9]
@@ -170,7 +174,7 @@ def test_resolve_scoped_matches_no_match_under_key_raises(libimageversion: Modul
         "a:",
         "  image:",
         "    repository: curlimages/curl",
-        '    tag: "8.21.0@sha256:' + "a" * 64 + '"',
+        f'    tag: "8.21.0@{SHA256_A}"',
     ]
     with pytest.raises(SystemExit, match="no image pin with image basename 'curl' found under 'b'"):
         libimageversion.resolve_scoped_matches(lines, "b", "curl")
@@ -182,11 +186,11 @@ def test_resolve_scoped_matches_ambiguous_repository_under_key_raises(libimageve
         "a:",
         "  image:",
         "    repository: org-one/curl",
-        '    tag: "1.0.0@sha256:' + "a" * 64 + '"',
+        f'    tag: "1.0.0@{SHA256_A}"',
         "  sidecar:",
         "    image:",
         "      repository: org-two/curl",
-        '      tag: "1.0.0@sha256:' + "a" * 64 + '"',
+        f'      tag: "1.0.0@{SHA256_A}"',
     ]
     with pytest.raises(SystemExit, match="'curl' under 'a' is not unique"):
         libimageversion.resolve_scoped_matches(lines, "a", "curl")
@@ -200,9 +204,9 @@ def test_check_basename_version_reports_found(libimageversion: ModuleType, monke
         "pabc:",
         "  image:",
         "    repository: ghcr.io/platform-autorisatie-beheer-component/pabc-api",
-        '    tag: "1.1.1@sha256:' + "a" * 64 + '"',
+        f'    tag: "1.1.1@{SHA256_A}"',
     ]
-    monkeypatch.setattr(libimageversion, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    monkeypatch.setattr(libimageversion, "registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
 
     results = libimageversion.check_basename_version(lines, "pabc", "pabc-api", "1.1.2")
 
@@ -212,7 +216,7 @@ def test_check_basename_version_reports_found(libimageversion: ModuleType, monke
             "host": "ghcr.io",
             "repo_path": "platform-autorisatie-beheer-component/pabc-api",
             "exists": True,
-            "digest": "sha256:" + "b" * 64,
+            "digest": SHA256_B,
         }
     ]
 
@@ -222,7 +226,7 @@ def test_check_basename_version_reports_missing(libimageversion: ModuleType, mon
         "pabc:",
         "  image:",
         "    repository: ghcr.io/platform-autorisatie-beheer-component/pabc-api",
-        '    tag: "1.1.1@sha256:' + "a" * 64 + '"',
+        f'    tag: "1.1.1@{SHA256_A}"',
     ]
     monkeypatch.setattr(libimageversion, "registry_tag_exists", lambda host, repo, tag: (False, None))
 
@@ -239,18 +243,18 @@ def test_check_basename_version_dedupes_shared_repository(libimageversion: Modul
         "  a:",
         "    image:",
         "      repository: curlimages/curl",
-        '      tag: "8.21.0@sha256:' + "a" * 64 + '"',
+        f'      tag: "8.21.0@{SHA256_A}"',
         "  b:",
         "    sub:",
         "      image:",
         "        repository: curlimages/curl",
-        '        tag: "8.21.0@sha256:' + "a" * 64 + '"',
+        f'        tag: "8.21.0@{SHA256_A}"',
     ]
     calls = []
 
     def fake_registry_tag_exists(host, repo, tag):
         calls.append((host, repo, tag))
-        return True, "sha256:" + "b" * 64
+        return True, SHA256_B
 
     monkeypatch.setattr(libimageversion, "registry_tag_exists", fake_registry_tag_exists)
 
@@ -280,16 +284,16 @@ def test_update_image_version_single_match(
             f'    tag: "1.1.1@sha256:{"a" * 64}"\n'
         ),
     )
-    monkeypatch.setattr(libimageversion, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    monkeypatch.setattr(libimageversion, "registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
     changes = libimageversion.update_image_version(values_path, "pabc", "pabc-api", "1.1.2")
     assert len(changes) == 1
     assert changes[0] == {
         "line": 4,
         "repository": "ghcr.io/platform-autorisatie-beheer-component/pabc-api",
         "old_version": "1.1.1",
-        "old_digest": "sha256:" + "a" * 64,
+        "old_digest": SHA256_A,
         "new_version": "1.1.2",
-        "new_digest": "sha256:" + "b" * 64,
+        "new_digest": SHA256_B,
     }
     assert f'tag: "1.1.2@sha256:{"b" * 64}"' in values_path.read_text(encoding="utf-8")
 
@@ -316,7 +320,7 @@ def test_update_image_version_updates_all_shared_occurrences(
 
     def fake_registry_tag_exists(host, repo, tag):
         calls.append((host, repo, tag))
-        return True, "sha256:" + "c" * 64
+        return True, SHA256_C
 
     monkeypatch.setattr(libimageversion, "registry_tag_exists", fake_registry_tag_exists)
     changes = libimageversion.update_image_version(values_path, libimageversion.MULTIPLE_KEY, "curl", "8.22.0")
@@ -327,9 +331,7 @@ def test_update_image_version_updates_all_shared_occurrences(
 
 
 def test_update_image_version_no_match_raises(libimageversion: ModuleType, tmp_path: Path):
-    values_path = write_values(
-        tmp_path, 'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:' + "a" * 64 + '"\n'
-    )
+    values_path = write_values(tmp_path, f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@{SHA256_A}"\n')
     with pytest.raises(SystemExit, match="no image pin with image basename 'curl' found under 'a'"):
         libimageversion.update_image_version(values_path, "a", "curl", "8.22.0")
 
@@ -376,7 +378,7 @@ def test_update_image_version_only_updates_stale_occurrence(
             f'      tag: "8.21.0@sha256:{"a" * 64}"\n'
         ),
     )
-    monkeypatch.setattr(libimageversion, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "c" * 64))
+    monkeypatch.setattr(libimageversion, "registry_tag_exists", lambda host, repo, tag: (True, SHA256_C))
     changes = libimageversion.update_image_version(values_path, libimageversion.MULTIPLE_KEY, "curl", "8.22.0")
     assert [c["line"] for c in changes] == [9]
 
@@ -572,20 +574,17 @@ def test_repository_for_basename_in_scope_none_when_ambiguous(libimageversion: M
     """Ambiguous unscoped hits return None rather than a guess."""
     values_path = write_values(
         tmp_path,
-        """\
+        f"""\
 a:
   image:
     repository: some/redis
-    tag: "1.0.0@sha256:"""
-        + "a" * 64
-        + '"\n'
-        + """
+    tag: "1.0.0@{SHA256_A}"
+
 b:
   image:
     repository: other/redis
-    tag: "2.0.0@sha256:"""
-        + "b" * 64
-        + '"\n',
+    tag: "2.0.0@{SHA256_B}"
+""",
     )
     lines = values_path.read_text(encoding="utf-8").splitlines()
     assert libimageversion.repository_for_basename_in_scope(lines, "nowhere", "redis") is None
@@ -593,7 +592,7 @@ b:
 
 def test_basenames_under_scope_ignores_scope_key_case(libimageversion: ModuleType) -> None:
     """Scope matching ignores case, the same as find_matches_in_scope."""
-    lines = ["zac:", "  image:", "    repository: ghcr.io/infonl/zac", '    tag: "1.0@sha256:' + "a" * 64 + '"']
+    lines = ["zac:", "  image:", "    repository: ghcr.io/infonl/zac", f'    tag: "1.0@{SHA256_A}"']
     assert list(libimageversion.basenames_under_scope(lines, "ZAC")) == ["zac"]
     assert list(libimageversion.basenames_under_scope_any_tag(lines, "Zac")) == ["zac"]
 
@@ -613,7 +612,7 @@ def test_update_image_version_rewrites_the_reference_comment(
             f'      tag: "8.37.0@sha256:{"a" * 64}"\n'
         ),
     )
-    monkeypatch.setattr(libimageversion, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    monkeypatch.setattr(libimageversion, "registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
     changes = libimageversion.update_image_version(values_path, "zac", "gotenberg", "8.38.1")
     assert len(changes) == 1
     text = values_path.read_text(encoding="utf-8")
@@ -635,6 +634,6 @@ def test_update_image_version_keeps_a_digestless_reference_comment_digestless(
             f'      tag: "1.21.1-static@sha256:{"a" * 64}"\n'
         ),
     )
-    monkeypatch.setattr(libimageversion, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    monkeypatch.setattr(libimageversion, "registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
     libimageversion.update_image_version(values_path, "zac", "opa", "1.21.3-static")
     assert "    # openpolicyagent/opa:1.21.3-static\n" in values_path.read_text(encoding="utf-8")

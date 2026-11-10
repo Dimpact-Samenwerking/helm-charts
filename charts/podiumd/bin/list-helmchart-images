@@ -61,8 +61,7 @@ def find_dependency(name_or_alias: str):
     deps = load_chart_dependencies(CHART_YAML)
     dep = _find_dependency(deps, name_or_alias)
     if dep is None:
-        msg = f"error: no dependency named or aliased '{name_or_alias}' found in {CHART_YAML}"
-        raise SystemExit(msg)
+        sys.exit(f"error: no dependency named or aliased '{name_or_alias}' found in {CHART_YAML}")
     return dep
 
 
@@ -74,11 +73,10 @@ def _print_image_references(values_yaml: YamlMapping, key: str):
         return
 
     print("\nImage references:")
-    entries = [(key, image_basename(repo), version_of(tag), repo, tag, path) for path, repo, tag in images]
-    entries.sort(key=lambda e: e[5])
-    bwidth = max(len(e[1]) for e in entries)
-    for key_, basename, version, repo, tag, path in entries:
-        print(f"  {key_}  {basename.ljust(bwidth)}  {version}")
+    entries = sorted(images, key=lambda image: image[0])
+    bwidth = max(len(image_basename(repo)) for _path, repo, _tag in entries)
+    for path, repo, tag in entries:
+        print(f"  {key}  {image_basename(repo).ljust(bwidth)}  {version_of(tag)}")
         print(f"      {repo}:{tag}")
         print(f"      (path: {path})")
 
@@ -100,8 +98,8 @@ def report_chart(chart_dir: Path, requested_version: str, key: str):
     sub_deps = chart_dependencies(chart_yaml)
     if sub_deps:
         print("\nSub-chart dependencies:")
-        for d in sub_deps:
-            print(f"  - {d['name']}: {d['version']}")
+        for sub_dep in sub_deps:
+            print(f"  - {sub_dep['name']}: {sub_dep['version']}")
 
     _print_image_references(values_yaml, key)
 
@@ -125,8 +123,7 @@ def main():
         print(f"Pulling {ref} @ {version} ...")
         ok, stderr = pull_chart(dep, version, tmpdir)
         if not ok:
-            msg = f"error: helm pull failed for {ref}@{version}\n{stderr}"
-            raise SystemExit(msg)
+            sys.exit(f"error: helm pull failed for {ref}@{version}\n{stderr}")
         report_chart(pulled_chart_dir(tmpdir), version, key)
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)

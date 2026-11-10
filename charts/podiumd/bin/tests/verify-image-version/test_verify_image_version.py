@@ -7,22 +7,14 @@ from types import ModuleType
 
 import pytest
 
+from tests.fixture_data import SHA256_B
+from tests.fixture_data import write_chart_with_dependencies
+
 
 def write_values(tmp_path: Path, text):
     path = tmp_path / "values.yaml"
     path.write_text(text, encoding="utf-8")
     return path
-
-
-def write_chart_yaml(chart_dir, deps):
-    """`deps`: [(name, alias_or_none), ...]."""
-    lines = ["apiVersion: v2", "name: podiumd", "version: 1.0.0", "dependencies:"]
-    for name, alias in deps:
-        lines.append(f"  - name: {name}")
-        if alias:
-            lines.append(f"    alias: {alias}")
-        lines += ["    version: 1.0.0", '    repository: "@x"']
-    (chart_dir / "Chart.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def test_help_flag_prints_docstring_and_exits_zero(
@@ -60,7 +52,7 @@ def test_main_found_reports_ok(
     monkeypatch.setattr(viv, "VALUES_YAML", values_path)
     import lib.image.version as image_version
 
-    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
     monkeypatch.setattr("sys.argv", ["verify-image-version", "pabc", "pabc-api", "1.1.2"])
 
     with pytest.raises(SystemExit) as exc_info:
@@ -103,7 +95,7 @@ def test_main_resolves_given_component_key_and_basename(
     viv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
     """<key> scopes the search to that component's values.yaml subtree."""
-    write_chart_yaml(tmp_path, [("openklant", None)])
+    write_chart_with_dependencies(tmp_path, [("openklant", None)])
     values_path = write_values(
         tmp_path,
         (f'openklant:\n  image:\n    repository: maykinmedia/open-klant\n    tag: "2.15.0@sha256:{"a" * 64}"\n'),
@@ -111,7 +103,7 @@ def test_main_resolves_given_component_key_and_basename(
     monkeypatch.setattr(viv, "VALUES_YAML", values_path)
     import lib.image.version as image_version
 
-    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
     monkeypatch.setattr("sys.argv", ["verify-image-version", "openklant", "open-klant", "2.15.1"])
 
     with pytest.raises(SystemExit) as exc_info:
@@ -128,7 +120,7 @@ def test_main_accepts_dependency_name_not_just_alias(
 ):
     """Regression: <key> accepts the Chart.yaml name as well as the alias
     (the values.yaml key), like update-component-version's <component>."""
-    write_chart_yaml(tmp_path, [("zaakafhandelcomponent", "zac")])
+    write_chart_with_dependencies(tmp_path, [("zaakafhandelcomponent", "zac")])
     values_path = write_values(
         tmp_path,
         (f'zac:\n  image:\n    repository: infonl/zaakafhandelcomponent\n    tag: "5.4.3@sha256:{"a" * 64}"\n'),
@@ -137,7 +129,7 @@ def test_main_accepts_dependency_name_not_just_alias(
     monkeypatch.setattr(viv, "VALUES_YAML", values_path)
     import lib.image.version as image_version
 
-    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
     monkeypatch.setattr("sys.argv", ["verify-image-version", "zaakafhandelcomponent", "zaakafhandelcomponent", "5.4.4"])
 
     with pytest.raises(SystemExit) as exc_info:

@@ -16,6 +16,7 @@ from lib.checks.upgrade_doc_layout import values_deltas_layout_issues
 from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
 from lib.upgradedoc.doc_names import images_manifest_path
 from lib.upgradedoc.resolve_component_row import ResolutionContext
+from tests.fixture_data import SHA256_B
 
 if TYPE_CHECKING:
     from lib.yaml_types import YamlMapping
@@ -290,7 +291,7 @@ def test_stale_values_deltas_todo_goes_and_the_stub_opening_stays(
     opening = stub.replace("TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n", "")
     assert "and nothing else." in opening
     assert values_deltas_layout_issues("v.md", opening + section) == []
-    assert libcomponentdocsdeltas.strip_stale_values_deltas_todo_stub(stub + "\n" + section) == (
+    assert libcomponentdocsdeltas.strip_stale_values_deltas_todo_stub(f"{stub}\n{section}") == (
         opening + section,
         True,
     )
@@ -307,7 +308,7 @@ def test_values_deltas_writers_skip_a_heading_in_the_openings_code_block(
     todo = "TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n"
     scripts = "```bash\n## migrate first\npython3 migrate.py\n```\n\n"
     sections = "## zac 5.0.2 → 5.4.3\n\nEvery environment.\n\n## keycloak 26.7.3 → 26.8.1\n\nSome.\n"
-    text = stub.replace(todo, scripts + todo) + "\n" + sections
+    text = "\n".join((stub.replace(todo, f"{scripts}{todo}"), sections))
     assert [s["heading"] for s in libupgradedocsorting.parse_values_delta_sections(text)] == [
         "zac 5.0.2 → 5.4.3",
         "keycloak 26.7.3 → 26.8.1",
@@ -341,8 +342,7 @@ def test_resolve_component_own_version_change_true_when_both_unchanged(libcompon
     state = ComponentState(deps, values)
     resolved = libcomponentdocschanges.resolve_component_own_version_change("zac", state, state, None, [])
     assert resolved is not None
-    *_rest, unchanged = resolved
-    assert unchanged is True
+    assert resolved.unchanged is True
 
 
 def test_resolve_component_own_version_change_false_when_app_changed(libcomponentdocschanges: ModuleType):
@@ -356,8 +356,7 @@ def test_resolve_component_own_version_change_false_when_app_changed(libcomponen
         None,
         [],
     )
-    _dep, _chart_name, _old_chart, _new_chart, old_app, new_app, unchanged = resolved
-    assert (old_app, new_app, unchanged) == ("5.0.2", "5.4.4", False)
+    assert (resolved.old_app, resolved.new_app, resolved.unchanged) == ("5.0.2", "5.4.4", False)
 
 
 def test_resolve_component_own_version_change_false_when_chart_changed(libcomponentdocschanges: ModuleType):
@@ -371,8 +370,7 @@ def test_resolve_component_own_version_change_false_when_chart_changed(libcompon
         None,
         [],
     )
-    *_rest, unchanged = resolved
-    assert unchanged is False
+    assert resolved.unchanged is False
 
 
 def test_resolve_component_own_version_change_only_sidecar_images_is_unchanged(libcomponentdocschanges: ModuleType):
@@ -392,8 +390,7 @@ def test_resolve_component_own_version_change_only_sidecar_images_is_unchanged(l
         [],
     )
     assert resolved is not None
-    *_rest, unchanged = resolved
-    assert unchanged is True
+    assert resolved.unchanged is True
 
 
 def test_resolve_component_own_version_change_native_component_ignores_chart(libcomponentdocschanges: ModuleType):
@@ -401,8 +398,7 @@ def test_resolve_component_own_version_change_native_component_ignores_chart(lib
     values: YamlMapping = {"frankgateway": {"image": {"tag": "104@sha256:aaaa"}}}
     state = ComponentState([], values)
     resolved = libcomponentdocschanges.resolve_component_own_version_change("frankgateway", state, state, None, [])
-    *_rest, unchanged = resolved
-    assert unchanged is True
+    assert resolved.unchanged is True
 
 
 def test_resolve_component_own_version_change_none_for_unmatched_key(libcomponentdocschanges: ModuleType):
@@ -442,8 +438,13 @@ def test_resolve_component_own_version_change_vendored_subchart_fallback_applies
 
     state = ComponentState([dep], values)
     resolved = libcomponentdocschanges.resolve_component_own_version_change("openbao", state, state, tmp_path, [])
-    _dep, _chart_name, old_chart, new_chart, old_app, new_app, unchanged = resolved
-    assert (old_chart, new_chart, old_app, new_app, unchanged) == ("0.28.4", "0.28.4", "v2.5.5", "v2.5.5", True)
+    assert (resolved.old_chart, resolved.new_chart, resolved.old_app, resolved.new_app, resolved.unchanged) == (
+        "0.28.4",
+        "0.28.4",
+        "v2.5.5",
+        "v2.5.5",
+        True,
+    )
 
 
 def test_resolve_component_own_version_change_vendored_fallback_never_used_when_chart_changed(
@@ -479,8 +480,13 @@ def test_resolve_component_own_version_change_vendored_fallback_never_used_when_
         tmp_path,
         [],
     )
-    _dep, _chart_name, old_chart, new_chart, old_app, new_app, unchanged = resolved
-    assert (old_chart, new_chart, old_app, new_app, unchanged) == ("0.28.4", "0.29.0", None, "v2.6.0", False)
+    assert (resolved.old_chart, resolved.new_chart, resolved.old_app, resolved.new_app, resolved.unchanged) == (
+        "0.28.4",
+        "0.29.0",
+        None,
+        "v2.6.0",
+        False,
+    )
 
 
 def test_resolve_component_own_version_change_eck_operator_now_reads_unchanged(
@@ -507,9 +513,7 @@ def test_resolve_component_own_version_change_eck_operator_now_reads_unchanged(
 
     dep: ChartDependency = {"name": "eck-operator", "version": "3.5.0", "condition": "eck-operator.enabled"}
     baseline_values: YamlMapping = {"eck-operator": {"enabled": True}}  # no "image:" override, as in 4.9.1
-    target_values: YamlMapping = {
-        "eck-operator": {"enabled": True, "image": {"tag": "3.5.0", "digest": "sha256:" + "b" * 64}}
-    }
+    target_values: YamlMapping = {"eck-operator": {"enabled": True, "image": {"tag": "3.5.0", "digest": SHA256_B}}}
 
     resolved = libcomponentdocschanges.resolve_component_own_version_change(
         "eck-operator",
@@ -518,8 +522,13 @@ def test_resolve_component_own_version_change_eck_operator_now_reads_unchanged(
         tmp_path,
         [],
     )
-    _dep, _chart_name, old_chart, new_chart, old_app, new_app, unchanged = resolved
-    assert (old_chart, new_chart, old_app, new_app, unchanged) == ("3.5.0", "3.5.0", "3.5.0", "3.5.0", True)
+    assert (resolved.old_chart, resolved.new_chart, resolved.old_app, resolved.new_app, resolved.unchanged) == (
+        "3.5.0",
+        "3.5.0",
+        "3.5.0",
+        "3.5.0",
+        True,
+    )
 
 
 def test_add_missing_component_rows_skips_own_unchanged_component(libcomponentdocschanges: ModuleType, tmp_path: Path):
@@ -577,7 +586,7 @@ def test_insert_changes_section_strips_bare_todo_stub_on_first_insertion(libcomp
         text, section_text, "eck-operator", libcomponentdocschanges.OrderingContext([], {})
     )
     assert "TODO" not in new_text
-    assert new_text == "## Changes\n\n" + section_text
+    assert new_text == f"## Changes\n\n{section_text}"
 
 
 def test_insert_changes_section_second_insertion_after_real_block_unaffected(libcomponentdocschanges: ModuleType):
@@ -613,7 +622,7 @@ def test_insert_changes_section_also_strips_the_top_level_intro_todo_on_first_in
 ):
     """The first real block clears both the intro TODO and the "## Changes" TODO."""
     text = (
-        UPGRADE_DOC_INTRO + "TODO: describe this hop's changes.\n\n"
+        f"{UPGRADE_DOC_INTRO}TODO: describe this hop's changes.\n\n"
         "## Component versions (4.9.2 vs 4.9.1)\n\n"
         "## Changes\n\n"
         "TODO\n"
@@ -626,7 +635,7 @@ def test_insert_changes_section_also_strips_the_top_level_intro_todo_on_first_in
         text, section_text, "eck-operator", libcomponentdocschanges.OrderingContext([], {})
     )
     assert "TODO" not in new_text
-    assert new_text == (UPGRADE_DOC_INTRO + "## Component versions (4.9.2 vs 4.9.1)\n\n## Changes\n\n" + section_text)
+    assert new_text == (f"{UPGRADE_DOC_INTRO}## Component versions (4.9.2 vs 4.9.1)\n\n## Changes\n\n{section_text}")
 
 
 # --- strip_stale_upgrade_placeholders (retroactive cleanup, fix-doc-consistency) ---
@@ -643,7 +652,7 @@ def test_strip_stale_upgrade_placeholders_removes_both_leftovers_before_a_real_b
 ):
     """Both leftover TODOs beside a real block are removed together (docs predating the insertion fix)."""
     text = (
-        UPGRADE_DOC_INTRO + "TODO: describe this hop's changes.\n\n"
+        f"{UPGRADE_DOC_INTRO}TODO: describe this hop's changes.\n\n"
         "## Component versions (4.9.2 vs 4.9.1)\n\n"
         "## Changes\n\n"
         "TODO\n\n"
@@ -656,7 +665,7 @@ def test_strip_stale_upgrade_placeholders_removes_both_leftovers_before_a_real_b
     assert changed is True
     assert "TODO" not in new_text
     assert new_text == (
-        UPGRADE_DOC_INTRO + "## Component versions (4.9.2 vs 4.9.1)\n\n"
+        f"{UPGRADE_DOC_INTRO}## Component versions (4.9.2 vs 4.9.1)\n\n"
         "## Changes\n\n"
         "### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
         "PodiumD 4.9.2 introduces **eck-operator** at app version 3.5.0.\n\n"
@@ -668,7 +677,7 @@ def test_strip_stale_upgrade_placeholders_removes_both_leftovers_before_a_real_b
 def test_strip_stale_upgrade_placeholders_leaves_a_still_empty_section_untouched(libcomponentdocschanges: ModuleType):
     """A "## Changes" with only the bare TODO (new doc) is left untouched, intro TODO included."""
     text = (
-        UPGRADE_DOC_INTRO + "TODO: describe this hop's changes.\n\n"
+        f"{UPGRADE_DOC_INTRO}TODO: describe this hop's changes.\n\n"
         "## Component versions (4.9.2 vs 4.9.1)\n\n"
         "## Changes\n\n"
         "TODO\n"
@@ -680,7 +689,7 @@ def test_strip_stale_upgrade_placeholders_leaves_a_still_empty_section_untouched
 
 def test_strip_stale_upgrade_placeholders_never_strips_real_prose_mentioning_todo(libcomponentdocschanges: ModuleType):
     text = (
-        UPGRADE_DOC_INTRO + "TODO: this describes something else entirely, not the stub.\n\n"
+        f"{UPGRADE_DOC_INTRO}TODO: this describes something else entirely, not the stub.\n\n"
         "## Component versions (4.9.2 vs 4.9.1)\n\n"
         "## Changes\n\n"
         "TODO: figure out redis sidecar wording later.\n\n"
@@ -705,7 +714,7 @@ def test_strip_stale_upgrade_placeholders_strips_only_the_changes_todo_when_intr
 ):
     """The "## Changes" TODO is still cleared when the intro TODO is already gone."""
     text = (
-        UPGRADE_DOC_INTRO + "## Component versions (4.9.2 vs 4.9.1)\n\n"
+        f"{UPGRADE_DOC_INTRO}## Component versions (4.9.2 vs 4.9.1)\n\n"
         "## Changes\n\n"
         "TODO\n\n"
         "### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
@@ -792,13 +801,13 @@ def test_has_real_gemeente_specific_content_false_for_the_bare_stub(libcomponent
 
 
 def test_has_real_gemeente_specific_content_true_for_a_real_section(libcomponentdocsdeltas: ModuleType):
-    text = GEMEENTE_STUB + "\n## Utrecht (prod)\n\n- Some real finding.\n"
+    text = f"{GEMEENTE_STUB}\n## Utrecht (prod)\n\n- Some real finding.\n"
     assert libcomponentdocsdeltas.has_real_gemeente_specific_content(text) is True
 
 
 def test_has_stale_gemeente_specific_placeholder_true_when_both_present(libcomponentdocsdeltas: ModuleType):
     """A real finding with the "_None recorded yet._" placeholder still above it is flagged."""
-    text = GEMEENTE_STUB + "\n## Utrecht (prod)\n\n- Some real finding.\n"
+    text = f"{GEMEENTE_STUB}\n## Utrecht (prod)\n\n- Some real finding.\n"
     assert libcomponentdocsdeltas.has_stale_gemeente_specific_placeholder(text) is True
 
 
@@ -811,7 +820,8 @@ def test_has_stale_gemeente_specific_placeholder_false_once_placeholder_removed_
     libcomponentdocsdeltas: ModuleType,
 ):
     """Once the placeholder is removed by hand (no automated fixer), the finding stops."""
-    text = GEMEENTE_STUB.replace("_None recorded yet._\n\n", "") + "\n## Utrecht (prod)\n\n- Some real finding.\n"
+    without_placeholder = GEMEENTE_STUB.replace("_None recorded yet._\n\n", "")
+    text = f"{without_placeholder}\n## Utrecht (prod)\n\n- Some real finding.\n"
     assert libcomponentdocsdeltas.has_stale_gemeente_specific_placeholder(text) is False
 
 

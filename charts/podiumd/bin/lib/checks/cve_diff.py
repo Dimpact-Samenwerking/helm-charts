@@ -58,8 +58,8 @@ from lib.settings import cve_scan_cache_ttl_days
 from lib.settings import image_upgrade_tag_check_cache_ttl_days
 
 
-def _vuln_key(v: Vulnerability):
-    return (v["VulnerabilityID"], v["PkgName"])
+def _vuln_key(vuln: Vulnerability):
+    return (vuln["VulnerabilityID"], vuln["PkgName"])
 
 
 def diff_vulns(current_vulns: list[Vulnerability], proposed_vulns: list[Vulnerability]):
@@ -67,10 +67,10 @@ def diff_vulns(current_vulns: list[Vulnerability], proposed_vulns: list[Vulnerab
 
     A set difference, not a count subtraction, so "5 closed, 3 introduced" isn't shown as "net -2".
     """
-    current_by_key = {_vuln_key(v): v for v in current_vulns}
-    proposed_by_key = {_vuln_key(v): v for v in proposed_vulns}
-    closed = [v for key, v in current_by_key.items() if key not in proposed_by_key]
-    introduced = [v for key, v in proposed_by_key.items() if key not in current_by_key]
+    current_by_key = {_vuln_key(vuln): vuln for vuln in current_vulns}
+    proposed_by_key = {_vuln_key(vuln): vuln for vuln in proposed_vulns}
+    closed = [vuln for key, vuln in current_by_key.items() if key not in proposed_by_key]
+    introduced = [vuln for key, vuln in proposed_by_key.items() if key not in current_by_key]
     return closed, introduced
 
 
@@ -191,8 +191,10 @@ def _scan_proposed(context: DiffContext, candidate: DiffCandidate):
 
 
 def _severity_counts(vulns: list[Vulnerability]):
-    counts = Counter(v["Severity"] for v in vulns)
-    return ", ".join(f"{counts[s]} {severity_label(s)}" for s in SEVERITY_ORDER if counts.get(s))
+    counts = Counter(vuln["Severity"] for vuln in vulns)
+    return ", ".join(
+        f"{counts[severity]} {severity_label(severity)}" for severity in SEVERITY_ORDER if counts.get(severity)
+    )
 
 
 def _print_direction(label: str, vulns: list[Vulnerability], *, detail: bool, package_cve_list_threshold: int):
@@ -204,9 +206,9 @@ def _print_direction(label: str, vulns: list[Vulnerability], *, detail: bool, pa
         print_findings_per_package(vulns, package_cve_list_threshold)
 
 
-def _print_candidate_header(i: int, total: int, candidate: DiffCandidate):
+def _print_candidate_header(position: int, total: int, candidate: DiffCandidate):
     print(
-        f"[{i}/{total}] {candidate['repository']}: {candidate['version']} -> "
+        f"[{position}/{total}] {candidate['repository']}: {candidate['version']} -> "
         f"{candidate['proposed_label']}  [{candidate['kind']}]"
     )
 
@@ -224,6 +226,10 @@ def print_candidate_result(
     print()
 
 
+# What classify_rendered_images and unrendered_classification raise on a broken chart or render.
+_CLASSIFICATION_ERRORS = (OSError, tarfile.TarError, yaml.YAMLError, KeyError, TypeError, ValueError)
+
+
 def classify_candidates(
     chart_dir: Path, extra_args: list[str], candidates: list[DiffCandidate], values_lines: list[str]
 ) -> list[ClassifiedCandidate]:
@@ -235,7 +241,7 @@ def classify_candidates(
     """
     try:
         classification = classify_rendered_images(chart_dir, extra_args) or unrendered_classification(chart_dir)
-    except (OSError, tarfile.TarError, yaml.YAMLError, KeyError, TypeError, ValueError):
+    except _CLASSIFICATION_ERRORS:
         classification = ImageClassification({}, set(), {})
 
     classified: list[ClassifiedCandidate] = []
@@ -251,9 +257,10 @@ def _process_bucket(context: DiffContext, title: str, bucket_candidates: list[Cl
     if not print_bucket_header(title, empty=not bucket_candidates):
         return 0, 0
 
-    total_closed = total_introduced = 0
-    for i, candidate in enumerate(bucket_candidates, 1):
-        _print_candidate_header(i, len(bucket_candidates), candidate)
+    total_closed = 0
+    total_introduced = 0
+    for position, candidate in enumerate(bucket_candidates, 1):
+        _print_candidate_header(position, len(bucket_candidates), candidate)
         current_vulns = _scan_current(context, candidate)
         if current_vulns is None:
             context.scan_errors.append(candidate["current_ref"])
@@ -278,7 +285,10 @@ def _process_bucket(context: DiffContext, title: str, bucket_candidates: list[Cl
 
 def _partition_by_bucket(candidates: list[ClassifiedCandidate]) -> list[CandidateBucket]:
     """(bucket_key, title, candidates) for own/partner/other, in print order."""
-    return [(key, bucket_title(key, "images"), [c for c in candidates if c["bucket"] == key]) for key in BUCKETS]
+    return [
+        (key, bucket_title(key, "images"), [candidate for candidate in candidates if candidate["bucket"] == key])
+        for key in BUCKETS
+    ]
 
 
 def _build_diff_context(chart_dir: Path, *, detail: bool):
@@ -306,7 +316,7 @@ def _build_detail_message(buckets: list[CandidateBucket], totals: dict[str, tupl
     for key, _, bucket_candidates in buckets:
         closed, introduced = totals[key]
         parts.append(f"{len(bucket_candidates)} {labels[key]} ({closed} closed, {introduced} introduced)")
-    return ", ".join(parts) + f"; {len(scan_errors)} scan error(s)"
+    return f"{', '.join(parts)}; {len(scan_errors)} scan error(s)"
 
 
 def check_cve_diff(chart_dir: Path, extra_args: list[str], *, detail: bool = False):

@@ -15,6 +15,7 @@ from typing import TypedDict
 from typing import TypeGuard
 
 from lib.procutil import run
+from lib.render_scope import RenderedDoc
 from lib.render_scope import ResourceLocations
 from lib.render_scope import VendorBucketScan
 from lib.render_scope import chart_name_from_source
@@ -88,9 +89,9 @@ def run_kubeconform(yaml_text: str) -> list[KubeconformResource] | None:
 
 
 def _kubeconform_group_key(entry: KubeconformEntry) -> tuple[str, str]:
-    _chart, r = entry
-    message = r.get("msg") or "(no message)"
-    return r["status"], message.splitlines()[0]
+    _chart, resource = entry
+    message = resource.get("msg") or "(no message)"
+    return resource["status"], message.splitlines()[0]
 
 
 def _kubeconform_group_label(key: tuple[str, ...]):
@@ -104,25 +105,25 @@ def _kubeconform_item(entry: KubeconformEntry, locations: ResourceLocations):
 
     kubeconform reports no namespace, so a kind+name rendered more than once gets no hint.
     """
-    _chart, r = entry
-    kind, name = r.get("kind"), r.get("name")
+    _chart, resource = entry
+    kind, name = resource.get("kind"), resource.get("name")
     base = f"{kind}/{name}"
     line = resource_line(locations, kind, name)
     return f"{base} (rendered line {line})" if line else base
 
 
 def _own_kubeconform_findings(
-    own_docs: list[tuple[str, str]], failing_statuses: set[str]
+    own_docs: list[RenderedDoc], failing_statuses: set[str]
 ) -> tuple[list[KubeconformResource] | None, str | None]:
     """(own findings, None), or (None, error) on unparseable output."""
     own_resources = run_kubeconform("".join(text for _source, text in own_docs))
     if own_resources is None:
         return None, "kubeconform produced unparseable output"
-    return [r for r in own_resources if r.get("status") in failing_statuses], None
+    return [resource for resource in own_resources if resource.get("status") in failing_statuses], None
 
 
 def _scan_vendored_charts(
-    docs: list[tuple[str, str]], failing_statuses: set[str], vendor_map: dict[str, str]
+    docs: list[RenderedDoc], failing_statuses: set[str], vendor_map: dict[str, str]
 ) -> tuple[list[VendoredKubeconformEntry] | None, list[VendoredKubeconformEntry] | None, str | None]:
     """Validate each vendored sub-chart separately and split findings into (friendly, other).
 
@@ -139,19 +140,24 @@ def _scan_vendored_charts(
         resources = run_kubeconform("".join(texts))
         if resources is None:
             return None, None, "kubeconform produced unparseable output"
-        for r in resources:
-            if r.get("status") not in failing_statuses:
+        for resource in resources:
+            if resource.get("status") not in failing_statuses:
                 continue
-            (vendored_friendly if chart in vendor_map else vendored_other).append((chart, r))
+            (vendored_friendly if chart in vendor_map else vendored_other).append((chart, resource))
     return vendored_friendly, vendored_other, None
 
 
 def _print_kubeconform_findings(scan: VendorBucketScan[KubeconformResource, VendoredKubeconformEntry]):
     """Print the own/vendored-friendly/vendored-other sections for `scan`."""
+
+    def vendored_label(key: tuple[str, ...]) -> str:
+        chart = key[0]
+        return f"{_kubeconform_group_label(key[1:])} — {chart} ({scan.vendor_map[chart]})"
+
     if scan.own_real:
         print_own_findings_heading("kubeconform", len(scan.own_real))
         print_grouped_findings(
-            [(None, r) for r in scan.own_real],
+            [(None, resource) for resource in scan.own_real],
             key_fn=_kubeconform_group_key,
             item_fn=lambda entry: _kubeconform_item(entry, scan.locations),
             label_fn=_kubeconform_group_label,
@@ -165,7 +171,7 @@ def _print_kubeconform_findings(scan: VendorBucketScan[KubeconformResource, Vend
             scan.vendored_friendly,
             key_fn=lambda entry: (entry[0], *_kubeconform_group_key(entry)),
             item_fn=lambda entry: _kubeconform_item(entry, scan.locations),
-            label_fn=lambda k: f"{_kubeconform_group_label(k[1:])} — {k[0]} ({scan.vendor_map[k[0]]})",
+            label_fn=vendored_label,
             items_label="resource(s)",
         )
         print()

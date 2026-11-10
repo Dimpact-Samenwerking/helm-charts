@@ -14,15 +14,15 @@ from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
 from lib.chart.registered_paths import native_components
 from lib.chart.repo_and_path_resolution import paths_by_repository
+from lib.chart.values_tree_primitives import ValuesPath
 from lib.images_manifest import ManifestEntry
 from lib.images_manifest import parse_manifest_lines
 from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
-from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment_line
-from lib.upgradedoc.images_manifest_ordering import images_manifest_entries_share_group
+from lib.upgradedoc.images_manifest_ordering import are_manifest_entries_grouped
 from lib.upgradedoc.resolve_component_row import native_image_baseline_app
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.version_cells import image_manifest_version_text
@@ -46,7 +46,7 @@ class ManifestEntriesContext:
     deps: list[ChartDependency]
     target_values: YamlMapping
     baseline_values: YamlMapping | None
-    repo_map: dict[str, ImagePath] | None = None
+    repo_map: dict[str, ValuesPath] | None = None
     baseline_release: BaselineRelease = field(default_factory=BaselineRelease)
 
 
@@ -54,8 +54,8 @@ class ManifestEntriesContext:
 class _BaselineSetup:
     """Baseline paths and repo groups; nested only to stay under pylint's max-instance-attributes."""
 
-    baseline_paths: dict[ImagePath, str]
-    baseline_repo_groups: dict[str, list[ImagePath]]
+    baseline_paths: dict[ValuesPath, str]
+    baseline_repo_groups: dict[str, list[ValuesPath]]
 
 
 @dataclass
@@ -65,24 +65,28 @@ class _ManifestEntriesSetup:
     lines: list[str]
     entries: list[ManifestEntry]
     entry_line_indices: list[int]
-    current_paths: dict[ImagePath, str]
+    current_paths: dict[ValuesPath, str]
     baseline: _BaselineSetup
-    sibling_fields: dict[ImagePath, DigestPinningException]
-    same_group: Callable[[ManifestEntry, ManifestEntry], bool]
+    sibling_fields: dict[ValuesPath, DigestPinningException]
+    is_same_group: Callable[[ManifestEntry, ManifestEntry], bool]
+
+
+# A rewritten entry comment as (name, baseline version or None for "new", target version).
+type EntryVersionsUpdate = tuple[str, str | None, str]
 
 
 @dataclass
 class _ManifestFixState:
     """Per-run accumulators each _process_manifest_entry call appends to."""
 
-    changed_entries: list[tuple[str, str | None, str]]
+    changed_entries: list[EntryVersionsUpdate]
     unresolved_names: list[str]
     # comment line index -> the (baseline, target) versions written there
     fixed_comment_versions: dict[int, tuple[str | None, str]]
 
 
 def resolve_entry_version(
-    entry: ManifestEntry, paths: Mapping[ImagePath, str | None], repo_map: dict[str, ImagePath] | None = None
+    entry: ManifestEntry, paths: Mapping[ValuesPath, str | None], repo_map: dict[str, ValuesPath] | None = None
 ) -> str | None:
     """App version at the values-tree path this entry resolves to, or None."""
     path = resolve_entry_image_path(entry["name"], paths.keys(), repo_map)
@@ -108,8 +112,8 @@ def _manifest_entries_setup(text: str, context: ManifestEntriesContext) -> _Mani
     # chart_dir may be None (some callers/tests).
     sibling_fields = digest_pinning_exceptions(context.chart_dir) if context.chart_dir is not None else {}
 
-    def same_group(entry_a: ManifestEntry, entry_b: ManifestEntry) -> bool:
-        return images_manifest_entries_share_group(entry_a, entry_b, current_paths, context.repo_map)
+    def is_same_group(entry_a: ManifestEntry, entry_b: ManifestEntry) -> bool:
+        return are_manifest_entries_grouped(entry_a, entry_b, current_paths, context.repo_map)
 
     return _ManifestEntriesSetup(
         lines,
@@ -118,7 +122,7 @@ def _manifest_entries_setup(text: str, context: ManifestEntriesContext) -> _Mani
         current_paths,
         _BaselineSetup(baseline_paths, baseline_repo_groups),
         sibling_fields,
-        same_group,
+        is_same_group,
     )
 
 
@@ -171,7 +175,7 @@ def _process_manifest_entry(
     """Resolve and, if needed, rewrite the comment for entries[index], recording results in state."""
     name = entry["name"]
     comment_idx = find_grouped_preceding_comment_line(
-        setup.lines, setup.entries, setup.entry_line_indices, index, setup.same_group
+        setup.lines, setup.entries, setup.entry_line_indices, index, setup.is_same_group
     )
     if comment_idx is None:
         state.unresolved_names.append(name)
@@ -216,7 +220,7 @@ def _process_manifest_entry(
 
 def fix_images_manifest_entries(
     text: str, context: ManifestEntriesContext
-) -> tuple[str, list[tuple[str, str | None, str]], list[str]]:
+) -> tuple[str, list[EntryVersionsUpdate], list[str]]:
     """Rewrite each entry's preceding comment to the actual baseline -> target versions.
 
     Rewritten only when both ends are verifiable; otherwise reported. A

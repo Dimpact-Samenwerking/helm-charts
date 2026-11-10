@@ -95,11 +95,11 @@ def check_subchart_freshness(chart_dir: Path, metadata: YamlMapping):
         name, version = dep["name"], dep["version"]
         if not name or not version:
             continue
-        matches = [p for p in vendored if p.name.startswith(f"{name}-")]
+        matches = [tgz for tgz in vendored if tgz.name.startswith(f"{name}-")]
         if not matches:
             continue  # not vendored locally (e.g. condition-disabled) — nothing to compare
-        if not any(p.name == f"{name}-{version}.tgz" for p in matches):
-            found = ", ".join(sorted(p.name for p in matches))
+        if not any(tgz.name == f"{name}-{version}.tgz" for tgz in matches):
+            found = ", ".join(sorted(tgz.name for tgz in matches))
             warnings.append(
                 f"Chart.yaml declares {name}@{version}, but the vendored charts/ directory has "
                 f"{found} — run `helm dependency update` before trusting this estimate; it may be "
@@ -108,14 +108,18 @@ def check_subchart_freshness(chart_dir: Path, metadata: YamlMapping):
     return warnings
 
 
-def bucket_files(paths: dict[str, bytes]) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+# {"name": path, "data": base64 content} of one chart file, as Helm serializes it.
+type SerializedFile = dict[str, str]
+
+
+def bucket_files(paths: dict[str, bytes]) -> tuple[list[SerializedFile], list[SerializedFile]]:
     """(templates, files) as Helm's loader.LoadFiles buckets them.
 
     Skips charts/ (never serialized) and Chart.yaml/Chart.lock/values.yaml/
     values.schema.json, which the caller handles separately."""
     special = {"Chart.yaml", "Chart.lock", "values.yaml", "values.schema.json"}
-    templates: list[dict[str, str]] = []
-    files: list[dict[str, str]] = []
+    templates: list[SerializedFile] = []
+    files: list[SerializedFile] = []
     for rel in sorted(paths):
         if rel.startswith("charts/") or rel in special:
             continue
@@ -243,7 +247,7 @@ def _doc_header(chart_name: str):
 def _merge_row(doc_path: Path, lines: list[str], version: str, row: str):
     """Replace `version`'s table row with `row`, or append it; warns when duplicates already exist."""
     replaced = False
-    for i, line in enumerate(lines):
+    for index, line in enumerate(lines):
         stripped = line.strip()
         if not stripped.startswith("|") or stripped.startswith("|---"):
             continue
@@ -256,7 +260,7 @@ def _merge_row(doc_path: Path, lines: list[str], version: str, row: str):
                     "was replaced. Clean up duplicates by hand."
                 )
                 continue
-            lines[i] = row
+            lines[index] = row
             replaced = True
     if not replaced:
         lines.append(row)
@@ -272,9 +276,9 @@ def record_result(chart_dir: Path, chart_name: str, version: str, encoded_bytes:
 
     if doc_path.exists():
         lines = _merge_row(doc_path, doc_path.read_text().splitlines(), version, row)
-        text = "\n".join(lines) + "\n"
+        text = "".join(f"{line}\n" for line in lines)
     else:
-        text = _doc_header(chart_name) + row + "\n"
+        text = f"{_doc_header(chart_name)}{row}\n"
 
     doc_path.write_text(text)
     return doc_path

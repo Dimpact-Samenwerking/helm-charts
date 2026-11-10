@@ -4,15 +4,15 @@ import re
 
 from dataclasses import dataclass
 
+from lib.chart.values_tree_primitives import ValuesPath
 from lib.component_docs.changes_section import remove_changes_section
 from lib.component_docs.changes_section import remove_component_row
-from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.images_manifest_ordering import header_name_segment
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.resolve_component_row import ResolvedRow
 from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
+from lib.upgradedoc.resolve_component_row import is_resolved_row_unchanged
 from lib.upgradedoc.resolve_component_row import resolve_component_row
-from lib.upgradedoc.resolve_component_row import resolved_row_unchanged
 from lib.upgradedoc.resolve_component_row import strip_chart_clause
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
@@ -32,7 +32,7 @@ class HeadingFixInputs:
     """The caller-varying inputs of _fix_heading_app_versions ("###" vs "##" docs)."""
 
     resolved_by_values_key: dict[str, tuple[str, ResolvedRow]]
-    canonical_names: dict[str, ImagePath]
+    canonical_names: dict[str, ValuesPath]
     blocks: list[HeadingBlock]
     heading_marker: str
 
@@ -41,7 +41,11 @@ class HeadingFixInputs:
 NO_CHART = "-"
 
 
-def _new_dependency_row_update(lines: list[str], row: TableRow, resolved: ResolvedRow) -> tuple[str, str, str] | None:
+# A rewritten "Component versions" row as (row_name, app_cell, chart_cell).
+type RowUpdate = tuple[str, str, str]
+
+
+def _new_dependency_row_update(lines: list[str], row: TableRow, resolved: ResolvedRow) -> RowUpdate | None:
     """Rewrite a baseline_resolved=False row to "<target> (new)" cells.
 
     The chart cell is "(new)" regardless; the app may predate the dependency
@@ -57,7 +61,7 @@ def _new_dependency_row_update(lines: list[str], row: TableRow, resolved: Resolv
     return (row["name"], cells[1], cells[2]) if cells else None
 
 
-def _existing_row_update(lines: list[str], row: TableRow, resolved: ResolvedRow) -> tuple[str, str, str] | None:
+def _existing_row_update(lines: list[str], row: TableRow, resolved: ResolvedRow) -> RowUpdate | None:
     """Rewrite a baseline_resolved=True row to source-to-target cells.
 
     The baseline app can be None even when the dependency existed (image
@@ -84,7 +88,7 @@ def _existing_row_update(lines: list[str], row: TableRow, resolved: ResolvedRow)
 
 def fix_component_version_table(
     text: str, resolution: ResolutionContext
-) -> tuple[str, list[tuple[str, str, str]], list[str], list[str]]:
+) -> tuple[str, list[RowUpdate], list[str], list[str]]:
     """Rewrite each "Component versions" row's App/Helm-chart cells to the actual baseline and target versions.
 
     A row is rewritten only when source and target are verifiable, except a
@@ -98,7 +102,7 @@ def fix_component_version_table(
     changed_rows, unmatched_names, unresolved_names)."""
     lines = text.splitlines(keepends=True)
     rows = parse_upgrade_doc_rows(text)
-    changed_rows: list[tuple[str, str, str]] = []
+    changed_rows: list[RowUpdate] = []
     unmatched_names: list[str] = []
     unresolved_names: list[str] = []
 
@@ -137,7 +141,7 @@ def fix_component_version_table(
 
 
 def _resolved_rows_by_values_key(
-    upgrade_doc_text: str, resolution: ResolutionContext, canonical_names: dict[str, ImagePath]
+    upgrade_doc_text: str, resolution: ResolutionContext, canonical_names: dict[str, ValuesPath]
 ) -> dict[str, tuple[str, ResolvedRow]]:
     """{values_key: (row_name, resolved)} for every resolvable row of the upgrade doc's table.
 
@@ -170,7 +174,7 @@ def _expected_chart_clause(heading: str, resolved: ResolvedRow):
 
 
 def _heading_resolved_row(
-    heading: str, resolution: ResolutionContext, inputs: HeadingFixInputs, canonical_path_to_name: dict[ImagePath, str]
+    heading: str, resolution: ResolutionContext, inputs: HeadingFixInputs, canonical_path_to_name: dict[ValuesPath, str]
 ) -> tuple[str, ResolvedRow, str | None, str | None] | None:
     """(row_name, resolved, old_app, expected_bare_name) for heading, or None if it doesn't apply.
 
@@ -201,7 +205,7 @@ def _heading_replacement(
     block: HeadingBlock,
     resolution: ResolutionContext,
     inputs: HeadingFixInputs,
-    canonical_path_to_name: dict[ImagePath, str],
+    canonical_path_to_name: dict[ValuesPath, str],
 ) -> tuple[str, str] | None:
     """(new_heading_line, original_heading) when block's heading needs correcting, else None."""
     heading = block["heading"]
@@ -302,7 +306,7 @@ def remove_unchanged_component_rows(text: str, resolution: ResolutionContext) ->
     removed_names: list[str] = []
     for row in parse_upgrade_doc_rows(text):
         resolved = resolve_component_row(row["name"], canonical_names, resolution)
-        if resolved["kind"] == "unmatched" or not resolved_row_unchanged(resolved):
+        if resolved["kind"] == "unmatched" or not is_resolved_row_unchanged(resolved):
             continue
         removed_names.append(row["name"])
     for name in removed_names:

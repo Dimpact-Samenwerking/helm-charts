@@ -10,20 +10,23 @@ from dataclasses import dataclass
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import is_primary_image_path
+from lib.chart.values_tree_primitives import ValuesPath
 from lib.images_manifest import ENTRY_START_RE
 from lib.images_manifest import ManifestEntry
 from lib.images_manifest import ParsedManifest
 from lib.images_manifest import entry_line_indices
 from lib.images_manifest import parse_manifest_lines
-from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
+from lib.upgradedoc.grouped_comments_and_changes_block import comment_lines_above
 from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment_line
 from lib.upgradedoc.grouped_comments_and_changes_block import find_preceding_comment_line
 from lib.upgradedoc.grouped_comments_and_changes_block import path_display_name
+from lib.upgradedoc.sorting_and_ordering import MovedItem
+from lib.upgradedoc.sorting_and_ordering import moved_items
 from lib.upgradedoc.sorting_and_ordering import path_order_key
 from lib.upgradedoc.sorting_and_ordering import values_key_order
-from lib.upgradedoc.string_and_parsing_basics import changes_item_names
+from lib.upgradedoc.string_and_parsing_basics import is_named_by_changes_item
 from lib.upgradedoc.string_and_parsing_basics import normalize_name
 from lib.upgradedoc.version_cells import VERSION_PAIR_RE
 from lib.yaml_types import YamlMapping
@@ -32,7 +35,7 @@ SIDECAR_HEADER_RE = re.compile(r"^#\s{2,}sidecar:\s*(?P<text>.*)$", re.IGNORECAS
 
 # One _images_manifest_groups group: (entry indices, the first entry's
 # values-tree path or None, its display name).
-ManifestGroup = tuple[list[int], ImagePath | None, str]
+ManifestGroup = tuple[list[int], ValuesPath | None, str]
 
 
 @dataclass
@@ -71,7 +74,7 @@ def entry_component(
     return path[0] if path else None
 
 
-def images_manifest_entries_share_group(
+def are_manifest_entries_grouped(
     entry_a: ManifestEntry,
     entry_b: ManifestEntry,
     current_paths: Mapping[tuple[str, ...], str | None],
@@ -93,12 +96,8 @@ def _own_header_top_line(lines: list[str], entry_line_index: int) -> str | None:
     """The raw topmost line of the comment block directly above the entry, or None if none.
 
     Unlike find_preceding_comment(_line), no version pair is required."""
-    j = entry_line_index - 1
-    top: str | None = None
-    while j >= 0 and lines[j].strip().startswith("#"):
-        top = lines[j]
-        j -= 1
-    return top
+    above = comment_lines_above(lines, entry_line_index)
+    return lines[above[-1]] if above else None
 
 
 def images_manifest_block_start(lines: list[str], entry_line_idx: int) -> int:
@@ -106,10 +105,8 @@ def images_manifest_block_start(lines: list[str], entry_line_idx: int) -> int:
 
     For a comment shared with an earlier entry this lands on that comment, so
     inserting there never splits a group and a sort moves the group as one unit."""
-    i = entry_line_idx
-    while i > 0 and lines[i - 1].lstrip().startswith("#"):
-        i -= 1
-    return i
+    above = comment_lines_above(lines, entry_line_idx)
+    return above[-1] if above else entry_line_idx
 
 
 def delete_images_manifest_entry(lines: list[str], entry_line_idx: int) -> None:
@@ -142,7 +139,7 @@ def delete_images_manifest_entry(lines: list[str], entry_line_idx: int) -> None:
         del lines[start - 1]
     if not entry_line_indices(lines):
         if lines and not lines[-1].endswith("\n"):
-            lines[-1] += "\n"
+            lines[-1] = f"{lines[-1]}\n"
         lines.append("\n[]\n" if lines and lines[-1].strip() else "[]\n")
 
 
@@ -158,9 +155,9 @@ def header_name_segment(text: str) -> str:
     version token. That token is only stripped when an aside was present, so a
     bare-name header never loses its last word. Asides are never cut at the
     first "(": names like "mi-data (MI-data exports)" contain one."""
-    m = VERSION_PAIR_RE.search(text)
-    if m:
-        return text[: m.start()].rstrip(" \t—-")
+    version_pair = VERSION_PAIR_RE.search(text)
+    if version_pair:
+        return text[: version_pair.start()].rstrip(" \t—-")
     without_trailing_asides = re.sub(r"(\s*\([^)]*\))+$", "", text)
     if without_trailing_asides == text:
         return text.rstrip(" \t—-")
@@ -177,7 +174,7 @@ def find_images_manifest_faulty_headers(
     problem is:
     - "missing": no own indented "#   sidecar: ..." header directly above; the
       entry may be silently sharing a preceding entry's header, since
-      same_group's same-version test is only a proxy for a lockstep bump.
+      is_same_group's same-version test is only a proxy for a lockstep bump.
     - "wrong_name": the header's name segment (see header_name_segment) isn't
       exactly "<parent> - <image-basename>" (see path_display_name). Exact equality,
       because one sidecar name can be a prefix of another.
@@ -206,23 +203,27 @@ def _images_manifest_groups(manifest: ParsedManifest, resolution: EntryResolutio
     In current manifest order; path/display_name come from the group's first
     entry (raw name if unresolvable). Shared by the sorter and the out-of-order
     check so both agree on what a group is."""
-    n = len(manifest.entries)
+    entry_count = len(manifest.entries)
 
-    def same_group(entry_a: ManifestEntry, entry_b: ManifestEntry) -> bool:
-        return images_manifest_entries_share_group(entry_a, entry_b, resolution.current_paths, resolution.repo_map)
+    def is_same_group(entry_a: ManifestEntry, entry_b: ManifestEntry) -> bool:
+        return are_manifest_entries_grouped(entry_a, entry_b, resolution.current_paths, resolution.repo_map)
 
     comment_idx_for = [
         find_grouped_preceding_comment_line(
-            manifest.lines, manifest.entries, manifest.entry_line_indices, i, same_group
+            manifest.lines, manifest.entries, manifest.entry_line_indices, entry_index, is_same_group
         )
-        for i in range(n)
+        for entry_index in range(entry_count)
     ]
     index_groups: list[list[int]] = []
-    for i in range(n):
-        if i > 0 and comment_idx_for[i] is not None and comment_idx_for[i] == comment_idx_for[i - 1]:
-            index_groups[-1].append(i)
+    for entry_index in range(entry_count):
+        if (
+            entry_index > 0
+            and comment_idx_for[entry_index] is not None
+            and comment_idx_for[entry_index] == comment_idx_for[entry_index - 1]
+        ):
+            index_groups[-1].append(entry_index)
         else:
-            index_groups.append([i])
+            index_groups.append([entry_index])
 
     groups: list[ManifestGroup] = []
     for indices in index_groups:
@@ -270,24 +271,30 @@ def _images_manifest_sorted_groups(
     return groups, sorted(range(len(groups)), key=lambda gi: keys[gi])
 
 
+# A single entry has no order to fix.
+_MIN_SORTABLE_ENTRIES = 2
+
+
 def _parsed_manifest_from_text(text: str) -> tuple[ParsedManifest | None, bool]:
     """(ParsedManifest, True), or (None, False) if text isn't a valid manifest list or has < 2 entries."""
     parsed = parse_manifest_lines(text)
-    if parsed is None or len(parsed.entries) < 2:
+    if parsed is None or len(parsed.entries) < _MIN_SORTABLE_ENTRIES:
         return None, False
     return parsed, True
 
 
-def _positioned_groups(
-    text: str, context: ManifestSortContext
-) -> tuple[ParsedManifest, list[tuple[ManifestGroup, int]]]:
+# A group and its 0-based position after sorting.
+type PositionedGroup = tuple[ManifestGroup, int]
+
+
+def _positioned_groups(text: str, context: ManifestSortContext) -> tuple[ParsedManifest, list[PositionedGroup]]:
     """(manifest, [(group, 0-based position after sorting)]) in manifest order; no groups if invalid or < 2 entries."""
     manifest, ok = _parsed_manifest_from_text(text)
     if not ok or manifest is None:
         return ParsedManifest([], [], []), []
     groups, order = _images_manifest_sorted_groups(manifest, context)
     position_of_group = {orig_i: slot for slot, orig_i in enumerate(order)}
-    return manifest, [(group, position_of_group[i]) for i, group in enumerate(groups)]
+    return manifest, [(group, position_of_group[group_index]) for group_index, group in enumerate(groups)]
 
 
 def images_manifest_entry_positions(text: str, context: ManifestSortContext) -> dict[str, int]:
@@ -318,7 +325,7 @@ def images_manifest_display_name_positions(text: str, context: ManifestSortConte
 
 
 def match_changes_item_display_name(rest: str, names: Iterable[str]) -> str | None:
-    """The longest of `names` that rest names (see changes_item_names), or None.
+    """The longest of `names` that rest names (see is_named_by_changes_item), or None.
 
     Exact: a hand-written item that names no display name first matches
     nothing. Longest wins so a sidecar ("keycloak-operator - postgres") beats
@@ -326,7 +333,7 @@ def match_changes_item_display_name(rest: str, names: Iterable[str]) -> str | No
     manifest display names and upgrade-doc row names."""
     best: str | None = None
     for name in names:
-        if changes_item_names(rest, name) and (best is None or len(name) > len(best)):
+        if is_named_by_changes_item(rest, name) and (best is None or len(name) > len(best)):
             best = name
     return best
 
@@ -354,11 +361,11 @@ def _group_texts_and_components(
 
     A multi-entry group's internal blank lines are collapsed here."""
     ends = [*starts[1:], len(lines)]
-    original_texts = ["".join(lines[s:e]) for s, e in zip(starts, ends, strict=True)]
+    original_texts = ["".join(lines[start:end]) for start, end in zip(starts, ends, strict=True)]
     # The cross-group merge only sees whole groups, so collapse within a group here.
     per_group_texts = [
-        _collapse_group_internal_blank_lines(t) if len(indices) > 1 else t
-        for (indices, _, _), t in zip(groups, original_texts, strict=True)
+        _collapse_group_internal_blank_lines(group_text) if len(indices) > 1 else group_text
+        for (indices, _, _), group_text in zip(groups, original_texts, strict=True)
     ]
     components = [path[0] if path else None for _, path, _ in groups]
     return per_group_texts, components
@@ -369,22 +376,27 @@ def _merge_ordered_groups(per_group_texts: list[str], components: list[str | Non
 
     Blank lines within a run are collapsed; exactly one separates runs. Groups
     with an unresolved (None) component never merge."""
-    ordered_texts = [per_group_texts[i] for i in order]
-    ordered_components = [components[i] for i in order]
+    ordered_texts = [per_group_texts[position] for position in order]
+    ordered_components = [components[position] for position in order]
 
     merged_texts: list[str] = []
     run_start = 0
-    for i in range(1, len(ordered_texts) + 1):
-        at_end = i == len(ordered_texts)
-        if at_end or ordered_components[i] is None or ordered_components[i] != ordered_components[run_start]:
-            run_text = "".join(ordered_texts[run_start:i])
-            run_text = _collapse_group_internal_blank_lines(run_text) if i - run_start > 1 else run_text
+    for position in range(1, len(ordered_texts) + 1):
+        at_end = position == len(ordered_texts)
+        if (
+            at_end
+            or ordered_components[position] is None
+            or ordered_components[position] != ordered_components[run_start]
+        ):
+            run_text = "".join(ordered_texts[run_start:position])
+            run_text = _collapse_group_internal_blank_lines(run_text) if position - run_start > 1 else run_text
             # Exactly one blank line between runs: spans never include a leading
             # one, so a missing separator must be added here. The last run ends
             # the file: a group moved there keeps the separator that followed it.
-            run_text = run_text.rstrip("\n") + ("\n" if at_end else "\n\n")
+            ending = "\n" if at_end else "\n\n"
+            run_text = f"{run_text.rstrip('\n')}{ending}"
             merged_texts.append(run_text)
-            run_start = i
+            run_start = position
     return merged_texts
 
 
@@ -399,7 +411,7 @@ def _sorted_manifest_text(
     return prefix + "".join(merged_texts)
 
 
-def sort_images_manifest_entries(text: str, context: ManifestSortContext) -> tuple[str, list[tuple[str, int, int]]]:
+def sort_images_manifest_entries(text: str, context: ManifestSortContext) -> tuple[str, list[MovedItem]]:
     """Reorder manifest entry groups into values.yaml order, moving each group as one unit.
 
     Also formats, whether or not anything moved: blank lines between groups of
@@ -418,7 +430,7 @@ def sort_images_manifest_entries(text: str, context: ManifestSortContext) -> tup
         return text, []
 
     groups, order = _images_manifest_sorted_groups(manifest, context)
-    moved = [(groups[i][2], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]
+    moved = moved_items([display_name for _, _, display_name in groups], order)
 
     new_text = _sorted_manifest_text(manifest.lines, manifest.entry_line_indices, groups, order)
     if new_text == text:

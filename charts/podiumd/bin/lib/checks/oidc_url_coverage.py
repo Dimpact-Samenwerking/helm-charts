@@ -32,19 +32,25 @@ def oidc_client_url_paths(text: str) -> set[str] | None:
     list_m = OIDC_CLIENTS_LIST_RE.search(text)
     if list_m is None:
         return None
-    return {m.group("path") for m in OIDC_URL_ENTRY_RE.finditer(list_m.group("body"))}
+    return {entry_match.group("path") for entry_match in OIDC_URL_ENTRY_RE.finditer(list_m.group("body"))}
 
 
-def _client_blocks(lines: list[str]) -> list[tuple[str, int, list[str]]]:
+# (clientId, 1-based line, block lines) of one `- clientId:` item.
+type ClientBlock = tuple[str, int, list[str]]
+# (clientId, 1-based line, ".Values" path or raw redirect URI item).
+type ClientItem = tuple[str, int, str]
+
+
+def _client_blocks(lines: list[str]) -> list[ClientBlock]:
     """[(clientId text, 1-based line, block lines)] per `- clientId:` item, up to the next one.
 
     The last block runs to end of file; harmless since only redirectUris: items are read.
     """
-    starts = [(i, m.group("id").strip("\"'")) for i, line in enumerate(lines) if (m := CLIENT_ITEM_RE.match(line))]
-    return [
-        (client_id, start + 1, lines[start : starts[n + 1][0] if n + 1 < len(starts) else len(lines)])
-        for n, (start, client_id) in enumerate(starts)
-    ]
+    matches = [(index, CLIENT_ITEM_RE.match(line)) for index, line in enumerate(lines)]
+    starts = [(index, client_match.group("id").strip("\"'")) for index, client_match in matches if client_match]
+    ends = [*(start for start, _client_id in starts[1:]), len(lines)]
+    spans = zip(starts, ends, strict=True)
+    return [(client_id, start + 1, lines[start:end]) for (start, client_id), end in spans]
 
 
 def _redirect_uri_items(block: list[str]) -> list[str]:
@@ -54,30 +60,28 @@ def _redirect_uri_items(block: list[str]) -> list[str]:
     control lines are skipped; any other line ends the list.
     """
     items: list[str] = []
-    i = 0
-    while i < len(block):
-        key_m = REDIRECT_URIS_KEY_RE.match(block[i])
-        i += 1
+    index = 0
+    while index < len(block):
+        key_m = REDIRECT_URIS_KEY_RE.match(block[index])
+        index += 1
         if key_m is None:
             continue
         key_indent = len(key_m.group("indent"))
-        while i < len(block):
-            line = block[i]
+        while index < len(block):
+            line = block[index]
             stripped = line.strip()
             if not stripped or stripped.startswith(("#", "{{")):
-                i += 1
+                index += 1
                 continue
             item_m = LIST_ITEM_RE.match(line)
             if item_m is None or len(item_m.group("indent")) < key_indent:
                 break
             items.append(item_m.group("value"))
-            i += 1
+            index += 1
     return items
 
 
-def scan_oidc_url_coverage(
-    text: str,
-) -> tuple[list[tuple[str, int, str]], list[tuple[str, int, str]]] | None:
+def scan_oidc_url_coverage(text: str) -> tuple[list[ClientItem], list[ClientItem]] | None:
     """(uncovered, unmapped) for the template text, or None without an `$oidcClients` list.
 
     uncovered: (clientId, line, ".Values.<path>") not listed as any "oidcUrl".
@@ -86,11 +90,11 @@ def scan_oidc_url_coverage(
     covered = oidc_client_url_paths(text)
     if covered is None:
         return None
-    uncovered: list[tuple[str, int, str]] = []
-    unmapped: list[tuple[str, int, str]] = []
+    uncovered: list[ClientItem] = []
+    unmapped: list[ClientItem] = []
     for client_id, line_no, block in _client_blocks(text.splitlines()):
         for item in _redirect_uri_items(block):
-            paths = [m.group("path") for m in VALUES_PATH_RE.finditer(item)]
+            paths = [path_match.group("path") for path_match in VALUES_PATH_RE.finditer(item)]
             if not paths:
                 unmapped.append((client_id, line_no, item))
             uncovered.extend((client_id, line_no, path) for path in paths if path not in covered)

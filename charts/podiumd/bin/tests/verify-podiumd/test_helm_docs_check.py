@@ -82,7 +82,7 @@ def test_drift_fails_and_reports_changed_line_count(
 ):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/helm-docs")
-    regenerated = README_CONTENT + '| newkey | string | `"x"` |  |\n'
+    regenerated = f'{README_CONTENT}| newkey | string | `"x"` |  |\n'
     monkeypatch.setattr(libhelmdocscheck, "run", lambda cmd, **kw: helm_docs_result(regenerated))
 
     ok, detail = vp.check_helm_docs(chart_dir)
@@ -120,15 +120,15 @@ def test_drift_caps_diff_output_and_reports_how_many_were_dropped(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    chart_dir = make_chart_dir(tmp_path, readme="\n".join(f"line{i}" for i in range(100)) + "\n")
+    chart_dir = make_chart_dir(tmp_path, readme="".join(f"line{i}\n" for i in range(100)))
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/helm-docs")
-    regenerated = "\n".join(f"other{i}" for i in range(100)) + "\n"
+    regenerated = "".join(f"other{i}\n" for i in range(100))
     monkeypatch.setattr(libhelmdocscheck, "run", lambda cmd, **kw: helm_docs_result(regenerated))
 
     ok, _detail = vp.check_helm_docs(chart_dir)
     assert ok is False
     out = capsys.readouterr().out
-    diff_lines_printed = [line for line in out.splitlines() if line.startswith("  ") and line[2:3] in ("+", "-")]
+    diff_lines_printed = [line for line in out.splitlines() if line.startswith("  ") and line[2:3] in {"+", "-"}]
     assert len(diff_lines_printed) <= libhelmdocscheck.helm_doc_max_diff_lines_shown(chart_dir)
     assert "more diff line(s) not shown" in out
 
@@ -142,7 +142,7 @@ def test_run_fix_helm_doc_hint_shown_on_drift(
 ):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/helm-docs")
-    regenerated = README_CONTENT + '| newkey | string | `"x"` |  |\n'
+    regenerated = f'{README_CONTENT}| newkey | string | `"x"` |  |\n'
     monkeypatch.setattr(libhelmdocscheck, "run", lambda cmd, **kw: helm_docs_result(regenerated))
 
     vp.check_helm_docs(chart_dir)
@@ -160,7 +160,7 @@ def test_never_writes_to_the_real_readme(
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/helm-docs")
     monkeypatch.setattr(
-        libhelmdocscheck, "run", lambda cmd, **kw: helm_docs_result(README_CONTENT + "totally different\n")
+        libhelmdocscheck, "run", lambda cmd, **kw: helm_docs_result(f"{README_CONTENT}totally different\n")
     )
 
     vp.check_helm_docs(chart_dir)

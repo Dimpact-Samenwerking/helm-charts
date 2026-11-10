@@ -57,12 +57,16 @@ UNRESOLVED_COMPONENTS = ("", "UNKNOWN")
 # "missing_from_chart") -> its finding lines, as compare() collects them.
 Findings = defaultdict[str, list[str]]
 # What _SourceResolver.resolve_at_baseline found for one basename.
-BaselineResolution = tuple[Literal["found"], str, str] | tuple[Literal["ambiguous"], str] | tuple[Literal["absent"]]
+type BaselineFound = tuple[Literal["found"], str, str]
+type BaselineAmbiguous = tuple[Literal["ambiguous"], str]
+type BaselineResolution = BaselineFound | BaselineAmbiguous | tuple[Literal["absent"]]
+# Finding lines by category, as compare() returns them.
+type FindingsByCategory = dict[str, list[str]]
 
 
 def split_basenames(value: str):
     """A comma-separated CSV basenames cell as a list, stripped, blanks dropped."""
-    return [b.strip() for b in value.split(",") if b.strip()]
+    return [basename.strip() for basename in value.split(",") if basename.strip()]
 
 
 def is_verifiable_target(target: str):
@@ -322,7 +326,7 @@ def _unscoped_fallback_pins(
     keycloak-config-cli under "keycloak"). Ambiguous, with a finding
     recorded, when the matches span several repositories."""
     pins = find_matches_any_tag(state.lines, basename) or None
-    repos = {repository_group_key(p["repository"]) for p in pins or [] if p["repository"]}
+    repos = {repository_group_key(pin["repository"]) for pin in pins or [] if pin["repository"]}
     if len(repos) > 1:
         findings["ambiguous"].append(
             f"[IMAGE] '{basename}' matches {len(repos)} different repositories outside "
@@ -345,7 +349,7 @@ def _check_primary_row_without_basename(
     blank_rows = [row for row in rows if not split_basenames(row["image_basename"])]
     if len(blank_rows) != 1:
         return
-    if primary_basename is not None and any(primary_basename in split_basenames(r["image_basename"]) for r in rows):
+    if primary_basename is not None and any(primary_basename in split_basenames(row["image_basename"]) for row in rows):
         return
     actual = actual_app_version(state.values, ref.scope_key, ref.component, state.chart_dir, ref.dep)
     row = blank_rows[0]
@@ -390,7 +394,7 @@ def check_images(ref: ComponentRef, rows: list[ReleaseTableRow], state: ChartSta
                 )
                 continue
 
-            versions = {p["version"] for p in pins}
+            versions = {pin["version"] for pin in pins}
             if len(versions) > 1:
                 findings["ambiguous"].append(
                     f"[IMAGE] '{basename}' under '{ref.scope_key}' is pinned at {len(versions)} different "
@@ -403,7 +407,7 @@ def check_images(ref: ComponentRef, rows: list[ReleaseTableRow], state: ChartSta
 
     for basename, pins in actual_basenames.items():
         if basename not in csv_basenames:
-            versions = {p["version"] for p in pins}
+            versions = {pin["version"] for pin in pins}
             primary = ref.component != MULTIPLE_KEY and basename == primary_basename
             hint = missing_image_hint(rows, ref, basename, versions, primary=primary)
             findings["missing_from_release_table"].append(
@@ -501,14 +505,17 @@ class _BaselineSourceResolver:
     """Tier resolution of one ref's basenames at the baseline; pulls the subchart at most once."""
 
     def __init__(self, ref: ComponentRef, baseline: ChartState, current: ChartState):
-        self.ref = ref
-        self.baseline = baseline
-        self.current = current
-        self.baseline_basenames = basenames_under_scope_any_tag(baseline.lines, ref.scope_key)
-        self.baseline_dep = (
+        self.ref: ComponentRef = ref
+        self.baseline: ChartState = baseline
+        self.current: ChartState = current
+        self.baseline_basenames: dict[str, list[VersionPin]] = basenames_under_scope_any_tag(
+            baseline.lines, ref.scope_key
+        )
+        self.baseline_dep: ChartDependency | None = (
             find_dependency(baseline.deps, ref.dep["name"]) if ref.dep is not None and baseline.deps else None
         )
-        self._subchart_repos_state = None  # lazily filled: (repos, error) from primary_image_repositories
+        # filled on first use: pulling the subchart is slow
+        self._subchart_repos_state: tuple[dict[str, str | None], str | None] | None = None
 
     def resolve_subchart_source(self, basename: str):
         """(version, None) from the subchart-default fallback, (None, error)
@@ -521,32 +528,17 @@ class _BaselineSourceResolver:
                 baseline.chart_dir, self.baseline_dep, baseline.values, allow_pull=True
             )
         repos, error = self._subchart_repos_state
-        matching_paths = [p for p, repo in repos.items() if repo and image_basename(repo) == basename]
+        matching_paths = [path for path, repo in repos.items() if repo and image_basename(repo) == basename]
         if matching_paths:
             tag = text_at(baseline.values, f"{self.ref.scope_key}.{matching_paths[0]}.tag")
             return (version_of(tag) if isinstance(tag, str) and tag else None), None
         if error and all(
-            not text_at(baseline.values, f"{self.ref.scope_key}.{p}.repository")
-            for p in image_paths_for(self.baseline_dep["name"], baseline.chart_dir)
+            not text_at(baseline.values, f"{self.ref.scope_key}.{path}.repository")
+            for path in image_paths_for(self.baseline_dep["name"], baseline.chart_dir)
         ):
             # Resolution failed and no primary path has an override: may be this basename, so unverifiable.
             return None, error
         return None, None
-
-    def _unscoped_fallback_pins(self, basename: str):
-        """find_matches_any_tag pins for basename at the baseline, kept only
-        when their repository matches basename's CURRENT scoped repository."""
-        fallback_pins = find_matches_any_tag(self.baseline.lines, basename)
-        if not fallback_pins:
-            return fallback_pins
-        current_repo = repository_for_basename_in_scope(self.current.lines, self.ref.scope_key, basename)
-        return [
-            p
-            for p in fallback_pins
-            if current_repo is not None
-            and p["repository"]
-            and repository_group_key(p["repository"]) == repository_group_key(current_repo)
-        ]
 
     def resolve_at_baseline(self, basename: str) -> BaselineResolution:
         """Resolve `basename` at the baseline, shared by the source comparison and strict_presence.
@@ -559,7 +551,7 @@ class _BaselineSourceResolver:
         if pins is None:
             pins = self._unscoped_fallback_pins(basename) or None
         if pins is not None:
-            versions = {p["version"] for p in pins}
+            versions = {pin["version"] for pin in pins}
             if len(versions) > 1:
                 return (
                     "ambiguous",
@@ -584,6 +576,21 @@ class _BaselineSourceResolver:
         if subchart_actual is not None:
             return ("found", subchart_actual, "subchart-default values.yaml")
         return ("absent",)
+
+    def _unscoped_fallback_pins(self, basename: str):
+        """find_matches_any_tag pins for basename at the baseline, kept only
+        when their repository matches basename's CURRENT scoped repository."""
+        fallback_pins = find_matches_any_tag(self.baseline.lines, basename)
+        if not fallback_pins:
+            return fallback_pins
+        current_repo = repository_for_basename_in_scope(self.current.lines, self.ref.scope_key, basename)
+        return [
+            pin
+            for pin in fallback_pins
+            if current_repo is not None
+            and pin["repository"]
+            and repository_group_key(pin["repository"]) == repository_group_key(current_repo)
+        ]
 
 
 def _check_dependency(
@@ -643,7 +650,7 @@ def _check_unmatched_component(
 
 def compare(
     rows: list[ReleaseTableRow], state: ChartState, baseline: ChartState | None = None, *, baseline_only: bool = False
-) -> tuple[dict[str, list[str]], list[ReleaseTableRow]]:
+) -> tuple[FindingsByCategory, list[ReleaseTableRow]]:
     """(findings by category, rows whose component the export never resolved).
 
     `state` is the current chart; state.chart_dir None disables only the

@@ -36,7 +36,8 @@ from lib.chart.release_baseline_basics import chart_version as read_chart_versio
 from lib.cli import check_output_path
 from lib.cli import read_user_file
 from lib.confluence_tables import ReleaseColumns
-from lib.confluence_tables import TableCell
+from lib.confluence_tables import TableRows
+from lib.confluence_tables import VersieGroup
 from lib.confluence_tables import effective_header_row_count
 from lib.confluence_tables import expand_grid
 from lib.confluence_tables import extract_tables
@@ -79,7 +80,7 @@ SECTION_SUFFIX = " component versies"
 MAX_HEADER_ROW_PROBE = 2
 
 
-def resolve_header_row_count(rows: list[list[TableCell]], grid: list[list[str]]) -> int:
+def resolve_header_row_count(rows: TableRows, grid: list[list[str]]) -> int:
     """effective_header_row_count, extended by up to MAX_HEADER_ROW_PROBE rows
     until every required column resolves; the base count if none does.
 
@@ -206,25 +207,28 @@ def recompute_image_basenames(csv_path: Path, chart_dir: Path) -> list[tuple[str
     return changes
 
 
-def _read_csv_rows(csv_path: Path) -> list[list[str]]:
+# One release-table.csv data row, cells in CSV_HEADER order.
+type CsvRow = list[str]
+
+
+def _read_csv_rows(csv_path: Path) -> list[CsvRow]:
     """Data rows of `csv_path`; SystemExit if missing or its header is not CSV_HEADER."""
     if not csv_path.is_file():
-        msg = f"error: {csv_path} does not exist — nothing to recompute"
-        raise SystemExit(msg)
+        sys.exit(f"error: {csv_path} does not exist — nothing to recompute")
     return [values for _line_num, values in release_table_records(csv_path)]
 
 
-def _write_csv_rows(csv_path: Path, rows: list[list[str]]):
+def _write_csv_rows(csv_path: Path, rows: list[CsvRow]):
     """Writes CSV_HEADER + `rows` to `csv_path`, LF-terminated."""
-    with csv_path.open("w", newline="", encoding="utf-8") as f:
+    with csv_path.open("w", newline="", encoding="utf-8") as handle:
         # csv defaults to CRLF; LF so re-exports produce no spurious diffs.
-        writer = csv.writer(f, lineterminator="\n")
+        writer = csv.writer(handle, lineterminator="\n")
         writer.writerow(CSV_HEADER)
         writer.writerows(rows)
 
 
 def _apply_new_basenames(
-    rows: list[list[str]], new_basenames: list[str], basename_idx: int, name_idx: int, component_idx: int
+    rows: list[CsvRow], new_basenames: list[str], basename_idx: int, name_idx: int, component_idx: int
 ) -> list[tuple[str, str, str, str]]:
     """Set image_basename (at basename_idx) from `new_basenames`; return [(name, component, old, new), ...] changes."""
     changes: list[tuple[str, str, str, str]] = []
@@ -236,7 +240,7 @@ def _apply_new_basenames(
     return changes
 
 
-def apply_native_helm_marker(rows: list[list[str]]) -> None:
+def apply_native_helm_marker(rows: list[CsvRow]) -> None:
     """Set both helm columns to "NATIVE" on primary rows of a single resolved component with no helm versions.
 
     Distinguishes a component without its own Helm chart (e.g. frankgateway)
@@ -244,7 +248,7 @@ def apply_native_helm_marker(rows: list[list[str]]) -> None:
     """
     for row in rows:
         used_by, component = row[CSV_HEADER.index("used_by")], row[CSV_HEADER.index("component")]
-        if used_by or component in ("MULTIPLE", "UNKNOWN", ""):
+        if used_by or component in {"MULTIPLE", "UNKNOWN", ""}:
             continue
         source_idx, target_idx = CSV_HEADER.index("source_version_helm"), CSV_HEADER.index("target_version_helm")
         if not row[source_idx] and not row[target_idx]:
@@ -260,8 +264,7 @@ def resolve_token(args: argparse.Namespace):
     if args.token_file:
         token = read_user_file(Path(args.token_file).expanduser(), "--token-file").strip()
         if not token:
-            msg = f"error: --token-file {args.token_file} is empty"
-            raise SystemExit(msg)
+            sys.exit(f"error: --token-file {args.token_file} is empty")
         return token
     if args.token:
         return args.token
@@ -270,9 +273,8 @@ def resolve_token(args: argparse.Namespace):
         return env_token
     try:
         return getpass.getpass("Confluence API token: ")
-    except (KeyboardInterrupt, EOFError) as e:
-        msg = "error: no Confluence API token given"
-        raise SystemExit(msg) from e
+    except (KeyboardInterrupt, EOFError):
+        sys.exit("error: no Confluence API token given")
 
 
 @dataclass
@@ -286,9 +288,7 @@ class ComponentResolutionContext:
     ignored_names: frozenset[str]
 
 
-def extract_release_rows(
-    html: str, headings: list[str] | None = None, chart_dir: Path | None = None
-) -> list[list[str]]:
+def extract_release_rows(html: str, headings: list[str] | None = None, chart_dir: Path | None = None) -> list[CsvRow]:
     """CSV data rows from every table under one of `headings` that has the required App columns.
 
     Tables without a Helm column export blank helm cells (see
@@ -310,25 +310,22 @@ def extract_release_rows(
     )
     all_tables = extract_tables(html)
     if not all_tables:
-        msg = "error: no <table> found on that page"
-        raise SystemExit(msg)
+        sys.exit("error: no <table> found on that page")
 
     matching = tables_under_headings(all_tables, headings)
     print(f"Found {len(all_tables)} table(s) on the page, {len(matching)} under a matching heading")
     if not matching:
-        msg = f"error: no table found directly under any of: {', '.join(headings)}"
-        raise SystemExit(msg)
+        sys.exit(f"error: no table found directly under any of: {', '.join(headings)}")
 
     rows_out, unknown_count, target_labels = _rows_for_tables(matching, context)
 
     check_target_matches_chart_version(target_labels, chart_dir)
 
     if not rows_out:
-        msg = (
+        sys.exit(
             "error: every matching-heading table was missing a required column "
             "(source/target Versie ... App) — see the skip reason(s) above"
         )
-        raise SystemExit(msg)
     if unknown_count:
         print(f"{unknown_count} version value(s) were not semver-compatible — replaced with UNKNOWN")
 
@@ -340,10 +337,10 @@ def extract_release_rows(
 
 
 def _rows_for_tables(
-    matching: list[tuple[str, list[list[TableCell]]]], context: ComponentResolutionContext
-) -> tuple[list[list[str]], int, list[str]]:
+    matching: list[tuple[str, TableRows]], context: ComponentResolutionContext
+) -> tuple[list[CsvRow], int, list[str]]:
     """(all data rows, non-semver cell count, target labels) over every matched table."""
-    rows_out: list[list[str]] = []
+    rows_out: list[CsvRow] = []
     unknown_count = 0
     target_labels: list[str] = []
     for heading, rows in matching:
@@ -356,8 +353,8 @@ def _rows_for_tables(
 
 
 def _rows_for_table(
-    heading: str, rows: list[list[TableCell]], context: ComponentResolutionContext
-) -> tuple[list[list[str]], int, str | None]:
+    heading: str, rows: TableRows, context: ComponentResolutionContext
+) -> tuple[list[CsvRow], int, str | None]:
     """(rows without image_basename, non-semver cell count, target label) for one table.
 
     ([], 0, label) when a required column is missing. Prints a one-line report.
@@ -365,8 +362,7 @@ def _rows_for_table(
     grid = expand_grid(rows)
     header_row_count = resolve_header_row_count(rows, grid)
     paths = header_paths(grid, header_row_count)
-    groups = find_versie_groups(paths)
-    target_label = groups[1][0] if len(groups) == 2 else None
+    target_label = _target_label(find_versie_groups(paths))
     columns = select_release_columns(paths)
     missing = missing_required_release_columns(columns)
     if missing:
@@ -379,11 +375,20 @@ def _rows_for_table(
     return rows_out, unknown_count, target_label
 
 
+def _target_label(groups: list[VersieGroup]) -> str | None:
+    """The second (target) "Versie ..." group's label when there are exactly two groups."""
+    match groups:
+        case [_, (label, _)]:
+            return label
+        case _:
+            return None
+
+
 def _release_rows(
-    data_rows: list[list[str]], heading: str, columns: ReleaseColumns, context: ComponentResolutionContext
-) -> tuple[list[list[str]], int, int]:
+    data_rows: list[CsvRow], heading: str, columns: ReleaseColumns, context: ComponentResolutionContext
+) -> tuple[list[CsvRow], int, int]:
     """(rows without image_basename, non-semver cell count, ignored row count); blank rows are skipped."""
-    rows_out: list[list[str]] = []
+    rows_out: list[CsvRow] = []
     unknown_count = 0
     ignored_count = 0
     for data_row in data_rows:
@@ -428,11 +433,11 @@ def _release_row_from_data_row(
     for column_name, value in zip(version_columns, versions, strict=False):
         if value == "UNKNOWN":
             print(f'WARNING: "{name}": {column_name} is not semver-compatible — replaced with UNKNOWN')
-    unknown_count = sum(1 for v in versions if v == "UNKNOWN")
+    unknown_count = versions.count("UNKNOWN")
     return [section_name(heading), vendor, used_by, name, component, alias, *versions], unknown_count
 
 
-def _insert_resolved_basenames(rows_out: list[list[str]], chart_dir: Path) -> None:
+def _insert_resolved_basenames(rows_out: list[CsvRow], chart_dir: Path) -> None:
     """Insert each row's image_basename.
 
     Warns for MULTIPLE rows without one: nothing downstream would catch the
@@ -448,7 +453,7 @@ def _insert_resolved_basenames(rows_out: list[list[str]], chart_dir: Path) -> No
         row.insert(6, basename)
 
 
-def _warn_duplicate_component_basename_pairs(rows_out: list[list[str]]) -> None:
+def _warn_duplicate_component_basename_pairs(rows_out: list[CsvRow]) -> None:
     """Warn for each (component, basename) pair shared by several rows; blank values are skipped."""
     by_pair: dict[tuple[str, str], list[str]] = {}
     for row in rows_out:
@@ -463,7 +468,7 @@ def _warn_duplicate_component_basename_pairs(rows_out: list[list[str]]) -> None:
             )
 
 
-def warn_unknown_lines(rows: list[list[str]], csv_path: Path | str) -> None:
+def warn_unknown_lines(rows: list[CsvRow], csv_path: Path | str) -> None:
     """Warn on stderr for each row (by file line number) that has UNKNOWN in any column."""
     unknown = [
         (line, row[3], [column for column, value in zip(CSV_HEADER, row, strict=False) if value == "UNKNOWN"])

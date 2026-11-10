@@ -9,10 +9,12 @@ usage() {
     cat <<'HELP'
 Usage: run_python_checks [-h|--help]
 
-Upgrades the tools in requirements.txt, then runs ruff check, shellcheck,
-ruff format --check, jscpd, pymarkdown, vulture, bandit, basedpyright,
-pylint and pytest with coverage on charts/podiumd/bin/, fastest first.
-Stops at the first failure. Run from charts/podiumd/bin/.
+Upgrades pip and the tools in requirements.txt, then runs ruff check,
+shellcheck, ruff format --check, flake8 (wemake-python-styleguide), deptry, jscpd,
+pymarkdown, vulture, bandit, basedpyright, pylint and pytest with coverage
+on charts/podiumd/bin/, fastest first. Stops at the first failure. Then
+pip-audit on the installed packages, as a warning only. Run from
+charts/podiumd/bin/.
 HELP
 }
 
@@ -36,7 +38,7 @@ step() {
 
 # requirements.txt is unpinned: local runs and CI check with the same,
 # newest tool versions.
-step "pip install --upgrade" python3 -m pip install --quiet --disable-pip-version-check --upgrade -r requirements.txt
+step "pip install --upgrade" python3 -m pip install --quiet --disable-pip-version-check --upgrade pip -r requirements.txt
 
 # Arrays keep each file name one argument (SC2046). set -e misses failures
 # inside <(...), so `wait "$!"` checks each one (SC2312).
@@ -80,6 +82,9 @@ if ((${#shell_scripts[@]})); then
     step "shellcheck (${#shell_scripts[@]} shell script(s))" shellcheck "${shell_scripts[@]}"
 fi
 step "ruff format --check" ruff format --check . "${python_scripts[@]}"
+# Settings in pyproject.toml [tool.flake8] (flake8-pyproject).
+step "flake8 (wemake-python-styleguide and plugins)" flake8 lib tests "${python_scripts[@]}"
+step "deptry (dependencies in requirements.txt)" deptry . --requirements-files requirements.txt
 step "jscpd (duplicate code)" jscpd "${code[@]}"
 step "pymarkdown (bin/*.md)" pymarkdown "${pymarkdown_args[@]}" scan ./*.md
 step "vulture (dead code)" vulture "${code[@]}" "$typeddict_whitelist"
@@ -91,5 +96,16 @@ step "pylint (lib + scripts)" pylint "${code[@]}"
 step "pylint (tests)" env PYTHONPATH=. pylint --disable="$tests_pylint_disable" "${test_files[@]}"
 # The threshold is [tool.coverage.report] fail_under in pyproject.toml.
 step "pytest (with coverage)" python3 -m pytest -q --cov --cov-report=term-missing:skip-covered
+
+# A warning only: a new advisory fails it without a code change, and that must
+# not block commits or PRs. The podiumd-pip-audit workflow reports it. Own
+# cache: pip-audit cannot read the cache entries of a newer pip.
+echo "=== pip-audit (installed packages, warning only) ==="
+if python3 -c 'import socket; socket.create_connection(("pypi.org", 443), 5).close()' 2>/dev/null; then
+    pip-audit --progress-spinner off --cache-dir ../.cache/pip-audit ||
+        echo "WARNING: pip-audit found known vulnerabilities: upgrade the package named above"
+else
+    echo "WARNING: pypi.org not reachable, pip-audit skipped"
+fi
 
 echo "=== all checks passed ==="

@@ -21,7 +21,6 @@ capped by cve_scan.scan_cache_ttl_days because trivy's DB changes even when the 
 import json
 import re
 import shutil
-import urllib.error
 
 from collections import Counter
 from collections.abc import Mapping
@@ -36,13 +35,15 @@ from typing import TypeGuard
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.pull_and_subchart_resolution import formatted_repo
 from lib.chart.values_tree_primitives import values_key_of
+from lib.image.digests import DigestLine
 from lib.image.digests import ImageTarget
+from lib.image.digests import ImageTargetPin
 from lib.image.digests import unique_image_targets
 from lib.image.upgrade_cache import UpgradeEntry
 from lib.image.upgrade_cache import load_cache as load_upgrade_cache
 from lib.image.upgrade_cache import same_major_upgrade
 from lib.json_cache import cache_file
-from lib.json_cache import checked_within
+from lib.json_cache import is_checked_within
 from lib.json_cache import load_json_cache
 from lib.json_cache import save_json_cache
 from lib.procutil import run
@@ -73,12 +74,12 @@ VULN_FIELDS = ("VulnerabilityID", "PkgName", "Severity")
 CACHE_FILENAME = "cve-scan-cache.json"
 
 
-class Vulnerability(TypedDict):
-    """The VULN_FIELDS of one trivy finding ("?" when trivy left one out)."""
-
-    VulnerabilityID: str
-    PkgName: str
-    Severity: str
+# The VULN_FIELDS of one trivy finding ("?" when trivy left one out).
+# Functional syntax: as class fields trivy's PascalCase keys would be
+# upper-case constants to WPS115.
+Vulnerability = TypedDict(  # noqa: UP013 -- trivy's PascalCase keys, see above
+    "Vulnerability", {"VulnerabilityID": str, "PkgName": str, "Severity": str}
+)
 
 
 class CveEntry(TypedDict):
@@ -127,7 +128,9 @@ def is_cve_entry(value: object) -> TypeGuard[CveEntry]:
     if not is_yaml_mapping(value) or not isinstance(value.get("scanned_at"), str):
         return False
     vulns = value.get("vulnerabilities")
-    return isinstance(vulns, list) and all(isinstance(v, dict) and _vulnerability(v) == v for v in vulns)
+    if not isinstance(vulns, list):
+        return False
+    return all(isinstance(vuln, dict) and _vulnerability(vuln) == vuln for vuln in vulns)
 
 
 class ImageCves(TypedDict):
@@ -191,7 +194,7 @@ def cache_key(repository: str, digest: str):
 
 def cache_entry_is_fresh(entry: CveEntry, ttl_days: int):
     """True when `entry` was scanned within the last `ttl_days` days."""
-    return checked_within(entry.get("scanned_at"), timedelta(days=ttl_days))
+    return is_checked_within(entry.get("scanned_at"), timedelta(days=ttl_days))
 
 
 def run_trivy(image_ref: str) -> list[Vulnerability] | None:
@@ -265,9 +268,9 @@ def scan_cached(chart_dir: Path, target: ScanTarget, session: CacheSession, ttl_
     return vulns, False
 
 
-def bare_digest(digest_ref: str) -> str:
+def bare_digest(digest: str) -> str:
     """ "sha256:<hex>" -> "<hex>", the form cache_key expects."""
-    return digest_ref.removeprefix("sha256:")
+    return digest.removeprefix("sha256:")
 
 
 def resolve_scan_digest(repository: str, tag: str, digest: str | None) -> str | None:
@@ -282,7 +285,7 @@ def resolve_scan_digest(repository: str, tag: str, digest: str | None) -> str | 
     host, repo_path = parse_repo(repository)
     try:
         exists, resolved = registry_tag_exists(host, repo_path, tag)
-    except (urllib.error.URLError, OSError):
+    except OSError:  # URLError is an OSError
         return None
     return bare_digest(resolved) if exists and resolved else None
 
@@ -298,7 +301,6 @@ TOP_LEVEL_KEY_RE = re.compile(r"^([a-zA-Z0-9_-]+):")
 # A digest-pinned image as (host-qualified repository, version or None, digest).
 ImageKey = tuple[str, str | None, str]
 # A scan target as ((repository, version), (digest or None, values.yaml line)).
-ScanTargetPin = tuple[ImageTarget, tuple[str | None, int]]
 
 
 def split_image_ref(ref: str) -> tuple[str, str | None, str | None]:
@@ -329,10 +331,10 @@ def dependency_names(chart_dir: Path):
 
 def top_level_key_for_line(lines: list[str], line_no: int):
     """The nearest top-level key above `line_no` (0-based), or None."""
-    for i in range(line_no - 1, -1, -1):
-        m = TOP_LEVEL_KEY_RE.match(lines[i])
-        if m:
-            return m.group(1)
+    for index in range(line_no - 1, -1, -1):
+        key_match = TOP_LEVEL_KEY_RE.match(lines[index])
+        if key_match:
+            return key_match.group(1)
     return None
 
 
@@ -362,15 +364,23 @@ def bucket_title(bucket: str, noun: str) -> str:
     return f"{_BUCKET_ADJECTIVES[bucket]} {noun}"
 
 
-def refs_by_bucket(items: Mapping[str, Mapping[str, object]]) -> tuple[list[str], list[str], list[str]]:
+# The (own, partner, other) refs of a report.
+type BucketedRefs = tuple[list[str], list[str], list[str]]
+
+
+def refs_by_bucket(items: Mapping[str, Mapping[str, object]]) -> BucketedRefs:
     """(own, partner, other) keys of `items` by their "bucket", in insertion order."""
-    own, partner, other = ([ref for ref, info in items.items() if info["bucket"] == b] for b in BUCKETS)
+
+    def refs_in(bucket: str) -> list[str]:
+        return [ref for ref, info in items.items() if info["bucket"] == bucket]
+
+    own, partner, other = map(refs_in, BUCKETS)
     return own, partner, other
 
 
 def bucket_of(label: str) -> str:
     """ "own"/"other" unchanged; any vendor label -> "partner"."""
-    if label in ("own", "other"):
+    if label in {"own", "other"}:
         return label
     return "partner"
 
@@ -471,7 +481,7 @@ def _image_ref(repository: str, version: str):
     return f"{host}/{repo_path}:{version}"
 
 
-def _digest_ref(repository: str, digest: str | None) -> str | None:
+def digest_ref(repository: str, digest: str | None) -> str | None:
     """ "<host>/<repo_path>@sha256:<digest>" for `repository`, or None
     without a digest."""
     if not digest:
@@ -504,12 +514,10 @@ def _scan_target(repository: str, version: str, digest: str | None) -> ScanTarge
     when the tag was republished since pinning.
     """
     scan_digest = resolve_scan_digest(repository, version, digest)
-    return ScanTarget(repository, scan_digest, _digest_ref(repository, scan_digest) or _image_ref(repository, version))
+    return ScanTarget(repository, scan_digest, digest_ref(repository, scan_digest) or _image_ref(repository, version))
 
 
-def _scan_one_target(
-    repo_version: ImageTarget, digest_line: tuple[str | None, int], index: int, total: int, context: ScanContext
-):
+def _scan_one_target(repo_version: ImageTarget, digest_line: DigestLine, index: int, total: int, context: ScanContext):
     """(image_ref, entry, was_cached); entry is None when the scan failed.
 
     image_ref (tag-based) is for display; trivy scans by digest (_scan_target).
@@ -540,7 +548,7 @@ def _scan_one_target(
     return image_ref, entry, was_cached
 
 
-def _scan_all_targets(targets: list[ScanTargetPin], context: ScanContext):
+def _scan_all_targets(targets: list[ImageTargetPin], context: ScanContext):
     """(images, ScanStats) for every target, printing progress as it goes."""
     print(
         f"Scanning {len(targets)} unique pinned image(s) for known CVEs with trivy "
@@ -549,8 +557,8 @@ def _scan_all_targets(targets: list[ScanTargetPin], context: ScanContext):
     images: dict[str, ImageCves] = {}
     scan_errors: list[str] = []
     cache_hits = 0
-    for i, (repo_version, digest_line) in enumerate(targets, 1):
-        image_ref, entry, was_cached = _scan_one_target(repo_version, digest_line, i, len(targets), context)
+    for position, (repo_version, digest_line) in enumerate(targets, 1):
+        image_ref, entry, was_cached = _scan_one_target(repo_version, digest_line, position, len(targets), context)
         if entry is None:
             scan_errors.append(image_ref)
             print(f"  [SCAN-ERR] {image_ref}  trivy scan failed or produced unparseable output")
@@ -646,8 +654,8 @@ def severity_label(severity: str):
 def findings_by_package(vulns: list[Vulnerability]) -> dict[str, list[Vulnerability]]:
     """PkgName -> its findings, every severity (one package can carry many CVE IDs)."""
     groups: dict[str, list[Vulnerability]] = {}
-    for v in vulns:
-        groups.setdefault(v["PkgName"], []).append(v)
+    for vuln in vulns:
+        groups.setdefault(vuln["PkgName"], []).append(vuln)
     return groups
 
 
@@ -659,22 +667,26 @@ def print_findings_per_package(vulns: list[Vulnerability], threshold: int) -> No
 
 def print_package_line(pkg: str, vulns_for_pkg: list[Vulnerability], threshold: int):
     """Print `pkg`'s CVE IDs worst-first, or per-severity counts when more than `threshold`."""
-    ordered = sorted(vulns_for_pkg, key=lambda v: SEVERITY_ORDER.index(v["Severity"]))
+    ordered = sorted(vulns_for_pkg, key=lambda vuln: SEVERITY_ORDER.index(vuln["Severity"]))
 
     if len(ordered) <= threshold:
-        ids = ", ".join(f"{severity_label(v['Severity'])} {v['VulnerabilityID']}" for v in ordered)
+        ids = ", ".join(f"{severity_label(vuln['Severity'])} {vuln['VulnerabilityID']}" for vuln in ordered)
         print(f"  {pkg}: {ids}")
         return
 
-    counts = Counter(v["Severity"] for v in ordered)
-    parts = ", ".join(f"{counts[s]} {severity_label(s)}" for s in SEVERITY_ORDER if counts.get(s))
+    counts = Counter(vuln["Severity"] for vuln in ordered)
+    parts = ", ".join(
+        f"{counts[severity]} {severity_label(severity)}" for severity in SEVERITY_ORDER if counts.get(severity)
+    )
     print(f"  {pkg}: {len(ordered)} CVE(s) ({parts})")
 
 
 def print_severity_totals_line(vulns: list[Vulnerability]):
     """Print per-severity counts for `vulns`, worst first."""
-    counts = Counter(v["Severity"] for v in vulns)
-    parts = ", ".join(f"{counts[s]} {severity_label(s)}" for s in SEVERITY_ORDER if counts.get(s))
+    counts = Counter(vuln["Severity"] for vuln in vulns)
+    parts = ", ".join(
+        f"{counts[severity]} {severity_label(severity)}" for severity in SEVERITY_ORDER if counts.get(severity)
+    )
     print(f"  {parts} CVE(s)")
 
 

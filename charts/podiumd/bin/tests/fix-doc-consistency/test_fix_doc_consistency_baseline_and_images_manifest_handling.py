@@ -12,6 +12,7 @@ import yaml
 from lib.fix_doc_consistency.baseline_and_images_manifest_handling import extract_images_baseline
 from lib.fix_doc_consistency.baseline_and_images_manifest_handling import fix_images_manifest_header_lines
 from lib.fix_doc_consistency.baseline_and_images_manifest_handling import update_sibling_doc_refs
+from tests.fixture_data import SHA256_A
 
 
 def git(*args, cwd):
@@ -276,7 +277,7 @@ def repo_with_mi_shaped_stale_docs(tmp_path: Path):
             {
                 "mi": {
                     "enabled": False,
-                    "image": {"repository": "mcr.microsoft.com/azure-cli", "tag": "2.90.0@sha256:" + "a" * 64},
+                    "image": {"repository": "mcr.microsoft.com/azure-cli", "tag": f"2.90.0@{SHA256_A}"},
                 },
             }
         ),

@@ -1,10 +1,12 @@
 """Resolve and group image repositories across the values tree, doc row names, and subchart pin defaults."""
 
+import sys
 import tarfile
 
 from collections.abc import Collection
 from collections.abc import Mapping
 from pathlib import Path
+from typing import NamedTuple
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.nested_subchart_identity import version_repository_path_for
@@ -17,7 +19,9 @@ from lib.chart.registered_paths import is_primary_rel_path
 from lib.chart.registered_paths import native_component_named
 from lib.chart.registered_paths import native_components
 from lib.chart.registered_paths import pin_paths_for
+from lib.chart.values_tree_primitives import ValuesPath
 from lib.chart.values_tree_primitives import dep_for_values_key
+from lib.chart.values_tree_primitives import field_text
 from lib.chart.values_tree_primitives import find_app_versions
 from lib.chart.values_tree_primitives import find_dependency
 from lib.chart.values_tree_primitives import strip_registry_host
@@ -29,17 +33,24 @@ from lib.registry import registry_tag_exists
 from lib.release_baseline import resolve_baseline_chart_state
 from lib.yaml_types import YamlMapping
 
+# A shared repository's paths, by repository_group_key.
+type RepoGroups = dict[str, list[ValuesPath]]
+
+
+class BaselineComponentState(NamedTuple):
+    """component_state_at_baseline's result; with `error` set the rest is None."""
+
+    baseline_ref: str | None = None
+    dep: ChartDependency | None = None
+    values_key: str | None = None
+    image_paths: list[str] | None = None
+    app_versions: list[tuple[str, str]] | None = None
+    error: str | None = None
+
 
 def component_state_at_baseline(
     chart_dir: Path, chart_dir_relpath: str, baseline: str, component: str
-) -> tuple[
-    str | None,
-    ChartDependency | None,
-    str | None,
-    list[str] | None,
-    list[tuple[str, str]] | None,
-    str | None,
-]:
+) -> BaselineComponentState:
     """(baseline_ref, dep, values_key, image_paths, app_versions, error) for `component` at `baseline`.
 
     Resolved from git history via resolve_baseline_chart_state.
@@ -48,30 +59,24 @@ def component_state_at_baseline(
     the rest is None. A native component resolves with dep None and its
     name as values_key.
     """
-    baseline_ref, baseline_deps, baseline_values, _baseline_lines, error = resolve_baseline_chart_state(
-        chart_dir, baseline
-    )
-    if error:
-        return None, None, None, None, None, error
+    state = resolve_baseline_chart_state(chart_dir, baseline)
+    if state.error:
+        return BaselineComponentState(error=state.error)
+    baseline_ref, baseline_deps, baseline_values = state.ref, state.deps, state.values
     dep = find_dependency(baseline_deps, component)
     native = None if dep else native_component_named(chart_dir, component)
     name = dep["name"] if dep else native
     if not name:
-        return (
-            None,
-            None,
-            None,
-            None,
-            None,
-            (f"no dependency named or aliased '{component}' in {chart_dir_relpath}/Chart.yaml at {baseline_ref}"),
+        return BaselineComponentState(
+            error=f"no dependency named or aliased '{component}' in {chart_dir_relpath}/Chart.yaml at {baseline_ref}"
         )
     values_key = values_key_of(dep) if dep else name
     pins = pin_paths_for(name, chart_dir)
     app_versions = find_app_versions(baseline_values, values_key, pins)
-    return baseline_ref, dep, values_key, [pin.path for pin in pins], app_versions, None
+    return BaselineComponentState(baseline_ref, dep, values_key, [pin.path for pin in pins], app_versions)
 
 
-def repo_group_representative(repo_paths: list[tuple[str, ...]], deps: list[ChartDependency]) -> tuple[str, ...]:
+def repo_group_representative(repo_paths: list[ValuesPath], deps: list[ChartDependency]) -> ValuesPath:
     """The representative path of a shared-repository group: the last member of the highest rank present.
 
     1. A "global" path: every other member is an alias of it.
@@ -84,7 +89,7 @@ def repo_group_representative(repo_paths: list[tuple[str, ...]], deps: list[Char
     """
     by_values_key = {values_key_of(dep): dep for dep in deps}
 
-    def rank(path: tuple[str, ...]):
+    def rank(path: ValuesPath):
         if path[0] == "global":
             return 3
         dep = by_values_key.get(path[0])
@@ -126,15 +131,15 @@ class RepositoryResolver:  # pylint: disable=too-few-public-methods  # one query
         allow_pull: bool = False,
         vendored_defaults: bool = True,
     ):
-        self.chart_dir = chart_dir
-        self.deps = deps
-        self.values = values
-        self.allow_pull = allow_pull
-        self.vendored_defaults = vendored_defaults
-        self._by_values_key = {values_key_of(dep): dep for dep in deps}
+        self.chart_dir: Path | None = chart_dir
+        self.deps: list[ChartDependency] = deps
+        self.values: YamlMapping | None = values
+        self.allow_pull: bool = allow_pull
+        self.vendored_defaults: bool = vendored_defaults
+        self._by_values_key: dict[str, ChartDependency] = {values_key_of(dep): dep for dep in deps}
         self._subchart_cache: dict[str, YamlMapping | None] = {}
 
-    def full_repository(self, path: tuple[str, ...]) -> str | None:
+    def full_repository(self, path: ValuesPath) -> str | None:
         """The host-qualified repository of `path`, or None when no tier resolves it."""
         own_repo = own_full_repository(self.values, path)
         if own_repo is not None:
@@ -153,7 +158,7 @@ class RepositoryResolver:  # pylint: disable=too-few-public-methods  # one query
             return None
 
         sub_values = self._subchart_values(dep)
-        repo = text_at(sub_values, ".".join(path[1:]) + ".repository") if sub_values is not None else None
+        repo = field_text(sub_values, path[1:], "repository") if sub_values is not None else None
         return formatted_repo(repo) if isinstance(repo, str) and repo else None
 
     def _subchart_values(self, dep: ChartDependency):
@@ -172,10 +177,10 @@ def paths_by_repository(
     chart_dir: Path | None,
     deps: list[ChartDependency],
     values: YamlMapping,
-    paths: Collection[tuple[str, ...]],
+    paths: Collection[ValuesPath],
     *,
     allow_pull: bool = False,
-) -> dict[str, list[tuple[str, ...]]]:
+) -> RepoGroups:
     """{repository_group_key(repository): [path, ...]} for every path in `paths` with a resolvable repository.
 
     Includes sidecars (e.g. ZAC's opa, whose repository lives only in ZAC's
@@ -184,7 +189,7 @@ def paths_by_repository(
     come from RepositoryResolver; unresolvable paths are skipped.
     """
     resolver = RepositoryResolver(chart_dir, deps, values, allow_pull=allow_pull)
-    groups: dict[str, list[tuple[str, ...]]] = {}
+    groups: RepoGroups = {}
     for path in paths:
         repo = resolver.full_repository(path)
         if repo:
@@ -205,7 +210,7 @@ def full_repository_for_path(
     chart_dir: Path | None,
     deps: list[ChartDependency],
     values: YamlMapping | None,
-    path: tuple[str, ...],
+    path: ValuesPath,
     *,
     allow_pull: bool = False,
 ):
@@ -229,12 +234,13 @@ def pin_repositories(
     `dep` None (a native component) leaves only its own "repository:".
     """
     if dep is None:
-        prefix: tuple[str, ...] = ()
+        prefix: ValuesPath = ()
         resolver = RepositoryResolver(None, [], component_values)
     else:
         prefix = (values_key_of(dep),)
         resolver = RepositoryResolver(chart_dir, [dep], {prefix[0]: component_values}, vendored_defaults=False)
-    return [(pin.path, repo) for pin in pins if (repo := resolver.full_repository((*prefix, *pin.path.split("."))))]
+    full_paths = [(pin.path, (*prefix, *pin.path.split("."))) for pin in pins]
+    return [(pin_path, repo) for pin_path, full_path in full_paths if (repo := resolver.full_repository(full_path))]
 
 
 def check_image_versions(
@@ -260,7 +266,7 @@ def check_image_versions(
             f"error: no repository found for {', '.join(pin.path for pin in pins)} "
             f"— wrong path? see lib.chart.registered_paths.pin_paths_for()"
         )
-        raise SystemExit(msg)
+        sys.exit(msg)
 
     results: list[ImagePathTagCheck] = []
     lookups: dict[str, tuple[bool, str | None]] = {}
@@ -279,10 +285,10 @@ def repository_path_map(
     chart_dir: Path | None,
     deps: list[ChartDependency],
     values: YamlMapping,
-    paths: Collection[tuple[str, ...]],
+    paths: Collection[ValuesPath],
     *,
     allow_pull: bool = False,
-) -> dict[str, tuple[str, ...]]:
+) -> dict[str, ValuesPath]:
     """{repository_group_key(repository): representative values-tree path}.
 
     Manifest "name:"s are stripped repositories, so this matches entries to
@@ -293,8 +299,8 @@ def repository_path_map(
 
 
 def group_representatives(
-    repo_groups: Mapping[str, list[tuple[str, ...]]], deps: list[ChartDependency]
-) -> dict[str, tuple[str, ...]]:
+    repo_groups: Mapping[str, list[ValuesPath]], deps: list[ChartDependency]
+) -> dict[str, ValuesPath]:
     """{repository: repo_group_representative of its paths} for paths_by_repository's groups."""
     return {repo: repo_group_representative(repo_paths, deps) for repo, repo_paths in repo_groups.items()}
 
@@ -303,8 +309,8 @@ def canonical_sidecar_row_names(
     chart_dir: Path | None,
     deps: list[ChartDependency],
     values: YamlMapping,
-    paths: Collection[tuple[str, ...]],
-) -> dict[str, tuple[str, ...]]:
+    paths: Collection[ValuesPath],
+) -> dict[str, ValuesPath]:
     """{canonical doc-row name: values-tree path} for image paths that aren't a dependency's primary image.
 
     - "<values_key> - <image-basename>" for a sidecar of a dependency or native
@@ -320,7 +326,7 @@ def canonical_sidecar_row_names(
         repository_path_map(chart_dir, deps, values, primary_paths)
     )
 
-    names: dict[str, tuple[str, ...]] = {}
+    names: dict[str, ValuesPath] = {}
     for repo, path in repository_path_map(chart_dir, deps, values, sidecar_paths).items():
         if repo in covered_repos:
             continue
@@ -328,13 +334,13 @@ def canonical_sidecar_row_names(
         if row_name is not None:
             names[row_name] = path
     for path in global_paths:
-        repo = text_at(values, ".".join(path) + ".repository")
+        repo = field_text(values, path, "repository")
         if isinstance(repo, str) and repo:
             names[repository_group_key(repo).rsplit("/", 1)[-1]] = path
     return names
 
 
-def _owner_name(deps: list[ChartDependency], natives: frozenset[str], path: tuple[str, ...]) -> str | None:
+def _owner_name(deps: list[ChartDependency], natives: frozenset[str], path: ValuesPath) -> str | None:
     """The Chart.yaml dependency name or native component (`natives`)
     that owns values-tree `path` (by its top-level key), or None."""
     dep = next((dep for dep in deps if values_key_of(dep) == path[0]), None)
@@ -345,13 +351,13 @@ def _owner_name(deps: list[ChartDependency], natives: frozenset[str], path: tupl
 
 
 def _classify_image_paths(
-    chart_dir: Path | None, deps: list[ChartDependency], paths: Collection[tuple[str, ...]]
-) -> tuple[list[tuple[str, ...]], list[tuple[str, ...]], list[tuple[str, ...]]]:
+    chart_dir: Path | None, deps: list[ChartDependency], paths: Collection[ValuesPath]
+) -> tuple[list[ValuesPath], list[ValuesPath], list[ValuesPath]]:
     """(sidecar_paths, global_paths, primary_paths) split of `paths`; ownerless paths are in none."""
     natives = native_components(chart_dir)
-    sidecar_paths: list[tuple[str, ...]] = []
-    global_paths: list[tuple[str, ...]] = []
-    primary_paths: list[tuple[str, ...]] = []
+    sidecar_paths: list[ValuesPath] = []
+    global_paths: list[ValuesPath] = []
+    primary_paths: list[ValuesPath] = []
     for path in paths:
         if not path:
             continue
@@ -368,23 +374,24 @@ def _classify_image_paths(
     return sidecar_paths, global_paths, primary_paths
 
 
-def _global_repository_set(values: YamlMapping, global_paths: list[tuple[str, ...]]) -> set[str]:
+def _global_repository_set(values: YamlMapping, global_paths: list[ValuesPath]) -> set[str]:
     """The stripped repositories of `global_paths`, excluded from sidecar row names."""
     global_repos: set[str] = set()
     for path in global_paths:
-        repo = text_at(values, ".".join(path) + ".repository")
+        repo = field_text(values, path, "repository")
         if isinstance(repo, str) and repo:
             global_repos.add(repository_group_key(repo))
     return global_repos
 
 
-def _sidecar_row_name(repo: str, path: tuple[str, ...]):
+def _sidecar_row_name(repo: str, path: ValuesPath):
     """The "<values_key> - <image-basename>" row name for one sidecar path, or None if there is no distinct name."""
     basename = repo.rsplit("/", 1)[-1]
     if basename.lower() != path[0].lower():
         return f"{path[0]} - {basename}"
-    if len(path) >= 3 and path[-2].lower() != path[0].lower():
-        return f"{path[0]} - {path[-2]}"
+    parent = path[-2:-1]
+    if parent and parent[0].lower() != path[0].lower():
+        return f"{path[0]} - {parent[0]}"
     return None
 
 
@@ -399,20 +406,25 @@ def subchart_template_text(chart_dir: Path, dep: ChartDependency):
     prefix = f"{dep['name']}/templates/"
     try:
         with tarfile.open(tgz_path) as tar:
-            members = [m for m in tar.getmembers() if m.isfile() and m.name.startswith(prefix)]
-            if not members:
-                return None
-            parts: list[str] = []
-            for member in members:
-                f = tar.extractfile(member)
-                if f is not None:
-                    parts.append(f.read().decode("utf-8", errors="replace"))
-            return "\n".join(parts)
+            return _joined_file_texts(tar, prefix)
     except tarfile.TarError:
         return None
 
 
-def subchart_needs_vendoring(chart_dir: Path, deps: list[ChartDependency], path: tuple[str, ...]):
+def _joined_file_texts(tar: tarfile.TarFile, prefix: str) -> str | None:
+    """The files under `prefix` in `tar`, concatenated; None when there are none."""
+    members = [member for member in tar.getmembers() if member.isfile() and member.name.startswith(prefix)]
+    if not members:
+        return None
+    parts: list[str] = []
+    for member in members:
+        handle = tar.extractfile(member)
+        if handle is not None:
+            parts.append(handle.read().decode("utf-8", errors="replace"))
+    return "\n".join(parts)
+
+
+def subchart_needs_vendoring(chart_dir: Path, deps: list[ChartDependency], path: ValuesPath):
     """Whether re-vendoring could resolve `path`: its dependency's .tgz at the pinned version is missing."""
     dep = dep_for_values_key(deps, path[0]) if path else None
     if dep is None:

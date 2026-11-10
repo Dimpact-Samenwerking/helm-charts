@@ -1,4 +1,4 @@
-"""find_repo_root, resolve_git_ref, git_show_yaml — against a real, hermetic
+"""find_repo_root, resolve_git_ref — against a real, hermetic
 temp git repo (not the actual project repo)."""
 
 import subprocess
@@ -45,18 +45,3 @@ def test_resolve_git_ref_finds_existing_tag(libgitutil: ModuleType, repo):
 
 def test_resolve_git_ref_returns_none_when_nothing_resolves(libgitutil: ModuleType, repo):
     assert libgitutil.resolve_git_ref(repo, ["nonexistent-1", "nonexistent-2"]) is None
-
-
-def test_git_show_yaml_reads_file_at_ref(libgitutil: ModuleType, repo):
-    data = libgitutil.git_show_yaml(repo, "podiumd-1.0.0", "values.yaml")
-    assert data == {"zac": {"enabled": True}}
-    data_head = libgitutil.git_show_yaml(repo, "HEAD", "values.yaml")
-    assert data_head == {"zac": {"enabled": False}}
-
-
-def test_git_show_yaml_returns_none_for_missing_file(libgitutil: ModuleType, repo):
-    assert libgitutil.git_show_yaml(repo, "HEAD", "does-not-exist.yaml") is None
-
-
-def test_git_show_yaml_returns_none_for_bad_ref(libgitutil: ModuleType, repo):
-    assert libgitutil.git_show_yaml(repo, "not-a-real-ref", "values.yaml") is None

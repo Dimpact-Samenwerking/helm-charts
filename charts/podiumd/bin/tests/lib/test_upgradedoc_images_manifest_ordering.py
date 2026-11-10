@@ -2,16 +2,22 @@
 
 from types import ModuleType
 
+from tests.fixture_data import SHA256_A
+from tests.fixture_data import SHA256_B
+from tests.fixture_data import SHA256_C
+from tests.fixture_data import SHA256_D
+from tests.fixture_data import SHA256_E
+
 GLOBAL_IMAGES_VALUES = {
     "global": {
         "images": {
-            "nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.5@sha256:" + "a" * 64},
-            "curl": {"repository": "curlimages/curl", "tag": "8.22.0@sha256:" + "b" * 64},
-            "busybox": {"repository": "library/busybox", "tag": "1.38.0-glibc@sha256:" + "c" * 64},
-            "redis": {"repository": "redis", "tag": "8.10.1@sha256:" + "d" * 64},
+            "nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": f"1.31.5@{SHA256_A}"},
+            "curl": {"repository": "curlimages/curl", "tag": f"8.22.0@{SHA256_B}"},
+            "busybox": {"repository": "library/busybox", "tag": f"1.38.0-glibc@{SHA256_C}"},
+            "redis": {"repository": "redis", "tag": f"8.10.1@{SHA256_D}"},
         }
     },
-    "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.3@sha256:" + "e" * 64}},
+    "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": f"5.4.3@{SHA256_E}"}},
 }
 GLOBAL_IMAGES_CANONICAL_NAMES = {
     "nginx-unprivileged": ("global", "images", "nginx"),
@@ -405,26 +411,20 @@ def _images_manifest_two_component_fixture():
         "- name: opstree/redis-operator\n"
         '  version: "0.26.0"\n'
     )
-    entries = [
-        {"name": "infonl/zaakafhandelcomponent", "version": "5.4.4"},
-        {"name": "opstree/redis-operator", "version": "0.26.0"},
-    ]
     deps = [
         {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.0"},
         {"name": "redis-operator", "version": "1.0.0"},
     ]
     values = {"redis-operator": {"redisOperator": {"imageTag": "0.26.0"}}, "zac": {"image": {"tag": "5.4.4"}}}
-    current_paths = {("zac", "image"): "5.4.4", ("redis-operator", "redisOperator", "imageTag"): "0.26.0"}
     repo_map = {
         "infonl/zaakafhandelcomponent": ("zac", "image"),
         "opstree/redis-operator": ("redis-operator", "redisOperator", "imageTag"),
     }
-    key_order = ["redis-operator", "zac"]
-    return text, entries, deps, values, current_paths, repo_map, key_order
+    return text, deps, values, repo_map
 
 
 def test_sort_images_manifest_entries_reorders_to_match_values_yaml(libupgradedocmanifestordering: ModuleType):
-    text, _entries, deps, values, _current_paths, repo_map, _key_order = _images_manifest_two_component_fixture()
+    text, deps, values, repo_map = _images_manifest_two_component_fixture()
     # values' own dict insertion order (redis-operator, zac) IS values_key_order's source.
 
     new_text, moved = libupgradedocmanifestordering.sort_images_manifest_entries(
@@ -439,7 +439,7 @@ def test_sort_images_manifest_entries_reorders_to_match_values_yaml(libupgradedo
 
 
 def test_sort_images_manifest_entries_already_ordered_reports_nothing(libupgradedocmanifestordering: ModuleType):
-    text, _entries, deps, values, _current_paths, repo_map, _key_order = _images_manifest_two_component_fixture()
+    text, deps, values, repo_map = _images_manifest_two_component_fixture()
     values = {"zac": values["zac"], "redis-operator": values["redis-operator"]}  # matches manifest's actual order
 
     new_text, moved = libupgradedocmanifestordering.sort_images_manifest_entries(

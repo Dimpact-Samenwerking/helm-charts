@@ -5,7 +5,7 @@ import re
 from collections.abc import Iterable
 
 from lib.upgradedoc.images_manifest_ordering import match_changes_item_display_name
-from lib.upgradedoc.string_and_parsing_basics import changes_item_names
+from lib.upgradedoc.string_and_parsing_basics import is_named_by_changes_item
 from lib.upgradedoc.string_and_parsing_basics import match_located_line
 
 NUMBER_WORDS = [
@@ -38,11 +38,11 @@ def find_images_manifest_changes_header(lines: list[str]):
     """(header_idx, header_has_count) for the "# Changes:" header, counted or bare.
 
     (None, False) if neither shape is found."""
-    for i, line in enumerate(lines):
+    for line_index, line in enumerate(lines):
         if CHANGES_HEADER_RE.match(line):
-            return i, True
+            return line_index, True
         if BARE_CHANGES_HEADER_RE.match(line):
-            return i, False
+            return line_index, False
     return None, False
 
 
@@ -55,12 +55,13 @@ def ensure_images_manifest_changes_header(lines: list[str]):
     header_idx, _has_count = find_images_manifest_changes_header(lines)
     if header_idx is not None:
         return
-    for i, line in enumerate(lines):
+    for line_index, line in enumerate(lines):
         if IMAGES_MANIFEST_INTRO_RE.match(line.strip()):
-            insert_at = i + 1
+            insert_at = line_index + 1
             if insert_at < len(lines) and lines[insert_at].strip() == "#":
                 insert_at += 1
-            lines[insert_at:insert_at] = ["# Changes:\n", "#\n"]
+            lines.insert(insert_at, "# Changes:\n")
+            lines.insert(insert_at + 1, "#\n")
             return
 
 
@@ -78,16 +79,16 @@ def find_images_manifest_changes_items(lines: list[str]) -> tuple[int | None, bo
 def find_changes_item(lines: list[str], item_indices: list[int], name: str) -> int | None:
     """The index of the first item in `item_indices` naming `name`, or None."""
     for idx in item_indices:
-        m = CHANGES_ITEM_RE.match(lines[idx])
-        if m and changes_item_names(m.group("rest"), name):
+        item_match = CHANGES_ITEM_RE.match(lines[idx])
+        if item_match and is_named_by_changes_item(item_match.group("rest"), name):
             return idx
     return None
 
 
 def images_manifest_changes_count_word(total: int):
-    """(count_word, noun) for the header line: a NUMBER_WORDS entry, else the numeral.
+    r"""(count_word, noun) for the header line: a NUMBER_WORDS entry, else the numeral.
 
-    CHANGES_HEADER_RE's count_word is a single \\w+ token, so never "Twenty Six"."""
+    CHANGES_HEADER_RE's count_word is a single \w+ token, so never "Twenty Six"."""
     count_word = NUMBER_WORDS[total] if total < len(NUMBER_WORDS) else str(total)
     noun = "change" if total == 1 else "changes"
     return count_word, noun
@@ -105,9 +106,10 @@ def renumber_images_manifest_changes_items(lines: list[str]):
     changed = False
     for slot, idx in enumerate(item_indices):
         expected = slot + 1
-        m = match_located_line(CHANGES_ITEM_RE, lines[idx])
-        if int(m.group("num")) != expected:
-            lines[idx] = CHANGES_ITEM_RE.sub(lambda mm, n=expected: f"#   {n}. {mm.group('rest')}", lines[idx])
+        item_match = match_located_line(CHANGES_ITEM_RE, lines[idx])
+        if int(item_match.group("num")) != expected:
+            ending = lines[idx][item_match.end() :]
+            lines[idx] = f"#   {expected}. {item_match.group('rest')}{ending}"
             changed = True
 
     if header_has_count:
@@ -127,16 +129,20 @@ def images_manifest_changes_block(lines: list[str], header_idx: int) -> tuple[li
     The block ends at a bare "#" line or the first non-comment line."""
     item_starts: list[int] = []
     block_end = header_idx + 1
-    for i in range(header_idx + 1, len(lines)):
-        if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
+    for line_index, line in enumerate(lines[header_idx + 1 :], start=header_idx + 1):
+        if line.rstrip("\n") == "#" or not line.startswith("#"):
             break
-        block_end = i + 1
-        if CHANGES_ITEM_RE.match(lines[i]):
-            item_starts.append(i)
+        block_end = line_index + 1
+        if CHANGES_ITEM_RE.match(line):
+            item_starts.append(line_index)
     return item_starts, block_end
 
 
-def images_manifest_changes_item_spans(lines: list[str], header_idx: int) -> tuple[list[tuple[int, int]], int]:
+# (start, end exclusive) lines of one "# Changes:" item.
+type ItemSpan = tuple[int, int]
+
+
+def images_manifest_changes_item_spans(lines: list[str], header_idx: int) -> tuple[list[ItemSpan], int]:
     """(spans, block_end) for the "# Changes:" block at header_idx: one
     (start, end) line span per "#   N. ..." item, its wrapped continuation
     lines included (see images_manifest_changes_block)."""
@@ -150,10 +156,14 @@ def remove_changes_item(lines: list[str], item_indices: list[int], match_idx: in
     """Delete the "#   N. ..." item at line match_idx and renumber the
     items after it. Returns the remaining items' line indices."""
     del lines[match_idx]
-    remaining_indices = [i - 1 if i > match_idx else i for i in item_indices if i != match_idx]
+    remaining_indices = [
+        item_index - 1 if item_index > match_idx else item_index
+        for item_index in item_indices
+        if item_index != match_idx
+    ]
     for new_num, idx in enumerate(remaining_indices, start=1):
-        m = match_located_line(CHANGES_ITEM_RE, lines[idx])
-        lines[idx] = f"#   {new_num}. {m.group('rest')}\n"
+        item_match = match_located_line(CHANGES_ITEM_RE, lines[idx])
+        lines[idx] = f"#   {new_num}. {item_match.group('rest')}\n"
     return remaining_indices
 
 

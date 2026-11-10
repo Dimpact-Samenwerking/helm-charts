@@ -9,6 +9,10 @@ from types import ModuleType
 
 import pytest
 
+from tests.fixture_data import SHA256_A
+from tests.fixture_data import SHA256_B
+from tests.fixture_data import raising
+
 
 @pytest.fixture(autouse=True)
 def _clear_tag_exists_cache(libimagedigests: ModuleType):
@@ -85,8 +89,8 @@ def test_check_image_digests_reports_version_drift(
     out = capsys.readouterr().out
     assert "[VERSION-DRIFT]" in out
     assert "curlimages/curl" in out
-    assert "8.21.0@sha256:" + "a" * 64 in out
-    assert "8.20.0@sha256:" + "b" * 64 in out
+    assert f"8.21.0@{SHA256_A}" in out
+    assert f"8.20.0@{SHA256_B}" in out
     assert "values.yaml:4" in out
     assert "values.yaml:8" in out
 
@@ -159,7 +163,7 @@ def test_check_image_digests_unverifiable_host_does_not_fail_the_check(
     monkeypatch.setattr(
         libimagedigests,
         "registry_tag_exists",
-        lambda host, repo, tag: (_ for _ in ()).throw(
+        raising(
             urllib.error.HTTPError(
                 "https://firewalled-registry.example.com/v2/...", 401, "Unauthorized", Message(), None
             )
@@ -182,9 +186,7 @@ def test_check_image_digests_non_unverifiable_host_fetch_error_still_fails(
     monkeypatch.setattr(
         libimagedigests,
         "registry_tag_exists",
-        lambda host, repo, tag: (_ for _ in ()).throw(
-            urllib.error.HTTPError("https://docker.io/v2/...", 401, "Unauthorized", Message(), None)
-        ),
+        raising(urllib.error.HTTPError("https://docker.io/v2/...", 401, "Unauthorized", Message(), None)),
     )
     ok, detail = vp.check_image_digests(tmp_path)
     assert ok is False

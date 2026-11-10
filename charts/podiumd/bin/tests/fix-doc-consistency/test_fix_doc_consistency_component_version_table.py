@@ -2,7 +2,6 @@
 
 from pathlib import Path
 from types import ModuleType
-from typing import Any
 
 from lib.chart.chart_state import BaselineState
 from lib.chart.chart_state import ComponentState
@@ -13,6 +12,8 @@ from lib.fix_doc_consistency.component_version_table import fix_values_delta_hea
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.version_cells import canonical_version_cell
 from lib.yaml_types import YamlMapping
+from tests.fixture_data import SHA256_A
+from tests.fixture_data import SHA256_B
 
 # --- canonical_version_cell ---
 
@@ -55,7 +56,8 @@ def test_fix_component_version_table_corrects_stale_source(cdb: ModuleType):
             None, ComponentState(target_deps, target_values), BaselineState(baseline_deps, baseline_values)
         ),
     )
-    assert unmatched == [] and unresolved == []
+    assert unmatched == []
+    assert unresolved == []
     assert len(changed) == 1
     assert "5.0.2 → 5.1.0" in new_text
     assert "1.0.297 → 1.0.257" in new_text
@@ -123,14 +125,20 @@ def test_fix_component_version_table_no_baseline_data_reported_unresolved(cdb: M
     assert new_text == text
 
 
-def redis_sidecar_deps_and_values(target_chart="0.26.1", baseline_chart="0.25.0", target_tag="8.6.6"):
+def redis_sidecar_deps_and_values(
+    target_chart="0.26.1",
+    baseline_chart="0.25.0",
+    target_tag="8.6.6",
+    target_redis_ha_extra: YamlMapping | None = None,
+    target_operator_extra: YamlMapping | None = None,
+):
     target_deps: list[ChartDependency] = [{"name": "redis-operator", "version": target_chart}]
     baseline_deps: list[ChartDependency] = [{"name": "redis-operator", "version": baseline_chart}]
-    target_values: dict[str, Any] = {
-        "redis-operator": {
-            "redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": f"{target_tag}@sha256:aaaa"}}
-        }
+    target_redis_ha: YamlMapping = {
+        "image": {"repository": "quay.io/opstree/redis", "tag": f"{target_tag}@sha256:aaaa"}
     }
+    target_operator: YamlMapping = {"redis-ha": target_redis_ha | (target_redis_ha_extra or {})}
+    target_values: YamlMapping = {"redis-operator": target_operator | (target_operator_extra or {})}
     baseline_values: YamlMapping = {
         "redis-operator": {"redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.2@sha256:aaaa"}}}
     }
@@ -198,7 +206,8 @@ def test_fix_component_version_table_corrects_a_native_components_wrong_chart_ce
             None, ComponentState(target_deps, target_values), BaselineState(baseline_deps, baseline_values)
         ),
     )
-    assert unmatched == [] and unresolved == []
+    assert unmatched == []
+    assert unresolved == []
     assert len(changed) == 1
     assert "| frankgateway | 104 (unchanged) | - | - |" in new_text
     assert "1.1.0" not in new_text
@@ -261,7 +270,8 @@ def test_fix_component_version_table_new_dependency_annotated_new_not_reported_u
     new_text, changed, unmatched, unresolved = fix_component_version_table(
         text, ResolutionContext(None, ComponentState(target_deps, target_values), BaselineState([], {}))
     )
-    assert unmatched == [] and unresolved == []
+    assert unmatched == []
+    assert unresolved == []
     assert len(changed) == 1
     assert "| openklant | 2.15.0 (new) | 1.11.0 (new) | - |" in new_text
 
@@ -292,10 +302,9 @@ def test_fix_component_version_table_new_sidecar_app_annotated_new_chart_cell_un
         "| --- | --- | --- | --- |\n"
         "| redis-operator - k8s | 1.36.2 | - | ACR mirror only |\n"
     )
-    target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values()
-    target_values["redis-operator"]["redis-ha"]["preDeleteJob"] = {
-        "image": {"repository": "alpine/k8s", "tag": "1.36.2@sha256:cccc"}
-    }
+    target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values(
+        target_redis_ha_extra={"preDeleteJob": {"image": {"repository": "alpine/k8s", "tag": "1.36.2@sha256:cccc"}}}
+    )
 
     new_text, changed, unmatched, unresolved = fix_component_version_table(
         text,
@@ -303,7 +312,8 @@ def test_fix_component_version_table_new_sidecar_app_annotated_new_chart_cell_un
             None, ComponentState(target_deps, target_values), BaselineState(baseline_deps, baseline_values)
         ),
     )
-    assert unmatched == [] and unresolved == []
+    assert unmatched == []
+    assert unresolved == []
     assert len(changed) == 1
     assert "| redis-operator - k8s | 1.36.2 (new) | - | ACR mirror only |" in new_text
 
@@ -361,7 +371,8 @@ def test_fix_component_version_table_new_dependency_known_in_historical_manifest
             upgrade_docs_baseline="4.8.5",
         ),
     )
-    assert unmatched == [] and unresolved == []
+    assert unmatched == []
+    assert unresolved == []
     assert len(changed) == 1
     assert "| brppersonenmock | 2.7.0-202606230850 (unchanged) | 1.2.9 (new) | - |" in new_text
 
@@ -382,10 +393,9 @@ def test_fix_component_version_table_new_sidecar_known_in_historical_manifest_is
         "| --- | --- | --- | --- |\n"
         "| redis-operator - k8s | 1.36.1 | - | ACR mirror only |\n"
     )
-    target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values()
-    target_values["redis-operator"]["k8s"] = {
-        "image": {"repository": "quay.io/alpine/k8s", "tag": "1.36.2@sha256:cccc"}
-    }
+    target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values(
+        target_operator_extra={"k8s": {"image": {"repository": "quay.io/alpine/k8s", "tag": "1.36.2@sha256:cccc"}}}
+    )
 
     new_text, changed, unmatched, unresolved = fix_component_version_table(
         text,
@@ -396,7 +406,8 @@ def test_fix_component_version_table_new_sidecar_known_in_historical_manifest_is
             upgrade_docs_baseline="4.8.5",
         ),
     )
-    assert unmatched == [] and unresolved == []
+    assert unmatched == []
+    assert unresolved == []
     assert len(changed) == 1
     assert "| redis-operator - k8s | 1.36.2 (unchanged) | - | ACR mirror only |" in new_text
 
@@ -419,10 +430,9 @@ def test_fix_component_version_table_corrects_a_stale_new_annotation_with_matchi
         "| --- | --- | --- | --- |\n"
         "| redis-operator - k8s | 1.36.2 (new) | - | ACR mirror only |\n"
     )
-    target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values()
-    target_values["redis-operator"]["k8s"] = {
-        "image": {"repository": "quay.io/alpine/k8s", "tag": "1.36.2@sha256:cccc"}
-    }
+    target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values(
+        target_operator_extra={"k8s": {"image": {"repository": "quay.io/alpine/k8s", "tag": "1.36.2@sha256:cccc"}}}
+    )
 
     new_text, changed, unmatched, unresolved = fix_component_version_table(
         text,
@@ -433,7 +443,8 @@ def test_fix_component_version_table_corrects_a_stale_new_annotation_with_matchi
             upgrade_docs_baseline="4.8.5",
         ),
     )
-    assert unmatched == [] and unresolved == []
+    assert unmatched == []
+    assert unresolved == []
     assert len(changed) == 1
     assert "| redis-operator - k8s | 1.36.2 (unchanged) | - | ACR mirror only |" in new_text
 
@@ -456,7 +467,7 @@ def test_fix_changes_heading_app_versions_corrects_wrong_new_dependency_heading(
         "Some stale prose here.\n"
     )
     deps: list[ChartDependency] = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
-    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": f"2.90.0@{SHA256_A}"}}}
 
     new_text, updated_headings = fix_changes_heading_app_versions(
         text,
@@ -482,7 +493,7 @@ def test_fix_changes_heading_app_versions_syncs_headings_name_to_rows(cdb: Modul
         "Some stale prose here.\n"
     )
     deps: list[ChartDependency] = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
-    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": f"2.90.0@{SHA256_A}"}}}
 
     new_text, updated_headings = fix_changes_heading_app_versions(
         text,
@@ -507,7 +518,7 @@ def test_fix_changes_heading_app_versions_renames_even_when_app_version_already_
         "Some stale prose here.\n"
     )
     deps: list[ChartDependency] = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
-    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": f"2.90.0@{SHA256_A}"}}}
 
     new_text, updated_headings = fix_changes_heading_app_versions(
         text,
@@ -533,9 +544,7 @@ def test_fix_changes_heading_app_versions_preserves_deliberately_customized_name
     target_values: YamlMapping = {
         "keycloak-operator": {
             "operator": {
-                "config": {
-                    "keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": "26.7.3@sha256:" + "b" * 64}
-                }
+                "config": {"keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": f"26.7.3@{SHA256_B}"}}
             }
         }
     }
@@ -543,9 +552,7 @@ def test_fix_changes_heading_app_versions_preserves_deliberately_customized_name
     baseline_values: YamlMapping = {
         "keycloak-operator": {
             "operator": {
-                "config": {
-                    "keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": "26.7.2@sha256:" + "a" * 64}
-                }
+                "config": {"keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": f"26.7.2@{SHA256_A}"}}
             }
         }
     }
@@ -576,7 +583,7 @@ def test_fix_changes_heading_app_versions_no_version_marker_never_touched(cdb: M
         "Free-form prose with no version claim at all.\n"
     )
     deps: list[ChartDependency] = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
-    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": f"2.90.0@{SHA256_A}"}}}
 
     new_text, updated_headings = fix_changes_heading_app_versions(
         text,
@@ -598,7 +605,7 @@ def test_fix_changes_heading_app_versions_already_correct_heading_untouched(cdb:
         "PodiumD 4.9.1 introduces **mi** at app version 2.90.0.\n"
     )
     deps: list[ChartDependency] = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
-    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": f"2.90.0@{SHA256_A}"}}}
 
     new_text, updated_headings = fix_changes_heading_app_versions(
         text,
@@ -622,11 +629,11 @@ def test_fix_changes_heading_app_versions_real_version_bump_still_corrected(cdb:
     )
     deps: list[ChartDependency] = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     target_values: YamlMapping = {
-        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.5.0@sha256:" + "b" * 64}}
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": f"5.5.0@{SHA256_B}"}}
     }
     baseline_deps: list[ChartDependency] = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     baseline_values: YamlMapping = {
-        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.0@sha256:" + "a" * 64}}
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": f"5.4.0@{SHA256_A}"}}
     }
 
     new_text, updated_headings = fix_changes_heading_app_versions(
@@ -655,9 +662,7 @@ def test_fix_changes_heading_app_versions_corrects_stale_bare_sidecar_heading(cd
         "Some stale prose here.\n"
     )
     deps: list[ChartDependency] = []
-    target_values: YamlMapping = {
-        "global": {"images": {"redis": {"repository": "redis", "tag": "8.10.1@sha256:" + "a" * 64}}}
-    }
+    target_values: YamlMapping = {"global": {"images": {"redis": {"repository": "redis", "tag": f"8.10.1@{SHA256_A}"}}}}
 
     new_text, updated_headings = fix_changes_heading_app_versions(
         text,
@@ -710,9 +715,7 @@ def test_fix_changes_heading_app_versions_already_correct_sidecar_heading_untouc
         "Some prose here.\n"
     )
     deps: list[ChartDependency] = []
-    target_values: YamlMapping = {
-        "global": {"images": {"redis": {"repository": "redis", "tag": "8.10.1@sha256:" + "a" * 64}}}
-    }
+    target_values: YamlMapping = {"global": {"images": {"redis": {"repository": "redis", "tag": f"8.10.1@{SHA256_A}"}}}}
 
     new_text, updated_headings = fix_changes_heading_app_versions(
         text,
@@ -781,7 +784,7 @@ def test_fix_values_delta_heading_app_versions_corrects_wrong_name_and_new_depen
         "- Key `mi.transfer.noEpsv` (optional) added.\n"
     )
     deps: list[ChartDependency] = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
-    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": f"2.90.0@{SHA256_A}"}}}
 
     new_text, updated_headings = fix_values_delta_heading_app_versions(
         MI_UPGRADE_DOC_TEXT,
@@ -801,7 +804,7 @@ def test_fix_values_delta_heading_app_versions_already_correct_heading_untouched
         "- Key `mi.transfer.noEpsv` (optional) added.\n"
     )
     deps: list[ChartDependency] = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
-    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": f"2.90.0@{SHA256_A}"}}}
 
     new_text, updated_headings = fix_values_delta_heading_app_versions(
         MI_UPGRADE_DOC_TEXT,
@@ -822,7 +825,7 @@ def test_fix_values_delta_heading_app_versions_unchanged_app_with_chart_bump_is_
         "- Key `mi.transfer.noEpsv` (optional) added.\n"
     )
     deps: list[ChartDependency] = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
-    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": f"2.90.0@{SHA256_A}"}}}
     resolution = ResolutionContext(
         None, ComponentState(deps, target_values), BaselineState([], {}), upgrade_docs_baseline=None
     )
@@ -854,13 +857,9 @@ def test_fix_values_delta_heading_app_versions_corrects_stale_chart_version(cdb:
     )
     repository = "docker.io/maykinmedia/open-inwoner"
     deps: list[ChartDependency] = [{"name": "openinwoner", "version": "2.7.0"}]
-    target_values: YamlMapping = {
-        "openinwoner": {"image": {"repository": repository, "tag": "2.5.0@sha256:" + "b" * 64}}
-    }
+    target_values: YamlMapping = {"openinwoner": {"image": {"repository": repository, "tag": f"2.5.0@{SHA256_B}"}}}
     baseline_deps: list[ChartDependency] = [{"name": "openinwoner", "version": "2.4.0"}]
-    baseline_values: YamlMapping = {
-        "openinwoner": {"image": {"repository": repository, "tag": "2.4.9@sha256:" + "a" * 64}}
-    }
+    baseline_values: YamlMapping = {"openinwoner": {"image": {"repository": repository, "tag": f"2.4.9@{SHA256_A}"}}}
     resolution = ResolutionContext(
         None,
         ComponentState(deps, target_values),
@@ -890,9 +889,7 @@ def test_fix_values_delta_heading_app_versions_corrects_stale_sidecar_heading(cd
         "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\n## redis 8.0 → 8.10.1\n\n- `global.images.redis` added.\n"
     )
     deps: list[ChartDependency] = []
-    target_values: YamlMapping = {
-        "global": {"images": {"redis": {"repository": "redis", "tag": "8.10.1@sha256:" + "a" * 64}}}
-    }
+    target_values: YamlMapping = {"global": {"images": {"redis": {"repository": "redis", "tag": f"8.10.1@{SHA256_A}"}}}}
 
     new_text, updated_headings = fix_values_delta_heading_app_versions(
         redis_upgrade_doc_text,
@@ -911,7 +908,7 @@ def test_fix_values_delta_heading_app_versions_bare_hand_written_heading_never_t
         "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\n## mi\n\nFree-form prose, no version marker at all.\n"
     )
     deps: list[ChartDependency] = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
-    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": f"2.90.0@{SHA256_A}"}}}
 
     new_text, updated_headings = fix_values_delta_heading_app_versions(
         MI_UPGRADE_DOC_TEXT,
@@ -931,7 +928,7 @@ def test_fix_values_delta_heading_app_versions_no_upgrade_doc_is_a_noop(cdb: Mod
         "- Key `mi.transfer.noEpsv` (optional) added.\n"
     )
     deps: list[ChartDependency] = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
-    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+    target_values: YamlMapping = {"mi": {"image": {"repository": "azure-cli", "tag": f"2.90.0@{SHA256_A}"}}}
 
     new_text, updated_headings = fix_values_delta_heading_app_versions(
         "",

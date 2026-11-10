@@ -9,11 +9,13 @@ from typing import TYPE_CHECKING
 import pytest
 import yaml
 
-from lib.fix_doc_consistency.manifest_entries_new_and_urls import MissingEntriesContext
-from lib.fix_doc_consistency.manifest_entries_new_and_urls import add_missing_images_manifest_entries
-from lib.fix_doc_consistency.manifest_entries_new_and_urls import fix_images_manifest_entry_names
-from lib.fix_doc_consistency.manifest_entries_new_and_urls import fix_images_manifest_entry_urls
-from lib.fix_doc_consistency.manifest_entries_new_and_urls import remove_stale_images_manifest_entries
+from lib.fix_doc_consistency.manifest_entries_new_and_removed import MissingEntriesContext
+from lib.fix_doc_consistency.manifest_entries_new_and_removed import add_missing_images_manifest_entries
+from lib.fix_doc_consistency.manifest_entries_new_and_removed import remove_stale_images_manifest_entries
+from lib.fix_doc_consistency.manifest_entry_urls_and_names import fix_images_manifest_entry_names
+from lib.fix_doc_consistency.manifest_entry_urls_and_names import fix_images_manifest_entry_urls
+from tests.fixture_data import SHA256_A
+from tests.fixture_data import SHA256_B
 
 if TYPE_CHECKING:
     from lib.chart.chart_yaml import ChartDependency
@@ -221,7 +223,7 @@ def test_add_missing_images_manifest_entries_genuinely_new_image_renders_new(ima
     target_values: YamlMapping = {
         "zac": {
             "opentelemetry-collector": {
-                "image": {"repository": "otel/opentelemetry-collector-contrib", "tag": "0.158.0@sha256:" + "a" * 64}
+                "image": {"repository": "otel/opentelemetry-collector-contrib", "tag": f"0.158.0@{SHA256_A}"}
             }
         }
     }
@@ -300,12 +302,8 @@ def test_add_missing_images_manifest_entries_catches_same_version_changed_digest
     """
     text = "# Baseline: podiumd 4.8.5.\n"
     deps: list[ChartDependency] = [{"name": "clamav", "version": "1.0.0"}]
-    target_values: YamlMapping = {
-        "clamav": {"image": {"repository": "clamav/clamav", "tag": "1.5.4@sha256:" + "b" * 64}}
-    }
-    baseline_values: YamlMapping = {
-        "clamav": {"image": {"repository": "clamav/clamav", "tag": "1.5.4@sha256:" + "a" * 64}}
-    }
+    target_values: YamlMapping = {"clamav": {"image": {"repository": "clamav/clamav", "tag": f"1.5.4@{SHA256_B}"}}}
+    baseline_values: YamlMapping = {"clamav": {"image": {"repository": "clamav/clamav", "tag": f"1.5.4@{SHA256_A}"}}}
 
     new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
         text,
@@ -353,12 +351,8 @@ def test_add_missing_images_manifest_entries_real_version_bump_keeps_arrow_wordi
     """A real version bump keeps "<old> -> <new>"; "(digest changed)" is only for same-version re-pins."""
     text = ""
     deps: list[ChartDependency] = [{"name": "curl", "version": "1.0.0"}]
-    target_values: YamlMapping = {
-        "curl": {"image": {"repository": "curlimages/curl", "tag": "8.22.0@sha256:" + "b" * 64}}
-    }
-    baseline_values: YamlMapping = {
-        "curl": {"image": {"repository": "curlimages/curl", "tag": "8.21.0@sha256:" + "a" * 64}}
-    }
+    target_values: YamlMapping = {"curl": {"image": {"repository": "curlimages/curl", "tag": f"8.22.0@{SHA256_B}"}}}
+    baseline_values: YamlMapping = {"curl": {"image": {"repository": "curlimages/curl", "tag": f"8.21.0@{SHA256_A}"}}}
 
     new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
         text,
@@ -491,7 +485,7 @@ def test_add_missing_images_manifest_entries_eck_operator_split_digest_field_res
             "image": {
                 "repository": "docker.elastic.co/eck/eck-operator",
                 "tag": "3.5.0",
-                "digest": "sha256:" + "b" * 64,
+                "digest": SHA256_B,
             },
         }
     }
@@ -803,10 +797,10 @@ def test_remove_stale_images_manifest_entries_keeps_changed_digest(images_manife
     )
     deps: list[ChartDependency] = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
     target_values: YamlMapping = {
-        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:" + "a" * 64}}
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": f"5.0.2@{SHA256_A}"}}
     }
     baseline_values: YamlMapping = {
-        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:" + "b" * 64}}
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": f"5.0.2@{SHA256_B}"}}
     }
 
     new_text, removed = remove_stale_images_manifest_entries(
