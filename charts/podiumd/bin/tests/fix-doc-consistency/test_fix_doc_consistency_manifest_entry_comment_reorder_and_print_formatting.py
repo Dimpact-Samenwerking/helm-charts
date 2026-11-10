@@ -1,17 +1,16 @@
 """main() integration: images-manifest entry comments, reordering, and print
 formatting of multi-item lists."""
 
-import subprocess
-
 from pathlib import Path
 from types import ModuleType
 
 import pytest
 import yaml
 
-
-def git(*args, cwd):
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
+from tests.chart_repo import seed_chart_repo
+from tests.chart_repo import tagged_baseline_repo
+from tests.chart_repo import write_chart_state
+from tests.git_repo import commit_all
 
 
 def write(path, text):
@@ -28,6 +27,8 @@ def set_argv_and_dir(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch, doc_dir, 
 
 
 # --- main() integration: images-manifest entry-comment correction ---
+
+ZAC_DEPS = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"}]
 
 
 def test_main_corrects_stale_images_manifest_entry_comment(
@@ -50,48 +51,15 @@ def test_main_corrects_stale_images_manifest_entry_comment(
     assert "# ZAC — 5.0.2 -> 5.1.0" in text
 
 
-def _repo_with_zac_bump(tmp_path: Path, entry_name: str, entry_url: str) -> tuple[Path, Path]:
-    """Repo bumping zac 5.0.2 -> 5.1.0 since podiumd-4.8.5, with an
-    images-4.9.0.yaml entry carrying a stale "5.0.1 -> 5.1.0" comment.
-    Returns (doc_dir, images_path)."""
-    git("init", "-q", cwd=tmp_path)
-    git("config", "user.email", "test@example.com", cwd=tmp_path)
-    git("config", "user.name", "Test", cwd=tmp_path)
+def _zac_values(tag: str) -> dict[str, object]:
+    """values.yaml pinning zac's image to `tag`."""
+    return {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": tag}}}
 
-    write(
-        tmp_path / "Chart.yaml",
-        yaml.safe_dump(
-            {
-                "dependencies": [
-                    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
-                ],
-            }
-        ),
-    )
-    write(
-        tmp_path / "values.yaml",
-        yaml.safe_dump(
-            {
-                "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:bbbb"}},
-            }
-        ),
-    )
-    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
-    doc_dir.mkdir(parents=True)
-    images_dir = tmp_path / "docs" / "images"
-    images_dir.mkdir(parents=True)
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
-    git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
-    write(
-        tmp_path / "values.yaml",
-        yaml.safe_dump(
-            {
-                "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0@sha256:aaaa"}},
-            }
-        ),
-    )
+def _zac_bumped_repo(tmp_path: Path) -> Path:
+    """zac bumped 5.0.2 -> 5.1.0 since podiumd-4.8.5, with its table row; uncommitted. Returns doc_dir."""
+    doc_dir = tagged_baseline_repo(tmp_path, ZAC_DEPS, _zac_values("5.0.2@sha256:bbbb"))
+    write_chart_state(tmp_path, ZAC_DEPS, _zac_values("5.1.0@sha256:aaaa"))
     write(
         doc_dir / "4.8.3-to-4.9.0-upgrade.md",
         "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
@@ -100,6 +68,15 @@ def _repo_with_zac_bump(tmp_path: Path, entry_name: str, entry_url: str) -> tupl
         "| --- | --- | --- | --- |\n"
         "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | ACR mirror only |\n",
     )
+    return doc_dir
+
+
+def _repo_with_zac_bump(tmp_path: Path, entry_name: str, entry_url: str) -> tuple[Path, Path]:
+    """Repo bumping zac 5.0.2 -> 5.1.0 since podiumd-4.8.5, with an
+    images-4.9.0.yaml entry carrying a stale "5.0.1 -> 5.1.0" comment.
+    Returns (doc_dir, images_path)."""
+    doc_dir = _zac_bumped_repo(tmp_path)
+    images_dir = doc_dir.parent / "images"
     images_path = images_dir / "images-4.9.0.yaml"
     write(
         images_path,
@@ -110,8 +87,7 @@ def _repo_with_zac_bump(tmp_path: Path, entry_name: str, entry_url: str) -> tupl
         '  version: "5.1.0"\n'
         '  digest: "sha256:aaaa"\n',
     )
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "bump zac, stale images-manifest comment", cwd=tmp_path)
+    commit_all(tmp_path, "bump zac, stale images-manifest comment")
     return doc_dir, images_path
 
 
@@ -147,56 +123,11 @@ def test_main_corrects_url_then_name_in_one_run(cdb: ModuleType, tmp_path: Path,
 def test_main_adds_missing_images_manifest_entry(cdb: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """A changed component without a manifest entry gets one appended, not
     just reported."""
-    git("init", "-q", cwd=tmp_path)
-    git("config", "user.email", "test@example.com", cwd=tmp_path)
-    git("config", "user.name", "Test", cwd=tmp_path)
-
-    write(
-        tmp_path / "Chart.yaml",
-        yaml.safe_dump(
-            {
-                "dependencies": [
-                    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
-                ],
-            }
-        ),
-    )
-    write(
-        tmp_path / "values.yaml",
-        yaml.safe_dump(
-            {
-                "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:bbbb"}},
-            }
-        ),
-    )
-    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
-    doc_dir.mkdir(parents=True)
-    images_dir = tmp_path / "docs" / "images"
-    images_dir.mkdir(parents=True)
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
-    git("tag", "podiumd-4.8.5", cwd=tmp_path)
-
-    write(
-        tmp_path / "values.yaml",
-        yaml.safe_dump(
-            {
-                "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0@sha256:aaaa"}},
-            }
-        ),
-    )
-    write(
-        doc_dir / "4.8.3-to-4.9.0-upgrade.md",
-        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
-        "## Component versions (4.9.0 vs 4.8.5)\n\n"
-        "| Component | App version | Helm chart | Notes |\n"
-        "| --- | --- | --- | --- |\n"
-        "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | ACR mirror only |\n",
-    )
+    doc_dir = _zac_bumped_repo(tmp_path)
+    images_dir = doc_dir.parent / "images"
     images_path = images_dir / "images-4.9.0.yaml"
     write(images_path, "# Baseline: podiumd 4.8.5. Re-verify before release.\n\n[]\n")
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "bump zac, no images-manifest entry yet", cwd=tmp_path)
+    commit_all(tmp_path, "bump zac, no images-manifest entry yet")
 
     set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
     cdb.main()
@@ -216,36 +147,19 @@ def test_main_adds_missing_images_manifest_entry(cdb: ModuleType, tmp_path: Path
 def repo_with_out_of_order_doc(tmp_path: Path):
     """Table rows and "## Changes" blocks both in the opposite of values.yaml
     key order."""
-    git("init", "-q", cwd=tmp_path)
-    git("config", "user.email", "test@example.com", cwd=tmp_path)
-    git("config", "user.name", "Test", cwd=tmp_path)
-
-    write(
-        tmp_path / "Chart.yaml",
-        yaml.safe_dump(
-            {
-                "dependencies": [
-                    {"name": "openzaak", "version": "1.14.2", "repository": "@maykinmedia"},
-                    {"name": "openinwoner", "version": "2.4.0", "repository": "@maykinmedia"},
-                ],
-            },
-            sort_keys=False,
-        ),
+    # sort_values=False: file order is the ordering signal (values_key_order).
+    doc_dir = seed_chart_repo(
+        tmp_path,
+        [
+            {"name": "openzaak", "version": "1.14.2", "repository": "@maykinmedia"},
+            {"name": "openinwoner", "version": "2.4.0", "repository": "@maykinmedia"},
+        ],
+        {
+            "openzaak": {"image": {"tag": "1.27.4@sha256:aaaa"}},
+            "openinwoner": {"image": {"tag": "2.4.2@sha256:bbbb"}},
+        },
+        sort_values=False,
     )
-    # sort_keys=False: file order is the ordering signal (values_key_order).
-    write(
-        tmp_path / "values.yaml",
-        yaml.safe_dump(
-            {
-                "openzaak": {"image": {"tag": "1.27.4@sha256:aaaa"}},
-                "openinwoner": {"image": {"tag": "2.4.2@sha256:bbbb"}},
-            },
-            sort_keys=False,
-        ),
-    )
-    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
-    doc_dir.mkdir(parents=True)
-    (tmp_path / "docs" / "images").mkdir(parents=True)
     write(
         doc_dir / "4.8.3-to-4.9.0-upgrade.md",
         "# Upgrade guide: PodiumD 4.8.3 → 4.9.0\n\n"
@@ -260,8 +174,7 @@ def repo_with_out_of_order_doc(tmp_path: Path):
         "### Open Zaak 1.27.4 → 1.27.4\n\n"
         "Zaak details.\n",
     )
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "seed out-of-order doc", cwd=tmp_path)
+    commit_all(tmp_path, "seed out-of-order doc")
     return doc_dir
 
 
@@ -311,31 +224,15 @@ def test_main_reorders_a_sidecar_row_to_come_after_its_own_parent_row(
     """A sidecar row shares its parent's values_key_index; the " - "
     tie-break must put it after the parent, since a stable sort alone keeps
     a sidecar that came first."""
-    git("init", "-q", cwd=tmp_path)
-    git("config", "user.email", "test@example.com", cwd=tmp_path)
-    git("config", "user.name", "Test", cwd=tmp_path)
-
-    write(
-        tmp_path / "Chart.yaml",
-        yaml.safe_dump(
-            {
-                "dependencies": [{"name": "redis-operator", "version": "0.26.1", "repository": "@opstree"}],
+    doc_dir = seed_chart_repo(
+        tmp_path,
+        [{"name": "redis-operator", "version": "0.26.1", "repository": "@opstree"}],
+        {
+            "redis-operator": {
+                "redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.6@sha256:aaaa"}}
             }
-        ),
+        },
     )
-    write(
-        tmp_path / "values.yaml",
-        yaml.safe_dump(
-            {
-                "redis-operator": {
-                    "redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.6@sha256:aaaa"}}
-                },
-            }
-        ),
-    )
-    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
-    doc_dir.mkdir(parents=True)
-    (tmp_path / "docs" / "images").mkdir(parents=True)
     write(
         doc_dir / "4.8.3-to-4.9.0-upgrade.md",
         "# Upgrade guide: PodiumD 4.8.3 → 4.9.0\n\n"
@@ -345,8 +242,7 @@ def test_main_reorders_a_sidecar_row_to_come_after_its_own_parent_row(
         "| redis-operator - redis | 8.6.2 → 8.6.6 | - | - |\n"
         "| redis-operator | 0.26.1 (unchanged) | 0.26.1 (unchanged) | - |\n",
     )
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "seed sidecar-before-parent doc", cwd=tmp_path)
+    commit_all(tmp_path, "seed sidecar-before-parent doc")
 
     set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.3")
     cdb.main()

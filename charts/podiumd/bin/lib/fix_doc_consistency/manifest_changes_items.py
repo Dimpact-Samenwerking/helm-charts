@@ -4,13 +4,14 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import TypedDict
 
+from lib.component_docs.doc_lines import remove_lines
 from lib.component_docs.images_manifest_changes_header import CHANGES_HEADER_RE
-from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
-from lib.component_docs.images_manifest_changes_header import NUMBER_WORDS
-from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
-from lib.component_docs.images_manifest_changes_header import images_manifest_changes_item_spans
+from lib.component_docs.images_manifest_changes_header import changes_count_word
+from lib.component_docs.images_manifest_changes_header import changes_item_spans
+from lib.component_docs.images_manifest_changes_header import find_changes_header
 from lib.component_docs.images_manifest_entries import expected_changes_items
 from lib.component_docs.images_manifest_entries import fix_stale_changes_items
+from lib.images_manifest import CHANGES_ITEM_RE
 from lib.upgradedoc.images_manifest_ordering import changes_item_order_keys
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.sorting_and_ordering import MovedItem
@@ -46,7 +47,7 @@ def _renumbered_changes_block(chunks: list[ItemChunk]) -> list[str]:
 def _replace_block(lines: list[str], start: int, end: int, new_block: list[str]) -> None:
     """lines[start:end] replaced by `new_block`, in place: callers keep using their `lines`."""
     after = lines[end:]
-    del lines[start:]
+    remove_lines(lines, start)
     lines.extend([*new_block, *after])
 
 
@@ -73,23 +74,22 @@ def _deduped_item_chunks(
 
 def _update_changes_header_count(lines: list[str], header_idx: int, total: int):
     """Set the header's count word (e.g. "three changes:") to `total`, in place."""
-    count_word = NUMBER_WORDS[total] if total < len(NUMBER_WORDS) else str(total)
-    noun = "change" if total == 1 else "changes"
+    count_word, noun = changes_count_word(total)
     header_m = match_located_line(CHANGES_HEADER_RE, lines[header_idx])
     lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
 
 
-def dedupe_images_manifest_changes_items(lines: list[str]) -> list[str]:
+def dedupe_changes_items(lines: list[str]) -> list[str]:
     """Remove exact-duplicate "# Changes:" items, renumber, and update the count word.
 
     Multi-image lockstep components (e.g. zgw-office-addin frontend + backend)
     can otherwise get one identical item per image. Mutates `lines`; returns
     removed item texts."""
-    header_idx, header_has_count = find_images_manifest_changes_header(lines)
+    header_idx, header_has_count = find_changes_header(lines)
     if header_idx is None:
         return []
 
-    spans, block_end = images_manifest_changes_item_spans(lines, header_idx)
+    spans, block_end = changes_item_spans(lines, header_idx)
     if not spans:
         return []
 
@@ -103,18 +103,18 @@ def dedupe_images_manifest_changes_items(lines: list[str]) -> list[str]:
     return removed
 
 
-def sort_images_manifest_changes_items(lines: list[str], display_name_positions: dict[str, int]) -> list[MovedItem]:
+def sort_changes_items(lines: list[str], display_name_positions: dict[str, int]) -> list[MovedItem]:
     """Reorder "# Changes:" items by changes_item_order_keys.
 
     Continuation lines move with their item; items are renumbered.
 
     Mutates `lines`. Returns [(item_text, old_pos, new_pos)] (1-based) for
     moved items; empty if no header or fewer than 2 items."""
-    header_idx, _header_has_count = find_images_manifest_changes_header(lines)
+    header_idx, _header_has_count = find_changes_header(lines)
     if header_idx is None:
         return []
 
-    spans, block_end = images_manifest_changes_item_spans(lines, header_idx)
+    spans, block_end = changes_item_spans(lines, header_idx)
     if len(spans) < _MIN_ITEMS_TO_SORT:
         return []
 

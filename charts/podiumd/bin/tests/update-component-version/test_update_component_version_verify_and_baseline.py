@@ -130,9 +130,7 @@ def test_verify_component_version_falls_back_to_upstream_repository(ucv: ModuleT
 def test_check_chart_version_lockstep_refuses_differing_versions(
     ucv: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    monkeypatch.setattr(
-        ucv, "chart_version_lockstep_components", lambda chart_dir: frozenset(("internetaakafhandeling",))
-    )
+    monkeypatch.setattr(ucv, "chart_lockstep_components", lambda chart_dir: frozenset(("internetaakafhandeling",)))
 
     with pytest.raises(SystemExit) as exc_info:
         ucv.check_chart_version_lockstep("internetaakafhandeling", "3.3.3", "3.3.2", no_chart=False)
@@ -142,21 +140,17 @@ def test_check_chart_version_lockstep_refuses_differing_versions(
 
 
 def test_check_chart_version_lockstep_accepts_equal_versions(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(
-        ucv, "chart_version_lockstep_components", lambda chart_dir: frozenset(("internetaakafhandeling",))
-    )
+    monkeypatch.setattr(ucv, "chart_lockstep_components", lambda chart_dir: frozenset(("internetaakafhandeling",)))
     ucv.check_chart_version_lockstep("internetaakafhandeling", "3.3.3", "3.3.3", no_chart=False)
 
 
 def test_check_chart_version_lockstep_ignores_unregistered_component(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(
-        ucv, "chart_version_lockstep_components", lambda chart_dir: frozenset(("internetaakafhandeling",))
-    )
+    monkeypatch.setattr(ucv, "chart_lockstep_components", lambda chart_dir: frozenset(("internetaakafhandeling",)))
     ucv.check_chart_version_lockstep("zac", "5.4.3", "1.0.297", no_chart=False)
 
 
 def test_check_chart_version_lockstep_ignores_native_component(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(ucv, "chart_version_lockstep_components", lambda chart_dir: frozenset(("frankgateway",)))
+    monkeypatch.setattr(ucv, "chart_lockstep_components", lambda chart_dir: frozenset(("frankgateway",)))
     ucv.check_chart_version_lockstep("frankgateway", "104", "native", no_chart=True)
 
 

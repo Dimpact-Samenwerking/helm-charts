@@ -223,7 +223,7 @@ def test_component_insertion_index_unmatched_name_goes_last(libupgradedocsorting
     )
 
 
-# --- parse_upgrade_doc_changes_blocks ---
+# --- parse_changes_blocks ---
 
 
 def test_parse_upgrade_doc_changes_blocks_basic(libupgradedocsorting: ModuleType):
@@ -235,19 +235,19 @@ def test_parse_upgrade_doc_changes_blocks_basic(libupgradedocsorting: ModuleType
         "### Open Inwoner 2.3.1 → 2.4.2\n\n"
         "More prose.\n"
     )
-    blocks = libupgradedocsorting.parse_upgrade_doc_changes_blocks(text)
+    blocks = libupgradedocsorting.parse_changes_blocks(text)
     assert [b["heading"] for b in blocks] == ["Open Zaak 1.27.3 → 1.27.4", "Open Inwoner 2.3.1 → 2.4.2"]
 
 
 def test_parse_upgrade_doc_changes_blocks_h4_subheading_is_not_a_separate_block(libupgradedocsorting: ModuleType):
     text = "## Changes\n\n### Open Zaak 1.27.3 → 1.27.4\n\n#### Action required\n\nNo action required.\n"
-    blocks = libupgradedocsorting.parse_upgrade_doc_changes_blocks(text)
+    blocks = libupgradedocsorting.parse_changes_blocks(text)
     assert len(blocks) == 1
     assert blocks[0]["heading"] == "Open Zaak 1.27.3 → 1.27.4"
 
 
 def test_parse_upgrade_doc_changes_blocks_no_changes_section_is_empty(libupgradedocsorting: ModuleType):
-    assert libupgradedocsorting.parse_upgrade_doc_changes_blocks("# Title\n\nJust prose.\n") == []
+    assert libupgradedocsorting.parse_changes_blocks("# Title\n\nJust prose.\n") == []
 
 
 def test_parse_upgrade_doc_changes_blocks_stops_at_next_h2(libupgradedocsorting: ModuleType):
@@ -259,7 +259,7 @@ def test_parse_upgrade_doc_changes_blocks_stops_at_next_h2(libupgradedocsorting:
         "### A. Prepare\n\n"
         "- [ ] Do the thing.\n"
     )
-    blocks = libupgradedocsorting.parse_upgrade_doc_changes_blocks(text)
+    blocks = libupgradedocsorting.parse_changes_blocks(text)
     assert len(blocks) == 1
     assert blocks[0]["heading"] == "Open Zaak 1.27.3 → 1.27.4"
 

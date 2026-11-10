@@ -8,7 +8,7 @@ from lib.checks.upgrade_doc_layout import upgrade_guide_layout_issues
 from lib.component_docs.baseline_doc_stubs import STUB_TEMPLATES
 from lib.docs_consistency.check import check_docs_consistency
 from lib.docs_consistency.pointer_consistency import check_pointer_consistency
-from lib.fix_doc_consistency.baseline_and_images_manifest_handling import update_sibling_doc_refs
+from lib.fix_doc_consistency.baseline_and_manifest import update_sibling_doc_refs
 from lib.fix_doc_consistency.rebase_state import FixDocPaths
 from lib.fix_doc_consistency.run import fix_docs
 from lib.upgradedoc.doc_names import STANDARD_SUFFIXES

@@ -53,16 +53,16 @@ def show_at_baseline(chart_dir: Path, label: str, baseline: str | None, key: str
     """Print the image pin(s) at `baseline`; True if shown."""
 
     def resolve(baseline_value: str):
-        ref, _baseline_values, baseline_lines, error = resolve_baseline_values(chart_dir, baseline_value)
-        if error:
-            return f"error: {error}"
+        resolved = resolve_baseline_values(chart_dir, baseline_value)
+        if resolved.error:
+            return f"error: {resolved.error}"
 
         try:
-            matches = resolve_scoped_matches(baseline_lines, key, basename)
+            matches = resolve_scoped_matches(resolved.lines, key, basename)
         except SystemExit as resolve_error:
             return str(resolve_error)  # already prefixed with "error: "
 
-        print(f"  Baseline: {baseline_value} (resolved to {ref})")
+        print(f"  Baseline: {baseline_value} (resolved to {resolved.ref})")
         for match in matches:
             print(f"    {match['repository']}: {match['version']}  (sha256:{match['digest']})")
         return None

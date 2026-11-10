@@ -2,12 +2,18 @@
 
 Covers redis-operator multi-sidecar/job cases and generic chart-only/no-schema-diff cases."""
 
-import subprocess
-
 from pathlib import Path
 from types import ModuleType
 
 import pytest
+
+from tests.chart_repo import GEMEENTE_DOC_PATH
+from tests.chart_repo import IMAGES_MANIFEST_PATH
+from tests.chart_repo import UPGRADE_DOC_PATH
+from tests.chart_repo import VALUES_DELTAS_PATH
+from tests.chart_repo import commit_hop
+from tests.chart_repo import commit_text_baseline
+from tests.chart_repo import write_chart_files
 
 CHART_YAML = """\
 apiVersion: v2
@@ -54,10 +60,6 @@ REDIS_IMAGES_MANIFEST = """\
 """
 
 
-def git(*args, cwd):
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
-
-
 def redis_values(tag, digest="abc"):
     return (
         f"redis-operator:\n  redis-ha:\n    image:\n      repository: quay.io/opstree/redis\n"
@@ -82,46 +84,32 @@ def test_unchanged_sidecar_with_no_row_is_not_flagged(
     vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
     """Only a sidecar whose tag CHANGED vs baseline is flagged as missing a row."""
-    repo_root = tmp_path
-    chart_dir = repo_root / "charts" / "podiumd"
-    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
-    images_dir = chart_dir / "docs" / "images"
-    for d in (doc_dir, images_dir):
-        d.mkdir(parents=True)
-
-    git("init", "-q", cwd=repo_root)
-    git("config", "user.email", "test@example.com", cwd=repo_root)
-    git("config", "user.name", "Test", cwd=repo_root)
-
-    (chart_dir / "Chart.yaml").write_text(REDIS_CHART_YAML)
-    (chart_dir / "values.yaml").write_text(
-        REDIS_TWO_IMAGES_VALUES_TMPL.format(redis_tag="8.6.2", exporter_tag="1.82.0")
+    chart_dir = commit_text_baseline(
+        tmp_path, REDIS_CHART_YAML, REDIS_TWO_IMAGES_VALUES_TMPL.format(redis_tag="8.6.2", exporter_tag="1.82.0")
     )
-    git("add", "-A", cwd=repo_root)
-    git("commit", "-q", "-m", "baseline", cwd=repo_root)
-    git("tag", "podiumd-4.8.5", cwd=repo_root)
-
-    # redis-ha's own redis image changes; redisExporter does not.
-    (chart_dir / "values.yaml").write_text(
-        REDIS_TWO_IMAGES_VALUES_TMPL.format(redis_tag="8.6.6", exporter_tag="1.82.0")
+    commit_hop(
+        chart_dir,
+        "bump redis-ha's redis image only",
+        {
+            # redis-ha's own redis image changes; redisExporter does not.
+            "values.yaml": REDIS_TWO_IMAGES_VALUES_TMPL.format(redis_tag="8.6.6", exporter_tag="1.82.0"),
+            UPGRADE_DOC_PATH: (
+                "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+                "## Component versions (4.9.0 vs 4.8.5)\n\n"
+                "| Component | App version | Helm chart | Notes |\n"
+                "| --- | --- | --- | --- |\n"
+                "| redis-operator - redis | 8.6.2 → 8.6.6 | - | ACR mirror only |\n\n"
+                "See [`4.8.5-to-4.9.0-values-deltas.md`](4.8.5-to-4.9.0-values-deltas.md).\n"
+            ),
+            GEMEENTE_DOC_PATH: REDIS_GEMEENTE_DOC.format(baseline="4.8.5"),
+            VALUES_DELTAS_PATH: REDIS_VALUES_DELTAS_DOC.format(
+                baseline="4.8.5", app_source="8.6.2", app_target="8.6.6"
+            ),
+            IMAGES_MANIFEST_PATH: REDIS_IMAGES_MANIFEST.format(
+                baseline="4.8.5", app_source="8.6.2", app_target="8.6.6"
+            ),
+        },
     )
-    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
-        "## Component versions (4.9.0 vs 4.8.5)\n\n"
-        "| Component | App version | Helm chart | Notes |\n"
-        "| --- | --- | --- | --- |\n"
-        "| redis-operator - redis | 8.6.2 → 8.6.6 | - | ACR mirror only |\n\n"
-        "See [`4.8.5-to-4.9.0-values-deltas.md`](4.8.5-to-4.9.0-values-deltas.md).\n"
-    )
-    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(REDIS_GEMEENTE_DOC.format(baseline="4.8.5"))
-    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
-        REDIS_VALUES_DELTAS_DOC.format(baseline="4.8.5", app_source="8.6.2", app_target="8.6.6")
-    )
-    (images_dir / "images-4.9.0.yaml").write_text(
-        REDIS_IMAGES_MANIFEST.format(baseline="4.8.5", app_source="8.6.2", app_target="8.6.6")
-    )
-    git("add", "-A", cwd=repo_root)
-    git("commit", "-q", "-m", "bump redis-ha's redis image only", cwd=repo_root)
 
     vp.check_docs_consistency(chart_dir, upgrade_docs_baseline="4.8.5")
 
@@ -136,50 +124,39 @@ def test_new_sidecar_row_known_in_historical_images_manifest_is_not_a_warning(
     """Regression: a new nested sidecar path whose repository+version appears in an earlier
     images manifest resolves its baseline via the historical-manifest fallback, so it's
     verified clean rather than warned as unresolvable."""
-    repo_root = tmp_path
-    chart_dir = repo_root / "charts" / "podiumd"
-    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
-    images_dir = chart_dir / "docs" / "images"
-    for d in (doc_dir, images_dir):
-        d.mkdir(parents=True)
-
-    git("init", "-q", cwd=repo_root)
-    git("config", "user.email", "test@example.com", cwd=repo_root)
-    git("config", "user.name", "Test", cwd=repo_root)
-
-    (chart_dir / "Chart.yaml").write_text(REDIS_CHART_YAML)
-    (chart_dir / "values.yaml").write_text(redis_values("8.6.2"))
-    git("add", "-A", cwd=repo_root)
-    git("commit", "-q", "-m", "baseline", cwd=repo_root)
-    git("tag", "podiumd-4.8.5", cwd=repo_root)
+    chart_dir = commit_text_baseline(tmp_path, REDIS_CHART_YAML, redis_values("8.6.2"))
 
     redis = redis_values("8.6.2")
-    (chart_dir / "values.yaml").write_text(
-        f'{redis}  k8s:\n    image:\n      repository: quay.io/alpine/k8s\n      tag: "1.36.2@sha256:cccc"\n'
+    commit_hop(
+        chart_dir,
+        "add k8s sidecar, pinned to an already-mirrored image",
+        {
+            "values.yaml": (
+                f'{redis}  k8s:\n    image:\n      repository: quay.io/alpine/k8s\n      tag: "1.36.2@sha256:cccc"\n'
+            ),
+            UPGRADE_DOC_PATH: (
+                "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+                "## Component versions (4.9.0 vs 4.8.5)\n\n"
+                "| Component | App version | Helm chart | Notes |\n"
+                "| --- | --- | --- | --- |\n"
+                "| redis-operator - k8s | 1.36.2 (unchanged) | - | ACR mirror only |\n\n"
+                "See [`4.8.5-to-4.9.0-values-deltas.md`](4.8.5-to-4.9.0-values-deltas.md).\n"
+            ),
+            GEMEENTE_DOC_PATH: REDIS_GEMEENTE_DOC.format(baseline="4.8.5"),
+            VALUES_DELTAS_PATH: (
+                "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
+                "## redis-operator - k8s 1.36.2 (unchanged)\n\n"
+                "No gemeente podiumd.yml changes are required for this hop.\n"
+            ),
+            IMAGES_MANIFEST_PATH: (
+                "# Baseline: podiumd 4.8.5 (test @ 0000000).\n#\n"
+                "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n#\n# Zero changes:\n#\n\n[]\n"
+            ),
+            "docs/images/images-4.8.0.yaml": (
+                '- name: alpine/k8s\n  url: quay.io/alpine/k8s\n  version: "1.36.2"\n  digest: "sha256:cccc"\n'
+            ),
+        },
     )
-    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
-        "## Component versions (4.9.0 vs 4.8.5)\n\n"
-        "| Component | App version | Helm chart | Notes |\n"
-        "| --- | --- | --- | --- |\n"
-        "| redis-operator - k8s | 1.36.2 (unchanged) | - | ACR mirror only |\n\n"
-        "See [`4.8.5-to-4.9.0-values-deltas.md`](4.8.5-to-4.9.0-values-deltas.md).\n"
-    )
-    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(REDIS_GEMEENTE_DOC.format(baseline="4.8.5"))
-    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
-        "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
-        "## redis-operator - k8s 1.36.2 (unchanged)\n\n"
-        "No gemeente podiumd.yml changes are required for this hop.\n"
-    )
-    (images_dir / "images-4.9.0.yaml").write_text(
-        "# Baseline: podiumd 4.8.5 (test @ 0000000).\n#\n"
-        "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n#\n# Zero changes:\n#\n\n[]\n"
-    )
-    (images_dir / "images-4.8.0.yaml").write_text(
-        '- name: alpine/k8s\n  url: quay.io/alpine/k8s\n  version: "1.36.2"\n  digest: "sha256:cccc"\n'
-    )
-    git("add", "-A", cwd=repo_root)
-    git("commit", "-q", "-m", "add k8s sidecar, pinned to an already-mirrored image", cwd=repo_root)
 
     vp.check_docs_consistency(chart_dir, upgrade_docs_baseline="4.8.5")
 
@@ -232,16 +209,6 @@ def test_unresolvable_canonical_named_row_is_not_fuzzy_matched_to_a_real_depende
     """A "<values_key> - <image-basename>" row whose repository can't be resolved must be reported
     as unresolvable, never fuzzy-matched by match_component onto the real dependency
     (which would compare against that dependency's unrelated app version)."""
-    repo_root = tmp_path
-    chart_dir = repo_root / "charts" / "podiumd"
-    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
-    images_dir = chart_dir / "docs" / "images"
-    for d in (doc_dir, images_dir):
-        d.mkdir(parents=True)
-
-    git("init", "-q", cwd=repo_root)
-    git("config", "user.email", "test@example.com", cwd=repo_root)
-    git("config", "user.name", "Test", cwd=repo_root)
 
     # resolvable images, so a wrong fuzzy match would have something to compare against
     values_tmpl = (
@@ -258,35 +225,33 @@ def test_unresolvable_canonical_named_row_is_not_fuzzy_matched_to_a_real_depende
         "      # repository intentionally omitted — unresolvable, no subchart vendored either\n"
         '      tag: "{ghost_tag}@sha256:dddd"\n'
     )
-
-    (chart_dir / "Chart.yaml").write_text(REDIS_CHART_YAML)
-    (chart_dir / "values.yaml").write_text(values_tmpl.format(op_tag="0.26.1", ghost_tag="0.6.6"))
-    git("add", "-A", cwd=repo_root)
-    git("commit", "-q", "-m", "baseline", cwd=repo_root)
-    git("tag", "podiumd-4.8.5", cwd=repo_root)
-
-    (chart_dir / "values.yaml").write_text(values_tmpl.format(op_tag="0.27.0", ghost_tag="0.6.7"))
-    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
-        "## Component versions (4.9.0 vs 4.8.5)\n\n"
-        "| Component | App version | Helm chart | Notes |\n"
-        "| --- | --- | --- | --- |\n"
-        "| redis-operator | 0.26.1 → 0.27.0 | 0.26.1 (unchanged) | n/a |\n"
-        "| redis-operator - ghost | 0.6.6 → 0.6.7 | - | ACR mirror only |\n\n"
-        "See [`4.8.5-to-4.9.0-values-deltas.md`](4.8.5-to-4.9.0-values-deltas.md).\n"
+    chart_dir = commit_text_baseline(tmp_path, REDIS_CHART_YAML, values_tmpl.format(op_tag="0.26.1", ghost_tag="0.6.6"))
+    commit_hop(
+        chart_dir,
+        "bump redis-operator and its unresolvable ghost sidecar",
+        {
+            "values.yaml": values_tmpl.format(op_tag="0.27.0", ghost_tag="0.6.7"),
+            UPGRADE_DOC_PATH: (
+                "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+                "## Component versions (4.9.0 vs 4.8.5)\n\n"
+                "| Component | App version | Helm chart | Notes |\n"
+                "| --- | --- | --- | --- |\n"
+                "| redis-operator | 0.26.1 → 0.27.0 | 0.26.1 (unchanged) | n/a |\n"
+                "| redis-operator - ghost | 0.6.6 → 0.6.7 | - | ACR mirror only |\n\n"
+                "See [`4.8.5-to-4.9.0-values-deltas.md`](4.8.5-to-4.9.0-values-deltas.md).\n"
+            ),
+            GEMEENTE_DOC_PATH: REDIS_GEMEENTE_DOC.format(baseline="4.8.5"),
+            VALUES_DELTAS_PATH: (
+                "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
+                "- **redis-operator** app `0.26.1 → 0.27.0` — image tag only.\n"
+                "- **ghost** app `0.6.6 → 0.6.7` — image tag only.\n\n"
+                "No gemeente podiumd.yml changes are required for this hop.\n"
+            ),
+            IMAGES_MANIFEST_PATH: REDIS_IMAGES_MANIFEST.format(
+                baseline="4.8.5", app_source="0.26.1", app_target="0.27.0"
+            ),
+        },
     )
-    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(REDIS_GEMEENTE_DOC.format(baseline="4.8.5"))
-    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
-        "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
-        "- **redis-operator** app `0.26.1 → 0.27.0` — image tag only.\n"
-        "- **ghost** app `0.6.6 → 0.6.7` — image tag only.\n\n"
-        "No gemeente podiumd.yml changes are required for this hop.\n"
-    )
-    (images_dir / "images-4.9.0.yaml").write_text(
-        REDIS_IMAGES_MANIFEST.format(baseline="4.8.5", app_source="0.26.1", app_target="0.27.0")
-    )
-    git("add", "-A", cwd=repo_root)
-    git("commit", "-q", "-m", "bump redis-operator and its unresolvable ghost sidecar", cwd=repo_root)
 
     ok, _detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline="4.8.5")
 
@@ -363,27 +328,20 @@ def test_changes_block_must_name_every_path_sharing_the_pins_anchor(
 ):
     """preDeleteJob.image aliases labelMasterCronJob.image, so a bump changes both paths;
     an environment overriding one path needs the doc to name the other too."""
-    repo_root = tmp_path
-    chart_dir = repo_root / "charts" / "podiumd"
-    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
-    doc_dir.mkdir(parents=True)
-    git("init", "-q", cwd=repo_root)
-    git("config", "user.email", "test@example.com", cwd=repo_root)
-    git("config", "user.name", "Test", cwd=repo_root)
-    (chart_dir / "Chart.yaml").write_text(REDIS_CHART_YAML)
-    (chart_dir / "values.yaml").write_text(REDIS_ALIASED_VALUES_TMPL.format(tag="1.37.0"))
-    git("add", "-A", cwd=repo_root)
-    git("commit", "-q", "-m", "baseline", cwd=repo_root)
-    git("tag", "podiumd-4.8.5", cwd=repo_root)
-
-    (chart_dir / "values.yaml").write_text(REDIS_ALIASED_VALUES_TMPL.format(tag="1.37.1"))
+    chart_dir = commit_text_baseline(tmp_path, REDIS_CHART_YAML, REDIS_ALIASED_VALUES_TMPL.format(tag="1.37.0"))
     extra = (
         "- `redis-operator.redis-ha.preDeleteJob.image.tag` `1.37.0` → `1.37.1`\n" if alias_bullet == "present" else ""
     )
-    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(ALIASED_PIN_DOC.replace("{extra}", extra))
-    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(REDIS_GEMEENTE_DOC.format(baseline="4.8.5"))
-    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
-        REDIS_VALUES_DELTAS_DOC.format(baseline="4.8.5", app_source="1.37.0", app_target="1.37.1")
+    write_chart_files(
+        chart_dir,
+        {
+            "values.yaml": REDIS_ALIASED_VALUES_TMPL.format(tag="1.37.1"),
+            UPGRADE_DOC_PATH: ALIASED_PIN_DOC.replace("{extra}", extra),
+            GEMEENTE_DOC_PATH: REDIS_GEMEENTE_DOC.format(baseline="4.8.5"),
+            VALUES_DELTAS_PATH: REDIS_VALUES_DELTAS_DOC.format(
+                baseline="4.8.5", app_source="1.37.0", app_target="1.37.1"
+            ),
+        },
     )
 
     vp.check_docs_consistency(chart_dir, upgrade_docs_baseline="4.8.5")
@@ -398,28 +356,21 @@ def test_changes_block_needs_a_blank_line_before_the_image_digest_pointer(
     vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str], blank_line: str
 ):
     """update-component-version wrote the pointer right after the last pin bullet."""
-    repo_root = tmp_path
-    chart_dir = repo_root / "charts" / "podiumd"
-    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
-    doc_dir.mkdir(parents=True)
-    git("init", "-q", cwd=repo_root)
-    git("config", "user.email", "test@example.com", cwd=repo_root)
-    git("config", "user.name", "Test", cwd=repo_root)
-    (chart_dir / "Chart.yaml").write_text(REDIS_CHART_YAML)
-    (chart_dir / "values.yaml").write_text(REDIS_ALIASED_VALUES_TMPL.format(tag="1.37.0"))
-    git("add", "-A", cwd=repo_root)
-    git("commit", "-q", "-m", "baseline", cwd=repo_root)
-    git("tag", "podiumd-4.8.5", cwd=repo_root)
-
-    (chart_dir / "values.yaml").write_text(REDIS_ALIASED_VALUES_TMPL.format(tag="1.37.1"))
+    chart_dir = commit_text_baseline(tmp_path, REDIS_CHART_YAML, REDIS_ALIASED_VALUES_TMPL.format(tag="1.37.0"))
     extra = "- `redis-operator.redis-ha.preDeleteJob.image.tag` `1.37.0` → `1.37.1`\n"
     doc = ALIASED_PIN_DOC.replace("{extra}", extra)
     if blank_line == "missing":
         doc = doc.replace(f"{extra}\n", extra)
-    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(doc)
-    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(REDIS_GEMEENTE_DOC.format(baseline="4.8.5"))
-    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
-        REDIS_VALUES_DELTAS_DOC.format(baseline="4.8.5", app_source="1.37.0", app_target="1.37.1")
+    write_chart_files(
+        chart_dir,
+        {
+            "values.yaml": REDIS_ALIASED_VALUES_TMPL.format(tag="1.37.1"),
+            UPGRADE_DOC_PATH: doc,
+            GEMEENTE_DOC_PATH: REDIS_GEMEENTE_DOC.format(baseline="4.8.5"),
+            VALUES_DELTAS_PATH: REDIS_VALUES_DELTAS_DOC.format(
+                baseline="4.8.5", app_source="1.37.0", app_target="1.37.1"
+            ),
+        },
     )
 
     vp.check_docs_consistency(chart_dir, upgrade_docs_baseline="4.8.5")
@@ -433,27 +384,20 @@ def test_changes_block_needs_its_image_digest_pointer(
     vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str], pointer: str
 ):
     """A section that lost its pointer (e.g. in a merge resolution) is reported."""
-    repo_root = tmp_path
-    chart_dir = repo_root / "charts" / "podiumd"
-    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
-    doc_dir.mkdir(parents=True)
-    git("init", "-q", cwd=repo_root)
-    git("config", "user.email", "test@example.com", cwd=repo_root)
-    git("config", "user.name", "Test", cwd=repo_root)
-    (chart_dir / "Chart.yaml").write_text(REDIS_CHART_YAML)
-    (chart_dir / "values.yaml").write_text(REDIS_ALIASED_VALUES_TMPL.format(tag="1.37.0"))
-    git("add", "-A", cwd=repo_root)
-    git("commit", "-q", "-m", "baseline", cwd=repo_root)
-    git("tag", "podiumd-4.8.5", cwd=repo_root)
-
-    (chart_dir / "values.yaml").write_text(REDIS_ALIASED_VALUES_TMPL.format(tag="1.37.1"))
+    chart_dir = commit_text_baseline(tmp_path, REDIS_CHART_YAML, REDIS_ALIASED_VALUES_TMPL.format(tag="1.37.0"))
     doc = ALIASED_PIN_DOC.replace("{extra}", "- `redis-operator.redis-ha.preDeleteJob.image.tag` `1.37.0` → `1.37.1`\n")
     if pointer == "missing":
         doc = doc.replace("\n- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).\n", "")
-    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(doc)
-    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(REDIS_GEMEENTE_DOC.format(baseline="4.8.5"))
-    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
-        REDIS_VALUES_DELTAS_DOC.format(baseline="4.8.5", app_source="1.37.0", app_target="1.37.1")
+    write_chart_files(
+        chart_dir,
+        {
+            "values.yaml": REDIS_ALIASED_VALUES_TMPL.format(tag="1.37.1"),
+            UPGRADE_DOC_PATH: doc,
+            GEMEENTE_DOC_PATH: REDIS_GEMEENTE_DOC.format(baseline="4.8.5"),
+            VALUES_DELTAS_PATH: REDIS_VALUES_DELTAS_DOC.format(
+                baseline="4.8.5", app_source="1.37.0", app_target="1.37.1"
+            ),
+        },
     )
 
     vp.check_docs_consistency(chart_dir, upgrade_docs_baseline="4.8.5")

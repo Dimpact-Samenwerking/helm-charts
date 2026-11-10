@@ -165,17 +165,21 @@ def _get_with_dynamic_auth(
     try:
         return opener(Request(url, headers=headers, method=method), timeout=timeout)
     except HTTPError as error:
-        if error.code != HTTPStatus.UNAUTHORIZED:
-            raise
-        challenge = parse_bearer_challenge(error.headers.get("WWW-Authenticate"))
+        challenge = None
+        if error.code == HTTPStatus.UNAUTHORIZED:
+            challenge = parse_bearer_challenge(error.headers.get("WWW-Authenticate"))
         if not challenge:
             raise
-        query = {"scope": challenge.get("scope") or f"repository:{repo}:pull"}
-        if challenge.get("service"):
-            query["service"] = challenge["service"]
-        token = _read_token(_urlopen(f"{challenge['realm']}?{urlencode(query)}", timeout=timeout))
-        headers["Authorization"] = f"Bearer {token}"
+        headers["Authorization"] = f"Bearer {_challenge_token(challenge, repo, timeout)}"
         return opener(Request(url, headers=headers, method=method), timeout=timeout)
+
+
+def _challenge_token(challenge: dict[str, str], repo: str, timeout: float | None) -> str:
+    """A pull token from a Bearer challenge's realm, for its scope (default: pull of `repo`) and service."""
+    query = {"scope": challenge.get("scope") or f"repository:{repo}:pull"}
+    if challenge.get("service"):
+        query["service"] = challenge["service"]
+    return _read_token(_urlopen(f"{challenge['realm']}?{urlencode(query)}", timeout=timeout))
 
 
 # Hosts that reject even anonymous manifest reads (network restriction); check_image_digests
@@ -360,15 +364,25 @@ def list_tags(registry_host: str, repo: str):
             msg = f"tags/list of {repo} on {registry_host}: {reason}; the newest tags may be missing"
             raise URLError(msg)
         seen.add(next_url)
-        with _get_with_dynamic_auth(next_url, repo, headers) as resp:
-            page = get_path(_read_json(resp), "tags") or []
-            following = _next_page_url(next_url, resp.headers.get("Link"))
-        if not isinstance(page, list) or not all(isinstance(tag, str) for tag in page):
-            msg = f"tags/list response from {urlsplit(url).netloc} is not a list of tag names"
-            raise URLError(msg)
-        tags.extend(tag for tag in page if isinstance(tag, str))
-        next_url = following
+        page, next_url = _tags_page(next_url, repo, headers, urlsplit(url).netloc)
+        tags.extend(page)
     return tags
+
+
+def _tags_page(
+    page_url: str,
+    repo: str,
+    headers: dict[str, str],
+    netloc: str,
+) -> tuple[list[str], str | None]:
+    """(tag names, next page URL or None) of one tags/list page; URLError when it is not a list of names."""
+    with _get_with_dynamic_auth(page_url, repo, headers) as resp:
+        page = get_path(_read_json(resp), "tags") or []
+        following = _next_page_url(page_url, resp.headers.get("Link"))
+    if not isinstance(page, list) or not all(isinstance(tag, str) for tag in page):
+        msg = f"tags/list response from {netloc} is not a list of tag names"
+        raise URLError(msg)
+    return [tag for tag in page if isinstance(tag, str)], following
 
 
 def _split_tag(tag: str) -> tuple[str, str | None, str]:
@@ -412,12 +426,13 @@ def find_newer_same_variant_tags(registry_host: str, repo: str, version: str) ->
     candidates: list[TagVersion] = []
     for tag in list_tags(registry_host, repo):
         tag_v, num, suffix = _split_tag(tag)
-        if num is not None and (tag_v, suffix) == (ver_v, ver_suffix) and len(num.split(".")) == arity:
+        same_variant = (tag_v, suffix) == (ver_v, ver_suffix)
+        if num is not None and same_variant and len(num.split(".")) == arity:
             candidates.append((tag, dotted_numbers(num)))
     return newest_per_major(dotted_numbers(ver_num), candidates)
 
 
-def find_more_specific_tag_at_same_digest(registry_host: str, repo: str, version: str, live_digest: str):
+def find_more_specific_tag(registry_host: str, repo: str, version: str, live_digest: str):
     """A published tag more specific than version that currently has the same digest, or None.
 
     Evidence version is a rolling alias; reflects current registry state, not past drift."""
@@ -444,6 +459,6 @@ def is_sliding_tag(values_path: Path, registry_host: str, repo: str, version: st
     if len(historical_digests_for_tag(values_path, version)) >= _SLIDING_MIN_DIGESTS:
         return True
     try:
-        return find_more_specific_tag_at_same_digest(registry_host, repo, version, live_digest) is not None
+        return find_more_specific_tag(registry_host, repo, version, live_digest) is not None
     except (URLError, OSError):
         return False

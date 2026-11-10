@@ -30,9 +30,9 @@ def test_dependency_repos_resolves_alias_to_http(librepoaccess: ModuleType, tmp_
     write_chart_dependencies(
         tmp_path / "Chart.yaml", [{"name": "openzaak", "version": "1.14.2", "repository": "@maykinmedia"}]
     )
-    name, line, kind, target = librepoaccess.dependency_repos(tmp_path)[0]
-    assert (name, kind, target) == ("openzaak", "http", "https://maykinmedia.github.io/charts/")
-    assert line == 2
+    repo = librepoaccess.dependency_repos(tmp_path)[0]
+    assert (repo.name, repo.kind, repo.target) == ("openzaak", "http", "https://maykinmedia.github.io/charts/")
+    assert repo.line == 2
 
 
 def test_dependency_repos_direct_http_url_passed_through(librepoaccess: ModuleType, tmp_path: Path):
@@ -40,8 +40,8 @@ def test_dependency_repos_direct_http_url_passed_through(librepoaccess: ModuleTy
         tmp_path / "Chart.yaml",
         [{"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"}],
     )
-    name, _line, kind, target = librepoaccess.dependency_repos(tmp_path)[0]
-    assert (name, kind, target) == ("zaakbrug", "http", "https://wearefrank.github.io/charts")
+    repo = librepoaccess.dependency_repos(tmp_path)[0]
+    assert (repo.name, repo.kind, repo.target) == ("zaakbrug", "http", "https://wearefrank.github.io/charts")
 
 
 def test_dependency_repos_oci_combines_path_and_chart_name(librepoaccess: ModuleType, tmp_path: Path):
@@ -49,8 +49,8 @@ def test_dependency_repos_oci_combines_path_and_chart_name(librepoaccess: Module
         tmp_path / "Chart.yaml",
         [{"name": "kiss-chart", "version": "3.0.0", "repository": "oci://ghcr.io/klantinteractie-servicesysteem"}],
     )
-    name, _line, kind, target = librepoaccess.dependency_repos(tmp_path)[0]
-    assert (name, kind, target) == (
+    repo = librepoaccess.dependency_repos(tmp_path)[0]
+    assert (repo.name, repo.kind, repo.target) == (
         "kiss-chart",
         "oci",
         ("ghcr.io", "klantinteractie-servicesysteem/kiss-chart", "3.0.0"),
@@ -69,7 +69,7 @@ def test_dependency_repos_uses_alias_name_when_present(librepoaccess: ModuleType
         tmp_path / "Chart.yaml",
         [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"}],
     )
-    names = [name for name, _, _, _ in librepoaccess.dependency_repos(tmp_path)]
+    names = [repo.name for repo in librepoaccess.dependency_repos(tmp_path)]
     assert names == ["zac"]
 
 
@@ -89,7 +89,7 @@ def test_dependency_repos_finds_correct_line_for_each_dependency(librepoaccess: 
         '    repository: "https://wearefrank.github.io/charts"\n',
         encoding="utf-8",
     )
-    repos = {name: line for name, line, _, _ in librepoaccess.dependency_repos(tmp_path)}
+    repos = {repo.name: repo.line for repo in librepoaccess.dependency_repos(tmp_path)}
     assert repos == {"openzaak": 2, "zaakbrug": 5}
 
 

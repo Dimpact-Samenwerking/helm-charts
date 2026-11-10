@@ -1,24 +1,20 @@
 """main() against a real temp git repo; always shows state at both
 release-baseline.yaml baselines (upgrade_docs, release_table)."""
 
-import subprocess
-
 from pathlib import Path
 from types import ModuleType
 
 import pytest
 import yaml
 
-
-def git(*args, cwd):
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
+from tests.git_repo import commit_all
+from tests.git_repo import commit_tagged
+from tests.git_repo import init_git_repo
 
 
 @pytest.fixture
 def repo(tmp_path: Path):
-    git("init", "-q", cwd=tmp_path)
-    git("config", "user.email", "test@example.com", cwd=tmp_path)
-    git("config", "user.name", "Test", cwd=tmp_path)
+    init_git_repo(tmp_path)
     chart_dir = tmp_path / "charts" / "podiumd"
     chart_dir.mkdir(parents=True)
     (chart_dir / "Chart.yaml").write_text(
@@ -31,13 +27,10 @@ def repo(tmp_path: Path):
         )
     )
     (chart_dir / "values.yaml").write_text(yaml.safe_dump({"zac": {"image": {"tag": "5.0.2@sha256:abc"}}}))
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "baseline", cwd=tmp_path)
-    git("tag", "podiumd-4.8.5", cwd=tmp_path)
+    commit_tagged(tmp_path, "baseline", "4.8.5")
 
     (chart_dir / "values.yaml").write_text(yaml.safe_dump({"zac": {"image": {"tag": "5.4.3@sha256:def"}}}))
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "bump zac", cwd=tmp_path)
+    commit_all(tmp_path, "bump zac")
     return tmp_path
 
 
@@ -150,9 +143,7 @@ def test_main_shows_a_native_component_without_chart_version(
     """A native component (no Chart.yaml dependency) shows its image tag only."""
     chart_dir = repo / "charts" / "podiumd"
     (chart_dir / "values.yaml").write_text(yaml.safe_dump({"frankgateway": {"image": {"tag": "104@sha256:fff"}}}))
-    git("add", "-A", cwd=repo)
-    git("commit", "-q", "-m", "add frankgateway", cwd=repo)
-    git("tag", "podiumd-4.9.1", cwd=repo)
+    commit_tagged(repo, "add frankgateway", "4.9.1")
     write_baselines(repo, upgrade_docs="4.9.1")
     set_argv_and_repo(scbv, monkeypatch, repo, "frankgateway")
     scbv.main()

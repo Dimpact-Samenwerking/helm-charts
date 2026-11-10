@@ -61,7 +61,8 @@ def sync_entry_pins(
     synced: list[str] = []
     for start, entry in zip(parsed.entry_line_indices, parsed.entries, strict=True):
         _path, tag = entry_pin(entry, index.values, index.paths, index.repo_map, sibling_fields)
-        if tag is None or "@" not in tag or tag == f"{entry.get('version')}@{entry.get('digest')}":
+        written = f"{entry.get('version')}@{entry.get('digest')}"
+        if tag is None or "@" not in tag or tag == written:
             continue
         _rewrite_entry_pin(lines, start, tag)
         synced.append(entry["name"])

@@ -81,7 +81,7 @@ def test_find_preceding_comment_none_when_absent(libupgradedoccomments: ModuleTy
     assert libupgradedoccomments.find_preceding_comment(lines, 0) == ""
 
 
-# --- find_grouped_preceding_comment / find_grouped_preceding_comment_line ---
+# --- find_grouped_preceding_comment / find_grouped_comment_line ---
 
 ZGW_GROUPED_LINES = [
     "# ZGW Office Add-in — v0.9.313 -> v0.9.352\n",
@@ -177,14 +177,14 @@ def test_find_grouped_preceding_comment_does_not_inherit_when_versions_differ(li
 
 
 def test_find_grouped_preceding_comment_line_uses_own_line_when_present(libupgradedoccomments: ModuleType):
-    idx = libupgradedoccomments.find_grouped_preceding_comment_line(
+    idx = libupgradedoccomments.find_grouped_comment_line(
         ZGW_GROUPED_LINES, ZGW_ENTRIES, ZGW_ENTRY_LINE_INDICES, 0, is_same_group
     )
     assert idx == 0
 
 
 def test_find_grouped_preceding_comment_line_inherits_sibling_line_across_blank_line(libupgradedoccomments: ModuleType):
-    idx = libupgradedoccomments.find_grouped_preceding_comment_line(
+    idx = libupgradedoccomments.find_grouped_comment_line(
         ZGW_GROUPED_LINES, ZGW_ENTRIES, ZGW_ENTRY_LINE_INDICES, 1, is_same_group
     )
     assert idx == 0
@@ -195,9 +195,7 @@ def test_find_grouped_preceding_comment_line_none_for_different_component(libupg
     entries = [*ZGW_ENTRIES, {"name": "zac", "version": "5.1.0"}]
     entry_line_indices = [*ZGW_ENTRY_LINE_INDICES, 7]
 
-    idx = libupgradedoccomments.find_grouped_preceding_comment_line(
-        lines, entries, entry_line_indices, 2, is_same_group
-    )
+    idx = libupgradedoccomments.find_grouped_comment_line(lines, entries, entry_line_indices, 2, is_same_group)
     assert idx is None
 
 

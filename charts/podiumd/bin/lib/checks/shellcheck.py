@@ -14,27 +14,25 @@ from typing import NotRequired
 from typing import TypedDict
 from typing import TypeGuard
 
-import yaml
-
-from lib.chart.values_tree_primitives import text_at
 from lib.procutil import run
 from lib.render_scope import RenderedDoc
 from lib.render_scope import ResourceLocations
 from lib.render_scope import VendorBucketScan
 from lib.render_scope import chart_name_from_source
+from lib.render_scope import parse_rendered_doc
 from lib.render_scope import print_grouped_findings
 from lib.render_scope import print_other_vendor_summary
 from lib.render_scope import print_own_findings_heading
 from lib.render_scope import print_partner_findings_heading
+from lib.render_scope import resource_identity
 from lib.render_scope import resource_line
 from lib.render_scope import scan_outcome
 from lib.render_scope import scan_rendered_chart
-from lib.settings import quality_gates_shellcheck_failing_levels
-from lib.settings import quality_gates_shellcheck_shell_names
+from lib.settings import gate_shellcheck_levels
+from lib.settings import gate_shellcheck_shells
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import YamlValue
 from lib.yaml_types import is_yaml_mapping
-from lib.yaml_types import is_yaml_value
 from lib.yaml_types import shape_problem
 
 
@@ -64,6 +62,15 @@ def parse_shellcheck_output(stdout: str) -> list[ShellcheckComment] | None:
         return None
     comments = data.get("comments") if is_yaml_mapping(data) else None
     return comments if _is_comment_list(comments) else None
+
+
+class ShellScript(NamedTuple):
+    """A container's "<shell> -c <script>" found by find_shell_scripts, at values-tree-like `path` in `source`."""
+
+    source: str
+    path: str
+    shell: str
+    script_text: str
 
 
 class EmbeddedScript(NamedTuple):
@@ -111,18 +118,16 @@ def _inline_shell_script(container: YamlMapping, shell_names: set[str]) -> tuple
     return None
 
 
-def find_shell_scripts(
-    obj: YamlValue, source: str, shell_names: set[str], path: str = ""
-) -> list[tuple[str, str, str, str]]:
-    """(source, path, shell, script_text) for every container invoking a shell with "-c".
+def find_shell_scripts(obj: YamlValue, source: str, shell_names: set[str], path: str = "") -> list[ShellScript]:
+    """A ShellScript for every container invoking a shell with "-c".
 
     "-c" may be in command or args, in either order. Only `shell_names` binaries count.
     """
-    found: list[tuple[str, str, str, str]] = []
+    found: list[ShellScript] = []
     if isinstance(obj, dict):
         inline = _inline_shell_script(obj, shell_names)
         if inline is not None:
-            found.append((source, path, *inline))
+            found.append(ShellScript(source, path, *inline))
         for key, value in obj.items():
             found.extend(find_shell_scripts(value, source, shell_names, f"{path}.{key}"))
     elif isinstance(obj, list):
@@ -138,23 +143,13 @@ def extract_shell_scripts(docs: list[RenderedDoc], shell_names: set[str]) -> lis
     """
     scripts: list[EmbeddedScript] = []
     for source, doc_text in docs:
-        try:
-            parsed = yaml.safe_load(doc_text)
-        except yaml.YAMLError:  # noqa: S112 -- not a YAML resource, holds no shell script
+        parsed = parse_rendered_doc(doc_text)
+        if parsed is None:
             continue
-        if parsed is None or not is_yaml_value(parsed):
-            continue
-        if isinstance(parsed, dict):
-            kind = text_at(parsed, "kind")
-            namespace = text_at(parsed, "metadata.namespace") or ""
-            name = text_at(parsed, "metadata.name")
-        else:
-            # not a single-object doc — no resource_line lookup possible
-            kind = None
-            namespace = None
-            name = None
-        for found_source, path, shell, script_text in find_shell_scripts(parsed, source, shell_names):
-            scripts.append(EmbeddedScript(found_source, path, shell, script_text, kind, namespace, name))
+        kind, namespace, name = resource_identity(parsed)
+        scripts.extend(
+            EmbeddedScript(*script, kind, namespace, name) for script in find_shell_scripts(parsed, source, shell_names)
+        )
     return scripts
 
 
@@ -181,12 +176,12 @@ def _shellcheck_location(finding: ShellcheckFinding, locations: ResourceLocation
     containing resource's start line, omitted when unresolvable.
     """
     line = finding.comment.get("line")
-    if not line:
-        base = f"{finding.source} ({finding.path})"
-    else:
+    if line:
         column = finding.comment.get("column")
         pos = f"{line}:{column}" if column else str(line)
         base = f"{finding.source} ({finding.path}) — script line {pos}"
+    else:
+        base = f"{finding.source} ({finding.path})"
     if not finding.kind or not finding.name:
         return base
     rendered_line = resource_line(locations, finding.kind, finding.name, namespace=finding.namespace)
@@ -283,8 +278,8 @@ def check_shellcheck(chart_dir: Path, extra_args: list[str]):
     if shutil.which("shellcheck") is None:
         return False, "shellcheck is not installed (see --skip-shellcheck to bypass)"
 
-    shell_names = quality_gates_shellcheck_shell_names(chart_dir)
-    failing_levels = quality_gates_shellcheck_failing_levels(chart_dir)
+    shell_names = gate_shellcheck_shells(chart_dir)
+    failing_levels = gate_shellcheck_levels(chart_dir)
 
     scan, error = scan_rendered_chart(
         chart_dir,

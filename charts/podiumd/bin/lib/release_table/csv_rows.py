@@ -76,3 +76,13 @@ def release_table_records(path: Path) -> list[CsvRecord]:
 def read_release_table(path: Path) -> list[ReleaseTableRow]:
     """The rows of the release-table.csv at `path`; exits on a bad header or column count."""
     return [_row(values, f"{path} line {line_num}") for line_num, values in release_table_records(path)]
+
+
+def read_existing_release_table(path: Path) -> list[ReleaseTableRow]:
+    """read_release_table, but first exit 1 with how to create the file when it is missing."""
+    if not path.is_file():
+        print(f"error: {path} not found")
+        print("Create it first with export-confluence-release-table, e.g.:")
+        print("    export-confluence-release-table --url <page-url> --user <email> --token-file <path>")
+        sys.exit(1)
+    return read_release_table(path)

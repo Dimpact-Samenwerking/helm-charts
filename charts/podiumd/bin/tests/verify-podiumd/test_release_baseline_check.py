@@ -2,16 +2,12 @@
 release_table must each resolve to a podiumd-<version> tag/branch. A missing
 file, missing key or unresolvable key each fail, per key."""
 
-import subprocess
-
 from pathlib import Path
 from types import ModuleType
 
 import pytest
 
-
-def git(*args, cwd):
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
+from tests.git_repo import git
 
 
 @pytest.fixture

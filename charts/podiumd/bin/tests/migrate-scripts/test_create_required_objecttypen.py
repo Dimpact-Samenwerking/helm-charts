@@ -54,7 +54,7 @@ class Response:
 
 
 def _page(url: str, items: Sequence[object], params: dict[str, str] | None) -> Response:
-    start = 0 if params is not None else int(url.rsplit("page=", 1)[1])
+    start = int(url.rsplit("page=", 1)[1]) if params is None else 0
     base = url.split("?", 1)[0]
     more = start + PAGE_SIZE < len(items)
     return Response(

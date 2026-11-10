@@ -6,13 +6,14 @@ import re
 
 from lib.component_docs.baseline_doc_stubs import GEMEENTE_SPECIFIC_STUB_LINE
 from lib.component_docs.baseline_doc_stubs import VALUES_DELTAS_STUB_TODO_LINE
-from lib.component_docs.doc_lines import strip_standalone_placeholder_line
+from lib.component_docs.doc_lines import remove_lines
+from lib.component_docs.doc_lines import strip_placeholder_line
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
 from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
 from lib.upgradedoc.version_cells import strip_html_comments
 
 
-def strip_stale_values_deltas_todo_stub(text: str):
+def strip_deltas_todo_stub(text: str):
     """Remove the stub's TODO line left in the opening, before the first real section.
 
     Only the line itself, when it is a paragraph of its own; the rest of the
@@ -23,7 +24,7 @@ def strip_stale_values_deltas_todo_stub(text: str):
         return text, False
 
     lines = text.splitlines(keepends=True)
-    if not strip_standalone_placeholder_line(lines, sections[0]["start"], VALUES_DELTAS_STUB_TODO_LINE):
+    if not strip_placeholder_line(lines, sections[0]["start"], VALUES_DELTAS_STUB_TODO_LINE):
         return text, False
     return "".join(lines), True
 
@@ -31,7 +32,7 @@ def strip_stale_values_deltas_todo_stub(text: str):
 GEMEENTE_SECTION_HEADING_RE = re.compile(r"^##\s+\S.*$", re.MULTILINE)
 
 
-def has_real_gemeente_specific_content(text: str):
+def has_gemeente_specific_content(text: str):
     """True if gemeente-specific.md has a real "## ..." section outside HTML comments.
 
     The stub's example heading lives inside a "<!-- ... -->" block, hence
@@ -39,11 +40,11 @@ def has_real_gemeente_specific_content(text: str):
     return bool(GEMEENTE_SECTION_HEADING_RE.search(strip_html_comments(text)))
 
 
-def has_stale_gemeente_specific_placeholder(text: str):
+def has_stale_gemeente_placeholder(text: str):
     """True if gemeente-specific.md still has its "_None recorded yet._" line next to a real section.
 
     Check-only: the content is human-authored, so nothing auto-fixes it."""
-    if not has_real_gemeente_specific_content(text):
+    if not has_gemeente_specific_content(text):
         return False
     return any(line.strip() == GEMEENTE_SPECIFIC_STUB_LINE.strip() for line in text.splitlines())
 
@@ -53,7 +54,7 @@ def has_blank_body(lines: list[str], section: HeadingBlock):
     return not "".join(lines[section["start"] + 1 : section["end"]]).strip()
 
 
-def prune_empty_values_delta_sections(text: str) -> tuple[str, list[str]]:
+def prune_empty_delta_sections(text: str) -> tuple[str, list[str]]:
     """Delete every "## ..." section with a blank body, with its trailing blank lines.
 
     Returns (new_text, removed_headings)."""
@@ -66,6 +67,6 @@ def prune_empty_values_delta_sections(text: str) -> tuple[str, list[str]]:
         start, end = section["start"], section["end"]
         while end < len(lines) and not lines[end].strip():
             end += 1
-        del lines[start:end]
+        remove_lines(lines, start, end)
         removed_headings.append(section["heading"])
     return "".join(lines), list(reversed(removed_headings))

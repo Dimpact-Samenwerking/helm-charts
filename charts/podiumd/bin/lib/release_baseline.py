@@ -26,6 +26,29 @@ class BaselineChartState(NamedTuple):
     error: str | None
 
 
+class _BaselineRef(NamedTuple):
+    """Where a baseline's files are read: the repository, the resolved ref and the chart directory in it."""
+
+    repo_root: Path
+    ref: str
+    rel_chart_dir: Path
+
+
+def _resolve_ref(chart_dir: Path, baseline: str) -> _BaselineRef | str:
+    """The _BaselineRef of `baseline`, or the reason it does not resolve."""
+    repo_root = find_repo_root(chart_dir)
+    if repo_root is None:
+        return f"{chart_dir} is not inside a git repository"
+    baseline_ref, error = resolve_baseline_ref(repo_root, baseline)
+    if baseline_ref is None:
+        return error or f"{baseline} does not resolve"
+    return _BaselineRef(repo_root, baseline_ref, chart_dir.relative_to(repo_root))
+
+
+def _failed(error: str) -> BaselineChartState:
+    return BaselineChartState(None, [], {}, [], error)
+
+
 def resolve_baseline_chart_state(chart_dir: Path, baseline: str) -> BaselineChartState:
     """The BaselineChartState of `baseline`.
 
@@ -37,47 +60,33 @@ def resolve_baseline_chart_state(chart_dir: Path, baseline: str) -> BaselineChar
     A chart with zero dependencies, or no values.yaml at the ref, is not a
     failure. lines is values.yaml split without keepends, so
     raw-line scanners work the same on baseline and current."""
-    repo_root = find_repo_root(chart_dir)
-    if repo_root is None:
-        return BaselineChartState(None, [], {}, [], f"{chart_dir} is not inside a git repository")
-
-    baseline_ref, error = resolve_baseline_ref(repo_root, baseline)
-    if baseline_ref is None:
-        return BaselineChartState(None, [], {}, [], error)
-
-    rel_chart_dir = chart_dir.relative_to(repo_root)
-    chart_yaml_text = git_show_text(repo_root, baseline_ref, f"{rel_chart_dir}/Chart.yaml")
+    resolved = _resolve_ref(chart_dir, baseline)
+    if isinstance(resolved, str):
+        return _failed(resolved)
+    chart_yaml_path = f"{resolved.rel_chart_dir}/Chart.yaml"
+    chart_yaml_text = git_show_text(resolved.repo_root, resolved.ref, chart_yaml_path)
     if chart_yaml_text is None:
-        return BaselineChartState(None, [], {}, [], f"(ref {baseline_ref}): could not read Chart.yaml at that ref")
-    baseline_deps = parse_chart_dependencies(chart_yaml_text, f"{baseline_ref}:{rel_chart_dir}/Chart.yaml")
-
-    values_text = git_show_text(repo_root, baseline_ref, f"{rel_chart_dir}/values.yaml") or ""
-    baseline_values = parse_yaml_mapping(values_text, f"{baseline_ref}:{rel_chart_dir}/values.yaml")
-    baseline_lines = values_text.splitlines()
-
-    return BaselineChartState(baseline_ref, baseline_deps, baseline_values, baseline_lines, None)
+        return _failed(f"(ref {resolved.ref}): could not read Chart.yaml at that ref")
+    baseline_deps = parse_chart_dependencies(chart_yaml_text, f"{resolved.ref}:{chart_yaml_path}")
+    values_text = git_show_text(resolved.repo_root, resolved.ref, f"{resolved.rel_chart_dir}/values.yaml") or ""
+    return _with_values(resolved, baseline_deps, values_text)
 
 
-def resolve_baseline_values(chart_dir: Path, baseline: str) -> tuple[str | None, YamlMapping, list[str], str | None]:
-    """(baseline_ref, baseline_values, baseline_lines, error): values.yaml-only variant.
+def resolve_baseline_values(chart_dir: Path, baseline: str) -> BaselineChartState:
+    """The BaselineChartState of `baseline` without its dependencies (deps is []).
 
-    Same ref resolution as resolve_baseline_chart_state, but Chart.yaml is
-    not read, and an unreadable values.yaml IS a failure here (it's the only
-    thing requested). Failure conventions otherwise match: no "error: "
-    prefix, baseline_ref None, {}/[] never None."""
-    repo_root = find_repo_root(chart_dir)
-    if repo_root is None:
-        return None, {}, [], f"{chart_dir} is not inside a git repository"
-
-    baseline_ref, error = resolve_baseline_ref(repo_root, baseline)
-    if baseline_ref is None:
-        return None, {}, [], error
-
-    rel_chart_dir = chart_dir.relative_to(repo_root)
-    values_text = git_show_text(repo_root, baseline_ref, f"{rel_chart_dir}/values.yaml")
+    Chart.yaml is not read, and an unreadable values.yaml IS a failure here
+    (it's the only thing requested). Failure conventions otherwise match
+    resolve_baseline_chart_state."""
+    resolved = _resolve_ref(chart_dir, baseline)
+    if isinstance(resolved, str):
+        return _failed(resolved)
+    values_text = git_show_text(resolved.repo_root, resolved.ref, f"{resolved.rel_chart_dir}/values.yaml")
     if values_text is None:
-        return None, {}, [], f"could not read {rel_chart_dir}/values.yaml at {baseline_ref}"
-    baseline_values = parse_yaml_mapping(values_text, f"{baseline_ref}:{rel_chart_dir}/values.yaml")
-    baseline_lines = values_text.splitlines()
+        return _failed(f"could not read {resolved.rel_chart_dir}/values.yaml at {resolved.ref}")
+    return _with_values(resolved, [], values_text)
 
-    return baseline_ref, baseline_values, baseline_lines, None
+
+def _with_values(resolved: _BaselineRef, deps: list[ChartDependency], values_text: str) -> BaselineChartState:
+    values = parse_yaml_mapping(values_text, f"{resolved.ref}:{resolved.rel_chart_dir}/values.yaml")
+    return BaselineChartState(resolved.ref, deps, values, values_text.splitlines(), None)

@@ -1,17 +1,15 @@
 """main() integration: missing values-deltas.md mentions, "# Changes:"
 renumbering, and the images-baseline.yaml fallback for new components."""
 
-import subprocess
-
 from pathlib import Path
 from types import ModuleType
 
 import pytest
 import yaml
 
-
-def git(*args, cwd):
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
+from tests.chart_repo import tagged_baseline_repo
+from tests.git_repo import commit_all
+from tests.git_repo import git
 
 
 def write(path, text):
@@ -34,27 +32,13 @@ def set_argv_and_dir(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch, doc_dir, 
 def repo_with_unmentioned_component_bump(tmp_path: Path):
     """zaakbrug's tag and schema changed, but values-deltas.md has no section.
     The schema change is needed: a version-only bump gets no section."""
-    git("init", "-q", cwd=tmp_path)
-    git("config", "user.email", "test@example.com", cwd=tmp_path)
-    git("config", "user.name", "Test", cwd=tmp_path)
-
-    write(
-        tmp_path / "Chart.yaml",
-        yaml.safe_dump(
-            {
-                "dependencies": [
-                    {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
-                ],
-            }
-        ),
+    doc_dir = tagged_baseline_repo(
+        tmp_path,
+        [
+            {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
+        ],
+        {"zaakbrug": {"image": {"tag": "1.26.14@sha256:aaaa"}}},
     )
-    write(tmp_path / "values.yaml", yaml.safe_dump({"zaakbrug": {"image": {"tag": "1.26.14@sha256:aaaa"}}}))
-    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
-    doc_dir.mkdir(parents=True)
-    (tmp_path / "docs" / "images").mkdir(parents=True)
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
-    git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
     write(
         tmp_path / "values.yaml",
@@ -68,8 +52,7 @@ def repo_with_unmentioned_component_bump(tmp_path: Path):
         doc_dir / "4.8.3-to-4.9.0-values-deltas.md",
         "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\nNo unrelated changes.\n",
     )
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "bump zaakbrug, no values-deltas mention", cwd=tmp_path)
+    commit_all(tmp_path, "bump zaakbrug, no values-deltas mention")
     return doc_dir
 
 
@@ -90,35 +73,20 @@ def test_main_collapses_pre_existing_double_blank_line_in_values_deltas(
 def repo_with_pure_version_bump_and_stale_empty_section(tmp_path: Path):
     """A heading-only section for a schema-less version bump is pruned, not
     re-added."""
-    git("init", "-q", cwd=tmp_path)
-    git("config", "user.email", "test@example.com", cwd=tmp_path)
-    git("config", "user.name", "Test", cwd=tmp_path)
-
-    write(
-        tmp_path / "Chart.yaml",
-        yaml.safe_dump(
-            {
-                "dependencies": [
-                    {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
-                ],
-            }
-        ),
+    doc_dir = tagged_baseline_repo(
+        tmp_path,
+        [
+            {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
+        ],
+        {"zaakbrug": {"image": {"tag": "1.26.14@sha256:aaaa"}}},
     )
-    write(tmp_path / "values.yaml", yaml.safe_dump({"zaakbrug": {"image": {"tag": "1.26.14@sha256:aaaa"}}}))
-    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
-    doc_dir.mkdir(parents=True)
-    (tmp_path / "docs" / "images").mkdir(parents=True)
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
-    git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
     write(tmp_path / "values.yaml", yaml.safe_dump({"zaakbrug": {"image": {"tag": "1.26.15@sha256:bbbb"}}}))
     write(
         doc_dir / "4.8.3-to-4.9.0-values-deltas.md",
         "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\n## zaakbrug 1.26.14 → 1.26.15 (chart 2.3.28, unchanged)\n",
     )
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "bump zaakbrug, pure version bump", cwd=tmp_path)
+    commit_all(tmp_path, "bump zaakbrug, pure version bump")
     return doc_dir
 
 
@@ -145,35 +113,16 @@ def repo_with_unmentioned_native_component_bump(tmp_path: Path):
     """frankgateway (native, no Chart.yaml dependency) with tag and schema
     changes: covers the NATIVE_COMPONENTS branches of add_missing_component_rows
     and sync_values_delta_sections together."""
-    git("init", "-q", cwd=tmp_path)
-    git("config", "user.email", "test@example.com", cwd=tmp_path)
-    git("config", "user.name", "Test", cwd=tmp_path)
-
-    write(
-        tmp_path / "Chart.yaml",
-        yaml.safe_dump(
-            {
-                "dependencies": [
-                    {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
-                ],
-            }
-        ),
+    doc_dir = tagged_baseline_repo(
+        tmp_path,
+        [
+            {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
+        ],
+        {
+            "zaakbrug": {"image": {"tag": "1.26.15@sha256:aaaa"}},
+            "frankgateway": {"image": {"tag": "100@sha256:aaaa"}},
+        },
     )
-    write(
-        tmp_path / "values.yaml",
-        yaml.safe_dump(
-            {
-                "zaakbrug": {"image": {"tag": "1.26.15@sha256:aaaa"}},
-                "frankgateway": {"image": {"tag": "100@sha256:aaaa"}},
-            }
-        ),
-    )
-    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
-    doc_dir.mkdir(parents=True)
-    (tmp_path / "docs" / "images").mkdir(parents=True)
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
-    git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
     write(
         tmp_path / "values.yaml",
@@ -197,8 +146,7 @@ def repo_with_unmentioned_native_component_bump(tmp_path: Path):
         doc_dir / "4.8.3-to-4.9.0-values-deltas.md",
         "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\nNo unrelated changes.\n",
     )
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "bump frankgateway, no row or values-deltas mention", cwd=tmp_path)
+    commit_all(tmp_path, "bump frankgateway, no row or values-deltas mention")
     return doc_dir
 
 
@@ -222,37 +170,18 @@ def test_main_adds_missing_native_component_row(
 @pytest.fixture
 def repo_with_undocumented_schema_change(tmp_path: Path):
     """zac drops "brpApi.extendWithZaaktype" but values-deltas.md doesn't mention it."""
-    git("init", "-q", cwd=tmp_path)
-    git("config", "user.email", "test@example.com", cwd=tmp_path)
-    git("config", "user.name", "Test", cwd=tmp_path)
-
-    write(
-        tmp_path / "Chart.yaml",
-        yaml.safe_dump(
-            {
-                "dependencies": [
-                    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
-                ],
-            }
-        ),
+    doc_dir = tagged_baseline_repo(
+        tmp_path,
+        [
+            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
+        ],
+        {
+            "zac": {
+                "image": {"tag": "5.0.2@sha256:bbbb"},
+                "brpApi": {"protocollering": {"verwerking": {"extendWithZaaktype": False, "otherKey": True}}},
+            },
+        },
     )
-    write(
-        tmp_path / "values.yaml",
-        yaml.safe_dump(
-            {
-                "zac": {
-                    "image": {"tag": "5.0.2@sha256:bbbb"},
-                    "brpApi": {"protocollering": {"verwerking": {"extendWithZaaktype": False, "otherKey": True}}},
-                },
-            }
-        ),
-    )
-    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
-    doc_dir.mkdir(parents=True)
-    (tmp_path / "docs" / "images").mkdir(parents=True)
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
-    git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
     write(
         tmp_path / "values.yaml",
@@ -270,8 +199,7 @@ def repo_with_undocumented_schema_change(tmp_path: Path):
         doc_dir / "4.8.3-to-4.9.0-values-deltas.md",
         "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\nNo gemeente podiumd.yml changes are required for this hop.\n",
     )
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "bump zac, schema change undocumented", cwd=tmp_path)
+    commit_all(tmp_path, "bump zac, schema change undocumented")
     return doc_dir
 
 
@@ -283,43 +211,24 @@ def repo_with_fully_documented_images_but_a_numbering_gap(tmp_path: Path):
     """Everything is correct except a numbering gap in the manifest's
     "# Changes:" list (a hand-removed item); dedupe and sort alone never
     renumber this."""
-    git("init", "-q", cwd=tmp_path)
-    git("config", "user.email", "test@example.com", cwd=tmp_path)
-    git("config", "user.name", "Test", cwd=tmp_path)
-
-    write(
-        tmp_path / "Chart.yaml",
-        yaml.safe_dump(
+    doc_dir = tagged_baseline_repo(
+        tmp_path,
+        [
+            {"name": "zaakafhandelcomponent", "version": "1.0.297", "repository": "@zac", "alias": "zac"},
             {
-                "dependencies": [
-                    {"name": "zaakafhandelcomponent", "version": "1.0.297", "repository": "@zac", "alias": "zac"},
-                    {
-                        "name": "openforms",
-                        "version": "1.12.0",
-                        "repository": "@maykinmedia",
-                        "alias": "openformulieren",
-                    },
-                ],
-            }
-        ),
-    )
-    write(
-        tmp_path / "values.yaml",
-        yaml.safe_dump(
-            {
-                "zac": {"image": {"tag": "5.0.2@sha256:aaaa"}},
-                "openformulieren": {"image": {"tag": "3.4.10@sha256:bbbb"}},
+                "name": "openforms",
+                "version": "1.12.0",
+                "repository": "@maykinmedia",
+                "alias": "openformulieren",
             },
-            sort_keys=False,
-        ),
+        ],
+        {
+            "zac": {"image": {"tag": "5.0.2@sha256:aaaa"}},
+            "openformulieren": {"image": {"tag": "3.4.10@sha256:bbbb"}},
+        },
+        sort_values=False,
     )
-    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     images_dir = tmp_path / "docs" / "images"
-    doc_dir.mkdir(parents=True)
-    images_dir.mkdir(parents=True)
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
-    git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
     write(
         tmp_path / "values.yaml",
@@ -363,8 +272,7 @@ def repo_with_fully_documented_images_but_a_numbering_gap(tmp_path: Path):
         '  version: "3.5.6"\n'
         '  digest: "sha256:dddd"\n',
     )
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "bump both, images-manifest header has a gap", cwd=tmp_path)
+    commit_all(tmp_path, "bump both, images-manifest header has a gap")
     return doc_dir, images_dir
 
 
@@ -394,28 +302,14 @@ def repo_with_new_component_pinned_to_a_known_mirrored_image(tmp_path: Path):
     """A new dependency pinned to an image already recorded in an earlier
     images-4.8.0.yaml: git baseline has nothing to compare, but a known
     mirrored pin must not be listed as changed in images-4.9.0.yaml."""
-    git("init", "-q", cwd=tmp_path)
-    git("config", "user.email", "test@example.com", cwd=tmp_path)
-    git("config", "user.name", "Test", cwd=tmp_path)
-
-    write(
-        tmp_path / "Chart.yaml",
-        yaml.safe_dump(
-            {
-                "dependencies": [
-                    {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
-                ],
-            }
-        ),
+    doc_dir = tagged_baseline_repo(
+        tmp_path,
+        [
+            {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
+        ],
+        {"zaakbrug": {"image": {"tag": "1.26.15@sha256:aaaa"}}},
     )
-    write(tmp_path / "values.yaml", yaml.safe_dump({"zaakbrug": {"image": {"tag": "1.26.15@sha256:aaaa"}}}))
-    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     images_dir = tmp_path / "docs" / "images"
-    doc_dir.mkdir(parents=True)
-    images_dir.mkdir(parents=True)
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
-    git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
     write(
         tmp_path / "Chart.yaml",
@@ -473,8 +367,7 @@ def repo_with_new_component_pinned_to_a_known_mirrored_image(tmp_path: Path):
         '  version: "2.7.0"\n'
         '  digest: "sha256:bbbb"\n',
     )
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "add brppersonenmock, pinned to an already-mirrored image", cwd=tmp_path)
+    commit_all(tmp_path, "add brppersonenmock, pinned to an already-mirrored image")
     return doc_dir, images_dir
 
 

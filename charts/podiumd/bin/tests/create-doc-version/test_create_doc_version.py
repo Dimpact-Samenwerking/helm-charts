@@ -9,8 +9,8 @@ from types import ModuleType
 import pytest
 
 
-def setup_dirs(cdv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, baseline: str | None = "4.8.5"):
-    """baseline=None writes no etc/release-baseline.yaml."""
+def _write_chart(tmp_path: Path, baseline: str | None) -> tuple[Path, Path, Path]:
+    """(Chart.yaml, upgrade doc dir, images dir) of a 4.9.0 chart; baseline=None writes no etc/release-baseline.yaml."""
     chart_yaml = tmp_path / "Chart.yaml"
     chart_yaml.write_text("version: 4.9.0\n", encoding="utf-8")
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
@@ -20,6 +20,12 @@ def setup_dirs(cdv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     if baseline is not None:
         (tmp_path / "etc").mkdir()
         (tmp_path / "etc" / "release-baseline.yaml").write_text(f'upgrade_docs: "{baseline}"\n', encoding="utf-8")
+    return chart_yaml, doc_dir, images_dir
+
+
+def setup_dirs(cdv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, baseline: str | None = "4.8.5"):
+    """baseline=None writes no etc/release-baseline.yaml."""
+    chart_yaml, doc_dir, images_dir = _write_chart(tmp_path, baseline)
     monkeypatch.setattr(cdv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(cdv, "CHART_YAML", chart_yaml)
     monkeypatch.setattr(cdv, "DOC_DIR", doc_dir)

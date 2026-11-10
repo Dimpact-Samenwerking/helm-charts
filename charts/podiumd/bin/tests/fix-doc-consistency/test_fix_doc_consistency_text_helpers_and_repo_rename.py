@@ -9,12 +9,12 @@ from types import ModuleType
 import pytest
 
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import collapse_multiple_blank_lines
-from lib.fix_doc_consistency.text_helpers_and_repo_rename import ensure_blank_lines_around_headings
+from lib.fix_doc_consistency.text_helpers_and_repo_rename import ensure_heading_blank_lines
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import find_collisions
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import remaining_mentions
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import retarget_heading_links
-from lib.fix_doc_consistency.text_helpers_and_repo_rename import update_component_versions_heading
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import update_title_line
+from lib.fix_doc_consistency.text_helpers_and_repo_rename import update_versions_heading
 from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
 from lib.upgradedoc.string_and_parsing_basics import heading_slug
 
@@ -91,19 +91,19 @@ def test_update_title_line_no_match_returns_unchanged(cdb: ModuleType):
     assert new_text == text
 
 
-# --- update_component_versions_heading ---
+# --- update_versions_heading ---
 
 
 def test_update_component_versions_heading_replaces_match(cdb: ModuleType):
     text = "## Component versions (4.9.0 vs 4.8.2)\n\nmore\n"
-    new_text, changed = update_component_versions_heading(text, "4.9.0", "4.8.3")
+    new_text, changed = update_versions_heading(text, "4.9.0", "4.8.3")
     assert changed is True
     assert "## Component versions (4.9.0 vs 4.8.3)" in new_text
 
 
 def test_update_component_versions_heading_no_match(cdb: ModuleType):
     text = "no such heading here\n"
-    new_text, changed = update_component_versions_heading(text, "4.9.0", "4.8.3")
+    new_text, changed = update_versions_heading(text, "4.9.0", "4.8.3")
     assert changed is False
     assert new_text == text
 
@@ -171,47 +171,47 @@ def test_collapse_multiple_blank_lines_single_trailing_newline_untouched(cdb: Mo
     assert collapse_multiple_blank_lines(text) == text
 
 
-# --- ensure_blank_lines_around_headings ---
+# --- ensure_heading_blank_lines ---
 
 
 def test_ensure_blank_lines_around_headings_adds_missing_blank_above(cdb: ModuleType):
     """Regression: a "### ..." heading directly after content (as
     insert_changes_section can produce) violates MD022/MD032."""
     text = "- Image / digest: see foo.\n### curl 8.21.0 → 8.22.0\n\nSome prose.\n"
-    assert ensure_blank_lines_around_headings(text) == (
+    assert ensure_heading_blank_lines(text) == (
         "- Image / digest: see foo.\n\n### curl 8.21.0 → 8.22.0\n\nSome prose.\n"
     )
 
 
 def test_ensure_blank_lines_around_headings_adds_missing_blank_below(cdb: ModuleType):
     text = "### curl 8.21.0 → 8.22.0\nSome prose.\n"
-    assert ensure_blank_lines_around_headings(text) == "### curl 8.21.0 → 8.22.0\n\nSome prose.\n"
+    assert ensure_heading_blank_lines(text) == "### curl 8.21.0 → 8.22.0\n\nSome prose.\n"
 
 
 def test_ensure_blank_lines_around_headings_already_correct_untouched(cdb: ModuleType):
     text = "line one.\n\n### curl 8.21.0 → 8.22.0\n\nSome prose.\n"
-    assert ensure_blank_lines_around_headings(text) == text
+    assert ensure_heading_blank_lines(text) == text
 
 
 def test_ensure_blank_lines_around_headings_never_adds_at_start_of_file(cdb: ModuleType):
     text = "### curl 8.21.0 → 8.22.0\n\nSome prose.\n"
-    assert ensure_blank_lines_around_headings(text) == text
+    assert ensure_heading_blank_lines(text) == text
 
 
 def test_ensure_blank_lines_around_headings_never_adds_at_end_of_file(cdb: ModuleType):
     text = "Some prose.\n\n### curl 8.21.0 → 8.22.0\n"
-    assert ensure_blank_lines_around_headings(text) == text
+    assert ensure_heading_blank_lines(text) == text
 
 
 def test_ensure_blank_lines_around_headings_ignores_hash_inside_fenced_code_block(cdb: ModuleType):
     """A "#" line inside a fenced block is not a heading."""
     text = "line one.\n```\n# not a heading\n```\nline two.\n"
-    assert ensure_blank_lines_around_headings(text) == text
+    assert ensure_heading_blank_lines(text) == text
 
 
 def test_ensure_blank_lines_around_headings_multiple_missing_in_one_doc(cdb: ModuleType):
     text = "line one.\n## Section A\nline two.\n## Section B\nline three.\n"
-    assert ensure_blank_lines_around_headings(text) == (
+    assert ensure_heading_blank_lines(text) == (
         "line one.\n\n## Section A\n\nline two.\n\n## Section B\n\nline three.\n"
     )
 
@@ -549,11 +549,10 @@ def test_stale_placeholder_functions_are_reused_not_reimplemented(cdb: ModuleTyp
     from lib.fix_doc_consistency import run
 
     # vars(): the modules import these names for their own use, they do not re-export them.
-    assert vars(run)["strip_stale_upgrade_placeholders"] is changes_section.strip_stale_upgrade_placeholders
-    assert vars(run)["strip_stale_values_deltas_todo_stub"] is values_delta_sections.strip_stale_values_deltas_todo_stub
+    assert vars(run)["strip_upgrade_placeholders"] is changes_section.strip_upgrade_placeholders
+    assert vars(run)["strip_deltas_todo_stub"] is values_delta_sections.strip_deltas_todo_stub
     assert (
-        vars(docs_consistency)["has_stale_gemeente_specific_placeholder"]
-        is values_delta_sections.has_stale_gemeente_specific_placeholder
+        vars(docs_consistency)["has_stale_gemeente_placeholder"] is values_delta_sections.has_stale_gemeente_placeholder
     )
 
 

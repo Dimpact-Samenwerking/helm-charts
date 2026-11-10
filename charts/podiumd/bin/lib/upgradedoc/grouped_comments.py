@@ -8,7 +8,10 @@ from collections.abc import Mapping
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import is_primary_image_path
+from lib.chart.values_tree_primitives import ValuesPath
 from lib.chart.values_tree_primitives import values_key_of
+from lib.images_manifest import BARE_CHANGES_HEADER_RE
+from lib.images_manifest import CHANGES_ITEM_RE
 from lib.images_manifest import ManifestEntry
 from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
@@ -77,7 +80,7 @@ def find_grouped_preceding_comment(
     return "" if owner is None else find_preceding_comment(lines, entry_line_indices[owner])
 
 
-def find_grouped_preceding_comment_line(
+def find_grouped_comment_line(
     lines: list[str],
     entries: list[ManifestEntry],
     entry_line_indices: list[int],
@@ -120,40 +123,36 @@ def parse_changes_block(text: str) -> list[VersionRow]:
     items: list[VersionRow] = []
     current = None  # raw text accumulated so far for the item being parsed
     for line in _changes_block_lines(text):
-        # "\.\s+", not "\.\s*": a version like "1.17.1" on a continuation line
-        # must not look like a new list item.
-        item_match = re.match(r"^#\s*\d+\.\s+(.+)$", line)
-        if item_match:
-            if current is not None:
-                items.append(_finalize_changes_item(current))
-            current = item_match.group(1)
-            continue
-
-        cont_m = re.match(r"^#\s{2,}(\S.*)$", line)
-        if cont_m and current is not None:
-            current = f"{current} {cont_m.group(1)}"
-        elif current is not None:
-            items.append(_finalize_changes_item(current))
-            current = None
-
+        finished, current = _next_changes_item_state(current, line)
+        if finished is not None:
+            items.append(_finalize_changes_item(finished))
     if current is not None:
         items.append(_finalize_changes_item(current))
     return items
 
 
+def _next_changes_item_state(current: str | None, line: str) -> tuple[str | None, str | None]:
+    """(the item text `line` finishes or None, the item text being parsed after `line`)."""
+    item_match = CHANGES_ITEM_RE.match(line)
+    if item_match:
+        return current, item_match.group("rest")
+    if current is None:
+        return None, None
+    cont_m = re.match(r"^#\s{2,}(\S.*)$", line)
+    if cont_m:
+        return None, f"{current} {cont_m.group(1)}"
+    return current, None
+
+
 def _changes_block_lines(text: str):
     """Yield the "#" comment lines after the "# Changes:" heading, up to
     the first non-comment line."""
-    in_changes = False
-    for line in text.splitlines():
+    lines = text.splitlines()
+    after_heading = (index + 1 for index, line in enumerate(lines) if BARE_CHANGES_HEADER_RE.match(line))
+    for line in lines[next(after_heading, len(lines)) :]:
         if not line.startswith("#"):
-            if in_changes:
-                return
-            continue
-        if re.match(r"^#\s*Changes:\s*$", line):
-            in_changes = True
-            continue
-        if in_changes:
+            return
+        if not BARE_CHANGES_HEADER_RE.match(line):
             yield line
 
 
@@ -206,9 +205,7 @@ def _app_versions_and_name(rest: str, app_search_text: str) -> tuple[str | None,
     return app_source, app_target, app_search_text[: single_m.start()].strip()
 
 
-def path_display_name(
-    path: tuple[str, ...], deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]]
-) -> str:
+def path_display_name(path: ValuesPath, deps: list[ChartDependency], canonical_names: Mapping[str, ValuesPath]) -> str:
     """Doc-facing name for a values-tree image path.
 
     "<values_key>" for a dependency's primary image, else the name

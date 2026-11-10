@@ -22,9 +22,7 @@ def _lockstep_registries(liblockstepcheck: ModuleType, monkeypatch: pytest.Monke
         "component_version_paths",
         lambda: {"eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"]},
     )
-    monkeypatch.setattr(
-        liblockstepcheck, "chart_version_lockstep_components", lambda: frozenset(("kiss-chart", "pabc"))
-    )
+    monkeypatch.setattr(liblockstepcheck, "chart_lockstep_components", lambda: frozenset(("kiss-chart", "pabc")))
     monkeypatch.setattr(
         liblockstepcheck,
         "embedded_version_images",
@@ -204,7 +202,7 @@ def test_eck_operator_chart_version_lockstep_registered(liblockstepcheck: Module
     """eck-operator is registered because its chart and operator image share
     one version. Opts back in past the autouse isolation fixture."""
     monkeypatch.setattr(
-        liblockstepcheck, "chart_version_lockstep_components", lambda: frozenset(("kiss-chart", "pabc", "eck-operator"))
+        liblockstepcheck, "chart_lockstep_components", lambda: frozenset(("kiss-chart", "pabc", "eck-operator"))
     )
     dep = {"name": "eck-operator", "version": "3.5.0"}
     values = {"eck-operator": {"image": {"tag": "3.5.0"}}}
@@ -215,7 +213,7 @@ def test_eck_operator_chart_version_drift_reported(liblockstepcheck: ModuleType,
     """An eck-operator dependency bump without the matching image tag bump
     (or vice versa) is caught."""
     monkeypatch.setattr(
-        liblockstepcheck, "chart_version_lockstep_components", lambda: frozenset(("kiss-chart", "pabc", "eck-operator"))
+        liblockstepcheck, "chart_lockstep_components", lambda: frozenset(("kiss-chart", "pabc", "eck-operator"))
     )
     dep = {"name": "eck-operator", "version": "3.5.0"}
     values = {"eck-operator": {"image": {"tag": "3.4.0"}}}
@@ -281,7 +279,7 @@ def test_check_fails_and_reports_multi_path_drift(
     assert "backend.image" in out
 
 
-# --- find_embedded_version_mismatches ---
+# --- find_embedded_mismatches ---
 
 
 def _keycloak_values(config_cli_tag: str, keycloak_tag: str = "26.7.3"):
@@ -295,23 +293,23 @@ def _keycloak_values(config_cli_tag: str, keycloak_tag: str = "26.7.3"):
 
 def test_embedded_version_older_same_major_no_mismatch(liblockstepcheck: ModuleType):
     values = _keycloak_values("6.5.1-26.5.5@sha256:aaa")
-    assert liblockstepcheck.find_embedded_version_mismatches(values) == []
+    assert liblockstepcheck.find_embedded_mismatches(values) == []
 
 
 def test_embedded_version_equal_no_mismatch(liblockstepcheck: ModuleType):
     values = _keycloak_values("6.5.1-26.7.3")
-    assert liblockstepcheck.find_embedded_version_mismatches(values) == []
+    assert liblockstepcheck.find_embedded_mismatches(values) == []
 
 
 def test_floating_tag_without_full_embedded_version_reported(liblockstepcheck: ModuleType):
     values = _keycloak_values("6.5.1-26@sha256:aaa")
-    findings = liblockstepcheck.find_embedded_version_mismatches(values)
+    findings = liblockstepcheck.find_embedded_mismatches(values)
     assert findings == [("keycloak.keycloakConfigCli.image", "tag 6.5.1-26 embeds no full MAJOR.MINOR.PATCH version")]
 
 
 def test_embedded_version_other_major_reported(liblockstepcheck: ModuleType):
     values = _keycloak_values("6.5.1-25.0.1")
-    findings = liblockstepcheck.find_embedded_version_mismatches(values)
+    findings = liblockstepcheck.find_embedded_mismatches(values)
     assert len(findings) == 1
     assert findings[0][0] == "keycloak.keycloakConfigCli.image"
     assert "built for major 25" in findings[0][1]
@@ -319,7 +317,7 @@ def test_embedded_version_other_major_reported(liblockstepcheck: ModuleType):
 
 def test_embedded_version_newer_than_followed_image_reported(liblockstepcheck: ModuleType):
     values = _keycloak_values("6.5.1-26.8.0")
-    findings = liblockstepcheck.find_embedded_version_mismatches(values)
+    findings = liblockstepcheck.find_embedded_mismatches(values)
     assert len(findings) == 1
     assert "newer version than keycloak.image 26.7.3" in findings[0][1]
 
@@ -327,12 +325,12 @@ def test_embedded_version_newer_than_followed_image_reported(liblockstepcheck: M
 def test_embedded_version_compares_numerically(liblockstepcheck: ModuleType):
     """26.10.0 is newer than 26.9.0, although lexically smaller."""
     values = _keycloak_values("6.5.1-26.9.0", keycloak_tag="26.10.0")
-    assert liblockstepcheck.find_embedded_version_mismatches(values) == []
+    assert liblockstepcheck.find_embedded_mismatches(values) == []
 
 
 def test_embedded_version_skipped_when_a_tag_is_missing(liblockstepcheck: ModuleType):
     values = {"keycloak": {"image": {"tag": "26.7.3"}}}
-    assert liblockstepcheck.find_embedded_version_mismatches(values) == []
+    assert liblockstepcheck.find_embedded_mismatches(values) == []
 
 
 def test_check_lockstep_versions_fails_on_embedded_version_mismatch(

@@ -34,7 +34,8 @@ def _candidate_parts(name: str) -> list[str]:
     parts = [name]
     match = BRACKETED_RE.search(name)
     if match:
-        parts += [name[: match.start()] + name[match.end() :], match.group(1)]
+        rest = name[: match.start()] + name[match.end() :]
+        parts += [rest, match.group(1)]
     return [part for part in parts if normalize_name(part)]
 
 

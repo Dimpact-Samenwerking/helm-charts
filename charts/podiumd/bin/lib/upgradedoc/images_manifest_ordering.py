@@ -11,17 +11,19 @@ from dataclasses import dataclass
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import is_primary_image_path
 from lib.chart.values_tree_primitives import ValuesPath
+from lib.component_docs.doc_lines import remove_lines
 from lib.images_manifest import ENTRY_START_RE
 from lib.images_manifest import ManifestEntry
 from lib.images_manifest import ParsedManifest
+from lib.images_manifest import entry_block_end
 from lib.images_manifest import entry_line_indices
 from lib.images_manifest import parse_manifest_lines
 from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
-from lib.upgradedoc.grouped_comments_and_changes_block import comment_lines_above
-from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment_line
-from lib.upgradedoc.grouped_comments_and_changes_block import find_preceding_comment_line
-from lib.upgradedoc.grouped_comments_and_changes_block import path_display_name
+from lib.upgradedoc.grouped_comments import comment_lines_above
+from lib.upgradedoc.grouped_comments import find_grouped_comment_line
+from lib.upgradedoc.grouped_comments import find_preceding_comment_line
+from lib.upgradedoc.grouped_comments import path_display_name
 from lib.upgradedoc.sorting_and_ordering import MovedItem
 from lib.upgradedoc.sorting_and_ordering import moved_items
 from lib.upgradedoc.sorting_and_ordering import path_order_key
@@ -121,26 +123,31 @@ def delete_images_manifest_entry(lines: list[str], entry_line_idx: int) -> None:
     right below a kept comment, so a divider stays on top of the next
     entry. Deleting the last entry leaves the stub's bare "[]", so the file
     stays a YAML list."""
-    block_end = entry_line_idx + 1
-    while block_end < len(lines):
-        line = lines[block_end]
-        if not line.strip() or line.lstrip().startswith("#") or ENTRY_START_RE.match(line):
-            break
-        block_end += 1
+    block_end = entry_block_end(lines, entry_line_idx, stop_at_comment=True)
     shares_comment = block_end < len(lines) and ENTRY_START_RE.match(lines[block_end]) is not None
     comment_idx = None if shares_comment else find_preceding_comment_line(lines, entry_line_idx)
     start = entry_line_idx if comment_idx is None else comment_idx
-    del lines[start:block_end]
+    remove_lines(lines, start, block_end)
+    _drop_blank_left_at(lines, start)
+    if not entry_line_indices(lines):
+        _append_empty_list(lines)
+
+
+def _drop_blank_left_at(lines: list[str], start: int) -> None:
+    """Drop the blank line a deletion at `start` left doubled, below a comment, or at the end."""
     if 0 < start < len(lines) and not lines[start].strip():
         above = lines[start - 1]
         if not above.strip() or above.lstrip().startswith("#"):
-            del lines[start]
+            lines.pop(start)
     elif start == len(lines) and start > 0 and not lines[start - 1].strip():
-        del lines[start - 1]
-    if not entry_line_indices(lines):
-        if lines and not lines[-1].endswith("\n"):
-            lines[-1] = f"{lines[-1]}\n"
-        lines.append("\n[]\n" if lines and lines[-1].strip() else "[]\n")
+        lines.pop(start - 1)
+
+
+def _append_empty_list(lines: list[str]) -> None:
+    """Append the stub's bare "[]" so a manifest without entries stays a YAML list."""
+    if lines and not lines[-1].endswith("\n"):
+        lines[-1] = f"{lines[-1]}\n"
+    lines.append("\n[]\n" if lines and lines[-1].strip() else "[]\n")
 
 
 def header_name_segment(text: str) -> str:
@@ -166,9 +173,7 @@ def header_name_segment(text: str) -> str:
     return name.rstrip(" \t—-")
 
 
-def find_images_manifest_faulty_headers(
-    manifest: ParsedManifest, resolution: EntryResolution
-) -> list[tuple[str, str, str]]:
+def find_faulty_manifest_headers(manifest: ParsedManifest, resolution: EntryResolution) -> list[tuple[str, str, str]]:
     """[(entry_name, expected_display_name, problem), ...] for sidecar entries with a bad own header.
 
     problem is:
@@ -188,13 +193,20 @@ def find_images_manifest_faulty_headers(
         if path is None or is_primary_image_path(path, resolution.deps):
             continue
         display_name = path_display_name(path, resolution.deps, resolution.canonical_names)
-        top_line = _own_header_top_line(manifest.lines, line_idx)
-        match = SIDECAR_HEADER_RE.match(top_line) if top_line is not None else None
-        if match is None:
-            problems.append((entry["name"], display_name, "missing"))
-        elif normalize_name(header_name_segment(match.group("text"))) != normalize_name(display_name):
-            problems.append((entry["name"], display_name, "wrong_name"))
+        problem = _sidecar_header_problem(_own_header_top_line(manifest.lines, line_idx), display_name)
+        if problem is not None:
+            problems.append((entry["name"], display_name, problem))
     return problems
+
+
+def _sidecar_header_problem(top_line: str | None, display_name: str) -> str | None:
+    """find_faulty_manifest_headers' problem for one entry's own header line, None when it is right."""
+    match = None if top_line is None else SIDECAR_HEADER_RE.match(top_line)
+    if match is None:
+        return "missing"
+    if normalize_name(header_name_segment(match.group("text"))) != normalize_name(display_name):
+        return "wrong_name"
+    return None
 
 
 def _images_manifest_groups(manifest: ParsedManifest, resolution: EntryResolution) -> list[ManifestGroup]:
@@ -209,7 +221,7 @@ def _images_manifest_groups(manifest: ParsedManifest, resolution: EntryResolutio
         return are_manifest_entries_grouped(entry_a, entry_b, resolution.current_paths, resolution.repo_map)
 
     comment_idx_for = [
-        find_grouped_preceding_comment_line(
+        find_grouped_comment_line(
             manifest.lines, manifest.entries, manifest.entry_line_indices, entry_index, is_same_group
         )
         for entry_index in range(entry_count)
@@ -246,7 +258,7 @@ def _group_order_keys(
     return [path_order_key(path, deps, key_order, values) for _indices, path, _name in groups]
 
 
-def _collapse_group_internal_blank_lines(group_text: str) -> str:
+def _collapse_group_blank_lines(group_text: str) -> str:
     """Drop blank lines between entries in group_text, keeping its trailing blank line(s)."""
     lines = group_text.splitlines(keepends=True)
     last_content = len(lines)
@@ -297,7 +309,7 @@ def _positioned_groups(text: str, context: ManifestSortContext) -> tuple[ParsedM
     return manifest, [(group, position_of_group[group_index]) for group_index, group in enumerate(groups)]
 
 
-def images_manifest_entry_positions(text: str, context: ManifestSortContext) -> dict[str, int]:
+def manifest_entry_positions(text: str, context: ManifestSortContext) -> dict[str, int]:
     """{entry_name: 0-based final position} after sort_images_manifest_entries' group reordering.
 
     Lets callers mirror the entry order instead of fuzzy text matching. Entries
@@ -310,8 +322,8 @@ def images_manifest_entry_positions(text: str, context: ManifestSortContext) -> 
     }
 
 
-def images_manifest_display_name_positions(text: str, context: ManifestSortContext) -> dict[str, int]:
-    """{display_name: 0-based final position}, like images_manifest_entry_positions but keyed by group display name.
+def manifest_name_positions(text: str, context: ManifestSortContext) -> dict[str, int]:
+    """{display_name: 0-based final position}, like manifest_entry_positions but keyed by group display name.
 
     For exact-prefix matching of "# Changes:" items, which the tooling writes
     as f"{name} {old} -> {new}." with this display name; fuzzy basename matching
@@ -324,7 +336,7 @@ def images_manifest_display_name_positions(text: str, context: ManifestSortConte
     return positions
 
 
-def match_changes_item_display_name(rest: str, names: Iterable[str]) -> str | None:
+def match_item_display_name(rest: str, names: Iterable[str]) -> str | None:
     """The longest of `names` that rest names (see is_named_by_changes_item), or None.
 
     Exact: a hand-written item that names no display name first matches
@@ -347,9 +359,7 @@ def changes_item_order_keys(rests: Iterable[str], display_name_positions: Mappin
     """
     last = max(display_name_positions.values(), default=-1) + 1
     return [
-        display_name_positions[name]
-        if (name := match_changes_item_display_name(rest, display_name_positions))
-        else last
+        display_name_positions[name] if (name := match_item_display_name(rest, display_name_positions)) else last
         for rest in rests
     ]
 
@@ -361,10 +371,11 @@ def _group_texts_and_components(
 
     A multi-entry group's internal blank lines are collapsed here."""
     ends = [*starts[1:], len(lines)]
-    original_texts = ["".join(lines[start:end]) for start, end in zip(starts, ends, strict=True)]
+    spans = zip(starts, ends, strict=True)
+    original_texts = ["".join(lines[start:end]) for start, end in spans]
     # The cross-group merge only sees whole groups, so collapse within a group here.
     per_group_texts = [
-        _collapse_group_internal_blank_lines(group_text) if len(indices) > 1 else group_text
+        _collapse_group_blank_lines(group_text) if len(indices) > 1 else group_text
         for (indices, _, _), group_text in zip(groups, original_texts, strict=True)
     ]
     components = [path[0] if path else None for _, path, _ in groups]
@@ -389,7 +400,7 @@ def _merge_ordered_groups(per_group_texts: list[str], components: list[str | Non
             or ordered_components[position] != ordered_components[run_start]
         ):
             run_text = "".join(ordered_texts[run_start:position])
-            run_text = _collapse_group_internal_blank_lines(run_text) if position - run_start > 1 else run_text
+            run_text = _collapse_group_blank_lines(run_text) if position - run_start > 1 else run_text
             # Exactly one blank line between runs: spans never include a leading
             # one, so a missing separator must be added here. The last run ends
             # the file: a group moved there keeps the separator that followed it.

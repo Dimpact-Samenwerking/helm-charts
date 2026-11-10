@@ -81,6 +81,11 @@ def is_same_name(first: str, second: str) -> bool:
     return first.casefold() == second.casefold()
 
 
+def dependency_name_and_alias(dep: ChartDependency) -> tuple[str, str | None]:
+    """A dependency's name and alias (None without one): the names it may be called by."""
+    return dep["name"], dep.get("alias")
+
+
 def values_key_of(dep: ChartDependency) -> str:
     """The values.yaml key of a Chart.yaml dependency: its alias, or its
     name when it has no (or an empty) alias."""
@@ -101,12 +106,10 @@ def find_dependency(deps: list[ChartDependency], name_or_alias: str) -> ChartDep
     match ignoring case.
     """
     for dep in deps:
-        if name_or_alias in {dep["name"], dep.get("alias")}:
+        if name_or_alias in dependency_name_and_alias(dep):
             return dep
     matches = [
-        dep
-        for dep in deps
-        if is_same_name(dep["name"], name_or_alias) or is_same_name(dep.get("alias") or "", name_or_alias)
+        dep for dep in deps if any(is_same_name(name or "", name_or_alias) for name in dependency_name_and_alias(dep))
     ]
     if len(matches) > 1:
         names = ", ".join(values_key_of(dep) for dep in matches)
@@ -222,15 +225,26 @@ def find_images(node: YamlValue, path: str = "") -> list[tuple[str, str, str]]:
     tag) for every dict that has both a non-empty "repository" and "tag"
     scalar (as the text Helm renders, see scalar_text)."""
     images: list[tuple[str, str, str]] = []
-    if isinstance(node, dict):
-        if "repository" in node and "tag" in node:
-            repo, tag = scalar_text(node["repository"]), scalar_text(node["tag"])
-            if repo and tag:
-                images.append((path or "(root)", repo, tag))
-        for key, value in node.items():
-            child_path = f"{path}.{key}" if path else key
-            images.extend(find_images(value, child_path))
-    elif isinstance(node, list):
-        for index, item in enumerate(node):
-            images.extend(find_images(item, f"{path}[{index}]"))
+    own = _own_image(node, path)
+    if own is not None:
+        images.append(own)
+    for child_path, child in _child_nodes(node, path):
+        images.extend(find_images(child, child_path))
     return images
+
+
+def _own_image(node: YamlValue, path: str) -> tuple[str, str, str] | None:
+    """find_images' (path, repository, tag) for `node` itself, or None."""
+    if not isinstance(node, dict) or "repository" not in node or "tag" not in node:
+        return None
+    repo, tag = scalar_text(node["repository"]), scalar_text(node["tag"])
+    return (path or "(root)", repo, tag) if repo and tag else None
+
+
+def _child_nodes(node: YamlValue, path: str) -> list[tuple[str, YamlValue]]:
+    """(child_path, child) for each mapping value or list item directly under `node`."""
+    if isinstance(node, dict):
+        return [(f"{path}.{key}" if path else key, value) for key, value in node.items()]
+    if isinstance(node, list):
+        return [(f"{path}[{index}]", item) for index, item in enumerate(node)]
+    return []

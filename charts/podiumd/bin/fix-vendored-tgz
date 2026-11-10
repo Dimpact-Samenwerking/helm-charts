@@ -17,6 +17,7 @@ import shutil
 import sys
 
 from pathlib import Path
+from typing import NoReturn
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -26,6 +27,20 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from lib.chart.paths import CHART_DIR
 from lib.checks.vendored_tgz import find_extracted_vendored_dirs
 from lib.cli import flag_args
+from lib.cli import noun_for
+
+
+def extracted_directories(count: int) -> str:
+    """The count with its noun, for the dry-run and the deletion message."""
+    return f"{count} extracted {noun_for(count, 'directory', 'directories')}"
+
+
+def exit_with_dry_run_listing(extracted: list[str]) -> NoReturn:
+    """List the directories that would be deleted and exit 1."""
+    print(f"Found {extracted_directories(len(extracted))} shadowing a pinned .tgz (dry-run, not deleting):")
+    for name in extracted:
+        print(f"  charts/{name}/")
+    sys.exit(1)
 
 
 def main():
@@ -37,25 +52,15 @@ def main():
         print("OK: no vendored sub-chart has both a pinned .tgz and an extracted directory")
         sys.exit(0)
 
-    charts_subdir = CHART_DIR / "charts"
-
     if dry_run:
-        print(
-            f"Found {len(extracted)} extracted director{'y' if len(extracted) == 1 else 'ies'} "
-            f"shadowing a pinned .tgz (dry-run, not deleting):"
-        )
-        for name in extracted:
-            print(f"  charts/{name}/")
-        sys.exit(1)
+        exit_with_dry_run_listing(extracted)
 
+    charts_subdir = CHART_DIR / "charts"
     for name in extracted:
         shutil.rmtree(charts_subdir / name)
         print(f"Deleted charts/{name}/ (was shadowing a pinned {name}-<version>.tgz)")
 
-    print(
-        f"Removed {len(extracted)} extracted director{'y' if len(extracted) == 1 else 'ies'} "
-        f"— re-run verify-podiumd to confirm"
-    )
+    print(f"Removed {extracted_directories(len(extracted))} — re-run verify-podiumd to confirm")
     sys.exit(0)
 
 

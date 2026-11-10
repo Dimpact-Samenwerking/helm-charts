@@ -182,7 +182,7 @@ def test_check_dependencies_zero_retry_attempts_is_a_clear_error(
 ):
     """retry_attempts = 0 fails with an error naming the setting, not an AttributeError."""
     monkeypatch.setattr(libdependencies, "run", fake_run())
-    monkeypatch.setattr(libdependencies, "dependency_fetch_retry_attempts", lambda _chart_dir: 0)
+    monkeypatch.setattr(libdependencies, "fetch_retry_attempts", lambda _chart_dir: 0)
     with pytest.raises(SystemExit, match="retry_attempts must be at least 1, got 0"):
         libdependencies.check_dependencies(tmp_path)
 
@@ -218,19 +218,19 @@ def test_check_dependencies_bad_status_fails(
     assert "did not resolve" in detail
 
 
-# --- vendored_state_matches_chart_yaml / check_dependencies fast path ---
+# --- vendored_matches_chart_yaml / check_dependencies fast path ---
 
 
 def testvendored_state_matches_chart_yaml_true_when_everything_lines_up(libdependencies: ModuleType, tmp_path: Path):
     deps = [{"name": "zac", "version": "1.0.297", "repository": "@zac"}]
     write_matching_lock_state(tmp_path, deps)
-    assert libdependencies.vendored_state_matches_chart_yaml(tmp_path) is True
+    assert libdependencies.vendored_matches_chart_yaml(tmp_path) is True
 
 
 def testvendored_state_matches_chart_yaml_false_when_no_lock_file(libdependencies: ModuleType, tmp_path: Path):
     deps = [{"name": "zac", "version": "1.0.297", "repository": "@zac"}]
     write_chart_dependencies(tmp_path / "Chart.yaml", deps)
-    assert libdependencies.vendored_state_matches_chart_yaml(tmp_path) is False
+    assert libdependencies.vendored_matches_chart_yaml(tmp_path) is False
 
 
 def test_vendored_state_matches_chart_yaml_false_when_chart_yaml_unreadable(
@@ -248,7 +248,7 @@ def test_vendored_state_matches_chart_yaml_false_when_chart_yaml_unreadable(
 
     monkeypatch.setattr(Path, "read_text", read_text)
 
-    assert libdependencies.vendored_state_matches_chart_yaml(tmp_path) is False
+    assert libdependencies.vendored_matches_chart_yaml(tmp_path) is False
     assert libdependencies.vendored_dependency_problems(tmp_path) == [
         "Chart.yaml can not be read: [Errno 13] Permission denied"
     ]
@@ -259,7 +259,7 @@ def test_vendored_state_matches_chart_yaml_false_when_lock_is_not_utf8(libdepend
     write_matching_lock_state(tmp_path, deps)
     (tmp_path / "Chart.lock").write_bytes(b"\xff\xfe not utf-8")
 
-    assert libdependencies.vendored_state_matches_chart_yaml(tmp_path) is False
+    assert libdependencies.vendored_matches_chart_yaml(tmp_path) is False
     problems = libdependencies.vendored_dependency_problems(tmp_path)
     assert len(problems) == 1
     assert problems[0].startswith("Chart.lock can not be read: ")
@@ -271,7 +271,7 @@ def testvendored_state_matches_chart_yaml_false_when_version_bumped(libdependenc
     write_matching_lock_state(tmp_path, old)
     new = [{"name": "zac", "version": "1.0.298", "repository": "@zac"}]
     write_chart_dependencies(tmp_path / "Chart.yaml", new)
-    assert libdependencies.vendored_state_matches_chart_yaml(tmp_path) is False
+    assert libdependencies.vendored_matches_chart_yaml(tmp_path) is False
 
 
 def testvendored_state_matches_chart_yaml_false_when_dependency_count_differs(
@@ -282,7 +282,7 @@ def testvendored_state_matches_chart_yaml_false_when_dependency_count_differs(
     write_matching_lock_state(tmp_path, deps)
     deps_plus_one = [*deps, {"name": "frankgateway", "version": "1.1.0", "repository": "@wearefrank"}]
     write_chart_dependencies(tmp_path / "Chart.yaml", deps_plus_one)
-    assert libdependencies.vendored_state_matches_chart_yaml(tmp_path) is False
+    assert libdependencies.vendored_matches_chart_yaml(tmp_path) is False
 
 
 def testvendored_state_matches_chart_yaml_false_when_tgz_missing(libdependencies: ModuleType, tmp_path: Path):
@@ -290,7 +290,7 @@ def testvendored_state_matches_chart_yaml_false_when_tgz_missing(libdependencies
     deps = [{"name": "zac", "version": "1.0.297", "repository": "@zac"}]
     write_matching_lock_state(tmp_path, deps)
     (tmp_path / "charts" / "zac-1.0.297.tgz").unlink()
-    assert libdependencies.vendored_state_matches_chart_yaml(tmp_path) is False
+    assert libdependencies.vendored_matches_chart_yaml(tmp_path) is False
 
 
 def testvendored_state_matches_chart_yaml_int_version_normalized(libdependencies: ModuleType, tmp_path: Path):
@@ -305,7 +305,7 @@ def testvendored_state_matches_chart_yaml_int_version_normalized(libdependencies
     )
     (tmp_path / "charts").mkdir()
     (tmp_path / "charts" / "keycloak-26.tgz").touch()
-    assert libdependencies.vendored_state_matches_chart_yaml(tmp_path) is True
+    assert libdependencies.vendored_matches_chart_yaml(tmp_path) is True
 
 
 def test_check_dependencies_skips_update_when_already_vendored(
@@ -366,10 +366,10 @@ def test_vendored_dependency_problems_empty_when_in_sync(libdependencies: Module
 
 
 def test_vendored_dependency_problems_empty_when_chart_has_no_dependencies(libdependencies: ModuleType, tmp_path: Path):
-    """No problems, though vendored_state_matches_chart_yaml is False so check_dependencies still updates."""
+    """No problems, though vendored_matches_chart_yaml is False so check_dependencies still updates."""
     (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"name": "x", "version": "1.0.0"}), encoding="utf-8")
     assert libdependencies.vendored_dependency_problems(tmp_path) == []
-    assert libdependencies.vendored_state_matches_chart_yaml(tmp_path) is False
+    assert libdependencies.vendored_matches_chart_yaml(tmp_path) is False
 
 
 def test_vendored_dependency_problems_names_wrong_tgz_version(libdependencies: ModuleType, tmp_path: Path):

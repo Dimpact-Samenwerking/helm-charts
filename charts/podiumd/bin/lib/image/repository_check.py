@@ -10,7 +10,7 @@ from pathlib import Path
 
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.repo_and_path_resolution import RepositoryResolver
-from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
+from lib.upgradedoc.app_version_and_image_paths import find_image_and_version_paths
 from lib.yaml_types import load_yaml_mapping
 
 
@@ -26,7 +26,7 @@ def find_images_without_repository(chart_dir: Path, *, allow_pull: bool = False)
     resolver = RepositoryResolver(chart_dir, deps, values, allow_pull=allow_pull)
     return sorted(
         path
-        for path, _tag in find_all_image_and_version_paths(values, deps)
+        for path, _tag in find_image_and_version_paths(values, deps)
         if path and resolver.full_repository(path) is None
     )
 

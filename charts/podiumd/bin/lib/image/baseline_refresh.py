@@ -6,7 +6,7 @@ from pathlib import Path
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.cli import print_section
-from lib.image.docs import regenerate_images_baseline_manifest
+from lib.image.docs import regenerate_images_baseline
 from lib.render_scope import lint_args_for
 from lib.render_scope import render_chart
 from lib.render_scope import rendered_chart_paths
@@ -33,7 +33,7 @@ def refresh_images_baseline(
         sys.exit(1)
     rendered_paths = rendered_chart_paths(render_result.stdout)
 
-    written, skipped, changed = regenerate_images_baseline_manifest(
+    written, skipped, changed = regenerate_images_baseline(
         chart_dir, deps, values, images_baseline_path, rendered_paths
     )
     if changed:

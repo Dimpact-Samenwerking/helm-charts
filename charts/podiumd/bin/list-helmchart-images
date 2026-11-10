@@ -25,7 +25,6 @@ Examples:
 Requires: helm on PATH, with the podiumd Helm repositories added.
 """
 
-import shutil
 import sys
 import tempfile
 
@@ -117,16 +116,14 @@ def main():
         report_chart(local_dir, version, key)
         return
 
-    tmpdir = Path(tempfile.mkdtemp(prefix="list-helmchart-images-"))
-    try:
+    with tempfile.TemporaryDirectory(prefix="list-helmchart-images-", ignore_cleanup_errors=True) as tmp:
+        tmpdir = Path(tmp)
         ref, _ = chart_ref(dep)
         print(f"Pulling {ref} @ {version} ...")
         ok, stderr = pull_chart(dep, version, tmpdir)
         if not ok:
             sys.exit(f"error: helm pull failed for {ref}@{version}\n{stderr}")
         report_chart(pulled_chart_dir(tmpdir), version, key)
-    finally:
-        shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 if __name__ == "__main__":

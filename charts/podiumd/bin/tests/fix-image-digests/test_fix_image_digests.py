@@ -6,6 +6,7 @@ import sys
 import tarfile
 import urllib.error
 
+from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
 
@@ -777,6 +778,18 @@ def test_main_one_target_raises(sid: ModuleType, tmp_path: Path, monkeypatch: py
 # --- writer then checker: a digest in a registered sibling field ---
 
 
+def _assert_checker_matches_one(
+    chart_dir: Path, monkeypatch: pytest.MonkeyPatch, live: Callable[[str, str, str], tuple[bool, str]]
+) -> None:
+    """check_image_digests, against the same `live` registry, finds the one digest up to date."""
+    image_digests = sys.modules["lib.image.digests"]
+    image_digests.clear_tag_exists_cache()
+    monkeypatch.setattr(image_digests, "registry_tag_exists", live)
+    ok, detail = image_digests.check_image_digests(chart_dir)
+    assert ok is True
+    assert "1/1 matched" in detail
+
+
 def test_main_refreshes_sibling_digest_then_checker_reports_nothing(
     sid: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
@@ -788,7 +801,7 @@ def test_main_refreshes_sibling_digest_then_checker_reports_nothing(
         f'keycloak:\n  image:\n    repository: quay.io/keycloak/keycloak\n    tag: "26.7.3"\n    sha: "{old_digest}"\n',
     )
 
-    def live(host, repo, tag):
+    def live(host: str, repo: str, tag: str) -> tuple[bool, str]:
         return True, f"sha256:{new_digest}"
 
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
@@ -803,12 +816,7 @@ def test_main_refreshes_sibling_digest_then_checker_reports_nothing(
     assert f'sha: "{new_digest}"' in written
     assert old_digest not in written
 
-    image_digests = sys.modules["lib.image.digests"]
-    image_digests.clear_tag_exists_cache()
-    monkeypatch.setattr(image_digests, "registry_tag_exists", live)
-    ok, detail = image_digests.check_image_digests(tmp_path)
-    assert ok is True
-    assert "1/1 matched" in detail
+    _assert_checker_matches_one(tmp_path, monkeypatch, live)
 
     with pytest.raises(SystemExit) as exc_info:
         sid.main()

@@ -129,7 +129,7 @@ def test_threshold_classifies_the_real_storage_pvc_case_as_worth_deduping(
     write_template(tmp_path, "openklant-storage.yaml", b)
 
     ratio = difflib.SequenceMatcher(None, a, b).ratio()
-    assert ratio >= libdrycheck.dry_check_high_similarity_threshold(tmp_path), (
+    assert ratio >= libdrycheck.dry_check_high_similarity(tmp_path), (
         f"test fixture ratio {ratio} no longer represents the real ~0.89 storage-file case"
     )
 

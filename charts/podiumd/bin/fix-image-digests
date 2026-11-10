@@ -101,10 +101,10 @@ def _fetch_live_digest(host: str, repo_path: str, version: str) -> tuple[str | N
     for _ in range(2):
         try:
             exists, digest = registry_tag_exists(host, repo_path, version)
-            error = None if exists else "tag not found upstream"
-            break
         except (URLError, OSError) as fetch_error:
             error = str(fetch_error)
+            continue
+        return digest, None if exists else "tag not found upstream"
     return digest, error
 
 
@@ -221,6 +221,14 @@ def _regenerate_docs():
         sys.exit(result.returncode)
 
 
+def _write_values(text: str, digest_count: int, comment_count: int) -> None:
+    """Write `text` as values.yaml and regenerate the docs that pin its digests."""
+    VALUES_PATH.write_text(text, encoding="utf-8")
+    print(f"\nWrote {digest_count} updated digest(s) and {comment_count} reference comment(s) to {VALUES_PATH}.")
+    print("Re-render the chart to confirm (verify-podiumd or /helm-render-all) before committing.")
+    _regenerate_docs()
+
+
 def main():
     """CLI entry point; exits 1 on any fetch error, even after a successful write."""
     dry_run, key, basename = _parse_args(sys.argv[1:])
@@ -241,20 +249,14 @@ def main():
     if scope is None:
         text, stale_comments = _sync_reference_comments(text, dry_run=dry_run)
     if not to_update and not stale_comments:
-        if scope is not None:
-            print(f"\n'{key}' '{basename}' has no stale digest to update — nothing to do.")
-        else:
+        if scope is None:
             print("\nNo stale digests or reference comments found — nothing to do.")
+        else:
+            print(f"\n'{key}' '{basename}' has no stale digest to update — nothing to do.")
         sys.exit(1 if fetch_errors else 0)
 
     if not dry_run:
-        VALUES_PATH.write_text(text, encoding="utf-8")
-        print(
-            f"\nWrote {len(to_update)} updated digest(s) and {len(stale_comments)} reference comment(s) "
-            f"to {VALUES_PATH}."
-        )
-        print("Re-render the chart to confirm (verify-podiumd or /helm-render-all) before committing.")
-        _regenerate_docs()
+        _write_values(text, len(to_update), len(stale_comments))
 
     sys.exit(1 if fetch_errors else 0)
 

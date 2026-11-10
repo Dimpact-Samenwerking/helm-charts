@@ -12,6 +12,8 @@ import lib.image.version as image_version
 
 from lib.chart import repo_and_path_resolution
 from lib.chart import values_tag_sha_lines as tag_sha_lines
+from tests.chart_repo import make_doc_dirs
+from tests.chart_repo import point_chart_paths
 from tests.fixture_data import SHA256_E
 from tests.fixture_data import sha256_digest
 
@@ -21,32 +23,34 @@ OLD_DIGEST = "a" * 64
 # --- main() integration ---
 
 
-def setup_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType):
+def _setup_chart(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, chart_text: str, values_text: str
+) -> tuple[Path, Path]:
+    """(Chart.yaml, values.yaml) with these texts and empty doc dirs, with ucv pointed at them."""
     chart_yaml = tmp_path / "Chart.yaml"
     values_yaml = tmp_path / "values.yaml"
+    chart_yaml.write_text(chart_text, encoding="utf-8")
+    values_yaml.write_text(values_text, encoding="utf-8")
+    make_doc_dirs(tmp_path)
+    point_chart_paths(ucv, monkeypatch, tmp_path)
+    return chart_yaml, values_yaml
+
+
+def setup_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType):
     # Raw text, not yaml.safe_dump (alphabetizes keys): update_chart_yaml's
     # line-scan needs "name:" first, as in the real Chart.yaml.
-    chart_yaml.write_text(
+    return _setup_chart(
+        tmp_path,
+        monkeypatch,
+        ucv,
         "version: 4.9.0\n"
         "dependencies:\n"
         "  - name: zaakafhandelcomponent\n"
         "    version: 1.0.296\n"
         '    repository: "@example"\n'
         "    alias: zac\n",
-        encoding="utf-8",
-    )
-    values_yaml.write_text(
         f'zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n    tag: "5.0.2@sha256:{OLD_DIGEST}"\n',
-        encoding="utf-8",
     )
-    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
-    doc_dir.mkdir(parents=True)
-    images_dir = tmp_path / "docs" / "images"
-    images_dir.mkdir(parents=True)
-    monkeypatch.setattr(ucv, "CHART_DIR", tmp_path)
-    monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)
-    monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
-    return chart_yaml, values_yaml
 
 
 def mock_registry_passes(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, digest_char="b"):
@@ -85,6 +89,15 @@ def mock_verify_passes(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, digest_
     monkeypatch.setattr(ucv, "check_image_versions", fake_check_image_versions)
 
 
+def setup_zac_bump(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType) -> tuple[Path, Path]:
+    """setup_repo with a passing verify and registry, and argv bumping zac to 5.4.3 / chart 1.0.297."""
+    chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
+    mock_verify_passes(monkeypatch, ucv)
+    mock_registry_passes(monkeypatch, ucv, "b")
+    monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
+    return chart_yaml, values_yaml
+
+
 def mock_registry_check(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, registry_tag_exists):
     """Run the real check_image_versions against `registry_tag_exists`, with no helm pull.
 
@@ -97,10 +110,7 @@ def mock_registry_check(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, regist
 
 
 def test_main_writes_both_files_when_verify_passes(ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
-    mock_verify_passes(monkeypatch, ucv)
-    mock_registry_passes(monkeypatch, ucv, "b")
-    monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
+    chart_yaml, values_yaml = setup_zac_bump(tmp_path, monkeypatch, ucv)
 
     ucv.main()  # success path does not raise
 
@@ -114,18 +124,16 @@ def test_main_alias_component_argument_bumps_all_registered_lockstep_paths(
     """Regression: image_paths_for is keyed by Chart.yaml name, not alias, so
     the alias argument ("kiss") must be resolved first; otherwise it falls
     back to ["image"] and silently skips the lockstep syncJobs image tag."""
-    chart_yaml = tmp_path / "Chart.yaml"
-    values_yaml = tmp_path / "values.yaml"
-    chart_yaml.write_text(
+    _chart_yaml, values_yaml = _setup_chart(
+        tmp_path,
+        monkeypatch,
+        ucv,
         "version: 4.9.0\n"
         "dependencies:\n"
         "  - name: kiss-chart\n"
         "    version: 3.0.0\n"
         '    repository: "@example"\n'
         "    alias: kiss\n",
-        encoding="utf-8",
-    )
-    values_yaml.write_text(
         "kiss:\n"
         "  image:\n"
         "    repository: ghcr.io/klantinteractie-servicesysteem/kiss-frontend\n"
@@ -135,15 +143,7 @@ def test_main_alias_component_argument_bumps_all_registered_lockstep_paths(
         "      image:\n"
         "        repository: ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync\n"
         f'        tag: "3.0.0@sha256:{OLD_DIGEST}"\n',
-        encoding="utf-8",
     )
-    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
-    doc_dir.mkdir(parents=True)
-    images_dir = tmp_path / "docs" / "images"
-    images_dir.mkdir(parents=True)
-    monkeypatch.setattr(ucv, "CHART_DIR", tmp_path)
-    monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)
-    monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
     mock_verify_passes(monkeypatch, ucv)
     mock_registry_passes(monkeypatch, ucv, "b")
     monkeypatch.setattr("sys.argv", ["update-component-version", "kiss", "3.1.1", "3.1.1"])
@@ -159,10 +159,7 @@ def test_main_invokes_fix_helm_doc(
 ):
     """values.yaml changed, so fix-helm-doc must run or README.md goes stale."""
     calls = block_real_subprocess_calls
-    setup_repo(tmp_path, monkeypatch, ucv)
-    mock_verify_passes(monkeypatch, ucv)
-    mock_registry_passes(monkeypatch, ucv, "b")
-    monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
+    setup_zac_bump(tmp_path, monkeypatch, ucv)
 
     ucv.main()
 
@@ -194,10 +191,7 @@ def test_main_re_vendors_after_writing_chart_yaml(
     """The Chart.yaml bump leaves charts/ and Chart.lock stale: main() must
     re-vendor last (after fix-helm-doc) so the next script starts in sync."""
     calls = block_real_subprocess_calls
-    chart_yaml, _values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
-    mock_verify_passes(monkeypatch, ucv)
-    mock_registry_passes(monkeypatch, ucv, "b")
-    monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
+    chart_yaml, _values_yaml = setup_zac_bump(tmp_path, monkeypatch, ucv)
     ensured = []
 
     def record_ensure(chart_dir):
@@ -219,10 +213,7 @@ def test_main_runs_fix_doc_consistency_after_re_vendoring(
 ) -> None:
     """The bump ends with fix-doc-consistency, after the re-vendor its
     images-baseline.yaml render needs."""
-    setup_repo(tmp_path, monkeypatch, ucv)
-    mock_verify_passes(monkeypatch, ucv)
-    mock_registry_passes(monkeypatch, ucv, "b")
-    monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
+    setup_zac_bump(tmp_path, monkeypatch, ucv)
     order: list[str] = []
 
     def record_ensure(_chart_dir: Path) -> None:
@@ -242,32 +233,21 @@ def test_main_runs_fix_doc_consistency_after_re_vendoring(
 def setup_native_component_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType):
     """frankgateway: a native component (own values.yaml key and image, no
     Chart.yaml dependency). zac is present to assert Chart.yaml is untouched."""
-    chart_yaml = tmp_path / "Chart.yaml"
-    values_yaml = tmp_path / "values.yaml"
-    chart_yaml.write_text(
+    return _setup_chart(
+        tmp_path,
+        monkeypatch,
+        ucv,
         "version: 4.9.0\n"
         "dependencies:\n"
         "  - name: zaakafhandelcomponent\n"
         "    version: 1.0.297\n"
         '    repository: "@example"\n'
         "    alias: zac\n",
-        encoding="utf-8",
-    )
-    values_yaml.write_text(
         "frankgateway:\n"
         "  image:\n"
         "    repository: ghcr.io/wearefrank/frank-gateway\n"
         f'    tag: "100@sha256:{OLD_DIGEST}"\n',
-        encoding="utf-8",
     )
-    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
-    doc_dir.mkdir(parents=True)
-    images_dir = tmp_path / "docs" / "images"
-    images_dir.mkdir(parents=True)
-    monkeypatch.setattr(ucv, "CHART_DIR", tmp_path)
-    monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)
-    monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
-    return chart_yaml, values_yaml
 
 
 def test_main_native_component_bumps_values_yaml_never_touches_chart_yaml(
@@ -321,18 +301,16 @@ def setup_keycloak_operator_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     &keycloakImage* anchors; keycloak-operator.operator.image is pinned
     explicitly; operator.config.keycloakImage aliases the anchors. Both use
     split "tag:" + "sha:", and versions move independently."""
-    chart_yaml = tmp_path / "Chart.yaml"
-    values_yaml = tmp_path / "values.yaml"
-    chart_yaml.write_text(
+    return _setup_chart(
+        tmp_path,
+        monkeypatch,
+        ucv,
         "version: 4.9.0\n"
         "dependencies:\n"
         "  - name: keycloak-operator\n"
         "    version: 1.12.1\n"
         '    repository: "@adfinis"\n'
         "    condition: keycloak-operator.enabled\n",
-        encoding="utf-8",
-    )
-    values_yaml.write_text(
         "keycloak:\n"
         "  image:\n"
         "    repository: &keycloakImageRepo quay.io/keycloak/keycloak\n"
@@ -350,16 +328,7 @@ def setup_keycloak_operator_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
         "        repository: *keycloakImageRepo\n"
         "        tag: *keycloakImageVersion\n"
         "        sha: *keycloakImageDigest\n",
-        encoding="utf-8",
     )
-    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
-    doc_dir.mkdir(parents=True)
-    images_dir = tmp_path / "docs" / "images"
-    images_dir.mkdir(parents=True)
-    monkeypatch.setattr(ucv, "CHART_DIR", tmp_path)
-    monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)
-    monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
-    return chart_yaml, values_yaml
 
 
 KEYCLOAK_ALIAS_BLOCK = (
@@ -426,34 +395,23 @@ def test_main_native_keycloak_bumps_server_image_anchor_site_only(
 def setup_eck_operator_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType):
     """eck-operator uses split "tag:"/"digest:", and its _helpers.tpl fails
     the render unless image.digest starts with "sha256:"."""
-    chart_yaml = tmp_path / "Chart.yaml"
-    values_yaml = tmp_path / "values.yaml"
-    chart_yaml.write_text(
+    return _setup_chart(
+        tmp_path,
+        monkeypatch,
+        ucv,
         "version: 4.9.0\n"
         "dependencies:\n"
         "  - name: eck-operator\n"
         "    version: 3.5.0\n"
         '    repository: "@example"\n'
         "    condition: eck-operator.enabled\n",
-        encoding="utf-8",
-    )
-    values_yaml.write_text(
         "eck-operator:\n"
         "  enabled: true\n"
         "  image:\n"
         "    repository: docker.elastic.co/eck/eck-operator\n"
         '    tag: "3.5.0"\n'
         f'    digest: "sha256:{OLD_DIGEST}"\n',
-        encoding="utf-8",
     )
-    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
-    doc_dir.mkdir(parents=True)
-    images_dir = tmp_path / "docs" / "images"
-    images_dir.mkdir(parents=True)
-    monkeypatch.setattr(ucv, "CHART_DIR", tmp_path)
-    monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)
-    monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
-    return chart_yaml, values_yaml
 
 
 def test_main_eck_operator_writes_digest_field_correctly_regression(

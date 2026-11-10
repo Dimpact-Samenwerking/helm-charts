@@ -40,8 +40,11 @@ from collections.abc import Set as AbstractSet
 from concurrent.futures import Future
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import as_completed
+from contextlib import ExitStack
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
+from typing import NamedTuple
 from typing import NotRequired
 from typing import TypedDict
 
@@ -87,12 +90,20 @@ class RenderScope(TypedDict):
     temp_dir: NotRequired[Path]
 
 
-# A subtree still to search as (scope, its path, its node); that plus its
-# candidate leaves; a dead leaf found in a scope.
+# A subtree still to search as (scope, its path, its node); a dead leaf found in a scope.
 FrontierEntry = tuple[RenderScope, ValuesPath, YamlValue]
-PendingSubtree = tuple[RenderScope, ValuesPath, YamlValue, list[ValuesPath]]
 DeadCandidate = tuple[RenderScope, ValuesPath]
 RenderFuture = Future[list[YamlValue] | None]
+
+
+class PendingSubtree(NamedTuple):
+    """A frontier subtree plus its candidate leaves still to test."""
+
+    scope: RenderScope
+    path: ValuesPath
+    node: YamlValue
+    leaf_paths: list[ValuesPath]
+
 
 NO_EXEMPT_PATHS: frozenset[ValuesPath] = frozenset()
 
@@ -235,13 +246,10 @@ def _render(chart_name: str, chart_path: Path, extra_args: list[str], overlay_pa
 
 def _with_overlay_file[RenderT](overlay: YamlMapping, render_fn: Callable[[Path], RenderT]) -> RenderT:
     """Call render_fn with `overlay` dumped to a temp file, always removed afterwards."""
-    with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".yaml", delete=False) as overlay_file:
-        yaml.safe_dump(overlay, overlay_file)
-        overlay_path = Path(overlay_file.name)
-    try:
+    with tempfile.TemporaryDirectory(prefix="dead-values-overlay-", ignore_cleanup_errors=True) as overlay_dir:
+        overlay_path = Path(overlay_dir) / "overlay.yaml"
+        overlay_path.write_text(yaml.safe_dump(overlay), encoding="utf-8")
         return render_fn(overlay_path)
-    finally:
-        overlay_path.unlink()
 
 
 def _render_with_null_overrides(scope: RenderScope, relative_paths: list[ValuesPath]) -> list[YamlValue] | None:
@@ -277,6 +285,17 @@ def _error_chart_names(stderr: str) -> set[str]:
     return names
 
 
+def _print_dropped_note(dropped: list[str]) -> None:
+    """Report the dependencies whose force-enable condition _make_full_scope had to drop, if any."""
+    if dropped:
+        print(
+            f"Note: could not force-enable {', '.join(sorted(dropped))} (its own values "
+            f"aren't satisfied by this chart's current CI placeholder values) — tested at "
+            f"its natural, un-forced default instead",
+            flush=True,
+        )
+
+
 def _make_full_scope(chart_dir: Path, extra_args: list[str], enable_overlay: YamlMapping) -> RenderScope:
     """The full-chart scope: the fallback for every key and the authority for confirmation.
 
@@ -289,9 +308,7 @@ def _make_full_scope(chart_dir: Path, extra_args: list[str], enable_overlay: Yam
     overlay = copy.deepcopy(enable_overlay)
     dropped: list[str] = []
     while True:
-        result = _with_overlay_file(
-            overlay, lambda overlay_path: _helm_template(CHART_NAME, chart_dir, extra_args, overlay_path)
-        )
+        result = _with_overlay_file(overlay, partial(_helm_template, CHART_NAME, chart_dir, extra_args))
         scope: RenderScope = {
             "chart_name": CHART_NAME,
             "chart_path": chart_dir,
@@ -302,13 +319,7 @@ def _make_full_scope(chart_dir: Path, extra_args: list[str], enable_overlay: Yam
         }
         if result.returncode == 0:
             scope["baseline_docs"] = _parsed_docs(result.stdout)
-            if dropped:
-                print(
-                    f"Note: could not force-enable {', '.join(sorted(dropped))} (its own values "
-                    f"aren't satisfied by this chart's current CI placeholder values) — tested at "
-                    f"its natural, un-forced default instead",
-                    flush=True,
-                )
+            _print_dropped_note(dropped)
             return scope
 
         failing = (_error_chart_names(result.stderr) & set(overlay)) - set(dropped)
@@ -317,7 +328,7 @@ def _make_full_scope(chart_dir: Path, extra_args: list[str], enable_overlay: Yam
             scope["baseline_docs"] = None
             return scope
         for name in failing:
-            del overlay[name]
+            overlay.pop(name)
             dropped.append(name)
 
 
@@ -379,11 +390,7 @@ def _make_own_scope(chart_dir: Path, coalesced_values: YamlMapping) -> RenderSco
         kept_deps = [dep for dep in all_deps if values_key_of(dep) in keep]
         temp_dir = _build_own_scope_chart(chart_dir, chart_yaml, kept_deps)
 
-        # B023 false positive: render_fn is called synchronously within this iteration.
-        result = _with_overlay_file(
-            coalesced_values,
-            lambda overlay_path: _helm_template(CHART_NAME, temp_dir, [], overlay_path),  # noqa: B023
-        )
+        result = _with_overlay_file(coalesced_values, partial(_helm_template, CHART_NAME, temp_dir, []))
         if result.returncode == 0:
             return {
                 "chart_name": CHART_NAME,
@@ -419,17 +426,22 @@ class ScopeResolutionContext:
     full_scope: RenderScope
 
 
+def _vendored_subchart(chart_dir: Path, dep: ChartDependency) -> Path | None:
+    """`dep`'s vendored .tgz, or None for a file:// or not vendored dependency."""
+    if dep.get("repository", "").startswith("file://"):
+        return None
+    tgz_path = chart_dir / "charts" / f"{dep['name']}-{dep['version']}.tgz"
+    return tgz_path if tgz_path.is_file() else None
+
+
 def resolve_scope(context: ScopeResolutionContext, key: str) -> RenderScope:
     """The sub-chart scope for `key` if its baseline renders, own_scope if `key` matches no
     dependency, else full_scope. Never raises."""
     dep = context.dep_by_key.get(key)
     if dep is None:
-        return context.own_scope if context.own_scope is not None else context.full_scope
-    if dep.get("repository", "").startswith("file://"):
-        return context.full_scope
-
-    tgz_path = context.chart_dir / "charts" / f"{dep['name']}-{dep['version']}.tgz"
-    if not tgz_path.is_file():
+        return context.full_scope if context.own_scope is None else context.own_scope
+    tgz_path = _vendored_subchart(context.chart_dir, dep)
+    if tgz_path is None:
         return context.full_scope
 
     subtree = context.merged_values.get(key)
@@ -462,21 +474,18 @@ def _pending_subtrees(
     for scope, path, node in frontier:
         leaf_paths = list(_candidate_leaves(node, path, exempt_full_paths))
         if leaf_paths:
-            pending.append((scope, path, node, leaf_paths))
+            pending.append(PendingSubtree(scope, path, node, leaf_paths))
     return pending
 
 
 def _submit_level(executor: ThreadPoolExecutor, pending: list[PendingSubtree]) -> dict[RenderFuture, PendingSubtree]:
     return {
         executor.submit(
-            _render_with_null_overrides, scope, [leaf_path[scope["strip"] :] for leaf_path in leaf_paths]
-        ): (
-            scope,
-            path,
-            node,
-            leaf_paths,
-        )
-        for scope, path, node, leaf_paths in pending
+            _render_with_null_overrides,
+            subtree.scope,
+            [leaf_path[subtree.scope["strip"] :] for leaf_path in subtree.leaf_paths],
+        ): subtree
+        for subtree in pending
     }
 
 
@@ -487,13 +496,14 @@ def _collect_level_results(
     next_frontier: list[FrontierEntry] = []
     resolved = 0
     for future in as_completed(futures):
-        scope, path, node, leaf_paths = futures[future]
+        subtree = futures[future]
         docs = future.result()
-        if docs is not None and docs == scope["baseline_docs"]:
-            found.extend((scope, leaf_path) for leaf_path in leaf_paths)
-            resolved += len(leaf_paths)
-        elif len(leaf_paths) > 1 and isinstance(node, dict):
-            next_frontier.extend((scope, (*path, key), child) for key, child in node.items())
+        if docs is not None and docs == subtree.scope["baseline_docs"]:
+            found.extend((subtree.scope, leaf_path) for leaf_path in subtree.leaf_paths)
+            resolved += len(subtree.leaf_paths)
+        elif len(subtree.leaf_paths) > 1 and isinstance(subtree.node, dict):
+            children = subtree.node.items()
+            next_frontier.extend((subtree.scope, (*subtree.path, key), child) for key, child in children)
         else:
             resolved += 1  # single leaf that differed (or errored): not dead, done with it
     return next_frontier, resolved
@@ -586,9 +596,9 @@ def _resolve_all_scopes(
 
 
 def _print_scope_summary(roots: list[FrontierEntry], context: ScopeResolutionContext):
-    scoped_n = sum(1 for scope, _, _ in roots if scope is not context.full_scope and scope is not context.own_scope)
     own_n = sum(1 for scope, _, _ in roots if scope is context.own_scope)
     full_n = sum(1 for scope, _, _ in roots if scope is context.full_scope)
+    scoped_n = len(roots) - own_n - full_n
     print(f"  {scoped_n} sub-chart-scoped, {own_n} own-templates-scoped, {full_n} full-chart-scoped", flush=True)
 
 
@@ -606,6 +616,14 @@ def _search_and_confirm(
     if to_confirm:
         print(f"Confirming {len(to_confirm)} candidate(s) against the real full-chart baseline...", flush=True)
     return confirmed + _confirm_against_full_chart(executor, full_scope, to_confirm)
+
+
+def _remove_own_scope_dir(context: ScopeResolutionContext) -> None:
+    """Remove the own scope's temp chart copy, if this run made one."""
+    if context.own_scope is not None:
+        temp_dir = context.own_scope.get("temp_dir")
+        if temp_dir is not None:
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 def check_dead_values(chart_dir: Path, extra_args: list[str]):
@@ -626,18 +644,14 @@ def check_dead_values(chart_dir: Path, extra_args: list[str]):
 
     context = _build_scan_context(chart_dir, extra_args, full_scope)
 
-    try:
-        with ThreadPoolExecutor(max_workers=DEAD_VALUES_MAX_WORKERS) as executor:
-            print(f"Resolving render scope for {len(values)} top-level key(s)...", flush=True)
-            roots = _resolve_all_scopes(executor, context, values)
-            _print_scope_summary(roots, context)
+    with ExitStack() as cleanup:
+        cleanup.callback(_remove_own_scope_dir, context)
+        executor = cleanup.enter_context(ThreadPoolExecutor(max_workers=DEAD_VALUES_MAX_WORKERS))
+        print(f"Resolving render scope for {len(values)} top-level key(s)...", flush=True)
+        roots = _resolve_all_scopes(executor, context, values)
+        _print_scope_summary(roots, context)
 
-            dead = _search_and_confirm(executor, roots, total, condition_paths, full_scope)
-    finally:
-        if context.own_scope is not None:
-            temp_dir = context.own_scope.get("temp_dir")
-            if temp_dir is not None:
-                shutil.rmtree(temp_dir, ignore_errors=True)
+        dead = _search_and_confirm(executor, roots, total, condition_paths, full_scope)
 
     dead.sort()
 

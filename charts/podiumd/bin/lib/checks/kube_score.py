@@ -24,7 +24,7 @@ from lib.render_scope import print_grouped_findings
 from lib.render_scope import render_chart_docs
 from lib.render_scope import resource_line
 from lib.render_scope import scan_outcome
-from lib.settings import quality_gates_kube_score_check_id
+from lib.settings import gate_kube_score_check
 from lib.yaml_types import shape_problem
 
 # A finding as (object_name, container, summary); a vendored one is
@@ -110,14 +110,20 @@ def extract_resource_findings(
     findings: list[KubeScoreFinding] = []
     for obj in kube_score_objects or []:
         object_name = obj.get("object_name", "?")
-        for check in obj.get("checks", []):
-            if check["check"]["id"] != check_id or check.get("skipped") or check["grade"] >= _FULL_GRADE:
-                continue
+        failing = [check for check in obj.get("checks", []) if _is_failing_check(check, check_id)]
+        for check in failing:
             findings.extend(
                 (object_name, comment.get("path", ""), comment.get("summary", ""))
                 for comment in check.get("comments") or []
             )
     return findings
+
+
+def _is_failing_check(check: KubeScoreCheck, check_id: str) -> bool:
+    """Whether `check` is a non-skipped, below-full-grade result of `check_id`."""
+    if check["check"]["id"] != check_id or check.get("skipped"):
+        return False
+    return check["grade"] < _FULL_GRADE
 
 
 def parse_kube_score_object_name(object_name: str):
@@ -253,7 +259,7 @@ def check_kube_score(chart_dir: Path, extra_args: list[str]):
     if shutil.which("kube-score") is None:
         return False, "kube-score is not installed (see --skip-kube-score to bypass)"
 
-    check_id = quality_gates_kube_score_check_id(chart_dir)
+    check_id = gate_kube_score_check(chart_dir)
 
     scored, error = _score_rendered_chart(chart_dir, extra_args, check_id)
     if scored is None:

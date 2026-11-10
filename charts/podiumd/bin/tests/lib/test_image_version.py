@@ -526,7 +526,7 @@ pabc:
     assert [(m["version"], m["digest"]) for m in matches] == [("1.1.0", None)]
 
 
-# --- repository_for_basename_in_scope ---
+# --- scoped_basename_repository ---
 # Used by check_images_source to cross-check the baseline's unscoped fallback.
 
 
@@ -543,7 +543,7 @@ global:
         + '"\n',
     )
     lines = values_path.read_text(encoding="utf-8").splitlines()
-    assert libimageversion.repository_for_basename_in_scope(lines, "global", "redis") == "redis"
+    assert libimageversion.scoped_basename_repository(lines, "global", "redis") == "redis"
 
 
 def test_repository_for_basename_in_scope_falls_back_to_unscoped(libimageversion: ModuleType, tmp_path: Path):
@@ -561,13 +561,13 @@ keycloak:
     )
     lines = values_path.read_text(encoding="utf-8").splitlines()
     assert (
-        libimageversion.repository_for_basename_in_scope(lines, "keycloak-operator", "keycloak-config-cli")
+        libimageversion.scoped_basename_repository(lines, "keycloak-operator", "keycloak-config-cli")
         == "adorsys/keycloak-config-cli"
     )
 
 
 def test_repository_for_basename_in_scope_none_when_nothing_resolves(libimageversion: ModuleType):
-    assert libimageversion.repository_for_basename_in_scope([], "keycloak-operator", "keycloak-config-cli") is None
+    assert libimageversion.scoped_basename_repository([], "keycloak-operator", "keycloak-config-cli") is None
 
 
 def test_repository_for_basename_in_scope_none_when_ambiguous(libimageversion: ModuleType, tmp_path: Path):
@@ -587,7 +587,7 @@ b:
 """,
     )
     lines = values_path.read_text(encoding="utf-8").splitlines()
-    assert libimageversion.repository_for_basename_in_scope(lines, "nowhere", "redis") is None
+    assert libimageversion.scoped_basename_repository(lines, "nowhere", "redis") is None
 
 
 def test_basenames_under_scope_ignores_scope_key_case(libimageversion: ModuleType) -> None:

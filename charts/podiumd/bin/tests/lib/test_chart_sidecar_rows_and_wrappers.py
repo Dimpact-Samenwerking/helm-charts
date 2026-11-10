@@ -325,12 +325,12 @@ def test_subchart_needs_vendoring_only_for_a_missing_tgz(tmp_path: Path, libchar
     assert needs(tmp_path, deps, ("apiproxy", "image")) is False
 
 
-# --- chart_version_lockstep_components (self-resolving wrapper) ---
+# --- chart_lockstep_components (self-resolving wrapper) ---
 
 
 def test_chart_version_lockstep_components_self_resolves_against_real_chart_dir(libchartregisteredpaths: ModuleType):
     """Without an override, chart_dir self-resolves and the real etc/settings.yaml is read."""
-    assert libchartregisteredpaths.chart_version_lockstep_components() == frozenset(
+    assert libchartregisteredpaths.chart_lockstep_components() == frozenset(
         ("kiss-chart", "pabc", "eck-operator", "internetaakafhandeling")
     )
 
@@ -341,7 +341,7 @@ def test_chart_version_lockstep_components_explicit_override(libchartregisteredp
         'component_resolution:\n  chart_version_lockstep_components: ["only-this-one"]\n',
         encoding="utf-8",
     )
-    assert libchartregisteredpaths.chart_version_lockstep_components(tmp_path) == frozenset(("only-this-one",))
+    assert libchartregisteredpaths.chart_lockstep_components(tmp_path) == frozenset(("only-this-one",))
 
 
 # --- version_repository_path_for ---

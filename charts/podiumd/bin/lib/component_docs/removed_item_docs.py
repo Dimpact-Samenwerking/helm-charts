@@ -7,6 +7,7 @@ reports what it would change through fix-doc-consistency's dry-run.
 import re
 
 from collections.abc import Collection
+from collections.abc import Mapping
 from collections.abc import Sequence
 
 from lib.component_docs.changes_section import INTRO_REMOVED
@@ -18,7 +19,7 @@ from lib.component_docs.changes_section import replace_changes_block
 from lib.upgradedoc.removed_items import RemovedItem
 from lib.upgradedoc.removed_items import removed_item_named
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
-from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
+from lib.upgradedoc.sorting_and_ordering import parse_changes_blocks
 from lib.upgradedoc.string_and_parsing_basics import is_named_by_text
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.string_and_parsing_basics import set_row_cells
@@ -92,7 +93,7 @@ def _sync_section(text: str, item: RemovedItem, target: str, ordering: OrderingC
     block = next(
         (
             block_candidate
-            for block_candidate in parse_upgrade_doc_changes_blocks(text)
+            for block_candidate in parse_changes_blocks(text)
             if removed_item_named(block_candidate["heading"], {item.name: item})
         ),
         None,
@@ -116,16 +117,32 @@ def _drop_stale_removed_items(
     Returns (text, row names and section headings dropped).
     """
     by_name = {item.name: item for item in items}
+    text, dropped_rows = _drop_stale_rows(text, by_name, gone_row_names)
+    text, dropped_sections = _drop_stale_sections(text, by_name, gone_row_names)
+    return text, dropped_rows + dropped_sections
+
+
+def _drop_stale_rows(
+    text: str, by_name: Mapping[str, RemovedItem], gone_row_names: Collection[str]
+) -> tuple[str, list[str]]:
+    """The table-row half of _drop_stale_removed_items."""
     dropped: list[str] = []
     lines = text.splitlines(keepends=True)
     for row in reversed(parse_upgrade_doc_rows(text)):
         cells = table_cells(lines[row["line_index"]])
         stale = removed_item_named(row["name"], by_name) is None and _is_generated_removed_row(cells)
         if stale or (row["name"] in gone_row_names and cells[-1] == "-"):
-            del lines[row["line_index"]]
+            lines.pop(row["line_index"])
             dropped.append(row["name"])
-    text = "".join(lines)
-    for block in reversed(parse_upgrade_doc_changes_blocks(text)):
+    return "".join(lines), dropped
+
+
+def _drop_stale_sections(
+    text: str, by_name: Mapping[str, RemovedItem], gone_row_names: Collection[str]
+) -> tuple[str, list[str]]:
+    """The "### ..." section half of _drop_stale_removed_items."""
+    dropped: list[str] = []
+    for block in reversed(parse_changes_blocks(text)):
         body = text.splitlines(keepends=True)[block["start"] + 1 : block["end"]]
         stale = removed_item_named(block["heading"], by_name) is None and "removed" in changes_body_kinds(body)
         if stale or any(is_named_by_text(block["heading"], name) for name in gone_row_names):

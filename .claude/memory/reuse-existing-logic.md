@@ -10,7 +10,7 @@ regression, even when the tests pass.
 1. Name the concept, not the function: "the old app version of a component",
    "the doc row name of an image", "the order of doc items".
 2. List the low-level helpers the new code would call
-   (`historical_app_version_for_path`, `canonical_sidecar_row_names`,
+   (`historical_path_app_version`, `canonical_sidecar_row_names`,
    `paths_by_repository`, `match_component`, ...) and grep every caller of
    each. A caller that already computes the same thing is the place to
    extend; do not write a second one.

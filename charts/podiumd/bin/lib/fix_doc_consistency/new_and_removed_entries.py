@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from dataclasses import field
 from functools import cached_property
 from pathlib import Path
+from typing import NamedTuple
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.historical_baselines import baseline_lookup
@@ -14,12 +15,12 @@ from lib.chart.repo_and_path_resolution import full_repository_for_path
 from lib.chart.values_tree_primitives import ValuesPath
 from lib.chart.values_tree_primitives import version_of
 from lib.component_docs.images_manifest_changes_header import covered_display_names
-from lib.component_docs.images_manifest_changes_header import ensure_images_manifest_changes_header
+from lib.component_docs.images_manifest_changes_header import ensure_changes_header
+from lib.component_docs.images_manifest_changes_header import find_changes_header
 from lib.component_docs.images_manifest_changes_header import find_changes_item
-from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
-from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_items
+from lib.component_docs.images_manifest_changes_header import find_changes_items
 from lib.component_docs.images_manifest_changes_header import images_manifest_changes_block
-from lib.component_docs.images_manifest_changes_header import insert_images_manifest_header_item
+from lib.component_docs.images_manifest_changes_header import insert_header_item
 from lib.component_docs.images_manifest_changes_header import remove_changes_item
 from lib.fix_doc_consistency.manifest_entries_core import BaselineRelease
 from lib.fix_doc_consistency.manifest_entries_core import entry_baseline_version
@@ -32,7 +33,7 @@ from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.chart_image_index import StateImageIndexes
-from lib.upgradedoc.grouped_comments_and_changes_block import path_display_name
+from lib.upgradedoc.grouped_comments import path_display_name
 from lib.upgradedoc.images_manifest_list_diff import ManifestDiffContext
 from lib.upgradedoc.images_manifest_list_diff import ManifestDiffInputs
 from lib.upgradedoc.images_manifest_list_diff import find_images_manifest_list_diff
@@ -109,10 +110,10 @@ class AddedEntryFields:
     pinned_tag: str
 
 
-def _images_manifest_changes_header_text(lines: list[str]):
+def _changes_header_text(lines: list[str]):
     """Text of the "# Changes:" header block (with wrapped items), or ""
     if there is none."""
-    header_idx, _has_count = find_images_manifest_changes_header(lines)
+    header_idx, _has_count = find_changes_header(lines)
     if header_idx is None:
         return ""
     block_end = images_manifest_changes_block(lines, header_idx)[1]
@@ -183,7 +184,7 @@ def _entry_fields_for_missing_path(
     return name, AddedEntryFields(name, repo, full_repo_url, pinned_tag)
 
 
-def _entry_old_version_and_digest_change(
+def _old_version_and_digest(
     path: tuple[str, ...],
     new_version: str,
     pinned_tag: str,
@@ -247,16 +248,14 @@ def _insert_added_entry(
     """Insert the new entry block, plus a header item unless the header
     already names it (e.g. a lockstep sibling). Returns the text."""
     new_version, digest = fields.pinned_tag.split("@", 1)
-    old_version, digest_only_change = _entry_old_version_and_digest_change(
-        path, new_version, fields.pinned_tag, context, resolution
-    )
+    old_version, digest_only_change = _old_version_and_digest(path, new_version, fields.pinned_tag, context, resolution)
     version_text = image_manifest_version_text(old_version, new_version, digest_only_change=digest_only_change)
     version_text = f"{fields.name} {version_text}"
 
     lines = _manifest_lines_for_insert(text)
-    ensure_images_manifest_changes_header(lines)
+    ensure_changes_header(lines)
     if fields.name not in covered_display_names(lines, [fields.name]):
-        insert_images_manifest_header_item(lines, f"{version_text}.")
+        insert_header_item(lines, f"{version_text}.")
 
     header_prefix = "# " if is_primary_image_path(path, context.deps, context.chart_dir) else "#   sidecar: "
     block_lines = [
@@ -270,33 +269,40 @@ def _insert_added_entry(
     return "".join(lines)
 
 
-def _backfilled_header_target(
+def _resolved_manifest_entries(
     lines: list[str], context: MissingEntriesContext, resolution: MissingEntriesResolution
-) -> tuple[ValuesPath, str, str, str] | None:
-    """(entry_path, entry_name, entry_old, entry_new) of the first entry no
-    "# Changes:" item covers (covered_display_names, as the checker uses), or
-    None. Entries whose display name is only the raw dotted path are skipped:
-    not prose worth adding."""
+) -> list[tuple[int, ValuesPath, str]]:
+    """(line index, image path, display name) of each entry whose "name:" resolves to a target image path."""
     entries: list[tuple[int, ValuesPath, str]] = []
     for idx, line in enumerate(lines):
         name_match = ENTRY_NAME_RE.match(line)
-        entry_path = (
-            resolve_entry_image_path(name_match.group(1), resolution.current_paths.keys(), resolution.repo.repo_map)
-            if name_match
-            else None
+        if name_match is None:
+            continue
+        entry_path = resolve_entry_image_path(
+            name_match.group(1), resolution.current_paths.keys(), resolution.repo.repo_map
         )
         if entry_path is not None:
             entries.append((idx, entry_path, path_display_name(entry_path, context.deps, resolution.canonical_names)))
+    return entries
+
+
+def _backfilled_header_item(
+    lines: list[str], context: MissingEntriesContext, resolution: MissingEntriesResolution
+) -> tuple[str, str] | None:
+    """(entry_name, header item) for the first entry no "# Changes:" item
+    covers (covered_display_names, as the checker uses), or None. Entries
+    whose display name is only the raw dotted path are skipped: not prose
+    worth adding."""
+    entries = _resolved_manifest_entries(lines, context, resolution)
     covered = covered_display_names(lines, [name for _idx, _path, name in entries])
     for idx, entry_path, entry_name in entries:
         if entry_name == ".".join(entry_path) or entry_name in covered:
             continue
         comment_text = "".join(lines[images_manifest_block_start(lines, idx) : idx])
         entry_new = extract_target_version(comment_text)
-        if entry_new is None:
-            continue
-        entry_old = extract_source_version(comment_text) or entry_new
-        return entry_path, entry_name, entry_old, entry_new
+        if entry_new is not None:
+            entry_old = extract_source_version(comment_text) or entry_new
+            return entry_name, f"{entry_name} {entry_old} -> {entry_new}."
     return None
 
 
@@ -309,26 +315,33 @@ def _backfill_header_items(
     backfilled_names: list[str] = []
     while True:
         lines = text.splitlines(keepends=True)
-        ensure_images_manifest_changes_header(lines)
-        header_text = _images_manifest_changes_header_text(lines)
+        ensure_changes_header(lines)
+        header_text = _changes_header_text(lines)
         if not header_text:
             break
         text = "".join(lines)
 
-        target = _backfilled_header_target(lines, context, resolution)
-        if target is None:
+        backfill = _backfilled_header_item(lines, context, resolution)
+        if backfill is None:
             break
 
-        _entry_path, entry_name, entry_old, entry_new = target
-        insert_images_manifest_header_item(lines, f"{entry_name} {entry_old} -> {entry_new}.")
+        entry_name, header_item = backfill
+        insert_header_item(lines, header_item)
         text = "".join(lines)
         backfilled_names.append(entry_name)
     return text, backfilled_names
 
 
-def add_missing_images_manifest_entries(
-    text: str, context: MissingEntriesContext
-) -> tuple[str, list[str], list[str], list[str]]:
+class MissingEntriesResult(NamedTuple):
+    """add_missing_manifest_entries's result."""
+
+    text: str
+    added_names: list[str]
+    skipped_names: list[str]
+    backfilled_names: list[str]
+
+
+def add_missing_manifest_entries(text: str, context: MissingEntriesContext) -> MissingEntriesResult:
     """Add an entry, its "# <name> <old> -> <new>" comment and a "# Changes:"
     header item for every missing path find_images_manifest_list_diff
     reports, then backfill header items (_backfill_header_items).
@@ -343,9 +356,7 @@ def add_missing_images_manifest_entries(
 
     One path at a time, re-parsing after each insert, so shifted line
     indices need no bookkeeping. Global image paths take part directly and
-    represent their repository group, so a shared image gets one entry.
-
-    Returns (new_text, added_names, skipped_names, backfilled_names)."""
+    represent their repository group, so a shared image gets one entry."""
     resolution = context.resolution
     missing_paths, _stale_entry_names, _unmatched_entry_names = _manifest_list_diff(text, context, resolution)
 
@@ -360,7 +371,7 @@ def add_missing_images_manifest_entries(
         added_names.append(name)
 
     text, backfilled_names = _backfill_header_items(text, context, resolution)
-    return text, added_names, skipped_names, backfilled_names
+    return MissingEntriesResult(text, added_names, skipped_names, backfilled_names)
 
 
 def _remove_entry(
@@ -392,13 +403,13 @@ def _remove_entry(
     }
     if display_name in remaining_display_names:
         return
-    _header_idx, _header_has_count, item_indices = find_images_manifest_changes_items(lines)
+    _header_idx, _header_has_count, item_indices = find_changes_items(lines)
     match_idx = find_changes_item(lines, item_indices, display_name)
     if match_idx is not None:
         remove_changes_item(lines, item_indices, match_idx)
 
 
-def remove_stale_images_manifest_entries(text: str, context: MissingEntriesContext) -> tuple[str, list[str]]:
+def remove_stale_entries(text: str, context: MissingEntriesContext) -> tuple[str, list[str]]:
     """Delete every entry find_images_manifest_list_diff reports as stale
     (version and digest equal upgrade_docs_baseline), with its comment and
     "# Changes:" item; a later pass renumbers the count word. Entries with
@@ -422,7 +433,7 @@ def remove_stale_images_manifest_entries(text: str, context: MissingEntriesConte
     return "".join(lines), removable_names
 
 
-def remove_removed_images_manifest_entries(
+def remove_removed_entries(
     text: str, context: MissingEntriesContext, baseline: ChartImageIndex, removed_paths: Collection[ValuesPath]
 ) -> tuple[str, list[str]]:
     """Delete every entry whose image the target no longer has, with its comment and "# Changes:" item.

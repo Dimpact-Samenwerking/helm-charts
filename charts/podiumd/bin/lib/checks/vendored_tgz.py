@@ -16,16 +16,19 @@ TGZ_NAME_RE = re.compile(r"^(?P<name>.+)-(?P<version>\d[\w.+-]*)\.tgz$")
 def find_extracted_vendored_dirs(chart_dir: Path) -> list[str]:
     """Sorted chart names with both a `<name>-<version>.tgz` and a `<name>/` under charts/."""
     charts_subdir = chart_dir / "charts"
-    if not charts_subdir.is_dir():
-        return []
+    return sorted(name for name in vendored_tgz_versions(charts_subdir) if (charts_subdir / name).is_dir())
 
-    tgz_names: set[str] = set()
-    for path in charts_subdir.glob("*.tgz"):
+
+def vendored_tgz_versions(charts_dir: Path) -> dict[str, list[str]]:
+    """{chart name: [version, ...]} of the `<name>-<version>.tgz` files in charts/; {} without charts/."""
+    vendored: dict[str, list[str]] = {}
+    if not charts_dir.is_dir():
+        return vendored
+    for path in charts_dir.glob("*.tgz"):
         name_match = TGZ_NAME_RE.match(path.name)
         if name_match:
-            tgz_names.add(name_match.group("name"))
-
-    return sorted(name for name in tgz_names if (charts_subdir / name).is_dir())
+            vendored.setdefault(name_match.group("name"), []).append(name_match.group("version"))
+    return vendored
 
 
 def check_vendored_tgz_extraction(chart_dir: Path):

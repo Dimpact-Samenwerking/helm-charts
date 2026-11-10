@@ -44,6 +44,7 @@ from lib.chart.paths import CHART_DIR
 from lib.chart.paths import CHART_YAML
 from lib.chart.paths import VALUES_YAML
 from lib.chart.release_baseline_basics import release_table_baseline
+from lib.cli import flag_args
 from lib.dependencies import ensure_vendored_dependencies
 from lib.release_baseline import resolve_baseline_chart_state
 from lib.release_table.csv_rows import ReleaseTableRow
@@ -63,7 +64,7 @@ from lib.chart.pull_and_subchart_resolution import primary_image_repositories  #
 from lib.release_table_verification import is_primary_image  # noqa: F401
 from lib.chart.chart_yaml import chart_dir_dependencies
 from lib.yaml_types import load_yaml_mapping
-from lib.release_table.csv_rows import read_release_table
+from lib.release_table.csv_rows import read_existing_release_table
 # isort: on
 
 RELEASE_TABLE_CSV = CHART_DIR / "etc" / "release-table.csv"
@@ -82,8 +83,8 @@ def has_findings(findings: Mapping[str, list[str]]) -> bool:
     return any(findings.get(key) for key, _title in SECTIONS)
 
 
-def print_report(findings: Mapping[str, list[str]], unresolved: list[ReleaseTableRow]) -> None:
-    """Print non-empty sections, unresolved rows, or "OK"."""
+def _print_sections(findings: Mapping[str, list[str]]) -> None:
+    """Print each non-empty SECTIONS category with its sorted findings."""
     for key, title in SECTIONS:
         items = findings.get(key)
         if not items:
@@ -92,11 +93,20 @@ def print_report(findings: Mapping[str, list[str]], unresolved: list[ReleaseTabl
         for item in sorted(items):
             print(f"  {item}")
 
-    if unresolved:
-        print(f"\nSkipped ({len(unresolved)} row(s) with an unresolved component in release-table.csv):")
-        for row in sorted(unresolved, key=lambda row: row["name"]):
-            print(f"  - '{row['name']}' (component={row['component'] or '(blank)'})")
 
+def _print_unresolved(unresolved: list[ReleaseTableRow]) -> None:
+    """Print the rows skipped for an unresolved component, by name."""
+    if not unresolved:
+        return
+    print(f"\nSkipped ({len(unresolved)} row(s) with an unresolved component in release-table.csv):")
+    for row in sorted(unresolved, key=lambda row: row["name"]):
+        print(f"  - '{row['name']}' (component={row['component'] or '(blank)'})")
+
+
+def print_report(findings: Mapping[str, list[str]], unresolved: list[ReleaseTableRow]) -> None:
+    """Print non-empty sections, unresolved rows, or "OK"."""
+    _print_sections(findings)
+    _print_unresolved(unresolved)
     if not has_findings(findings):
         print("OK: release-table.csv matches Chart.yaml / values.yaml")
 
@@ -117,30 +127,22 @@ def _resolve_baseline_state(chart_dir: Path):
     return ChartState(chart_dir, state.deps, state.values, state.lines)
 
 
+def _target_state() -> ChartState:
+    """The working tree's Chart.yaml dependencies and values.yaml."""
+    deps = chart_dir_dependencies(CHART_YAML.parent)
+    values = load_yaml_mapping(VALUES_YAML) if VALUES_YAML.is_file() else {}
+    lines = VALUES_YAML.read_text(encoding="utf-8").splitlines() if VALUES_YAML.is_file() else []
+    return ChartState(CHART_DIR, deps, values, lines)
+
+
 def main():
     """CLI entry point."""
-    args = sys.argv[1:]
-    if args in (["-h"], ["--help"]):
-        print(__doc__)
-        sys.exit(0)
-    if args not in ([], ["--baseline-only"]):
-        print(__doc__)
-        sys.exit(1)
-    baseline_only = args == ["--baseline-only"]
+    baseline_only = "--baseline-only" in flag_args(__doc__, "--baseline-only")
     if not baseline_only:
         # Only target-side checks read the vendored charts/*.tgz.
         ensure_vendored_dependencies(CHART_DIR)
 
-    if not RELEASE_TABLE_CSV.is_file():
-        print(f"error: {RELEASE_TABLE_CSV} not found")
-        print("Create it first with export-confluence-release-table.")
-        sys.exit(1)
-    rows = read_release_table(RELEASE_TABLE_CSV)
-
-    deps = chart_dir_dependencies(CHART_YAML.parent)
-    values = load_yaml_mapping(VALUES_YAML) if VALUES_YAML.is_file() else {}
-    lines = VALUES_YAML.read_text(encoding="utf-8").splitlines() if VALUES_YAML.is_file() else []
-
+    rows = read_existing_release_table(RELEASE_TABLE_CSV)
     baseline = _resolve_baseline_state(CHART_DIR)
 
     if baseline_only and baseline is None:
@@ -152,7 +154,7 @@ def main():
 
     findings, unresolved = compare(
         rows,
-        ChartState(CHART_DIR, deps, values, lines),
+        _target_state(),
         baseline=baseline,
         baseline_only=baseline_only,
     )

@@ -87,12 +87,12 @@ def test_find_fixes_deployment_missing_node_selector(sub: ModuleType):
     fixes, unresolved = sub.find_fixes(DEPLOYMENT_MISSING)
     assert unresolved == []
     assert len(fixes) == 1
-    insert_at, new_text, kind, name = fixes[0]
-    assert kind == "Deployment"
-    assert name == "my-app"
-    assert new_text == "      nodeSelector:\n        kubernetes.azure.com/mode: user\n"
+    fix = fixes[0]
+    assert fix.kind == "Deployment"
+    assert fix.name == "my-app"
+    assert fix.new_text == "      nodeSelector:\n        kubernetes.azure.com/mode: user\n"
     # inserted text lands right before the "containers:" line, at its own indent
-    assert DEPLOYMENT_MISSING[insert_at:].startswith("      containers:")
+    assert DEPLOYMENT_MISSING[fix.insert_at :].startswith("      containers:")
 
 
 def test_find_fixes_already_has_node_selector_is_a_noop(sub: ModuleType):
@@ -139,11 +139,11 @@ def test_find_fixes_cronjob_deep_nesting_anchors_on_containers(sub: ModuleType):
     fixes, unresolved = sub.find_fixes(CRONJOB_MISSING)
     assert unresolved == []
     assert len(fixes) == 1
-    insert_at, new_text, kind, name = fixes[0]
-    assert kind == "CronJob"
-    assert name == "my-cronjob"
-    assert new_text == "          nodeSelector:\n            kubernetes.azure.com/mode: user\n"
-    assert CRONJOB_MISSING[insert_at:].startswith("          containers:")
+    fix = fixes[0]
+    assert fix.kind == "CronJob"
+    assert fix.name == "my-cronjob"
+    assert fix.new_text == "          nodeSelector:\n            kubernetes.azure.com/mode: user\n"
+    assert CRONJOB_MISSING[fix.insert_at :].startswith("          containers:")
 
 
 def test_find_fixes_init_containers_only_is_unresolved_not_misfixed(sub: ModuleType):

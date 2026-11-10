@@ -1,6 +1,7 @@
 """lib.upgradedoc -- images-manifest entry ordering, grouping, and faulty-header detection."""
 
 from types import ModuleType
+from typing import NamedTuple
 
 from tests.fixture_data import SHA256_A
 from tests.fixture_data import SHA256_B
@@ -149,7 +150,7 @@ def test_header_name_segment_no_version_no_parenthetical_never_truncated(libupgr
     )
 
 
-# --- find_images_manifest_faulty_headers ---
+# --- find_faulty_manifest_headers ---
 
 REDIS_OPERATOR_DEPS = [{"name": "redis-operator", "version": "1.0.0"}]
 
@@ -183,7 +184,7 @@ def test_find_images_manifest_faulty_headers_correct_sidecar_header_is_not_flagg
     }
     canonical_names = {"redis-operator - redis": ("redis-operator", "redis-ha", "image")}
 
-    problems = libupgradedocmanifestordering.find_images_manifest_faulty_headers(
+    problems = libupgradedocmanifestordering.find_faulty_manifest_headers(
         libupgradedocmanifestordering.ParsedManifest(entries, entry_line_indices, lines),
         libupgradedocmanifestordering.EntryResolution(REDIS_OPERATOR_DEPS, current_paths, repo_map, canonical_names),
     )
@@ -216,7 +217,7 @@ def test_find_images_manifest_faulty_headers_sidecar_sharing_parents_plain_heade
     }
     canonical_names = {"redis-operator - redis": ("redis-operator", "redis-ha", "image")}
 
-    problems = libupgradedocmanifestordering.find_images_manifest_faulty_headers(
+    problems = libupgradedocmanifestordering.find_faulty_manifest_headers(
         libupgradedocmanifestordering.ParsedManifest(entries, entry_line_indices, lines),
         libupgradedocmanifestordering.EntryResolution(REDIS_OPERATOR_DEPS, current_paths, repo_map, canonical_names),
     )
@@ -234,7 +235,7 @@ def test_find_images_manifest_faulty_headers_sidecar_header_naming_wrong_compone
     repo_map = {"redis-ha": ("redis-operator", "redis-ha", "image")}
     canonical_names = {"redis-operator - redis": ("redis-operator", "redis-ha", "image")}
 
-    problems = libupgradedocmanifestordering.find_images_manifest_faulty_headers(
+    problems = libupgradedocmanifestordering.find_faulty_manifest_headers(
         libupgradedocmanifestordering.ParsedManifest(entries, entry_line_indices, lines),
         libupgradedocmanifestordering.EntryResolution(REDIS_OPERATOR_DEPS, current_paths, repo_map, canonical_names),
     )
@@ -254,7 +255,7 @@ def test_find_images_manifest_faulty_headers_digest_changed_sidecar_not_flagged(
     repo_map = {"redis-ha": ("redis-operator", "redis-ha", "image")}
     canonical_names = {"redis-operator - redis": ("redis-operator", "redis-ha", "image")}
 
-    problems = libupgradedocmanifestordering.find_images_manifest_faulty_headers(
+    problems = libupgradedocmanifestordering.find_faulty_manifest_headers(
         libupgradedocmanifestordering.ParsedManifest(entries, entry_line_indices, lines),
         libupgradedocmanifestordering.EntryResolution(REDIS_OPERATOR_DEPS, current_paths, repo_map, canonical_names),
     )
@@ -298,7 +299,7 @@ def test_find_images_manifest_faulty_headers_primary_entry_never_checked(
         assert path == repo_map[entry["name"]]
         assert libchartregisteredpaths.is_primary_image_path(path, deps) is True
 
-    problems = libupgradedocmanifestordering.find_images_manifest_faulty_headers(
+    problems = libupgradedocmanifestordering.find_faulty_manifest_headers(
         libupgradedocmanifestordering.ParsedManifest(entries, entry_line_indices, lines),
         libupgradedocmanifestordering.EntryResolution(deps, current_paths, repo_map, {}),
     )
@@ -312,7 +313,7 @@ def test_find_images_manifest_faulty_headers_unresolvable_entry_skipped(libupgra
     entries = [{"name": "does-not-exist", "version": "1.0.0"}]
     entry_line_indices = _entry_line_indices(lines)
 
-    problems = libupgradedocmanifestordering.find_images_manifest_faulty_headers(
+    problems = libupgradedocmanifestordering.find_faulty_manifest_headers(
         libupgradedocmanifestordering.ParsedManifest(entries, entry_line_indices, lines),
         libupgradedocmanifestordering.EntryResolution([], {}, {}, {}),
     )
@@ -331,7 +332,7 @@ def test_find_images_manifest_faulty_headers_orphan_top_level_block_is_exempt(
     current_paths = {("keycloak", "image"): "26.7.2"}
     repo_map = {"keycloak/keycloak": ("keycloak", "image")}
 
-    problems = libupgradedocmanifestordering.find_images_manifest_faulty_headers(
+    problems = libupgradedocmanifestordering.find_faulty_manifest_headers(
         libupgradedocmanifestordering.ParsedManifest(entries, entry_line_indices, lines),
         libupgradedocmanifestordering.EntryResolution(
             [{"name": "keycloak-operator", "version": "1.0.0"}], current_paths, repo_map, {}
@@ -355,7 +356,7 @@ def test_find_images_manifest_faulty_headers_version_paths_for_primary_is_exempt
     current_paths = {("redis-operator", "redisOperator", "imageTag"): "0.26.0"}
     repo_map = {"opstree/redis-operator": ("redis-operator", "redisOperator", "imageTag")}
 
-    problems = libupgradedocmanifestordering.find_images_manifest_faulty_headers(
+    problems = libupgradedocmanifestordering.find_faulty_manifest_headers(
         libupgradedocmanifestordering.ParsedManifest(entries, entry_line_indices, lines),
         libupgradedocmanifestordering.EntryResolution(REDIS_OPERATOR_DEPS, current_paths, repo_map, {}),
     )
@@ -399,7 +400,16 @@ def test_path_order_key_unknown_values_key_sorts_last(libupgradedocmanifestorder
 # --- sort_images_manifest_entries ---
 
 
-def _images_manifest_two_component_fixture():
+class _TwoComponentManifest(NamedTuple):
+    """An images manifest and the sort inputs that resolve its entries."""
+
+    text: str
+    deps: list[dict[str, str]]
+    values: dict[str, dict[str, dict[str, str]]]
+    repo_map: dict[str, tuple[str, ...]]
+
+
+def _images_manifest_two_component_fixture() -> _TwoComponentManifest:
     """zac then redis-operator, each with its own comment; `values` has the real pin fields so
     sort_images_manifest_entries can resolve the entries itself."""
     text = (
@@ -420,15 +430,16 @@ def _images_manifest_two_component_fixture():
         "infonl/zaakafhandelcomponent": ("zac", "image"),
         "opstree/redis-operator": ("redis-operator", "redisOperator", "imageTag"),
     }
-    return text, deps, values, repo_map
+    return _TwoComponentManifest(text, deps, values, repo_map)
 
 
 def test_sort_images_manifest_entries_reorders_to_match_values_yaml(libupgradedocmanifestordering: ModuleType):
-    text, deps, values, repo_map = _images_manifest_two_component_fixture()
+    fixture = _images_manifest_two_component_fixture()
     # values' own dict insertion order (redis-operator, zac) IS values_key_order's source.
 
     new_text, moved = libupgradedocmanifestordering.sort_images_manifest_entries(
-        text, libupgradedocmanifestordering.ManifestSortContext(deps, values, repo_map, {})
+        fixture.text,
+        libupgradedocmanifestordering.ManifestSortContext(fixture.deps, fixture.values, fixture.repo_map, {}),
     )
 
     assert moved == [("redis-operator", 2, 1), ("zac", 1, 2)]
@@ -439,14 +450,14 @@ def test_sort_images_manifest_entries_reorders_to_match_values_yaml(libupgradedo
 
 
 def test_sort_images_manifest_entries_already_ordered_reports_nothing(libupgradedocmanifestordering: ModuleType):
-    text, deps, values, repo_map = _images_manifest_two_component_fixture()
-    values = {"zac": values["zac"], "redis-operator": values["redis-operator"]}  # matches manifest's actual order
+    fixture = _images_manifest_two_component_fixture()
+    values = {"zac": fixture.values["zac"], "redis-operator": fixture.values["redis-operator"]}  # manifest's order
 
     new_text, moved = libupgradedocmanifestordering.sort_images_manifest_entries(
-        text, libupgradedocmanifestordering.ManifestSortContext(deps, values, repo_map, {})
+        fixture.text, libupgradedocmanifestordering.ManifestSortContext(fixture.deps, values, fixture.repo_map, {})
     )
     assert moved == []
-    assert new_text == text
+    assert new_text == fixture.text
 
 
 def test_sort_images_manifest_entries_inserts_missing_blank_line_between_groups(
@@ -795,7 +806,7 @@ def test_images_manifest_display_name_positions_matches_entry_positions_order(
         "kiss - crawler": ("kiss", "crawler", "image"),
     }
 
-    display_positions = libupgradedocmanifestordering.images_manifest_display_name_positions(
+    display_positions = libupgradedocmanifestordering.manifest_name_positions(
         text, libupgradedocmanifestordering.ManifestSortContext(deps, values, repo_map, canonical_names)
     )
 
@@ -823,7 +834,7 @@ def test_images_manifest_display_name_positions_ambiguous_name_keeps_first_posit
         "kibana/kibana": ("kiss-eck", "eck-kibana", "version"),
     }
 
-    display_positions = libupgradedocmanifestordering.images_manifest_display_name_positions(
+    display_positions = libupgradedocmanifestordering.manifest_name_positions(
         text, libupgradedocmanifestordering.ManifestSortContext(deps, values, repo_map, {})
     )
     assert display_positions == {"kiss-eck": 0}

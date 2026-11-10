@@ -184,26 +184,31 @@ def _alternatives_problem(value: object, shape: tuple[object, ...], where: str) 
 def _list_problem_of(value: object, item_shape: object, where: str) -> str | None:
     if not is_object_list(value):
         return f"{where or '(top level)'}: expected a list, got {type(value).__name__}"
-    return first_problem(*(shape_problem(item, item_shape, f"{where}[{index}]") for index, item in enumerate(value)))
+    item_problems = (shape_problem(item, item_shape, f"{where}[{index}]") for index, item in enumerate(value))
+    return first_problem(*item_problems)
 
 
 def _mapping_problem_of(value: object, shape: dict[object, object], where: str) -> str | None:
     if not is_object_dict(value):
         return f"{where or '(top level)'}: expected a mapping, got {type(value).__name__}"
-    mapping = value
     for spec, key_shape in shape.items():
-        if not isinstance(spec, str):
-            msg = f"not a shape key: {spec!r}"
-            raise TypeError(msg)
-        key = spec.removesuffix("?")
-        if key not in mapping:
-            if spec.endswith("?"):
-                continue
-            return f"{where or '(top level)'}: missing {key!r}"
-        problem = shape_problem(mapping[key], key_shape, yaml_path(where, key))
+        problem = _key_problem(value, spec, key_shape, where)
         if problem is not None:
             return problem
     return None
+
+
+def _key_problem(mapping: dict[object, object], spec: object, key_shape: object, where: str) -> str | None:
+    """What is wrong with `mapping`'s key `spec` ("key?" when optional) against `key_shape`, or None."""
+    if not isinstance(spec, str):
+        msg = f"not a shape key: {spec!r}"
+        raise TypeError(msg)
+    key = spec.removesuffix("?")
+    if key in mapping:
+        return shape_problem(mapping[key], key_shape, yaml_path(where, key))
+    if spec.endswith("?"):
+        return None
+    return f"{where or '(top level)'}: missing {key!r}"
 
 
 def shape_problem(value: object, shape: object, where: str = "") -> str | None:

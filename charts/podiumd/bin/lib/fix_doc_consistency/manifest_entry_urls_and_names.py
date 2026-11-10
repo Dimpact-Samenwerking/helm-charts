@@ -46,9 +46,7 @@ def _entry_url_status(
     name = entry["name"]
     path = resolve_entry_image_path(entry["name"], current_paths.keys(), context.repo_map)
     full_repo = (
-        full_repository_for_path(context.chart_dir, context.deps, context.target_values, path)
-        if path is not None
-        else None
+        None if path is None else full_repository_for_path(context.chart_dir, context.deps, context.target_values, path)
     )
     if full_repo is None:
         return "unresolved", name
@@ -106,7 +104,7 @@ def fix_images_manifest_entry_urls(
 type EntryRename = tuple[str, str]
 
 
-def fix_images_manifest_entry_names(text: str, repo_map: dict[str, ValuesPath]) -> tuple[str, list[EntryRename]]:
+def fix_manifest_entry_names(text: str, repo_map: dict[str, ValuesPath]) -> tuple[str, list[EntryRename]]:
     """Rewrite each entry's "name:" to its url's group key (url minus
     registry host, e.g. "library/python"): the ACR mirror name the check
     expects. Skips entries without a url, whose new name is no known
@@ -115,21 +113,30 @@ def fix_images_manifest_entry_names(text: str, repo_map: dict[str, ValuesPath]) 
     [(old_name, new_name), ...])."""
     lines = text.splitlines(keepends=True)
     starts = entry_line_indices(lines)
-    names = {_unquoted(name_match.group(1)) for index in starts if (name_match := ENTRY_NAME_RE.match(lines[index]))}
+    name_matches = [ENTRY_NAME_RE.match(lines[index]) for index in starts]
+    names = {_unquoted(name_match.group(1)) for name_match in name_matches if name_match}
     renamed: list[EntryRename] = []
     for line_idx in starts:
-        name_m = ENTRY_NAME_RE.match(lines[line_idx])
-        url_idx = entry_field_line(lines, line_idx, "url")
-        url_m = ENTRY_URL_RE.match(lines[url_idx]) if url_idx is not None else None
-        if name_m is None or url_m is None:
+        rename = _url_derived_rename(lines, line_idx)
+        if rename is None:
             continue
-        old_name, new_name = _unquoted(name_m.group(1)), repository_group_key(_unquoted(url_m.group(1)))
+        old_name, new_name = rename
         if old_name == new_name or new_name not in repo_map or new_name in names:
             continue
         lines[line_idx] = replace_scalar_value(lines[line_idx], new_name)
         names.add(new_name)
         renamed.append((old_name, new_name))
     return "".join(lines), renamed
+
+
+def _url_derived_rename(lines: list[str], line_idx: int) -> EntryRename | None:
+    """(name, url group key) of the entry at line_idx, or None without a name or url."""
+    name_m = ENTRY_NAME_RE.match(lines[line_idx])
+    url_idx = entry_field_line(lines, line_idx, "url")
+    url_m = None if url_idx is None else ENTRY_URL_RE.match(lines[url_idx])
+    if name_m is None or url_m is None:
+        return None
+    return _unquoted(name_m.group(1)), repository_group_key(_unquoted(url_m.group(1)))
 
 
 def _unquoted(scalar: str) -> str:

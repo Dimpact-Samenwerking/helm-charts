@@ -54,9 +54,9 @@ from lib.render_scope import chart_name_from_source
 from lib.render_scope import friendly_vendor_charts
 from lib.render_scope import render_chart
 from lib.render_scope import split_rendered_by_source
-from lib.settings import cve_max_cves_per_package_before_summarizing
+from lib.settings import cve_max_per_package
 from lib.settings import cve_scan_cache_ttl_days
-from lib.settings import image_upgrade_tag_check_cache_ttl_days
+from lib.settings import image_upgrade_cache_ttl_days
 from lib.yaml_types import YamlValue
 from lib.yaml_types import is_yaml_mapping
 
@@ -110,16 +110,26 @@ def trivy_vulnerabilities(data: object) -> list[Vulnerability] | None:
         return None
     vulns: list[Vulnerability] = []
     for res in results:
-        if not isinstance(res, dict):
+        found = _result_vulnerabilities(res)
+        if found is None:
             return None
-        findings = res.get("Vulnerabilities") or []
-        if not isinstance(findings, list):
+        vulns.extend(found)
+    return vulns
+
+
+def _result_vulnerabilities(res: YamlValue) -> list[Vulnerability] | None:
+    """The findings of one trivy Results entry, or None when it does not have that shape."""
+    if not isinstance(res, dict):
+        return None
+    findings = res.get("Vulnerabilities") or []
+    if not isinstance(findings, list):
+        return None
+    vulns: list[Vulnerability] = []
+    for finding in findings:
+        vuln = _vulnerability(finding)
+        if vuln is None:
             return None
-        for finding in findings:
-            vuln = _vulnerability(finding)
-            if vuln is None:
-                return None
-            vulns.append(vuln)
+        vulns.append(vuln)
     return vulns
 
 
@@ -249,7 +259,7 @@ def scan_cached(chart_dir: Path, target: ScanTarget, session: CacheSession, ttl_
     Returns (vulnerabilities, was_cached), or (None, False) when the scan failed.
     Failures are never cached, so they are retried next run.
     """
-    key = cache_key(target.repository, target.digest) if target.digest is not None else None
+    key = None if target.digest is None else cache_key(target.repository, target.digest)
     if key is not None:
         cached = session.old_cache.get(key)
         if cached and cache_entry_is_fresh(cached, ttl_days):
@@ -612,9 +622,9 @@ def check_cves(chart_dir: Path, extra_args: list[str], *, detail: bool = False):
         return True, "docker is not installed — skipped (see --help)"
 
     settings = CveScanSettings(
-        cve_max_cves_per_package_before_summarizing(chart_dir),
+        cve_max_per_package(chart_dir),
         cve_scan_cache_ttl_days(chart_dir),
-        image_upgrade_tag_check_cache_ttl_days(chart_dir),
+        image_upgrade_cache_ttl_days(chart_dir),
     )
 
     classification = classify_rendered_images(chart_dir, extra_args)

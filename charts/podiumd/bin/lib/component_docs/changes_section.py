@@ -21,8 +21,9 @@ from lib.chart.registered_paths import pin_paths_for
 from lib.component_docs.baseline_doc_stubs import UPGRADE_CHANGES_STUB_TODO_LINE
 from lib.component_docs.baseline_doc_stubs import UPGRADE_INTRO_STUB_TODO_LINE
 from lib.component_docs.doc_lines import is_bare_placeholder_span
-from lib.component_docs.doc_lines import normalize_blank_line_before_insert
-from lib.component_docs.doc_lines import strip_standalone_placeholder_line
+from lib.component_docs.doc_lines import normalize_blank_before_insert
+from lib.component_docs.doc_lines import remove_lines
+from lib.component_docs.doc_lines import strip_placeholder_line
 from lib.component_docs.owned_parts import BLANK
 from lib.component_docs.owned_parts import SectionShape
 from lib.component_docs.owned_parts import edited_generated_lines
@@ -34,7 +35,7 @@ from lib.component_docs.owned_parts import template_re
 from lib.upgradedoc.consistency_checks import rowed_component_keys
 from lib.upgradedoc.doc_names import images_manifest_name
 from lib.upgradedoc.resolve_component_row import ResolutionContext
-from lib.upgradedoc.resolve_component_row import resolve_component_own_version_change
+from lib.upgradedoc.resolve_component_row import resolve_own_version_change
 from lib.upgradedoc.sorting_and_ordering import CHANGES_HEADING
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
@@ -42,15 +43,16 @@ from lib.upgradedoc.sorting_and_ordering import block_for_component
 from lib.upgradedoc.sorting_and_ordering import changes_blocks_with_lines
 from lib.upgradedoc.sorting_and_ordering import changes_section_bounds
 from lib.upgradedoc.sorting_and_ordering import component_insertion_index
-from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
+from lib.upgradedoc.sorting_and_ordering import parse_changes_blocks
 from lib.upgradedoc.string_and_parsing_basics import TableRow
-from lib.upgradedoc.string_and_parsing_basics import component_versions_section_bounds
 from lib.upgradedoc.string_and_parsing_basics import is_named_by_text
+from lib.upgradedoc.string_and_parsing_basics import is_table_separator
 from lib.upgradedoc.string_and_parsing_basics import markdown_headings
 from lib.upgradedoc.string_and_parsing_basics import next_level2_line
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.string_and_parsing_basics import set_row_cells
+from lib.upgradedoc.string_and_parsing_basics import versions_section_bounds
 from lib.upgradedoc.version_cells import PIN_TEXT_PATTERN
 from lib.upgradedoc.version_cells import chart_version_suffix
 from lib.upgradedoc.version_cells import component_version_cell
@@ -100,9 +102,6 @@ def find_component_row(rows: list[TableRow], friendly: str):
     return next((row for row in rows if is_named_by_text(row["name"], friendly)), None)
 
 
-_TABLE_SEPARATOR_RE = re.compile(r"^\|\s*:?-+:?\s*\|")
-
-
 def new_row_insert_index(lines: list[str], rows: list[TableRow], friendly: str, ordering: OrderingContext):
     """Line index for a new component row: in values.yaml order among the
     existing rows, or right after the "Component versions" separator when
@@ -110,12 +109,14 @@ def new_row_insert_index(lines: list[str], rows: list[TableRow], friendly: str, 
     never hit. None if the doc has no such table."""
     if rows:
         idx = component_insertion_index(friendly, [row["name"] for row in rows], ordering)
-        return rows[idx]["line_index"] if idx < len(rows) else rows[-1]["line_index"] + 1
-    start, end = component_versions_section_bounds(lines)
+        if idx < len(rows):
+            return rows[idx]["line_index"]
+        return rows[-1]["line_index"] + 1
+    start, end = versions_section_bounds(lines)
     if start is None:
         return None
     for line_index in range(start + 1, end):
-        if _TABLE_SEPARATOR_RE.match(lines[line_index].strip()):
+        if is_table_separator(lines[line_index]):
             return line_index + 1
     return None
 
@@ -153,7 +154,7 @@ def remove_component_row(text: str, friendly: str):
     if row is None:
         return text, False
     lines = text.splitlines(keepends=True)
-    del lines[row["line_index"]]
+    lines.pop(row["line_index"])
     return "".join(lines), True
 
 
@@ -230,23 +231,25 @@ def changes_body_kinds(body: Sequence[str]) -> list[str | None]:
     kinds: list[str | None] = []
     position = 0
     while position < len(body):
-        line = body[position].rstrip("\n")
-        if not line.strip():
-            kinds.append(BLANK)
-            position += 1
-            continue
-        match = next(((cont, kind) for opener, cont, kind in _OWNED_LINES if opener.match(line)), None)
-        if match is None:
-            kinds.append(None)
-            position += 1
-            continue
-        continuation, kind = match
-        kinds.append(kind)
-        position += 1
-        if continuation is not None and position < len(body) and continuation.match(body[position].rstrip("\n")):
-            kinds.append(kind)
-            position += 1
+        line_kinds = _line_kinds_at(body, position)
+        kinds.extend(line_kinds)
+        position += len(line_kinds)
     return kinds
+
+
+def _line_kinds_at(body: Sequence[str], position: int) -> list[str | None]:
+    """The kind of the line at `position`, twice when its continuation line follows."""
+    line = body[position].rstrip("\n")
+    if not line.strip():
+        return [BLANK]
+    match = next(((cont, kind) for opener, cont, kind in _OWNED_LINES if opener.match(line)), None)
+    if match is None:
+        return [None]
+    continuation, kind = match
+    following = position + 1
+    if continuation is None or following >= len(body):
+        return [kind]
+    return [kind, kind] if continuation.match(body[following].rstrip("\n")) else [kind]
 
 
 def _heading_name(heading_line: str, body_kinds: Sequence[str | None]) -> str | None:
@@ -291,7 +294,7 @@ _CHANGES_SHAPE = SectionShape(
 
 def edited_changes_lines(text: str) -> list[tuple[str, str]]:
     """(heading, line) for each hand-edited generated line in the "## Changes" "### ..." sections."""
-    return edited_generated_lines(text, parse_upgrade_doc_changes_blocks(text), _CHANGES_SHAPE)
+    return edited_generated_lines(text, parse_changes_blocks(text), _CHANGES_SHAPE)
 
 
 def make_changes_section(
@@ -458,15 +461,15 @@ def _strip_bare_changes_todo(lines: list[str], changes_idx: int, end_bound: int)
     stripped)."""
     if not is_bare_placeholder_span(lines, changes_idx + 1, end_bound, UPGRADE_CHANGES_STUB_TODO_LINE):
         return end_bound
-    del lines[changes_idx + 1 : end_bound]
+    remove_lines(lines, changes_idx + 1, end_bound)
     return changes_idx + 1
 
 
-def _insert_index_for_empty_changes_section(lines: list[str], changes_idx: int, section_end: int):
+def _empty_changes_insert_index(lines: list[str], changes_idx: int, section_end: int):
     """Insert index for a "## Changes" section with no blocks yet, after
     stripping both upgrade.md stub placeholders."""
     first_heading_idx = next_level2_line(markdown_headings(lines), -1, len(lines))
-    if strip_standalone_placeholder_line(lines, first_heading_idx, UPGRADE_INTRO_STUB_TODO_LINE):
+    if strip_placeholder_line(lines, first_heading_idx, UPGRADE_INTRO_STUB_TODO_LINE):
         # Removal takes one or two lines: recompute instead of adjusting.
         new_changes_idx, section_end = changes_section_bounds(lines)
         if new_changes_idx is not None:
@@ -480,7 +483,7 @@ def insert_changes_section(text: str, section_text: str, friendly: str, ordering
     blocks yet, after stripping both stub TODO placeholders (one event);
     appended at EOF under a new "## Changes" heading when the section
     doesn't exist, so later runs find the block instead of adding it again."""
-    blocks = parse_upgrade_doc_changes_blocks(text)
+    blocks = parse_changes_blocks(text)
     lines = text.splitlines(keepends=True)
     changes_idx, section_end = changes_section_bounds(lines)
     if changes_idx is None:
@@ -488,23 +491,23 @@ def insert_changes_section(text: str, section_text: str, friendly: str, ordering
             text = f"{text.rstrip('\n')}\n\n"
         return f"{text}{CHANGES_HEADING}\n\n{section_text}"
 
-    if not blocks:
-        insert_at = _insert_index_for_empty_changes_section(lines, changes_idx, section_end)
-    else:
+    if blocks:
         idx = component_insertion_index(friendly, [block["heading"] for block in blocks], ordering)
         insert_at = blocks[idx]["start"] if idx < len(blocks) else section_end
+    else:
+        insert_at = _empty_changes_insert_index(lines, changes_idx, section_end)
 
-    insert_at = normalize_blank_line_before_insert(lines, insert_at)
+    insert_at = normalize_blank_before_insert(lines, insert_at)
     lines.insert(insert_at, section_text)
     return "".join(lines)
 
 
-def strip_stale_upgrade_placeholders(text: str):
+def strip_upgrade_placeholders(text: str):
     """Remove the intro TODO and "## Changes"' bare TODO once a real "### "
     block exists; untouched otherwise. Also the checker: callers that only
     ask whether a placeholder is stranded use `changed` and discard the
     text. Returns (new_text, changed)."""
-    blocks = parse_upgrade_doc_changes_blocks(text)
+    blocks = parse_changes_blocks(text)
     if not blocks:
         return text, False
 
@@ -512,9 +515,9 @@ def strip_stale_upgrade_placeholders(text: str):
     changed = False
 
     first_heading_idx = next_level2_line(markdown_headings(lines), -1, len(lines))
-    if strip_standalone_placeholder_line(lines, first_heading_idx, UPGRADE_INTRO_STUB_TODO_LINE):
+    if strip_placeholder_line(lines, first_heading_idx, UPGRADE_INTRO_STUB_TODO_LINE):
         changed = True
-        blocks = parse_upgrade_doc_changes_blocks("".join(lines))  # indices shifted -- recompute
+        blocks = parse_changes_blocks("".join(lines))  # indices shifted -- recompute
 
     changes_idx, _ = changes_section_bounds(lines)
     if changes_idx is not None and blocks:
@@ -543,9 +546,7 @@ def component_changes_block(text: str, friendly: str, ordering: OrderingContext)
     """The component's "### ..." block, matched by identity the same way
     check_docs_consistency pairs headings with rows, so a sidecar's block is
     never taken for its parent's."""
-    return block_for_component(
-        parse_upgrade_doc_changes_blocks(text), friendly, ordering.deps, ordering.canonical_names
-    )
+    return block_for_component(parse_changes_blocks(text), friendly, ordering.deps, ordering.canonical_names)
 
 
 def remove_changes_section(text: str, friendly: str, ordering: OrderingContext) -> tuple[str, bool, bool]:
@@ -592,7 +593,7 @@ def _add_missing_row_for_key(
     """Add `key`'s missing row and Changes section. Returns (new_text, True)
     if added; (text, False) when unresolvable, unchanged, or the doc has no
     table."""
-    resolved = resolve_component_own_version_change(
+    resolved = resolve_own_version_change(
         key, target_state, baseline_state, doc_context.chart_dir, doc_context.upgrade_docs_baseline
     )
     if resolved is None:
@@ -606,7 +607,7 @@ def _add_missing_row_for_key(
     text, table_action = update_component_table(
         text,
         key,
-        VersionChange(old_app, new_app if new_app is not None else "-", resolved.old_chart, resolved.new_chart),
+        VersionChange(old_app, "-" if new_app is None else new_app, resolved.old_chart, resolved.new_chart),
         OrderingContext(target_state.deps, target_state.values),
     )
     if table_action is None:

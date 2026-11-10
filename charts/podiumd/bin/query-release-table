@@ -37,7 +37,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from lib.chart.paths import CHART_DIR
 from lib.cli import positional_args
 from lib.release_table.csv_rows import ReleaseTableRow
-from lib.release_table.csv_rows import read_release_table
+from lib.release_table.csv_rows import read_existing_release_table
 
 DEFAULT_INPUT = CHART_DIR / "etc" / "release-table.csv"
 
@@ -99,9 +99,10 @@ def used_by_rows_for(rows: list[ReleaseTableRow], matches: list[ReleaseTableRow]
 
     Matches without a real component (blank, MULTIPLE, UNKNOWN) add nothing.
     """
-    components = {match["component"] for match in matches if match["component"] not in {"", "MULTIPLE", "UNKNOWN"}}
+    components = {match["component"] for match in matches} - {"", "MULTIPLE", "UNKNOWN"}
     match_ids = {id(match) for match in matches}
-    return [row for row in rows if row["used_by"] and id(row) not in match_ids and row["component"] in components]
+    others = [row for row in rows if id(row) not in match_ids]
+    return [row for row in others if row["used_by"] and row["component"] in components]
 
 
 def display_value(row: ReleaseTableRow, column: VersionColumn) -> str:
@@ -112,17 +113,29 @@ def display_value(row: ReleaseTableRow, column: VersionColumn) -> str:
     return value
 
 
+def _table_cells(row: ReleaseTableRow) -> list[str]:
+    """print_table's cells for `row`: its names, then its display_value per version column."""
+    versions = [display_value(row, col) for col in VERSION_COLUMNS]
+    return [row["name"], row["component"], row["alias"], row["image_basename"], *versions]
+
+
 def print_table(rows: list[ReleaseTableRow]) -> None:
     """Print `rows` as an aligned table of name/component/alias/image_basename and versions."""
     headers = ["name", "component", "alias", "image_basename", *list(VERSION_COLUMNS)]
-    table = [
-        [row["name"], row["component"], row["alias"], row["image_basename"]]
-        + [display_value(row, col) for col in VERSION_COLUMNS]
-        for row in rows
-    ]
+    table = [_table_cells(row) for row in rows]
     widths = [max(map(len, column)) for column in zip(headers, *table, strict=True)]
     for line in (headers, *table):
-        print("  ".join(cell.ljust(width) for cell, width in zip(line, widths, strict=False)))
+        padded = (cell.ljust(width) for cell, width in zip(line, widths, strict=False))
+        print("  ".join(padded))
+
+
+def print_used_by(rows: list[ReleaseTableRow], matches: list[ReleaseTableRow]) -> None:
+    """Print the used_by_rows_for `matches` as a second table, when there are any."""
+    used_by_matches = used_by_rows_for(rows, matches)
+    if used_by_matches:
+        print()
+        print("Used by matched component(s):")
+        print_table(used_by_matches)
 
 
 def main():
@@ -132,13 +145,7 @@ def main():
         print(__doc__)
         sys.exit(1)
 
-    if not DEFAULT_INPUT.is_file():
-        print(f"error: {DEFAULT_INPUT} not found")
-        print("Create it first with export-confluence-release-table, e.g.:")
-        print("    export-confluence-release-table --url <page-url> --user <email> --token-file <path>")
-        sys.exit(1)
-
-    rows = read_release_table(DEFAULT_INPUT)
+    rows = read_existing_release_table(DEFAULT_INPUT)
     matches = component_matches(rows, text) if column == "component" else matching_rows(rows, column, text)
     if not matches:
         print(f"no rows found where {column} contains {text!r}")
@@ -146,12 +153,7 @@ def main():
 
     print(f"Matches for {column} {text!r}:")
     print_table(matches)
-
-    used_by_matches = used_by_rows_for(rows, matches)
-    if used_by_matches:
-        print()
-        print("Used by matched component(s):")
-        print_table(used_by_matches)
+    print_used_by(rows, matches)
 
 
 if __name__ == "__main__":

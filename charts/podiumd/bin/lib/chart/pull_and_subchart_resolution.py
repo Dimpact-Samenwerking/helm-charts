@@ -1,7 +1,6 @@
 """Resolve a chart dependency's vendored or pulled chart: values, appVersion, image repositories, pins."""
 
 import copy
-import shutil
 import sys
 import tempfile
 
@@ -15,6 +14,7 @@ from lib.chart.nested_subchart_identity import nested_subchart_raw_text
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.values_tree_primitives import ValuesPath
 from lib.chart.values_tree_primitives import deep_merge
+from lib.chart.values_tree_primitives import dependency_name_and_alias
 from lib.chart.values_tree_primitives import field_text
 from lib.chart.values_tree_primitives import mapping_at
 from lib.chart.values_tree_primitives import text_at
@@ -48,7 +48,7 @@ def resolved_digest_pin(
     if "@" in tag:
         return tag
     exception = sibling_fields.get(path)
-    sibling_field = exception.get("sibling_field") if exception is not None else None
+    sibling_field = None if exception is None else exception.get("sibling_field")
     if sibling_field is None:
         return None
     digest = field_text(values, path, sibling_field)
@@ -118,16 +118,14 @@ def pulled_chart_dir(tmpdir: Path):
 
 def pull_chart_values(dep: ChartDependency, version: str):
     """The parsed values.yaml of `dep` at `version`, pulled into a temp dir; exits if the pull fails."""
-    tmpdir = Path(tempfile.mkdtemp(prefix="pull-chart-values-"))
-    try:
+    with tempfile.TemporaryDirectory(prefix="pull-chart-values-", ignore_cleanup_errors=True) as tmp:
+        tmpdir = Path(tmp)
         ok, stderr = pull_chart(dep, version, tmpdir)
         if not ok:
             msg = f"error: could not pull {dep['name']} {version}: {stderr}"
             sys.exit(msg)
         chart_dir = pulled_chart_dir(tmpdir)
         return load_yaml_mapping(chart_dir / "values.yaml")
-    finally:
-        shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 def verify_chart_version(chart_dir: Path, dep: ChartDependency, version: str):
@@ -139,8 +137,8 @@ def verify_chart_version(chart_dir: Path, dep: ChartDependency, version: str):
     chart_name = dep["name"]
     print(f"Checking chart version {version!r} for {chart_name}:")
     values, source, error = resolve_chart_values(chart_dir, dep, version)
-    status = "FOUND  " if values is not None else "MISSING"
-    suffix = f"  ({source})" if values is not None else f"  ({error})"
+    status = "MISSING" if values is None else "FOUND  "
+    suffix = f"  ({error})" if values is None else f"  ({source})"
     print(f"  [{status}] {chart_name} {version}{suffix}")
     if values is None:
         print()
@@ -242,10 +240,10 @@ def resolve_subchart_default(chart_dir: Path, dep: ChartDependency, chart_name: 
     If path[0] names one of dep's own nested dependencies (e.g.
     openinwoner's bundled eck-operator), both come from that nested chart.
     """
-    base_path = f"{chart_name}/charts/{dep.get('alias') or dep['name']}"
+    base_path = f"{chart_name}/charts/{values_key_of(dep)}"
     nested_deps = subchart_dependencies(chart_dir, dep)
     nested = next(
-        (nested_dep for nested_dep in nested_deps if path and path[0] in {nested_dep.get("alias"), nested_dep["name"]}),
+        (nested_dep for nested_dep in nested_deps if path and path[0] in dependency_name_and_alias(nested_dep)),
         None,
     )
     if nested is None:
@@ -268,15 +266,13 @@ def resolve_chart_values(chart_dir: Path, dep: ChartDependency, version: str, *,
         return values, "vendored", None
     if not allow_pull:
         return None, None, f"{dep['name']} {version} is not vendored, and pulling is disabled"
-    tmpdir = Path(tempfile.mkdtemp(prefix="resolve-chart-values-"))
-    try:
+    with tempfile.TemporaryDirectory(prefix="resolve-chart-values-", ignore_cleanup_errors=True) as tmp:
+        tmpdir = Path(tmp)
         ok, stderr = pull_chart(dep, version, tmpdir)
         if not ok:
             return None, None, stderr
         pulled_dir = pulled_chart_dir(tmpdir)
         return load_yaml_mapping(pulled_dir / "values.yaml"), "pulled", None
-    finally:
-        shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 def primary_image_repositories(
@@ -294,26 +290,27 @@ def primary_image_repositories(
     path had an override. chart_dir None counts as "not vendored, no pull".
     """
     values_key = values_key_of(dep)
-    version = version or dep["version"]
     results: dict[str, str | None] = {}
-    subchart_state: tuple[YamlMapping | None, str | None] | None = (
-        None  # lazily filled on first path that needs it: (values_or_None, error_or_None)
-    )
     for path in image_paths_for(dep["name"], chart_dir):
         repo = text_at(own_values, f"{values_key}.{path}.repository")
-        if isinstance(repo, str) and repo:
-            results[path] = repo
-            continue
-        if subchart_state is None:
-            if chart_dir is None:
-                subchart_state = (None, f"no chart_dir given — can't resolve {dep['name']}'s subchart default")
-            else:
-                values, _source, err = resolve_chart_values(chart_dir, dep, version, allow_pull=allow_pull)
-                subchart_state = (values, err)
-        values, err = subchart_state
-        results[path] = text_at(values, f"{path}.repository") if values is not None else None
-    error = subchart_state[1] if subchart_state is not None else None
+        results[path] = repo if isinstance(repo, str) and repo else None
+    missing = [path for path, repo in results.items() if repo is None]
+    if not missing:
+        return results, None
+    values, error = _subchart_default_values(chart_dir, dep, version or dep["version"], allow_pull=allow_pull)
+    for path in missing:
+        results[path] = None if values is None else text_at(values, f"{path}.repository")
     return results, error
+
+
+def _subchart_default_values(
+    chart_dir: Path | None, dep: ChartDependency, version: str, *, allow_pull: bool
+) -> tuple[YamlMapping | None, str | None]:
+    """(values_or_None, error_or_None) of dep's subchart defaults at `version`."""
+    if chart_dir is None:
+        return None, f"no chart_dir given — can't resolve {dep['name']}'s subchart default"
+    values, _source, err = resolve_chart_values(chart_dir, dep, version, allow_pull=allow_pull)
+    return values, err
 
 
 def global_image_paths(values: YamlMapping) -> list[tuple[ValuesPath, str]]:

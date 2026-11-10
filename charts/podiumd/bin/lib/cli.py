@@ -89,6 +89,11 @@ def _network_error_message(what: str, error: OSError | InvalidURL) -> str:
             return f"error: connection to {what} failed: {error}"
 
 
+def noun_for(count: int, singular: str, plural: str) -> str:
+    """`singular` for a count of one, else `plural`."""
+    return singular if count == 1 else plural
+
+
 def print_section(title: str) -> None:
     """Print a blank line and "=== <title> ===", the heading of one step of a script's output."""
     print()

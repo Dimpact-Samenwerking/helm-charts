@@ -92,7 +92,7 @@ class RowContext:
 class RowLookup:
     """canonical_names/stale_names for _check_component_rows.
 
-    `stale_names` rows were already reported by find_wrong_or_duplicate_dependency_claims,
+    `stale_names` rows were already reported by find_wrong_dependency_claims,
     so they're skipped here rather than reported again.
     """
 

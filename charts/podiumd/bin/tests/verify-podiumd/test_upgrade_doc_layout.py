@@ -1,7 +1,5 @@
 """check_upgrade_doc_layout: the target version's upgrade docs against docs/_UPGRADE_DOCS_CHECKLIST.md."""
 
-import subprocess
-
 from pathlib import Path
 
 import pytest
@@ -12,6 +10,8 @@ from lib.checks.upgrade_doc_layout import values_deltas_layout_issues
 from lib.component_docs import changes_section
 from lib.component_docs.baseline_doc_stubs import STUB_TEMPLATES
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
+from tests.git_repo import git
+from tests.git_repo import init_git_repo
 
 GUIDE = "4.9.5-to-4.10.0-upgrade.md"
 DELTAS = "4.9.5-to-4.10.0-values-deltas.md"
@@ -246,22 +246,18 @@ def test_check_reports_each_issue_but_never_fails(chart_dir: Path, capsys: pytes
     assert f'{DELTAS}: "## Background" is neither' in out
 
 
-def _git(chart_dir: Path, *args: str):
-    subprocess.run(["git", "-C", str(chart_dir), *args], check=True, capture_output=True)
-
-
 def test_check_skips_a_released_target_and_checks_an_unreleased_one(
     chart_dir: Path, capsys: pytest.CaptureFixture[str]
 ):
     _write(chart_dir, GUIDE, "# Upgrade guide: PodiumD 4.9.5 → 4.10.0\n\n## Changes\n")
-    _git(chart_dir, "init", "-q")
-    _git(chart_dir, "-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "x")
+    init_git_repo(chart_dir)
+    git("commit", "-q", "--allow-empty", "-m", "x", cwd=chart_dir)
     ok, detail = check_upgrade_doc_layout(chart_dir)
     assert ok
     assert detail.endswith("layout issue(s) (report-only, not a failure)")
     assert "no git repository" not in capsys.readouterr().out
 
-    _git(chart_dir, "tag", "podiumd-4.10.0")
+    git("tag", "podiumd-4.10.0", cwd=chart_dir)
     assert check_upgrade_doc_layout(chart_dir) == (True, "4.10.0 is released — skipped")
     assert "podiumd-4.10.0 is tagged" in capsys.readouterr().out
 

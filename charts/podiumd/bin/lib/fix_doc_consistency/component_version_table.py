@@ -3,6 +3,7 @@
 import re
 
 from dataclasses import dataclass
+from typing import NamedTuple
 
 from lib.chart.values_tree_primitives import ValuesPath
 from lib.component_docs.changes_section import remove_changes_section
@@ -10,18 +11,19 @@ from lib.component_docs.changes_section import remove_component_row
 from lib.upgradedoc.images_manifest_ordering import header_name_segment
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.resolve_component_row import ResolvedRow
-from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
+from lib.upgradedoc.resolve_component_row import UnmatchedRow
+from lib.upgradedoc.resolve_component_row import heading_has_app_version
 from lib.upgradedoc.resolve_component_row import is_resolved_row_unchanged
 from lib.upgradedoc.resolve_component_row import resolve_component_row
 from lib.upgradedoc.resolve_component_row import strip_chart_clause
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
-from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
+from lib.upgradedoc.sorting_and_ordering import parse_changes_blocks
 from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
 from lib.upgradedoc.string_and_parsing_basics import TableRow
-from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.string_and_parsing_basics import set_row_cells
+from lib.upgradedoc.string_and_parsing_basics import single_heading_identity
 from lib.upgradedoc.version_cells import canonical_version_cell
 from lib.upgradedoc.version_cells import chart_version_suffix
 from lib.upgradedoc.version_cells import component_version_cell
@@ -55,8 +57,8 @@ def _new_dependency_row_update(lines: list[str], row: TableRow, resolved: Resolv
     cells = set_row_cells(
         lines,
         row,
-        component_version_cell(resolved["baseline_app"], target_app) if target_app is not None else None,
-        component_version_cell(None, target_chart) if target_chart is not None else NO_CHART,
+        None if target_app is None else component_version_cell(resolved["baseline_app"], target_app),
+        NO_CHART if target_chart is None else component_version_cell(None, target_chart),
     )
     return (row["name"], cells[1], cells[2]) if cells else None
 
@@ -73,22 +75,39 @@ def _existing_row_update(lines: list[str], row: TableRow, resolved: ResolvedRow)
     if target_chart is None:
         # A native component that was a chart at the baseline shows that chart going away.
         chart_cell = component_version_cell(baseline_chart, NO_CHART)
-    elif baseline_chart is not None:
-        chart_cell = canonical_version_cell(baseline_chart, target_chart)
-    else:
+    elif baseline_chart is None:
         chart_cell = None
+    else:
+        chart_cell = canonical_version_cell(baseline_chart, target_chart)
     cells = set_row_cells(
         lines,
         row,
-        component_version_cell(resolved["baseline_app"], target_app) if target_app is not None else None,
+        None if target_app is None else component_version_cell(resolved["baseline_app"], target_app),
         chart_cell,
     )
     return (row["name"], cells[1], cells[2]) if cells else None
 
 
-def fix_component_version_table(
-    text: str, resolution: ResolutionContext
-) -> tuple[str, list[RowUpdate], list[str], list[str]]:
+class ComponentTableFix(NamedTuple):
+    """fix_component_version_table's result."""
+
+    text: str
+    changed_rows: list[RowUpdate]
+    unmatched_names: list[str]
+    unresolved_names: list[str]
+
+
+def _is_baseline_unresolved(resolved: ResolvedRow) -> bool:
+    """Whether the row's baseline, or for a sidecar its current tag, can't be resolved."""
+    if resolved["baseline_resolved"] is None:
+        return True
+    # For a sidecar, baseline_resolved False can also mean its current tag
+    # didn't resolve (broken, not new); a missing target_app tells them apart.
+    sidecar_unresolved = resolved["dep"] is None and resolved["target_app"] is None
+    return resolved["baseline_resolved"] is False and sidecar_unresolved
+
+
+def fix_component_version_table(text: str, resolution: ResolutionContext) -> ComponentTableFix:
     """Rewrite each "Component versions" row's App/Helm-chart cells to the actual baseline and target versions.
 
     A row is rewritten only when source and target are verifiable, except a
@@ -98,46 +117,31 @@ def fix_component_version_table(
     A canonical sidecar/shared-image row name (see canonical_sidecar_row_names)
     is corrected against its own resolved tag, not match_component, whose fuzzy
     match could hit an unrelated dependency sharing the leading word (e.g.
-    "redis-operator - redis"). Its chart cell is "-". Returns (new_text,
-    changed_rows, unmatched_names, unresolved_names)."""
+    "redis-operator - redis"). Its chart cell is "-"."""
     lines = text.splitlines(keepends=True)
-    rows = parse_upgrade_doc_rows(text)
-    changed_rows: list[RowUpdate] = []
-    unmatched_names: list[str] = []
-    unresolved_names: list[str] = []
-
+    result = ComponentTableFix("", [], [], [])
     canonical_names = resolution.target_index.canonical_names
 
-    for row in rows:
+    for row in parse_upgrade_doc_rows(text):
         # Same resolver as the checker, so fixer and checker can't drift apart.
-        resolved = resolve_component_row(row["name"], canonical_names, resolution)
-        if resolved["kind"] == "unmatched":
-            # A "<key> - <image-basename>" row without a resolvable repository is
-            # unresolved, never matched against a dependency sharing its first word.
-            if " - " in row["name"]:
-                unresolved_names.append(row["name"])
-            else:
-                unmatched_names.append(row["name"])
-            continue
+        _fix_row(lines, row, resolve_component_row(row["name"], canonical_names, resolution), result)
+    return result._replace(text="".join(lines))
 
-        if resolved["baseline_resolved"] is None:
-            unresolved_names.append(row["name"])
-            continue
 
-        if resolved["baseline_resolved"] is False:
-            # For a sidecar, False can also mean its current tag didn't
-            # resolve (broken, not new); a missing target_app tells them apart.
-            if resolved["dep"] is None and resolved["target_app"] is None:
-                unresolved_names.append(row["name"])
-                continue
-            changed = _new_dependency_row_update(lines, row, resolved)
-        else:
-            changed = _existing_row_update(lines, row, resolved)
-
-        if changed:
-            changed_rows.append(changed)
-
-    return "".join(lines), changed_rows, unmatched_names, unresolved_names
+def _fix_row(lines: list[str], row: TableRow, resolved: UnmatchedRow | ResolvedRow, result: ComponentTableFix) -> None:
+    """Rewrite one row's cells in `lines`, or record on `result` why it can't be."""
+    if resolved["kind"] == "unmatched":
+        # A "<key> - <image-basename>" row without a resolvable repository is
+        # unresolved, never matched against a dependency sharing its first word.
+        (result.unresolved_names if " - " in row["name"] else result.unmatched_names).append(row["name"])
+        return
+    if _is_baseline_unresolved(resolved):
+        result.unresolved_names.append(row["name"])
+        return
+    row_update = _new_dependency_row_update if resolved["baseline_resolved"] is False else _existing_row_update
+    changed = row_update(lines, row, resolved)
+    if changed:
+        result.changed_rows.append(changed)
 
 
 def _resolved_rows_by_values_key(
@@ -175,14 +179,14 @@ def _expected_chart_clause(heading: str, resolved: ResolvedRow):
 
 def _heading_resolved_row(
     heading: str, resolution: ResolutionContext, inputs: HeadingFixInputs, canonical_path_to_name: dict[ValuesPath, str]
-) -> tuple[str, ResolvedRow, str | None, str | None] | None:
-    """(row_name, resolved, old_app, expected_bare_name) for heading, or None if it doesn't apply.
+) -> tuple[str, ResolvedRow, str | None] | None:
+    """(row_name, resolved, expected_bare_name) for heading, or None if it doesn't apply.
 
     None for an ambiguous or orphaned identity, or one without row data."""
-    idents = changes_heading_identities(heading, resolution.target.deps, inputs.canonical_names)
-    if len(idents) != 1:
+    identity = single_heading_identity(heading, resolution.target.deps, inputs.canonical_names)
+    if identity is None:
         return None
-    kind, values_key = next(iter(idents))
+    kind, values_key = identity
     if kind == "sidecar" and isinstance(values_key, tuple):
         lookup_key = ".".join(values_key)
         expected_bare_name = canonical_path_to_name.get(values_key)
@@ -197,8 +201,7 @@ def _heading_resolved_row(
 
     if resolved["baseline_resolved"] is None:
         return None
-    old_app = resolved["baseline_app"]
-    return row_name, resolved, old_app, expected_bare_name
+    return row_name, resolved, expected_bare_name
 
 
 def _heading_replacement(
@@ -210,14 +213,14 @@ def _heading_replacement(
     """(new_heading_line, original_heading) when block's heading needs correcting, else None."""
     heading = block["heading"]
     # Headings without a version marker (e.g. "## zaakbrug") are free-form.
-    if not changes_heading_has_app_version(heading):
+    if not heading_has_app_version(heading):
         return None
     found = _heading_resolved_row(heading, resolution, inputs, canonical_path_to_name)
     if found is None:
         return None
-    row_name, resolved, old_app, expected_bare_name = found
+    row_name, resolved, expected_bare_name = found
 
-    expected_app_heading = component_version_cell(old_app, resolved["target_app"])
+    expected_app_heading = component_version_cell(resolved["baseline_app"], resolved["target_app"])
     if expected_app_heading is None:
         return None  # no app version on either side to write into the heading
     without_chart_clause = strip_chart_clause(heading)
@@ -261,7 +264,7 @@ def _fix_heading_app_versions(
     return "".join(lines), updated_headings
 
 
-def fix_changes_heading_app_versions(text: str, resolution: ResolutionContext):
+def fix_heading_app_versions(text: str, resolution: ResolutionContext):
     """Rewrite "### ..." Changes headings' name, app and chart versions to match the table row.
 
     An existing "(chart ...)" clause gets the row's chart versions when both are
@@ -275,16 +278,14 @@ def fix_changes_heading_app_versions(text: str, resolution: ResolutionContext):
     the original heading texts."""
     canonical_names = resolution.target_index.canonical_names
     resolved_by_values_key = _resolved_rows_by_values_key(text, resolution, canonical_names)
-    blocks = parse_upgrade_doc_changes_blocks(text)
+    blocks = parse_changes_blocks(text)
     return _fix_heading_app_versions(
         text, resolution, HeadingFixInputs(resolved_by_values_key, canonical_names, blocks, "###")
     )
 
 
-def fix_values_delta_heading_app_versions(
-    upgrade_doc_text: str, values_deltas_text: str, resolution: ResolutionContext
-):
-    """fix_changes_heading_app_versions for the values-deltas doc's "## ..." headings.
+def fix_delta_heading_app_versions(upgrade_doc_text: str, values_deltas_text: str, resolution: ResolutionContext):
+    """fix_heading_app_versions for the values-deltas doc's "## ..." headings.
 
     upgrade_doc_text (already corrected) supplies the row data, since the
     values-deltas doc has no table of its own."""
@@ -296,7 +297,7 @@ def fix_values_delta_heading_app_versions(
     )
 
 
-def remove_unchanged_component_rows(text: str, resolution: ResolutionContext) -> tuple[str, list[str]]:
+def remove_unchanged_rows(text: str, resolution: ResolutionContext) -> tuple[str, list[str]]:
     """Delete every row whose app and chart versions equal the baseline's, with its Changes section.
 
     A row whose baseline can't be resolved stays. Returns (new_text, removed_names)."""

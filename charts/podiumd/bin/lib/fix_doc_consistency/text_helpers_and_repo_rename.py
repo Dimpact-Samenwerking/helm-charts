@@ -44,7 +44,8 @@ def git_mv(src: Path, dst: Path):
     if tracked.returncode != 0:
         src.rename(dst)
         return
-    result = run(["git", "mv", str(src), str(dst)], cwd=src.parent, capture_output=True, text=True)
+    mv_command = ["git", "mv", str(src), str(dst)]
+    result = run(mv_command, cwd=src.parent, capture_output=True, text=True)
     if result.returncode != 0:
         msg = f"error: git mv {src} -> {dst} failed: {result.stderr.strip()}"
         sys.exit(msg)
@@ -65,7 +66,7 @@ def update_title_line(text: str, target: str, new_baseline: str):
     return "".join(lines), True
 
 
-def update_component_versions_heading(text: str, target: str, new_baseline: str):
+def update_versions_heading(text: str, target: str, new_baseline: str):
     """Point a "Component versions (<target> vs <baseline>)" heading anywhere
     in the body at new_baseline. Returns (new_text, changed)."""
     pattern = re.compile(COMPONENT_VERSIONS_RE_TMPL.format(target=re.escape(target)))
@@ -92,7 +93,7 @@ def remaining_mentions(text: str, old_baseline: str):
     return [index + 1 for index, line in enumerate(text.splitlines()) if pattern.search(line)]
 
 
-def ensure_blank_lines_around_headings(text: str):
+def ensure_heading_blank_lines(text: str):
     """Insert missing blank lines around "#" headings (MD022).
 
     Lines inside fenced code blocks are skipped (fenced_line_flags). No
@@ -101,14 +102,13 @@ def ensure_blank_lines_around_headings(text: str):
     fenced = fenced_line_flags(lines)
     result: list[str] = []
     for index, line in enumerate(lines):
-        if not fenced[index] and HEADING_LINE_RE.match(line):
-            if result and result[-1].strip():
-                result.append("\n")
-            result.append(line)
-            if index + 1 < len(lines) and lines[index + 1].strip():
-                result.append("\n")
-        else:
-            result.append(line)
+        is_heading = not fenced[index] and HEADING_LINE_RE.match(line)
+        if is_heading and result and result[-1].strip():
+            result.append("\n")
+        result.append(line)
+        followed_by_text = index + 1 < len(lines) and lines[index + 1].strip()
+        if is_heading and followed_by_text:
+            result.append("\n")
     return "".join(result)
 
 
@@ -118,7 +118,7 @@ def collapse_multiple_blank_lines(text: str):
     Ensures blank lines around headings, collapses runs of blank lines to
     one, and trims trailing blanks to a single final newline: pymarkdown
     counts EOF as a blank line, so "content\n\n" already fails MD012."""
-    text = ensure_blank_lines_around_headings(text)
+    text = ensure_heading_blank_lines(text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return re.sub(r"\n+\Z", "\n", text)
 

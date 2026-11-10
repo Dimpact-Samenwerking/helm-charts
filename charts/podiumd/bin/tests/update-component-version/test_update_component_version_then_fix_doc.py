@@ -3,33 +3,24 @@
 The checker must accept the docs it leaves, and user text in them stays.
 """
 
-import subprocess
-
 from pathlib import Path
 from types import ModuleType
-from types import SimpleNamespace
 
 import pytest
 
-import lib.image.docs as image_docs
-import lib.image.version as image_version
-
 from lib.chart import repo_and_path_resolution
-from lib.docs_consistency.check import check_docs_consistency
-from lib.fix_doc_consistency.rebase_state import FixDocPaths
-from lib.fix_doc_consistency.run import fix_docs
-from lib.image import baseline_refresh
+from tests.chart_repo import commit_text_baseline
+from tests.fix_doc_run import MANIFEST
+from tests.fix_doc_run import UPGRADE
+from tests.fix_doc_run import bump
+from tests.fix_doc_run import document_earlier_bump
+from tests.fix_doc_run import point_script_at
+from tests.fix_doc_run import stub_registry_and_render
 from tests.fixture_data import sha256_digest
 
 DIGEST = {fill: sha256_digest(fill) for fill in "abcdef0"}
-UPGRADE = "_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md"
-MANIFEST = "images/images-4.9.0.yaml"
 USER_NOTE = "USER NOTE: restart zac.\n"
 REDIS_OPERATOR_TAG = f"v0.26.0@{DIGEST['a']}"
-
-
-def git(*args: str, cwd: Path) -> None:
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
 
 
 def chart_yaml(zac_chart: str, kiss_chart: str = "3.0.0", redis_operator_chart: str = "0.26.1") -> str:
@@ -56,64 +47,25 @@ def values_yaml(zac: str, opa: str, kiss: str, redis_operator: str = REDIS_OPERA
     )
 
 
-def docs(chart_dir: Path) -> dict[str, str]:
-    root = chart_dir / "docs"
-    return {str(p.relative_to(root)): p.read_text(encoding="utf-8") for p in sorted(root.rglob("*")) if p.is_file()}
-
-
-def rename(old: Path, new: Path) -> None:
-    old.rename(new)
-
-
-def run_fix_docs(chart_dir: Path) -> None:
-    fix_docs(
-        FixDocPaths(chart_dir, chart_dir / "docs" / "_UPGRADE_PATHS", chart_dir / "docs" / "images", rename),
-        "4.9.0",
-        "4.8.5",
-    )
-
-
 @pytest.fixture
 def chart(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType) -> Path:
     """Baseline 4.8.5 tagged; an earlier zac bump documented, with a user note in its section."""
-    monkeypatch.setattr(image_docs, "cached_tag_exists", lambda chart_dir, repository, version: (True, DIGEST["0"]))
-    monkeypatch.setattr(
-        baseline_refresh,
-        "render_chart",
-        lambda chart_dir, extra_args: SimpleNamespace(returncode=0, stdout="", stderr=""),
+    stub_registry_and_render(monkeypatch, DIGEST["0"], DIGEST["f"])
+    commit_text_baseline(
+        tmp_path,
+        chart_yaml("1.0.290"),
+        values_yaml(f"5.0.2@{DIGEST['a']}", f"1.4.1@{DIGEST['b']}", f"3.0.0@{DIGEST['c']}"),
+        chart_subdir="",
     )
-    git("init", "-q", cwd=tmp_path)
-    git("config", "user.email", "test@example.com", cwd=tmp_path)
-    git("config", "user.name", "Test", cwd=tmp_path)
-    (tmp_path / "Chart.yaml").write_text(chart_yaml("1.0.290"), encoding="utf-8")
-    (tmp_path / "values.yaml").write_text(
-        values_yaml(f"5.0.2@{DIGEST['a']}", f"1.4.1@{DIGEST['b']}", f"3.0.0@{DIGEST['c']}"), encoding="utf-8"
-    )
-    (tmp_path / "docs" / "_UPGRADE_PATHS").mkdir(parents=True)
-    (tmp_path / "docs" / "images").mkdir(parents=True)
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "baseline", cwd=tmp_path)
-    git("tag", "podiumd-4.8.5", cwd=tmp_path)
     (tmp_path / "Chart.yaml").write_text(chart_yaml("1.0.296"), encoding="utf-8")
     (tmp_path / "values.yaml").write_text(
         values_yaml(f"5.1.0@{DIGEST['d']}", f"1.4.2@{DIGEST['e']}", f"3.0.0@{DIGEST['c']}"), encoding="utf-8"
     )
-    run_fix_docs(tmp_path)
-    upgrade = tmp_path / "docs" / UPGRADE
-    text = upgrade.read_text(encoding="utf-8")
-    heading = next(line for line in text.splitlines() if line.startswith("### zac "))
-    upgrade.write_text(text.replace(f"{heading}\n\n", f"{heading}\n\n{USER_NOTE}\n"), encoding="utf-8")
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "earlier bump", cwd=tmp_path)
-
-    monkeypatch.setattr(ucv, "CHART_DIR", tmp_path)
-    monkeypatch.setattr(ucv, "CHART_YAML", tmp_path / "Chart.yaml")
-    monkeypatch.setattr(ucv, "VALUES_YAML", tmp_path / "values.yaml")
-    monkeypatch.setattr(ucv, "complete_docs_and_finish", lambda: run_fix_docs(tmp_path))
+    document_earlier_bump(tmp_path, "### zac ", USER_NOTE, "earlier bump")
+    point_script_at(ucv, monkeypatch, tmp_path)
     monkeypatch.setattr(
         ucv, "resolve_chart_values", lambda chart_dir, dep, version, allow_pull=True: ({}, "vendored", None)
     )
-    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, DIGEST["f"]))
 
     def check_image_versions(_chart_dir, _dep, values, pins, app_version):
         image_paths = [pin.path for pin in pins]
@@ -126,18 +78,8 @@ def chart(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType) -> P
     return tmp_path
 
 
-def bump(ucv: ModuleType, chart: Path, monkeypatch: pytest.MonkeyPatch, *argv: str) -> dict[str, str]:
-    """Run update-component-version, then require the checker to accept the docs."""
-    monkeypatch.setattr("sys.argv", ["update-component-version", *argv])
-    ucv.main()
-    written = docs(chart)
-    ok, detail = check_docs_consistency(chart, "4.8.5")
-    assert ok, detail
-    return written
-
-
 def test_a_second_bump_is_documented_from_the_baseline(ucv: ModuleType, chart: Path, monkeypatch: pytest.MonkeyPatch):
-    written = bump(ucv, chart, monkeypatch, "zac", "5.4.3", "1.0.297")
+    written = bump(ucv, chart, monkeypatch, "update-component-version", "zac", "5.4.3", "1.0.297")
 
     assert "| zac | 5.0.2 → 5.4.3 | 1.0.290 → 1.0.297 | - |" in written[UPGRADE]
     assert "### zac 5.0.2 → 5.4.3 (chart 1.0.290 → 1.0.297)" in written[UPGRADE]
@@ -149,7 +91,7 @@ def test_a_second_bump_is_documented_from_the_baseline(ucv: ModuleType, chart: P
 def test_another_component_bump_leaves_the_first_ones_docs(
     ucv: ModuleType, chart: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    written = bump(ucv, chart, monkeypatch, "kiss", "3.1.0", "3.1.0")
+    written = bump(ucv, chart, monkeypatch, "update-component-version", "kiss", "3.1.0", "3.1.0")
 
     assert "| kiss | 3.0.0 → 3.1.0 | 3.0.0 → 3.1.0 | - |" in written[UPGRADE]
     assert "| zac | 5.0.2 → 5.1.0 | 1.0.290 → 1.0.296 | - |" in written[UPGRADE]
@@ -157,7 +99,7 @@ def test_another_component_bump_leaves_the_first_ones_docs(
 
 
 def test_a_chart_only_bump(ucv: ModuleType, chart: Path, monkeypatch: pytest.MonkeyPatch):
-    written = bump(ucv, chart, monkeypatch, "kiss", "3.0.0", "3.0.1")
+    written = bump(ucv, chart, monkeypatch, "update-component-version", "kiss", "3.0.0", "3.0.1")
 
     assert "| kiss | 3.0.0 (unchanged) | 3.0.0 → 3.0.1 | - |" in written[UPGRADE]
     assert USER_NOTE in written[UPGRADE]
@@ -177,7 +119,7 @@ def test_a_split_version_field_bump_is_written_checked_and_stable(
     monkeypatch.setattr(ucv, "check_image_versions", repo_and_path_resolution.check_image_versions)
     monkeypatch.setattr(repo_and_path_resolution, "registry_tag_exists", exists)
 
-    written = bump(ucv, chart, monkeypatch, "redis-operator", "v0.27.0", "0.27.0")
+    written = bump(ucv, chart, monkeypatch, "update-component-version", "redis-operator", "v0.27.0", "0.27.0")
 
     # imageTag and initContainerImageTag share one repository: one lookup.
     assert checked == [("quay.io", "opstree/redis-operator", "v0.27.0")]
@@ -189,7 +131,7 @@ def test_a_split_version_field_bump_is_written_checked_and_stable(
     assert "| redis-operator | v0.26.0 → v0.27.0 | 0.26.1 → 0.27.0 | - |" in written[UPGRADE]
 
     before = (values, (chart / "Chart.yaml").read_text(encoding="utf-8"), written)
-    again = bump(ucv, chart, monkeypatch, "redis-operator", "v0.27.0", "0.27.0")
+    again = bump(ucv, chart, monkeypatch, "update-component-version", "redis-operator", "v0.27.0", "0.27.0")
     after = (
         (chart / "values.yaml").read_text(encoding="utf-8"),
         (chart / "Chart.yaml").read_text(encoding="utf-8"),

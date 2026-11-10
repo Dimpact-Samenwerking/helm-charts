@@ -1,4 +1,4 @@
-"""fix_images_manifest_entry_urls and add_missing_images_manifest_entries scenarios."""
+"""fix_images_manifest_entry_urls and add_missing_manifest_entries scenarios."""
 
 import io
 import tarfile
@@ -9,11 +9,11 @@ from typing import TYPE_CHECKING
 import pytest
 import yaml
 
-from lib.fix_doc_consistency.manifest_entries_new_and_removed import MissingEntriesContext
-from lib.fix_doc_consistency.manifest_entries_new_and_removed import add_missing_images_manifest_entries
-from lib.fix_doc_consistency.manifest_entries_new_and_removed import remove_stale_images_manifest_entries
-from lib.fix_doc_consistency.manifest_entry_urls_and_names import fix_images_manifest_entry_names
 from lib.fix_doc_consistency.manifest_entry_urls_and_names import fix_images_manifest_entry_urls
+from lib.fix_doc_consistency.manifest_entry_urls_and_names import fix_manifest_entry_names
+from lib.fix_doc_consistency.new_and_removed_entries import MissingEntriesContext
+from lib.fix_doc_consistency.new_and_removed_entries import add_missing_manifest_entries
+from lib.fix_doc_consistency.new_and_removed_entries import remove_stale_entries
 from tests.fixture_data import SHA256_A
 from tests.fixture_data import SHA256_B
 
@@ -160,7 +160,7 @@ def test_fix_images_manifest_entry_urls_reports_unresolvable_entry(tmp_path: Pat
     assert new_text == text
 
 
-# --- add_missing_images_manifest_entries ---
+# --- add_missing_manifest_entries ---
 
 
 @pytest.fixture
@@ -197,7 +197,7 @@ def test_add_missing_images_manifest_entries_appends_new_entry(images_manifest_c
         "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:bbbb"}}
     }
 
-    new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
+    result = add_missing_manifest_entries(
         text,
         MissingEntriesContext(
             images_manifest_chart_dir,
@@ -207,13 +207,13 @@ def test_add_missing_images_manifest_entries_appends_new_entry(images_manifest_c
         ),
     )
 
-    assert skipped == []
-    assert added == ["zac"]
-    assert "# zac 5.0.2 -> 5.1.0" in new_text  # primary: plain "# " prefix, no em-dash
-    assert "- name: infonl/zaakafhandelcomponent" in new_text
-    assert "url: ghcr.io/infonl/zaakafhandelcomponent" in new_text
-    assert 'version: "5.1.0"' in new_text
-    assert 'digest: "sha256:aaaa"' in new_text
+    assert result.skipped_names == []
+    assert result.added_names == ["zac"]
+    assert "# zac 5.0.2 -> 5.1.0" in result.text  # primary: plain "# " prefix, no em-dash
+    assert "- name: infonl/zaakafhandelcomponent" in result.text
+    assert "url: ghcr.io/infonl/zaakafhandelcomponent" in result.text
+    assert 'version: "5.1.0"' in result.text
+    assert 'digest: "sha256:aaaa"' in result.text
 
 
 def test_add_missing_images_manifest_entries_genuinely_new_image_renders_new(images_manifest_chart_dir):
@@ -229,7 +229,7 @@ def test_add_missing_images_manifest_entries_genuinely_new_image_renders_new(ima
     }
     baseline_values: YamlMapping = {}
 
-    new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
+    result = add_missing_manifest_entries(
         text,
         MissingEntriesContext(
             images_manifest_chart_dir,
@@ -239,11 +239,11 @@ def test_add_missing_images_manifest_entries_genuinely_new_image_renders_new(ima
         ),
     )
 
-    assert skipped == []
-    assert added == ["zac - opentelemetry-collector-contrib"]
-    assert "opentelemetry-collector-contrib 0.158.0 (new)" in new_text
-    assert "0.158.0 -> 0.158.0" not in new_text
-    assert "(digest changed)" not in new_text
+    assert result.skipped_names == []
+    assert result.added_names == ["zac - opentelemetry-collector-contrib"]
+    assert "opentelemetry-collector-contrib 0.158.0 (new)" in result.text
+    assert "0.158.0 -> 0.158.0" not in result.text
+    assert "(digest changed)" not in result.text
 
 
 def test_add_missing_images_manifest_entries_moved_repository_gets_real_transition(tmp_path: Path):
@@ -279,7 +279,7 @@ def test_add_missing_images_manifest_entries_moved_repository_gets_real_transiti
         "openbao": {"database": {"schemaJob": {"image": {"repository": "postgres", "tag": "16-alpine@sha256:bbbb"}}}},
     }
 
-    new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
+    result = add_missing_manifest_entries(
         text,
         MissingEntriesContext(
             tmp_path,
@@ -289,10 +289,10 @@ def test_add_missing_images_manifest_entries_moved_repository_gets_real_transiti
         ),
     )
 
-    assert skipped == []
-    assert added == ["postgres"]
-    assert "# postgres 16-alpine -> 16.15-alpine" in new_text
-    assert "(new)" not in new_text
+    assert result.skipped_names == []
+    assert result.added_names == ["postgres"]
+    assert "# postgres 16-alpine -> 16.15-alpine" in result.text
+    assert "(new)" not in result.text
 
 
 def test_add_missing_images_manifest_entries_catches_same_version_changed_digest(images_manifest_chart_dir):
@@ -305,7 +305,7 @@ def test_add_missing_images_manifest_entries_catches_same_version_changed_digest
     target_values: YamlMapping = {"clamav": {"image": {"repository": "clamav/clamav", "tag": f"1.5.4@{SHA256_B}"}}}
     baseline_values: YamlMapping = {"clamav": {"image": {"repository": "clamav/clamav", "tag": f"1.5.4@{SHA256_A}"}}}
 
-    new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
+    result = add_missing_manifest_entries(
         text,
         MissingEntriesContext(
             images_manifest_chart_dir,
@@ -315,13 +315,13 @@ def test_add_missing_images_manifest_entries_catches_same_version_changed_digest
         ),
     )
 
-    assert skipped == []
-    assert added == ["clamav"]
-    assert "- name: clamav/clamav" in new_text
-    assert f'digest: "sha256:{"b" * 64}"' in new_text
+    assert result.skipped_names == []
+    assert result.added_names == ["clamav"]
+    assert "- name: clamav/clamav" in result.text
+    assert f'digest: "sha256:{"b" * 64}"' in result.text
     # Both the "# Changes:" item and the entry comment share version_text: neither may read "<v> -> <v>".
-    assert "clamav 1.5.4 (digest changed)" in new_text
-    assert "clamav 1.5.4 -> 1.5.4" not in new_text
+    assert "clamav 1.5.4 (digest changed)" in result.text
+    assert "clamav 1.5.4 -> 1.5.4" not in result.text
 
 
 def test_add_missing_images_manifest_entries_name_is_stripped_url_is_fully_qualified(images_manifest_chart_dir):
@@ -333,7 +333,7 @@ def test_add_missing_images_manifest_entries_name_is_stripped_url_is_fully_quali
         "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0@sha256:aaaa"}}
     }
 
-    new_text, added, _skipped, _backfilled = add_missing_images_manifest_entries(
+    result = add_missing_manifest_entries(
         text,
         MissingEntriesContext(
             images_manifest_chart_dir,
@@ -342,9 +342,9 @@ def test_add_missing_images_manifest_entries_name_is_stripped_url_is_fully_quali
             baseline_values={},
         ),
     )
-    assert added == ["zac"]
-    assert "- name: infonl/zaakafhandelcomponent" in new_text
-    assert "url: ghcr.io/infonl/zaakafhandelcomponent" in new_text
+    assert result.added_names == ["zac"]
+    assert "- name: infonl/zaakafhandelcomponent" in result.text
+    assert "url: ghcr.io/infonl/zaakafhandelcomponent" in result.text
 
 
 def test_add_missing_images_manifest_entries_real_version_bump_keeps_arrow_wording(images_manifest_chart_dir):
@@ -354,7 +354,7 @@ def test_add_missing_images_manifest_entries_real_version_bump_keeps_arrow_wordi
     target_values: YamlMapping = {"curl": {"image": {"repository": "curlimages/curl", "tag": f"8.22.0@{SHA256_B}"}}}
     baseline_values: YamlMapping = {"curl": {"image": {"repository": "curlimages/curl", "tag": f"8.21.0@{SHA256_A}"}}}
 
-    new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
+    result = add_missing_manifest_entries(
         text,
         MissingEntriesContext(
             images_manifest_chart_dir,
@@ -364,10 +364,10 @@ def test_add_missing_images_manifest_entries_real_version_bump_keeps_arrow_wordi
         ),
     )
 
-    assert skipped == []
-    assert added == ["curl"]
-    assert "curl 8.21.0 -> 8.22.0" in new_text
-    assert "digest changed" not in new_text
+    assert result.skipped_names == []
+    assert result.added_names == ["curl"]
+    assert "curl 8.21.0 -> 8.22.0" in result.text
+    assert "digest changed" not in result.text
 
 
 def test_add_missing_images_manifest_entries_docker_hub_repository_gets_docker_io_host(images_manifest_chart_dir):
@@ -376,7 +376,7 @@ def test_add_missing_images_manifest_entries_docker_hub_repository_gets_docker_i
     deps: list[ChartDependency] = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
     target_values: YamlMapping = {"zac": {"image": {"repository": "curlimages/curl", "tag": "8.22.0@sha256:aaaa"}}}
 
-    new_text, added, _skipped, _backfilled = add_missing_images_manifest_entries(
+    result = add_missing_manifest_entries(
         text,
         MissingEntriesContext(
             images_manifest_chart_dir,
@@ -385,9 +385,9 @@ def test_add_missing_images_manifest_entries_docker_hub_repository_gets_docker_i
             baseline_values={},
         ),
     )
-    assert added == ["zac"]
-    assert "- name: curlimages/curl" in new_text
-    assert "url: docker.io/curlimages/curl" in new_text
+    assert result.added_names == ["zac"]
+    assert "- name: curlimages/curl" in result.text
+    assert "url: docker.io/curlimages/curl" in result.text
 
 
 def test_add_missing_images_manifest_entries_separate_registry_key_is_used_for_url(images_manifest_chart_dir):
@@ -398,7 +398,7 @@ def test_add_missing_images_manifest_entries_separate_registry_key_is_used_for_u
         "zac": {"image": {"registry": "mcr.microsoft.com", "repository": "azure-cli", "tag": "2.90.0@sha256:aaaa"}}
     }
 
-    new_text, added, _skipped, _backfilled = add_missing_images_manifest_entries(
+    result = add_missing_manifest_entries(
         text,
         MissingEntriesContext(
             images_manifest_chart_dir,
@@ -407,9 +407,9 @@ def test_add_missing_images_manifest_entries_separate_registry_key_is_used_for_u
             baseline_values={},
         ),
     )
-    assert added == ["zac"]
-    assert "- name: azure-cli" in new_text
-    assert "url: mcr.microsoft.com/azure-cli" in new_text
+    assert result.added_names == ["zac"]
+    assert "- name: azure-cli" in result.text
+    assert "url: mcr.microsoft.com/azure-cli" in result.text
 
 
 def test_add_missing_images_manifest_entries_noop_when_entry_already_covers_it(images_manifest_chart_dir):
@@ -428,7 +428,7 @@ def test_add_missing_images_manifest_entries_noop_when_entry_already_covers_it(i
         "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:bbbb"}}
     }
 
-    new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
+    result = add_missing_manifest_entries(
         text,
         MissingEntriesContext(
             images_manifest_chart_dir,
@@ -437,9 +437,9 @@ def test_add_missing_images_manifest_entries_noop_when_entry_already_covers_it(i
             baseline_values,
         ),
     )
-    assert added == []
-    assert skipped == []
-    assert new_text == text
+    assert result.added_names == []
+    assert result.skipped_names == []
+    assert result.text == text
 
 
 def test_add_missing_images_manifest_entries_skips_when_no_digest_pinned(images_manifest_chart_dir):
@@ -461,7 +461,7 @@ def test_add_missing_images_manifest_entries_skips_when_no_digest_pinned(images_
         "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:bbbb"}}
     }
 
-    new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
+    result = add_missing_manifest_entries(
         text,
         MissingEntriesContext(
             images_manifest_chart_dir,
@@ -470,9 +470,9 @@ def test_add_missing_images_manifest_entries_skips_when_no_digest_pinned(images_
             baseline_values,
         ),
     )
-    assert added == []
-    assert skipped == ["zac"]
-    assert new_text == text
+    assert result.added_names == []
+    assert result.skipped_names == ["zac"]
+    assert result.text == text
 
 
 def test_add_missing_images_manifest_entries_eck_operator_split_digest_field_resolves(images_manifest_chart_dir):
@@ -491,7 +491,7 @@ def test_add_missing_images_manifest_entries_eck_operator_split_digest_field_res
     }
     baseline_values: YamlMapping = {"eck-operator": {"enabled": True}}
 
-    new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
+    result = add_missing_manifest_entries(
         text,
         MissingEntriesContext(
             images_manifest_chart_dir,
@@ -501,11 +501,11 @@ def test_add_missing_images_manifest_entries_eck_operator_split_digest_field_res
         ),
     )
 
-    assert skipped == []
-    assert added == ["eck-operator"]
-    assert "url: docker.elastic.co/eck/eck-operator" in new_text
-    assert 'version: "3.5.0"' in new_text
-    assert f'digest: "sha256:{"b" * 64}"' in new_text
+    assert result.skipped_names == []
+    assert result.added_names == ["eck-operator"]
+    assert "url: docker.elastic.co/eck/eck-operator" in result.text
+    assert 'version: "3.5.0"' in result.text
+    assert f'digest: "sha256:{"b" * 64}"' in result.text
 
 
 @pytest.fixture
@@ -592,7 +592,7 @@ def test_add_missing_images_manifest_entries_split_tag_sha_primary_gets_entry(ke
         }
     }
 
-    new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
+    result = add_missing_manifest_entries(
         text,
         MissingEntriesContext(
             keycloak_operator_chart_dir,
@@ -602,12 +602,12 @@ def test_add_missing_images_manifest_entries_split_tag_sha_primary_gets_entry(ke
         ),
     )
 
-    assert skipped == []
-    assert added == ["keycloak-operator"]
-    assert "# keycloak-operator 26.6.4 -> 26.7.2" in new_text
-    assert "- name: keycloak/keycloak-operator" in new_text
-    assert 'version: "26.7.2"' in new_text
-    assert 'digest: "sha256:9d1f1b2b"' in new_text
+    assert result.skipped_names == []
+    assert result.added_names == ["keycloak-operator"]
+    assert "# keycloak-operator 26.6.4 -> 26.7.2" in result.text
+    assert "- name: keycloak/keycloak-operator" in result.text
+    assert 'version: "26.7.2"' in result.text
+    assert 'digest: "sha256:9d1f1b2b"' in result.text
 
 
 def test_add_missing_images_manifest_entries_split_tag_sha_no_sha_override_still_skipped(keycloak_operator_chart_dir):
@@ -635,7 +635,7 @@ def test_add_missing_images_manifest_entries_split_tag_sha_no_sha_override_still
         }
     }
 
-    new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
+    result = add_missing_manifest_entries(
         text,
         MissingEntriesContext(
             keycloak_operator_chart_dir,
@@ -645,9 +645,9 @@ def test_add_missing_images_manifest_entries_split_tag_sha_no_sha_override_still
         ),
     )
 
-    assert added == []
-    assert skipped == ["keycloak-operator"]
-    assert new_text == text
+    assert result.added_names == []
+    assert result.skipped_names == ["keycloak-operator"]
+    assert result.text == text
 
 
 @pytest.fixture
@@ -681,7 +681,7 @@ def test_add_missing_images_manifest_entries_global_image_gets_one_entry_not_per
         "apiproxy": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.3@sha256:bbbb"}},
     }
 
-    new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
+    result = add_missing_manifest_entries(
         text,
         MissingEntriesContext(
             global_image_chart_dir,
@@ -691,11 +691,11 @@ def test_add_missing_images_manifest_entries_global_image_gets_one_entry_not_per
         ),
     )
 
-    assert skipped == []
-    assert added == ["nginx-unprivileged"]
-    assert new_text.count("- name: nginxinc/nginx-unprivileged") == 1
-    assert "# nginx-unprivileged 1.31.3 -> 1.31.4" in new_text
-    assert "apiproxy" not in new_text
+    assert result.skipped_names == []
+    assert result.added_names == ["nginx-unprivileged"]
+    assert result.text.count("- name: nginxinc/nginx-unprivileged") == 1
+    assert "# nginx-unprivileged 1.31.3 -> 1.31.4" in result.text
+    assert "apiproxy" not in result.text
 
 
 def test_add_missing_images_manifest_entries_skips_image_with_no_resolvable_repository(images_manifest_chart_dir):
@@ -734,7 +734,7 @@ def test_add_missing_images_manifest_entries_skips_image_with_no_resolvable_repo
         "kiss": {"adapter": {"image": {"tag": "0.6.6@sha256:dddd"}}},
     }
 
-    new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
+    result = add_missing_manifest_entries(
         text,
         MissingEntriesContext(
             images_manifest_chart_dir,
@@ -743,12 +743,12 @@ def test_add_missing_images_manifest_entries_skips_image_with_no_resolvable_repo
             baseline_values,
         ),
     )
-    assert added == ["zac"]
-    assert skipped == []  # kiss.adapter.image is excluded entirely, not reported as skipped either
-    assert "kiss" not in new_text
+    assert result.added_names == ["zac"]
+    assert result.skipped_names == []  # kiss.adapter.image is excluded entirely, not reported as skipped either
+    assert "kiss" not in result.text
 
 
-# --- remove_stale_images_manifest_entries ---
+# --- remove_stale_entries ---
 
 
 def test_remove_stale_images_manifest_entries_removes_entry_back_at_baseline(images_manifest_chart_dir):
@@ -772,7 +772,7 @@ def test_remove_stale_images_manifest_entries_removes_entry_back_at_baseline(ima
         "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:bbbb"}}
     }
 
-    new_text, removed = remove_stale_images_manifest_entries(
+    new_text, removed = remove_stale_entries(
         text, MissingEntriesContext(images_manifest_chart_dir, deps, values, values)
     )
 
@@ -803,7 +803,7 @@ def test_remove_stale_images_manifest_entries_keeps_changed_digest(images_manife
         "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": f"5.0.2@{SHA256_B}"}}
     }
 
-    new_text, removed = remove_stale_images_manifest_entries(
+    new_text, removed = remove_stale_entries(
         text, MissingEntriesContext(images_manifest_chart_dir, deps, target_values, baseline_values)
     )
 
@@ -823,15 +823,13 @@ def test_remove_stale_images_manifest_entries_keeps_entry_without_resolvable_rep
     text = '# zac 5.0.1 -> 5.0.2\n- name: zac\n  url: ghcr.io/infonl/zaakafhandelcomponent\n  version: "5.0.2"\n'
     deps: list[ChartDependency] = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
 
-    new_text, removed = remove_stale_images_manifest_entries(
-        text, MissingEntriesContext(tmp_path, deps, values, values)
-    )
+    new_text, removed = remove_stale_entries(text, MissingEntriesContext(tmp_path, deps, values, values))
 
     assert removed == []
     assert new_text == text
 
 
-# --- fix_images_manifest_entry_names ---
+# --- fix_manifest_entry_names ---
 
 
 def test_fix_images_manifest_entry_names_uses_url_minus_registry_host():
@@ -839,7 +837,7 @@ def test_fix_images_manifest_entry_names_uses_url_minus_registry_host():
     text = '- name: python\n  url: docker.io/library/python\n  version: "3.14.7-slim"\n'
     repo_map = {"library/python": ("keycloak-operator", "initImage")}
 
-    new_text, renamed = fix_images_manifest_entry_names(text, repo_map)
+    new_text, renamed = fix_manifest_entry_names(text, repo_map)
 
     assert renamed == [("python", "library/python")]
     assert new_text == '- name: library/python\n  url: docker.io/library/python\n  version: "3.14.7-slim"\n'
@@ -850,7 +848,7 @@ def test_fix_images_manifest_entry_names_leaves_known_and_unknown_names():
     text = "- name: azure-cli\n  url: mcr.microsoft.com/azure-cli\n- name: mystery\n  url: docker.io/acme/mystery\n"
     repo_map = {"azure-cli": ("mi", "image")}
 
-    new_text, renamed = fix_images_manifest_entry_names(text, repo_map)
+    new_text, renamed = fix_manifest_entry_names(text, repo_map)
 
     assert renamed == []
     assert new_text == text
@@ -861,7 +859,7 @@ def test_fix_images_manifest_entry_names_renames_a_known_name_that_is_not_its_ur
     text = '- name: "library/postgres"\n  url: docker.io/library/python\n'
     repo_map = {"library/postgres": ("zac", "db", "image"), "library/python": ("keycloak-operator", "initImage")}
 
-    new_text, renamed = fix_images_manifest_entry_names(text, repo_map)
+    new_text, renamed = fix_manifest_entry_names(text, repo_map)
 
     assert renamed == [("library/postgres", "library/python")]
     assert new_text == '- name: "library/python"\n  url: docker.io/library/python\n'
@@ -871,7 +869,7 @@ def test_fix_images_manifest_entry_names_skips_a_name_another_entry_has():
     text = "- name: python\n  url: docker.io/library/python\n- name: library/python\n  url: docker.io/library/python\n"
     repo_map = {"library/python": ("keycloak-operator", "initImage")}
 
-    new_text, renamed = fix_images_manifest_entry_names(text, repo_map)
+    new_text, renamed = fix_manifest_entry_names(text, repo_map)
 
     assert renamed == []
     assert new_text == text

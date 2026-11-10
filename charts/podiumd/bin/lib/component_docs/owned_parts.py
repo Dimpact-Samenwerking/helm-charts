@@ -8,10 +8,12 @@ are layout and get BLANK. The heading (line 0) is handled by the caller.
 import re
 
 from collections.abc import Callable
+from collections.abc import Collection
 from collections.abc import Mapping
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from lib.component_docs.doc_lines import remove_lines
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
 
 BLANK = "blank"
@@ -110,22 +112,27 @@ def replace_owned_parts(
     old_groups = set(_grouped(old_body, old_kinds))
     out: list[str] = []
     for position in range(len(old_body) + 1):
-        for kind, group in new_groups.items():
-            if anchors[kind] != position:
-                continue
-            if kind in old_groups:
-                out.extend(group)  # the old blank lines around it stay as they were
-            else:
-                gap = ["\n"] if out and out[-1].strip() else []
-                out.extend([*gap, *group, "\n"])
+        placed = {kind: group for kind, group in new_groups.items() if anchors[kind] == position}
+        _extend_with_groups(out, placed, old_groups)
         if position < len(old_body) and old_kinds[position] in {None, BLANK}:
             out.append(old_body[position])
     return _collapse_blank_runs(out)
 
 
+def _extend_with_groups(out: list[str], groups: Mapping[str, list[str]], old_groups: Collection[str]) -> None:
+    """Append the owned groups anchored at one position; a kind new to the body gets its own blank lines."""
+    for kind, group in groups.items():
+        if kind in old_groups:
+            out.extend(group)  # the old blank lines around it stay as they were
+        else:
+            gap = ["\n"] if out and out[-1].strip() else []
+            out.extend([*gap, *group, "\n"])
+
+
 def remove_owned_parts(body: Sequence[str], kinds: Sequence[str | None]) -> list[str]:
     """`body` without its owned lines; user lines and the blank lines between them stay."""
-    kept = [line for line, kind in zip(body, kinds, strict=True) if kind is None or kind == BLANK]
+    user_kinds = {None, BLANK}
+    kept = [line for line, kind in zip(body, kinds, strict=True) if kind in user_kinds]
     return _collapse_blank_runs(kept)
 
 
@@ -198,11 +205,12 @@ def remove_section_owned_parts(text: str, block: HeadingBlock | None, shape: Sec
     kinds = shape.body_kinds(body)
     if has_user_lines(kinds):
         kept = _with_section_gap(remove_owned_parts(body, kinds), followed=end < len(lines))
-        new_text = "".join([*lines[: start + 1], *kept, *lines[end:]])
+        heading_and_before = lines[: start + 1]
+        new_text = "".join([*heading_and_before, *kept, *lines[end:]])
         return new_text, True, True
     while end < len(lines) and not lines[end].strip():
         end += 1
-    del lines[start:end]
+    remove_lines(lines, start, end)
     return "".join(lines), True, False
 
 

@@ -82,28 +82,51 @@ def _section_issues(name: str, level2: list[MarkdownHeading]) -> tuple[list[str]
     not a section of the layout again."""
     issues: list[str] = []
     found: dict[int, MarkdownHeading] = {}
-    last_index, last_text = -1, ""
+    last: tuple[int, str] = (-1, "")
     for heading in level2:
         index = _section_index(heading)
         if index is None:
             if _CHANGES_INDEX not in found:
-                issues.append(
-                    f'{name}: "## {heading.text}" is not a section of the layout; move it under one of A to F, '
-                    f'or after "## Changes" as a reference section'
-                )
+                issues.append(_unknown_section_issue(name, heading))
             continue
-        if index in found:
-            issues.append(f'{name}: "## {heading.text}" appears twice')
-        elif index < last_index:
-            issues.append(f'{name}: "## {heading.text}" comes after "## {last_text}"; the order is {_ORDER}')
+        issue = _placement_issue(name, heading, index, found, last)
+        if issue is not None:
+            issues.append(issue)
         found.setdefault(index, heading)
-        last_index, last_text = max((index, heading.text), (last_index, last_text))
+        last = max((index, heading.text), last)
+    issues.extend(_missing_section_issues(name, found))
+    return issues, found
+
+
+def _placement_issue(
+    name: str, heading: MarkdownHeading, index: int, found: dict[int, MarkdownHeading], last: tuple[int, str]
+) -> str | None:
+    """The repeat or misorder finding for layout section `index`, given the (index, text) of the latest so far."""
+    if index in found:
+        return f'{name}: "## {heading.text}" appears twice'
+    last_index, last_text = last
+    if index < last_index:
+        return f'{name}: "## {heading.text}" comes after "## {last_text}"; the order is {_ORDER}'
+    return None
+
+
+def _unknown_section_issue(name: str, heading: MarkdownHeading) -> str:
+    """The finding for a "##" heading before "## Changes" that is not a layout section."""
+    return (
+        f'{name}: "## {heading.text}" is not a section of the layout; move it under one of A to F, '
+        f'or after "## Changes" as a reference section'
+    )
+
+
+def _missing_section_issues(name: str, found: dict[int, MarkdownHeading]) -> list[str]:
+    """A finding per layout section not in `found`, naming the present section it belongs after."""
+    issues: list[str] = []
     for index, section in enumerate(UPGRADE_GUIDE_SECTIONS):
         if index not in found:
-            before = [UPGRADE_GUIDE_SECTIONS[position] for position in range(index) if position in found]
-            after = f' after "## {found[UPGRADE_GUIDE_SECTIONS.index(before[-1])].text}"' if before else ""
+            before = [position for position in range(index) if position in found]
+            after = f' after "## {found[before[-1]].text}"' if before else ""
             issues.append(f'{name}: missing "## {section}"{after}')
-    return issues, found
+    return issues
 
 
 def _if_the_run_fails_issues(name: str, headings: list[MarkdownHeading], deploy_run: MarkdownHeading) -> list[str]:
@@ -137,16 +160,7 @@ def upgrade_guide_layout_issues(name: str, text: str, upgrade_docs_baseline: str
     lines = text.splitlines(keepends=True)
     opening = "".join(lines[: level2[0].line] if level2 else lines)
 
-    issues: list[str] = []
-    if BASELINE_INTRO_RE.search(opening) is None:
-        issues.append(
-            f"{name}: the opening does not say which version it starts from "
-            f'("For environments already on **{upgrade_docs_baseline}**."; doc-consistency checks the version)'
-        )
-    deltas = doc_name(upgrade_docs_baseline, target, "values-deltas")
-    if f"]({deltas})" not in opening:
-        issues.append(f"{name}: the opening does not link the companion {deltas}")
-
+    issues = _guide_opening_issues(name, opening, upgrade_docs_baseline, target)
     section_issues, found = _section_issues(name, level2)
     issues.extend(section_issues)
     deploy_run = found.get(UPGRADE_GUIDE_SECTIONS.index(DEPLOY_RUN_SECTION))
@@ -156,6 +170,20 @@ def upgrade_guide_layout_issues(name: str, text: str, upgrade_docs_baseline: str
         position in found for position in _RUNBOOK_INDICES
     ):
         issues.extend(_checklist_link_issues(name, lines, found))
+    return issues
+
+
+def _guide_opening_issues(name: str, opening: str, upgrade_docs_baseline: str, target: str) -> list[str]:
+    """Findings for the upgrade guide's text before its first "##" section."""
+    issues: list[str] = []
+    if BASELINE_INTRO_RE.search(opening) is None:
+        issues.append(
+            f"{name}: the opening does not say which version it starts from "
+            f'("For environments already on **{upgrade_docs_baseline}**."; doc-consistency checks the version)'
+        )
+    deltas = doc_name(upgrade_docs_baseline, target, "values-deltas")
+    if f"]({deltas})" not in opening:
+        issues.append(f"{name}: the opening does not link the companion {deltas}")
     return issues
 
 
@@ -204,8 +232,22 @@ def check_upgrade_doc_layout(chart_dir: Path):
         return True, f"{target} is released — skipped"
     if released is None:
         print(f"WARNING: no git repository, so whether {target} is released is unknown — checking its docs anyway")
-    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
+    checked, issues = _hop_layout_issues(chart_dir, baseline, target)
+    if not checked:
+        print(f"no {baseline}-to-{target} upgrade guide or values-deltas doc — nothing to check")
+        return True, "no matching docs found — skipped"
+    if issues:
+        print(f"WARNING: {len(issues)} layout issue(s) (report only); the layout is in {CHECKLIST_PATH}:")
+        for issue in issues:
+            print(" ", issue)
+        return True, f"{len(issues)} layout issue(s) (report-only, not a failure)"
+    print(f"OK: {', '.join(checked)} follow {CHECKLIST_PATH}")
+    return True, f"layout of {', '.join(checked)} OK"
 
+
+def _hop_layout_issues(chart_dir: Path, baseline: str, target: str) -> tuple[list[str], list[str]]:
+    """(checked doc names, layout findings) for the upgrade docs from `baseline` and its side paths to `target`."""
+    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
     # A missing doc is the doc-consistency step's finding.
     checked: list[str] = []
     issues: list[str] = []
@@ -220,14 +262,4 @@ def check_upgrade_doc_layout(chart_dir: Path):
         if deltas.is_file():
             checked.append(deltas.name)
             issues.extend(values_deltas_layout_issues(deltas.name, deltas.read_text(encoding="utf-8")))
-
-    if not checked:
-        print(f"no {baseline}-to-{target} upgrade guide or values-deltas doc — nothing to check")
-        return True, "no matching docs found — skipped"
-    if issues:
-        print(f"WARNING: {len(issues)} layout issue(s) (report only); the layout is in {CHECKLIST_PATH}:")
-        for issue in issues:
-            print(" ", issue)
-        return True, f"{len(issues)} layout issue(s) (report-only, not a failure)"
-    print(f"OK: {', '.join(checked)} follow {CHECKLIST_PATH}")
-    return True, f"layout of {', '.join(checked)} OK"
+    return checked, issues

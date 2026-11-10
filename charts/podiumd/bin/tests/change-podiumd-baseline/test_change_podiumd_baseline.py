@@ -8,9 +8,7 @@ from types import ModuleType
 
 import pytest
 
-
-def git(*args, cwd):
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
+from tests.git_repo import git
 
 
 @pytest.fixture

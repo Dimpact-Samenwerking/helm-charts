@@ -158,7 +158,7 @@ class RepositoryResolver:  # pylint: disable=too-few-public-methods  # one query
             return None
 
         sub_values = self._subchart_values(dep)
-        repo = field_text(sub_values, path[1:], "repository") if sub_values is not None else None
+        repo = None if sub_values is None else field_text(sub_values, path[1:], "repository")
         return formatted_repo(repo) if isinstance(repo, str) and repo else None
 
     def _subchart_values(self, dep: ChartDependency):
@@ -322,7 +322,7 @@ def canonical_sidecar_row_names(
     bump never gets two row names. Deterministic; no fuzzy matching.
     """
     sidecar_paths, global_paths, primary_paths = _classify_image_paths(chart_dir, deps, paths)
-    covered_repos = _global_repository_set(values, global_paths) | set(
+    covered_repos = global_repository_set(values, global_paths) | set(
         repository_path_map(chart_dir, deps, values, primary_paths)
     )
 
@@ -355,27 +355,30 @@ def _classify_image_paths(
 ) -> tuple[list[ValuesPath], list[ValuesPath], list[ValuesPath]]:
     """(sidecar_paths, global_paths, primary_paths) split of `paths`; ownerless paths are in none."""
     natives = native_components(chart_dir)
-    sidecar_paths: list[ValuesPath] = []
-    global_paths: list[ValuesPath] = []
-    primary_paths: list[ValuesPath] = []
+    by_kind: dict[str, list[ValuesPath]] = {"sidecar": [], "global": [], "primary": []}
     for path in paths:
-        if not path:
-            continue
-        if path[0] == "global":
-            global_paths.append(path)
-            continue
-        owner_name = _owner_name(deps, natives, path)
-        if owner_name is None:
-            continue
-        if is_primary_rel_path(owner_name, ".".join(path[1:]), chart_dir):
-            primary_paths.append(path)
-        else:
-            sidecar_paths.append(path)
-    return sidecar_paths, global_paths, primary_paths
+        kind = _image_path_kind(chart_dir, deps, natives, path)
+        if kind is not None:
+            by_kind[kind].append(path)
+    return by_kind["sidecar"], by_kind["global"], by_kind["primary"]
 
 
-def _global_repository_set(values: YamlMapping, global_paths: list[ValuesPath]) -> set[str]:
-    """The stripped repositories of `global_paths`, excluded from sidecar row names."""
+def _image_path_kind(
+    chart_dir: Path | None, deps: list[ChartDependency], natives: frozenset[str], path: ValuesPath
+) -> str | None:
+    """ "global", "primary" or "sidecar" for image `path`; None for an empty or ownerless path."""
+    if not path:
+        return None
+    if path[0] == "global":
+        return "global"
+    owner_name = _owner_name(deps, natives, path)
+    if owner_name is None:
+        return None
+    return "primary" if is_primary_rel_path(owner_name, ".".join(path[1:]), chart_dir) else "sidecar"
+
+
+def global_repository_set(values: YamlMapping, global_paths: list[ValuesPath]) -> set[str]:
+    """The stripped repositories of `global_paths`."""
     global_repos: set[str] = set()
     for path in global_paths:
         repo = field_text(values, path, "repository")

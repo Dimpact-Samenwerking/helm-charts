@@ -5,7 +5,6 @@ calls it (e.g. `libyamllintcheck`), not on `vp`: each module binds its own name.
 """
 
 import importlib.util
-import subprocess
 import sys
 
 from collections.abc import Callable
@@ -45,7 +44,7 @@ import lib.image.upgrade_cache as image_upgrade_cache
 import lib.image.upgrade_check as image_upgrade_check
 import lib.upgradedoc.app_version_and_image_paths as upgradedoc_app_version_and_image_paths
 import lib.upgradedoc.consistency_checks as upgradedoc_consistency_checks
-import lib.upgradedoc.grouped_comments_and_changes_block as upgradedoc_grouped_comments_and_changes_block
+import lib.upgradedoc.grouped_comments as upgradedoc_grouped_comments_and_changes_block
 import lib.upgradedoc.images_manifest_list_diff as upgradedoc_images_manifest_list_diff
 import lib.upgradedoc.images_manifest_ordering as upgradedoc_images_manifest_ordering
 import lib.upgradedoc.resolve_component_row as upgradedoc_resolve_component_row
@@ -58,6 +57,12 @@ from lib import registry
 from lib import release_secret_size
 from lib import render_scope
 from lib import settings
+from tests.chart_repo import GEMEENTE_DOC_PATH
+from tests.chart_repo import IMAGES_MANIFEST_PATH
+from tests.chart_repo import UPGRADE_DOC_PATH
+from tests.chart_repo import VALUES_DELTAS_PATH
+from tests.chart_repo import commit_hop
+from tests.chart_repo import commit_text_baseline
 
 
 def _load_module():
@@ -259,10 +264,6 @@ def libsettings() -> ModuleType:
     return settings
 
 
-def _chart_repo_git(*args, cwd):
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
-
-
 _CHART_REPO_CHART_YAML = """\
 apiVersion: v2
 name: podiumd
@@ -331,36 +332,19 @@ def _chart_repo_values_yaml(app_version):
 @pytest.fixture
 def chart_repo(tmp_path: Path):
     """Baseline commit (tagged podiumd-4.8.5) has ZAC 5.0.2; HEAD bumps it to 5.4.3 with matching docs."""
-    repo_root = tmp_path
-    chart_dir = repo_root / "charts" / "podiumd"
-    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
-    images_dir = chart_dir / "docs" / "images"
-    for d in (doc_dir, images_dir):
-        d.mkdir(parents=True)
-
-    _chart_repo_git("init", "-q", cwd=repo_root)
-    _chart_repo_git("config", "user.email", "test@example.com", cwd=repo_root)
-    _chart_repo_git("config", "user.name", "Test", cwd=repo_root)
-
-    (chart_dir / "Chart.yaml").write_text(_CHART_REPO_CHART_YAML)
-    (chart_dir / "values.yaml").write_text(_chart_repo_values_yaml("5.0.2"))
-    _chart_repo_git("add", "-A", cwd=repo_root)
-    _chart_repo_git("commit", "-q", "-m", "baseline", cwd=repo_root)
-    _chart_repo_git("tag", "podiumd-4.8.5", cwd=repo_root)
-
-    (chart_dir / "values.yaml").write_text(_chart_repo_values_yaml("5.4.3"))
-    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        _CHART_REPO_UPGRADE_DOC.format(baseline="4.8.5", app_source="5.0.2", app_target="5.4.3")
+    chart_dir = commit_text_baseline(tmp_path, _CHART_REPO_CHART_YAML, _chart_repo_values_yaml("5.0.2"))
+    versions = {"baseline": "4.8.5", "app_source": "5.0.2", "app_target": "5.4.3"}
+    commit_hop(
+        chart_dir,
+        "bump zac to 5.4.3",
+        {
+            "values.yaml": _chart_repo_values_yaml("5.4.3"),
+            UPGRADE_DOC_PATH: _CHART_REPO_UPGRADE_DOC.format(**versions),
+            GEMEENTE_DOC_PATH: _CHART_REPO_GEMEENTE_DOC.format(baseline="4.8.5"),
+            VALUES_DELTAS_PATH: _CHART_REPO_VALUES_DELTAS_DOC.format(**versions),
+            IMAGES_MANIFEST_PATH: _CHART_REPO_IMAGES_MANIFEST.format(**versions),
+        },
     )
-    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(_CHART_REPO_GEMEENTE_DOC.format(baseline="4.8.5"))
-    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
-        _CHART_REPO_VALUES_DELTAS_DOC.format(baseline="4.8.5", app_source="5.0.2", app_target="5.4.3")
-    )
-    (images_dir / "images-4.9.0.yaml").write_text(
-        _CHART_REPO_IMAGES_MANIFEST.format(baseline="4.8.5", app_source="5.0.2", app_target="5.4.3")
-    )
-    _chart_repo_git("add", "-A", cwd=repo_root)
-    _chart_repo_git("commit", "-q", "-m", "bump zac to 5.4.3", cwd=repo_root)
 
     return chart_dir
 

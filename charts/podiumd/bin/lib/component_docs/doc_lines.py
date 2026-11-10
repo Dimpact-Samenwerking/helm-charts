@@ -1,6 +1,14 @@
 """Line-list helpers shared by the upgrade.md and values-deltas.md section writers."""
 
 
+def remove_lines(lines: list[str], start: int, end: int | None = None) -> None:
+    """Remove lines[start:end] in place: callers keep working on the same list."""
+    first, last, _step = slice(start, end).indices(len(lines))
+    kept = lines[:first] + lines[max(first, last) :]
+    lines.clear()
+    lines.extend(kept)
+
+
 def is_bare_placeholder_span(lines: list[str], start: int, end: int, placeholder_text: str):
     """True if lines[start:end] holds only blank lines and exactly one line
     equal to placeholder_text (stripped). Exact match on purpose: human
@@ -9,7 +17,7 @@ def is_bare_placeholder_span(lines: list[str], start: int, end: int, placeholder
     return non_blank == [placeholder_text.strip()]
 
 
-def normalize_blank_line_before_insert(lines: list[str], insert_at: int):
+def normalize_blank_before_insert(lines: list[str], insert_at: int):
     """Ensure exactly one blank line before insert_at, returning the shifted
     index. Section text starts with a heading and the preceding trailing blank
     may already be gone (EOF collapsing), which would break MD022/MD032."""
@@ -22,12 +30,12 @@ def normalize_blank_line_before_insert(lines: list[str], insert_at: int):
         lines.insert(insert_at, "\n")
         insert_at += 1
     elif blank_count > 1:
-        del lines[insert_at - (blank_count - 1) : insert_at]
+        remove_lines(lines, insert_at - (blank_count - 1), insert_at)
         insert_at -= blank_count - 1
     return insert_at
 
 
-def _find_standalone_placeholder_line(lines: list[str], end: int, placeholder_text: str):
+def _find_placeholder_line(lines: list[str], end: int, placeholder_text: str):
     """Index of a line in lines[:end] that stripped-equals placeholder_text
     and is its own paragraph (blank or doc edge on both sides), else None.
     Other content may surround it, e.g. the intro blockquote."""
@@ -42,14 +50,14 @@ def _find_standalone_placeholder_line(lines: list[str], end: int, placeholder_te
     return None
 
 
-def strip_standalone_placeholder_line(lines: list[str], end: int, placeholder_text: str):
+def strip_placeholder_line(lines: list[str], end: int, placeholder_text: str):
     """Remove that standalone placeholder line in place, collapsing the
     double blank left behind. Returns True if a line was removed."""
-    idx = _find_standalone_placeholder_line(lines, end, placeholder_text)
+    idx = _find_placeholder_line(lines, end, placeholder_text)
     if idx is None:
         return False
-    del lines[idx]
+    lines.pop(idx)
     in_range = 0 < idx < len(lines)
     if in_range and not lines[idx].strip() and not lines[idx - 1].strip():
-        del lines[idx]
+        lines.pop(idx)
     return True

@@ -77,6 +77,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
+from typing import NamedTuple
 from typing import ParamSpec
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -91,7 +92,7 @@ from lib.checks.cve import check_cves
 from lib.checks.cve_diff import check_cve_diff
 from lib.checks.digest_pinning import check_digest_pinning
 from lib.checks.digest_pinning import check_shared_image_usage
-from lib.checks.digest_pinning import check_subchart_image_visibility
+from lib.checks.digest_pinning import check_subchart_images
 from lib.checks.dry import check_dry
 from lib.checks.duplicate_keys import check_duplicate_keys
 from lib.checks.helm_docs import check_helm_docs
@@ -123,7 +124,7 @@ from lib.render_scope import render_chart
 from lib.render_scope import report_errors_by_subchart
 from lib.render_scope import report_largest_templates
 from lib.repo_access import check_repo_access
-from lib.settings import render_report_top_n_largest_templates_shown
+from lib.settings import render_report_top_n
 
 # Only what main() calls; tests import checks from their lib modules directly.
 
@@ -166,6 +167,16 @@ def check_utf8_format(chart_dir: Path):
     return True, "no BOM"
 
 
+def _recorded_baselines(chart_dir: Path) -> list[tuple[str, str | None]]:
+    """(key, version or None when missing) for each baseline release-baseline.yaml records."""
+    side_paths = release_baseline_basics.upgrade_docs_side_paths(chart_dir)
+    return [
+        ("upgrade_docs", release_baseline_basics.upgrade_docs_baseline(chart_dir)),
+        ("release_table", release_baseline_basics.release_table_baseline(chart_dir)),
+        *(("side_paths", side) for side in side_paths),
+    ]
+
+
 def check_release_baseline(chart_dir: Path):
     """(ok, detail): both release-baseline.yaml keys, and every side path, resolve to a real release.
 
@@ -178,11 +189,7 @@ def check_release_baseline(chart_dir: Path):
 
     failures: list[str] = []
     resolved: list[str] = []
-    for key, baseline in (
-        ("upgrade_docs", release_baseline_basics.upgrade_docs_baseline(chart_dir)),
-        ("release_table", release_baseline_basics.release_table_baseline(chart_dir)),
-        *(("side_paths", side) for side in release_baseline_basics.upgrade_docs_side_paths(chart_dir)),
-    ):
+    for key, baseline in _recorded_baselines(chart_dir):
         if baseline is None:
             failures.append(f"{key}: missing from {baselines_file.name}")
             continue
@@ -194,8 +201,7 @@ def check_release_baseline(chart_dir: Path):
         resolved.append(f"{key} -> {ref}")
 
     if failures:
-        for failure in failures:
-            print(f"FAIL: {failure}")
+        print("\n".join(f"FAIL: {failure}" for failure in failures))
         return False, "; ".join(failures)
     return True, ", ".join(resolved)
 
@@ -228,7 +234,7 @@ def check_render(chart_dir: Path, extra_args: list[str]):
     if doc_count <= 0:
         return False, "rendered 0 manifests"
 
-    report_largest_templates(result.stdout, render_report_top_n_largest_templates_shown(chart_dir))
+    report_largest_templates(result.stdout, render_report_top_n(chart_dir))
     detail = f"{doc_count} manifests"
     print(f"OK: rendered {detail}")
     return True, detail
@@ -363,6 +369,14 @@ class StepRunner:
     results: list[StepResult] = field(default_factory=list)
     failed_or_blocked: set[str] = field(default_factory=set)
 
+    def record_skipped(self, name: str) -> None:
+        """Report step `name` as skipped by --include or --skip."""
+        if self.include_flags:
+            print(f"SKIPPED (not included via --include={','.join(self.include_flags)})")
+        else:
+            print(f"SKIPPED (--skip={','.join(self.skip_flags)})")
+        self.results.append((name, None, "skipped"))
+
     def run(
         self,
         name: str,
@@ -374,11 +388,7 @@ class StepRunner:
         """Run one step unless skipped or blocked by a failed prerequisite; record its result."""
         log(title)
         if name in self.skipped_steps:
-            if self.include_flags:
-                print(f"SKIPPED (not included via --include={','.join(self.include_flags)})")
-            else:
-                print(f"SKIPPED (--skip={','.join(self.skip_flags)})")
-            self.results.append((name, None, "skipped"))
+            self.record_skipped(name)
             return
 
         blocking = sorted(prerequisites_for(name) & self.failed_or_blocked)
@@ -395,8 +405,17 @@ class StepRunner:
             self.failed_or_blocked.add(name)
 
 
-def _parse_cli_args():
-    """(args, skipped_steps, skip_flags, include_flags) from argv."""
+class CliArgs(NamedTuple):
+    """The parsed argv and the steps it skips."""
+
+    args: argparse.Namespace
+    skipped_steps: set[str]
+    skip_flags: list[str]
+    include_flags: list[str]
+
+
+def _parse_cli_args() -> CliArgs:
+    """The parsed argv, with the steps --skip or --include leave out."""
     parser = argparse.ArgumentParser(
         description="Verify the podiumd chart: run every check step and print a summary.\nExits 1 when a step fails.",
         epilog=STEPS_HELP + REQUIRED_TOOLS_HELP,
@@ -455,15 +474,11 @@ def _parse_cli_args():
     else:
         skipped_steps = {dict(SKIPPABLE_STEPS)[flag] for flag in skip_flags}
 
-    return args, skipped_steps, skip_flags, include_flags
+    return CliArgs(args, skipped_steps, skip_flags, include_flags)
 
 
-def run_all_steps(runner: StepRunner, chart_dir: Path, args: argparse.Namespace):
-    """Run every step in SKIPPABLE_STEPS order.
-
-    An explicit skip never marks a step failed_or_blocked, so it never blocks
-    an included step.
-    """
+def run_file_scan_steps(runner: StepRunner, chart_dir: Path) -> None:
+    """The steps that scan chart files without parsing them as a whole."""
     runner.run("UTF-8 format", "UTF-8 format check", check_utf8_format, chart_dir)
     runner.run("Dupe check", "Duplicate key scan", check_duplicate_keys, chart_dir)
     runner.run("DRY check", "Template duplication scan", check_dry, chart_dir)
@@ -481,6 +496,10 @@ def run_all_steps(runner: StepRunner, chart_dir: Path, args: argparse.Namespace)
     runner.run(
         "Vendored tgz", "Checking for extracted dirs shadowing a pinned .tgz", check_vendored_tgz_extraction, chart_dir
     )
+
+
+def run_doc_and_repo_steps(runner: StepRunner, chart_dir: Path) -> None:
+    """The release baseline, version and doc checks, then the repository access check."""
     runner.run(
         "Release baseline", "Checking release-baseline resolves to a real release", check_release_baseline, chart_dir
     )
@@ -507,6 +526,9 @@ def run_all_steps(runner: StepRunner, chart_dir: Path, args: argparse.Namespace)
         chart_dir,
     )
 
+
+def run_dependency_steps(runner: StepRunner, chart_dir: Path) -> None:
+    """Re-vendor the dependencies, then check the versions against the upgrade docs."""
     log("Ensuring dependency repos are configured")
     ok, msg = ensure_repos_configured(chart_dir)
     if not ok:
@@ -524,11 +546,13 @@ def run_all_steps(runner: StepRunner, chart_dir: Path, args: argparse.Namespace)
         release_baseline_basics.upgrade_docs_side_paths(chart_dir),
     )
 
-    extra_args = lint_args_for(chart_dir)
+
+def run_render_steps(runner: StepRunner, chart_dir: Path, extra_args: list[str]) -> None:
+    """The image checks and the steps on the rendered chart."""
     runner.run(
         "Subchart image visibility",
         "Checking for images defined only in a vendored sub-chart's own default values.yaml",
-        check_subchart_image_visibility,
+        check_subchart_images,
         chart_dir,
         extra_args,
     )
@@ -551,6 +575,10 @@ def run_all_steps(runner: StepRunner, chart_dir: Path, args: argparse.Namespace)
     runner.run("Full render", "Full render", check_render, chart_dir, extra_args)
     runner.run("yamllint", "yamllint (rendered output)", check_yamllint, chart_dir, extra_args)
     runner.run("kubeconform", "kubeconform (rendered output)", check_kubeconform, chart_dir, extra_args)
+
+
+def run_scan_steps(runner: StepRunner, chart_dir: Path, extra_args: list[str], args: argparse.Namespace) -> None:
+    """The shell, resource, upgrade and CVE scans, the slowest steps."""
     runner.run("shellcheck", "shellcheck (embedded shell scripts)", check_shellcheck, chart_dir, extra_args)
     runner.run("kube-score", "kube-score (resource requests/limits)", check_kube_score, chart_dir, extra_args)
     runner.run(
@@ -581,7 +609,21 @@ def run_all_steps(runner: StepRunner, chart_dir: Path, args: argparse.Namespace)
     )
 
 
-def ensure_vendored_dependencies_if_skipped(chart_dir: Path, skipped_steps: set[str]):
+def run_all_steps(runner: StepRunner, chart_dir: Path, args: argparse.Namespace):
+    """Run every step in SKIPPABLE_STEPS order.
+
+    An explicit skip never marks a step failed_or_blocked, so it never blocks
+    an included step.
+    """
+    run_file_scan_steps(runner, chart_dir)
+    run_doc_and_repo_steps(runner, chart_dir)
+    run_dependency_steps(runner, chart_dir)
+    extra_args = lint_args_for(chart_dir)
+    run_render_steps(runner, chart_dir, extra_args)
+    run_scan_steps(runner, chart_dir, extra_args, args)
+
+
+def ensure_vendored_if_skipped(chart_dir: Path, skipped_steps: set[str]):
     """With "Dependencies" skipped, re-vendor a stale state when a step that needs it still runs."""
     if "Dependencies" not in skipped_steps:
         return
@@ -595,17 +637,17 @@ def ensure_vendored_dependencies_if_skipped(chart_dir: Path, skipped_steps: set[
 
 def main():
     """CLI entry point."""
-    args, skipped_steps, skip_flags, include_flags = _parse_cli_args()
+    cli = _parse_cli_args()
 
     require_helm()
 
     log("Resolving chart source")
     chart_dir = resolve_chart_dir()
     print(f"Using local chart source: {chart_dir}")
-    ensure_vendored_dependencies_if_skipped(chart_dir, skipped_steps)
+    ensure_vendored_if_skipped(chart_dir, cli.skipped_steps)
 
-    runner = StepRunner(skipped_steps=skipped_steps, skip_flags=skip_flags, include_flags=include_flags)
-    run_all_steps(runner, chart_dir, args)
+    runner = StepRunner(skipped_steps=cli.skipped_steps, skip_flags=cli.skip_flags, include_flags=cli.include_flags)
+    run_all_steps(runner, chart_dir, cli.args)
 
     overall_ok = not runner.failed_or_blocked
     print_summary(runner.results, overall_ok=overall_ok)

@@ -197,7 +197,7 @@ def test_changes_heading_identities_does_not_double_count_an_alias_nested_inside
     libupgradedocbasics: ModuleType,
 ):
     """Regression: "kiss-eck" contains the word "kiss" (KISS's alias); the heading must resolve to one
-    identity, or find_changes_row_correspondence_gaps flags it as ambiguous."""
+    identity, or find_correspondence_gaps flags it as ambiguous."""
     deps = [
         {"name": "kiss", "alias": "KISS", "version": "3.0.0"},
         {"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"},

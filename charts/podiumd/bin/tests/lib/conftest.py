@@ -29,7 +29,7 @@ import lib.image.docs as image_docs
 import lib.image.version as image_version
 import lib.upgradedoc.app_version_and_image_paths as upgradedoc_app_version_and_image_paths
 import lib.upgradedoc.consistency_checks as upgradedoc_consistency_checks
-import lib.upgradedoc.grouped_comments_and_changes_block as upgradedoc_grouped_comments_and_changes_block
+import lib.upgradedoc.grouped_comments as upgradedoc_grouped_comments_and_changes_block
 import lib.upgradedoc.images_manifest_list_diff as upgradedoc_images_manifest_list_diff
 import lib.upgradedoc.images_manifest_ordering as upgradedoc_images_manifest_ordering
 import lib.upgradedoc.resolve_component_row as upgradedoc_resolve_component_row

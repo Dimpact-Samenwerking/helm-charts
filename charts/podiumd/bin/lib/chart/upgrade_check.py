@@ -31,11 +31,12 @@ from lib.json_cache import save_json_cache
 from lib.registry import chart_app_version
 from lib.registry import list_tags
 from lib.render_scope import resolve_dependency_repo
-from lib.settings import chart_upgrade_check_cache_ttl_days
+from lib.settings import chart_upgrade_cache_ttl_days
 from lib.settings import helm_repos_urls_by_alias
-from lib.settings import repo_access_request_timeout_seconds
+from lib.settings import repo_access_timeout_seconds
 from lib.version_numbers import newest_per_major
 from lib.version_numbers import stable_semver_key
+from lib.yaml_types import YamlMapping
 from lib.yaml_types import YamlShapeError
 from lib.yaml_types import parse_yaml
 from lib.yaml_types import shape_problem
@@ -73,13 +74,17 @@ def index_chart_releases(index_text: str, chart_name: str, source: str) -> dict[
         return {}
     versions: dict[str, str | None] = {}
     for release in chart_releases:
-        if not isinstance(release, dict):
-            continue
-        normalize_app_version(release)
-        version, app_version = release.get("version"), release.get("appVersion")
-        if isinstance(version, str):
-            versions[version] = app_version if isinstance(app_version, str) else None
+        if isinstance(release, dict):
+            _add_release_version(versions, release)
     return versions
+
+
+def _add_release_version(versions: dict[str, str | None], release: YamlMapping) -> None:
+    """Add one index.yaml release's version -> appVersion to `versions`; a release without a version is skipped."""
+    normalize_app_version(release)
+    version, app_version = release.get("version"), release.get("appVersion")
+    if isinstance(version, str):
+        versions[version] = app_version if isinstance(app_version, str) else None
 
 
 @dataclass(frozen=True)
@@ -120,6 +125,14 @@ def chart_sources(chart_dir: Path, deps: list[ChartDependency]) -> list[ChartSou
     return sources
 
 
+def _decoded_index(raw: bytes, index_url: str) -> str:
+    """index.yaml as text; not UTF-8 counts as a malformed index."""
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise YamlShapeError(index_url, f"not UTF-8 ({error.reason})") from error
+
+
 @dataclass
 class Fetcher:
     """Published versions per source; an index.yaml is downloaded once per repository."""
@@ -141,7 +154,7 @@ class Fetcher:
             index_url = f"{source.repository}/index.yaml"
             # index_url comes from Chart.yaml/settings.yaml, never an attacker-controlled scheme.
             with urlopen(index_url, timeout=self.timeout_seconds) as resp:  # nosec B310
-                self.index_texts[source.repository] = resp.read().decode("utf-8")
+                self.index_texts[source.repository] = _decoded_index(resp.read(), index_url)
         releases = index_chart_releases(self.index_texts[source.repository], source.chart, source.repository)
         newer = newer_stable_versions(source.version, list(releases))
         return newer, [releases[version] for version in newer]
@@ -161,7 +174,7 @@ def _scan(chart_dir: Path, sources: list[ChartSource], ttl_days: int) -> ChartUp
     cache_path = cache_file(chart_dir, CACHE_FILENAME)
     old_cache = load_json_cache(cache_path, is_chart_upgrade_entry)
     new_cache: dict[str, ChartUpgradeEntry] = {}
-    fetcher = Fetcher(repo_access_request_timeout_seconds(chart_dir))
+    fetcher = Fetcher(repo_access_timeout_seconds(chart_dir))
     scan = ChartUpgradeScan()
     for position, source in enumerate(sources, 1):
         cached = old_cache.get(source.cache_key)
@@ -173,7 +186,8 @@ def _scan(chart_dir: Path, sources: list[ChartSource], ttl_days: int) -> ChartUp
             print(f"  {progress} checking {source.name} ({source.chart} {source.version})...", flush=True)
             try:
                 newer, app_versions = fetcher.newer(source)
-            except (OSError, UnicodeDecodeError, YamlShapeError) as error:  # URLError is an OSError
+            # URLError is an OSError; an undecodable or malformed index.yaml is a YamlShapeError.
+            except (OSError, YamlShapeError) as error:
                 print(f"  [FETCH-ERR] {source.name}  {error}")
                 scan.fetch_errors.append(source)
                 continue
@@ -218,7 +232,7 @@ def check_chart_upgrades(chart_dir: Path) -> tuple[bool, str]:
 
     Always returns True; the detail counts upgradable charts and fetch errors.
     """
-    ttl_days = chart_upgrade_check_cache_ttl_days(chart_dir)
+    ttl_days = chart_upgrade_cache_ttl_days(chart_dir)
     sources = chart_sources(chart_dir, load_chart_dependencies(chart_dir / "Chart.yaml"))
     print(f"Checking {len(sources)} dependency chart(s) for a newer published version...")
     scan = _scan(chart_dir, sources, ttl_days)

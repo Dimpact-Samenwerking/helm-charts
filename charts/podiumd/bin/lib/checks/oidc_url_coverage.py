@@ -64,21 +64,24 @@ def _redirect_uri_items(block: list[str]) -> list[str]:
     while index < len(block):
         key_m = REDIRECT_URIS_KEY_RE.match(block[index])
         index += 1
-        if key_m is None:
-            continue
-        key_indent = len(key_m.group("indent"))
-        while index < len(block):
-            line = block[index]
-            stripped = line.strip()
-            if not stripped or stripped.startswith(("#", "{{")):
-                index += 1
-                continue
-            item_m = LIST_ITEM_RE.match(line)
-            if item_m is None or len(item_m.group("indent")) < key_indent:
-                break
-            items.append(item_m.group("value"))
-            index += 1
+        if key_m is not None:
+            key_items, index = _list_items_from(block, index, len(key_m.group("indent")))
+            items.extend(key_items)
     return items
+
+
+def _list_items_from(block: list[str], index: int, key_indent: int) -> tuple[list[str], int]:
+    """(items, index after them) of the list starting at block[index] under a key at `key_indent`."""
+    items: list[str] = []
+    for offset, line in enumerate(block[index:]):
+        stripped = line.strip()
+        if not stripped or stripped.startswith(("#", "{{")):
+            continue
+        item_m = LIST_ITEM_RE.match(line)
+        if item_m is None or len(item_m.group("indent")) < key_indent:
+            return items, index + offset
+        items.append(item_m.group("value"))
+    return items, len(block)
 
 
 def scan_oidc_url_coverage(text: str) -> tuple[list[ClientItem], list[ClientItem]] | None:

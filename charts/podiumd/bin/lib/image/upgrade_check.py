@@ -38,7 +38,7 @@ from lib.image.upgrade_cache import load_cache
 from lib.image.upgrade_cache import save_cache
 from lib.registry import find_newer_same_variant_tags
 from lib.registry import parse_repo
-from lib.settings import image_upgrade_tag_check_cache_ttl_days
+from lib.settings import image_upgrade_cache_ttl_days
 
 
 @dataclass
@@ -203,7 +203,7 @@ def check_image_upgrades(chart_dir: Path, extra_args: list[str]):
     Returns (True, "upgradable: X/Y own, ...") regardless of findings, or
     (False, "helm template failed to render") if the render fails.
     """
-    ttl_days = image_upgrade_tag_check_cache_ttl_days(chart_dir)
+    ttl_days = image_upgrade_cache_ttl_days(chart_dir)
 
     classification = classify_rendered_images(chart_dir, extra_args)
     if classification is None:

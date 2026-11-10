@@ -157,7 +157,7 @@ def changes_section_bounds(lines: list[str]) -> tuple[int | None, int]:
     return changes_idx, next_level2_line(headings, changes_idx, len(lines))
 
 
-def parse_upgrade_doc_changes_blocks(text: str) -> list[HeadingBlock]:
+def parse_changes_blocks(text: str) -> list[HeadingBlock]:
     """HeadingBlocks for each "### ..." item under "## Changes"; [] if no such section.
 
     end is the next "### "/"## " heading or EOF. "#### ..." sub-headings stay part
@@ -187,7 +187,7 @@ def _heading_blocks(headings: Sequence[MarkdownHeading], end: int) -> list[Headi
 
 def changes_blocks_with_lines(text: str) -> tuple[list[str], list[HeadingBlock]]:
     """(text's lines with line ends, its "### ..." blocks under "## Changes"), for scans that index both."""
-    return text.splitlines(keepends=True), parse_upgrade_doc_changes_blocks(text)
+    return text.splitlines(keepends=True), parse_changes_blocks(text)
 
 
 def block_for_component(
@@ -271,7 +271,7 @@ def sort_changes_blocks(text: str, ordering: OrderingContext) -> tuple[str, list
     """Reorder the "## Changes" "### ..." blocks into values.yaml order.
 
     Returns (new_text, moved) as sort_upgrade_doc_rows does."""
-    blocks = parse_upgrade_doc_changes_blocks(text)
+    blocks = parse_changes_blocks(text)
     order, moved = _doc_item_order([block["heading"] for block in blocks], ordering)
     if not moved:
         return text, []

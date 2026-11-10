@@ -20,10 +20,12 @@ from lib.chart.values_tree_primitives import values_key_of
 from lib.procutil import RunResult
 from lib.procutil import run
 from lib.settings import helm_repos_urls_by_alias
-from lib.settings import vendor_classification_chart_overrides
+from lib.settings import vendor_chart_overrides
 from lib.settings import vendor_classification_keywords
 from lib.yaml_types import YamlMapping
+from lib.yaml_types import YamlValue
 from lib.yaml_types import is_yaml_mapping
+from lib.yaml_types import is_yaml_value
 
 CHART_NAME = "podiumd"
 
@@ -159,7 +161,7 @@ def friendly_vendor_charts(chart_dir: Path) -> dict[str, str]:
     Other vendored charts stay count-only."""
     required_repos = helm_repos_urls_by_alias(chart_dir)
     keywords = vendor_classification_keywords(chart_dir)
-    chart_overrides = vendor_classification_chart_overrides(chart_dir)
+    chart_overrides = vendor_chart_overrides(chart_dir)
 
     deps = load_chart_dependencies(chart_dir / "Chart.yaml")
     dep_chart_names = {values_key_of(dep) for dep in deps}
@@ -169,16 +171,18 @@ def friendly_vendor_charts(chart_dir: Path) -> dict[str, str]:
     # would silently inherit an override meant for a specific chart.
     mapping = {name: vendor for name, vendor in chart_overrides.items() if name in dep_chart_names}
     for dep in deps:
-        chart_name = values_key_of(dep)
-        repo = resolve_dependency_repo(dep.get("repository", ""), required_repos)
-        if repo.startswith("file://"):
-            mapping[chart_name] = "Local"
-            continue
-        for keyword, vendor in keywords.items():
-            if keyword.lower() in repo.lower():
-                mapping[chart_name] = vendor
-                break
+        vendor = _repository_vendor(resolve_dependency_repo(dep.get("repository", ""), required_repos), keywords)
+        if vendor is not None:
+            mapping[values_key_of(dep)] = vendor
     return mapping
+
+
+def _repository_vendor(repo: str, keywords: dict[str, str]) -> str | None:
+    """The vendor label of a resolved repository: "Local" for file://, else the first keyword it contains."""
+    if repo.startswith("file://"):
+        return "Local"
+    lowered = repo.lower()
+    return next((vendor for keyword, vendor in keywords.items() if keyword.lower() in lowered), None)
 
 
 def build_line_sources(rendered_text: str) -> dict[int, str | None]:
@@ -256,29 +260,37 @@ def rendered_containers(docs: Sequence[tuple[str, str]]) -> list[RenderedContain
     """
     containers: list[RenderedContainer] = []
     for source, doc in docs:
-        try:
-            resources = list(yaml.safe_load_all(doc))
-        except yaml.YAMLError:  # noqa: S112 -- a doc that isn't YAML has no containers to report
-            continue
-        for resource in resources:
-            if not is_yaml_mapping(resource):
-                continue
-            pod_spec = _pod_spec(resource)
-            if pod_spec is None:
-                continue
-            kind, name, namespace = (
-                str(resource["kind"]),
-                text_at(resource, "metadata.name") or "",
-                text_at(resource, "metadata.namespace"),
-            )
-            for field, init in (("initContainers", True), ("containers", False)):
-                items = pod_spec.get(field)
-                listed = items if isinstance(items, list) else []
-                containers.extend(
-                    RenderedContainer(source, kind, name, namespace, pod_spec, container, init)
-                    for container in listed
-                    if is_yaml_mapping(container)
-                )
+        for resource in _doc_resources(doc):
+            if is_yaml_mapping(resource):
+                containers.extend(_workload_containers(source, resource))
+    return containers
+
+
+def _doc_resources(doc: str) -> list[object]:
+    """The YAML documents in `doc`; [] when it isn't YAML, so it has no containers to report."""
+    try:
+        return list(yaml.safe_load_all(doc))
+    except yaml.YAMLError:
+        return []
+
+
+def _workload_containers(source: str, resource: YamlMapping) -> list[RenderedContainer]:
+    """rendered_containers for one resource; [] when it is not a workload."""
+    pod_spec = _pod_spec(resource)
+    if pod_spec is None:
+        return []
+    kind = str(resource["kind"])
+    name = text_at(resource, "metadata.name") or ""
+    namespace = text_at(resource, "metadata.namespace")
+    containers: list[RenderedContainer] = []
+    for field, init in (("initContainers", True), ("containers", False)):
+        items = pod_spec.get(field)
+        listed = items if isinstance(items, list) else []
+        containers.extend(
+            RenderedContainer(source, kind, name, namespace, pod_spec, container, init)
+            for container in listed
+            if is_yaml_mapping(container)
+        )
     return containers
 
 
@@ -289,24 +301,36 @@ def build_resource_locations(rendered_text: str) -> ResourceLocations:
     lines = rendered_text.splitlines()
     marker_indices = [index for index, line in enumerate(lines) if line.startswith("# Source: ")]
     locations: ResourceLocations = {}
-    for pos, start in enumerate(marker_indices):
-        end = marker_indices[pos + 1] - 1 if pos + 1 < len(marker_indices) else len(lines)
-        doc_lines = lines[start + 1 : end]
-        if doc_lines and doc_lines[-1].strip() == "---":
-            doc_lines = doc_lines[:-1]
-        try:
-            parsed = yaml.safe_load("\n".join(doc_lines))
-        except yaml.YAMLError:  # noqa: S112 -- not a YAML resource, has no location to record
-            continue
-        if not is_yaml_mapping(parsed):
-            continue
-        kind = text_at(parsed, "kind")
-        name = text_at(parsed, "metadata.name")
-        if not kind or not name:
-            continue
-        namespace = text_at(parsed, "metadata.namespace") or ""
-        locations[(kind, namespace, name)] = start + 2  # 1-based line right after "# Source:"
+    ends = [next_start - 1 for next_start in marker_indices[1:]] + [len(lines)]
+    for start, end in zip(marker_indices, ends, strict=True):
+        kind, namespace, name = _block_identity(lines[start + 1 : end])
+        if kind and name:
+            locations[(kind, namespace or "", name)] = start + 2  # 1-based line right after "# Source:"
     return locations
+
+
+def _block_identity(doc_lines: list[str]) -> tuple[str | None, str | None, str | None]:
+    """resource_identity of one "# Source:" block's lines, without a trailing "---" separator."""
+    if doc_lines and doc_lines[-1].strip() == "---":
+        doc_lines = doc_lines[:-1]
+    parsed = parse_rendered_doc("\n".join(doc_lines))
+    return (None, None, None) if parsed is None else resource_identity(parsed)
+
+
+def parse_rendered_doc(doc_text: str) -> YamlValue | None:
+    """One rendered doc parsed, or None when it is empty or not YAML (not a resource)."""
+    try:
+        parsed = yaml.safe_load(doc_text)
+    except yaml.YAMLError:
+        return None
+    return parsed if parsed is not None and is_yaml_value(parsed) else None
+
+
+def resource_identity(parsed: YamlValue) -> tuple[str | None, str | None, str | None]:
+    """(kind, namespace or "", name) of a single-object doc; all None otherwise, so no resource_line lookup."""
+    if not isinstance(parsed, dict):
+        return None, None, None
+    return text_at(parsed, "kind"), text_at(parsed, "metadata.namespace") or "", text_at(parsed, "metadata.name")
 
 
 def resource_line(

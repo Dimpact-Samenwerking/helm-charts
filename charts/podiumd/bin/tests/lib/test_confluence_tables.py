@@ -472,7 +472,7 @@ def test_find_versie_groups_ignores_non_versie_columns(libconfluencetables: Modu
     assert libconfluencetables.find_versie_groups(paths) == []
 
 
-# --- select_release_columns / missing_required_release_columns ---
+# --- select_release_columns / missing_release_columns ---
 
 
 def test_select_release_columns_full_release_table(libconfluencetables: ModuleType):
@@ -566,7 +566,7 @@ def test_missing_required_release_columns_vendor_not_required(libconfluencetable
     ]
     columns = libconfluencetables.select_release_columns(paths)
     assert columns["vendor"] is None
-    assert libconfluencetables.missing_required_release_columns(columns) == []
+    assert libconfluencetables.missing_release_columns(columns) == []
 
 
 def test_missing_required_release_columns_helm_not_required(libconfluencetables: ModuleType):
@@ -575,13 +575,13 @@ def test_missing_required_release_columns_helm_not_required(libconfluencetables:
     columns = libconfluencetables.select_release_columns(paths)
     assert columns["source_helm"] is None
     assert columns["target_helm"] is None
-    assert libconfluencetables.missing_required_release_columns(columns) == []
+    assert libconfluencetables.missing_release_columns(columns) == []
 
 
 def test_missing_required_release_columns_reports_missing_app(libconfluencetables: ModuleType):
     paths = [[], ["Ontwikkelpartij"], ["Versie 4.8", "Helm"], ["Versie 4.9", "Helm"]]
     columns = libconfluencetables.select_release_columns(paths)
-    missing = libconfluencetables.missing_required_release_columns(columns)
+    missing = libconfluencetables.missing_release_columns(columns)
     assert set(missing) == {"source_app", "target_app"}
 
 

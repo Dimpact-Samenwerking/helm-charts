@@ -1,6 +1,7 @@
 """print_report ordering, main() CLI glue, and --baseline-only
 (strict_presence in check_chart_version_source/check_images_source)."""
 
+from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
 
@@ -440,39 +441,23 @@ def test_compare_baseline_only_image_source_ambiguous_stays_ambiguous_not_a_pres
 
 
 def test_main_baseline_only_end_to_end(
-    vrt: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    vrt: ModuleType,
+    release_table_chart: Callable[..., None],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     """Full CLI: --baseline-only hides target-side mismatches and reports the
     blank-source presence finding."""
-    import csv as csv_module
-
-    chart_dir = tmp_path / "chart"
-    chart_dir.mkdir()
-    chart_yaml = chart_dir / "Chart.yaml"
-    values_yaml = chart_dir / "values.yaml"
-    release_table = chart_dir / "etc" / "release-table.csv"
-    release_table.parent.mkdir()
-
-    chart_yaml.write_text(
+    release_table_chart(
         "dependencies:\n"
         "  - name: zaakafhandelcomponent\n"
         "    version: 1.0.298\n"  # would mismatch target_helm below if target-side ran
         "    alias: zac\n",
-        encoding="utf-8",
-    )
-    values_yaml.write_text(ZAC_BLOCK, encoding="utf-8")
-    with release_table.open("w", newline="", encoding="utf-8") as f:
-        writer = csv_module.DictWriter(f, fieldnames=list(csv_row("x", "y").keys()))
-        writer.writeheader()
+        ZAC_BLOCK,
+        list(csv_row("x", "y").keys()),
         # Blank image_basename isolates the chart-version presence check.
-        writer.writerow(
-            csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", target_app="9.9.9", target_helm="1.0.297")
-        )
-
-    monkeypatch.setattr(vrt, "CHART_DIR", chart_dir)
-    monkeypatch.setattr(vrt, "CHART_YAML", chart_yaml)
-    monkeypatch.setattr(vrt, "VALUES_YAML", values_yaml)
-    monkeypatch.setattr(vrt, "RELEASE_TABLE_CSV", release_table)
+        [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", target_app="9.9.9", target_helm="1.0.297")],
+    )
     monkeypatch.setattr(vrt, "release_table_baseline", lambda chart_dir: "1.0.0")
     monkeypatch.setattr(
         vrt,
@@ -496,27 +481,14 @@ def test_main_baseline_only_end_to_end(
 
 
 def test_main_baseline_only_errors_when_baseline_cannot_be_resolved(
-    vrt: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    vrt: ModuleType,
+    release_table_chart: Callable[..., None],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     """--baseline-only with an unresolvable baseline has nothing to check:
     exit 1 rather than report OK."""
-    import csv as csv_module
-
-    chart_dir = tmp_path / "chart"
-    chart_dir.mkdir()
-    chart_yaml = chart_dir / "Chart.yaml"
-    values_yaml = chart_dir / "values.yaml"
-    release_table = chart_dir / "etc" / "release-table.csv"
-    release_table.parent.mkdir()
-    chart_yaml.write_text("dependencies: []\n", encoding="utf-8")
-    values_yaml.write_text("", encoding="utf-8")
-    with release_table.open("w", newline="", encoding="utf-8") as f:
-        csv_module.DictWriter(f, fieldnames=list(csv_row("x", "y").keys())).writeheader()
-
-    monkeypatch.setattr(vrt, "CHART_DIR", chart_dir)
-    monkeypatch.setattr(vrt, "CHART_YAML", chart_yaml)
-    monkeypatch.setattr(vrt, "VALUES_YAML", values_yaml)
-    monkeypatch.setattr(vrt, "RELEASE_TABLE_CSV", release_table)
+    release_table_chart("dependencies: []\n", "", list(csv_row("x", "y").keys()), [])
     monkeypatch.setattr(vrt, "release_table_baseline", lambda chart_dir: None)
 
     code = run_main(vrt, monkeypatch, ["--baseline-only"])
@@ -526,26 +498,13 @@ def test_main_baseline_only_errors_when_baseline_cannot_be_resolved(
 
 
 def test_main_plain_invocation_still_reports_ok_when_baseline_unresolvable(
-    vrt: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    vrt: ModuleType,
+    release_table_chart: Callable[..., None],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     """Without --baseline-only an unresolvable baseline only warns."""
-    import csv as csv_module
-
-    chart_dir = tmp_path / "chart"
-    chart_dir.mkdir()
-    chart_yaml = chart_dir / "Chart.yaml"
-    values_yaml = chart_dir / "values.yaml"
-    release_table = chart_dir / "etc" / "release-table.csv"
-    release_table.parent.mkdir()
-    chart_yaml.write_text("dependencies: []\n", encoding="utf-8")
-    values_yaml.write_text("", encoding="utf-8")
-    with release_table.open("w", newline="", encoding="utf-8") as f:
-        csv_module.DictWriter(f, fieldnames=list(csv_row("x", "y").keys())).writeheader()
-
-    monkeypatch.setattr(vrt, "CHART_DIR", chart_dir)
-    monkeypatch.setattr(vrt, "CHART_YAML", chart_yaml)
-    monkeypatch.setattr(vrt, "VALUES_YAML", values_yaml)
-    monkeypatch.setattr(vrt, "RELEASE_TABLE_CSV", release_table)
+    release_table_chart("dependencies: []\n", "", list(csv_row("x", "y").keys()), [])
     monkeypatch.setattr(vrt, "release_table_baseline", lambda chart_dir: None)
 
     code = run_main(vrt, monkeypatch, [])

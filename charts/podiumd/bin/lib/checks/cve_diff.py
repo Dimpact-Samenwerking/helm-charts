@@ -53,9 +53,9 @@ from lib.image.digests import unique_image_targets
 from lib.image.upgrade_cache import load_cache as load_upgrade_cache
 from lib.image.upgrade_cache import same_major_upgrade
 from lib.registry import parse_repo
-from lib.settings import cve_max_cves_per_package_before_summarizing
+from lib.settings import cve_max_per_package
 from lib.settings import cve_scan_cache_ttl_days
-from lib.settings import image_upgrade_tag_check_cache_ttl_days
+from lib.settings import image_upgrade_cache_ttl_days
 
 
 def _vuln_key(vuln: Vulnerability):
@@ -111,7 +111,7 @@ def gather_candidates(chart_dir: Path) -> list[DiffCandidate]:
     targets = unique_image_targets(chart_dir)
 
     upgrade_cache = load_upgrade_cache(chart_dir)
-    upgrade_ttl_days = image_upgrade_tag_check_cache_ttl_days(chart_dir)
+    upgrade_ttl_days = image_upgrade_cache_ttl_days(chart_dir)
     candidates: list[DiffCandidate] = []
     for (repository, version), (digest, line) in sorted(targets.items()):
         proposed = same_major_upgrade(upgrade_cache, repository, version, upgrade_ttl_days)
@@ -300,7 +300,7 @@ def _build_diff_context(chart_dir: Path, *, detail: bool):
         scan_errors=[],
         detail=detail,
         ttl_days=cve_scan_cache_ttl_days(chart_dir),
-        package_cve_list_threshold=cve_max_cves_per_package_before_summarizing(chart_dir),
+        package_cve_list_threshold=cve_max_per_package(chart_dir),
     )
 
 

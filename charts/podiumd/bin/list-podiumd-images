@@ -26,7 +26,6 @@ Requires: helm on PATH; Helm repositories added (/helm-repos) unless all
 sub-charts are vendored.
 """
 
-import shutil
 import sys
 import tarfile
 import tempfile
@@ -52,6 +51,7 @@ from lib.chart.pull_and_subchart_resolution import require_local_chart_dir
 from lib.chart.pull_and_subchart_resolution import subchart_dependencies
 from lib.chart.registered_paths import version_paths_for
 from lib.chart.repo_and_path_resolution import full_repository_for_path
+from lib.chart.values_tree_primitives import dependency_name_and_alias
 from lib.chart.values_tree_primitives import find_images
 from lib.chart.values_tree_primitives import is_same_name
 from lib.chart.values_tree_primitives import text_at
@@ -143,11 +143,7 @@ def load_chart(dep: ChartDependency, tmproot: Path, *, refresh: bool):
     else a fresh `helm pull` into `tmproot`.
     """
     local_dir = local_chart_dir(CHART_DIR, dep)
-    if local_dir is not None:
-        # --refresh does not apply: the source directory is always current.
-        require_local_chart_dir(local_dir, dep)
-        chart_dir = local_dir
-    else:
+    if local_dir is None:
         vendored = VENDORED_DIR / f"{dep['name']}-{dep['version']}.tgz"
         dest = tmproot / dep["name"]
         dest.mkdir()
@@ -156,6 +152,9 @@ def load_chart(dep: ChartDependency, tmproot: Path, *, refresh: bool):
         else:
             pull_chart(dep, dest)
         chart_dir = pulled_chart_dir(dest)
+    else:
+        require_local_chart_dir(local_dir, dep)
+        chart_dir = local_dir
 
     chart_yaml = load_chart_yaml(chart_dir / "Chart.yaml")
     values_path = chart_dir / "values.yaml"
@@ -171,7 +170,7 @@ def deep_merge(base: YamlValue, override: YamlValue) -> YamlValue:
         for key, value in override.items():
             merged[key] = deep_merge(base.get(key), value)
         return merged
-    return override if override is not None else base
+    return base if override is None else override
 
 
 def resolution_note(values_lines: list[str], key: str, basename: str):
@@ -255,7 +254,7 @@ def row_chart_tree_path(chart_dir: Path, dep: ChartDependency, first_segment: st
         (
             sub_dep
             for sub_dep in subchart_dependencies(chart_dir, dep)
-            if first_segment in {sub_dep.get("alias"), sub_dep["name"]}
+            if first_segment in dependency_name_and_alias(sub_dep)
         ),
         None,
     )
@@ -376,8 +375,8 @@ def main():
     values_lines = VALUES_YAML.read_text(encoding="utf-8").splitlines()
     ctx = ChartContext(deps=deps, root_values=root_values, rendered_paths=_compute_rendered_paths())
 
-    tmproot = Path(tempfile.mkdtemp(prefix="list-podiumd-images-"))
-    try:
+    with tempfile.TemporaryDirectory(prefix="list-podiumd-images-", ignore_cleanup_errors=True) as tmp:
+        tmproot = Path(tmp)
         top_level_images = _top_level_image_rows(root_values, dep_keys)
         if top_level_images:
             print("=== podiumd top-level values (not part of a dependency) ===")
@@ -386,8 +385,6 @@ def main():
 
         for dep in ctx.deps:
             _print_dependency_images(dep, tmproot, ctx, values_lines, refresh=refresh)
-    finally:
-        shutil.rmtree(tmproot, ignore_errors=True)
 
 
 if __name__ == "__main__":

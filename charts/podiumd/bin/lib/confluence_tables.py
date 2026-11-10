@@ -47,7 +47,7 @@ def api_base_url(url: str) -> str:
     """The REST API root: ".../wiki/rest/api" for Cloud, ".../rest/api" for Server/DC."""
     parsed = urlparse(url)
     wiki_idx = parsed.path.find("/wiki/")
-    api_path = f"{parsed.path[:wiki_idx]}/wiki/rest/api" if wiki_idx != -1 else "/rest/api"
+    api_path = "/rest/api" if wiki_idx == -1 else f"{parsed.path[:wiki_idx]}/wiki/rest/api"
     return f"{parsed.scheme}://{parsed.netloc}{api_path}"
 
 
@@ -168,16 +168,41 @@ class _TableExtractor(HTMLParser):
     @override
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]):
         if self._cell is not None:
-            if tag == "table":
-                self._nested_depth += 1
-            elif tag in BLOCK_SEPARATOR_TAGS and self._nested_depth == 0:
-                self._cell.parts.append(" ")
+            self._cell_starttag(self._cell, tag)
             return
         if tag in HEADING_TAGS:
             self._heading.tag = tag
             self._heading.text = []
             return
-        attr_map = dict(attrs)
+        self._structure_starttag(tag, dict(attrs))
+
+    @override
+    def handle_endtag(self, tag: str):
+        if self._cell is not None:
+            self._cell_endtag(self._cell, tag)
+            return
+        if tag == self._heading.tag:
+            self._heading.current = " ".join("".join(self._heading.text).split())
+            self._heading.tag = None
+            return
+        self._structure_endtag(tag)
+
+    @override
+    def handle_data(self, data: str):
+        if self._cell is not None:
+            self._cell.parts.append(data)
+        elif self._heading.tag is not None:
+            self._heading.text.append(data)
+
+    def _cell_starttag(self, cell: _OpenCell, tag: str) -> None:
+        """A start tag inside a cell: a nested table or a block separator in its text."""
+        if tag == "table":
+            self._nested_depth += 1
+        elif tag in BLOCK_SEPARATOR_TAGS and self._nested_depth == 0:
+            cell.parts.append(" ")
+
+    def _structure_starttag(self, tag: str, attr_map: dict[str, str | None]) -> None:
+        """A start tag outside any cell: a table, row or cell opens."""
         if tag == "table":
             self._table_stack.append([])
         elif tag == "tr" and self._table_stack:
@@ -188,35 +213,25 @@ class _TableExtractor(HTMLParser):
             )
             self._nested_depth = 0
 
-    @override
-    def handle_endtag(self, tag: str):
-        if self._cell is not None:
-            if tag == "table" and self._nested_depth > 0:
-                self._nested_depth -= 1
-            elif tag in {"tr", "td", "th"} and self._nested_depth > 0:
-                pass  # a nested table's own row/cell close — not the outer cell's
-            elif tag in {"td", "th"}:
-                if self._row is not None:
-                    self._row.append(self._cell.finished())
-                self._cell = None
-            return
-        if tag == self._heading.tag:
-            self._heading.current = " ".join("".join(self._heading.text).split())
-            self._heading.tag = None
-        elif tag == "table" and self._table_stack:
+    def _cell_endtag(self, cell: _OpenCell, tag: str) -> None:
+        """An end tag inside a cell: a nested table closes, or the cell itself."""
+        if tag == "table" and self._nested_depth > 0:
+            self._nested_depth -= 1
+        # Inside a nested table a td/th close is that table's own, not the outer cell's.
+        elif tag in {"td", "th"} and self._nested_depth == 0:
+            if self._row is not None:
+                self._row.append(cell.finished())
+            self._cell = None
+
+    def _structure_endtag(self, tag: str) -> None:
+        """An end tag outside any cell and heading: a table or row closes."""
+        if tag == "table" and self._table_stack:
             self.tables.append(self._table_stack.pop())
             self.table_headings.append(self._heading.current)
         elif tag == "tr" and self._row is not None:
             if self._table_stack:
                 self._table_stack[-1].append(self._row)
             self._row = None
-
-    @override
-    def handle_data(self, data: str):
-        if self._cell is not None:
-            self._cell.parts.append(data)
-        elif self._heading.tag is not None:
-            self._heading.text.append(data)
 
 
 def _positive_int(value: str | None, default: int) -> int:
@@ -244,39 +259,47 @@ def tables_under_headings(tables: list[ConfluenceTable], headings: list[str]) ->
 
 def expand_grid(rows: TableRows) -> list[list[str]]:
     """Rows as a rectangular grid of strings, with colspan/rowspan expanded; gaps become ""."""
-    grid: list[list[str]] = []
     carry: dict[int, tuple[str, int]] = {}  # column -> (text, remaining_rows_including_this_one)
-    for row in rows:
-        grid_row: list[str] = []
-        col = 0
-        cell_iter = iter(row)
-        current_cell = next(cell_iter, None)
-        while current_cell is not None or any(carried_col >= col for carried_col in carry):
-            if col in carry:
-                text, remaining = carry[col]
-                grid_row.append(text)
-                if remaining <= 1:
-                    del carry[col]
-                else:
-                    carry[col] = (text, remaining - 1)
-                col += 1
-                continue
-            if current_cell is None:
-                grid_row.append("")
-                col += 1
-                continue
-            colspan, rowspan, text = current_cell["colspan"], current_cell["rowspan"], current_cell["text"]
-            for span_offset in range(colspan):
-                grid_row.append(text)
-                if rowspan > 1:
-                    carry[col + span_offset] = (text, rowspan - 1)
-            col += colspan
-            current_cell = next(cell_iter, None)
-        grid.append(grid_row)
+    grid = [_expand_row(row, carry) for row in rows]
     width = max((len(grid_row) for grid_row in grid), default=0)
     for grid_row in grid:
         grid_row.extend("" for _ in range(width - len(grid_row)))
     return grid
+
+
+def _expand_row(row: list[TableCell], carry: dict[int, tuple[str, int]]) -> list[str]:
+    """One row's grid cells; takes from and adds to `carry`, the rowspans still open."""
+    grid_row: list[str] = []
+    cell_iter = iter(row)
+    current_cell = next(cell_iter, None)
+    while current_cell is not None or any(carried_col >= len(grid_row) for carried_col in carry):
+        if len(grid_row) in carry:
+            grid_row.append(_take_carried(carry, len(grid_row)))
+        elif current_cell is None:
+            grid_row.append("")
+        else:
+            _place_cell(grid_row, current_cell, carry)
+            current_cell = next(cell_iter, None)
+    return grid_row
+
+
+def _take_carried(carry: dict[int, tuple[str, int]], col: int) -> str:
+    """The text a rowspan carries into column `col`, counting down its remaining rows."""
+    text, remaining = carry[col]
+    if remaining <= 1:
+        carry.pop(col)
+    else:
+        carry[col] = (text, remaining - 1)
+    return text
+
+
+def _place_cell(grid_row: list[str], cell: TableCell, carry: dict[int, tuple[str, int]]) -> None:
+    """Append `cell` across its colspan and carry it down its rowspan."""
+    col = len(grid_row)
+    for span_offset in range(cell["colspan"]):
+        grid_row.append(cell["text"])
+        if cell["rowspan"] > 1:
+            carry[col + span_offset] = (cell["text"], cell["rowspan"] - 1)
 
 
 def leading_header_row_count(rows: TableRows) -> int:
@@ -312,17 +335,19 @@ def effective_header_row_count(rows: TableRows, grid: list[list[str]]) -> int:
 def header_paths(grid: list[list[str]], header_row_count: int) -> list[list[str]]:
     """Per column, the distinct header texts above it, top first (e.g. ["Versie 4.8", "App"])."""
     width = len(grid[0]) if grid else 0
-    paths: list[list[str]] = []
-    for col in range(width):
-        path: list[str] = []
-        prev = None
-        for row_idx in range(header_row_count):
-            text = grid[row_idx][col] if col < len(grid[row_idx]) else ""
-            if text and text != prev:
-                path.append(text)
-            prev = text
-        paths.append(path)
-    return paths
+    return [_header_path(grid, col, header_row_count) for col in range(width)]
+
+
+def _header_path(grid: list[list[str]], col: int, header_row_count: int) -> list[str]:
+    """header_paths' distinct header texts above column `col`."""
+    path: list[str] = []
+    prev = None
+    for header_row in grid[:header_row_count]:
+        text = header_row[col] if col < len(header_row) else ""
+        if text and text != prev:
+            path.append(text)
+        prev = text
+    return path
 
 
 def _normalize(text: str) -> str:
@@ -330,7 +355,11 @@ def _normalize(text: str) -> str:
     return " ".join(text.lower().replace("-", "").split())
 
 
-def find_column(paths: list[list[str]], contains_all: list[str], candidates: list[int] | None = None) -> int | None:
+def find_column(
+    paths: list[list[str]],
+    contains_all: list[str],
+    candidates: list[int] | None = None,
+) -> int | None:
     """First column in `candidates` whose joined header path contains all of `contains_all`, or None."""
     needles = [_normalize(needle) for needle in contains_all]
     indices = range(len(paths)) if candidates is None else candidates
@@ -385,15 +414,17 @@ def select_release_columns(paths: list[list[str]]) -> ReleaseColumns:
         case [(_, source_cols), (_, target_cols)]:
             source_app, source_helm = _app_and_helm_columns(paths, source_cols)
             target_app, target_helm = _app_and_helm_columns(paths, target_cols)
-            columns.update(
-                source_app=source_app, source_helm=source_helm, target_app=target_app, target_helm=target_helm
-            )
+            columns.update(source_app=source_app, source_helm=source_helm)
+            columns.update(target_app=target_app, target_helm=target_helm)
         case _:
             pass
     return columns
 
 
-def _app_and_helm_columns(paths: list[list[str]], group_cols: list[int]) -> tuple[int | None, int | None]:
+def _app_and_helm_columns(
+    paths: list[list[str]],
+    group_cols: list[int],
+) -> tuple[int | None, int | None]:
     """(App, Helm) column of one "Versie ..." group."""
     helm_col = find_column(paths, ["helm"], candidates=group_cols)
     if len(group_cols) == 1 and helm_col is None:
@@ -401,7 +432,7 @@ def _app_and_helm_columns(paths: list[list[str]], group_cols: list[int]) -> tupl
     return find_column(paths, ["app"], candidates=group_cols), helm_col
 
 
-def missing_required_release_columns(columns: ReleaseColumns):
+def missing_release_columns(columns: ReleaseColumns):
     """REQUIRED_RELEASE_COLUMNS keys that resolved to None."""
     return [key for key in REQUIRED_RELEASE_COLUMNS if columns.get(key) is None]
 

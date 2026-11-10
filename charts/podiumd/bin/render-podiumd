@@ -39,10 +39,10 @@ from lib.render_scope import lint_args_for
 from lib.render_scope import render_chart
 from lib.render_scope import report_errors_by_subchart
 from lib.render_scope import report_largest_templates
-from lib.settings import render_report_default_output_file_name
-from lib.settings import render_report_top_n_largest_templates_shown
+from lib.settings import render_report_output_file
+from lib.settings import render_report_top_n
 
-DEFAULT_OUTPUT = CHART_DIR / render_report_default_output_file_name(CHART_DIR)
+DEFAULT_OUTPUT = CHART_DIR / render_report_output_file(CHART_DIR)
 
 
 def _parse_args(args: list[str]) -> tuple[Path | None, list[str]]:
@@ -72,7 +72,7 @@ def _report_render_failure(stderr: str, output_path: Path | None) -> None:
 
 def _write_rendered(rendered: str, output_path: Path | None) -> None:
     doc_count = sum(1 for line in rendered.splitlines() if line.startswith("---"))
-    top_n = render_report_top_n_largest_templates_shown(CHART_DIR)
+    top_n = render_report_top_n(CHART_DIR)
     if output_path is None:
         _status(f"OK: rendered {doc_count} manifest(s) to stdout", output_path)
         with contextlib.redirect_stdout(sys.stderr):

@@ -17,11 +17,11 @@ from pathlib import Path
 from lib.component_docs.baseline_doc_stubs import IMAGES_STUB_TEMPLATE
 from lib.component_docs.baseline_doc_stubs import STUB_TEMPLATES
 from lib.component_docs.baseline_doc_stubs import existing_doc_baselines
-from lib.component_docs.changes_section import strip_stale_upgrade_placeholders
-from lib.component_docs.values_delta_sections import strip_stale_values_deltas_todo_stub
-from lib.fix_doc_consistency.baseline_and_images_manifest_handling import extract_images_baseline
-from lib.fix_doc_consistency.baseline_and_images_manifest_handling import fix_images_manifest_header_lines
-from lib.fix_doc_consistency.baseline_and_images_manifest_handling import update_sibling_doc_refs
+from lib.component_docs.changes_section import strip_upgrade_placeholders
+from lib.component_docs.values_delta_sections import strip_deltas_todo_stub
+from lib.fix_doc_consistency.baseline_and_manifest import extract_images_baseline
+from lib.fix_doc_consistency.baseline_and_manifest import fix_manifest_header_lines
+from lib.fix_doc_consistency.baseline_and_manifest import update_sibling_doc_refs
 from lib.fix_doc_consistency.images_manifest_steps import fix_images_manifest_content
 from lib.fix_doc_consistency.rebase_state import FixDocPaths
 from lib.fix_doc_consistency.rebase_state import RebaseState
@@ -32,8 +32,8 @@ from lib.fix_doc_consistency.text_helpers_and_repo_rename import collapse_multip
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import find_collisions
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import join_and
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import remaining_mentions
-from lib.fix_doc_consistency.text_helpers_and_repo_rename import update_component_versions_heading
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import update_title_line
+from lib.fix_doc_consistency.text_helpers_and_repo_rename import update_versions_heading
 from lib.fix_doc_consistency.upgrade_doc_steps import fix_upgrade_doc_content
 from lib.fix_doc_consistency.upgrade_doc_steps import fix_values_deltas_content
 from lib.upgradedoc.baseline_intro import fix_baseline_intro
@@ -107,9 +107,9 @@ def _fix_refs_and_stubs(
     text, refs_changed = update_sibling_doc_refs(text, target, new_baseline, acc.other_paths(new_baseline))
     todo_stripped = False
     if suffix == "upgrade":
-        text, todo_stripped = strip_stale_upgrade_placeholders(text)
+        text, todo_stripped = strip_upgrade_placeholders(text)
     elif suffix == "values-deltas":
-        text, todo_stripped = strip_stale_values_deltas_todo_stub(text)
+        text, todo_stripped = strip_deltas_todo_stub(text)
     return text, refs_changed, todo_stripped
 
 
@@ -126,6 +126,15 @@ class HeaderChanges:
         """Whether any of them was rewritten."""
         return self.title or self.heading or self.intro
 
+    def descriptions(self, new_baseline: str) -> list[str]:
+        """One line per rewritten mention, for the run's output."""
+        rewritten = [
+            (self.title, "title line"),
+            (self.heading, "'Component versions' heading"),
+            (self.intro, "intro baseline"),
+        ]
+        return [f"{mention} -> {new_baseline}" for changed, mention in rewritten if changed]
+
 
 def _rebase_header(text: str, suffix: str, target: str, new_baseline: str) -> tuple[str, HeaderChanges]:
     """The title line, "Component versions" heading and (upgrade doc only) intro pointed at new_baseline.
@@ -134,7 +143,7 @@ def _rebase_header(text: str, suffix: str, target: str, new_baseline: str) -> tu
     can still carry another baseline in these lines.
     """
     text, title = update_title_line(text, target, new_baseline)
-    text, heading = update_component_versions_heading(text, target, new_baseline)
+    text, heading = update_versions_heading(text, target, new_baseline)
     intro = False
     if suffix == "upgrade":
         text, intro = fix_baseline_intro(text, new_baseline)
@@ -151,13 +160,7 @@ def _rebase_already_at_baseline(doc: DocRename, target: str, new_baseline: str, 
         print(f"  {doc.path.name}: already baseline {new_baseline} — unchanged")
         return
     doc.path.write_text(collapsed_text, encoding="utf-8")
-    parts: list[str] = []
-    if header.title:
-        parts.append(f"title line -> {new_baseline}")
-    if header.heading:
-        parts.append(f"'Component versions' heading -> {new_baseline}")
-    if header.intro:
-        parts.append(f"intro baseline -> {new_baseline}")
+    parts = header.descriptions(new_baseline)
     if todo_stripped:
         parts.append("removed stale TODO placeholder")
         acc.todo_stub_docs.append(doc.path.name)
@@ -184,12 +187,8 @@ def _rebase_doc_to_new_baseline(
     new_path.write_text(collapse_multiple_blank_lines(text), encoding="utf-8")
 
     print(f"  {doc.path.name} -> {new_name}")
-    if header.title:
-        print(f"    title line: -> {new_baseline}")
-    if header.heading:
-        print(f"    'Component versions' heading: -> {new_baseline}")
-    if header.intro:
-        print(f"    intro baseline: -> {new_baseline}")
+    for description in header.descriptions(new_baseline):
+        print(f"    {description}")
     if refs_changed:
         print(f"    sibling doc references: -> {new_baseline}-to-{target}-*.md")
     if todo_stripped:
@@ -241,7 +240,7 @@ def _bump_images_manifest_baseline(paths: FixDocPaths, target: str, new_baseline
     text = images_path.read_text(encoding="utf-8")
     old_images_baseline = extract_images_baseline(text)
     text, refs_changed = update_sibling_doc_refs(text, target, new_baseline, acc.other_paths(new_baseline))
-    text, baseline_changed = fix_images_manifest_header_lines(text, target, new_baseline)
+    text, baseline_changed = fix_manifest_header_lines(text, target, new_baseline)
     if not (refs_changed or baseline_changed):
         print(f"  {images_path.name}: already baseline {new_baseline} — unchanged")
         return images_path
@@ -280,15 +279,15 @@ def _load_rebase_state(paths: FixDocPaths, target: str, new_baseline: str):
 def _fix_hop_content(state: RebaseState, images_path: Path | None):
     """Repair the upgrade doc, the images manifest (main path only: `images_path`) and the values-deltas doc."""
     actual_changed_keys: set[str] = (
-        compute_changed_components(
+        set()
+        if state.baseline_deps is None
+        else compute_changed_components(
             state.target_deps,
             state.baseline_deps,
             state.target_values,
             state.baseline_values,
             chart_dir=state.paths.chart_dir,
         )
-        if state.baseline_deps is not None
-        else set()
     )
     upgrade_path = state.paths.doc_dir / doc_name(state.new_baseline, state.target, "upgrade")
     fix_upgrade_doc_content(state, upgrade_path, actual_changed_keys)

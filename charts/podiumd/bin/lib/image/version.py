@@ -104,7 +104,7 @@ def _group_by_basename_in_scope[PinT: (DigestPin, VersionPin)](
     return result
 
 
-def repository_for_basename_in_scope(lines: list[str], scope_key: str, basename: str) -> str | None:
+def scoped_basename_repository(lines: list[str], scope_key: str, basename: str) -> str | None:
     """The one repository <scope_key>.<image-basename> resolves to in `lines`, or None.
 
     Scoped match first, else the unscoped find_matches_any_tag (e.g.
@@ -135,7 +135,7 @@ def resolve_key_scope(key: str, deps: list[ChartDependency]) -> str:
     if is_same_name(key, MULTIPLE_KEY):
         return MULTIPLE_KEY
     dep = find_dependency(deps, key)
-    return values_key_of(dep) if dep is not None else key
+    return key if dep is None else values_key_of(dep)
 
 
 def _is_in_scope(top_key: str, repository: str | None, scope_key: str, basename: str) -> bool:

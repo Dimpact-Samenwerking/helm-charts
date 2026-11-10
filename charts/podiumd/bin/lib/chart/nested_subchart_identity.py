@@ -4,7 +4,7 @@ from pathlib import Path
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.vendored_files import vendored_chart_file
-from lib.settings import component_resolution_version_repository_paths
+from lib.settings import resolution_version_repo_paths
 
 
 def version_repository_path_for(component: str, chart_dir: Path | None):
@@ -14,7 +14,7 @@ def version_repository_path_for(component: str, chart_dir: Path | None):
     """
     if chart_dir is None:
         return None
-    return component_resolution_version_repository_paths(chart_dir).get(component)
+    return resolution_version_repo_paths(chart_dir).get(component)
 
 
 def nested_subchart_raw_text(

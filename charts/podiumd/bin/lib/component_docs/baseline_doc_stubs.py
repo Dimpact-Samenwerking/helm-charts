@@ -14,13 +14,13 @@ from lib.upgradedoc.string_and_parsing_basics import heading_slug
 
 # Bare placeholder lines the stubs write; shared with the "is this just the
 # stub" checks so they can't drift. Both upgrade-doc placeholders are cleared
-# together by strip_stale_upgrade_placeholders once "## Changes" gets a
+# together by strip_upgrade_placeholders once "## Changes" gets a
 # real "### ..." block.
 UPGRADE_INTRO_STUB_TODO_LINE = "TODO: describe this hop's changes.\n"
 UPGRADE_CHANGES_STUB_TODO_LINE = "TODO\n"
 VALUES_DELTAS_STUB_TODO_LINE = "TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n"
 # Nothing writes gemeente-specific sections automatically, so this placeholder
-# is never stripped; has_stale_gemeente_specific_placeholder flags it instead.
+# is never stripped; has_stale_gemeente_placeholder flags it instead.
 GEMEENTE_SPECIFIC_STUB_LINE = "_None recorded yet._\n"
 
 # The upgrade guide's runbook sections, in the order of
@@ -64,10 +64,15 @@ _RUNBOOK_STUBS = {
 }
 
 
+def _checklist_line(name: str, line: str) -> str:
+    """One checklist item linking to its runbook section."""
+    return f"- [ ] **[{name}](#{heading_slug(name)})**: {line}\n"
+
+
 def _upgrade_stub_template() -> str:
     """The upgrade-guide stub in the checklist layout, with {upgrade_docs_baseline} and {target} fields."""
     stubs = [(name, *_RUNBOOK_STUBS.get(name, _EMPTY_RUNBOOK_STUB)) for name in RUNBOOK_SECTIONS]
-    checklist = "".join(f"- [ ] **[{name}](#{heading_slug(name)})**: {line}\n" for name, line, _body in stubs)
+    checklist = "".join(_checklist_line(name, line) for name, line, _body in stubs)
     runbook = "".join(f"## {name}\n\n{body}\n" for name, _line, body in stubs)
     companion = "{upgrade_docs_baseline}-to-{target}"
     return (

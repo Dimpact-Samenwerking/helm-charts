@@ -5,12 +5,12 @@ from pathlib import Path
 
 from lib.chart.chart_state import BaselineState
 from lib.chart.chart_state import ComponentState
-from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.release_baseline_basics import chart_version
 from lib.chart.values_tree_primitives import ValuesPath
-from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
-from lib.component_docs.values_delta_sections import has_stale_gemeente_specific_placeholder
+from lib.cli import noun_for
+from lib.component_docs.images_manifest_changes_header import find_changes_header
+from lib.component_docs.values_delta_sections import has_stale_gemeente_placeholder
 from lib.docs_consistency.check_context import DocQuery
 from lib.docs_consistency.check_context import DocsCheckContext
 from lib.docs_consistency.check_context import Findings
@@ -26,11 +26,12 @@ from lib.docs_consistency.markdown_format import check_baseline_doc_set
 from lib.docs_consistency.markdown_format import check_companion_doc
 from lib.docs_consistency.pointer_consistency import check_pointer_consistency
 from lib.docs_consistency.values_diff import ValuesDeltaInputs
-from lib.docs_consistency.values_diff import check_values_deltas_empty_sections
-from lib.docs_consistency.values_diff import check_values_deltas_rowless_headings
+from lib.docs_consistency.values_diff import check_empty_delta_sections
+from lib.docs_consistency.values_diff import check_rowless_delta_headings
 from lib.image.manifest_entry_pins import entry_pin
 from lib.images_manifest import ManifestEntry
 from lib.images_manifest import parse_images_manifest
+from lib.release_baseline import BaselineChartState
 from lib.release_baseline import resolve_baseline_chart_state
 from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
@@ -40,11 +41,10 @@ from lib.upgradedoc.doc_names import doc_name
 from lib.upgradedoc.doc_names import images_manifest_path
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
 from lib.version_numbers import is_bare_version
-from lib.yaml_types import YamlMapping
 from lib.yaml_types import load_yaml_mapping
 
 
-def _pointer_consistency_mismatches(doc_dir: Path, upgrade_docs_baseline: str, podiumd_version: str, *, side: bool):
+def _pointer_row_mismatches(doc_dir: Path, upgrade_docs_baseline: str, podiumd_version: str, *, side: bool):
     """Stale sibling-doc/images-manifest reference findings for the caller's `mismatches`.
 
     Returned rather than returning early, so one stale link doesn't hide every other finding.
@@ -83,7 +83,7 @@ def _check_companion_docs(doc_dir: Path, upgrade_docs_baseline: str, podiumd_ver
         companion_path = doc_dir / companion_name
         if companion_path.is_file():
             companion_text = companion_path.read_text(encoding="utf-8")
-            if suffix == "gemeente-specific" and has_stale_gemeente_specific_placeholder(companion_text):
+            if suffix == "gemeente-specific" and has_stale_gemeente_placeholder(companion_text):
                 findings.mismatches.append(
                     f'{companion_name}: still has its own stale "_None recorded yet._" placeholder '
                     f'stranded alongside a real "## <gemeente> (<env>)" section — clear it by hand '
@@ -91,18 +91,16 @@ def _check_companion_docs(doc_dir: Path, upgrade_docs_baseline: str, podiumd_ver
                 )
 
 
-def _resolve_baseline(
-    chart_dir: Path, upgrade_docs_baseline: str | None
-) -> tuple[str | None, list[ChartDependency], YamlMapping, str | None]:
+def _resolve_baseline(chart_dir: Path, upgrade_docs_baseline: str | None) -> tuple[BaselineChartState, str | None]:
     """resolve_baseline_chart_state plus the mismatch a baseline_error produces.
 
-    Returns (None, [], {}, None) when no upgrade_docs_baseline was given.
+    An empty state without a ref when no upgrade_docs_baseline was given.
     """
     if not upgrade_docs_baseline:
-        return None, [], {}, None
+        return BaselineChartState(None, [], {}, [], None), None
     state = resolve_baseline_chart_state(chart_dir, upgrade_docs_baseline)
     mismatch = f'upgrade_docs_baseline "{upgrade_docs_baseline}": {state.error}' if state.error else None
-    return state.ref, state.deps, state.values, mismatch
+    return state, mismatch
 
 
 def _build_docs_check_context(
@@ -114,9 +112,8 @@ def _build_docs_check_context(
     """
     deps = load_chart_dependencies(chart_dir / "Chart.yaml")
     values = load_yaml_mapping(chart_dir / "values.yaml")
-    baseline_ref, baseline_deps, baseline_values, baseline_mismatch = _resolve_baseline(
-        chart_dir, upgrade_docs_baseline
-    )
+    baseline, baseline_mismatch = _resolve_baseline(chart_dir, upgrade_docs_baseline)
+    baseline_ref, baseline_deps, baseline_values = baseline.ref, baseline.deps, baseline.values
     # Ground truth, independent of the docs, so a changed component missing from every doc is caught.
     actual_changed_keys: set[str] = (
         compute_changed_components(deps, baseline_deps, values, baseline_values, chart_dir=chart_dir)
@@ -179,6 +176,40 @@ def check_images_manifest_entry(
         )
 
 
+def _has_no_format_issues(ctx: DocsCheckContext, images_path: Path, findings: Findings) -> bool:
+    """Record the manifest's format issues; False when there are any. Checked only for a bare-version baseline."""
+    if not ctx.doc_query.is_bare_version:
+        return True
+    manifest_check_context = ManifestCheckContext(
+        ctx.doc_query.upgrade_docs_baseline,
+        ctx.doc_query.podiumd_version,
+        ctx.current.deps,
+        ctx.current.values,
+        ctx.baseline.values if ctx.baseline_ref else {},
+        chart_dir=ctx.chart_dir,
+    )
+    format_issues = check_images_manifest_format(images_path, manifest_check_context)
+    if not format_issues:
+        return True
+    findings.checked.append(images_path.name)
+    findings.mismatches.extend(format_issues)
+    return False
+
+
+def _check_changes_header_present(images_path: Path, entry_count: int, findings: Findings) -> None:
+    """A manifest with entries needs a "# Changes:" header."""
+    if not entry_count:
+        return
+    manifest_lines = images_path.read_text(encoding="utf-8").splitlines(keepends=True)
+    header_idx, _has_count = find_changes_header(manifest_lines)
+    if header_idx is None:
+        noun = noun_for(entry_count, "entry", "entries")
+        findings.mismatches.append(
+            f'{images_path.name}: has {entry_count} {noun} but no "# Changes:" header '
+            f"at all — every real change is undocumented in the summary list"
+        )
+
+
 def _check_images_manifest(
     ctx: DocsCheckContext,
     sibling_fields: dict[ValuesPath, DigestPinningException],
@@ -190,22 +221,7 @@ def _check_images_manifest(
     interpretable, but earlier findings are kept (no early return on findings).
     """
     images_path = images_manifest_path(ctx.doc_query.doc_dir.parent / "images", ctx.doc_query.podiumd_version)
-
-    images_format_ok = True
-    if ctx.doc_query.is_bare_version:
-        manifest_check_context = ManifestCheckContext(
-            ctx.doc_query.upgrade_docs_baseline,
-            ctx.doc_query.podiumd_version,
-            ctx.current.deps,
-            ctx.current.values,
-            ctx.baseline.values if ctx.baseline_ref else {},
-            chart_dir=ctx.chart_dir,
-        )
-        format_issues = check_images_manifest_format(images_path, manifest_check_context)
-        if format_issues:
-            images_format_ok = False
-            findings.checked.append(images_path.name)
-            findings.mismatches.extend(format_issues)
+    images_format_ok = _has_no_format_issues(ctx, images_path, findings)
 
     if not images_path.is_file():
         print(f"WARNING: no images manifest at {images_path.name} — skipping images-manifest check")
@@ -215,16 +231,7 @@ def _check_images_manifest(
 
     findings.checked.append(images_path.name)
     entries_list = parse_images_manifest(images_path.read_text(encoding="utf-8"), str(images_path))
-
-    if entries_list:
-        manifest_lines = images_path.read_text(encoding="utf-8").splitlines(keepends=True)
-        header_idx, _has_count = find_images_manifest_changes_header(manifest_lines)
-        if header_idx is None:
-            noun = "entry" if len(entries_list) == 1 else "entries"
-            findings.mismatches.append(
-                f'{images_path.name}: has {len(entries_list)} {noun} but no "# Changes:" header '
-                f"at all — every real change is undocumented in the summary list"
-            )
+    _check_changes_header_present(images_path, len(entries_list), findings)
 
     scan = ManifestEntryScan(images_path, ctx.images.current.repo_map, sibling_fields)
     for entry in entries_list:
@@ -237,9 +244,9 @@ def _check_values_deltas(ctx: DocsCheckContext, upgrade_docs_baseline: str, find
     values_deltas_path = query.doc_dir / doc_name(upgrade_docs_baseline, query.podiumd_version, "values-deltas")
     if not values_deltas_path.is_file():
         return
-    findings.mismatches.extend(check_values_deltas_empty_sections(values_deltas_path))
+    findings.mismatches.extend(check_empty_delta_sections(values_deltas_path))
     findings.mismatches.extend(
-        check_values_deltas_rowless_headings(
+        check_rowless_delta_headings(
             values_deltas_path,
             query.doc_dir / doc_name(upgrade_docs_baseline, query.podiumd_version, "upgrade"),
             _values_delta_inputs(ctx),
@@ -251,7 +258,7 @@ def _values_delta_inputs(ctx: DocsCheckContext) -> ValuesDeltaInputs:
     return ValuesDeltaInputs(ctx.current.deps, ctx.images.current.canonical_names)
 
 
-def _check_baseline_doc_set_and_pointers(
+def _check_baseline_docs(
     doc_dir: Path, upgrade_docs_baseline: str | None, podiumd_version: str, findings: Findings, *, side: bool
 ):
     """Baseline doc-set precheck and pointer-consistency checks for a bare-version baseline.
@@ -270,9 +277,7 @@ def _check_baseline_doc_set_and_pointers(
         for issue in sorted(precheck_issues):
             print(" ", issue)
         return False, f"{len(precheck_issues)} upgrade_docs_baseline doc issue(s)"
-    findings.mismatches.extend(
-        _pointer_consistency_mismatches(doc_dir, upgrade_docs_baseline, podiumd_version, side=side)
-    )
+    findings.mismatches.extend(_pointer_row_mismatches(doc_dir, upgrade_docs_baseline, podiumd_version, side=side))
     return None
 
 
@@ -287,9 +292,7 @@ def _check_docs(
     sibling_fields = digest_pinning_exceptions(chart_dir)
     findings = Findings([], [])
 
-    precheck_result = _check_baseline_doc_set_and_pointers(
-        doc_dir, upgrade_docs_baseline, podiumd_version, findings, side=side
-    )
+    precheck_result = _check_baseline_docs(doc_dir, upgrade_docs_baseline, podiumd_version, findings, side=side)
     if precheck_result is not None:
         return precheck_result
 

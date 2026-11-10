@@ -28,7 +28,7 @@ from lib.render_scope import RenderedContainer
 from lib.render_scope import friendly_vendor_charts
 from lib.render_scope import render_chart_docs
 from lib.render_scope import rendered_containers
-from lib.settings import repo_access_request_timeout_seconds
+from lib.settings import repo_access_timeout_seconds
 from lib.settings import root_containers_accepted
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import shape_problem
@@ -72,7 +72,7 @@ def effective_run_as(pod_spec: YamlMapping, container: YamlMapping) -> RunAs:
 
     def pick(key: str) -> object:
         own = _security_value(container, key)
-        return own if own is not None else _security_value(pod_spec, key)
+        return _security_value(pod_spec, key) if own is None else own
 
     user, non_root = pick("runAsUser"), pick("runAsNonRoot")
     return RunAs(
@@ -127,9 +127,7 @@ class _UserLookup:
             return self.users[image]
         repository, reference, key = _image_reference(image)
         cached = self.old_cache.get(key) if key else None
-        if cached is not None:
-            user: str | None = cached["user"]
-        else:
+        if cached is None:
             host, repo_path = parse_repo(repository)
             print(f"  reading the default user of {host}/{repo_path}@{reference[:19]}...", flush=True)
             try:
@@ -137,6 +135,8 @@ class _UserLookup:
             except OSError as error:  # URLError is an OSError
                 print(f"  [FETCH-ERR] {image}  {error}")
                 user = None
+        else:
+            user: str | None = cached["user"]
         if key and user is not None:
             self.new_cache[key] = {"user": user}
         self.users[image] = user
@@ -176,7 +176,7 @@ def _findings(containers: list[RenderedContainer], lookup: _UserLookup, vendor_m
     for rendered in containers:
         image = str(rendered.container.get("image") or "")
         run_as = effective_run_as(rendered.pod_spec, rendered.container)
-        verdict = root_verdict(run_as, None if run_as.user is not None else lookup.user(image))
+        verdict = root_verdict(run_as, lookup.user(image) if run_as.user is None else None)
         if verdict != "ok":
             label = classify_source(rendered.source, vendor_map)
             findings.append(Finding(bucket_of(label), label, rendered, image, verdict))
@@ -232,9 +232,7 @@ def check_root_containers(chart_dir: Path, extra_args: list[str]) -> tuple[bool,
         return False, error or "helm template failed to render"
     containers = rendered_containers(rendered.docs)
     cache_path = cache_file(chart_dir, CACHE_FILENAME)
-    lookup = _UserLookup(
-        load_json_cache(cache_path, _is_user_entry), repo_access_request_timeout_seconds(chart_dir), {}, {}
-    )
+    lookup = _UserLookup(load_json_cache(cache_path, _is_user_entry), repo_access_timeout_seconds(chart_dir), {}, {})
     print(f"Checking the run-as user of {len(containers)} rendered container(s)...")
     findings = _findings(containers, lookup, friendly_vendor_charts(chart_dir))
     save_json_cache(cache_path, lookup.new_cache)

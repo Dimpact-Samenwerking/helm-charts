@@ -19,6 +19,7 @@ import sys
 import tempfile
 
 from pathlib import Path
+from typing import NoReturn
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -31,7 +32,7 @@ from lib.checks.markdown import find_markdown_files
 from lib.checks.markdown import find_pymarkdown
 from lib.cli import flag_args
 from lib.procutil import run
-from lib.settings import quality_gates_markdown_disabled_rules
+from lib.settings import gate_markdown_disabled
 
 
 def run_fix(pymarkdown: str, files: list[Path], disabled_rules: str):
@@ -47,7 +48,8 @@ def run_fix(pymarkdown: str, files: list[Path], disabled_rules: str):
         text=True,
     )
     output = result.stdout + result.stderr
-    return [Path(line[len("Fixed: ") :].strip()) for line in output.splitlines() if line.startswith("Fixed: ")]
+    fixed_lines = [line for line in output.splitlines() if line.startswith("Fixed: ")]
+    return [Path(line.removeprefix("Fixed: ").strip()) for line in fixed_lines]
 
 
 def dry_run_fix(pymarkdown: str, files: list[Path], chart_dir: Path, disabled_rules: str) -> list[Path]:
@@ -72,33 +74,20 @@ def dry_run_fix(pymarkdown: str, files: list[Path], chart_dir: Path, disabled_ru
         return changed
 
 
-def main():
-    """CLI entry point."""
-    dry_run = "--dry-run" in flag_args(__doc__, "--dry-run")
-
-    pymarkdown = find_pymarkdown(CHART_DIR)
-    if pymarkdown is None:
-        print("pymarkdown is not installed (see README-release-process.md#setup)")
-        sys.exit(1)
-
-    files = find_markdown_files(CHART_DIR)
-    if not files:
-        print("OK: no markdown files found")
+def exit_with_dry_run_result(pymarkdown: str, files: list[Path], disabled_rules: str) -> NoReturn:
+    """List the files the fix would change; exit 1 when there are any."""
+    changed = dry_run_fix(pymarkdown, files, CHART_DIR, disabled_rules)
+    if not changed:
+        print("OK: nothing pymarkdown fix could resolve (dry-run)")
         sys.exit(0)
+    print(f"{len(changed)} file(s) would be fixed (dry-run, not writing):")
+    for rel in sorted(changed):
+        print(f"  {rel}")
+    sys.exit(1)
 
-    # md031's FIX action crashes on a real doc here — see run_fix.
-    disabled_rules = ",".join([*quality_gates_markdown_disabled_rules(CHART_DIR), "md031"])
 
-    if dry_run:
-        changed = dry_run_fix(pymarkdown, files, CHART_DIR, disabled_rules)
-        if not changed:
-            print("OK: nothing pymarkdown fix could resolve (dry-run)")
-            sys.exit(0)
-        print(f"{len(changed)} file(s) would be fixed (dry-run, not writing):")
-        for rel in sorted(changed):
-            print(f"  {rel}")
-        sys.exit(1)
-
+def exit_with_fix_result(pymarkdown: str, files: list[Path], disabled_rules: str) -> NoReturn:
+    """Fix `files` in place and list the fixed ones."""
     fixed = run_fix(pymarkdown, files, disabled_rules)
     if not fixed:
         print("OK: nothing pymarkdown fix could resolve")
@@ -117,6 +106,28 @@ def main():
         "to keep reporting."
     )
     sys.exit(0)
+
+
+def main():
+    """CLI entry point."""
+    dry_run = "--dry-run" in flag_args(__doc__, "--dry-run")
+
+    pymarkdown = find_pymarkdown(CHART_DIR)
+    if pymarkdown is None:
+        print("pymarkdown is not installed (see README-release-process.md#setup)")
+        sys.exit(1)
+
+    files = find_markdown_files(CHART_DIR)
+    if not files:
+        print("OK: no markdown files found")
+        sys.exit(0)
+
+    # md031's FIX action crashes on a real doc here — see run_fix.
+    disabled_rules = ",".join([*gate_markdown_disabled(CHART_DIR), "md031"])
+
+    if dry_run:
+        exit_with_dry_run_result(pymarkdown, files, disabled_rules)
+    exit_with_fix_result(pymarkdown, files, disabled_rules)
 
 
 if __name__ == "__main__":

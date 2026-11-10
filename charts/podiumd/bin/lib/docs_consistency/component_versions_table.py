@@ -16,11 +16,11 @@ from lib.docs_consistency.check_context import Findings
 from lib.docs_consistency.check_context import RowContext
 from lib.docs_consistency.check_context import RowLookup
 from lib.docs_consistency.markdown_format import check_doc_title
-from lib.image.docs import changes_sections_contradicting_rows
+from lib.image.docs import sections_contradicting_rows
 from lib.upgradedoc.baseline_intro import baseline_intro_mismatches
-from lib.upgradedoc.consistency_checks import find_changes_duplicate_identities
-from lib.upgradedoc.consistency_checks import find_changes_row_correspondence_gaps
-from lib.upgradedoc.consistency_checks import find_wrong_or_duplicate_dependency_claims
+from lib.upgradedoc.consistency_checks import find_correspondence_gaps
+from lib.upgradedoc.consistency_checks import find_duplicate_identities
+from lib.upgradedoc.consistency_checks import find_wrong_dependency_claims
 from lib.upgradedoc.consistency_checks import rowed_component_keys
 from lib.upgradedoc.consistency_checks import rowed_sidecar_paths
 from lib.upgradedoc.doc_names import doc_name
@@ -28,18 +28,18 @@ from lib.upgradedoc.doc_names import images_manifest_path
 from lib.upgradedoc.removed_items import removed_item_named
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.resolve_component_row import ResolvedRow
-from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
+from lib.upgradedoc.resolve_component_row import heading_has_app_version
 from lib.upgradedoc.resolve_component_row import is_resolved_row_unchanged
-from lib.upgradedoc.resolve_component_row import resolve_component_own_version_change
 from lib.upgradedoc.resolve_component_row import resolve_component_row
+from lib.upgradedoc.resolve_component_row import resolve_own_version_change
 from lib.upgradedoc.resolve_component_row import strip_chart_clause
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
-from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
+from lib.upgradedoc.sorting_and_ordering import parse_changes_blocks
 from lib.upgradedoc.string_and_parsing_basics import TableRow
 from lib.upgradedoc.string_and_parsing_basics import VersionRow
-from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows as _parse_upgrade_doc_rows
+from lib.upgradedoc.string_and_parsing_basics import single_heading_identity
 from lib.upgradedoc.version_cells import component_version_cell
 
 
@@ -119,6 +119,14 @@ def check_row_baseline_versions(
             f'{values_key} ("{row["name"]}") source chart: {row_ctx.baseline_ref} has '
             f'"{baseline_chart_actual}", {row_ctx.doc_path.name} says "{row["chart_source"]}"'
         )
+    _check_row_baseline_app(row, row_ctx, resolved, values_key, result)
+
+
+def _check_row_baseline_app(
+    row: VersionRow, row_ctx: RowContext, resolved: ResolvedRow, values_key: str, result: ComponentRowsResult
+) -> None:
+    """One row's source app-version cell vs. row_ctx.baseline_ref."""
+    baseline_app_actual, actual_app = resolved["baseline_app"], resolved["target_app"]
     if baseline_app_actual:
         expected_app_source, baseline_app_label = baseline_app_actual, f'"{baseline_app_actual}"'
     elif actual_app:
@@ -159,33 +167,44 @@ def _check_component_rows(
             )
             continue
 
-        values_key, _actual_app = _record_row_identity(resolved, result)
-        _check_row_target_versions(row, row_ctx, resolved, values_key, result)
-        if row_ctx.baseline_ref:
-            check_row_baseline_versions(row, row_ctx, resolved, values_key, result)
-            if is_resolved_row_unchanged(resolved):
-                result.mismatches.append(
-                    f'{row_ctx.doc_path.name}: doc row "{row["name"]}" is unchanged vs {row_ctx.baseline_ref} '
-                    f'(app and chart) — remove the row and its "### ..." Changes section'
-                )
+        _check_resolved_row(row, row_ctx, resolved, result)
 
     return result
+
+
+def _check_resolved_row(row: VersionRow, row_ctx: RowContext, resolved: ResolvedRow, result: ComponentRowsResult):
+    """One matched row's current and source cells, and whether it is unchanged."""
+    values_key, _actual_app = _record_row_identity(resolved, result)
+    _check_row_target_versions(row, row_ctx, resolved, values_key, result)
+    if not row_ctx.baseline_ref:
+        return
+    check_row_baseline_versions(row, row_ctx, resolved, values_key, result)
+    if is_resolved_row_unchanged(resolved):
+        result.mismatches.append(
+            f'{row_ctx.doc_path.name}: doc row "{row["name"]}" is unchanged vs {row_ctx.baseline_ref} '
+            f'(app and chart) — remove the row and its "### ..." Changes section'
+        )
 
 
 def _check_missing_component_rows(ctx: DocsCheckContext, scan: DocScanState, resolution: ResolutionContext):
     """Flag components changed vs baseline that have no row at all.
 
-    Covers own primary rows (resolve_component_own_version_change, shared with
+    Covers own primary rows (resolve_own_version_change, shared with
     add_missing_component_rows) and sidecar images under an already-rowed dependency
     (e.g. redis-ha under redis-operator), resolved like their rows
     (resolve_component_row, shared with add_missing_sidecar_rows' baseline). Only
     called when ctx.baseline_ref is set.
     """
+    return _rowless_changed_components(ctx, scan) + _rowless_changed_sidecars(ctx, scan, resolution)
+
+
+def _rowless_changed_components(ctx: DocsCheckContext, scan: DocScanState) -> list[str]:
+    """A component whose own version changed vs baseline without a row."""
     mismatches: list[str] = []
     # fix-doc-consistency writes a removed component's row (sync_removed_items).
     rowed_keys = rowed_component_keys(scan.rows, ctx.current.deps, scan.canonical_names)
     for key in sorted(ctx.actual_changed_keys - rowed_keys - set(scan.removed)):
-        resolved = resolve_component_own_version_change(
+        resolved = resolve_own_version_change(
             key,
             ctx.current,
             ctx.baseline,
@@ -198,7 +217,12 @@ def _check_missing_component_rows(ctx: DocsCheckContext, scan: DocScanState, res
             f'{scan.doc_path.name}: component "{key}" changed vs {ctx.baseline_ref} but has no row '
             f'in the "Component versions" table'
         )
+    return mismatches
 
+
+def _rowless_changed_sidecars(ctx: DocsCheckContext, scan: DocScanState, resolution: ResolutionContext) -> list[str]:
+    """A sidecar or shared image changed vs baseline without a row."""
+    mismatches: list[str] = []
     rowed_paths = rowed_sidecar_paths(scan.rows, ctx.current.deps, scan.canonical_names)
     for name, path in sorted(scan.canonical_names.items()):
         if path in rowed_paths:
@@ -214,8 +238,8 @@ def _check_missing_component_rows(ctx: DocsCheckContext, scan: DocScanState, res
 
 
 def _duplicate_identity_mismatches(ctx: DocsCheckContext, scan: DocScanState, changes_headings: list[str]):
-    """One mismatch per find_changes_duplicate_identities group."""
-    duplicate_rows, duplicate_headings = find_changes_duplicate_identities(
+    """One mismatch per find_duplicate_identities group."""
+    duplicate_rows, duplicate_headings = find_duplicate_identities(
         scan.rows, changes_headings, ctx.current.deps, scan.canonical_names
     )
     mismatches: list[str] = []
@@ -234,7 +258,7 @@ def _duplicate_identity_mismatches(ctx: DocsCheckContext, scan: DocScanState, ch
     return mismatches
 
 
-def _check_changes_heading_correspondence(
+def _check_heading_correspondence(
     ctx: DocsCheckContext,
     scan: DocScanState,
     rows_result: ComponentRowsResult,
@@ -254,9 +278,19 @@ def _check_changes_heading_correspondence(
     if not has_changes_section:
         return []
 
+    mismatches = _correspondence_gap_mismatches(ctx, scan, changes_headings)
+    for heading in changes_headings:
+        mismatch = _heading_app_version_mismatch(ctx, scan, rows_result, heading)
+        if mismatch is not None:
+            mismatches.append(mismatch)
+    return mismatches
+
+
+def _correspondence_gap_mismatches(ctx: DocsCheckContext, scan: DocScanState, changes_headings: list[str]) -> list[str]:
+    """A row without a "### ..." section, a section without a row, and a component named twice."""
     mismatches: list[str] = []
     # fix-doc-consistency writes a removed item's row and section (sync_removed_items).
-    rows_without_heading, headings_without_row = find_changes_row_correspondence_gaps(
+    rows_without_heading, headings_without_row = find_correspondence_gaps(
         scan.rows, changes_headings, ctx.current.deps, scan.canonical_names, scan.removed
     )
     mismatches.extend(
@@ -269,31 +303,33 @@ def _check_changes_heading_correspondence(
         for heading in headings_without_row
     )
     mismatches.extend(_duplicate_identity_mismatches(ctx, scan, changes_headings))
-
-    for heading in changes_headings:
-        idents = changes_heading_identities(heading, ctx.current.deps, scan.canonical_names)
-        if len(idents) != 1:
-            continue
-        identity = next(iter(idents))
-        actual_app = rows_result.resolved_app_by_identity.get(identity)
-        if actual_app and not changes_heading_has_app_version(heading):
-            mismatches.append(
-                f'{scan.doc_path.name}: "## Changes" section "### {heading}" is missing the '
-                f'primary-image app version in its own heading — values.yaml shows "{actual_app}"'
-            )
-            continue
-
-        if ctx.baseline_ref and identity in rows_result.baseline_app_by_identity:
-            expected_app_heading = component_version_cell(rows_result.baseline_app_by_identity[identity], actual_app)
-            without_chart_clause = strip_chart_clause(heading)
-            if expected_app_heading is not None and expected_app_heading not in without_chart_clause:
-                mismatches.append(
-                    f'{scan.doc_path.name}: "## Changes" section "### {heading}" shows the wrong '
-                    f'app-version transition in its own heading — expected "{expected_app_heading}" '
-                    f"(values.yaml/{ctx.baseline_ref} show {rows_result.baseline_app_by_identity[identity]!r} -> "
-                    f"{actual_app!r})"
-                )
     return mismatches
+
+
+def _heading_app_version_mismatch(
+    ctx: DocsCheckContext, scan: DocScanState, rows_result: ComponentRowsResult, heading: str
+) -> str | None:
+    """A "### ..." heading of one component that lacks its row's app version or shows the wrong transition."""
+    identity = single_heading_identity(heading, ctx.current.deps, scan.canonical_names)
+    if identity is None:
+        return None
+    actual_app = rows_result.resolved_app_by_identity.get(identity)
+    if actual_app and not heading_has_app_version(heading):
+        return (
+            f'{scan.doc_path.name}: "## Changes" section "### {heading}" is missing the '
+            f'primary-image app version in its own heading — values.yaml shows "{actual_app}"'
+        )
+    if not ctx.baseline_ref or identity not in rows_result.baseline_app_by_identity:
+        return None
+    baseline_app = rows_result.baseline_app_by_identity[identity]
+    expected_app_heading = component_version_cell(baseline_app, actual_app)
+    if expected_app_heading is None or expected_app_heading in strip_chart_clause(heading):
+        return None
+    return (
+        f'{scan.doc_path.name}: "## Changes" section "### {heading}" shows the wrong '
+        f'app-version transition in its own heading — expected "{expected_app_heading}" '
+        f"(values.yaml/{ctx.baseline_ref} show {baseline_app!r} -> {actual_app!r})"
+    )
 
 
 def _select_upgrade_doc(ctx: DocsCheckContext, findings: Findings):
@@ -339,9 +375,9 @@ def _stale_changes_item_mismatches(
     ]
 
 
-def _contradicting_section_mismatches(ctx: DocsCheckContext, scan: DocScanState, doc_text: str) -> list[str]:
+def _contradiction_mismatches(ctx: DocsCheckContext, scan: DocScanState, doc_text: str) -> list[str]:
     """A "### ..." Changes section's chart part or intro contradicts its table row."""
-    sections = changes_sections_contradicting_rows(
+    sections = sections_contradicting_rows(
         doc_text,
         DocContext(ctx.chart_dir, ctx.doc_query.podiumd_version),
         OrderingContext(ctx.current.deps, ctx.current.values, scan.canonical_names),
@@ -401,7 +437,7 @@ def check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
     # Matched like sync_removed_items matches them, so a hand-written "KISS" row is kiss's.
     removed_row_names = {row["name"] for row in scan.rows if removed_item_named(row["name"], scan.removed)}
     # Duplicate row names, and free-form rows fuzzy-matching a dependency another row claims.
-    duplicate_names, wrong_fuzzy_names = find_wrong_or_duplicate_dependency_claims(
+    duplicate_names, wrong_fuzzy_names = find_wrong_dependency_claims(
         [row["name"] for row in scan.rows if row["name"] not in removed_row_names], ctx.current.deps
     )
     findings.mismatches.extend(
@@ -418,11 +454,9 @@ def check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
         findings.mismatches.extend(_check_missing_component_rows(ctx, scan, resolution))
 
     doc_text = doc_path.read_text(encoding="utf-8")
-    changes_headings = [block["heading"] for block in parse_upgrade_doc_changes_blocks(doc_text)]
-    findings.mismatches.extend(
-        _check_changes_heading_correspondence(ctx, scan, rows_result, changes_headings, doc_text)
-    )
+    changes_headings = [block["heading"] for block in parse_changes_blocks(doc_text)]
+    findings.mismatches.extend(_check_heading_correspondence(ctx, scan, rows_result, changes_headings, doc_text))
     findings.mismatches.extend(_stale_changes_item_mismatches(ctx, scan, resolution))
-    findings.mismatches.extend(_contradicting_section_mismatches(ctx, scan, doc_text))
+    findings.mismatches.extend(_contradiction_mismatches(ctx, scan, doc_text))
     findings.mismatches.extend(_pointer_mismatches(doc_path, doc_text))
     _warn_edited_generated_lines(doc_path, "###", edited_changes_lines(doc_text))

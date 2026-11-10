@@ -1,16 +1,13 @@
 """main() integration: adding missing "Component versions" and first missing-sidecar rows."""
 
-import subprocess
-
 from pathlib import Path
 from types import ModuleType
 
 import pytest
 import yaml
 
-
-def git(*args, cwd):
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
+from tests.chart_repo import tagged_baseline_repo
+from tests.git_repo import commit_all
 
 
 def write(path, text):
@@ -30,41 +27,22 @@ def test_main_collapses_pre_existing_double_blank_line_on_write(
     cdb: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     """MD012: a pre-existing double blank line must not survive any write this script makes."""
-    git("init", "-q", cwd=tmp_path)
-    git("config", "user.email", "test@example.com", cwd=tmp_path)
-    git("config", "user.name", "Test", cwd=tmp_path)
-
-    write(
-        tmp_path / "Chart.yaml",
-        yaml.safe_dump(
+    doc_dir = tagged_baseline_repo(
+        tmp_path,
+        [
+            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
             {
-                "dependencies": [
-                    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
-                    {
-                        "name": "openforms",
-                        "alias": "openformulieren",
-                        "version": "1.11.0",
-                        "repository": "@maykinmedia",
-                    },
-                ],
-            }
-        ),
+                "name": "openforms",
+                "alias": "openformulieren",
+                "version": "1.11.0",
+                "repository": "@maykinmedia",
+            },
+        ],
+        {
+            "zac": {"image": {"tag": "5.0.2@sha256:bbbb"}},
+            "openformulieren": {"image": {"tag": "3.4.10@sha256:cccc"}},
+        },
     )
-    write(
-        tmp_path / "values.yaml",
-        yaml.safe_dump(
-            {
-                "zac": {"image": {"tag": "5.0.2@sha256:bbbb"}},
-                "openformulieren": {"image": {"tag": "3.4.10@sha256:cccc"}},
-            }
-        ),
-    )
-    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
-    doc_dir.mkdir(parents=True)
-    (tmp_path / "docs" / "images").mkdir(parents=True)
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
-    git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
     write(
         tmp_path / "Chart.yaml",
@@ -101,8 +79,7 @@ def test_main_collapses_pre_existing_double_blank_line_on_write(
         "| ZAC (Zaakafhandelcomponent) | 5.0.2 (unchanged) | 1.0.297 (unchanged) | n/a |\n\n\n"
         "## Changes\n\n",
     )
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "bump openformulieren, no doc row added, doc has a stray double blank line", cwd=tmp_path)
+    commit_all(tmp_path, "bump openformulieren, no doc row added, doc has a stray double blank line")
 
     set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
     cdb.main()

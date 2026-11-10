@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from collections.abc import Mapping
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from lib.chart.chart_yaml import ChartDependency
@@ -51,10 +52,9 @@ def removed_items(target: ChartImageIndex, baseline: ChartImageIndex) -> list[Re
         )
         for key, dep in removed_deps.items()
     ]
-    items += [
-        RemovedItem(name, version_of(tag) if (tag := baseline.paths.get(path)) else None, None, keys[name])
-        for name, path in removed_images.items()
-    ]
+    removed_tags = {name: baseline.paths.get(path) for name, path in removed_images.items()}
+    removed_versions = {name: version_of(tag) if tag else None for name, tag in removed_tags.items()}
+    items += [RemovedItem(name, version, None, keys[name]) for name, version in removed_versions.items()]
     return sorted(items, key=lambda item: item.order_key)
 
 
@@ -140,5 +140,10 @@ def removed_item_named(text: str, items: Mapping[str, RemovedItem]) -> RemovedIt
         return items[text]
     found = [name for name in items if is_named_by_text(text, name)]
     # A name inside a longer match is dropped: "foo-bar 1.0" names foo-bar, not foo.
-    longest = [name for name in found if not any(other != name and is_named_by_text(other, name) for other in found)]
+    longest = [name for name in found if not _is_inside_other(name, found)]
     return items[longest[0]] if len(longest) == 1 else None
+
+
+def _is_inside_other(name: str, found: Sequence[str]) -> bool:
+    """True when another of the `found` names also names `name`."""
+    return any(other != name and is_named_by_text(other, name) for other in found)

@@ -4,6 +4,7 @@ siblings (vs. the release_table baseline). In-memory inputs; no network."""
 import io
 import tarfile
 
+from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
 
@@ -290,28 +291,18 @@ def test_compare_new_dependency_at_baseline_with_real_source_is_flagged(vrt: Mod
 
 
 def test_main_unresolvable_release_table_baseline_warns_and_keeps_target_checks(
-    vrt: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    vrt: ModuleType,
+    release_table_chart: Callable[..., None],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     """A baseline-resolution failure skips only the source checks, with one
     warning; target checks still run."""
-    import csv as csv_module
-
-    chart_dir = tmp_path / "chart"
-    chart_dir.mkdir()
-    chart_yaml = chart_dir / "Chart.yaml"
-    values_yaml = chart_dir / "values.yaml"
-    release_table = chart_dir / "etc" / "release-table.csv"
-    release_table.parent.mkdir()
-
-    chart_yaml.write_text(
+    release_table_chart(
         "dependencies:\n  - name: zaakafhandelcomponent\n    version: 1.0.298\n    alias: zac\n",
-        encoding="utf-8",
-    )
-    values_yaml.write_text(ZAC_BLOCK, encoding="utf-8")
-    with release_table.open("w", newline="", encoding="utf-8") as f:
-        writer = csv_module.DictWriter(f, fieldnames=list(csv_row("x", "y").keys()))
-        writer.writeheader()
-        writer.writerow(
+        ZAC_BLOCK,
+        list(csv_row("x", "y").keys()),
+        [
             csv_row(
                 "Zaak - ZAC",
                 "zaakafhandelcomponent",
@@ -320,12 +311,9 @@ def test_main_unresolvable_release_table_baseline_warns_and_keeps_target_checks(
                 target_app="5.4.3",
                 target_helm="1.0.297",
             )
-        )
+        ],
+    )
 
-    monkeypatch.setattr(vrt, "CHART_DIR", chart_dir)
-    monkeypatch.setattr(vrt, "CHART_YAML", chart_yaml)
-    monkeypatch.setattr(vrt, "VALUES_YAML", values_yaml)
-    monkeypatch.setattr(vrt, "RELEASE_TABLE_CSV", release_table)
     monkeypatch.setattr(vrt, "release_table_baseline", lambda chart_dir: "9.9.9")
 
     code = run_main(vrt, monkeypatch, [])

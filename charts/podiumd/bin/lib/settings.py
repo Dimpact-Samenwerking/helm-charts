@@ -101,7 +101,7 @@ def _strings(items: list[YamlValue]) -> list[str]:
     return [item for item in items if isinstance(item, str)]
 
 
-def cve_max_cves_per_package_before_summarizing(chart_dir: Path):
+def cve_max_per_package(chart_dir: Path):
     """cve_scan.max_cves_per_package_before_summarizing."""
     return _int(chart_dir, "cve_scan", "max_cves_per_package_before_summarizing", 5)
 
@@ -111,7 +111,7 @@ def cve_scan_cache_ttl_days(chart_dir: Path):
     return _int(chart_dir, "cve_scan", "scan_cache_ttl_days", 7)
 
 
-def image_upgrade_tag_check_cache_ttl_days(chart_dir: Path):
+def image_upgrade_cache_ttl_days(chart_dir: Path):
     """image_upgrade_check.tag_check_cache_ttl_days."""
     return _int(chart_dir, "image_upgrade_check", "tag_check_cache_ttl_days", 1)
 
@@ -121,7 +121,7 @@ def root_containers_accepted(chart_dir: Path) -> dict[str, str]:
     return _text_map(chart_dir, "root_containers", "accepted", {})
 
 
-def chart_upgrade_check_cache_ttl_days(chart_dir: Path):
+def chart_upgrade_cache_ttl_days(chart_dir: Path):
     """chart_upgrade_check.cache_ttl_days."""
     return _int(chart_dir, "chart_upgrade_check", "cache_ttl_days", 1)
 
@@ -131,22 +131,22 @@ def repo_access_cache_ttl_minutes(chart_dir: Path):
     return _int(chart_dir, "repo_access", "cache_ttl_minutes", 30)
 
 
-def repo_access_request_timeout_seconds(chart_dir: Path):
+def repo_access_timeout_seconds(chart_dir: Path):
     """repo_access.request_timeout_seconds."""
     return _int(chart_dir, "repo_access", "request_timeout_seconds", 10)
 
 
-def repo_access_never_probe_host_suffixes(chart_dir: Path):
+def repo_access_no_probe_suffixes(chart_dir: Path):
     """repo_access.never_probe_host_suffixes, as a tuple."""
     return tuple(_text_list(chart_dir, "repo_access", "never_probe_host_suffixes", ["azurecr.io"]))
 
 
-def render_report_top_n_largest_templates_shown(chart_dir: Path):
+def render_report_top_n(chart_dir: Path):
     """render_report.top_n_largest_templates_shown."""
     return _int(chart_dir, "render_report", "top_n_largest_templates_shown", 5)
 
 
-def render_report_default_output_file_name(chart_dir: Path):
+def render_report_output_file(chart_dir: Path):
     """render_report.default_output_file_name: render-podiumd's output file (release_secret_size skips it)."""
     return _text(chart_dir, "render_report", "default_output_file_name", "rendered-helm.yaml")
 
@@ -156,62 +156,62 @@ def dry_check_similarity_threshold(chart_dir: Path):
     return _number(chart_dir, "dry_check", "similarity_threshold", 0.6)
 
 
-def dry_check_high_similarity_threshold(chart_dir: Path):
+def dry_check_high_similarity(chart_dir: Path):
     """dry_check.high_similarity_threshold."""
     return _number(chart_dir, "dry_check", "high_similarity_threshold", 0.75)
 
 
-def dry_check_min_significant_lines(chart_dir: Path):
+def dry_check_min_lines(chart_dir: Path):
     """dry_check.min_significant_lines."""
     return _int(chart_dir, "dry_check", "min_significant_lines", 8)
 
 
-def release_secret_kubernetes_limit_bytes(chart_dir: Path):
+def release_secret_limit_bytes(chart_dir: Path):
     """release_secret.kubernetes_secret_limit_bytes."""
     return _int(chart_dir, "release_secret", "kubernetes_secret_limit_bytes", 1024 * 1024)
 
 
-def release_secret_warn_at_fraction_of_limit(chart_dir: Path):
+def release_secret_warn_fraction(chart_dir: Path):
     """release_secret.warn_at_fraction_of_limit."""
     return _number(chart_dir, "release_secret", "warn_at_fraction_of_limit", 0.9)
 
 
-def dependency_fetch_retry_attempts(chart_dir: Path):
+def fetch_retry_attempts(chart_dir: Path):
     """dependency_fetch.retry_attempts."""
     return _int(chart_dir, "dependency_fetch", "retry_attempts", 3)
 
 
-def dependency_fetch_retry_backoff_seconds(chart_dir: Path):
+def fetch_retry_backoff_seconds(chart_dir: Path):
     """dependency_fetch.retry_backoff_seconds, as a tuple indexed by attempt - 1."""
     return tuple(_int_list(chart_dir, "dependency_fetch", "retry_backoff_seconds", [5, 15, 45]))
 
 
-def quality_gates_kubeconform_failing_statuses(chart_dir: Path):
+def gate_kubeconform_statuses(chart_dir: Path):
     """quality_gates.kubeconform_failing_statuses."""
     return set(_text_list(chart_dir, "quality_gates", "kubeconform_failing_statuses", ["statusError", "statusInvalid"]))
 
 
-def quality_gates_shellcheck_failing_levels(chart_dir: Path):
+def gate_shellcheck_levels(chart_dir: Path):
     """quality_gates.shellcheck_failing_levels."""
     return set(_text_list(chart_dir, "quality_gates", "shellcheck_failing_levels", ["error", "warning"]))
 
 
-def quality_gates_shellcheck_shell_names(chart_dir: Path):
+def gate_shellcheck_shells(chart_dir: Path):
     """quality_gates.shellcheck_shell_names."""
     return set(_text_list(chart_dir, "quality_gates", "shellcheck_shell_names", ["sh", "bash", "dash", "ksh"]))
 
 
-def quality_gates_yamllint_failing_rules(chart_dir: Path):
+def gate_yamllint_rules(chart_dir: Path):
     """quality_gates.yamllint_failing_rules."""
     return set(_text_list(chart_dir, "quality_gates", "yamllint_failing_rules", ["key-duplicates", "syntax"]))
 
 
-def quality_gates_markdown_disabled_rules(chart_dir: Path):
+def gate_markdown_disabled(chart_dir: Path):
     """quality_gates.markdown_disabled_rules: rule IDs; the caller joins them for `pymarkdown -d`."""
     return list(_text_list(chart_dir, "quality_gates", "markdown_disabled_rules", ["md013", "md014"]))
 
 
-def quality_gates_kube_score_check_id(chart_dir: Path):
+def gate_kube_score_check(chart_dir: Path):
     """quality_gates.kube_score_check_id."""
     return _text(chart_dir, "quality_gates", "kube_score_check_id", "container-resources")
 
@@ -240,7 +240,7 @@ def vendor_classification_keywords(chart_dir: Path):
     )
 
 
-def vendor_classification_chart_overrides(chart_dir: Path):
+def vendor_chart_overrides(chart_dir: Path):
     """vendor_classification.chart_overrides: chart name -> vendor label, for repository URLs that don't reveal it."""
     return dict(_text_map(chart_dir, "vendor_classification", "chart_overrides", {"kiss": "ICATT"}))
 
@@ -253,7 +253,7 @@ class DigestPinningException(TypedDict):
     writable: bool
 
 
-_DEFAULT_DIGEST_PINNING_EXCEPTIONS: YamlMapping = {
+_DEFAULT_PINNING_EXCEPTIONS: YamlMapping = {
     "keycloak-operator.operator.image": {"sibling_field": "sha", "writable": True},
     "keycloak-operator.operator.config.keycloakImage": {"sibling_field": "sha", "writable": True},
     "keycloak.image": {"sibling_field": "sha", "writable": True},
@@ -268,7 +268,7 @@ def digest_pinning_exceptions(chart_dir: Path) -> dict[tuple[str, ...], DigestPi
     Both keys are always present (missing sibling_field -> None, writable -> False)."""
     shape = {"sibling_field?": str, "writable?": bool}
     value = _checked(chart_dir, "digest_pinning", "exceptions", dict, "a mapping of exception entries")
-    raw: YamlMapping = value if isinstance(value, dict) else _DEFAULT_DIGEST_PINNING_EXCEPTIONS
+    raw: YamlMapping = value if isinstance(value, dict) else _DEFAULT_PINNING_EXCEPTIONS
     result: dict[tuple[str, ...], DigestPinningException] = {}
     for path, entry in raw.items():
         if not isinstance(entry, dict) or shape_problem(entry, shape) is not None:
@@ -304,7 +304,7 @@ def helm_repos_urls_by_alias(chart_dir: Path):
     )
 
 
-def component_resolution_lockstep_components(chart_dir: Path):
+def resolution_lockstep_components(chart_dir: Path):
     """component_resolution.chart_version_lockstep_components."""
     return frozenset(
         _text_list(
@@ -316,14 +316,14 @@ def component_resolution_lockstep_components(chart_dir: Path):
     )
 
 
-def component_resolution_native_components(chart_dir: Path):
+def resolution_native_components(chart_dir: Path):
     """component_resolution.native_components."""
     return frozenset(
         _text_list(chart_dir, "component_resolution", "native_components", ["frankgateway", "keycloak", "kiss-eck"])
     )
 
 
-def component_resolution_version_repository_paths(chart_dir: Path):
+def resolution_version_repo_paths(chart_dir: Path):
     """component_resolution.version_repository_paths."""
     return dict(
         _text_map(
@@ -332,7 +332,7 @@ def component_resolution_version_repository_paths(chart_dir: Path):
     )
 
 
-def component_resolution_embedded_version_images(chart_dir: Path):
+def resolution_embedded_images(chart_dir: Path):
     """component_resolution.embedded_version_images: path whose tag embeds another image's version -> that image."""
     return _text_map(
         chart_dir,
@@ -342,7 +342,7 @@ def component_resolution_embedded_version_images(chart_dir: Path):
     )
 
 
-def component_resolution_image_paths(chart_dir: Path):
+def resolution_image_paths(chart_dir: Path):
     """component_resolution.image_paths: component -> image block paths, for components with several images."""
     return dict(
         _text_list_map(
@@ -363,12 +363,12 @@ def component_resolution_image_paths(chart_dir: Path):
     )
 
 
-def component_resolution_default_image_paths(chart_dir: Path):
+def resolution_default_image_paths(chart_dir: Path):
     """component_resolution.default_image_paths: image paths for components without an image_paths entry."""
     return list(_text_list(chart_dir, "component_resolution", "default_image_paths", ["image"]))
 
 
-def component_resolution_version_paths(chart_dir: Path):
+def resolution_version_paths(chart_dir: Path):
     """component_resolution.version_paths: component -> paths holding a bare version, not an image block."""
     return dict(
         _text_list_map(

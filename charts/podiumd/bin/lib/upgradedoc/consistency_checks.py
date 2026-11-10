@@ -2,20 +2,23 @@
 names) and real Chart.yaml/native-component identities; mismatches are
 flagged, never guessed."""
 
+from collections import Counter
 from collections.abc import Mapping
 from collections.abc import Sequence
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import native_components
+from lib.chart.values_tree_primitives import ValuesPath
+from lib.chart.values_tree_primitives import dependency_name_and_alias
 from lib.chart.values_tree_primitives import values_key_of
 from lib.upgradedoc.removed_items import RemovedItem
 from lib.upgradedoc.removed_items import removed_item_named
 from lib.upgradedoc.string_and_parsing_basics import ComponentRef
 from lib.upgradedoc.string_and_parsing_basics import VersionRow
-from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import match_canonical_sidecar_name
 from lib.upgradedoc.string_and_parsing_basics import match_component
 from lib.upgradedoc.string_and_parsing_basics import normalize_name
+from lib.upgradedoc.string_and_parsing_basics import single_heading_identity
 
 
 def resolve_component_identity(
@@ -36,7 +39,7 @@ def resolve_component_identity(
 
 
 def _named_row_identities(
-    rows: Sequence[VersionRow], deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]] | None
+    rows: Sequence[VersionRow], deps: list[ChartDependency], canonical_names: Mapping[str, ValuesPath] | None
 ) -> list[tuple[str, ComponentRef]]:
     """(row name, identity) of each "Component versions" row that resolve_component_identity resolves."""
     return [
@@ -50,19 +53,18 @@ def _single_heading_identities(
     headings: list[str], deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]]
 ) -> list[ComponentRef | None]:
     """Per heading, the one component it names, or None when it names none or several."""
-    identities = [changes_heading_identities(heading, deps, canonical_names) for heading in headings]
-    return [next(iter(idents)) if len(idents) == 1 else None for idents in identities]
+    return [single_heading_identity(heading, deps, canonical_names) for heading in headings]
 
 
 def row_identities(
-    rows: Sequence[VersionRow], deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]] | None
+    rows: Sequence[VersionRow], deps: list[ChartDependency], canonical_names: Mapping[str, ValuesPath] | None
 ) -> set[ComponentRef]:
     """The component or sidecar/shared image each "Component versions" row names (resolve_component_identity)."""
     return {identity for _name, identity in _named_row_identities(rows, deps, canonical_names)}
 
 
 def rowed_component_keys(
-    rows: Sequence[VersionRow], deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]] | None
+    rows: Sequence[VersionRow], deps: list[ChartDependency], canonical_names: Mapping[str, ValuesPath] | None
 ) -> set[str]:
     """Top-level keys of the components with a "Component versions" row of their own.
 
@@ -70,19 +72,19 @@ def rowed_component_keys(
     Shared by add_missing_component_rows and the checker's "changed but has no
     row" finding, so they agree on which components still need a row.
     """
-    return {ref for kind, ref in row_identities(rows, deps, canonical_names) if kind == "dep" and isinstance(ref, str)}
+    identities = row_identities(rows, deps, canonical_names)
+    return {ref for kind, ref in identities if kind == "dep" and isinstance(ref, str)}
 
 
 def rowed_sidecar_paths(
-    rows: Sequence[VersionRow], deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]] | None
+    rows: Sequence[VersionRow], deps: list[ChartDependency], canonical_names: Mapping[str, ValuesPath] | None
 ) -> set[tuple[str, ...]]:
     """Values paths of the sidecar/shared images with a row; shared by add_missing_sidecar_rows and the checker."""
-    return {
-        ref for kind, ref in row_identities(rows, deps, canonical_names) if kind == "sidecar" and isinstance(ref, tuple)
-    }
+    identities = row_identities(rows, deps, canonical_names)
+    return {ref for kind, ref in identities if kind == "sidecar" and isinstance(ref, tuple)}
 
 
-def find_changes_row_correspondence_gaps(
+def find_correspondence_gaps(
     rows: Sequence[VersionRow],
     headings: list[str],
     deps: list[ChartDependency],
@@ -122,7 +124,7 @@ def _group_by_identity(texts_and_identities: Sequence[tuple[str, ComponentRef]])
     return [tuple(texts) for texts in groups.values() if len(texts) > 1]
 
 
-def find_changes_duplicate_identities(
+def find_duplicate_identities(
     rows: Sequence[VersionRow],
     headings: list[str],
     deps: list[ChartDependency],
@@ -131,7 +133,7 @@ def find_changes_duplicate_identities(
     """(duplicate_row_groups, duplicate_heading_groups) naming the same component more than once.
 
     E.g. rows "KISS" and "Kiss". Only single-identity headings count; others
-    are already reported by find_changes_row_correspondence_gaps."""
+    are already reported by find_correspondence_gaps."""
     heading_idents = [
         (heading, ident)
         for heading, ident in zip(headings, _single_heading_identities(headings, deps, canonical_names), strict=True)
@@ -147,7 +149,7 @@ def is_exact_dependency_match(name: str, dep: ChartDependency) -> bool:
     Separates "KISS" (is the dependency) from "Kiss Elasticsearch" (merely
     mentions it)."""
     norm = normalize_name(name)
-    return any(normalize_name(dep_name) == norm for dep_name in (dep.get("name"), dep.get("alias")) if dep_name)
+    return any(normalize_name(dep_name) == norm for dep_name in dependency_name_and_alias(dep) if dep_name)
 
 
 def _claimed_dependency(name: str, deps: list[ChartDependency]) -> ChartDependency | None:
@@ -156,9 +158,7 @@ def _claimed_dependency(name: str, deps: list[ChartDependency]) -> ChartDependen
     return None if isinstance(component, str) else component
 
 
-def find_wrong_or_duplicate_dependency_claims(
-    names: list[str], deps: list[ChartDependency]
-) -> tuple[set[str], set[str]]:
+def find_wrong_dependency_claims(names: list[str], deps: list[ChartDependency]) -> tuple[set[str], set[str]]:
     """(duplicate_names, wrong_fuzzy_names) for free-form names claiming Chart.yaml dependencies.
 
     - duplicate_names: names appearing more than once.
@@ -169,11 +169,21 @@ def find_wrong_or_duplicate_dependency_claims(
     Callers should report names in either set as wrong/stale and skip their
     normal resolution. Exact claims use two sets, not a {key: name} dict, so
     two names exactly claiming one key don't overwrite each other."""
-    name_counts: dict[str, int] = {}
-    for name in names:
-        name_counts[name] = name_counts.get(name, 0) + 1
-    duplicate_names = {name for name, count in name_counts.items() if count > 1}
+    duplicate_names = {name for name, count in Counter(names).items() if count > 1}
+    exactly_claiming_names, exactly_claimed_keys = _exact_dependency_claims(names, deps)
 
+    unclaimed = [name for name in names if name not in duplicate_names and name not in exactly_claiming_names]
+    wrong_fuzzy_names: set[str] = set()
+    for name in unclaimed:
+        dep = _claimed_dependency(name, deps)
+        if dep is not None and values_key_of(dep) in exactly_claimed_keys:
+            wrong_fuzzy_names.add(name)
+
+    return duplicate_names, wrong_fuzzy_names
+
+
+def _exact_dependency_claims(names: list[str], deps: list[ChartDependency]) -> tuple[set[str], set[str]]:
+    """(names, dependency values keys) of the names that claim a dependency exactly."""
     exactly_claiming_names: set[str] = set()
     exactly_claimed_keys: set[str] = set()
     for name in names:
@@ -181,16 +191,4 @@ def find_wrong_or_duplicate_dependency_claims(
         if dep is not None and is_exact_dependency_match(name, dep):
             exactly_claiming_names.add(name)
             exactly_claimed_keys.add(values_key_of(dep))
-
-    wrong_fuzzy_names: set[str] = set()
-    for name in names:
-        if name in duplicate_names or name in exactly_claiming_names:
-            continue
-        dep = _claimed_dependency(name, deps)
-        if dep is None:
-            continue
-        key = values_key_of(dep)
-        if key in exactly_claimed_keys:
-            wrong_fuzzy_names.add(name)
-
-    return duplicate_names, wrong_fuzzy_names
+    return exactly_claiming_names, exactly_claimed_keys

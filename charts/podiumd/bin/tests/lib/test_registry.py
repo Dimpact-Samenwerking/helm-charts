@@ -1,7 +1,6 @@
 """lib.registry tests; urlopen is monkeypatched, git history uses a temp repo."""
 
 import json
-import subprocess
 
 from email.message import Message
 from io import BytesIO
@@ -20,6 +19,8 @@ from tests.fixture_data import SHA256_C
 from tests.fixture_data import SHA256_D
 from tests.fixture_data import SHA256_E
 from tests.fixture_data import sha256_digest
+from tests.git_repo import commit_all
+from tests.git_repo import init_git_repo
 
 # --- parse_repo ---
 
@@ -309,35 +310,26 @@ def test_list_tags_still_issues_a_get_request(libregistry: ModuleType, monkeypat
 # --- historical_digests_for_tag ---
 
 
-def git(*args, cwd):
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
-
-
 @pytest.fixture
 def values_repo(tmp_path: Path):
     """Temp git repo: solr's tag pinned to three digests over history, zac's to one."""
-    git("init", "-q", cwd=tmp_path)
-    git("config", "user.email", "test@example.com", cwd=tmp_path)
-    git("config", "user.name", "Test", cwd=tmp_path)
+    init_git_repo(tmp_path)
     values_path = tmp_path / "values.yaml"
 
     values_path.write_text(
         f'zac:\n  image:\n    tag: "5.1.0@{SHA256_C}"\nsolr:\n  image:\n    tag: "9.10.1-slim@{SHA256_A}"\n'
     )
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "initial", cwd=tmp_path)
+    commit_all(tmp_path, "initial")
 
     values_path.write_text(
         f'zac:\n  image:\n    tag: "5.1.0@{SHA256_C}"\nsolr:\n  image:\n    tag: "9.10.1-slim@{SHA256_B}"\n'
     )
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "refresh solr digest #1", cwd=tmp_path)
+    commit_all(tmp_path, "refresh solr digest #1")
 
     values_path.write_text(
         f'zac:\n  image:\n    tag: "5.1.0@{SHA256_C}"\nsolr:\n  image:\n    tag: "9.10.1-slim@{SHA256_D}"\n'
     )
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "refresh solr digest #2", cwd=tmp_path)
+    commit_all(tmp_path, "refresh solr digest #2")
 
     return values_path
 
@@ -582,7 +574,7 @@ def test_is_more_specific_tag_rejects_non_numeric_tag(libregistry: ModuleType):
     assert libregistry.is_more_specific_tag("unrelated-tag", "3.14-slim") is False
 
 
-# --- find_more_specific_tag_at_same_digest ---
+# --- find_more_specific_tag ---
 
 
 def test_find_more_specific_tag_at_same_digest_finds_sibling(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
@@ -592,7 +584,7 @@ def test_find_more_specific_tag_at_same_digest_finds_sibling(libregistry: Module
         "registry_tag_exists",
         lambda host, repo, tag: (True, SHA256_B) if tag == "3.14.7-slim" else (True, sha256_digest("z")),
     )
-    found = libregistry.find_more_specific_tag_at_same_digest("docker.io", "library/python", "3.14-slim", SHA256_B)
+    found = libregistry.find_more_specific_tag("docker.io", "library/python", "3.14-slim", SHA256_B)
     assert found == "3.14.7-slim"
 
 
@@ -601,7 +593,7 @@ def test_find_more_specific_tag_at_same_digest_none_when_no_sibling_matches(
 ):
     monkeypatch.setattr(libregistry, "list_tags", lambda host, repo: ["9.10.1", "9.10.1-slim"])
     monkeypatch.setattr(libregistry, "registry_tag_exists", lambda host, repo, tag: (True, sha256_digest("z")))
-    found = libregistry.find_more_specific_tag_at_same_digest("docker.io", "library/solr", "9.10.1-slim", SHA256_A)
+    found = libregistry.find_more_specific_tag("docker.io", "library/solr", "9.10.1-slim", SHA256_A)
     assert found is None
 
 
@@ -610,7 +602,7 @@ def test_find_more_specific_tag_at_same_digest_ignores_non_prefix_tags(
 ):
     monkeypatch.setattr(libregistry, "list_tags", lambda host, repo: ["unrelated-tag"])
     monkeypatch.setattr(libregistry, "registry_tag_exists", lambda host, repo, tag: (True, SHA256_A))
-    found = libregistry.find_more_specific_tag_at_same_digest("docker.io", "library/python", "3.14-slim", SHA256_A)
+    found = libregistry.find_more_specific_tag("docker.io", "library/python", "3.14-slim", SHA256_A)
     assert found is None
 
 
@@ -746,21 +738,21 @@ def test_is_sliding_tag_true_from_history_alone(libregistry: ModuleType, values_
         msg = "registry fallback should not be needed when history is conclusive"
         raise AssertionError(msg)
 
-    monkeypatch.setattr(libregistry, "find_more_specific_tag_at_same_digest", fail_if_called)
+    monkeypatch.setattr(libregistry, "find_more_specific_tag", fail_if_called)
     assert libregistry.is_sliding_tag(values_repo, "docker.io", "library/solr", "9.10.1-slim", SHA256_D) is True
 
 
 def test_is_sliding_tag_falls_back_to_registry_when_history_inconclusive(
     libregistry: ModuleType, values_repo, monkeypatch: pytest.MonkeyPatch
 ):
-    monkeypatch.setattr(libregistry, "find_more_specific_tag_at_same_digest", lambda *a, **k: "5.1.0-extra")
+    monkeypatch.setattr(libregistry, "find_more_specific_tag", lambda *a, **k: "5.1.0-extra")
     assert libregistry.is_sliding_tag(values_repo, "docker.io", "ghcr.io/infonl/zac", "5.1.0", SHA256_C) is True
 
 
 def test_is_sliding_tag_false_when_both_signals_say_no(
     libregistry: ModuleType, values_repo, monkeypatch: pytest.MonkeyPatch
 ):
-    monkeypatch.setattr(libregistry, "find_more_specific_tag_at_same_digest", lambda *a, **k: None)
+    monkeypatch.setattr(libregistry, "find_more_specific_tag", lambda *a, **k: None)
     assert libregistry.is_sliding_tag(values_repo, "docker.io", "ghcr.io/infonl/zac", "5.1.0", SHA256_C) is False
 
 
@@ -771,5 +763,5 @@ def test_is_sliding_tag_false_when_registry_fallback_errors(
         msg = "down"
         raise URLError(msg)
 
-    monkeypatch.setattr(libregistry, "find_more_specific_tag_at_same_digest", raise_network_error)
+    monkeypatch.setattr(libregistry, "find_more_specific_tag", raise_network_error)
     assert libregistry.is_sliding_tag(values_repo, "docker.io", "ghcr.io/infonl/zac", "5.1.0", SHA256_C) is False

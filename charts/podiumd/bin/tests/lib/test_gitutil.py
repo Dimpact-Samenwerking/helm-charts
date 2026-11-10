@@ -10,24 +10,20 @@ from types import ModuleType
 import pytest
 import yaml
 
-
-def git(*args, cwd):
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
+from tests.git_repo import commit_all
+from tests.git_repo import git
+from tests.git_repo import init_git_repo
 
 
 @pytest.fixture
 def repo(tmp_path: Path):
-    git("init", "-q", cwd=tmp_path)
-    git("config", "user.email", "test@example.com", cwd=tmp_path)
-    git("config", "user.name", "Test", cwd=tmp_path)
+    init_git_repo(tmp_path)
     (tmp_path / "values.yaml").write_text(yaml.safe_dump({"zac": {"image": {"tag": "5.0.2"}}}))
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "baseline", cwd=tmp_path)
+    commit_all(tmp_path, "baseline")
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
     (tmp_path / "values.yaml").write_text(yaml.safe_dump({"zac": {"image": {"tag": "5.1.0"}}}))
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "bump zac", cwd=tmp_path)
+    commit_all(tmp_path, "bump zac")
     return tmp_path
 
 

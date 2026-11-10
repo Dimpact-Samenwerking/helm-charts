@@ -13,6 +13,7 @@ from typing import TypedDict
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import native_components
+from lib.chart.values_tree_primitives import dependency_name_and_alias
 from lib.chart.values_tree_primitives import values_key_of
 
 # Matched against a "##" heading's text (markdown_headings), as every writer and check does.
@@ -98,12 +99,34 @@ def _table_cell_source_version(cell: str) -> str | None:
     return None if cell.strip().endswith("(new)") else extract_source_version(cell)
 
 
+_SEPARATOR_CELL_RE = re.compile(r"^:?-+:?$")
+
+
 def table_cells(line: str) -> list[str]:
     """The stripped cells of a Markdown table row."""
     return [cell.strip() for cell in line.strip().strip("|").split("|")]
 
 
-def set_row_cells(lines: list[str], row: TableRow, app_cell: str | None, chart_cell: str | None) -> list[str] | None:
+def is_table_separator(line: str) -> bool:
+    """Whether `line` is a Markdown table's "| --- | :-: |" separator row."""
+    if not line.strip().startswith("|"):
+        return False
+    return all(_SEPARATOR_CELL_RE.match(cell) for cell in table_cells(line))
+
+
+def table_data_cells(line: str) -> list[str] | None:
+    """The cells of a Markdown table row; None for a separator or a line that is no table row."""
+    if not line.strip().startswith("|") or is_table_separator(line):
+        return None
+    return table_cells(line)
+
+
+def set_row_cells(
+    lines: list[str],
+    row: TableRow,
+    app_cell: str | None,
+    chart_cell: str | None,
+) -> list[str] | None:
     """Write `row`'s App version and Helm chart cells into `lines`; None leaves a cell as it is.
 
     Returns the row's new cells when the line changed, else None. The other
@@ -134,20 +157,15 @@ def parse_upgrade_doc_rows(text: str) -> list[TableRow]:
     Scoped to that section (up to the next "## "), so other pipe-tables in the doc are never
     read as component rows. [] without the heading."""
     lines = text.splitlines()
-    start, end = component_versions_section_bounds(lines)
+    start, end = versions_section_bounds(lines)
     if start is None:
         return []
     start += 1
 
     rows: list[TableRow] = []
     for line_index in range(start, end):
-        line = lines[line_index]
-        if not line.strip().startswith("|"):
-            continue
-        cells = table_cells(line)
-        if len(cells) < _MIN_TABLE_ROW_CELLS or cells[0].lower() == "component":
-            continue
-        if all(re.match(r"^:?-+:?$", cell) for cell in cells):
+        cells = _component_row_cells(lines[line_index])
+        if cells is None:
             continue
         rows.append(
             {
@@ -160,6 +178,14 @@ def parse_upgrade_doc_rows(text: str) -> list[TableRow]:
             }
         )
     return rows
+
+
+def _component_row_cells(line: str) -> list[str] | None:
+    """The cells of a component table row; None for a non-table, header or separator line."""
+    cells = table_data_cells(line)
+    if cells is None or len(cells) < _MIN_TABLE_ROW_CELLS or cells[0].lower() == "component":
+        return None
+    return cells
 
 
 def word_aligned_spans(text: str) -> set[str]:
@@ -253,7 +279,8 @@ def match_component(
     canonical sidecar delimiter), so "redis-operator - redis" is not the
     redis-operator dependency. Not for component_order_key, which wants a sidecar
     row to sort near its owning dependency."""
-    dep_candidates = [] if " - " in text else [(dep, (dep["name"], dep.get("alias"))) for dep in deps]
+    named_deps: list[ChartDependency] = [] if " - " in text else deps
+    dep_candidates = [(dep, dependency_name_and_alias(dep)) for dep in named_deps]
     natives = sorted(native_component_names)
     is_values_path = "." in text and not any(char.isspace() for char in text)
     norm = normalize_name(text.split(".", 1)[0] if is_values_path else text)
@@ -303,22 +330,29 @@ def changes_heading_identities(
         return set()
     words = words_of(heading)
     matches: list[tuple[int, int, str]] = []  # end exclusive
-    candidates_by_key = [
-        (cand, values_key_of(dep)) for dep in deps for cand in filter(None, [dep.get("name"), dep.get("alias")])
-    ]
+    named_deps = [(dep, name) for dep in deps for name in dependency_name_and_alias(dep) if name]
+    candidates_by_key = [(name, values_key_of(dep)) for dep, name in named_deps]
     candidates_by_key += [(key, key) for key in native_components()]
     runs = list(_word_runs(words))
     for candidate, key in candidates_by_key:
         norm_c = normalize_name(candidate)
         matches += [(start, end, key) for start, end, run in runs if norm_c and run == norm_c]
-    kept = [
-        key
-        for start, end, key in matches
-        if not any(
-            o_start <= start and end <= o_end and (o_start, o_end) != (start, end) for o_start, o_end, _ in matches
-        )
-    ]
+    kept = [key for start, end, key in matches if not _is_inside_longer_match(start, end, matches)]
     return {("dep", key) for key in kept}
+
+
+def single_heading_identity(
+    heading: str, deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]] | None
+) -> ComponentRef | None:
+    """The one component a "### ..." heading names (changes_heading_identities), or None for none or several."""
+    idents = changes_heading_identities(heading, deps, canonical_names)
+    return next(iter(idents)) if len(idents) == 1 else None
+
+
+def _is_inside_longer_match(start: int, end: int, matches: Sequence[tuple[int, int, str]]) -> bool:
+    """True when another match's word range contains [start, end)."""
+    others = [(o_start, o_end) for o_start, o_end, _ in matches if (o_start, o_end) != (start, end)]
+    return any(o_start <= start and end <= o_end for o_start, o_end in others)
 
 
 def match_located_line(pattern: re.Pattern[str], line: str) -> re.Match[str]:
@@ -344,21 +378,29 @@ def fenced_line_flags(lines: Sequence[str]) -> list[bool]:
         fence_match = FENCE_LINE_RE.match(line)
         if fence:
             flags.append(True)
-            closing = fence_match["fence"] if fence_match else ""
-            if closing.startswith(fence[0]) and len(closing) >= len(fence):
-                fence = ""
+            fence = _fence_after(fence, fence_match)
         elif in_comment:
             flags.append(True)
             in_comment = "-->" not in line
-        elif fence_match:
-            flags.append(True)
-            fence = fence_match["fence"]
-        elif line.lstrip().startswith("<!--") and "-->" not in line:
-            flags.append(True)
-            in_comment = True
         else:
-            flags.append(False)
+            fence, in_comment = _block_opened_by(line, fence_match)
+            flags.append(bool(fence) or in_comment)
     return flags
+
+
+def _fence_after(fence: str, fence_match: re.Match[str] | None) -> str:
+    """The open fence after a line inside it: "" when the line closes it."""
+    closing = fence_match["fence"] if fence_match else ""
+    if closing.startswith(fence[0]) and len(closing) >= len(fence):
+        return ""
+    return fence
+
+
+def _block_opened_by(line: str, fence_match: re.Match[str] | None) -> tuple[str, bool]:
+    """(fence, in multi-line HTML comment) a line outside any block opens."""
+    if fence_match:
+        return fence_match["fence"], False
+    return "", line.lstrip().startswith("<!--") and "-->" not in line
 
 
 def heading_slug(heading: str):
@@ -396,7 +438,7 @@ def next_level2_line(headings: Sequence[MarkdownHeading], start_line: int, line_
     )
 
 
-def component_versions_section_bounds(lines: Sequence[str]) -> tuple[int | None, int]:
+def versions_section_bounds(lines: Sequence[str]) -> tuple[int | None, int]:
     """(heading line, section end) of "## Component versions"; (None, len(lines)) if absent."""
     headings = markdown_headings(lines)
     start = next(

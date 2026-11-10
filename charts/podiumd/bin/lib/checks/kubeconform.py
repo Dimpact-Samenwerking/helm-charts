@@ -26,7 +26,7 @@ from lib.render_scope import print_partner_findings_heading
 from lib.render_scope import resource_line
 from lib.render_scope import scan_outcome
 from lib.render_scope import scan_rendered_chart
-from lib.settings import quality_gates_kubeconform_failing_statuses
+from lib.settings import gate_kubeconform_statuses
 from lib.yaml_types import is_yaml_mapping
 from lib.yaml_types import shape_problem
 
@@ -140,10 +140,8 @@ def _scan_vendored_charts(
         resources = run_kubeconform("".join(texts))
         if resources is None:
             return None, None, "kubeconform produced unparseable output"
-        for resource in resources:
-            if resource.get("status") not in failing_statuses:
-                continue
-            (vendored_friendly if chart in vendor_map else vendored_other).append((chart, resource))
+        bucket = vendored_friendly if chart in vendor_map else vendored_other
+        bucket.extend((chart, resource) for resource in resources if resource.get("status") in failing_statuses)
     return vendored_friendly, vendored_other, None
 
 
@@ -194,7 +192,7 @@ def check_kubeconform(chart_dir: Path, extra_args: list[str]):
     if shutil.which("kubeconform") is None:
         return False, "kubeconform is not installed (see --skip-kubeconform to bypass)"
 
-    failing_statuses = quality_gates_kubeconform_failing_statuses(chart_dir)
+    failing_statuses = gate_kubeconform_statuses(chart_dir)
 
     scan, error = scan_rendered_chart(
         chart_dir,

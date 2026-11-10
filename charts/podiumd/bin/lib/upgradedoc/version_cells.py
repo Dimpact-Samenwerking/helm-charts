@@ -4,7 +4,7 @@ import re
 
 from typing import overload
 
-from lib.upgradedoc.grouped_comments_and_changes_block import VERSION_SPEC_RE
+from lib.upgradedoc.grouped_comments import VERSION_SPEC_RE
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 
 VERSION_PAIR_RE = re.compile(r"(?P<source>[A-Za-z0-9][\w.\-]*)\s*(?P<arrow>→|->)\s*(?P<target>[A-Za-z0-9][\w.\-]*)")

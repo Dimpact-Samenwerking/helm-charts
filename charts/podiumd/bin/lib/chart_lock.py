@@ -89,13 +89,19 @@ def _go_json_dependency(dep: ChartDependency | ChartLockDependency):
     """dep as Go's json.Marshal writes a chart.Dependency; version always a string."""
     out: dict[str, object] = {}
     for field, omitempty in _DEPENDENCY_JSON_FIELDS:
-        value = dep.get(field)
-        if field == "version" and value is not None:
-            value = str(value)
+        value = _go_json_field(dep, field)
         if omitempty and not value:
             continue
         out[field] = "" if value is None else value
     return out
+
+
+def _go_json_field(dep: ChartDependency | ChartLockDependency, field: str) -> object:
+    """dep's `field` value, with version as a string."""
+    value = dep.get(field)
+    if field == "version" and value is not None:
+        return str(value)
+    return value
 
 
 def _go_json(value: object) -> str:

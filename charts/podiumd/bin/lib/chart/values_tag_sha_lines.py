@@ -12,11 +12,17 @@ def find_block_end(lines: list[str], block_start: int, indent: int) -> int:
     line at `indent`): the next non-blank, non-comment line at indent <=
     that level, or EOF."""
     for index, line in enumerate(lines[block_start + 1 :], block_start + 1):
-        if not line.strip() or line.lstrip().startswith("#"):
-            continue
-        if len(line) - len(line.lstrip(" ")) <= indent:
+        line_indent = _content_indent(line)
+        if line_indent is not None and line_indent <= indent:
             return index
     return len(lines)
+
+
+def _content_indent(line: str) -> int | None:
+    """`line`'s leading-space count; None for a blank or comment line, which never ends or joins a block."""
+    if not line.strip() or line.lstrip().startswith("#"):
+        return None
+    return len(line) - len(line.lstrip(" "))
 
 
 def find_child_key_line(lines: list[str], key: str, parent_indent: int, block_start: int, block_end: int) -> int | None:
@@ -25,15 +31,13 @@ def find_child_key_line(lines: list[str], key: str, parent_indent: int, block_st
     candidates: list[tuple[int, int]] = []
     child_indents: list[int] = []
     for index in range(block_start, block_end):
-        line = lines[index]
-        if not line.strip() or line.lstrip().startswith("#"):
+        indent = _content_indent(lines[index])
+        if indent is None or indent <= parent_indent:
             continue
-        indent = len(line) - len(line.lstrip(" "))
-        if indent > parent_indent:
-            child_indents.append(indent)
-        key_match = key_re.match(line)
-        if key_match and len(key_match.group(1)) > parent_indent:
-            candidates.append((len(key_match.group(1)), index))
+        child_indents.append(indent)
+        key_match = key_re.match(lines[index])
+        if key_match:
+            candidates.append((indent, index))
     if not candidates:
         return None
     child_level = min(child_indents)
@@ -115,14 +119,13 @@ def write_tag_and_sha(lines: list[str], location: tuple[int, int, int | None], w
         print(f"  {write.label}.tag: *alias reference — inherits from its own anchor, not written directly")
     else:
         lines[tag_line_index] = replace_scalar_value(lines[tag_line_index], write.new_version)
-    if sibling_line_index is not None:
-        if is_alias_reference_line(lines[sibling_line_index]):
-            print(
-                f"  {write.label}.{write.sibling_field}: *alias reference — "
-                "inherits from its own anchor, not written directly"
-            )
-        else:
-            lines[sibling_line_index] = replace_scalar_value(lines[sibling_line_index], sibling_value)
-    else:
+    if sibling_line_index is None:
         indent_str = " " * tag_indent
         lines.insert(tag_line_index + 1, f'{indent_str}{write.sibling_field}: "{sibling_value}"\n')
+    elif is_alias_reference_line(lines[sibling_line_index]):
+        print(
+            f"  {write.label}.{write.sibling_field}: *alias reference — "
+            "inherits from its own anchor, not written directly"
+        )
+    else:
+        lines[sibling_line_index] = replace_scalar_value(lines[sibling_line_index], sibling_value)

@@ -135,10 +135,8 @@ def outgoing_version(chart_version_now: str, target: str) -> str:
     return recorded
 
 
-def main():
-    """CLI entry point."""
-    positional_args(__doc__, 0)
-
+def _repo_and_target() -> tuple[Path, str]:
+    """The repository root and the target version from its feature/podiumd-<X.Y.Z> branch; exits 1 otherwise."""
     repo_root = find_repo_root(CHART_DIR)
     if repo_root is None:
         print("error: not inside a git repository")
@@ -152,8 +150,11 @@ def main():
             f"'feature/podiumd-<MAJOR.MINOR.PATCH>' — refusing to guess the target version"
         )
         sys.exit(1)
-    target = branch_match.group(1)
+    return repo_root, branch_match.group(1)
 
+
+def _baseline_and_kind(target: str) -> tuple[str, str]:
+    """The outgoing version and the bump kind ("patch" or "minor") to `target`; exits 1 on any other jump."""
     chart_version_now = current_chart_version()
     if not is_bare_version(chart_version_now):
         print(f"error: {CHART_YAML}'s version '{chart_version_now}' is not a plain MAJOR.MINOR.PATCH")
@@ -169,6 +170,35 @@ def main():
             f"a skipped version or a same-or-lower target isn't supported either."
         )
         sys.exit(1)
+    return baseline, kind
+
+
+def _report_baselines(
+    baseline: str,
+    kind: str,
+    new_release_table: str | None,
+    resolved_refs: dict[str, str],
+    *,
+    baselines_changed: bool,
+) -> None:
+    """Print the recorded baselines and the refs they resolved to."""
+    state = "" if baselines_changed else ", already set"
+    print(f"release-baseline.yaml: upgrade_docs {baseline} (resolved to {resolved_refs['upgrade_docs']}{state})")
+    if kind == "minor":
+        print(f"release-baseline.yaml: release_table {baseline} (resolved to {resolved_refs['release_table']}{state})")
+    else:
+        print(
+            f"release-baseline.yaml: release_table unchanged ({new_release_table}, "
+            f"resolved to {resolved_refs['release_table']})"
+        )
+
+
+def main():
+    """CLI entry point."""
+    positional_args(__doc__, 0)
+
+    repo_root, target = _repo_and_target()
+    baseline, kind = _baseline_and_kind(target)
 
     # A minor bump marks a Confluence-documented release, so release_table
     # moves with it; a patch bump keeps the recorded one.
@@ -195,15 +225,7 @@ def main():
     else:
         print(f"{CHART_YAML.name}: already at {target} ({kind} bump from {baseline})")
 
-    state = "" if baselines_changed else ", already set"
-    print(f"release-baseline.yaml: upgrade_docs {baseline} (resolved to {resolved_refs['upgrade_docs']}{state})")
-    if kind == "minor":
-        print(f"release-baseline.yaml: release_table {baseline} (resolved to {resolved_refs['release_table']}{state})")
-    else:
-        print(
-            f"release-baseline.yaml: release_table unchanged ({new_release_table}, "
-            f"resolved to {resolved_refs['release_table']})"
-        )
+    _report_baselines(baseline, kind, new_release_table, resolved_refs, baselines_changed=baselines_changed)
 
     print_section(f"Running create-doc-version (upgrade_docs baseline {baseline})")
     result = run_script([sys.executable, str(CREATE_DOC_VERSION_SCRIPT)])

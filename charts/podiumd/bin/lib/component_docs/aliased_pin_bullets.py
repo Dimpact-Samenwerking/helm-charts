@@ -15,7 +15,7 @@ from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import version_of
 from lib.component_docs.changes_section import ALIAS_NOTE
 from lib.upgradedoc.sorting_and_ordering import changes_blocks_with_lines
-from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
+from lib.upgradedoc.sorting_and_ordering import parse_changes_blocks
 from lib.upgradedoc.version_cells import PIN_TEXT_PATTERN
 from lib.upgradedoc.version_cells import pin_version_text
 from lib.yaml_types import YamlValue
@@ -86,7 +86,8 @@ def _aliased_bullet(
         new = pin.group("pin_new") or pin.group("pin_kept")
         first = f"{first[: pin.start()]}{pin_version_text(own_old, new)}{first[pin.end() :]}"
     note = ALIAS_NOTE.format(path=documented_path)
-    first = f"{first[: -len(' in')]} {note} in" if first.endswith(" in") else f"{first} {note}"
+    suffix = " in" if first.endswith(" in") else ""
+    first = f"{first.removesuffix(suffix)} {note}{suffix}"
     return [f"{first}\n", *bullet_lines[1:]]
 
 
@@ -125,7 +126,7 @@ def _scan(
 def _headings_by_line(text: str) -> dict[int, str]:
     return {
         line_index: block["heading"]
-        for block in parse_upgrade_doc_changes_blocks(text)
+        for block in parse_changes_blocks(text)
         for line_index in range(block["start"], block["end"])
     }
 

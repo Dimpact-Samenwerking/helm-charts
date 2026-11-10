@@ -19,7 +19,7 @@ from lib.chart.release_baseline_basics import upgrade_docs_side_paths as read_up
 from lib.gitutil import find_repo_root
 from lib.procutil import run
 from lib.render_scope import print_grouped_findings
-from lib.settings import quality_gates_markdown_disabled_rules
+from lib.settings import gate_markdown_disabled
 from lib.upgradedoc.doc_names import doc_name_re
 
 # Applied on every invocation (scan and fix); see module docstring for md024.
@@ -31,7 +31,7 @@ def pymarkdown_rule_args(chart_dir: Path) -> list[str]:
 
     Shared by this check and run_python_checks, which lints bin/*.md that this check skips.
     """
-    return ["-d", ",".join(quality_gates_markdown_disabled_rules(chart_dir)), *MARKDOWN_PLUGIN_SETTINGS]
+    return ["-d", ",".join(gate_markdown_disabled(chart_dir)), *MARKDOWN_PLUGIN_SETTINGS]
 
 
 MARKDOWN_FINDING_RE = re.compile(
@@ -60,16 +60,23 @@ def find_markdown_files(chart_dir: Path):
     def in_scope(path: Path):
         if vendored in path.parents or bin_dir in path.parents or path == readme:
             return False
-        if upgrade_paths_dir in path.parents:
-            name_match = doc_name_re().fullmatch(path.name)
-            if name_match:
-                if name_match.group("target") != current_target:
-                    return False
-                if current_baseline is not None and name_match.group("baseline") not in current_baselines:
-                    return False
-        return True
+        if upgrade_paths_dir not in path.parents:
+            return True
+        return _is_upgrade_doc_in_scope(path.name, current_target, current_baseline, current_baselines)
 
     return sorted(markdown_path for markdown_path in chart_dir.rglob("*.md") if in_scope(markdown_path))
+
+
+def _is_upgrade_doc_in_scope(
+    name: str, current_target: str, current_baseline: str | None, current_baselines: set[str | None]
+) -> bool:
+    """Whether a docs/_UPGRADE_PATHS file `name` is linted: not an upgrade doc, or one of the current hop."""
+    name_match = doc_name_re().fullmatch(name)
+    if not name_match:
+        return True
+    if name_match.group("target") != current_target:
+        return False
+    return current_baseline is None or name_match.group("baseline") in current_baselines
 
 
 def find_pymarkdown(chart_dir: Path):

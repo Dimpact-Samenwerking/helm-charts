@@ -1,19 +1,14 @@
-"""dedupe_images_manifest_changes_items, sort_images_manifest_changes_items."""
-
-import subprocess
+"""dedupe_changes_items, sort_changes_items."""
 
 from pathlib import Path
 from types import ModuleType
 
 import pytest
-import yaml
 
-from lib.fix_doc_consistency.manifest_changes_items import dedupe_images_manifest_changes_items
-from lib.fix_doc_consistency.manifest_changes_items import sort_images_manifest_changes_items
-
-
-def git(*args, cwd):
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
+from lib.fix_doc_consistency.manifest_changes_items import dedupe_changes_items
+from lib.fix_doc_consistency.manifest_changes_items import sort_changes_items
+from tests.chart_repo import seed_chart_repo
+from tests.git_repo import commit_all
 
 
 def write(path, text):
@@ -29,7 +24,7 @@ def set_argv_and_dir(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch, doc_dir, 
     monkeypatch.setattr(cdb, "current_chart_version", lambda: target)
 
 
-# --- dedupe_images_manifest_changes_items ---
+# --- dedupe_changes_items ---
 
 
 def test_dedupe_images_manifest_changes_items_removes_exact_repeat_and_renumbers(cdb: ModuleType):
@@ -43,7 +38,7 @@ def test_dedupe_images_manifest_changes_items_removes_exact_repeat_and_renumbers
         "#   4. zac 5.0.2 -> 5.4.4.\n",
         "\n",
     ]
-    removed = dedupe_images_manifest_changes_items(lines)
+    removed = dedupe_changes_items(lines)
     assert removed == ["ita 3.2.0 -> 3.3.0."]
     assert lines[1] == "#   1. redis-operator 0.25.0 -> 0.26.0.\n"
     assert lines[2] == "#   2. ita 3.2.0 -> 3.3.0.\n"
@@ -60,7 +55,7 @@ def test_dedupe_images_manifest_changes_items_updates_header_count_word(cdb: Mod
         "#   3. kiss-eck 8.19.3 -> 8.19.19.\n",
         "#   4. zac 5.0.2 -> 5.4.4.\n",
     ]
-    removed = dedupe_images_manifest_changes_items(lines)
+    removed = dedupe_changes_items(lines)
     assert removed == ["kiss-eck 8.19.3 -> 8.19.19."]
     assert lines[0] == "# Three changes:\n"
 
@@ -76,7 +71,7 @@ def test_dedupe_images_manifest_changes_items_continuation_line_travels_with_kep
         "#   3. ita 3.2.0 -> 3.3.0. Web and\n",
         "#      poller, tag bumps only.\n",
     ]
-    removed = dedupe_images_manifest_changes_items(lines)
+    removed = dedupe_changes_items(lines)
     assert removed == ["ita 3.2.0 -> 3.3.0. Web and"]
     assert lines == [
         "# Changes:\n",
@@ -93,19 +88,19 @@ def test_dedupe_images_manifest_changes_items_no_duplicates_is_a_noop(cdb: Modul
         "#   2. zac 5.0.2 -> 5.4.4.\n",
     ]
     original = list(lines)
-    removed = dedupe_images_manifest_changes_items(lines)
+    removed = dedupe_changes_items(lines)
     assert removed == []
     assert lines == original
 
 
 def test_dedupe_images_manifest_changes_items_no_header_returns_empty(cdb: ModuleType):
     lines = ["- name: opstree/redis-operator\n", '  version: "0.26.0"\n']
-    assert dedupe_images_manifest_changes_items(lines) == []
+    assert dedupe_changes_items(lines) == []
 
 
-# --- sort_images_manifest_changes_items ---
+# --- sort_changes_items ---
 
-# display_name_positions as images_manifest_display_name_positions computes them
+# display_name_positions as manifest_name_positions computes them
 # for a manifest listing redis-operator before zac.
 CHANGES_ITEMS_POSITIONS = {"redis-operator": 0, "zac": 1}
 
@@ -119,7 +114,7 @@ def test_sort_images_manifest_changes_items_reorders_and_renumbers(cdb: ModuleTy
         "#   2. redis-operator 0.25.0 -> 0.26.0.\n",
         "\n",
     ]
-    moved = sort_images_manifest_changes_items(lines, CHANGES_ITEMS_POSITIONS)
+    moved = sort_changes_items(lines, CHANGES_ITEMS_POSITIONS)
     assert moved == [("redis-operator 0.25.0 -> 0.26.0.", 2, 1), ("zac 5.0.2 -> 5.4.4.", 1, 2)]
     assert lines[3] == "#   1. redis-operator 0.25.0 -> 0.26.0.\n"
     assert lines[4] == "#   2. zac 5.0.2 -> 5.4.4.\n"
@@ -135,7 +130,7 @@ def test_sort_images_manifest_changes_items_matches_the_display_name_not_the_ima
         "#   3. kiss - crawler 1.0.0 -> 1.0.0.\n",
         "\n",
     ]
-    moved = sort_images_manifest_changes_items(lines, display_name_positions)
+    moved = sort_changes_items(lines, display_name_positions)
     assert moved == [
         ("kiss 2.2.4 -> 3.0.0.", 2, 1),
         ("kiss - crawler 1.0.0 -> 1.0.0.", 3, 2),
@@ -152,7 +147,7 @@ def test_sort_images_manifest_changes_items_display_name_prefers_longest_match(c
         "#   2. keycloak-operator 26.6.4 -> 26.7.2.\n",
         "\n",
     ]
-    sort_images_manifest_changes_items(lines, display_name_positions)
+    sort_changes_items(lines, display_name_positions)
     assert lines[1] == "#   1. keycloak-operator 26.6.4 -> 26.7.2.\n"
     assert lines[2] == "#   2. keycloak-operator - postgres 16 -> 16.15.\n"
 
@@ -166,7 +161,7 @@ def test_sort_images_manifest_changes_items_continuation_line_travels_with_item(
         "#      nginx sidecar in the chart) 0.25.0 -> 0.26.0.\n",
         "\n",
     ]
-    moved = sort_images_manifest_changes_items(lines, CHANGES_ITEMS_POSITIONS)
+    moved = sort_changes_items(lines, CHANGES_ITEMS_POSITIONS)
     assert len(moved) == 2
     assert lines[1].startswith("#   1. redis-operator (shared")
     assert lines[2] == "#      nginx sidecar in the chart) 0.25.0 -> 0.26.0.\n"
@@ -182,7 +177,7 @@ def test_sort_images_manifest_changes_items_hand_written_item_sorts_last(cdb: Mo
         "#   3. redis-operator 0.25.0 -> 0.26.0.\n",
         "\n",
     ]
-    sort_images_manifest_changes_items(lines, CHANGES_ITEMS_POSITIONS)
+    sort_changes_items(lines, CHANGES_ITEMS_POSITIONS)
     assert lines[1] == "#   1. redis-operator 0.25.0 -> 0.26.0.\n"
     assert lines[2] == "#   2. zac 5.0.2 -> 5.4.4.\n"
     assert lines[3].startswith("#   3. Keycloak app image")
@@ -196,14 +191,14 @@ def test_sort_images_manifest_changes_items_already_ordered_reports_nothing(cdb:
         "\n",
     ]
     original = list(lines)
-    moved = sort_images_manifest_changes_items(lines, CHANGES_ITEMS_POSITIONS)
+    moved = sort_changes_items(lines, CHANGES_ITEMS_POSITIONS)
     assert moved == []
     assert lines == original
 
 
 def test_sort_images_manifest_changes_items_no_header_is_a_noop(cdb: ModuleType):
     lines = ["- name: opstree/redis-operator\n", '  version: "0.26.0"\n']
-    moved = sort_images_manifest_changes_items(lines, CHANGES_ITEMS_POSITIONS)
+    moved = sort_changes_items(lines, CHANGES_ITEMS_POSITIONS)
     assert moved == []
 
 
@@ -212,38 +207,21 @@ def test_main_reorders_images_manifest_to_match_values_yaml(
 ):
     """main() reorders manifest entries to values.yaml order too, not just
     the table and Changes blocks."""
-    git("init", "-q", cwd=tmp_path)
-    git("config", "user.email", "test@example.com", cwd=tmp_path)
-    git("config", "user.name", "Test", cwd=tmp_path)
-
-    write(
-        tmp_path / "Chart.yaml",
-        yaml.safe_dump(
-            {
-                "dependencies": [
-                    {"name": "redis-operator", "version": "0.26.1", "repository": "@opstree"},
-                    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
-                ],
+    doc_dir = seed_chart_repo(
+        tmp_path,
+        [
+            {"name": "redis-operator", "version": "0.26.1", "repository": "@opstree"},
+            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
+        ],
+        {
+            "redis-operator": {
+                "redisOperator": {"imageName": "quay.io/opstree/redis-operator", "imageTag": "0.26.0@sha256:aaaa"}
             },
-            sort_keys=False,
-        ),
+            "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.4@sha256:bbbb"}},
+        },
+        sort_values=False,
     )
-    write(
-        tmp_path / "values.yaml",
-        yaml.safe_dump(
-            {
-                "redis-operator": {
-                    "redisOperator": {"imageName": "quay.io/opstree/redis-operator", "imageTag": "0.26.0@sha256:aaaa"}
-                },
-                "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.4@sha256:bbbb"}},
-            },
-            sort_keys=False,
-        ),
-    )
-    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
-    doc_dir.mkdir(parents=True)
-    images_dir = tmp_path / "docs" / "images"
-    images_dir.mkdir(parents=True)
+    images_dir = doc_dir.parent / "images"
     images_path = images_dir / "images-4.9.0.yaml"
     write(
         images_path,
@@ -264,8 +242,7 @@ def test_main_reorders_images_manifest_to_match_values_yaml(
         '  version: "0.26.0"\n'
         '  digest: "sha256:aaaa"\n',
     )
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "seed out-of-order images manifest", cwd=tmp_path)
+    commit_all(tmp_path, "seed out-of-order images manifest")
 
     set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
     cdb.main()

@@ -21,16 +21,21 @@ def _mapping_pairs(node: yaml.MappingNode) -> Iterator[tuple[str, yaml.Node]]:
     }
     for key_node, value_node in node.value:
         if key_node.tag == _MERGE_TAG:
-            sources = value_node.value if isinstance(value_node, yaml.SequenceNode) else [value_node]
-            for source in sources:
-                if isinstance(source, yaml.MappingNode):
-                    yield from (
-                        (merged_key, merged_value)
-                        for merged_key, merged_value in _mapping_pairs(source)
-                        if merged_key not in explicit
-                    )
+            yield from _merged_pairs(value_node, explicit)
         elif isinstance(key_node, yaml.ScalarNode):
             yield key_node.value, value_node
+
+
+def _merged_pairs(merge_value: yaml.Node, explicit: set[str]) -> Iterator[tuple[str, yaml.Node]]:
+    """The pairs a "<<" merge of `merge_value` (one mapping or a list of them) adds, minus `explicit` keys."""
+    sources = merge_value.value if isinstance(merge_value, yaml.SequenceNode) else [merge_value]
+    for source in sources:
+        if isinstance(source, yaml.MappingNode):
+            yield from (
+                (merged_key, merged_value)
+                for merged_key, merged_value in _mapping_pairs(source)
+                if merged_key not in explicit
+            )
 
 
 # A scalar's values path and its node.

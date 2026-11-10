@@ -7,8 +7,8 @@ import difflib
 
 from pathlib import Path
 
-from lib.settings import dry_check_high_similarity_threshold
-from lib.settings import dry_check_min_significant_lines
+from lib.settings import dry_check_high_similarity
+from lib.settings import dry_check_min_lines
 from lib.settings import dry_check_similarity_threshold
 
 
@@ -42,8 +42,8 @@ def find_similar_template_pairs(templates_dir: Path, similarity_threshold: float
 def check_dry(chart_dir: Path):
     """Report-only: flag similar template pairs and suggest whether a shared helper is worth it."""
     similarity_threshold = dry_check_similarity_threshold(chart_dir)
-    high_similarity_threshold = dry_check_high_similarity_threshold(chart_dir)
-    min_significant_lines = dry_check_min_significant_lines(chart_dir)
+    high_similarity_threshold = dry_check_high_similarity(chart_dir)
+    min_significant_lines = dry_check_min_lines(chart_dir)
 
     findings, candidate_count = find_similar_template_pairs(
         chart_dir / "templates", similarity_threshold, min_significant_lines

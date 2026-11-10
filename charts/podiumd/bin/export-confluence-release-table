@@ -23,6 +23,7 @@ import getpass
 import os
 import sys
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -46,7 +47,7 @@ from lib.confluence_tables import find_versie_groups
 from lib.confluence_tables import header_paths
 from lib.confluence_tables import is_semver_compatible
 from lib.confluence_tables import major_minor
-from lib.confluence_tables import missing_required_release_columns
+from lib.confluence_tables import missing_release_columns
 from lib.confluence_tables import select_release_columns
 from lib.confluence_tables import tables_under_headings
 from lib.release_table.component_resolution import DependencyNames
@@ -80,6 +81,24 @@ SECTION_SUFFIX = " component versies"
 MAX_HEADER_ROW_PROBE = 2
 
 
+def _complete_header_depths(grid: list[list[str]], base: int) -> Iterator[tuple[int, ReleaseColumns]]:
+    """Each header depth, from `base` up to MAX_HEADER_ROW_PROBE rows deeper,
+    whose columns hold every required one."""
+    deepest = min(base + MAX_HEADER_ROW_PROBE, len(grid))
+    for count in range(base, deepest + 1):
+        columns = select_release_columns(header_paths(grid, count))
+        if not missing_release_columns(columns):
+            yield count, columns
+
+
+def _has_extra_optional_column(columns: ReleaseColumns, best_columns: ReleaseColumns) -> bool:
+    """True when `columns` resolves an optional column that `best_columns` lacks."""
+    return any(
+        columns[key] is not None and best_columns[key] is None
+        for key in ("vendor", "used_by", "source_helm", "target_helm")
+    )
+
+
 def resolve_header_row_count(rows: TableRows, grid: list[list[str]]) -> int:
     """effective_header_row_count, extended by up to MAX_HEADER_ROW_PROBE rows
     until every required column resolves; the base count if none does.
@@ -89,22 +108,10 @@ def resolve_header_row_count(rows: TableRows, grid: list[list[str]]) -> int:
     satisfies the required columns before reaching the "Used by" row."""
     base = effective_header_row_count(rows, grid)
     best_count, best_columns = None, None
-    for extra in range(MAX_HEADER_ROW_PROBE + 1):
-        count = base + extra
-        if count > len(grid):
-            break
-        columns = select_release_columns(header_paths(grid, count))
-        if missing_required_release_columns(columns):
-            continue
-        if best_columns is None:
+    for count, columns in _complete_header_depths(grid, base):
+        if best_columns is None or _has_extra_optional_column(columns, best_columns):
             best_count, best_columns = count, columns
-            continue
-        if any(
-            columns[key] is not None and best_columns[key] is None
-            for key in ("vendor", "used_by", "source_helm", "target_helm")
-        ):
-            best_count, best_columns = count, columns
-    return best_count if best_count is not None else base
+    return base if best_count is None else best_count
 
 
 def parse_args():
@@ -149,7 +156,7 @@ def section_name(heading: str):
     return heading.removesuffix(SECTION_SUFFIX)
 
 
-def check_target_matches_chart_version(target_labels: list[str], chart_dir: Path) -> None:
+def check_target_chart_version(target_labels: list[str], chart_dir: Path) -> None:
     """Warn on stderr for each target label whose MAJOR.MINOR differs from Chart.yaml's version.
 
     Never raises. Silent only when chart_dir has no Chart.yaml (tests); an
@@ -288,6 +295,32 @@ class ComponentResolutionContext:
     ignored_names: frozenset[str]
 
 
+def _resolution_context(chart_dir: Path) -> ComponentResolutionContext:
+    """The chart's names that release-table rows resolve against."""
+    dependencies = chart_dependencies(chart_dir)
+    return ComponentResolutionContext(
+        dependencies,
+        orphan_values_yaml_keys(chart_dir, dependencies),
+        global_image_names(chart_dir),
+        native_component_keys(chart_dir),
+        # An entry without letters or digits would match every row with an empty name.
+        frozenset(filter(None, (normalize_name(name) for name in release_table_ignored_rows(chart_dir)))),
+    )
+
+
+def _matching_tables(html: str, headings: list[str]) -> list[tuple[str, TableRows]]:
+    """The page's tables directly under one of `headings`; exits when there are none."""
+    all_tables = extract_tables(html)
+    if not all_tables:
+        sys.exit("error: no <table> found on that page")
+
+    matching = tables_under_headings(all_tables, headings)
+    print(f"Found {len(all_tables)} table(s) on the page, {len(matching)} under a matching heading")
+    if not matching:
+        sys.exit(f"error: no table found directly under any of: {', '.join(headings)}")
+    return matching
+
+
 def extract_release_rows(html: str, headings: list[str] | None = None, chart_dir: Path | None = None) -> list[CsvRow]:
     """CSV data rows from every table under one of `headings` that has the required App columns.
 
@@ -299,27 +332,11 @@ def extract_release_rows(html: str, headings: list[str] | None = None, chart_dir
     """
     headings = headings or DEFAULT_HEADINGS
     chart_dir = chart_dir or CHART_DIR
-    dependencies = chart_dependencies(chart_dir)
-    context = ComponentResolutionContext(
-        dependencies,
-        orphan_values_yaml_keys(chart_dir, dependencies),
-        global_image_names(chart_dir),
-        native_component_keys(chart_dir),
-        # An entry without letters or digits would match every row with an empty name.
-        frozenset(filter(None, (normalize_name(name) for name in release_table_ignored_rows(chart_dir)))),
-    )
-    all_tables = extract_tables(html)
-    if not all_tables:
-        sys.exit("error: no <table> found on that page")
-
-    matching = tables_under_headings(all_tables, headings)
-    print(f"Found {len(all_tables)} table(s) on the page, {len(matching)} under a matching heading")
-    if not matching:
-        sys.exit(f"error: no table found directly under any of: {', '.join(headings)}")
-
+    context = _resolution_context(chart_dir)
+    matching = _matching_tables(html, headings)
     rows_out, unknown_count, target_labels = _rows_for_tables(matching, context)
 
-    check_target_matches_chart_version(target_labels, chart_dir)
+    check_target_chart_version(target_labels, chart_dir)
 
     if not rows_out:
         sys.exit(
@@ -331,7 +348,7 @@ def extract_release_rows(html: str, headings: list[str] | None = None, chart_dir
 
     _insert_resolved_basenames(rows_out, chart_dir)
     apply_native_helm_marker(rows_out)
-    _warn_duplicate_component_basename_pairs(rows_out)
+    _warn_duplicate_basename_pairs(rows_out)
 
     return rows_out
 
@@ -364,7 +381,7 @@ def _rows_for_table(
     paths = header_paths(grid, header_row_count)
     target_label = _target_label(find_versie_groups(paths))
     columns = select_release_columns(paths)
-    missing = missing_required_release_columns(columns)
+    missing = missing_release_columns(columns)
     if missing:
         print(f'"{heading}": skipped (missing required column(s): {", ".join(missing)})')
         return [], 0, target_label
@@ -405,7 +422,7 @@ def _release_rows(
 
 def _column_text(data_row: list[str], index: int | None) -> str:
     """Cell at `index`, "" when the table lacks the column (None)."""
-    return data_row[index] if index is not None else ""
+    return "" if index is None else data_row[index]
 
 
 def _release_row_from_data_row(
@@ -453,7 +470,7 @@ def _insert_resolved_basenames(rows_out: list[CsvRow], chart_dir: Path) -> None:
         row.insert(6, basename)
 
 
-def _warn_duplicate_component_basename_pairs(rows_out: list[CsvRow]) -> None:
+def _warn_duplicate_basename_pairs(rows_out: list[CsvRow]) -> None:
     """Warn for each (component, basename) pair shared by several rows; blank values are skipped."""
     by_pair: dict[tuple[str, str], list[str]] = {}
     for row in rows_out:
@@ -468,18 +485,20 @@ def _warn_duplicate_component_basename_pairs(rows_out: list[CsvRow]) -> None:
             )
 
 
+def _unknown_columns(row: CsvRow) -> list[str]:
+    """The CSV_HEADER names of the columns where `row` holds UNKNOWN."""
+    return [column for column, value in zip(CSV_HEADER, row, strict=False) if value == "UNKNOWN"]
+
+
 def warn_unknown_lines(rows: list[CsvRow], csv_path: Path | str) -> None:
     """Warn on stderr for each row (by file line number) that has UNKNOWN in any column."""
-    unknown = [
-        (line, row[3], [column for column, value in zip(CSV_HEADER, row, strict=False) if value == "UNKNOWN"])
-        for line, row in enumerate(rows, start=2)
-        if "UNKNOWN" in row
-    ]
+    unknown = [(line, row) for line, row in enumerate(rows, start=2) if "UNKNOWN" in row]
     if not unknown:
         return
     print(f"WARNING: {len(unknown)} line(s) in {csv_path} contain UNKNOWN:", file=sys.stderr)
-    for line, name, columns in unknown:
-        print(f'  line {line}: "{name}" ({", ".join(columns)})', file=sys.stderr)
+    for line, row in unknown:
+        columns = ", ".join(_unknown_columns(row))
+        print(f'  line {line}: "{row[3]}" ({columns})', file=sys.stderr)
 
 
 def main():

@@ -10,7 +10,7 @@ from lib.chart.chart_yaml import ChartDependency
 from lib.chart.historical_baselines import BaselineLookup
 from lib.chart.historical_baselines import baseline_lookup
 from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
-from lib.chart.historical_baselines import historical_app_version_for_path
+from lib.chart.historical_baselines import historical_path_app_version
 from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
 from lib.chart.registered_paths import native_components
 from lib.chart.repo_and_path_resolution import paths_by_repository
@@ -21,7 +21,7 @@ from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
-from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment_line
+from lib.upgradedoc.grouped_comments import find_grouped_comment_line
 from lib.upgradedoc.images_manifest_ordering import are_manifest_entries_grouped
 from lib.upgradedoc.resolve_component_row import native_image_baseline_app
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
@@ -86,7 +86,9 @@ class _ManifestFixState:
 
 
 def resolve_entry_version(
-    entry: ManifestEntry, paths: Mapping[ValuesPath, str | None], repo_map: dict[str, ValuesPath] | None = None
+    entry: ManifestEntry,
+    paths: Mapping[ValuesPath, str | None],
+    repo_map: dict[str, ValuesPath] | None = None,
 ) -> str | None:
     """App version at the values-tree path this entry resolves to, or None."""
     path = resolve_entry_image_path(entry["name"], paths.keys(), repo_map)
@@ -110,7 +112,7 @@ def _manifest_entries_setup(text: str, context: ManifestEntriesContext) -> _Mani
         else {}
     )
     # chart_dir may be None (some callers/tests).
-    sibling_fields = digest_pinning_exceptions(context.chart_dir) if context.chart_dir is not None else {}
+    sibling_fields = {} if context.chart_dir is None else digest_pinning_exceptions(context.chart_dir)
 
     def is_same_group(entry_a: ManifestEntry, entry_b: ManifestEntry) -> bool:
         return are_manifest_entries_grouped(entry_a, entry_b, current_paths, context.repo_map)
@@ -142,10 +144,10 @@ def entry_baseline_version(lookup: BaselineLookup, path: tuple[str, ...], releas
         native_baseline = native_image_baseline_app(lookup.chart_dir, release.deps, lookup.baseline_values, path)
         if native_baseline is not None:
             return native_baseline
-    return historical_app_version_for_path(lookup.chart_dir, lookup.deps, lookup.target_values, path, release.name)
+    return historical_path_app_version(lookup.chart_dir, lookup.deps, lookup.target_values, path, release.name)
 
 
-def _manifest_entry_digest_only_change(
+def _digest_only_change(
     context: ManifestEntriesContext,
     setup: _ManifestEntriesSetup,
     path: tuple[str, ...],
@@ -174,7 +176,7 @@ def _process_manifest_entry(
 ):
     """Resolve and, if needed, rewrite the comment for entries[index], recording results in state."""
     name = entry["name"]
-    comment_idx = find_grouped_preceding_comment_line(
+    comment_idx = find_grouped_comment_line(
         setup.lines, setup.entries, setup.entry_line_indices, index, setup.is_same_group
     )
     if comment_idx is None:
@@ -200,7 +202,7 @@ def _process_manifest_entry(
             context.baseline_release,
         )
 
-    digest_only_change = _manifest_entry_digest_only_change(context, setup, path, actual_baseline, actual_target)
+    digest_only_change = _digest_only_change(context, setup, path, actual_baseline, actual_target)
 
     if comment_idx in state.fixed_comment_versions:
         prev_baseline, prev_target = state.fixed_comment_versions[comment_idx]

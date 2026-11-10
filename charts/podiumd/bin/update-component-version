@@ -55,7 +55,7 @@ from lib.chart.pull_and_subchart_resolution import own_full_repository
 from lib.chart.pull_and_subchart_resolution import print_image_version_results
 from lib.chart.pull_and_subchart_resolution import resolve_chart_values
 from lib.chart.registered_paths import PinPath
-from lib.chart.registered_paths import chart_version_lockstep_components
+from lib.chart.registered_paths import chart_lockstep_components
 from lib.chart.registered_paths import is_native_chart_version
 from lib.chart.registered_paths import pin_paths_for
 from lib.chart.registered_paths import resolve_native_component
@@ -99,7 +99,7 @@ def find_dependency(name_or_alias: str):
     return require_dependency(CHART_YAML, name_or_alias)
 
 
-def _check_and_print_image_versions(
+def _require_image_versions(
     dep: ChartDependency | None, values_for_check: YamlMapping, pins: list[PinPath], app_version: str
 ):
     """check_image_versions with FOUND/MISSING output; exits 1 if any is missing. Returns results by path."""
@@ -130,13 +130,13 @@ def verify_component_version(
             "directly from values.yaml (see lib.chart.native_components)"
         )
         print(f"\nChecking app version {app_version!r}:")
-        return _check_and_print_image_versions(None, component_values or {}, pins, app_version)
+        return _require_image_versions(None, component_values or {}, pins, app_version)
 
     chart_name = dep["name"]
     print(f"=== Checking chart version {chart_version!r} for {chart_name} ===")
     upstream_values, source, error = resolve_chart_values(CHART_DIR, dep, chart_version)
-    status = "FOUND  " if upstream_values is not None else "MISSING"
-    suffix = f"  ({source})" if upstream_values is not None else f"  ({error})"
+    status = "MISSING" if upstream_values is None else "FOUND  "
+    suffix = f"  ({error})" if upstream_values is None else f"  ({source})"
     print(f"  [{status}] {chart_name} {chart_version}{suffix}")
     if upstream_values is None:
         print()
@@ -145,7 +145,7 @@ def verify_component_version(
 
     values_for_check = component_check_values(upstream_values, component_values)
     print(f"\nChecking app version {app_version!r} for {values_key_of(dep)}:")
-    return _check_and_print_image_versions(dep, values_for_check, pins, app_version)
+    return _require_image_versions(dep, values_for_check, pins, app_version)
 
 
 def update_chart_yaml(chart_name: str, new_chart_version: str):
@@ -297,7 +297,7 @@ def _resolve_bump_context(component: str, app_version: str, chart_version: str):
 
 def check_chart_version_lockstep(chart_name: str, app_version: str, chart_version: str, *, no_chart: bool) -> None:
     """Exit 1 before any write when a lockstep component's app and chart versions differ."""
-    if no_chart or chart_name not in chart_version_lockstep_components(CHART_DIR):
+    if no_chart or chart_name not in chart_lockstep_components(CHART_DIR):
         return
     if app_version != chart_version:
         print(
@@ -538,6 +538,24 @@ def _run_fix_helm_doc() -> None:
         sys.exit(f"error: fix-helm-doc failed (exit {result.returncode}); README.md was not regenerated")
 
 
+def _write_chart_version(ctx: BumpContext, chart_version: str) -> None:
+    """Write the dependency's new chart version to Chart.yaml."""
+    print_section(f"Writing {CHART_YAML}")
+    old_v, new_v = update_chart_yaml(ctx.chart_name, chart_version)
+    print(f"  {old_v}  ->  {new_v}")
+
+
+def _refresh_readme_charts_docs() -> None:
+    """README.md, then the vendored sub-charts, then the docs."""
+    _run_fix_helm_doc()
+
+    print_section("Re-vendoring changed sub-charts")
+    ensure_vendored_dependencies(CHART_DIR)
+
+    # Writes the docs; last, as its render needs the re-vendored sub-charts.
+    complete_docs_and_finish()
+
+
 def main():
     """CLI entry point."""
     component, app_version, chart_version = _parse_cli_args()
@@ -558,17 +576,8 @@ def main():
     _update_image_tags(ctx, paths_to_update, split_tag_sha_paths, upstream_images)
 
     if not chart_unchanged:
-        print_section(f"Writing {CHART_YAML}")
-        old_v, new_v = update_chart_yaml(ctx.chart_name, chart_version)
-        print(f"  {old_v}  ->  {new_v}")
-
-    _run_fix_helm_doc()
-
-    print_section("Re-vendoring changed sub-charts")
-    ensure_vendored_dependencies(CHART_DIR)
-
-    # Writes the docs; last, as its render needs the re-vendored sub-charts.
-    complete_docs_and_finish()
+        _write_chart_version(ctx, chart_version)
+    _refresh_readme_charts_docs()
 
 
 if __name__ == "__main__":

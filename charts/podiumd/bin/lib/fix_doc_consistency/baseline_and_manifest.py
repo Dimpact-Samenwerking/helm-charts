@@ -41,7 +41,7 @@ def update_sibling_doc_refs(text: str, target: str, new_baseline: str, other_pat
     return new_text, new_text != text
 
 
-def fix_images_manifest_header_lines(text: str, target: str, new_baseline: str):
+def fix_manifest_header_lines(text: str, target: str, new_baseline: str):
     """The "Baseline: podiumd X" and "podiumd <target> vs X" header lines, rewritten or added.
 
     A missing line is added where IMAGES_STUB_TEMPLATE has it: the Baseline

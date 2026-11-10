@@ -6,7 +6,7 @@ Nothing else re-checks these claims, and this runs without an upgrade doc.
   agree on one version (e.g. eck-elasticsearch.version + eck-kibana.version).
 - find_chart_version_mismatches: a chart_version_lockstep component's Chart.yaml
   dependency version must equal its app version.
-- find_embedded_version_mismatches: an embedded_version image tag (e.g.
+- find_embedded_mismatches: an embedded_version image tag (e.g.
   keycloak-config-cli "6.5.1-26.5.5") must embed a full version with the same major
   as the followed image, no newer than it.
 
@@ -19,7 +19,7 @@ from pathlib import Path
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import load_chart_dependencies
-from lib.chart.registered_paths import chart_version_lockstep_components
+from lib.chart.registered_paths import chart_lockstep_components
 from lib.chart.registered_paths import component_image_paths
 from lib.chart.registered_paths import component_version_paths
 from lib.chart.registered_paths import embedded_version_images
@@ -67,20 +67,27 @@ def find_chart_version_mismatches(
     Components without an app version or dependency are skipped.
     """
     findings: list[tuple[str, str, str, str]] = []
-    for component in sorted(chart_version_lockstep_components()):
+    for component in sorted(chart_lockstep_components()):
         dep = find_dependency(deps, component)
-        if dep is None:
-            continue
-        values_key = values_key_of(dep)
-        pinned = actual_app_version(values, values_key, component)
-        if pinned is None:
-            continue
-        app_version = version_of(pinned)
-
-        chart_version = str(dep.get("version", ""))
-        if chart_version and app_version != chart_version:
-            findings.append((component, values_key, chart_version, app_version))
+        mismatch = None if dep is None else _chart_version_mismatch(dep, values, component)
+        if mismatch is not None:
+            findings.append(mismatch)
     return findings
+
+
+def _chart_version_mismatch(
+    dep: ChartDependency, values: YamlMapping | None, component: str
+) -> tuple[str, str, str, str] | None:
+    """find_chart_version_mismatches' finding for one component, or None."""
+    values_key = values_key_of(dep)
+    pinned = actual_app_version(values, values_key, component)
+    if pinned is None:
+        return None
+    app_version = version_of(pinned)
+    chart_version = str(dep.get("version", ""))
+    if chart_version and app_version != chart_version:
+        return component, values_key, chart_version, app_version
+    return None
 
 
 EMBEDDED_VERSION_RE = re.compile(r"-(\d+)\.(\d+)\.(\d+)$")
@@ -94,7 +101,7 @@ def _version_parts(match: re.Match[str] | None) -> tuple[int, int, int] | None:
     return major, minor, patch
 
 
-def find_embedded_version_mismatches(values: YamlMapping | None) -> list[tuple[str, str]]:
+def find_embedded_mismatches(values: YamlMapping | None) -> list[tuple[str, str]]:
     """[(path, problem)] for every embedded_version_images() tag that doesn't embed a full
     version (e.g. floating "6.5.1-26"), embeds a different major, or a newer one.
     Entries without a tag are skipped."""
@@ -133,7 +140,7 @@ def check_lockstep_versions(chart_dir: Path):
 
     path_mismatches = find_lockstep_mismatches(deps, values)
     chart_version_mismatches = find_chart_version_mismatches(deps, values)
-    embedded_mismatches = find_embedded_version_mismatches(values)
+    embedded_mismatches = find_embedded_mismatches(values)
     total = len(path_mismatches) + len(chart_version_mismatches) + len(embedded_mismatches)
 
     if not total:
@@ -143,7 +150,7 @@ def check_lockstep_versions(chart_dir: Path):
     if path_mismatches:
         _print_path_mismatches(path_mismatches)
     if chart_version_mismatches:
-        _print_chart_version_mismatches(chart_version_mismatches)
+        _print_chart_mismatches(chart_version_mismatches)
     if embedded_mismatches:
         _print_embedded_mismatches(embedded_mismatches)
     return False, f"{total} mismatch(es)"
@@ -160,10 +167,10 @@ def _print_path_mismatches(path_mismatches: list[LockstepMismatch]) -> None:
             print(f"    {values_key}.{path}: {version}")
 
 
-def _print_chart_version_mismatches(chart_version_mismatches: list[tuple[str, str, str, str]]) -> None:
+def _print_chart_mismatches(chart_version_mismatches: list[tuple[str, str, str, str]]) -> None:
     print(
         f"Found {len(chart_version_mismatches)} component(s) whose Chart.yaml version disagrees with its "
-        f"own image version (see lib.chart.chart_version_lockstep_components()):"
+        f"own image version (component_resolution.chart_version_lockstep_components in etc/settings.yaml):"
     )
     for component, values_key, chart_version, app_version in chart_version_mismatches:
         print(f"  {component}: Chart.yaml version {chart_version} != {values_key} image version {app_version}")

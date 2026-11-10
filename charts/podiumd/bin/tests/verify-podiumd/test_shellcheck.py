@@ -76,9 +76,8 @@ def test_find_shell_scripts_detects_command_then_args_pattern(libshellcheckcheck
     }
     found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml", SHELL_NAMES)
     assert len(found) == 1
-    _source, _path, shell, script = found[0]
-    assert shell == "sh"
-    assert script == "echo hi"
+    assert found[0].shell == "sh"
+    assert found[0].script_text == "echo hi"
 
 
 def test_find_shell_scripts_detects_command_only_pattern(libshellcheckcheck: ModuleType):

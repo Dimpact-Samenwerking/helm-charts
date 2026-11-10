@@ -3,17 +3,17 @@
 Covers Component versions table/Changes ordering, values-deltas.md section
 ordering and Changes heading app-version wording."""
 
-import subprocess
-
 from pathlib import Path
 from types import ModuleType
 
 import pytest
 
-
-def git(*args, cwd):
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
-
+from tests.chart_repo import GEMEENTE_DOC_PATH
+from tests.chart_repo import IMAGES_MANIFEST_PATH
+from tests.chart_repo import UPGRADE_DOC_PATH
+from tests.chart_repo import VALUES_DELTAS_PATH
+from tests.chart_repo import commit_hop
+from tests.chart_repo import commit_text_baseline
 
 # --- Component versions table / Changes section ordering ---
 
@@ -303,33 +303,23 @@ def new_dependency_chart_repo(tmp_path: Path):
     """ "openklant" is new since the baseline, so its row's source version has nothing to compare against.
 
     Otherwise a clean doc set, so the resulting warning can be checked in isolation."""
-    repo_root = tmp_path
-    chart_dir = repo_root / "charts" / "podiumd"
-    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
-    images_dir = chart_dir / "docs" / "images"
-    for d in (doc_dir, images_dir):
-        d.mkdir(parents=True)
-
-    git("init", "-q", cwd=repo_root)
-    git("config", "user.email", "test@example.com", cwd=repo_root)
-    git("config", "user.name", "Test", cwd=repo_root)
-
-    (chart_dir / "Chart.yaml").write_text(NEW_DEP_CHART_YAML_BASELINE)
-    (chart_dir / "values.yaml").write_text(
-        'zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n    tag: "5.0.2@sha256:aaaa"\n'
+    chart_dir = commit_text_baseline(
+        tmp_path,
+        NEW_DEP_CHART_YAML_BASELINE,
+        'zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n    tag: "5.0.2@sha256:aaaa"\n',
     )
-    git("add", "-A", cwd=repo_root)
-    git("commit", "-q", "-m", "baseline", cwd=repo_root)
-    git("tag", "podiumd-4.8.5", cwd=repo_root)
-
-    (chart_dir / "Chart.yaml").write_text(NEW_DEP_CHART_YAML_TARGET)
-    (chart_dir / "values.yaml").write_text(new_dep_values())
-    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(NEW_DEP_UPGRADE_DOC.format(baseline="4.8.5"))
-    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(NEW_DEP_GEMEENTE_DOC.format(baseline="4.8.5"))
-    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(NEW_DEP_VALUES_DELTAS_DOC.format(baseline="4.8.5"))
-    (images_dir / "images-4.9.0.yaml").write_text(NEW_DEP_IMAGES_MANIFEST.format(baseline="4.8.5"))
-    git("add", "-A", cwd=repo_root)
-    git("commit", "-q", "-m", "add openklant, a brand-new dependency", cwd=repo_root)
+    commit_hop(
+        chart_dir,
+        "add openklant, a brand-new dependency",
+        {
+            "Chart.yaml": NEW_DEP_CHART_YAML_TARGET,
+            "values.yaml": new_dep_values(),
+            UPGRADE_DOC_PATH: NEW_DEP_UPGRADE_DOC.format(baseline="4.8.5"),
+            GEMEENTE_DOC_PATH: NEW_DEP_GEMEENTE_DOC.format(baseline="4.8.5"),
+            VALUES_DELTAS_PATH: NEW_DEP_VALUES_DELTAS_DOC.format(baseline="4.8.5"),
+            IMAGES_MANIFEST_PATH: NEW_DEP_IMAGES_MANIFEST.format(baseline="4.8.5"),
+        },
+    )
 
     return chart_dir
 
@@ -401,73 +391,59 @@ def two_dep_chart_repo(tmp_path: Path):
 
     The schema key matters: a version-only bump gets no values-deltas.md section,
     so there would be nothing to order."""
-    repo_root = tmp_path
-    chart_dir = repo_root / "charts" / "podiumd"
-    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
-    images_dir = chart_dir / "docs" / "images"
-    for d in (doc_dir, images_dir):
-        d.mkdir(parents=True)
-
-    git("init", "-q", cwd=repo_root)
-    git("config", "user.email", "test@example.com", cwd=repo_root)
-    git("config", "user.name", "Test", cwd=repo_root)
-
-    (chart_dir / "Chart.yaml").write_text(TWO_DEP_CHART_YAML)
-    (chart_dir / "values.yaml").write_text(two_dep_values("5.0.2", "3.4.10"))
-    git("add", "-A", cwd=repo_root)
-    git("commit", "-q", "-m", "baseline", cwd=repo_root)
-    git("tag", "podiumd-4.8.5", cwd=repo_root)
-
-    (chart_dir / "values.yaml").write_text(two_dep_values("5.4.3", "3.5.6", with_schema_changes=True))
-    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
-        "## Component versions (4.9.0 vs 4.8.5)\n\n"
-        "| Component | App version | Helm chart | Notes |\n"
-        "| --- | --- | --- | --- |\n"
-        "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | n/a |\n"
-        "| openformulieren | 3.4.10 → 3.5.6 | 1.12.0 (unchanged) | n/a |\n\n"
-        "See [`4.8.5-to-4.9.0-values-deltas.md`](4.8.5-to-4.9.0-values-deltas.md).\n\n"
-        "## Changes\n\n"
-        "### ZAC (Zaakafhandelcomponent) 5.0.2 → 5.4.3 (chart 1.0.297, unchanged)\n\n"
-        "PodiumD 4.9.0 upgrades **ZAC (Zaakafhandelcomponent)** from app version 5.0.2\nto 5.4.3.\n\n"
-        "- Image tag pin `zac.image.tag` `5.0.2` → `5.4.3` in\n  `charts/podiumd/values.yaml`.\n\n"
-        "- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).\n\n"
-        "### openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged)\n\n"
-        "PodiumD 4.9.0 upgrades **openformulieren** from app version 3.4.10\nto 3.5.6.\n\n"
-        "- Image tag pin `openformulieren.image.tag` `3.4.10` → `3.5.6` in\n  `charts/podiumd/values.yaml`.\n\n"
-        "- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).\n"
+    chart_dir = commit_text_baseline(tmp_path, TWO_DEP_CHART_YAML, two_dep_values("5.0.2", "3.4.10"))
+    commit_hop(
+        chart_dir,
+        "bump both zac and openformulieren",
+        {
+            "values.yaml": two_dep_values("5.4.3", "3.5.6", with_schema_changes=True),
+            UPGRADE_DOC_PATH: (
+                "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+                "## Component versions (4.9.0 vs 4.8.5)\n\n"
+                "| Component | App version | Helm chart | Notes |\n"
+                "| --- | --- | --- | --- |\n"
+                "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | n/a |\n"
+                "| openformulieren | 3.4.10 → 3.5.6 | 1.12.0 (unchanged) | n/a |\n\n"
+                "See [`4.8.5-to-4.9.0-values-deltas.md`](4.8.5-to-4.9.0-values-deltas.md).\n\n"
+                "## Changes\n\n"
+                "### ZAC (Zaakafhandelcomponent) 5.0.2 → 5.4.3 (chart 1.0.297, unchanged)\n\n"
+                "PodiumD 4.9.0 upgrades **ZAC (Zaakafhandelcomponent)** from app version 5.0.2\nto 5.4.3.\n\n"
+                "- Image tag pin `zac.image.tag` `5.0.2` → `5.4.3` in\n  `charts/podiumd/values.yaml`.\n\n"
+                "- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).\n\n"
+                "### openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged)\n\n"
+                "PodiumD 4.9.0 upgrades **openformulieren** from app version 3.4.10\nto 3.5.6.\n\n"
+                "- Image tag pin `openformulieren.image.tag` `3.4.10` → `3.5.6` in\n  `charts/podiumd/values.yaml`.\n\n"
+                "- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).\n"
+            ),
+            GEMEENTE_DOC_PATH: ("# Gemeente-specific notes — PodiumD 4.8.5 → 4.9.0\n\nNone.\n"),
+            # Deliberately wrong order: openformulieren before zac.
+            VALUES_DELTAS_PATH: (
+                "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
+                "## openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged)\n\n"
+                "- Key `openformulieren.clamavConfigJob` was added.\n\n"
+                "## ZAC 5.0.2 → 5.4.3 (chart 1.0.297, unchanged)\n\n"
+                "- Key `zac.newFeature` was added.\n"
+            ),
+            IMAGES_MANIFEST_PATH: (
+                "# Baseline: podiumd 4.8.5 (test @ 0000000).\n#\n"
+                "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n#\n"
+                "# Changes:\n"
+                "#   1. ZAC (Zaakafhandelcomponent) 5.0.2 -> 5.4.3 (chart 1.0.297, unchanged).\n"
+                "#   2. openformulieren 3.4.10 -> 3.5.6 (chart 1.12.0, unchanged).\n#\n"
+                "# See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.\n\n"
+                "# ZAC — 5.0.2 -> 5.4.3\n"
+                "- name: infonl/zaakafhandelcomponent\n"
+                "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+                '  version: "5.4.3"\n'
+                '  digest: "sha256:abc"\n\n'
+                "# openformulieren — 3.4.10 -> 3.5.6\n"
+                "- name: openformulieren/open-forms\n"
+                "  url: docker.io/openformulieren/open-forms\n"
+                '  version: "3.5.6"\n'
+                '  digest: "sha256:def"\n'
+            ),
+        },
     )
-    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(
-        "# Gemeente-specific notes — PodiumD 4.8.5 → 4.9.0\n\nNone.\n"
-    )
-    # Deliberately wrong order: openformulieren before zac.
-    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
-        "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
-        "## openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged)\n\n"
-        "- Key `openformulieren.clamavConfigJob` was added.\n\n"
-        "## ZAC 5.0.2 → 5.4.3 (chart 1.0.297, unchanged)\n\n"
-        "- Key `zac.newFeature` was added.\n"
-    )
-    (images_dir / "images-4.9.0.yaml").write_text(
-        "# Baseline: podiumd 4.8.5 (test @ 0000000).\n#\n"
-        "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n#\n"
-        "# Changes:\n"
-        "#   1. ZAC (Zaakafhandelcomponent) 5.0.2 -> 5.4.3 (chart 1.0.297, unchanged).\n"
-        "#   2. openformulieren 3.4.10 -> 3.5.6 (chart 1.12.0, unchanged).\n#\n"
-        "# See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.\n\n"
-        "# ZAC — 5.0.2 -> 5.4.3\n"
-        "- name: infonl/zaakafhandelcomponent\n"
-        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
-        '  version: "5.4.3"\n'
-        '  digest: "sha256:abc"\n\n'
-        "# openformulieren — 3.4.10 -> 3.5.6\n"
-        "- name: openformulieren/open-forms\n"
-        "  url: docker.io/openformulieren/open-forms\n"
-        '  version: "3.5.6"\n'
-        '  digest: "sha256:def"\n'
-    )
-    git("add", "-A", cwd=repo_root)
-    git("commit", "-q", "-m", "bump both zac and openformulieren", cwd=repo_root)
 
     return chart_dir
 
@@ -504,7 +480,7 @@ def test_changes_heading_wrong_transition_wording_is_caught(
 ):
     """zac changed 5.0.2 -> 5.4.3 but its heading says "(unchanged)"; the row is correct.
 
-    changes_heading_has_app_version alone would pass, so the wording itself is checked."""
+    heading_has_app_version alone would pass, so the wording itself is checked."""
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(
         "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"

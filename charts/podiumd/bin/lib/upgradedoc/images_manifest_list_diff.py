@@ -6,7 +6,7 @@ from dataclasses import field
 from pathlib import Path
 
 from lib.chart.chart_yaml import ChartDependency
-from lib.chart.historical_baselines import historical_app_version_for_repository
+from lib.chart.historical_baselines import historical_repo_app_version
 from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
 from lib.chart.registered_paths import native_components
@@ -18,7 +18,7 @@ from lib.chart.values_tree_primitives import version_of
 from lib.images_manifest import ManifestEntry
 from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
-from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
+from lib.upgradedoc.app_version_and_image_paths import find_image_and_version_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.yaml_types import YamlMapping
@@ -44,16 +44,17 @@ def compute_changed_components(
     current_by_key = {values_key_of(dep): dep for dep in deps}
     baseline_by_key = {values_key_of(dep): dep for dep in baseline_deps}
 
-    current_paths = dict(find_all_image_and_version_paths(values, deps))
+    current_paths = dict(find_image_and_version_paths(values, deps))
     # Baseline pins as the baseline's own dependencies registered them (a chart's bare version fields).
-    baseline_paths = dict(find_all_image_and_version_paths(baseline_values, baseline_deps)) if baseline_values else {}
+    baseline_paths = dict(find_image_and_version_paths(baseline_values, baseline_deps)) if baseline_values else {}
 
     global_tags = {tag for _, tag in global_image_paths(values)}
     if baseline_values:
         global_tags |= {tag for _, tag in global_image_paths(baseline_values)}
 
     def subtree_paths(key: str, paths: dict[ValuesPath, str]):
-        owned = {path: tag for path, tag in paths.items() if path[0] == key and tag not in global_tags}
+        in_subtree = {path: tag for path, tag in paths.items() if path[0] == key}
+        owned = {path: tag for path, tag in in_subtree.items() if tag not in global_tags}
         return {path: version_of(tag) for path, tag in owned.items()}
 
     natives = native_components(chart_dir)
@@ -134,20 +135,18 @@ def _is_pin_changed(
     repo = path_to_repo.get(path)
     if repo is None:
         return True
-    if inputs.context.deps is not None:
-        # Require a matching full repository URL, so a same-named legacy
-        # entry never counts; unresolvable URL means changed.
+    if inputs.context.deps is None:
+        historical_version = historical_repo_app_version(
+            inputs.context.chart_dir, repo, inputs.context.upgrade_docs_baseline
+        )
+    else:
         expected_url = full_repository_for_path(
             inputs.context.chart_dir, inputs.context.deps, inputs.context.values, path
         )
         if expected_url is None:
             return True
-        historical_version = historical_app_version_for_repository(
+        historical_version = historical_repo_app_version(
             inputs.context.chart_dir, repo, inputs.context.upgrade_docs_baseline, expected_url=expected_url
-        )
-    else:
-        historical_version = historical_app_version_for_repository(
-            inputs.context.chart_dir, repo, inputs.context.upgrade_docs_baseline
         )
     if historical_version is None:
         return True
@@ -167,7 +166,7 @@ def _match_entries(
         path = resolve_entry_image_path(entry["name"], inputs.current_paths.keys(), inputs.repo_map)
         # The fuzzy fallback can land on any member of a shared-repository
         # group; collapse to the representative like changed_paths.
-        path = representative_of.get(path, path) if path is not None else None
+        path = None if path is None else representative_of.get(path, path)
         if path is None:
             unmatched_entry_names.append(entry["name"])
             continue
@@ -214,7 +213,7 @@ def find_images_manifest_list_diff(inputs: ManifestDiffInputs) -> tuple[list[Val
     }
     path_to_repo = {path: repo for repo, paths in inputs.repo_groups.items() for path in paths}
     # Resolved once, None-safe, instead of per _is_digest_changed call.
-    sibling_fields = digest_pinning_exceptions(inputs.context.chart_dir) if inputs.context.chart_dir is not None else {}
+    sibling_fields = {} if inputs.context.chart_dir is None else digest_pinning_exceptions(inputs.context.chart_dir)
 
     changed_paths = {
         path

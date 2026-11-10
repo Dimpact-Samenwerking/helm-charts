@@ -12,7 +12,7 @@ from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.values_tree_primitives import ValuesPath
 from lib.fix_doc_consistency.manifest_entries_core import BaselineRelease
-from lib.fix_doc_consistency.manifest_entries_new_and_removed import MissingEntriesContext
+from lib.fix_doc_consistency.new_and_removed_entries import MissingEntriesContext
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import git_mv
 from lib.release_baseline import resolve_baseline_chart_state
 from lib.upgradedoc.chart_image_index import ChartImageIndex
@@ -135,6 +135,6 @@ class RebaseState:
     def removed_items_ordering(self) -> tuple[list[RemovedItem], OrderingContext]:
         """The removed items vs the baseline, and the OrderingContext that places them."""
         target = self.resolution.target_index
-        items = removed_items(target, self.baseline_index) if self.baseline_index is not None else []
+        items = [] if self.baseline_index is None else removed_items(target, self.baseline_index)
         removed_keys = {item.name: item.order_key for item in items}
         return items, OrderingContext(self.target_deps, self.target_values, target.canonical_names, removed_keys)
