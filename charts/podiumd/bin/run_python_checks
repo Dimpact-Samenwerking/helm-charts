@@ -83,7 +83,15 @@ step_ruff_format() { ruff format --check . "${python_scripts[@]}"; }
 # Settings in pyproject.toml [tool.flake8] (flake8-pyproject).
 step_flake8() { flake8 lib tests "${python_scripts[@]}"; }
 
-step_deptry() { deptry . --requirements-files requirements.txt; }
+# deptry reads only *.py files, so it gets the scripts as .py copies.
+step_deptry() {
+    local scripts_dir="$logs/deptry-scripts" script
+    mkdir "$scripts_dir"
+    for script in "${python_scripts[@]}"; do
+        cp "$script" "$scripts_dir/$(basename "$script" | tr - _).py"
+    done
+    deptry . "$scripts_dir" --requirements-files requirements.txt
+}
 
 step_jscpd() { jscpd "${code[@]}"; }
 
@@ -136,6 +144,26 @@ steps=(
     ruff_check shellcheck ruff_format flake8 deptry jscpd pymarkdown vulture bandit
     basedpyright pylint pylint_tests pytest pip_audit
 )
+# Background jobs of a script ignore SIGINT. On Ctrl-C or a cancelled CI job,
+# show what the unfinished steps printed so far and stop them: job control
+# (set -m) gives each step its own process group, which takes its tools along
+# without signalling whoever started this script.
+on_interrupt() {
+    trap - INT TERM
+    for name in "${steps[@]}"; do
+        if [[ ! -e "$logs/$name.status" ]]; then
+            echo "=== $name (unfinished) ==="
+            cat "$logs/$name.log" 2>/dev/null || true
+        fi
+    done
+    for pid in "${pids[@]}"; do
+        kill -TERM -- "-$pid" 2>/dev/null || true
+    done
+    exit 130
+}
+trap on_interrupt INT TERM
+set -m
+
 pids=()
 for name in "${steps[@]}"; do
     run_step "$name" &

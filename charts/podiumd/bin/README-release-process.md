@@ -32,7 +32,7 @@ enforced minimums:
 - `shellcheck` — shellcheck check (known-working: 0.9.0)
 - `kube-score` — kube-score check (known-working: 1.20.0)
 - `docker` — CVE scan; optional, reported as skipped when missing (known-working: 29.8.0)
-- `python3-venv` (Debian only) — to create the `.venv` (known-working: Python 3.11)
+- `python3-venv` (Debian only) — to create the `.venv`; the tooling needs Python 3.12 or newer (known-working: 3.13)
 
 ### Debian setup
 

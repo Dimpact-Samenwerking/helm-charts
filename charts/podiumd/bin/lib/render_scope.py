@@ -46,7 +46,7 @@ def lint_args_for(chart_dir: Path) -> list[str]:
 # (chart_dir, extra_args) of one render_chart call.
 type RenderCacheKey = tuple[str, tuple[str, ...]]
 
-render_cache: dict[RenderCacheKey, RunResult] = {}
+_render_cache: dict[RenderCacheKey, RunResult] = {}
 
 
 def render_chart(chart_dir: Path, extra_args: list[str]) -> RunResult:
@@ -59,10 +59,10 @@ def render_chart(chart_dir: Path, extra_args: list[str]) -> RunResult:
     their own `run` call because their tests monkeypatch `run` in their
     own module."""
     key = (str(chart_dir), tuple(extra_args))
-    if key in render_cache:
-        return render_cache[key]
+    if key in _render_cache:
+        return _render_cache[key]
     result = run(["helm", "template", CHART_NAME, str(chart_dir), *extra_args], capture_output=True, text=True)
-    render_cache[key] = result
+    _render_cache[key] = result
     return result
 
 

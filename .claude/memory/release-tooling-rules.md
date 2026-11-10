@@ -10,8 +10,9 @@ Applies to `charts/podiumd/bin/` (scripts, `lib/`, tests) and
 - No new static-analysis finding from any `run_python_checks` tool: ruff
   check (including its isort rules), ruff format, flake8
   (wemake-python-styleguide), deptry, jscpd, pymarkdown, vulture, bandit,
-  basedpyright strict (tests too), pylint (including too-many-lines) and
-  pip-audit. Compare with the parent commit (a `git archive` copy),
+  basedpyright strict (tests too) and pylint (including too-many-lines).
+  pip-audit only warns: a new advisory needs no code change. Compare with
+  the parent commit (a `git archive` copy),
   ignoring line numbers; "no errors in the new file" is not enough. When a
   module over too-many-lines grows, shrink or split it in the same change.
 - Run `ruff format` only on the files you changed.

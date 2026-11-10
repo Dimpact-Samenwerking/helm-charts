@@ -201,12 +201,10 @@ def test_resource_line_none_when_not_found(librenderscope: ModuleType):
 
 
 @pytest.fixture(autouse=True)
-def _clear_render_cache(librenderscope: ModuleType):
-    """Clear render_chart's module-level cache so cached renders don't leak between tests
+def _fresh_render_cache(librenderscope: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    """An empty render_chart cache per test, so cached renders don't leak between tests
     (librenderscope is session-scoped)."""
-    librenderscope.render_cache.clear()
-    yield
-    librenderscope.render_cache.clear()
+    monkeypatch.setattr(librenderscope, "_render_cache", {})
 
 
 def _sequenced_run(rendered, returncode=0, stderr=""):
