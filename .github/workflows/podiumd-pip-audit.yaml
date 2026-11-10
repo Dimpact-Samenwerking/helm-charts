@@ -44,5 +44,7 @@ jobs:
       - name: Install the tools
         run: python3 -m pip install --quiet --disable-pip-version-check --upgrade pip -r charts/podiumd/bin/requirements.txt
 
+      # Own cache, as in run_python_checks: pip-audit cannot read the cache
+      # entries of the newer pip installed above.
       - name: pip-audit
-        run: pip-audit --progress-spinner off
+        run: pip-audit --progress-spinner off --cache-dir .cache/pip-audit

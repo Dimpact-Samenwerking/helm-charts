@@ -11,6 +11,7 @@ installing the tools, see
   - [ruff (lint + format)](#ruff-lint--format)
   - [shellcheck (shell scripts)](#shellcheck-shell-scripts)
   - [flake8 (wemake-python-styleguide)](#flake8-wemake-python-styleguide)
+  - [deptry (dependencies)](#deptry-dependencies)
   - [jscpd (duplicate code)](#jscpd-duplicate-code)
   - [vulture (dead code)](#vulture-dead-code)
   - [bandit (security)](#bandit-security)
@@ -102,6 +103,22 @@ tests/ has its own exemptions (`per-file-ignores`), and the kebab-case scripts
 are exempt from the module name rule. A deliberate exception gets
 `# noqa: <code>` on its line, with the reason.
 
+### deptry (dependencies)
+
+```bash
+cd charts/podiumd/bin
+scripts=$(mktemp -d)
+for script in $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)); do
+  cp "$script" "$scripts/$(basename "$script" | tr - _).py"
+done
+deptry . "$scripts" --requirements-files requirements.txt
+```
+
+Checks that every third-party import is in `requirements.txt`. deptry reads
+only `*.py` files, so the extensionless scripts go in as `.py` copies; a plain
+`deptry .` skips them. The tools that nothing imports are listed under
+`[tool.deptry.per_rule_ignores]` in `pyproject.toml`.
+
 ### jscpd (duplicate code)
 
 ```bash
@@ -182,11 +199,12 @@ monkeypatch lambdas (see `executionEnvironments` in `pyproject.toml`).
 ### pip-audit (known vulnerabilities)
 
 ```bash
-pip-audit --progress-spinner off
+pip-audit --progress-spinner off --cache-dir "$(git rev-parse --show-toplevel)/.cache/pip-audit"
 ```
 
 Audits the packages installed in the active environment against the PyPI
-vulnerability service. It can fail without a code change (a new advisory):
+vulnerability service, with its own cache in the repo-root `.cache/`
+(pip-audit cannot read the cache entries of a newer pip). It can fail without a code change (a new advisory):
 upgrade the package. In `run_python_checks` a finding is a warning, so it
 blocks no commit or PR, and the step is skipped when pypi.org is not
 reachable. The `podiumd-pip-audit` workflow runs it weekly and when
@@ -213,6 +231,7 @@ ruff check . $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 shellcheck run_python_checks
 ruff format --check . $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 flake8 lib tests $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
+deptry . "$scripts" --requirements-files requirements.txt  # scripts: see deptry above
 jscpd lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 pymarkdown $(python3 -c 'from lib.chart.paths import CHART_DIR; from lib.checks.markdown import pymarkdown_rule_args; print(*pymarkdown_rule_args(CHART_DIR))') scan ./*.md
 vulture lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
@@ -221,7 +240,7 @@ basedpyright lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x
 pylint lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 PYTHONPATH=. pylint --disable="$tests_disable" $(find tests -name '*.py')  # tests_disable: see pylint above
 python3 -m pytest -q --cov --cov-report=term-missing:skip-covered
-pip-audit --progress-spinner off
+pip-audit --progress-spinner off --cache-dir "$(git rev-parse --show-toplevel)/.cache/pip-audit"
 ```
 
 Coverage of `lib/` and the scripts must stay at or above `fail_under` in
