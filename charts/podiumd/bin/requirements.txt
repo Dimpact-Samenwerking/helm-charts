@@ -9,6 +9,7 @@ vulture
 isort
 pytest
 pytest-cov
+pytest-xdist  # run_python_checks runs the tests in parallel (-n auto)
 bandit
 basedpyright
 jscpd

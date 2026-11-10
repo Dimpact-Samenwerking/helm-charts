@@ -319,7 +319,7 @@ omit = ["tests/*"]
 # imported by charts/podiumd/scripts/, which tests/migrate-scripts/ test.
 [tool.deptry.per_rule_ignores]
 DEP002 = [
-    "ruff", "pymarkdownlnt", "pylint", "vulture", "isort", "pytest", "pytest-cov", "bandit",
+    "ruff", "pymarkdownlnt", "pylint", "vulture", "isort", "pytest", "pytest-cov", "pytest-xdist", "bandit",
     "basedpyright", "jscpd", "flake8-pyproject", "wemake-python-styleguide", "flake8-bugbear",
     "flake8-class-attributes-order", "flake8-functions-names", "pip-audit", "deptry", "ruamel.yaml",
 ]

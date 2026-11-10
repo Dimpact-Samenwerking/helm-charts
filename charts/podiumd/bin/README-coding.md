@@ -200,9 +200,12 @@ cd charts/podiumd/bin
 ```
 
 Upgrades pip and the tools in `requirements.txt` first, then runs everything
-above, fastest first, stopping at the first failure; pip-audit runs last, as a
-warning only. By hand, in the same order (`pymarkdown` lints this directory's `*.md` with the
-rules of `verify-podiumd`'s markdown check, which skips `bin/`):
+above at the same time, each step with its own log. It prints the logs in a
+fixed order, each with its time, and ends by listing every failed step.
+pip-audit only warns. pylint uses `-j 0` and pytest `-n auto` (pytest-xdist),
+so a full run takes well under a minute. By hand, one tool at a time
+(`pymarkdown` lints this directory's `*.md` with the rules of
+`verify-podiumd`'s markdown check, which skips `bin/`):
 
 ```bash
 cd charts/podiumd/bin
