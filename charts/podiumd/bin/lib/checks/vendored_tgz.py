@@ -10,26 +10,19 @@ import re
 from collections.abc import Collection
 from pathlib import Path
 
-# Version must start with a digit so hyphenated names (e.g. "keycloak-operator") parse.
+# Whether a file name looks like <name>-<version>.tgz; its greedy name group is not a chart name (vendored_versions).
 TGZ_NAME_RE = re.compile(r"^(?P<name>.+)-(?P<version>\d[\w.+-]*)\.tgz$")
 
 
 def find_extracted_vendored_dirs(chart_dir: Path) -> list[str]:
     """Sorted chart names with both a `<name>-<version>.tgz` and a `<name>/` under charts/."""
     charts_subdir = chart_dir / "charts"
-    return sorted(name for name in vendored_tgz_versions(charts_subdir) if (charts_subdir / name).is_dir())
-
-
-def vendored_tgz_versions(charts_dir: Path) -> dict[str, list[str]]:
-    """{chart name: [version, ...]} of the `<name>-<version>.tgz` files in charts/; {} without charts/."""
-    vendored: dict[str, list[str]] = {}
-    if not charts_dir.is_dir():
-        return vendored
-    for path in charts_dir.glob("*.tgz"):
-        name_match = TGZ_NAME_RE.match(path.name)
-        if name_match:
-            vendored.setdefault(name_match.group("name"), []).append(name_match.group("version"))
-    return vendored
+    tgz_names = vendored_tgz_names(charts_subdir)
+    if not tgz_names:
+        return []
+    return sorted(
+        path.name for path in charts_subdir.iterdir() if path.is_dir() and vendored_versions(tgz_names, path.name)
+    )
 
 
 def vendored_tgz_names(charts_dir: Path) -> set[str]:
@@ -37,17 +30,22 @@ def vendored_tgz_names(charts_dir: Path) -> set[str]:
     return {path.name for path in charts_dir.glob("*.tgz")} if charts_dir.is_dir() else set()
 
 
-def other_vendored_versions(tgz_names: Collection[str], name: str, version: str) -> list[str] | None:
-    """None when <name>-<version>.tgz is in `tgz_names`, else the sorted other vendored versions of `name` (maybe []).
+def vendored_versions(tgz_names: Collection[str], name: str) -> list[str]:
+    """Sorted versions of the `<name>-<version>.tgz` files in `tgz_names`.
 
     Parsed against `name`, not TGZ_NAME_RE, whose greedy name takes "foo-1.0.0-rc" from
     foo-1.0.0-rc-1.tgz. A version starts with a digit, so keycloak-operator-*.tgz is no keycloak.
     """
+    prefix = f"{name}-"
+    versions = (tgz.removeprefix(prefix).removesuffix(".tgz") for tgz in tgz_names if tgz.startswith(prefix))
+    return sorted(version for version in versions if version[:1].isdigit())
+
+
+def other_vendored_versions(tgz_names: Collection[str], name: str, version: str) -> list[str] | None:
+    """None when <name>-<version>.tgz is in `tgz_names`, else vendored_versions of `name` (maybe [])."""
     if f"{name}-{version}.tgz" in tgz_names:
         return None
-    prefix = f"{name}-"
-    others = (tgz.removeprefix(prefix).removesuffix(".tgz") for tgz in tgz_names if tgz.startswith(prefix))
-    return sorted(other for other in others if other[:1].isdigit())
+    return vendored_versions(tgz_names, name)
 
 
 def check_vendored_tgz_extraction(chart_dir: Path):
