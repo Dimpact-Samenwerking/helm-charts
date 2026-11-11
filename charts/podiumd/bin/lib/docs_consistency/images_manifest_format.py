@@ -37,11 +37,11 @@ from lib.upgradedoc.grouped_comments import path_display_name
 from lib.upgradedoc.images_manifest_list_diff import ManifestDiffContext
 from lib.upgradedoc.images_manifest_list_diff import ManifestDiffInputs
 from lib.upgradedoc.images_manifest_list_diff import find_images_manifest_list_diff
+from lib.upgradedoc.images_manifest_ordering import MIN_SORTABLE_ENTRIES
 from lib.upgradedoc.images_manifest_ordering import EntryResolution
-from lib.upgradedoc.images_manifest_ordering import ManifestSortContext
 from lib.upgradedoc.images_manifest_ordering import are_manifest_entries_grouped
+from lib.upgradedoc.images_manifest_ordering import build_entry_resolution
 from lib.upgradedoc.images_manifest_ordering import find_faulty_manifest_headers
-from lib.upgradedoc.images_manifest_ordering import manifest_entry_positions
 from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
 from lib.upgradedoc.string_and_parsing_basics import extract_target_version
@@ -80,18 +80,18 @@ class ListDiffInputs:
     baseline_paths: dict[ValuesPath, str]
 
 
-def entries_without_mention(text: str, context: ManifestSortContext) -> list[str]:
+def entries_without_mention(text: str, entries: list[ManifestEntry], resolution: EntryResolution) -> list[str]:
     """Display names of every entry group with no "# Changes:" item resolving to it.
 
     The check counterpart of add_missing_manifest_entries' backfill pass,
     through the same uncovered_manifest_entries: list-diff only catches
     changed images without an entry, not entries missing from the header.
-    [] for invalid YAML or fewer than 2 entries.
+    `entries` are text's parsed entries; [] for fewer than 2.
     """
-    if not manifest_entry_positions(text, context):
+    if len(entries) < MIN_SORTABLE_ENTRIES:
         return []
     lines = text.splitlines(keepends=True)
-    return sorted({name for _idx, name in uncovered_manifest_entries(lines, context.entry_resolution())})
+    return sorted({name for _idx, name in uncovered_manifest_entries(lines, resolution)})
 
 
 def _manifest_resolution_context(context: ManifestCheckContext) -> tuple[RepoGroups, EntryResolution]:
@@ -103,7 +103,7 @@ def _manifest_resolution_context(context: ManifestCheckContext) -> tuple[RepoGro
     """
     index = ChartImageIndex(context.chart_dir, context.deps, context.values)
     if context.chart_dir is None:
-        return {}, EntryResolution(context.deps, index.paths, {}, {})
+        return {}, build_entry_resolution(context.deps, index.values, {}, {}, index.paths)
     return index.repo_groups, entry_resolution_of(index)
 
 
@@ -277,25 +277,22 @@ def _sidecar_header_issues(name: str, parsed: ParsedManifest, resolution: EntryR
     return issues
 
 
-def _missing_mention_issues(name: str, text: str, sort_context: ManifestSortContext):
+def _missing_mention_issues(name: str, text: str, parsed: ParsedManifest, resolution: EntryResolution):
     """One issue per entry with no "# Changes:" mention at all (see
     entries_without_mention)."""
     return [
         f'{name}: image "{entry_name}" has an entry but no mention in the "# Changes:" list'
-        for entry_name in entries_without_mention(text, sort_context)
+        for entry_name in entries_without_mention(text, parsed.entries, resolution)
     ]
 
 
-def _structural_issues(
-    name: str, text: str, parsed: ParsedManifest, resolution: EntryResolution, context: ManifestCheckContext
-):
+def _structural_issues(name: str, text: str, parsed: ParsedManifest, resolution: EntryResolution):
     """chart_dir-gated structural checks: sidecar headers and Changes coverage.
 
     fix-doc-consistency orders the entries and "# Changes:" items and numbers the items.
     """
     issues = _sidecar_header_issues(name, parsed, resolution)
-    sort_context = ManifestSortContext(context.deps, context.values, resolution.repo_map, resolution.canonical_names)
-    issues.extend(_missing_mention_issues(name, text, sort_context))
+    issues.extend(_missing_mention_issues(name, text, parsed, resolution))
     return issues
 
 
@@ -406,7 +403,7 @@ def check_images_manifest_format(images_path: Path, context: ManifestCheckContex
 
     if context.chart_dir is not None:
         parsed = ParsedManifest(entries, line_indices, lines)
-        issues.extend(_structural_issues(images_path.name, text, parsed, resolution, context))
+        issues.extend(_structural_issues(images_path.name, text, parsed, resolution))
 
     # baseline_paths is empty without a resolvable baseline, so "changed" can't be computed.
     if baseline_paths and context.chart_dir is not None:

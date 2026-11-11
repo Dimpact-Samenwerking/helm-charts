@@ -120,6 +120,18 @@ def test_check_subchart_freshness_ignores_other_chart_with_same_name_prefix(
     assert librelease_secret_size.check_subchart_freshness(tmp_path, metadata) == []
 
 
+def test_check_subchart_freshness_warns_for_a_stale_vendor_with_a_hyphenated_version(
+    librelease_secret_size: ModuleType, tmp_path: Path
+):
+    """foo-1.0.0-rc-1.tgz is a vendored foo, though TGZ_NAME_RE would read it as foo-1.0.0-rc version 1."""
+    (tmp_path / "charts").mkdir()
+    (tmp_path / "charts" / "foo-1.0.0-rc-1.tgz").write_bytes(b"")
+    metadata = {"dependencies": [{"name": "foo", "version": "1.0.0"}]}
+    warnings = librelease_secret_size.check_subchart_freshness(tmp_path, metadata)
+    assert len(warnings) == 1
+    assert "foo-1.0.0-rc-1.tgz" in warnings[0]
+
+
 def test_check_subchart_freshness_no_charts_dir_is_silent(librelease_secret_size: ModuleType, tmp_path: Path):
     metadata = {"dependencies": [{"name": "zac", "version": "1.0.297"}]}
     assert librelease_secret_size.check_subchart_freshness(tmp_path, metadata) == []

@@ -73,6 +73,7 @@ def mock_verify_passes(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, digest_
                 "repository": "ghcr.io/infonl/zaakafhandelcomponent",
                 "host": "ghcr.io",
                 "repo_path": "infonl/zaakafhandelcomponent",
+                "tag": app_version,
                 "exists": True,
                 "digest": digest,
             }

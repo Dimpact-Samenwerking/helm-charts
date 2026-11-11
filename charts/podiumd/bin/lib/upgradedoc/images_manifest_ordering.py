@@ -7,6 +7,7 @@ import re
 from collections.abc import Iterable
 from collections.abc import Mapping
 from dataclasses import dataclass
+from functools import cached_property
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import is_primary_image_path
@@ -78,15 +79,28 @@ class ManifestSortContext:
     repo_map: dict[str, tuple[str, ...]]
     canonical_names: dict[str, tuple[str, ...]]
 
+    @cached_property
     def entry_resolution(self) -> EntryResolution:
-        """EntryResolution over chart_image_paths, global.images anchors included.
+        """build_entry_resolution of this context."""
+        return build_entry_resolution(self.deps, self.values, self.repo_map, self.canonical_names)
 
-        Without the anchors a shared base image entry (e.g. "curlimages/curl")
-        can't resolve and sorts last instead of under "global".
-        """
-        return EntryResolution(
-            self.deps, chart_image_paths(self.values, self.deps), self.repo_map, self.canonical_names
-        )
+
+def build_entry_resolution(
+    deps: list[ChartDependency],
+    values: YamlMapping,
+    repo_map: dict[str, ValuesPath],
+    canonical_names: dict[str, ValuesPath],
+    paths: dict[ValuesPath, str] | None = None,
+) -> EntryResolution:
+    """The EntryResolution over chart_image_paths(values, deps); every caller builds it here.
+
+    `paths` is that same chart_image_paths when the caller already has it
+    (ChartImageIndex.paths). It includes the global.images anchors; without
+    them a shared base image entry (e.g. "curlimages/curl") can't resolve and
+    sorts last instead of under "global".
+    """
+    current_paths = chart_image_paths(values, deps) if paths is None else paths
+    return EntryResolution(deps, current_paths, repo_map, canonical_names)
 
 
 def entry_component(
@@ -289,19 +303,19 @@ def _images_manifest_sorted_groups(
     manifest: ParsedManifest, context: ManifestSortContext
 ) -> tuple[list[ManifestGroup], list[int]]:
     """(groups, order): the groups and the permutation sort_images_manifest_entries applies."""
-    groups = _images_manifest_groups(manifest, context.entry_resolution())
+    groups = _images_manifest_groups(manifest, context.entry_resolution)
     keys = _group_order_keys(groups, context.deps, values_key_order(context.values), context.values)
     return groups, sorted(range(len(groups)), key=lambda gi: keys[gi])
 
 
-# A single entry has no order to fix.
-_MIN_SORTABLE_ENTRIES = 2
+# A single entry has no order to fix, and no Changes coverage to check.
+MIN_SORTABLE_ENTRIES = 2
 
 
 def _parsed_manifest_from_text(text: str) -> tuple[ParsedManifest | None, bool]:
     """(ParsedManifest, True), or (None, False) if text isn't a valid manifest list or has < 2 entries."""
     parsed = parse_manifest_lines(text)
-    if parsed is None or len(parsed.entries) < _MIN_SORTABLE_ENTRIES:
+    if parsed is None or len(parsed.entries) < MIN_SORTABLE_ENTRIES:
         return None, False
     return parsed, True
 
@@ -320,21 +334,8 @@ def _positioned_groups(text: str, context: ManifestSortContext) -> tuple[ParsedM
     return manifest, [(group, position_of_group[group_index]) for group_index, group in enumerate(groups)]
 
 
-def manifest_entry_positions(text: str, context: ManifestSortContext) -> dict[str, int]:
-    """{entry_name: 0-based final position} after sort_images_manifest_entries' group reordering.
-
-    Lets callers mirror the entry order instead of fuzzy text matching. Entries
-    in one group share its position. {} if invalid or fewer than 2 entries."""
-    manifest, positioned = _positioned_groups(text, context)
-    return {
-        manifest.entries[entry_index]["name"]: position
-        for (indices, _path, _name), position in positioned
-        for entry_index in indices
-    }
-
-
 def manifest_name_positions(text: str, context: ManifestSortContext) -> dict[str, int]:
-    """{display_name: 0-based final position}, like manifest_entry_positions but keyed by group display name.
+    """{display_name: 0-based final position} of each entry group after sort_images_manifest_entries' reordering.
 
     For exact-prefix matching of "# Changes:" items, which the tooling writes
     as f"{name} {old} -> {new}." with this display name; fuzzy basename matching

@@ -11,6 +11,7 @@ from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.values_tree_primitives import ValuesPath
 from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
 from lib.upgradedoc.images_manifest_ordering import EntryResolution
+from lib.upgradedoc.images_manifest_ordering import build_entry_resolution
 from lib.yaml_types import YamlMapping
 
 
@@ -73,4 +74,4 @@ class StateImageIndexes:
 
 def entry_resolution_of(index: ChartImageIndex) -> EntryResolution:
     """EntryResolution over `index`'s paths and maps."""
-    return EntryResolution(index.deps, index.paths, index.repo_map, index.canonical_names)
+    return build_entry_resolution(index.deps, index.values, index.repo_map, index.canonical_names, index.paths)

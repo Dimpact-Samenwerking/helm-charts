@@ -227,7 +227,7 @@ def plan_image_version_update(
     """The pin updates update_image_version would write, resolved but not written.
 
     Returns one dict per line to change, in file order ([] if all current).
-    `known`: registry checks already made at new_version (check_repositories_at).
+    `known`: registry checks already made, reused by check_repositories_at at the same tag.
     Raises SystemExit if <key> <image-basename> doesn't resolve uniquely or
     new_version doesn't exist upstream.
     """

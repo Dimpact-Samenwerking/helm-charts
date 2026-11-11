@@ -215,6 +215,7 @@ def test_check_basename_version_reports_found(libimageversion: ModuleType, monke
             "repository": "ghcr.io/platform-autorisatie-beheer-component/pabc-api",
             "host": "ghcr.io",
             "repo_path": "platform-autorisatie-beheer-component/pabc-api",
+            "tag": "1.1.2",
             "exists": True,
             "digest": SHA256_B,
         }

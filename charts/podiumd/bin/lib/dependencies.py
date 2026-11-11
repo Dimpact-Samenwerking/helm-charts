@@ -25,6 +25,7 @@ from lib.chart_lock import resolved_repository
 from lib.chart_lock import write_chart_lock
 from lib.checks.vendored_tgz import TGZ_NAME_RE
 from lib.checks.vendored_tgz import other_vendored_versions
+from lib.checks.vendored_tgz import vendored_tgz_names
 from lib.procutil import RunOptions
 from lib.procutil import run
 from lib.settings import fetch_retry_attempts
@@ -91,10 +92,11 @@ def _describe_lock_mismatch(wanted_key: tuple[str, str, str], locked: set[tuple[
 
 def _tgz_problems(chart_dir: Path, chart_deps: list[ChartDependency]):
     """One entry per dependency whose charts/<name>-<version>.tgz is missing, naming other vendored versions."""
+    tgz_names = vendored_tgz_names(chart_dir / "charts")
     problems: list[str] = []
     wanted = {(dep.get("name"), str(dep.get("version"))) for dep in chart_deps}
     for name, version in sorted(wanted):
-        others = other_vendored_versions(chart_dir / "charts", name, version)
+        others = other_vendored_versions(tgz_names, name, version)
         if others is None:
             continue
         if others:

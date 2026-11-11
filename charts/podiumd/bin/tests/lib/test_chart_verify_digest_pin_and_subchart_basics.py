@@ -157,6 +157,7 @@ def test_check_image_versions_single_path_found(
             "repository": "ghcr.io/infonl/zaakafhandelcomponent",
             "host": "ghcr.io",
             "repo_path": "infonl/zaakafhandelcomponent",
+            "tag": "5.4.3",
             "exists": True,
             "digest": "sha256:abc",
         }

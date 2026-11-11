@@ -284,6 +284,7 @@ def test_main_native_component_reads_podiumd_values(
                 "repository": "x/fg",
                 "host": "docker.io",
                 "repo_path": "x/fg",
+                "tag": app_version,
                 "exists": True,
                 "digest": None,
             }

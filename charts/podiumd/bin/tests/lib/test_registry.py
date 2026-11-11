@@ -781,18 +781,15 @@ def test_check_repositories_at_reuses_known_checks_and_looks_up_each_other_image
 
     monkeypatch.setattr(libregistry, "registry_tag_exists", fake_registry_tag_exists)
     known = [
-        {
-            "repository": "r",
-            "host": "quay.io",
-            "repo_path": "opstree/redis-operator",
-            "exists": True,
-            "digest": SHA256_A,
-        }
+        {"repository": "r", "host": "quay.io", "repo_path": "opstree/redis-operator", "tag": "v1", "exists": True}
+        | {"digest": SHA256_A}
     ]
     repositories = ["quay.io/opstree/redis-operator", "ghcr.io/infonl/zac", "ghcr.io/infonl/zac"]
 
     checks = libregistry.check_repositories_at(repositories, "v1", known)
+    at_other_tag = libregistry.check_repositories_at(["quay.io/opstree/redis-operator"], "v2", known)
 
-    assert looked_up == [("ghcr.io", "infonl/zac", "v1")]
+    assert looked_up == [("ghcr.io", "infonl/zac", "v1"), ("quay.io", "opstree/redis-operator", "v2")]
+    assert at_other_tag["quay.io/opstree/redis-operator"]["digest"] == SHA256_B
     assert checks["quay.io/opstree/redis-operator"]["digest"] == SHA256_A
     assert checks["ghcr.io/infonl/zac"]["digest"] == SHA256_B

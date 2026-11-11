@@ -11,8 +11,10 @@ from lib.chart.chart_yaml import ChartDependency
 from lib.docs_consistency.images_manifest_format import entries_without_mention
 from lib.fix_doc_consistency.new_and_removed_entries import MissingEntriesContext
 from lib.fix_doc_consistency.new_and_removed_entries import add_missing_manifest_entries
+from lib.images_manifest import ManifestEntry
+from lib.images_manifest import try_parse_images_manifest
 from lib.upgradedoc.chart_image_index import ChartImageIndex
-from lib.upgradedoc.images_manifest_ordering import ManifestSortContext
+from lib.upgradedoc.chart_image_index import entry_resolution_of
 from lib.yaml_types import YamlMapping
 
 
@@ -377,6 +379,12 @@ def test_add_missing_images_manifest_entries_lockstep_component_gets_one_header_
     assert result.text.count("- name: infonl/zgw-office-addin-backend") == 1
 
 
+def parse_entries(text: str) -> list[ManifestEntry]:
+    entries = try_parse_images_manifest(text)
+    assert entries is not None
+    return entries
+
+
 def test_backfill_writer_then_checker_reports_nothing(ordered_images_manifest_chart_dir: Path):
     """The checker reports the entry the writer backfills, and nothing after it; a second run changes nothing."""
     text = (
@@ -403,14 +411,13 @@ def test_backfill_writer_then_checker_reports_nothing(ordered_images_manifest_ch
         '  digest: "sha256:cccc"\n'
     )
     deps, values = _ordered_deps(), _ordered_target_values()
-    index = ChartImageIndex(ordered_images_manifest_chart_dir, deps, values)
-    sort_context = ManifestSortContext(deps, values, index.repo_map, index.canonical_names)
+    resolution = entry_resolution_of(ChartImageIndex(ordered_images_manifest_chart_dir, deps, values))
     writer_context = MissingEntriesContext(ordered_images_manifest_chart_dir, deps, values, _ordered_baseline_values())
 
-    assert entries_without_mention(text, sort_context) == ["keycloak-operator - postgres"]
+    assert entries_without_mention(text, parse_entries(text), resolution) == ["keycloak-operator - postgres"]
     first = add_missing_manifest_entries(text, writer_context)
     assert first.backfilled_names == ["keycloak-operator - postgres"]
-    assert entries_without_mention(first.text, sort_context) == []
+    assert entries_without_mention(first.text, parse_entries(first.text), resolution) == []
     second = add_missing_manifest_entries(first.text, writer_context)
     assert second.backfilled_names == []
     assert second.text == first.text

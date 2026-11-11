@@ -134,8 +134,17 @@ step_pytest() { python3 -m pytest -q -n auto --maxprocesses 8 --cov --cov-report
 # cannot read the cache entries of a newer pip.
 step_pip_audit() {
     if python3 -c 'import socket; socket.create_connection(("pypi.org", 443), 5).close()' 2>/dev/null; then
-        pip-audit --progress-spinner off --cache-dir "$pip_audit_cache" ||
+        local output status=0
+        output=$(pip-audit --progress-spinner off --cache-dir "$pip_audit_cache" 2>&1) || status=$?
+        printf '%s\n' "$output"
+        # pip-audit exits 1 both for findings and for its own errors.
+        if ((status == 0)); then
+            return
+        elif grep -Eq '^Found [0-9]+ known vulnerabilit' <<<"$output"; then
             echo "WARNING: pip-audit found known vulnerabilities: upgrade the package named above"
+        else
+            echo "WARNING: pip-audit failed (exit $status) without a vulnerability report: see its output above"
+        fi
     else
         echo "WARNING: pypi.org not reachable, pip-audit skipped"
     fi

@@ -10,6 +10,8 @@ from types import ModuleType
 
 import pytest
 
+from tests.fixture_data import raising
+
 
 @pytest.fixture(autouse=True)
 def _clear_tag_exists_cache(libimagedigests: ModuleType):
@@ -309,3 +311,15 @@ def test_digest_drift_routes_a_changed_digest_by_is_sliding_tag(
     target = ("ghcr.io/infonl/zaakafhandelcomponent", "5.1.0")
     assert libimagedigests.digest_drift(tmp_path / "values.yaml", target, "a" * 64, live) == expected
     assert calls == [("ghcr.io", "infonl/zaakafhandelcomponent", "5.1.0", live)]
+
+
+# --- tag_digest_lookup ---
+
+
+def test_tag_digest_lookup_keeps_the_http_status_and_drops_the_urlopen_wrapper(libimagedigests: ModuleType):
+    url, reason = "https://r", "timed out"
+    too_many_requests = raising(urllib.error.HTTPError(url, 429, "Too Many Requests", Message(), None))
+    timed_out = raising(urllib.error.URLError(reason))
+
+    assert libimagedigests.tag_digest_lookup(too_many_requests) == (None, "HTTP Error 429: Too Many Requests")
+    assert libimagedigests.tag_digest_lookup(timed_out, attempts=1) == (None, "timed out")

@@ -468,7 +468,11 @@ def plan_delegated_tags(
     updates: list[DelegatedUpdate] = []
     for basename, paths in _delegated_paths_by_basename(ctx, delegated_paths).items():
         changes = plan_image_version_update(
-            VALUES_YAML, ctx.values_key, basename, ctx.app_version, known=upstream_images.values()
+            VALUES_YAML,
+            ctx.values_key,
+            basename,
+            ctx.app_version,
+            known=upstream_images.values(),
         )
         change_by_path = {dotted_key_path(values_lines, change["line"] - 1): change for change in changes}
         for pin in paths:

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Literal
 from typing import NamedTuple
 from typing import TypedDict
+from urllib.error import HTTPError
 from urllib.error import URLError
 
 from lib.chart.chart_yaml import chart_dir_dependencies
@@ -486,12 +487,13 @@ def find_sliding_pins(chart_dir: Path) -> list[tuple[str, str, str, str]]:
 
 def _slid_digest(chart_dir: Path, repository: str, version: str, pinned_digest: str) -> str | None:
     """The upstream digest of `repository:version` when it differs from the pin and the tag slides, else None."""
-    # A lookup error is silent by design, see find_sliding_pins.
+    # One attempt: a lookup error is silent by design, see find_sliding_pins.
     result = pin_drift(
         lambda: cached_tag_exists(chart_dir, repository, version),
         chart_dir / "values.yaml",
         (repository, version),
         pinned_digest,
+        attempts=1,
     )
     return result.digest if result.drift == "sliding" else None
 
@@ -554,7 +556,8 @@ def _call_with_retry[ResultT](fn: Callable[[], ResultT], attempts: int = 2) -> A
         try:
             result = fn()
         except (URLError, OSError) as exc:
-            error = str(getattr(exc, "reason", exc))
+            # An HTTPError's reason drops its status code.
+            error = str(exc) if isinstance(exc, HTTPError) else str(getattr(exc, "reason", exc))
         else:
             return result, None
     return None, error
@@ -588,9 +591,11 @@ class PinDrift(NamedTuple):
     drift: Literal["sliding", "mismatch"] | None
 
 
-def pin_drift(lookup: Callable[[], TagExists], values_path: Path, target: ImageTarget, pinned_digest: str) -> PinDrift:
+def pin_drift(
+    lookup: Callable[[], TagExists], values_path: Path, target: ImageTarget, pinned_digest: str, attempts: int = 2
+) -> PinDrift:
     """tag_digest_lookup of `lookup`, then digest_drift of its digest against the pin (None after an error)."""
-    digest, error = tag_digest_lookup(lookup)
+    digest, error = tag_digest_lookup(lookup, attempts)
     drift = None if error else digest_drift(values_path, target, pinned_digest, digest)
     return PinDrift(digest, error, drift)
 

@@ -31,6 +31,7 @@ from lib.chart.chart_yaml import dependencies_problem
 from lib.chart.chart_yaml import is_chart_dependency_list
 from lib.chart.values_tree_primitives import text_at
 from lib.checks.vendored_tgz import other_vendored_versions
+from lib.checks.vendored_tgz import vendored_tgz_names
 from lib.procutil import run
 from lib.render_scope import CHART_NAME
 from lib.render_scope import render_chart
@@ -95,15 +96,16 @@ def check_subchart_freshness(chart_dir: Path, metadata: YamlMapping):
     if deps is not None and not is_chart_dependency_list(deps):
         problem = dependencies_problem(metadata, chart_dependency_problem, required=False) or "invalid dependencies"
         raise YamlShapeError(CHART_YAML_SOURCE, problem)
-    warnings = [_stale_vendor_warning(chart_dir / "charts", dep["name"], dep["version"]) for dep in deps or []]
+    tgz_names = vendored_tgz_names(chart_dir / "charts")
+    warnings = [_stale_vendor_warning(tgz_names, dep["name"], dep["version"]) for dep in deps or []]
     return [warning for warning in warnings if warning is not None]
 
 
-def _stale_vendor_warning(charts_dir: Path, name: str, version: str) -> str | None:
+def _stale_vendor_warning(tgz_names: set[str], name: str, version: str) -> str | None:
     """check_subchart_freshness' warning for one dependency, or None."""
     if not name or not version:
         return None
-    others = other_vendored_versions(charts_dir, name, version)
+    others = other_vendored_versions(tgz_names, name, version)
     # Not vendored locally (e.g. condition-disabled): nothing to compare.
     if not others:
         return None

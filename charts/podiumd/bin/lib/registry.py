@@ -53,11 +53,12 @@ BEARER_CHALLENGE_PARAM_RE = re.compile(r'(\w+)="([^"]*)"')
 
 class TagCheck(TypedDict):
     """Whether one repository has a tag upstream: the repository, its
-    parse_repo split, and registry_tag_exists' (exists, digest)."""
+    parse_repo split, the tag, and registry_tag_exists' (exists, digest)."""
 
     repository: str
     host: str
     repo_path: str
+    tag: str
     exists: bool
     digest: str | None
 
@@ -250,23 +251,26 @@ def registry_tag_exists(
 def check_repositories_at(repositories: Iterable[str], tag: str, known: Iterable[TagCheck] = ()) -> dict[str, TagCheck]:
     """{repository: TagCheck} of `tag`, one registry_tag_exists lookup per distinct image.
 
-    `known` holds checks a caller already made at `tag`; their images are not looked up again.
+    An image with a check in `known` at the same tag is not looked up again.
     """
-    known_by_image: dict[tuple[str, str], tuple[bool, str | None]] = {}
+    lookups: dict[tuple[str, str, str], tuple[bool, str | None]] = {}
     for check in known:
-        known_by_image[check["host"], check["repo_path"]] = (check["exists"], check["digest"])
+        image = (check["host"], check["repo_path"], check["tag"])
+        lookups[image] = (check["exists"], check["digest"])
     checks: dict[str, TagCheck] = {}
     for repository in repositories:
         if repository in checks:
             continue
         host, repo_path = parse_repo(repository)
-        if (host, repo_path) not in known_by_image:
-            known_by_image[host, repo_path] = registry_tag_exists(host, repo_path, tag)
-        exists, digest = known_by_image[host, repo_path]
+        image = (host, repo_path, tag)
+        if image not in lookups:
+            lookups[image] = registry_tag_exists(host, repo_path, tag)
+        exists, digest = lookups[image]
         checks[repository] = {
             "repository": repository,
             "host": host,
             "repo_path": repo_path,
+            "tag": tag,
             "exists": exists,
             "digest": digest,
         }

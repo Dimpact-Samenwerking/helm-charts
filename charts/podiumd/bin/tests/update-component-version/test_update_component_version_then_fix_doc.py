@@ -71,7 +71,8 @@ def chart(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType) -> P
     def check_image_versions(_chart_dir, _dep, values, pins, app_version):
         image_paths = [pin.path for pin in pins]
         return [
-            {"path": p, "repository": "r", "host": "ghcr.io", "repo_path": "r", "exists": True, "digest": DIGEST["f"]}
+            {"path": p, "repository": "r", "host": "ghcr.io", "repo_path": "r", "tag": app_version}
+            | {"exists": True, "digest": DIGEST["f"]}
             for p in image_paths
         ]
 

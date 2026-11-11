@@ -66,17 +66,21 @@ class MissingEntriesContext:
     indexes: StateImageIndexes | None = None
 
     @cached_property
+    def image_indexes(self) -> StateImageIndexes:
+        """`indexes`, or built from this context's chart and values."""
+        return self.indexes or StateImageIndexes.build(
+            self.chart_dir, self.deps, self.target_values, self.baseline_values
+        )
+
+    @cached_property
     def resolution(self) -> "MissingEntriesResolution":
         """_entries_resolution of this context."""
         return _entries_resolution(self)
 
     @cached_property
     def entry_resolution(self) -> EntryResolution:
-        """EntryResolution over the target paths and maps of `resolution`."""
-        resolution = self.resolution
-        return EntryResolution(
-            self.deps, resolution.current_paths, resolution.repo.repo_map, resolution.canonical_names
-        )
+        """entry_resolution_of the target index."""
+        return entry_resolution_of(self.image_indexes.target)
 
 
 @dataclass
@@ -157,10 +161,7 @@ def _manifest_list_diff(
 
 def _entries_resolution(context: MissingEntriesContext) -> MissingEntriesResolution:
     """Shared per-run resolution for adding and removing entries."""
-    indexes = context.indexes or StateImageIndexes.build(
-        context.chart_dir, context.deps, context.target_values, context.baseline_values
-    )
-    target, baseline = indexes.target, indexes.baseline_values
+    target, baseline = context.image_indexes.target, context.image_indexes.baseline_values
     path_to_repo = {path: repo for repo, group_paths in target.repo_groups.items() for path in group_paths}
     return MissingEntriesResolution(
         target.paths,
