@@ -110,6 +110,16 @@ def test_check_subchart_freshness_not_vendored_at_all_is_silent(librelease_secre
     assert librelease_secret_size.check_subchart_freshness(tmp_path, metadata) == []
 
 
+def test_check_subchart_freshness_ignores_other_chart_with_same_name_prefix(
+    librelease_secret_size: ModuleType, tmp_path: Path
+):
+    """keycloak-operator-*.tgz is not a vendored version of keycloak, so keycloak counts as not vendored."""
+    (tmp_path / "charts").mkdir()
+    (tmp_path / "charts" / "keycloak-operator-0.4.0.tgz").write_bytes(b"")
+    metadata = {"dependencies": [{"name": "keycloak", "version": "25.2.0"}]}
+    assert librelease_secret_size.check_subchart_freshness(tmp_path, metadata) == []
+
+
 def test_check_subchart_freshness_no_charts_dir_is_silent(librelease_secret_size: ModuleType, tmp_path: Path):
     metadata = {"dependencies": [{"name": "zac", "version": "1.0.297"}]}
     assert librelease_secret_size.check_subchart_freshness(tmp_path, metadata) == []

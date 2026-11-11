@@ -113,6 +113,8 @@ type DigestLine = tuple[str | None, int]
 type ImageTargetPin = tuple[ImageTarget, DigestLine]
 # (digest, values.yaml lines) of one ImageTarget.
 type DigestLines = tuple[str, list[int]]
+# registry_tag_exists' (exists, digest).
+type TagExists = tuple[bool, str | None]
 
 
 class RepeatedPin(TypedDict):
@@ -484,15 +486,14 @@ def find_sliding_pins(chart_dir: Path) -> list[tuple[str, str, str, str]]:
 
 def _slid_digest(chart_dir: Path, repository: str, version: str, pinned_digest: str) -> str | None:
     """The upstream digest of `repository:version` when it differs from the pin and the tag slides, else None."""
-    try:
-        exists, digest = cached_tag_exists(chart_dir, repository, version)
-    except (URLError, OSError):
-        # Silent by design, see find_sliding_pins.
-        return None
-    if not exists or not digest or digest == f"sha256:{pinned_digest}":
-        return None
-    host, repo_path = parse_repo(repository)
-    return digest if is_sliding_tag(chart_dir / "values.yaml", host, repo_path, version, digest) else None
+    # A lookup error is silent by design, see find_sliding_pins.
+    result = pin_drift(
+        lambda: cached_tag_exists(chart_dir, repository, version),
+        chart_dir / "values.yaml",
+        (repository, version),
+        pinned_digest,
+    )
+    return result.digest if result.drift == "sliding" else None
 
 
 @dataclass
@@ -539,20 +540,59 @@ class DigestCheckAccumulator:
     digest_check_errors: list[PinFailure]
 
 
-def _call_with_retry[ResultT](fn: Callable[[], ResultT]) -> tuple[ResultT | None, str | None]:
-    """Call fn(), retrying once on a transient network error.
+# (result, error) of a call that may fail with a network error.
+type Attempted[AttemptT] = tuple[AttemptT | None, str | None]
 
-    Returns (result, error); result is None only when both attempts raised.
+
+def _call_with_retry[ResultT](fn: Callable[[], ResultT], attempts: int = 2) -> Attempted[ResultT]:
+    """Call fn() up to `attempts` times while it raises a network error.
+
+    Returns (result, error); result is None only when every attempt raised.
     """
     error = None
-    for _ in range(2):
+    for _ in range(attempts):
         try:
             result = fn()
         except (URLError, OSError) as exc:
-            error = str(exc)
+            error = str(getattr(exc, "reason", exc))
         else:
             return result, None
     return None, error
+
+
+def tag_digest_lookup(lookup: Callable[[], TagExists], attempts: int = 2) -> tuple[str | None, str | None]:
+    """(digest, error) of a registry_tag_exists `lookup` (_call_with_retry); error "tag not found upstream" on a 404."""
+    result, error = _call_with_retry(lookup, attempts)
+    if result is None:
+        return None, error
+    exists, digest = result
+    return digest, (None if exists else "tag not found upstream")
+
+
+def digest_drift(
+    values_path: Path, target: ImageTarget, pinned_digest: str, live_digest: str | None
+) -> Literal["sliding", "mismatch"] | None:
+    """How `live_digest` differs from the pin: None when equal or unknown, "sliding" when the tag drifts by design."""
+    if not live_digest or live_digest == f"sha256:{pinned_digest}":
+        return None
+    repository, version = target
+    host, repo_path = parse_repo(repository)
+    return "sliding" if is_sliding_tag(values_path, host, repo_path, version, live_digest) else "mismatch"
+
+
+class PinDrift(NamedTuple):
+    """pin_drift's result: the live digest, a lookup error, and how the digest differs from the pin."""
+
+    digest: str | None
+    error: str | None
+    drift: Literal["sliding", "mismatch"] | None
+
+
+def pin_drift(lookup: Callable[[], TagExists], values_path: Path, target: ImageTarget, pinned_digest: str) -> PinDrift:
+    """tag_digest_lookup of `lookup`, then digest_drift of its digest against the pin (None after an error)."""
+    digest, error = tag_digest_lookup(lookup)
+    drift = None if error else digest_drift(values_path, target, pinned_digest, digest)
+    return PinDrift(digest, error, drift)
 
 
 def _build_pin_context(
@@ -566,19 +606,11 @@ def _build_pin_context(
     return PinCheckContext(chart_dir, values_path, pinned_digest, lines_str, loc)
 
 
-def _resolve_pin_tag_status(ctx: PinCheckContext):
-    """(digest, error) of the pin's tag lookup, retried once; error "tag not found upstream" on a 404."""
-    result, error = _call_with_retry(lambda: cached_tag_exists(ctx.chart_dir, ctx.loc.repository, ctx.loc.version))
-    if result is None:
-        return None, error
-    exists, digest = result
-    return digest, (None if exists else "tag not found upstream")
-
-
-def _classify_pin_tag_result(ctx: PinCheckContext, digest: str | None, error: str | None, acc: DigestCheckAccumulator):
-    """Print and record one pin's tag-lookup outcome; whether the digest-still-resolvable check is warranted."""
+def _classify_pin_tag_result(ctx: PinCheckContext, result: PinDrift, acc: DigestCheckAccumulator):
+    """Print and record one pin's pin_drift outcome; whether the digest-still-resolvable check is warranted."""
     host, repo_path, version = ctx.loc.host, ctx.loc.repo_path, ctx.loc.version
     repository = ctx.loc.repository
+    digest, error, drift = result
 
     if error and host in UNVERIFIABLE_HOSTS:
         _record_unverifiable(ctx, error, acc)
@@ -587,8 +619,8 @@ def _classify_pin_tag_result(ctx: PinCheckContext, digest: str | None, error: st
         acc.fetch_errors.append((repository, version, error, ctx.lines_str))
         print(f"  [FETCH-ERR] {host}/{repo_path}:{version}  {error}  (values.yaml:{ctx.lines_str})")
         return True
-    if digest and digest != f"sha256:{ctx.pinned_digest}":
-        _record_mismatch(ctx, digest, acc)
+    if digest is not None and drift is not None:
+        _record_mismatch(ctx, digest, drift, acc)
         return True
     if not digest:
         # No Docker-Content-Digest header (some registries/proxies strip it): can't confirm the
@@ -606,11 +638,13 @@ def _record_unverifiable(ctx: PinCheckContext, reason: str, acc: DigestCheckAccu
     print(f"  [UNVERIFIABLE] {loc.host}/{loc.repo_path}:{loc.version}  {reason}  (values.yaml:{ctx.lines_str})")
 
 
-def _record_mismatch(ctx: PinCheckContext, digest: str, acc: DigestCheckAccumulator) -> None:
-    """Print and record a pin whose upstream digest differs: sliding when the tag is known to drift."""
+def _record_mismatch(
+    ctx: PinCheckContext, digest: str, drift: Literal["sliding", "mismatch"], acc: DigestCheckAccumulator
+) -> None:
+    """Print and record a pin whose upstream digest differs, by its digest_drift."""
     loc = ctx.loc
     entry = (loc.repository, loc.version, ctx.pinned_digest, digest, ctx.lines_str)
-    if is_sliding_tag(ctx.values_path, loc.host, loc.repo_path, loc.version, digest):
+    if drift == "sliding":
         acc.sliding_mismatches.append(entry)
         print(
             f"  [SLIDING  ] {loc.host}/{loc.repo_path}:{loc.version}  (known to drift — refresh with fix-image-digests)"
@@ -658,8 +692,14 @@ def _process_pin(ctx: PinCheckContext, position: int, total: int, acc: DigestChe
     """Announce and check one pin; every pin is announced since each is a real registry call."""
     image = f"{ctx.loc.host}/{ctx.loc.repo_path}:{ctx.loc.version}"
     print(f"  [{position}/{total}] checking {image}...", flush=True)
-    digest, error = _resolve_pin_tag_status(ctx)
-    needs_digest_check = _classify_pin_tag_result(ctx, digest, error, acc)
+    loc = ctx.loc
+    result = pin_drift(
+        lambda: cached_tag_exists(ctx.chart_dir, loc.repository, loc.version),
+        ctx.values_path,
+        (loc.repository, loc.version),
+        ctx.pinned_digest,
+    )
+    needs_digest_check = _classify_pin_tag_result(ctx, result, acc)
     if needs_digest_check and ctx.loc.host not in UNVERIFIABLE_HOSTS:
         _confirm_pinned_digest(ctx, acc)
 

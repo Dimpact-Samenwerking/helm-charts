@@ -52,6 +52,19 @@ class EntryResolution:
     repo_map: dict[str, tuple[str, ...]]
     canonical_names: dict[str, tuple[str, ...]]
 
+    def entry_path(self, entry_name: str) -> ValuesPath | None:
+        """The image path a manifest entry "name:" resolves to (resolve_entry_image_path), or None."""
+        return resolve_entry_image_path(entry_name, self.current_paths.keys(), self.repo_map)
+
+    def display_name(self, path: ValuesPath) -> str:
+        """path_display_name of `path`: the name "# Changes:" items and entry comments use."""
+        return path_display_name(path, self.deps, self.canonical_names)
+
+    def entry_display_name(self, entry_name: str) -> tuple[ValuesPath, str] | None:
+        """(image path, display name) of a manifest entry "name:", or None when it resolves to no path."""
+        path = self.entry_path(entry_name)
+        return None if path is None else (path, self.display_name(path))
+
 
 @dataclass
 class ManifestSortContext:
@@ -64,6 +77,16 @@ class ManifestSortContext:
     values: YamlMapping
     repo_map: dict[str, tuple[str, ...]]
     canonical_names: dict[str, tuple[str, ...]]
+
+    def entry_resolution(self) -> EntryResolution:
+        """EntryResolution over chart_image_paths, global.images anchors included.
+
+        Without the anchors a shared base image entry (e.g. "curlimages/curl")
+        can't resolve and sorts last instead of under "global".
+        """
+        return EntryResolution(
+            self.deps, chart_image_paths(self.values, self.deps), self.repo_map, self.canonical_names
+        )
 
 
 def entry_component(
@@ -189,10 +212,10 @@ def find_faulty_manifest_headers(manifest: ParsedManifest, resolution: EntryReso
     (e.g. "keycloak", "global"): with no parent, the sidecar shape doesn't apply."""
     problems: list[tuple[str, str, str]] = []
     for entry, line_idx in zip(manifest.entries, manifest.entry_line_indices, strict=True):
-        path = resolve_entry_image_path(entry["name"], resolution.current_paths.keys(), resolution.repo_map)
-        if path is None or is_primary_image_path(path, resolution.deps):
+        resolved = resolution.entry_display_name(entry["name"])
+        if resolved is None or is_primary_image_path(resolved[0], resolution.deps):
             continue
-        display_name = path_display_name(path, resolution.deps, resolution.canonical_names)
+        display_name = resolved[1]
         problem = _sidecar_header_problem(_own_header_top_line(manifest.lines, line_idx), display_name)
         if problem is not None:
             problems.append((entry["name"], display_name, problem))
@@ -239,15 +262,9 @@ def _images_manifest_groups(manifest: ParsedManifest, resolution: EntryResolutio
 
     groups: list[ManifestGroup] = []
     for indices in index_groups:
-        path = resolve_entry_image_path(
-            manifest.entries[indices[0]]["name"], resolution.current_paths.keys(), resolution.repo_map
-        )
-        name = (
-            path_display_name(path, resolution.deps, resolution.canonical_names)
-            if path
-            else manifest.entries[indices[0]]["name"]
-        )
-        groups.append((indices, path, name))
+        entry_name = manifest.entries[indices[0]]["name"]
+        resolved = resolution.entry_display_name(entry_name)
+        groups.append((indices, None, entry_name) if resolved is None else (indices, *resolved))
     return groups
 
 
@@ -271,14 +288,8 @@ def _collapse_group_blank_lines(group_text: str) -> str:
 def _images_manifest_sorted_groups(
     manifest: ParsedManifest, context: ManifestSortContext
 ) -> tuple[list[ManifestGroup], list[int]]:
-    """(groups, order): the groups and the permutation sort_images_manifest_entries applies.
-
-    current_paths includes the global.images anchors; without them a shared base
-    image entry (e.g. "curlimages/curl") can't resolve and sorts last instead of
-    under "global"."""
-    current_paths = chart_image_paths(context.values, context.deps)
-    resolution = EntryResolution(context.deps, current_paths, context.repo_map, context.canonical_names)
-    groups = _images_manifest_groups(manifest, resolution)
+    """(groups, order): the groups and the permutation sort_images_manifest_entries applies."""
+    groups = _images_manifest_groups(manifest, context.entry_resolution())
     keys = _group_order_keys(groups, context.deps, values_key_order(context.values), context.values)
     return groups, sorted(range(len(groups)), key=lambda gi: keys[gi])
 

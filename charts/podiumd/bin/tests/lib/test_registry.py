@@ -765,3 +765,34 @@ def test_is_sliding_tag_false_when_registry_fallback_errors(
 
     monkeypatch.setattr(libregistry, "find_more_specific_tag", raise_network_error)
     assert libregistry.is_sliding_tag(values_repo, "docker.io", "ghcr.io/infonl/zac", "5.1.0", SHA256_C) is False
+
+
+# --- check_repositories_at ---
+
+
+def test_check_repositories_at_reuses_known_checks_and_looks_up_each_other_image_once(
+    libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch
+):
+    looked_up: list[tuple[str, str, str]] = []
+
+    def fake_registry_tag_exists(host: str, repo: str, tag: str) -> tuple[bool, str | None]:
+        looked_up.append((host, repo, tag))
+        return True, SHA256_B
+
+    monkeypatch.setattr(libregistry, "registry_tag_exists", fake_registry_tag_exists)
+    known = [
+        {
+            "repository": "r",
+            "host": "quay.io",
+            "repo_path": "opstree/redis-operator",
+            "exists": True,
+            "digest": SHA256_A,
+        }
+    ]
+    repositories = ["quay.io/opstree/redis-operator", "ghcr.io/infonl/zac", "ghcr.io/infonl/zac"]
+
+    checks = libregistry.check_repositories_at(repositories, "v1", known)
+
+    assert looked_up == [("ghcr.io", "infonl/zac", "v1")]
+    assert checks["quay.io/opstree/redis-operator"]["digest"] == SHA256_A
+    assert checks["ghcr.io/infonl/zac"]["digest"] == SHA256_B

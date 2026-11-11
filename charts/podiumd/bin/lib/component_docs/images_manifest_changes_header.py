@@ -7,6 +7,8 @@ from collections.abc import Iterable
 from lib.cli import noun_for
 from lib.images_manifest import BARE_CHANGES_HEADER_RE
 from lib.images_manifest import CHANGES_ITEM_RE
+from lib.images_manifest import ENTRY_NAME_RE
+from lib.upgradedoc.images_manifest_ordering import EntryResolution
 from lib.upgradedoc.images_manifest_ordering import match_item_display_name
 from lib.upgradedoc.string_and_parsing_basics import is_named_by_changes_item
 from lib.upgradedoc.string_and_parsing_basics import match_located_line
@@ -204,3 +206,23 @@ def covered_display_names(lines: list[str], display_names: Iterable[str]) -> set
     """
     names = list(display_names)
     return {name for rest, _start, _end in changes_item_texts(lines) if (name := match_item_display_name(rest, names))}
+
+
+def uncovered_manifest_entries(lines: list[str], resolution: EntryResolution) -> list[tuple[int, str]]:
+    """(line index, display name) of every entry no "# Changes:" item covers (covered_display_names).
+
+    The writer backfills an item for each and the checker reports them. An
+    entry resolving to no image path, or whose display name is only the raw
+    dotted path, is skipped: not prose worth adding.
+    """
+    entries: list[tuple[int, str, bool]] = []
+    for idx, line in enumerate(lines):
+        name_match = ENTRY_NAME_RE.match(line)
+        if name_match is None:
+            continue
+        resolved = resolution.entry_display_name(name_match.group(1))
+        if resolved is not None:
+            path, display_name = resolved
+            entries.append((idx, display_name, display_name == ".".join(path)))
+    covered = covered_display_names(lines, [name for _idx, name, _raw in entries])
+    return [(idx, name) for idx, name, raw in entries if not raw and name not in covered]

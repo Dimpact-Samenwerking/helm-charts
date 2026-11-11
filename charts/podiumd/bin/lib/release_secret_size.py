@@ -30,6 +30,7 @@ from lib.chart.chart_yaml import chart_dependency_problem
 from lib.chart.chart_yaml import dependencies_problem
 from lib.chart.chart_yaml import is_chart_dependency_list
 from lib.chart.values_tree_primitives import text_at
+from lib.checks.vendored_tgz import other_vendored_versions
 from lib.procutil import run
 from lib.render_scope import CHART_NAME
 from lib.render_scope import render_chart
@@ -90,25 +91,23 @@ def check_subchart_freshness(chart_dir: Path, metadata: YamlMapping):
 
     `helm package` bundles charts/ as-is, so a stale vendor skews the estimate.
     Returns unprefixed strings; callers choose where to print them."""
-    charts_subdir = chart_dir / "charts"
-    vendored = list(charts_subdir.glob("*.tgz")) if charts_subdir.is_dir() else []
     deps = metadata.get("dependencies")
     if deps is not None and not is_chart_dependency_list(deps):
         problem = dependencies_problem(metadata, chart_dependency_problem, required=False) or "invalid dependencies"
         raise YamlShapeError(CHART_YAML_SOURCE, problem)
-    warnings = [_stale_vendor_warning(dep["name"], dep["version"], vendored) for dep in deps or []]
+    warnings = [_stale_vendor_warning(chart_dir / "charts", dep["name"], dep["version"]) for dep in deps or []]
     return [warning for warning in warnings if warning is not None]
 
 
-def _stale_vendor_warning(name: str, version: str, vendored: list[Path]) -> str | None:
+def _stale_vendor_warning(charts_dir: Path, name: str, version: str) -> str | None:
     """check_subchart_freshness' warning for one dependency, or None."""
     if not name or not version:
         return None
-    matches = [tgz for tgz in vendored if tgz.name.startswith(f"{name}-")]
+    others = other_vendored_versions(charts_dir, name, version)
     # Not vendored locally (e.g. condition-disabled): nothing to compare.
-    if not matches or any(tgz.name == f"{name}-{version}.tgz" for tgz in matches):
+    if not others:
         return None
-    found = ", ".join(sorted(tgz.name for tgz in matches))
+    found = ", ".join(f"{name}-{other}.tgz" for other in others)
     return (
         f"Chart.yaml declares {name}@{version}, but the vendored charts/ directory has "
         f"{found} — run `helm dependency update` before trusting this estimate; it may be "

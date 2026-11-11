@@ -280,3 +280,32 @@ def test_check_image_digests_unverifiable_host_skips_digest_liveness_check_entir
     assert calls == ["1.1.1", "1.1.1"]
     out = capsys.readouterr().out
     assert "[DIGEST-GONE]" not in out
+
+
+# --- digest_drift ---
+
+
+@pytest.mark.parametrize("live_digest", [None, "", f"sha256:{'a' * 64}"])
+def test_digest_drift_none_when_live_digest_unknown_or_equal(
+    libimagedigests: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, live_digest: str | None
+):
+    monkeypatch.setattr(libimagedigests, "is_sliding_tag", pytest.fail)
+    target = ("ghcr.io/infonl/zaakafhandelcomponent", "5.1.0")
+    assert libimagedigests.digest_drift(tmp_path / "values.yaml", target, "a" * 64, live_digest) is None
+
+
+@pytest.mark.parametrize("expected", ["sliding", "mismatch"])
+def test_digest_drift_routes_a_changed_digest_by_is_sliding_tag(
+    libimagedigests: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, expected: str
+):
+    calls: list[tuple[str, str, str, str]] = []
+
+    def is_sliding_stub(_values_path: Path, host: str, repo: str, version: str, live_digest: str) -> bool:
+        calls.append((host, repo, version, live_digest))
+        return expected == "sliding"
+
+    monkeypatch.setattr(libimagedigests, "is_sliding_tag", is_sliding_stub)
+    live = f"sha256:{'b' * 64}"
+    target = ("ghcr.io/infonl/zaakafhandelcomponent", "5.1.0")
+    assert libimagedigests.digest_drift(tmp_path / "values.yaml", target, "a" * 64, live) == expected
+    assert calls == [("ghcr.io", "infonl/zaakafhandelcomponent", "5.1.0", live)]

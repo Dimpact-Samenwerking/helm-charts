@@ -63,7 +63,7 @@ def test_find_stale_digests_reports_mismatch(sid: ModuleType, tmp_path: Path, mo
         f'    tag: "1.0.0@sha256:{"a" * 64}"',
     ]
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'b' * 64}"))
-    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
+    monkeypatch.setattr("lib.image.digests.is_sliding_tag", lambda *a, **k: False)
     stale, unresolved, fetch_errors = find_stale_in(sid, tmp_path, lines)
     assert unresolved == []
     assert fetch_errors == []
@@ -275,7 +275,7 @@ def test_find_stale_digests_dedupes_shared_repo_and_tag(
         return True, f"sha256:{'b' * 64}"
 
     monkeypatch.setattr(sid, "registry_tag_exists", spy)
-    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
+    monkeypatch.setattr("lib.image.digests.is_sliding_tag", lambda *a, **k: False)
     stale, _unresolved, _fetch_errors = find_stale_in(sid, tmp_path, lines)
     assert calls == [("docker.io", "org/repo", "1.0.0")]
     assert len(stale) == 1
@@ -288,7 +288,7 @@ def test_find_stale_digests_marks_sliding_from_is_sliding_tag(
     """is_sliding_tag's verdict is passed through; classification is tested in lib.registry."""
     lines = ["a:", "  image:", "    repository: org/repo", f'    tag: "1.0.0@sha256:{"a" * 64}"']
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'b' * 64}"))
-    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: True)
+    monkeypatch.setattr("lib.image.digests.is_sliding_tag", lambda *a, **k: True)
     stale, _unresolved, _fetch_errors = find_stale_in(sid, tmp_path, lines)
     assert stale[0][5] is True
 
@@ -305,7 +305,7 @@ def test_find_stale_digests_calls_is_sliding_tag_with_live_digest(
         calls.append((vp, host, repo, version, live_digest))
         return False
 
-    monkeypatch.setattr(sid, "is_sliding_tag", spy)
+    monkeypatch.setattr("lib.image.digests.is_sliding_tag", spy)
     find_stale_in(sid, tmp_path, lines)
     assert calls == [(values_path, "docker.io", "org/repo", "1.0.0", f"sha256:{'b' * 64}")]
 
@@ -334,7 +334,7 @@ def test_main_dry_run_does_not_write(sid: ModuleType, tmp_path: Path, monkeypatc
     write_values(values_path, original)
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'b' * 64}"))
-    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
+    monkeypatch.setattr("lib.image.digests.is_sliding_tag", lambda *a, **k: False)
     monkeypatch.setattr("sys.argv", ["fix-image-digests", "--dry-run"])
 
     with pytest.raises(SystemExit) as exc_info:
@@ -352,7 +352,7 @@ def test_main_writes_new_digest_preserving_everything_else(
     write_values(values_path, f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{old_digest}"\n')
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{new_digest}"))
-    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
+    monkeypatch.setattr("lib.image.digests.is_sliding_tag", lambda *a, **k: False)
     monkeypatch.setattr("sys.argv", ["fix-image-digests"])
 
     with pytest.raises(SystemExit) as exc_info:
@@ -370,7 +370,7 @@ def test_main_invokes_fix_helm_doc_after_a_real_write(
     write_values(values_path, f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n')
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'b' * 64}"))
-    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
+    monkeypatch.setattr("lib.image.digests.is_sliding_tag", lambda *a, **k: False)
     monkeypatch.setattr("sys.argv", ["fix-image-digests"])
     calls = []
     monkeypatch.setattr(
@@ -395,7 +395,7 @@ def test_main_invokes_fix_doc_consistency_after_fix_helm_doc(
     write_values(values_path, f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n')
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'b' * 64}"))
-    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
+    monkeypatch.setattr("lib.image.digests.is_sliding_tag", lambda *a, **k: False)
     monkeypatch.setattr("sys.argv", ["fix-image-digests"])
     calls = []
     monkeypatch.setattr(
@@ -418,7 +418,7 @@ def test_main_dry_run_does_not_invoke_fix_helm_doc_or_fix_doc_consistency(
     write_values(values_path, f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n')
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'b' * 64}"))
-    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
+    monkeypatch.setattr("lib.image.digests.is_sliding_tag", lambda *a, **k: False)
     monkeypatch.setattr("sys.argv", ["fix-image-digests", "--dry-run"])
     calls = []
     monkeypatch.setattr(sid, "run_script", lambda cmd, *a, **k: calls.append(cmd))
@@ -437,7 +437,7 @@ def test_main_nothing_stale_does_not_invoke_fix_helm_doc_or_fix_doc_consistency(
     write_values(values_path, f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{digest}"\n')
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{digest}"))
-    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
+    monkeypatch.setattr("lib.image.digests.is_sliding_tag", lambda *a, **k: False)
     monkeypatch.setattr("sys.argv", ["fix-image-digests"])
     calls = []
     monkeypatch.setattr(sid, "run_script", lambda cmd, *a, **k: calls.append(cmd))
@@ -455,7 +455,7 @@ def test_main_propagates_fix_helm_doc_failure_exit_code(
     write_values(values_path, f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n')
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'b' * 64}"))
-    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
+    monkeypatch.setattr("lib.image.digests.is_sliding_tag", lambda *a, **k: False)
     monkeypatch.setattr("sys.argv", ["fix-image-digests"])
     calls = []
     monkeypatch.setattr(
@@ -478,7 +478,7 @@ def test_main_propagates_fix_doc_consistency_failure_exit_code(
     write_values(values_path, f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n')
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'b' * 64}"))
-    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
+    monkeypatch.setattr("lib.image.digests.is_sliding_tag", lambda *a, **k: False)
     monkeypatch.setattr("sys.argv", ["fix-image-digests"])
 
     def fake_run_script(cmd, *a, **k):
@@ -503,7 +503,7 @@ def test_main_stale_digest_report_names_the_file(
     write_values(values_path, f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{old_digest}"\n')
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{new_digest}"))
-    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
+    monkeypatch.setattr("lib.image.digests.is_sliding_tag", lambda *a, **k: False)
     monkeypatch.setattr("sys.argv", ["fix-image-digests"])
 
     with pytest.raises(SystemExit):
@@ -543,7 +543,7 @@ def test_main_updates_all_occurrences_of_shared_digest(
     )
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{new_digest}"))
-    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
+    monkeypatch.setattr("lib.image.digests.is_sliding_tag", lambda *a, **k: False)
     monkeypatch.setattr("sys.argv", ["fix-image-digests"])
 
     with pytest.raises(SystemExit):
@@ -602,7 +602,7 @@ def write_two_image_values(path, nginx_digest, zac_digest):
 
 def mock_is_sliding_tag_by_repo(monkeypatch: pytest.MonkeyPatch, sid: ModuleType, sliding_repos):
     monkeypatch.setattr(
-        sid, "is_sliding_tag", lambda values_path, host, repo, version, live_digest: repo in sliding_repos
+        "lib.image.digests.is_sliding_tag", lambda values_path, host, repo, version, live_digest: repo in sliding_repos
     )
 
 
@@ -806,7 +806,7 @@ def test_main_refreshes_sibling_digest_then_checker_reports_nothing(
 
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
     monkeypatch.setattr(sid, "registry_tag_exists", live)
-    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
+    monkeypatch.setattr("lib.image.digests.is_sliding_tag", lambda *a, **k: False)
     monkeypatch.setattr("sys.argv", ["fix-image-digests"])
 
     with pytest.raises(SystemExit) as exc_info:
@@ -843,7 +843,7 @@ def test_main_scoped_refreshes_only_the_named_sibling_digest(
 
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
     monkeypatch.setattr(sid, "registry_tag_exists", live)
-    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
+    monkeypatch.setattr("lib.image.digests.is_sliding_tag", lambda *a, **k: False)
     monkeypatch.setattr("sys.argv", ["fix-image-digests", "keycloak", "keycloak"])
 
     with pytest.raises(SystemExit) as exc_info:
@@ -876,7 +876,7 @@ def test_main_rewrites_a_stale_reference_comment_without_a_digest_change(
     )
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{digest}"))
-    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
+    monkeypatch.setattr("lib.image.digests.is_sliding_tag", lambda *a, **k: False)
     monkeypatch.setattr("sys.argv", ["fix-image-digests"])
 
     with pytest.raises(SystemExit) as exc_info:

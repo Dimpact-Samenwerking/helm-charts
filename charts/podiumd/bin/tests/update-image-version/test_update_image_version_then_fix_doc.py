@@ -8,8 +8,6 @@ from types import ModuleType
 
 import pytest
 
-import lib.image.version as image_version
-
 from tests.chart_repo import commit_text_baseline
 from tests.fix_doc_run import MANIFEST
 from tests.fix_doc_run import UPGRADE
@@ -77,7 +75,7 @@ def test_a_second_shared_image_bump_is_documented_from_the_baseline(
 def test_a_shared_image_reset_to_its_baseline_leaves_no_docs(
     uiv: ModuleType, chart: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, DIGEST["c"]))
+    monkeypatch.setattr("lib.registry.registry_tag_exists", lambda host, repo, tag: (True, DIGEST["c"]))
 
     written = bump(uiv, chart, monkeypatch, "update-image-version", "MULTIPLE", "curl", "8.1.0")
 

@@ -128,8 +128,8 @@ def pull_chart_values(dep: ChartDependency, version: str):
         return load_yaml_mapping(chart_dir / "values.yaml")
 
 
-def verify_chart_version(chart_dir: Path, dep: ChartDependency, version: str):
-    """Print a FOUND/MISSING line for `dep` at `version` and exit 1 if missing.
+def verify_chart_version(chart_dir: Path, dep: ChartDependency, version: str, *, fail_note: str = ""):
+    """Print a FOUND/MISSING line for `dep` at `version` and exit 1 if missing; `fail_note` ends the FAIL line.
 
     Prefers a vendored .tgz over `helm pull` (see resolve_chart_values).
     Returns the chart's parsed values.yaml, needed for the image check.
@@ -142,7 +142,7 @@ def verify_chart_version(chart_dir: Path, dep: ChartDependency, version: str):
     print(f"  [{status}] {chart_name} {version}{suffix}")
     if values is None:
         print()
-        print("FAIL: chart version does not exist")
+        print(f"FAIL: chart version does not exist{fail_note}")
         sys.exit(1)
     return values
 
@@ -182,8 +182,8 @@ def component_check_values(chart_values: YamlMapping, component_values: YamlMapp
     return merged
 
 
-def print_image_version_results(results: list[ImagePathTagCheck], app_version: str) -> list[ImagePathTagCheck]:
-    """Print a FOUND/MISSING line per distinct image; returns the results whose image version is missing."""
+def require_image_versions(results: list[ImagePathTagCheck], app_version: str, *, fail_note: str = "") -> None:
+    """Print a FOUND/MISSING line per distinct image and exit 1 if any is missing; `fail_note` ends the FAIL line."""
     printed: set[tuple[str, str]] = set()
     for result in results:
         if (result["host"], result["repo_path"]) in printed:
@@ -192,7 +192,10 @@ def print_image_version_results(results: list[ImagePathTagCheck], app_version: s
         status = "FOUND  " if result["exists"] else "MISSING"
         suffix = f"  digest={result['digest']}" if result["digest"] else ""
         print(f"  [{status}] {result['host']}/{result['repo_path']}:{app_version}{suffix}")
-    return [result for result in results if not result["exists"]]
+    if not all(result["exists"] for result in results):
+        print()
+        print(f"FAIL: one or more app image versions do not exist yet{fail_note}")
+        sys.exit(1)
 
 
 def subchart_values(chart_dir: Path, dep: ChartDependency, version: str | None = None):

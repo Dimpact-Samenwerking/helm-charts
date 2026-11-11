@@ -46,7 +46,7 @@ from lib.chart.paths import CHART_DIR
 from lib.chart.paths import CHART_YAML
 from lib.chart.pull_and_subchart_resolution import component_check_values
 from lib.chart.pull_and_subchart_resolution import native_component_values
-from lib.chart.pull_and_subchart_resolution import print_image_version_results
+from lib.chart.pull_and_subchart_resolution import require_image_versions
 from lib.chart.pull_and_subchart_resolution import verify_chart_version
 from lib.chart.registered_paths import is_native_chart_version
 from lib.chart.registered_paths import pin_paths_for
@@ -89,11 +89,11 @@ def main():
 
     print()
     print(f"Checking app version {app_version!r} for {component}:")
-    ok = not print_image_version_results(results, app_version)
+    require_image_versions(results, app_version)
 
     print()
-    print("OK: chart + image version(s) exist" if ok else "FAIL: one or more app image versions do not exist yet")
-    sys.exit(0 if ok else 1)
+    print("OK: chart + image version(s) exist")
+    sys.exit(0)
 
 
 if __name__ == "__main__":

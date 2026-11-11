@@ -10,6 +10,7 @@ from lib.chart.repo_and_path_resolution import group_representatives
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.values_tree_primitives import ValuesPath
 from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
+from lib.upgradedoc.images_manifest_ordering import EntryResolution
 from lib.yaml_types import YamlMapping
 
 
@@ -68,3 +69,8 @@ class StateImageIndexes:
     ) -> "StateImageIndexes":
         """Both indexes from scratch, for a caller without them."""
         return cls(ChartImageIndex(chart_dir, deps, values), ChartImageIndex(chart_dir, deps, baseline_values))
+
+
+def entry_resolution_of(index: ChartImageIndex) -> EntryResolution:
+    """EntryResolution over `index`'s paths and maps."""
+    return EntryResolution(index.deps, index.paths, index.repo_map, index.canonical_names)

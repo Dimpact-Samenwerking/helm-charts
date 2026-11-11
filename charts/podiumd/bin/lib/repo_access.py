@@ -29,6 +29,7 @@ from lib.image.digests import cached_tag_exists
 from lib.image.digests import distinct_lines
 from lib.image.digests import image_targets
 from lib.image.digests import scan_image_pins
+from lib.image.digests import tag_digest_lookup
 from lib.registry import parse_repo
 from lib.render_scope import resolve_dependency_repo
 from lib.repo_access_cache import cache_entry_is_fresh
@@ -175,14 +176,12 @@ def check_registry_repo(chart_dir: Path, host: str, repo_path: str, version: str
     """Manifest-existence check for an OCI chart or image.
 
     Shares cached_tag_exists's disk cache with the image digest checks, so a
-    pin resolved by either is not fetched twice."""
-    try:
-        exists, _ = cached_tag_exists(chart_dir, f"{host}/{repo_path}", version, timeout=timeout_seconds)
-    except (URLError, OSError) as error:
-        return False, f"{getattr(error, 'reason', error)}"
-    if not exists:
-        return False, "not found"
-    return True, None
+    pin resolved by either is not fetched twice. One attempt: `timeout_seconds`
+    already bounds each probe of an unreachable host."""
+    _digest, error = tag_digest_lookup(
+        lambda: cached_tag_exists(chart_dir, f"{host}/{repo_path}", version, timeout=timeout_seconds), attempts=1
+    )
+    return error is None, error
 
 
 def _host_of(test_kind: str, target: str | tuple[str, ...]):

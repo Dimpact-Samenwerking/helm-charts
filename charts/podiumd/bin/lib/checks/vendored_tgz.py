@@ -31,6 +31,13 @@ def vendored_tgz_versions(charts_dir: Path) -> dict[str, list[str]]:
     return vendored
 
 
+def other_vendored_versions(charts_dir: Path, name: str, version: str) -> list[str] | None:
+    """None when charts/<name>-<version>.tgz exists, else the sorted other vendored versions of `name` (maybe [])."""
+    if (charts_dir / f"{name}-{version}.tgz").is_file():
+        return None
+    return sorted(vendored_tgz_versions(charts_dir).get(name, []))
+
+
 def check_vendored_tgz_extraction(chart_dir: Path):
     """Fail if any vendored sub-chart has both a pinned .tgz and an extracted directory."""
     extracted = find_extracted_vendored_dirs(chart_dir)

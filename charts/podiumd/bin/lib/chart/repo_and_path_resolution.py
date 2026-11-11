@@ -28,8 +28,7 @@ from lib.chart.values_tree_primitives import strip_registry_host
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
 from lib.registry import ImagePathTagCheck
-from lib.registry import parse_repo
-from lib.registry import registry_tag_exists
+from lib.registry import check_repositories_at
 from lib.release_baseline import resolve_baseline_chart_state
 from lib.yaml_types import YamlMapping
 
@@ -268,17 +267,8 @@ def check_image_versions(
         )
         sys.exit(msg)
 
-    results: list[ImagePathTagCheck] = []
-    lookups: dict[str, tuple[bool, str | None]] = {}
-    for path, repo in repos:
-        host, repo_path = parse_repo(repo)
-        if repo not in lookups:
-            lookups[repo] = registry_tag_exists(host, repo_path, app_version)
-        exists, digest = lookups[repo]
-        results.append(
-            {"path": path, "repository": repo, "host": host, "repo_path": repo_path, "exists": exists, "digest": digest}
-        )
-    return results
+    checks = check_repositories_at((repo for _path, repo in repos), app_version)
+    return [{"path": path, **checks[repo]} for path, repo in repos]
 
 
 def repository_path_map(

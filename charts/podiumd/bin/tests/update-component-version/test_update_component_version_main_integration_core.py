@@ -8,9 +8,6 @@ from types import ModuleType
 
 import pytest
 
-import lib.image.version as image_version
-
-from lib.chart import repo_and_path_resolution
 from lib.chart import values_tag_sha_lines as tag_sha_lines
 from tests.chart_repo import make_doc_dirs
 from tests.chart_repo import point_chart_paths
@@ -54,10 +51,9 @@ def setup_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType)
 
 
 def mock_registry_passes(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, digest_char="b"):
-    """Mock registry_tag_exists in lib.image.version: the delegated tag update
-    for explicit-repository images resolves it via that module's globals."""
+    """Mock registry_tag_exists in lib.registry: check_repositories_at resolves it there."""
     digest = sha256_digest(digest_char)
-    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, digest))
+    monkeypatch.setattr("lib.registry.registry_tag_exists", lambda host, repo, tag: (True, digest))
 
 
 def mock_verify_passes(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, digest_char="b", calls=None):
@@ -84,7 +80,8 @@ def mock_verify_passes(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, digest_
         ]
 
     monkeypatch.setattr(
-        ucv, "resolve_chart_values", lambda chart_dir, dep, version, allow_pull=True: ({}, "vendored", None)
+        "lib.chart.pull_and_subchart_resolution.resolve_chart_values",
+        lambda chart_dir, dep, version, allow_pull=True: ({}, "vendored", None),
     )
     monkeypatch.setattr(ucv, "check_image_versions", fake_check_image_versions)
 
@@ -104,9 +101,10 @@ def mock_registry_check(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, regist
     Split tag/sha pins are written with the digests this check finds.
     """
     monkeypatch.setattr(
-        ucv, "resolve_chart_values", lambda chart_dir, dep, version, allow_pull=True: ({}, "vendored", None)
+        "lib.chart.pull_and_subchart_resolution.resolve_chart_values",
+        lambda chart_dir, dep, version, allow_pull=True: ({}, "vendored", None),
     )
-    monkeypatch.setattr(repo_and_path_resolution, "registry_tag_exists", registry_tag_exists)
+    monkeypatch.setattr("lib.registry.registry_tag_exists", registry_tag_exists)
 
 
 def test_main_writes_both_files_when_verify_passes(ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -586,7 +584,8 @@ def test_main_refuses_to_write_when_verify_fails(ucv: ModuleType, tmp_path: Path
     original_chart = chart_yaml.read_text(encoding="utf-8")
     original_values = values_yaml.read_text(encoding="utf-8")
     monkeypatch.setattr(
-        ucv, "resolve_chart_values", lambda chart_dir, dep, version, allow_pull=True: (None, None, "version not found")
+        "lib.chart.pull_and_subchart_resolution.resolve_chart_values",
+        lambda chart_dir, dep, version, allow_pull=True: (None, None, "version not found"),
     )
     monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
 

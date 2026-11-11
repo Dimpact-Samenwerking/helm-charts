@@ -1,6 +1,6 @@
 """verify-image-version main(): argument parsing and wiring into
-check_basename_version. registry_tag_exists is patched on lib.image.version,
-which resolves it through its own module globals."""
+check_basename_version. registry_tag_exists is patched on lib.registry, where
+check_repositories_at resolves it."""
 
 from pathlib import Path
 from types import ModuleType
@@ -50,9 +50,8 @@ def test_main_found_reports_ok(
         ),
     )
     monkeypatch.setattr(viv, "VALUES_YAML", values_path)
-    import lib.image.version as image_version
 
-    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
+    monkeypatch.setattr("lib.registry.registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
     monkeypatch.setattr("sys.argv", ["verify-image-version", "pabc", "pabc-api", "1.1.2"])
 
     with pytest.raises(SystemExit) as exc_info:
@@ -77,9 +76,8 @@ def test_main_missing_reports_fail(
         ),
     )
     monkeypatch.setattr(viv, "VALUES_YAML", values_path)
-    import lib.image.version as image_version
 
-    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (False, None))
+    monkeypatch.setattr("lib.registry.registry_tag_exists", lambda host, repo, tag: (False, None))
     monkeypatch.setattr("sys.argv", ["verify-image-version", "pabc", "pabc-api", "9.9.9"])
 
     with pytest.raises(SystemExit) as exc_info:
@@ -101,9 +99,8 @@ def test_main_resolves_given_component_key_and_basename(
         (f'openklant:\n  image:\n    repository: maykinmedia/open-klant\n    tag: "2.15.0@sha256:{"a" * 64}"\n'),
     )
     monkeypatch.setattr(viv, "VALUES_YAML", values_path)
-    import lib.image.version as image_version
 
-    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
+    monkeypatch.setattr("lib.registry.registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
     monkeypatch.setattr("sys.argv", ["verify-image-version", "openklant", "open-klant", "2.15.1"])
 
     with pytest.raises(SystemExit) as exc_info:
@@ -127,9 +124,8 @@ def test_main_accepts_dependency_name_not_just_alias(
     )
     monkeypatch.setattr(viv, "CHART_YAML", tmp_path / "Chart.yaml")
     monkeypatch.setattr(viv, "VALUES_YAML", values_path)
-    import lib.image.version as image_version
 
-    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
+    monkeypatch.setattr("lib.registry.registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
     monkeypatch.setattr("sys.argv", ["verify-image-version", "zaakafhandelcomponent", "zaakafhandelcomponent", "5.4.4"])
 
     with pytest.raises(SystemExit) as exc_info:

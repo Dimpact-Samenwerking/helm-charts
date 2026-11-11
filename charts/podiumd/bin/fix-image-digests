@@ -40,7 +40,6 @@ Examples:
 import sys
 
 from pathlib import Path
-from urllib.error import URLError
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -57,10 +56,10 @@ from lib.image.digests import ImagePin
 from lib.image.digests import ImageTarget
 from lib.image.digests import StaleReferenceComment
 from lib.image.digests import digest_pin_targets
+from lib.image.digests import pin_drift
 from lib.image.digests import sync_reference_comments
 from lib.image.version import resolve_scoped_image_pins
 from lib.procutil import run_script
-from lib.registry import is_sliding_tag
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
 
@@ -95,19 +94,6 @@ def _resolve_digest_pin_targets(chart_dir: Path):
     return digest_pin_targets(chart_dir)
 
 
-def _fetch_live_digest(host: str, repo_path: str, version: str) -> tuple[str | None, str | None]:
-    """(digest, error) from the registry; retries once on URLError/OSError."""
-    digest, error = None, None
-    for _ in range(2):
-        try:
-            exists, digest = registry_tag_exists(host, repo_path, version)
-        except (URLError, OSError) as fetch_error:
-            error = str(fetch_error)
-            continue
-        return digest, None if exists else "tag not found upstream"
-    return digest, error
-
-
 def _check_target(
     target: ImageTarget, pinned_digest: str, lines_for_pin: list[int], values_path: Path
 ) -> tuple[StaleDigest | None, FetchError | None]:
@@ -118,13 +104,15 @@ def _check_target(
     repository, version = target
     host, repo_path = parse_repo(repository)
 
-    digest, error = _fetch_live_digest(host, repo_path, version)
+    # Uncached, unlike check_image_digests: a write needs the live digest.
+    digest, error, drift = pin_drift(
+        lambda: registry_tag_exists(host, repo_path, version), values_path, target, pinned_digest
+    )
 
     if error:
         return None, (repository, version, error, lines_for_pin)
-    if digest and digest != f"sha256:{pinned_digest}":
-        sliding = is_sliding_tag(values_path, host, repo_path, version, digest)
-        return (repository, version, pinned_digest, digest, lines_for_pin, sliding), None
+    if digest is not None and drift is not None:
+        return (repository, version, pinned_digest, digest, lines_for_pin, drift == "sliding"), None
     return None, None
 
 

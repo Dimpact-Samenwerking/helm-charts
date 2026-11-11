@@ -206,7 +206,7 @@ def test_check_basename_version_reports_found(libimageversion: ModuleType, monke
         "    repository: ghcr.io/platform-autorisatie-beheer-component/pabc-api",
         f'    tag: "1.1.1@{SHA256_A}"',
     ]
-    monkeypatch.setattr(libimageversion, "registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
+    monkeypatch.setattr("lib.registry.registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
 
     results = libimageversion.check_basename_version(lines, "pabc", "pabc-api", "1.1.2")
 
@@ -228,7 +228,7 @@ def test_check_basename_version_reports_missing(libimageversion: ModuleType, mon
         "    repository: ghcr.io/platform-autorisatie-beheer-component/pabc-api",
         f'    tag: "1.1.1@{SHA256_A}"',
     ]
-    monkeypatch.setattr(libimageversion, "registry_tag_exists", lambda host, repo, tag: (False, None))
+    monkeypatch.setattr("lib.registry.registry_tag_exists", lambda host, repo, tag: (False, None))
 
     results = libimageversion.check_basename_version(lines, "pabc", "pabc-api", "9.9.9")
 
@@ -256,7 +256,7 @@ def test_check_basename_version_dedupes_shared_repository(libimageversion: Modul
         calls.append((host, repo, tag))
         return True, SHA256_B
 
-    monkeypatch.setattr(libimageversion, "registry_tag_exists", fake_registry_tag_exists)
+    monkeypatch.setattr("lib.registry.registry_tag_exists", fake_registry_tag_exists)
 
     results = libimageversion.check_basename_version(lines, libimageversion.MULTIPLE_KEY, "curl", "8.22.0")
 
@@ -284,7 +284,7 @@ def test_update_image_version_single_match(
             f'    tag: "1.1.1@sha256:{"a" * 64}"\n'
         ),
     )
-    monkeypatch.setattr(libimageversion, "registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
+    monkeypatch.setattr("lib.registry.registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
     changes = libimageversion.update_image_version(values_path, "pabc", "pabc-api", "1.1.2")
     assert len(changes) == 1
     assert changes[0] == {
@@ -322,7 +322,7 @@ def test_update_image_version_updates_all_shared_occurrences(
         calls.append((host, repo, tag))
         return True, SHA256_C
 
-    monkeypatch.setattr(libimageversion, "registry_tag_exists", fake_registry_tag_exists)
+    monkeypatch.setattr("lib.registry.registry_tag_exists", fake_registry_tag_exists)
     changes = libimageversion.update_image_version(values_path, libimageversion.MULTIPLE_KEY, "curl", "8.22.0")
     assert [c["line"] for c in changes] == [5, 9]
     assert len(calls) == 1  # deduped: same repository, one lookup
@@ -353,7 +353,7 @@ def test_update_image_version_already_at_target_is_noop(
         msg = "registry should not be queried when nothing needs updating"
         raise AssertionError(msg)
 
-    monkeypatch.setattr(libimageversion, "registry_tag_exists", fail_if_called)
+    monkeypatch.setattr("lib.registry.registry_tag_exists", fail_if_called)
     original = values_path.read_text(encoding="utf-8")
     changes = libimageversion.update_image_version(values_path, "pabc", "pabc-api", "1.1.2")
     assert changes == []
@@ -378,7 +378,7 @@ def test_update_image_version_only_updates_stale_occurrence(
             f'      tag: "8.21.0@sha256:{"a" * 64}"\n'
         ),
     )
-    monkeypatch.setattr(libimageversion, "registry_tag_exists", lambda host, repo, tag: (True, SHA256_C))
+    monkeypatch.setattr("lib.registry.registry_tag_exists", lambda host, repo, tag: (True, SHA256_C))
     changes = libimageversion.update_image_version(values_path, libimageversion.MULTIPLE_KEY, "curl", "8.22.0")
     assert [c["line"] for c in changes] == [9]
 
@@ -395,7 +395,7 @@ def test_update_image_version_raises_when_version_missing_upstream(
             f'    tag: "1.1.1@sha256:{"a" * 64}"\n'
         ),
     )
-    monkeypatch.setattr(libimageversion, "registry_tag_exists", lambda host, repo, tag: (False, None))
+    monkeypatch.setattr("lib.registry.registry_tag_exists", lambda host, repo, tag: (False, None))
     original = values_path.read_text(encoding="utf-8")
     with pytest.raises(SystemExit, match="not found upstream"):
         libimageversion.update_image_version(values_path, "pabc", "pabc-api", "9.9.9")
@@ -424,7 +424,7 @@ def test_update_image_version_ambiguous_repositories_under_key_raises(
         msg = "registry should not be queried when the image isn't identified uniquely"
         raise AssertionError(msg)
 
-    monkeypatch.setattr(libimageversion, "registry_tag_exists", fail_if_called)
+    monkeypatch.setattr("lib.registry.registry_tag_exists", fail_if_called)
     original = values_path.read_text(encoding="utf-8")
     with pytest.raises(SystemExit, match="'curl' under 'a' is not unique"):
         libimageversion.update_image_version(values_path, "a", "curl", "2.0.0")
@@ -612,7 +612,7 @@ def test_update_image_version_rewrites_the_reference_comment(
             f'      tag: "8.37.0@sha256:{"a" * 64}"\n'
         ),
     )
-    monkeypatch.setattr(libimageversion, "registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
+    monkeypatch.setattr("lib.registry.registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
     changes = libimageversion.update_image_version(values_path, "zac", "gotenberg", "8.38.1")
     assert len(changes) == 1
     text = values_path.read_text(encoding="utf-8")
@@ -634,6 +634,6 @@ def test_update_image_version_keeps_a_digestless_reference_comment_digestless(
             f'      tag: "1.21.1-static@sha256:{"a" * 64}"\n'
         ),
     )
-    monkeypatch.setattr(libimageversion, "registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
+    monkeypatch.setattr("lib.registry.registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
     libimageversion.update_image_version(values_path, "zac", "opa", "1.21.3-static")
     assert "    # openpolicyagent/opa:1.21.3-static\n" in values_path.read_text(encoding="utf-8")

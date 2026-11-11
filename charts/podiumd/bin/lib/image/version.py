@@ -6,6 +6,7 @@ too, as a component's images may be named differently (zgw-office-addin).
 
 import sys
 
+from collections.abc import Iterable
 from pathlib import Path
 from typing import TypedDict
 
@@ -22,8 +23,7 @@ from lib.image.digests import scan_digest_pins
 from lib.image.digests import scan_version_pins
 from lib.image.digests import sync_reference_comments
 from lib.registry import TagCheck
-from lib.registry import parse_repo
-from lib.registry import registry_tag_exists
+from lib.registry import check_repositories_at
 
 
 class PinUpdate(TypedDict):
@@ -202,49 +202,32 @@ def check_basename_version(lines: list[str], key: str, basename: str, new_versio
     Raises SystemExit if <key> <image-basename> doesn't resolve uniquely.
     """
     matches = resolve_scoped_matches(lines, key, basename)
-
-    results: list[TagCheck] = []
-    seen_repositories: set[str] = set()
-    for match in matches:
-        if match["repository"] in seen_repositories:
-            continue
-        seen_repositories.add(match["repository"])
-        host, repo_path = parse_repo(match["repository"])
-        exists, digest = registry_tag_exists(host, repo_path, new_version)
-        results.append(
-            {
-                "repository": match["repository"],
-                "host": host,
-                "repo_path": repo_path,
-                "exists": exists,
-                "digest": digest,
-            }
-        )
-    return results
+    return list(check_repositories_at((match["repository"] for match in matches), new_version).values())
 
 
-def _resolve_pending_digests(pending: list[ScopedPin], new_version: str) -> dict[str, str]:
-    """{repository: digest} at new_version for each distinct repository in `pending`.
+def _resolve_pending_digests(pending: list[ScopedPin], new_version: str, known: Iterable[TagCheck]) -> dict[str, str]:
+    """{repository: digest} at new_version for each distinct repository in `pending` (check_repositories_at).
 
     Raises SystemExit if new_version is missing upstream, before anything is written.
     """
+    repositories = (match["repository"] for match in pending)
     digests: dict[str, str] = {}
-    for match in pending:
-        if match["repository"] in digests:
-            continue
-        host, repo_path = parse_repo(match["repository"])
-        exists, digest = registry_tag_exists(host, repo_path, new_version)
-        if not exists or not digest:
-            msg = f"error: {host}/{repo_path}:{new_version} not found upstream"
+    for repository, check in check_repositories_at(repositories, new_version, known).items():
+        digest = check["digest"]
+        if not check["exists"] or not digest:
+            msg = f"error: {check['host']}/{check['repo_path']}:{new_version} not found upstream"
             sys.exit(msg)
-        digests[match["repository"]] = digest
+        digests[repository] = digest
     return digests
 
 
-def plan_image_version_update(values_path: Path, key: str, basename: str, new_version: str) -> list[PinUpdate]:
+def plan_image_version_update(
+    values_path: Path, key: str, basename: str, new_version: str, *, known: Iterable[TagCheck] = ()
+) -> list[PinUpdate]:
     """The pin updates update_image_version would write, resolved but not written.
 
     Returns one dict per line to change, in file order ([] if all current).
+    `known`: registry checks already made at new_version (check_repositories_at).
     Raises SystemExit if <key> <image-basename> doesn't resolve uniquely or
     new_version doesn't exist upstream.
     """
@@ -252,7 +235,7 @@ def plan_image_version_update(values_path: Path, key: str, basename: str, new_ve
     pending = [match for match in matches if match["version"] != new_version]
     if not pending:
         return []
-    digests = _resolve_pending_digests(pending, new_version)
+    digests = _resolve_pending_digests(pending, new_version, known)
     return [
         {
             "line": match["line"],

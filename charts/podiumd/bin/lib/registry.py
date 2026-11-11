@@ -3,6 +3,7 @@
 import json
 import re
 
+from collections.abc import Iterable
 from http import HTTPStatus
 from http.client import HTTPMessage
 from pathlib import Path
@@ -244,6 +245,32 @@ def registry_tag_exists(
         if error.code != HTTPStatus.METHOD_NOT_ALLOWED:
             raise
         return _fetch_manifest_digest(url, repo, headers, timeout, "GET")
+
+
+def check_repositories_at(repositories: Iterable[str], tag: str, known: Iterable[TagCheck] = ()) -> dict[str, TagCheck]:
+    """{repository: TagCheck} of `tag`, one registry_tag_exists lookup per distinct image.
+
+    `known` holds checks a caller already made at `tag`; their images are not looked up again.
+    """
+    known_by_image: dict[tuple[str, str], tuple[bool, str | None]] = {}
+    for check in known:
+        known_by_image[check["host"], check["repo_path"]] = (check["exists"], check["digest"])
+    checks: dict[str, TagCheck] = {}
+    for repository in repositories:
+        if repository in checks:
+            continue
+        host, repo_path = parse_repo(repository)
+        if (host, repo_path) not in known_by_image:
+            known_by_image[host, repo_path] = registry_tag_exists(host, repo_path, tag)
+        exists, digest = known_by_image[host, repo_path]
+        checks[repository] = {
+            "repository": repository,
+            "host": host,
+            "repo_path": repo_path,
+            "exists": exists,
+            "digest": digest,
+        }
+    return checks
 
 
 IMAGE_CONFIG_ACCEPT = "application/vnd.oci.image.config.v1+json,application/vnd.docker.container.image.v1+json"

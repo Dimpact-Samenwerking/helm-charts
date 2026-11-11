@@ -22,6 +22,7 @@ from lib.component_docs.images_manifest_changes_header import find_changes_items
 from lib.component_docs.images_manifest_changes_header import images_manifest_changes_block
 from lib.component_docs.images_manifest_changes_header import insert_header_item
 from lib.component_docs.images_manifest_changes_header import remove_changes_item
+from lib.component_docs.images_manifest_changes_header import uncovered_manifest_entries
 from lib.fix_doc_consistency.manifest_entries_core import BaselineRelease
 from lib.fix_doc_consistency.manifest_entries_core import entry_baseline_version
 from lib.image.repository_check import find_images_without_repository
@@ -30,13 +31,14 @@ from lib.images_manifest import entry_line_indices
 from lib.images_manifest import try_parse_images_manifest
 from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
-from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.chart_image_index import StateImageIndexes
+from lib.upgradedoc.chart_image_index import entry_resolution_of
 from lib.upgradedoc.grouped_comments import path_display_name
 from lib.upgradedoc.images_manifest_list_diff import ManifestDiffContext
 from lib.upgradedoc.images_manifest_list_diff import ManifestDiffInputs
 from lib.upgradedoc.images_manifest_list_diff import find_images_manifest_list_diff
+from lib.upgradedoc.images_manifest_ordering import EntryResolution
 from lib.upgradedoc.images_manifest_ordering import delete_images_manifest_entry
 from lib.upgradedoc.images_manifest_ordering import images_manifest_block_start
 from lib.upgradedoc.sorting_and_ordering import values_key_order
@@ -67,6 +69,14 @@ class MissingEntriesContext:
     def resolution(self) -> "MissingEntriesResolution":
         """_entries_resolution of this context."""
         return _entries_resolution(self)
+
+    @cached_property
+    def entry_resolution(self) -> EntryResolution:
+        """EntryResolution over the target paths and maps of `resolution`."""
+        resolution = self.resolution
+        return EntryResolution(
+            self.deps, resolution.current_paths, resolution.repo.repo_map, resolution.canonical_names
+        )
 
 
 @dataclass
@@ -269,35 +279,9 @@ def _insert_added_entry(
     return "".join(lines)
 
 
-def _resolved_manifest_entries(
-    lines: list[str], context: MissingEntriesContext, resolution: MissingEntriesResolution
-) -> list[tuple[int, ValuesPath, str]]:
-    """(line index, image path, display name) of each entry whose "name:" resolves to a target image path."""
-    entries: list[tuple[int, ValuesPath, str]] = []
-    for idx, line in enumerate(lines):
-        name_match = ENTRY_NAME_RE.match(line)
-        if name_match is None:
-            continue
-        entry_path = resolve_entry_image_path(
-            name_match.group(1), resolution.current_paths.keys(), resolution.repo.repo_map
-        )
-        if entry_path is not None:
-            entries.append((idx, entry_path, path_display_name(entry_path, context.deps, resolution.canonical_names)))
-    return entries
-
-
-def _backfilled_header_item(
-    lines: list[str], context: MissingEntriesContext, resolution: MissingEntriesResolution
-) -> tuple[str, str] | None:
-    """(entry_name, header item) for the first entry no "# Changes:" item
-    covers (covered_display_names, as the checker uses), or None. Entries
-    whose display name is only the raw dotted path are skipped: not prose
-    worth adding."""
-    entries = _resolved_manifest_entries(lines, context, resolution)
-    covered = covered_display_names(lines, [name for _idx, _path, name in entries])
-    for idx, entry_path, entry_name in entries:
-        if entry_name == ".".join(entry_path) or entry_name in covered:
-            continue
+def _backfilled_header_item(lines: list[str], context: MissingEntriesContext) -> tuple[str, str] | None:
+    """(entry_name, header item) for the first uncovered_manifest_entries entry whose comment has its versions."""
+    for idx, entry_name in uncovered_manifest_entries(lines, context.entry_resolution):
         comment_text = "".join(lines[images_manifest_block_start(lines, idx) : idx])
         entry_new = extract_target_version(comment_text)
         if entry_new is not None:
@@ -306,9 +290,7 @@ def _backfilled_header_item(
     return None
 
 
-def _backfill_header_items(
-    text: str, context: MissingEntriesContext, resolution: MissingEntriesResolution
-) -> tuple[str, list[str]]:
+def _backfill_header_items(text: str, context: MissingEntriesContext) -> tuple[str, list[str]]:
     """Add a header item for each entry that has a block but no item,
     reading old/new versions from its existing comment. Returns
     (text, backfilled_names)."""
@@ -321,7 +303,7 @@ def _backfill_header_items(
             break
         text = "".join(lines)
 
-        backfill = _backfilled_header_item(lines, context, resolution)
+        backfill = _backfilled_header_item(lines, context)
         if backfill is None:
             break
 
@@ -370,7 +352,7 @@ def add_missing_manifest_entries(text: str, context: MissingEntriesContext) -> M
         text = _insert_added_entry(text, path, context, resolution, fields)
         added_names.append(name)
 
-    text, backfilled_names = _backfill_header_items(text, context, resolution)
+    text, backfilled_names = _backfill_header_items(text, context)
     return MissingEntriesResult(text, added_names, skipped_names, backfilled_names)
 
 
@@ -379,7 +361,6 @@ def _remove_entry(
     entry_name: str,
     display_name: str | None,
     context: MissingEntriesContext,
-    resolution: MissingEntriesResolution,
 ):
     """Delete the entry and its comment, and the "# Changes:" item naming
     display_name unless another entry has the same display name (lockstep component)."""
@@ -397,9 +378,9 @@ def _remove_entry(
     if display_name is None:
         return
     remaining_display_names = {
-        path_display_name(path, context.deps, resolution.canonical_names)
+        resolved[1]
         for entry in try_parse_images_manifest("".join(lines)) or []
-        if (path := resolve_entry_image_path(entry["name"], resolution.current_paths.keys(), resolution.repo.repo_map))
+        if (resolved := context.entry_resolution.entry_display_name(entry["name"]))
     }
     if display_name in remaining_display_names:
         return
@@ -417,19 +398,15 @@ def remove_stale_entries(text: str, context: MissingEntriesContext) -> tuple[str
     (new_text, removed_names)."""
     resolution = context.resolution
     _missing_paths, stale_entry_names, _unmatched_entry_names = _manifest_list_diff(text, context, resolution)
-    removable_names = [
-        name
-        for name in stale_entry_names
-        if resolve_entry_image_path(name, resolution.current_paths.keys(), resolution.repo.repo_map)
-        not in resolution.unresolvable_paths
-    ]
+    entries = context.entry_resolution
     lines = text.splitlines(keepends=True)
-    for entry_name in removable_names:
-        entry_path = resolve_entry_image_path(entry_name, resolution.current_paths.keys(), resolution.repo.repo_map)
-        display_name = (
-            None if entry_path is None else path_display_name(entry_path, context.deps, resolution.canonical_names)
-        )
-        _remove_entry(lines, entry_name, display_name, context, resolution)
+    removable_names: list[str] = []
+    for entry_name in stale_entry_names:
+        resolved = entries.entry_display_name(entry_name)
+        if resolved is not None and resolved[0] in resolution.unresolvable_paths:
+            continue
+        removable_names.append(entry_name)
+        _remove_entry(lines, entry_name, None if resolved is None else resolved[1], context)
     return "".join(lines), removable_names
 
 
@@ -447,11 +424,11 @@ def remove_removed_entries(
     resolution = context.resolution
     _missing_paths, _stale_entry_names, unmatched_entry_names = _manifest_list_diff(text, context, resolution)
     lines = text.splitlines(keepends=True)
+    baseline_entries = entry_resolution_of(baseline)
     removed_names: list[str] = []
     for entry_name in unmatched_entry_names:
-        path = resolve_entry_image_path(entry_name, baseline.paths.keys(), baseline.repo_map)
-        if path is not None and path in removed_paths:
-            display_name = path_display_name(path, baseline.deps, baseline.canonical_names)
-            _remove_entry(lines, entry_name, display_name, context, resolution)
+        resolved = baseline_entries.entry_display_name(entry_name)
+        if resolved is not None and resolved[0] in removed_paths:
+            _remove_entry(lines, entry_name, resolved[1], context)
             removed_names.append(entry_name)
     return "".join(lines), removed_names

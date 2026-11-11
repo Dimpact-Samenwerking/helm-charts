@@ -38,6 +38,7 @@ from lib.chart.values_tree_primitives import values_key_of
 from lib.image.digests import DigestLine
 from lib.image.digests import ImageTarget
 from lib.image.digests import ImageTargetPin
+from lib.image.digests import tag_digest_lookup
 from lib.image.digests import unique_image_targets
 from lib.image.upgrade_cache import UpgradeEntry
 from lib.image.upgrade_cache import load_cache as load_upgrade_cache
@@ -293,11 +294,8 @@ def resolve_scan_digest(repository: str, tag: str, digest: str | None) -> str | 
     if digest is not None:
         return digest
     host, repo_path = parse_repo(repository)
-    try:
-        exists, resolved = registry_tag_exists(host, repo_path, tag)
-    except OSError:  # URLError is an OSError
-        return None
-    return bare_digest(resolved) if exists and resolved else None
+    resolved, error = tag_digest_lookup(lambda: registry_tag_exists(host, repo_path, tag), attempts=1)
+    return bare_digest(resolved) if error is None and resolved else None
 
 
 # --- own/partner/other classification ---

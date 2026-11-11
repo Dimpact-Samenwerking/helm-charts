@@ -64,7 +64,8 @@ def chart(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType) -> P
     document_earlier_bump(tmp_path, "### zac ", USER_NOTE, "earlier bump")
     point_script_at(ucv, monkeypatch, tmp_path)
     monkeypatch.setattr(
-        ucv, "resolve_chart_values", lambda chart_dir, dep, version, allow_pull=True: ({}, "vendored", None)
+        "lib.chart.pull_and_subchart_resolution.resolve_chart_values",
+        lambda chart_dir, dep, version, allow_pull=True: ({}, "vendored", None),
     )
 
     def check_image_versions(_chart_dir, _dep, values, pins, app_version):
@@ -117,11 +118,11 @@ def test_a_split_version_field_bump_is_written_checked_and_stable(
         return True, DIGEST["f"]
 
     monkeypatch.setattr(ucv, "check_image_versions", repo_and_path_resolution.check_image_versions)
-    monkeypatch.setattr(repo_and_path_resolution, "registry_tag_exists", exists)
+    monkeypatch.setattr("lib.registry.registry_tag_exists", exists)
 
     written = bump(ucv, chart, monkeypatch, "update-component-version", "redis-operator", "v0.27.0", "0.27.0")
 
-    # imageTag and initContainerImageTag share one repository: one lookup.
+    # imageTag and initContainerImageTag share one repository, and the digest writer reuses the check: one lookup.
     assert checked == [("quay.io", "opstree/redis-operator", "v0.27.0")]
     values = (chart / "values.yaml").read_text(encoding="utf-8")
     assert values.count(f'"v0.27.0@{DIGEST["f"]}"') == 1

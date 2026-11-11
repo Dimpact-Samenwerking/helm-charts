@@ -7,7 +7,6 @@ from types import SimpleNamespace
 import pytest
 
 import lib.image.docs as image_docs
-import lib.image.version as image_version
 
 from lib.docs_consistency.check import check_docs_consistency
 from lib.fix_doc_consistency.rebase_state import FixDocPaths
@@ -38,7 +37,7 @@ def run_fix_docs(chart_dir: Path) -> None:
 def stub_registry_and_render(monkeypatch: pytest.MonkeyPatch, cached_digest: str, live_digest: str) -> None:
     """Every image exists in the registry (cached and live lookups), and the chart renders empty."""
     monkeypatch.setattr(image_docs, "cached_tag_exists", lambda chart_dir, repository, version: (True, cached_digest))
-    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, live_digest))
+    monkeypatch.setattr("lib.registry.registry_tag_exists", lambda host, repo, tag: (True, live_digest))
     monkeypatch.setattr(
         baseline_refresh,
         "render_chart",

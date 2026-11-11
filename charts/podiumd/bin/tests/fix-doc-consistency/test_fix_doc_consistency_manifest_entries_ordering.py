@@ -8,8 +8,11 @@ import pytest
 import yaml
 
 from lib.chart.chart_yaml import ChartDependency
+from lib.docs_consistency.images_manifest_format import entries_without_mention
 from lib.fix_doc_consistency.new_and_removed_entries import MissingEntriesContext
 from lib.fix_doc_consistency.new_and_removed_entries import add_missing_manifest_entries
+from lib.upgradedoc.chart_image_index import ChartImageIndex
+from lib.upgradedoc.images_manifest_ordering import ManifestSortContext
 from lib.yaml_types import YamlMapping
 
 
@@ -372,6 +375,45 @@ def test_add_missing_images_manifest_entries_lockstep_component_gets_one_header_
     assert result.text.count("zgw-office-addin v0.9.313 -> 0.11.0.") == 1
     assert result.text.count("- name: infonl/zgw-office-addin-frontend") == 1
     assert result.text.count("- name: infonl/zgw-office-addin-backend") == 1
+
+
+def test_backfill_writer_then_checker_reports_nothing(ordered_images_manifest_chart_dir: Path):
+    """The checker reports the entry the writer backfills, and nothing after it; a second run changes nothing."""
+    text = (
+        "# Two changes:\n"
+        "#   1. openzaak 1.27.4 -> 1.29.3.\n"
+        "#   2. zac 5.0.2 -> 5.1.0.\n"
+        "\n"
+        "# openzaak — 1.27.4 -> 1.29.3\n"
+        "- name: openzaak/open-zaak\n"
+        "  url: openzaak/open-zaak\n"
+        '  version: "1.29.3"\n'
+        '  digest: "sha256:aaaa"\n'
+        "\n"
+        "# keycloak-operator - postgres — 16 -> 16.15\n"
+        "- name: postgres\n"
+        "  url: postgres\n"
+        '  version: "16.15"\n'
+        '  digest: "sha256:bbbb"\n'
+        "\n"
+        "# zac — 5.0.2 -> 5.1.0\n"
+        "- name: infonl/zaakafhandelcomponent\n"
+        "  url: infonl/zaakafhandelcomponent\n"
+        '  version: "5.1.0"\n'
+        '  digest: "sha256:cccc"\n'
+    )
+    deps, values = _ordered_deps(), _ordered_target_values()
+    index = ChartImageIndex(ordered_images_manifest_chart_dir, deps, values)
+    sort_context = ManifestSortContext(deps, values, index.repo_map, index.canonical_names)
+    writer_context = MissingEntriesContext(ordered_images_manifest_chart_dir, deps, values, _ordered_baseline_values())
+
+    assert entries_without_mention(text, sort_context) == ["keycloak-operator - postgres"]
+    first = add_missing_manifest_entries(text, writer_context)
+    assert first.backfilled_names == ["keycloak-operator - postgres"]
+    assert entries_without_mention(first.text, sort_context) == []
+    second = add_missing_manifest_entries(first.text, writer_context)
+    assert second.backfilled_names == []
+    assert second.text == first.text
 
 
 def test_add_missing_images_manifest_entries_does_not_backfill_already_covered_entry(

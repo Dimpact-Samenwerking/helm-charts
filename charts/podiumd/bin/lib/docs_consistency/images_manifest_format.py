@@ -18,7 +18,7 @@ from lib.chart.repo_and_path_resolution import repository_group_key
 from lib.chart.values_tree_primitives import ValuesPath
 from lib.chart.values_tree_primitives import dep_for_values_key
 from lib.chart.values_tree_primitives import values_key_of
-from lib.component_docs.images_manifest_changes_header import covered_display_names
+from lib.component_docs.images_manifest_changes_header import uncovered_manifest_entries
 from lib.image.repository_check import find_images_without_repository
 from lib.images_manifest import ManifestEntry
 from lib.images_manifest import ParsedManifest
@@ -27,8 +27,8 @@ from lib.images_manifest import images_manifest_problem
 from lib.images_manifest import is_images_manifest
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
-from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.chart_image_index import ChartImageIndex
+from lib.upgradedoc.chart_image_index import entry_resolution_of
 from lib.upgradedoc.consistency_checks import find_wrong_dependency_claims
 from lib.upgradedoc.consistency_checks import resolve_component_identity
 from lib.upgradedoc.grouped_comments import find_grouped_preceding_comment
@@ -42,7 +42,6 @@ from lib.upgradedoc.images_manifest_ordering import ManifestSortContext
 from lib.upgradedoc.images_manifest_ordering import are_manifest_entries_grouped
 from lib.upgradedoc.images_manifest_ordering import find_faulty_manifest_headers
 from lib.upgradedoc.images_manifest_ordering import manifest_entry_positions
-from lib.upgradedoc.images_manifest_ordering import manifest_name_positions
 from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
 from lib.upgradedoc.string_and_parsing_basics import extract_target_version
@@ -81,53 +80,18 @@ class ListDiffInputs:
     baseline_paths: dict[ValuesPath, str]
 
 
-def _entry_display_name(entry: ManifestEntry, resolution: EntryResolution) -> str | None:
-    """The entry's display name; None when it resolves to no path or is only the raw dotted path."""
-    path = resolve_entry_image_path(entry["name"], resolution.current_paths.keys(), resolution.repo_map)
-    if not path:
-        return None
-    display_name = path_display_name(path, resolution.deps, resolution.canonical_names)
-    return None if display_name == ".".join(path) else display_name
-
-
-def _uncovered_entry_display_names(
-    entries: list[ManifestEntry], entry_positions: dict[str, int], resolution: EntryResolution, covered_names: set[str]
-) -> list[str]:
-    """First display name of every entry group not in `covered_names`, skipping raw-dotted-path names."""
-    missing: list[str] = []
-    seen: set[str] = set()
-    for entry in entries:
-        display_name = _entry_display_name(entry, resolution) if entry["name"] in entry_positions else None
-        if display_name is None or display_name in seen:
-            continue
-        seen.add(display_name)
-        if display_name not in covered_names:
-            missing.append(display_name)
-    return missing
-
-
-def entries_without_mention(text: str, entries: list[ManifestEntry], context: ManifestSortContext) -> list[str]:
+def entries_without_mention(text: str, context: ManifestSortContext) -> list[str]:
     """Display names of every entry group with no "# Changes:" item resolving to it.
 
-    The check counterpart of add_missing_manifest_entries' backfill pass:
-    list-diff only catches changed images without an entry, not entries missing from
-    the header. `context` is a ManifestSortContext.
-
-    Uses covered_display_names, as the fixer does. Compared by display name,
-    since one item covers every entry of a multi-image component (e.g. eck-stack's
-    elasticsearch + kibana). Raw-dotted-path display names are skipped (no human writes
-    those). [] for invalid YAML or fewer than 2 entries.
+    The check counterpart of add_missing_manifest_entries' backfill pass,
+    through the same uncovered_manifest_entries: list-diff only catches
+    changed images without an entry, not entries missing from the header.
+    [] for invalid YAML or fewer than 2 entries.
     """
-    entry_positions = manifest_entry_positions(text, context)
-    if not entry_positions:
+    if not manifest_entry_positions(text, context):
         return []
-    display_name_positions = manifest_name_positions(text, context)
-
-    current_paths = chart_image_paths(context.values, context.deps)
-    resolution = EntryResolution(context.deps, current_paths, context.repo_map, context.canonical_names)
-
-    covered_names = covered_display_names(text.splitlines(keepends=True), display_name_positions)
-    return sorted(_uncovered_entry_display_names(entries, entry_positions, resolution, covered_names))
+    lines = text.splitlines(keepends=True)
+    return sorted({name for _idx, name in uncovered_manifest_entries(lines, context.entry_resolution())})
 
 
 def _manifest_resolution_context(context: ManifestCheckContext) -> tuple[RepoGroups, EntryResolution]:
@@ -140,7 +104,7 @@ def _manifest_resolution_context(context: ManifestCheckContext) -> tuple[RepoGro
     index = ChartImageIndex(context.chart_dir, context.deps, context.values)
     if context.chart_dir is None:
         return {}, EntryResolution(context.deps, index.paths, {}, {})
-    return index.repo_groups, EntryResolution(context.deps, index.paths, index.repo_map, index.canonical_names)
+    return index.repo_groups, entry_resolution_of(index)
 
 
 def _item_version_mismatches(
@@ -167,7 +131,7 @@ def _entries_by_path(resolved: ResolvedManifest) -> dict[ValuesPath, ManifestEnt
     resolution = resolved.resolution
     by_path: dict[ValuesPath, ManifestEntry] = {}
     for entry in resolved.entries:
-        path = resolve_entry_image_path(entry["name"], resolution.current_paths.keys(), resolution.repo_map)
+        path = resolution.entry_path(entry["name"])
         for group_path in resolved.repo_groups.get(entry["name"], [] if path is None else [path]):
             by_path.setdefault(group_path, entry)
     return by_path
@@ -245,7 +209,7 @@ def _comment_version_mismatches(
         issues.append(f'{name}: entry "{entry["name"]}" comment says target "{target}", entry version is "{version}"')
 
     if baseline_paths:
-        path = resolve_entry_image_path(entry["name"], resolution.current_paths.keys(), resolution.repo_map)
+        path = resolution.entry_path(entry["name"])
         baseline_tag = baseline_paths.get(path) if path else None
         baseline_version = baseline_tag.split("@")[0] if baseline_tag else None
         source = extract_source_version(comment)
@@ -313,12 +277,12 @@ def _sidecar_header_issues(name: str, parsed: ParsedManifest, resolution: EntryR
     return issues
 
 
-def _missing_mention_issues(name: str, text: str, entries: list[ManifestEntry], sort_context: ManifestSortContext):
+def _missing_mention_issues(name: str, text: str, sort_context: ManifestSortContext):
     """One issue per entry with no "# Changes:" mention at all (see
     entries_without_mention)."""
     return [
         f'{name}: image "{entry_name}" has an entry but no mention in the "# Changes:" list'
-        for entry_name in entries_without_mention(text, entries, sort_context)
+        for entry_name in entries_without_mention(text, sort_context)
     ]
 
 
@@ -331,7 +295,7 @@ def _structural_issues(
     """
     issues = _sidecar_header_issues(name, parsed, resolution)
     sort_context = ManifestSortContext(context.deps, context.values, resolution.repo_map, resolution.canonical_names)
-    issues.extend(_missing_mention_issues(name, text, parsed.entries, sort_context))
+    issues.extend(_missing_mention_issues(name, text, sort_context))
     return issues
 
 

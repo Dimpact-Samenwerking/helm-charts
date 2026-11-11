@@ -1,13 +1,12 @@
 """update-image-version main(): argument parsing and basename/key resolution.
-registry_tag_exists is patched on lib.image.version, whose globals it resolves
-through."""
+registry_tag_exists is patched on lib.registry, where check_repositories_at
+resolves it."""
 
 from pathlib import Path
 from types import ModuleType
 
 import pytest
 
-from lib.image import version as image_version
 from tests.fixture_data import SHA256_A
 from tests.fixture_data import SHA256_B
 from tests.fixture_data import write_chart_with_dependencies
@@ -47,7 +46,7 @@ def test_main_updates_matching_pin(
         ),
     )
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
-    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
+    monkeypatch.setattr("lib.registry.registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
     monkeypatch.setattr("sys.argv", ["update-image-version", "pabc", "pabc-api", "1.1.2"])
 
     uiv.main()
@@ -82,7 +81,7 @@ def test_main_ends_with_fix_doc_consistency(
 ) -> None:
     """A bump ends with one fix-doc-consistency run."""
     monkeypatch.setattr(uiv, "VALUES_YAML", pabc_values(tmp_path, "1.1.1"))
-    monkeypatch.setattr(image_version, "registry_tag_exists", registry_has_b_digest)
+    monkeypatch.setattr("lib.registry.registry_tag_exists", registry_has_b_digest)
     monkeypatch.setattr("sys.argv", ["update-image-version", "pabc", "pabc-api", "1.1.2"])
 
     uiv.main()
@@ -138,7 +137,7 @@ def test_main_resolves_given_component_key_and_basename(
     )
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
-    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
+    monkeypatch.setattr("lib.registry.registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
     monkeypatch.setattr("sys.argv", ["update-image-version", "openklant", "open-klant", "2.15.1"])
 
     uiv.main()
@@ -156,7 +155,7 @@ def test_main_accepts_dependency_name_not_just_alias(uiv: ModuleType, tmp_path: 
     )
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
-    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
+    monkeypatch.setattr("lib.registry.registry_tag_exists", lambda host, repo, tag: (True, SHA256_B))
     monkeypatch.setattr("sys.argv", ["update-image-version", "zaakafhandelcomponent", "zaakafhandelcomponent", "5.4.4"])
 
     uiv.main()
