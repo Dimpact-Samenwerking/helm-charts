@@ -211,6 +211,18 @@ Settings that are already at a secure default are logged for audit purposes but 
 - **Why:** `offline_access` lets a client obtain a refresh token that keeps working after the user's browser session ends, bounded only by the offline-session lifespan/idle-timeout above rather than by an active login. The only client in this realm is the bootstrap `admin-cli` used for a one-time ROPC login and the `/kc-idp-secret` operator fallback — neither needs a token that survives after that login completes. Removing the optional scope closes off a persistent-access grant that nothing here legitimately uses.
 - **Implementation:** `keycloak-master-realm-config.yaml` → realm-level `defaultOptionalClientScopes`; `clients.admin-cli.optionalClientScopes`
 
+### Identity Provider Admin Role Mapping
+
+| Setting | Current value | Keycloak default | Status |
+|---------|--------------|-----------------|--------|
+| identity provider `config.allowAdminRoleMapping` | per environment | `false` (since 26.8.0) | ✅ Default kept; per-environment override, checked at render |
+
+**`allowAdminRoleMapping: "true"`** ← only on an identity provider whose mappers grant an admin role
+
+- **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **8.2** (Geprivilegieerde toegangsrechten); **OWASP ASVS 4.0 V4.1.3** (least privilege)
+- **Why:** Before Keycloak 26.8.0 (CVE-2026-12388) an administrator with only `manage-identity-providers` could add a mapper that grants an admin role, and so escalate their own privileges. Keycloak now refuses such a mapper, on create and update and at broker login, unless an administrator with `manage-realm` enables the setting on the identity provider. Environments that log admins in through an identity provider (`oidc-hardcoded-role-idp-mapper` with role `admin`) need it on that one identity provider only.
+- **Implementation:** environment values `keycloak.config.adminIdentityProviders.identityProviders[].config.allowAdminRoleMapping` (example in `values.yaml`); `templates/validations.yaml` fails the render, when the master realm import job is enabled (`keycloak-operator.jobs.importMasterRealm.enabled`), when an `oidc-hardcoded-role-idp-mapper` in `keycloak.config.adminIdentityProviderMappers` grants `admin`, `create-realm`, or a `realm-management` or `<realm>-realm` client role through an identity provider in the values without it. Composite roles and group mappers are not detected ([IN-3203](https://dimpact.atlassian.net/browse/IN-3203)).
+
 ## Podiumd Realm
 
 The podiumd realm exclusively serves beheer (management) users and municipality staff.
