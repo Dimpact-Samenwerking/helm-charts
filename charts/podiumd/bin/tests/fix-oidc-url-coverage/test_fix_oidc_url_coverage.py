@@ -154,6 +154,10 @@ def test_main_without_enabled_switch_leaves_path_for_review(
     assert "2 left unresolved" in out
 
 
+def test_scan_without_any_client_item_finds_nothing():
+    assert scan_oidc_url_coverage(OIDC_CLIENTS_HEAD + OIDC_CLIENTS_TAIL) == ([], [])
+
+
 def test_main_without_oidc_clients_list_fails(
     sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):

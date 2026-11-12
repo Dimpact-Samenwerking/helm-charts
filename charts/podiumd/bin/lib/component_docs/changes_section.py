@@ -356,7 +356,7 @@ def make_image_changes_section(
 ) -> str:
     """The "### <image-basename> <old> → <new>" Changes block for an image basename bump.
 
-    "Shared" only when every bumped pin is under global.images. `pinned` is
+    "Shared" only when every bumped pin is under global. `pinned` is
     [(dotted_path, old_version), ...], listed per pin since their old
     versions may differ. A None old version renders "(new)"; one equal to
     `new_version` renders "(unchanged)".

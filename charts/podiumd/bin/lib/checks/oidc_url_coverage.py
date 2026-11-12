@@ -48,7 +48,9 @@ def _client_blocks(lines: list[str]) -> list[ClientBlock]:
     """
     matches = [(index, CLIENT_ITEM_RE.match(line)) for index, line in enumerate(lines)]
     starts = [(index, client_match.group("id").strip("\"'")) for index, client_match in matches if client_match]
-    ends = [*(start for start, _client_id in starts[1:]), len(lines)]
+    ends = [start for start, _client_id in starts[1:]]
+    if starts:
+        ends.append(len(lines))
     spans = zip(starts, ends, strict=True)
     return [(client_id, start + 1, lines[start:end]) for (start, client_id), end in spans]
 
