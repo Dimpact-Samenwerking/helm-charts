@@ -326,14 +326,31 @@ frankgateway:
   this route admits; omit to admit every known consumer), `stale_ttl` (seconds
   the last-good list is served while OpenBao is unreachable; default 3600, `0`
   to fail closed at once — the copy is per gateway pod, so one successful read
-  since the pod started covers every worker in it). Values are compared case-insensitively with colons
+  since the pod started covers every worker in it), `validity` (default `true`:
+  the certificate PEM in `certHeader` is parsed and the request refused outside
+  its notBefore..notAfter, or when the PEM is not the certificate the
+  fingerprint names; `false` only behind a front door that cannot forward the
+  PEM), `certHeader` (default `X-Client-Cert`; the PEM, URL-encoded or plain,
+  leaf first). Values are compared case-insensitively with colons
   and spaces removed, so forwarding the certificate **subject** instead and
   listing subject DNs works the same way.
-- **Answers:** 401 without an identity or with an unknown one, 403 for a known
-  consumer not in `allow`, 503 when OpenBao is unreachable and no last-good
-  list is within `stale_ttl`. On success the upstream receives
-  `X-Consumer-Username` (overwriting anything the caller sent), and the JSON
-  access log carries it as `consumer`.
+- **Answers:** 401 without an identity or with an unknown one, 401 for a known
+  consumer whose certificate is expired, not yet valid, missing from
+  `certHeader`, unreadable or not the one the fingerprint names (`error` in
+  the body says which), 403 for a known consumer not in `allow`, 503 when
+  OpenBao is unreachable and no last-good list is within `stale_ttl`. On
+  success the upstream receives `X-Consumer-Username` (overwriting anything
+  the caller sent), and the JSON access log carries it as `consumer`.
+- **What is and is not checked.** The fingerprint pins one certificate and the
+  front door's TLS handshake proves possession of its private key, so a CA
+  chain check would add no authentication and there is none: any CA, allow
+  list in OpenBao (architecture decision, IN-3287). The validity period is
+  checked here because nothing else on the path reads it: the front door runs
+  in passthrough mode and forwards an expired certificate like any other, and
+  a registered fingerprint would otherwise keep working until someone removes
+  it. Revocation is still removal from OpenBao; there is no CRL or OCSP on the
+  path. The gateway's own clock decides, so an expired certificate answers 401
+  from the minute it expires, not from the next cache refresh.
 - **Only on the inway.** The function trusts the header. That is sound only
   behind a front door that verified the certificate and overwrites the header
   on every request, with the inway reachable through nothing else
@@ -343,16 +360,19 @@ frankgateway:
 ### What the front door must send
 
 For the Azure Application Gateway that fronts the environments (owned by the
-hosting partner): mutual authentication in **strict** mode on the listener's SSL
-profile, with the trusted client CA chain(s) uploaded, and a **rewrite rule
-set** on the routing rule that writes these request headers from server
-variables:
+hosting partner): mutual authentication in **passthrough** mode on the API
+listener's SSL profile (the certificate is requested, not validated — any CA;
+IN-3287), and a **rewrite rule set** on the routing rule that writes these
+request headers from server variables, on the API listener only and stripped
+on every other listener:
 
 | Header | Server variable | Note |
 |---|---|---|
+| `X-Client-Cert` | `{var_client_certificate}` | the leaf certificate, PEM, URL-encoded — read by `validity` |
 | `X-Client-Cert-Fingerprint` | `{var_client_certificate_fingerprint}` | **SHA-1**, hex — the value to list in OpenBao |
 | `X-Client-Cert-Subject` | `{var_client_certificate_subject}` | subject DN; optional, for subject-based matching |
-| `X-Client-Cert-Verification` | `{var_client_certificate_verification}` | `SUCCESS` in strict mode; pass as `verificationHeader` |
+| `X-Client-Cert-Issuer` | `{var_client_certificate_issuer}` | issuer DN; informational |
+| `X-Client-Cert-Verification` | `{var_client_certificate_verification}` | only meaningful in strict mode; pass as `verificationHeader` there, leave unset in passthrough |
 
 Application Gateway cannot pass TLS through (it is a terminating proxy), so the
 existing chain stays as it is: it re-encrypts to NGINX Gateway Fabric, which
