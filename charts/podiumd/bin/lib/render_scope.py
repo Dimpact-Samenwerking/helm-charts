@@ -301,7 +301,9 @@ def build_resource_locations(rendered_text: str) -> ResourceLocations:
     lines = rendered_text.splitlines()
     marker_indices = [index for index, line in enumerate(lines) if line.startswith("# Source: ")]
     locations: ResourceLocations = {}
-    ends = [next_start - 1 for next_start in marker_indices[1:]] + [len(lines)]
+    ends = [next_start - 1 for next_start in marker_indices[1:]]
+    if marker_indices:
+        ends.append(len(lines))
     for start, end in zip(marker_indices, ends, strict=True):
         kind, namespace, name = _block_identity(lines[start + 1 : end])
         if kind and name:
