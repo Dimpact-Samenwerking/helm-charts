@@ -1,0 +1,20 @@
+# Patterns to ignore when building packages.
+# Keep the packaged chart lean: everything in the package is embedded in the
+# helm release Secret, which Kubernetes caps at 1MiB (see charts/podiumd/
+# .helmignore, which hit that limit once already). dashboards/ is NOT
+# ignored here — templates load it via .Files.Get, so it must ship.
+.DS_Store
+.git/
+.gitignore
+.vscode/
+.idea/
+*.swp
+*.bak
+*.tmp
+*.orig
+*~
+# Leftover CI config from when this chart lived in its own repo
+.github/
+# Operator documentation lives in git/GitHub, not in the deployed chart
+docs/
+scripts/
