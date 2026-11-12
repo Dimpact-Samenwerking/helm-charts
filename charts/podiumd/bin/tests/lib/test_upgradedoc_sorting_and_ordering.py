@@ -4,6 +4,11 @@ from types import ModuleType
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
+from tests.fixture_data import SHA256_A
+from tests.fixture_data import SHA256_B
+from tests.fixture_data import SHA256_C
+from tests.fixture_data import SHA256_D
+from tests.fixture_data import SHA256_E
 
 # --- values_key_order ---
 
@@ -50,7 +55,7 @@ def test_component_order_key_global_shared_image_uses_its_own_values_position(li
 
     assert libupgradedocsorting.component_order_key("nginx-unprivileged", DEPS, key_order, canonical_names) == (0, 0)
 
-    # "### ..." headings carry version text after the name; the text_names fallback handles it.
+    # "### ..." headings carry version text after the name; the is_named_by_text fallback handles it.
     assert libupgradedocsorting.component_order_key(
         "nginx-unprivileged 1.31.3 → 1.31.4", DEPS, key_order, canonical_names
     ) == (0, 0)
@@ -109,13 +114,13 @@ def test_component_order_key_sidecars_of_one_parent_keep_values_order(libupgrade
 GLOBAL_IMAGES_VALUES = {
     "global": {
         "images": {
-            "nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.5@sha256:" + "a" * 64},
-            "curl": {"repository": "curlimages/curl", "tag": "8.22.0@sha256:" + "b" * 64},
-            "busybox": {"repository": "library/busybox", "tag": "1.38.0-glibc@sha256:" + "c" * 64},
-            "redis": {"repository": "redis", "tag": "8.10.1@sha256:" + "d" * 64},
+            "nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": f"1.31.5@{SHA256_A}"},
+            "curl": {"repository": "curlimages/curl", "tag": f"8.22.0@{SHA256_B}"},
+            "busybox": {"repository": "library/busybox", "tag": f"1.38.0-glibc@{SHA256_C}"},
+            "redis": {"repository": "redis", "tag": f"8.10.1@{SHA256_D}"},
         }
     },
-    "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.3@sha256:" + "e" * 64}},
+    "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": f"5.4.3@{SHA256_E}"}},
 }
 GLOBAL_IMAGES_CANONICAL_NAMES = {
     "nginx-unprivileged": ("global", "images", "nginx"),
@@ -218,7 +223,7 @@ def test_component_insertion_index_unmatched_name_goes_last(libupgradedocsorting
     )
 
 
-# --- parse_upgrade_doc_changes_blocks ---
+# --- parse_changes_blocks ---
 
 
 def test_parse_upgrade_doc_changes_blocks_basic(libupgradedocsorting: ModuleType):
@@ -230,19 +235,19 @@ def test_parse_upgrade_doc_changes_blocks_basic(libupgradedocsorting: ModuleType
         "### Open Inwoner 2.3.1 → 2.4.2\n\n"
         "More prose.\n"
     )
-    blocks = libupgradedocsorting.parse_upgrade_doc_changes_blocks(text)
+    blocks = libupgradedocsorting.parse_changes_blocks(text)
     assert [b["heading"] for b in blocks] == ["Open Zaak 1.27.3 → 1.27.4", "Open Inwoner 2.3.1 → 2.4.2"]
 
 
 def test_parse_upgrade_doc_changes_blocks_h4_subheading_is_not_a_separate_block(libupgradedocsorting: ModuleType):
     text = "## Changes\n\n### Open Zaak 1.27.3 → 1.27.4\n\n#### Action required\n\nNo action required.\n"
-    blocks = libupgradedocsorting.parse_upgrade_doc_changes_blocks(text)
+    blocks = libupgradedocsorting.parse_changes_blocks(text)
     assert len(blocks) == 1
     assert blocks[0]["heading"] == "Open Zaak 1.27.3 → 1.27.4"
 
 
 def test_parse_upgrade_doc_changes_blocks_no_changes_section_is_empty(libupgradedocsorting: ModuleType):
-    assert libupgradedocsorting.parse_upgrade_doc_changes_blocks("# Title\n\nJust prose.\n") == []
+    assert libupgradedocsorting.parse_changes_blocks("# Title\n\nJust prose.\n") == []
 
 
 def test_parse_upgrade_doc_changes_blocks_stops_at_next_h2(libupgradedocsorting: ModuleType):
@@ -254,7 +259,7 @@ def test_parse_upgrade_doc_changes_blocks_stops_at_next_h2(libupgradedocsorting:
         "### A. Prepare\n\n"
         "- [ ] Do the thing.\n"
     )
-    blocks = libupgradedocsorting.parse_upgrade_doc_changes_blocks(text)
+    blocks = libupgradedocsorting.parse_changes_blocks(text)
     assert len(blocks) == 1
     assert blocks[0]["heading"] == "Open Zaak 1.27.3 → 1.27.4"
 
@@ -266,7 +271,7 @@ COMPONENT_VERSIONS_HEADING = "## Component versions (4.9.0 vs 4.8.5)\n\n"
 
 def test_sort_upgrade_doc_rows_reorders_out_of_order_rows(libupgradedocsorting: ModuleType):
     text = (
-        COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart |\n"
+        f"{COMPONENT_VERSIONS_HEADING}| Component | App version | Helm chart |\n"
         "| --- | --- | --- |\n"
         "| Open Inwoner | 2.4.2 | 2.4.0 |\n"
         "| Open Zaak | 1.27.4 | 1.14.2 |\n"
@@ -282,7 +287,7 @@ def test_sort_upgrade_doc_rows_reorders_out_of_order_rows(libupgradedocsorting: 
 
 def test_sort_upgrade_doc_rows_already_in_order_is_unchanged(libupgradedocsorting: ModuleType):
     text = (
-        COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart |\n"
+        f"{COMPONENT_VERSIONS_HEADING}| Component | App version | Helm chart |\n"
         "| --- | --- | --- |\n"
         "| Open Zaak | 1.27.4 | 1.14.2 |\n"
         "| Open Inwoner | 2.4.2 | 2.4.0 |\n"
@@ -297,7 +302,7 @@ def test_sort_upgrade_doc_rows_already_in_order_is_unchanged(libupgradedocsortin
 
 def test_sort_upgrade_doc_rows_fewer_than_two_rows_is_unchanged(libupgradedocsorting: ModuleType):
     text = (
-        COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart |\n"
+        f"{COMPONENT_VERSIONS_HEADING}| Component | App version | Helm chart |\n"
         "| --- | --- | --- |\n"
         "| Open Zaak | 1.27.4 | 1.14.2 |\n"
     )
@@ -310,7 +315,7 @@ def test_sort_upgrade_doc_rows_fewer_than_two_rows_is_unchanged(libupgradedocsor
 
 def test_sort_upgrade_doc_rows_unmatched_row_stays_last(libupgradedocsorting: ModuleType):
     text = (
-        COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart |\n"
+        f"{COMPONENT_VERSIONS_HEADING}| Component | App version | Helm chart |\n"
         "| --- | --- | --- |\n"
         "| nginx-unprivileged (shared sidecar) | 1.31.4 | — |\n"
         "| Open Zaak | 1.27.4 | 1.14.2 |\n"
@@ -327,7 +332,7 @@ def test_sort_upgrade_doc_rows_unmatched_row_stays_last(libupgradedocsorting: Mo
 def test_sort_upgrade_doc_rows_global_row_sorts_to_its_own_real_position(libupgradedocsorting: ModuleType):
     """A "global" shared-image row sorts to global's values.yaml position given canonical_names."""
     text = (
-        COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart |\n"
+        f"{COMPONENT_VERSIONS_HEADING}| Component | App version | Helm chart |\n"
         "| --- | --- | --- |\n"
         "| Open Zaak | 1.27.4 | 1.14.2 |\n"
         "| nginx-unprivileged | 1.31.3 → 1.31.4 | - |\n"
@@ -349,7 +354,7 @@ def test_sort_upgrade_doc_rows_global_row_sorts_to_its_own_real_position(libupgr
 def test_sort_upgrade_doc_rows_multiple_global_images_use_their_own_real_suborder(libupgradedocsorting: ModuleType):
     """Global image rows follow values.yaml's nginx/curl/busybox/redis order; zac still sorts after global."""
     text = (
-        COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart |\n"
+        f"{COMPONENT_VERSIONS_HEADING}| Component | App version | Helm chart |\n"
         "| --- | --- | --- |\n"
         "| redis | 8.0 → 8.10.1 | - |\n"
         "| Zaak - ZAC | 5.4.2 → 5.4.3 | - |\n"

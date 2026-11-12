@@ -7,9 +7,9 @@ from lib.chart.chart_yaml import ChartDependency
 from lib.component_docs.changes_section import remove_changes_section
 from lib.component_docs.images_manifest_changes_header import find_changes_item
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
-from lib.upgradedoc.string_and_parsing_basics import changes_item_names
+from lib.upgradedoc.string_and_parsing_basics import is_named_by_changes_item
+from lib.upgradedoc.string_and_parsing_basics import is_named_by_text
 from lib.upgradedoc.string_and_parsing_basics import match_canonical_sidecar_name
-from lib.upgradedoc.string_and_parsing_basics import text_names
 
 DEPS: list[ChartDependency] = [{"name": "openbao", "version": "0.20.0"}]
 SIDECAR_PATH = ("openbao", "csi", "image")
@@ -26,19 +26,19 @@ CANONICAL_NAMES = {
 
 
 def test_text_names_matches_whole_words_only() -> None:
-    assert text_names("ZAC (Zaakafhandelcomponent) 4.1 → 4.2", "zac")
-    assert not text_names("Python (ensurePodiumdAdminUser init image)", "mi")
+    assert is_named_by_text("ZAC (Zaakafhandelcomponent) 4.1 → 4.2", "zac")
+    assert not is_named_by_text("Python (ensurePodiumdAdminUser init image)", "mi")
 
 
 def test_text_names_keeps_sidecar_and_plain_names_apart() -> None:
-    assert text_names("openbao - openbao-csi-provider 1.5.0 → 1.6.0.", "openbao - openbao-csi-provider")
-    assert not text_names("openbao - openbao-csi-provider 1.5.0 → 1.6.0.", "openbao")
-    assert not text_names("OpenBao 2.5.5 → 2.5.6", "openbao - openbao-csi-provider")
+    assert is_named_by_text("openbao - openbao-csi-provider 1.5.0 → 1.6.0.", "openbao - openbao-csi-provider")
+    assert not is_named_by_text("openbao - openbao-csi-provider 1.5.0 → 1.6.0.", "openbao")
+    assert not is_named_by_text("OpenBao 2.5.5 → 2.5.6", "openbao - openbao-csi-provider")
 
 
 def test_text_names_sidecar_name_is_not_a_prefix_of_another_sidecar() -> None:
-    assert not text_names("zac - postgres-exporter 0.17 → 0.18.", "zac - postgres")
-    assert text_names("zac - postgres v17.1 → v17.2.", "zac - postgres")
+    assert not is_named_by_text("zac - postgres-exporter 0.17 → 0.18.", "zac - postgres")
+    assert is_named_by_text("zac - postgres v17.1 → v17.2.", "zac - postgres")
 
 
 def test_find_changes_item_skips_a_mid_word_match() -> None:
@@ -106,8 +106,8 @@ def test_find_changes_item_does_not_match_a_sidecar_item_by_its_parent_name() ->
 
 
 def test_changes_item_names_needs_the_exact_name_first() -> None:
-    assert changes_item_names("Open Inwoner Platform (OIP) 2.1.2 -> 2.3.1.", "Open Inwoner Platform")
-    assert changes_item_names("curl", "curl")
-    assert not changes_item_names("Open Inwoner Platform 2.1.2 -> 2.3.1.", "Open Inwoner")
-    assert not changes_item_names("Renovate-integrated bumps: alpine/k8s 1.34.7->1.36.2", "alpine/k8s")
-    assert not changes_item_names("curl 8.20 -> 8.21", "")
+    assert is_named_by_changes_item("Open Inwoner Platform (OIP) 2.1.2 -> 2.3.1.", "Open Inwoner Platform")
+    assert is_named_by_changes_item("curl", "curl")
+    assert not is_named_by_changes_item("Open Inwoner Platform 2.1.2 -> 2.3.1.", "Open Inwoner")
+    assert not is_named_by_changes_item("Renovate-integrated bumps: alpine/k8s 1.34.7->1.36.2", "alpine/k8s")
+    assert not is_named_by_changes_item("curl 8.20 -> 8.21", "")

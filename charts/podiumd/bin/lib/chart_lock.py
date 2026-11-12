@@ -1,4 +1,4 @@
-"""Chart.lock types, checked loading, and writing byte-compatible with `helm
+r"""Chart.lock types, checked loading, and writing byte-compatible with `helm
 dependency update`, so lib.dependencies can re-vendor only changed
 dependencies and leave a Chart.lock Helm accepts.
 
@@ -9,7 +9,7 @@ The `digest:` line is Helm 3's resolver HashReq:
 `req` is Chart.yaml's dependencies with "@alias" repos resolved, `lock` the
 new Chart.lock list. helm_lock_digest mirrors Go's encoding/json: fields in
 declaration order, empty `omitempty` fields dropped, and <, >, & escaped as
-\\u003c, \\u003e, \\u0026 (pinned by tests/lib/test_chart_lock.py).
+\u003c, \u003e, \u0026 (pinned by tests/lib/test_chart_lock.py).
 
 Only `helm dependency build` checks the digest, and Chart.lock is
 gitignored, so a drifted digest costs one full `helm dependency update`,
@@ -67,11 +67,11 @@ _DEPENDENCY_JSON_FIELDS = (
 )
 
 _GO_JSON_ESCAPES = {
-    "<": "\\u003c",
-    ">": "\\u003e",
-    "&": "\\u0026",
-    "\u2028": "\\u2028",
-    "\u2029": "\\u2029",
+    "<": r"\u003c",
+    ">": r"\u003e",
+    "&": r"\u0026",
+    "\u2028": r"\u2028",
+    "\u2029": r"\u2029",
 }
 
 
@@ -89,13 +89,19 @@ def _go_json_dependency(dep: ChartDependency | ChartLockDependency):
     """dep as Go's json.Marshal writes a chart.Dependency; version always a string."""
     out: dict[str, object] = {}
     for field, omitempty in _DEPENDENCY_JSON_FIELDS:
-        value = dep.get(field)
-        if field == "version" and value is not None:
-            value = str(value)
+        value = _go_json_field(dep, field)
         if omitempty and not value:
             continue
         out[field] = "" if value is None else value
     return out
+
+
+def _go_json_field(dep: ChartDependency | ChartLockDependency, field: str) -> object:
+    """dep's `field` value, with version as a string."""
+    value = dep.get(field)
+    if field == "version" and value is not None:
+        return str(value)
+    return value
 
 
 def _go_json(value: object) -> str:
@@ -128,7 +134,8 @@ def helm_lock_digest(
         req.append(encoded)
     locked = [_go_json_dependency(dep) for dep in lock_deps]
     data = _go_json([req, locked])
-    return "sha256:" + hashlib.sha256(data.encode("utf-8")).hexdigest()
+    digest = hashlib.sha256(data.encode("utf-8")).hexdigest()
+    return f"sha256:{digest}"
 
 
 def lock_dependencies(chart_deps: list[ChartDependency], required_repos: dict[str, str]) -> list[ChartLockDependency]:

@@ -10,7 +10,7 @@ from lib.docs_consistency.check_context import ComponentRowsResult
 from lib.docs_consistency.check_context import DocQuery
 from lib.docs_consistency.check_context import RowContext
 
-# --- _check_row_baseline_versions ---
+# --- check_row_baseline_versions ---
 
 
 def _source_app_mismatches(libdocsconsistency: ModuleType, app_source: str | None, baseline_app: str | None):
@@ -30,7 +30,7 @@ def _source_app_mismatches(libdocsconsistency: ModuleType, app_source: str | Non
     }
     row_ctx = RowContext(Path("4.8.5-to-4.9.0-upgrade.md"), "podiumd-4.8.5")
     result = ComponentRowsResult([], {}, {})
-    libdocsconsistency._check_row_baseline_versions(row, row_ctx, resolved, "mi", result)
+    libdocsconsistency.check_row_baseline_versions(row, row_ctx, resolved, "mi", result)
     return result.mismatches
 
 
@@ -50,7 +50,7 @@ def test_check_row_baseline_versions_accepts_the_cell_fix_doc_consistency_writes
     assert not _source_app_mismatches(libdocsconsistency, app_source, baseline_app)
 
 
-# --- _doc_header_mismatches ---
+# --- doc_header_mismatches ---
 
 
 def test_doc_header_flags_a_stale_intro_baseline(libdocsconsistency: ModuleType, tmp_path: Path):
@@ -60,6 +60,6 @@ def test_doc_header_flags_a_stale_intro_baseline(libdocsconsistency: ModuleType,
         encoding="utf-8",
     )
     ctx = SimpleNamespace(doc_query=DocQuery(tmp_path, "4.10.0", "4.9.3", is_bare_version=True))
-    assert libdocsconsistency._doc_header_mismatches(doc, ctx) == [
+    assert libdocsconsistency.doc_header_mismatches(doc, ctx) == [
         "4.9.3-to-4.10.0-upgrade.md intro names baseline **4.9.1**, not **4.9.3**"
     ]

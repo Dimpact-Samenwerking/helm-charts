@@ -39,7 +39,6 @@ def test_at_alias_repository_resolved_via_required_repos(librenderscope: ModuleT
     """ "@zac" has no vendor keyword; only its resolved URL does, so alias
     resolution must precede keyword matching (hard-coded default here)."""
     required_repos = librenderscope.helm_repos_urls_by_alias(tmp_path)
-    assert "infonl" not in "@zac"
     assert "zac" in required_repos
     assert "infonl" in required_repos["zac"].lower()
     write_chart_yaml(

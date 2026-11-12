@@ -4,9 +4,9 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
-import yaml
 
 from lib.chart import values_tag_sha_lines as tag_sha_lines
+from tests.fixture_data import write_chart_dependencies
 
 # --- parse_repo ---
 
@@ -182,7 +182,7 @@ def test_replace_scalar_value_preserves_trailing_comment(ucv: ModuleType):
 
 
 def write_chart_yaml(path, deps):
-    path.write_text(yaml.safe_dump({"dependencies": deps}), encoding="utf-8")
+    write_chart_dependencies(path, deps)
 
 
 def test_update_chart_yaml_bumps_only_matching_dependency(
@@ -269,7 +269,7 @@ def test_update_values_yaml_missing_path_raises(ucv: ModuleType, tmp_path: Path,
         )
 
 
-# --- _load_split_tag_sha_paths ---
+# --- load_split_tag_sha_paths ---
 
 
 def test_load_split_tag_sha_paths_skips_writable_entry_without_sibling_field(
@@ -286,4 +286,4 @@ def test_load_split_tag_sha_paths_skips_writable_entry_without_sibling_field(
             ("omc", "image"): {"sibling_field": "digest", "writable": False},
         },
     )
-    assert ucv._load_split_tag_sha_paths() == {("keycloak", "image"): "sha"}
+    assert ucv.load_split_tag_sha_paths() == {("keycloak", "image"): "sha"}

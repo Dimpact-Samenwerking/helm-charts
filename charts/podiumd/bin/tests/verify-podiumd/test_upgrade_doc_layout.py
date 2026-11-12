@@ -1,18 +1,17 @@
 """check_upgrade_doc_layout: the target version's upgrade docs against docs/_UPGRADE_DOCS_CHECKLIST.md."""
 
-import subprocess
-
 from pathlib import Path
 
 import pytest
 
-import lib.component_docs.changes_section as changes_section
-
 from lib.checks.upgrade_doc_layout import check_upgrade_doc_layout
 from lib.checks.upgrade_doc_layout import upgrade_guide_layout_issues
 from lib.checks.upgrade_doc_layout import values_deltas_layout_issues
+from lib.component_docs import changes_section
 from lib.component_docs.baseline_doc_stubs import STUB_TEMPLATES
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
+from tests.git_repo import git
+from tests.git_repo import init_git_repo
 
 GUIDE = "4.9.5-to-4.10.0-upgrade.md"
 DELTAS = "4.9.5-to-4.10.0-values-deltas.md"
@@ -49,7 +48,7 @@ def test_missing_section_is_named_with_its_predecessor():
 def test_misordered_section_is_named():
     text = _stub("upgrade")
     f_section = "## F. Rollback\n\nNothing for this hop.\n\n"
-    text = text.replace(f_section, "").replace("## E. After the deploy\n", f_section + "## E. After the deploy\n")
+    text = text.replace(f_section, "").replace("## E. After the deploy\n", f"{f_section}## E. After the deploy\n")
     issues = _guide_issues(text)
     assert len(issues) == 1
     assert issues[0].startswith(
@@ -146,7 +145,8 @@ def test_changes_with_a_suffix_is_not_the_changes_section_for_the_writer_or_the_
 
 
 def test_a_layout_section_after_changes_is_flagged():
-    text = _stub("upgrade") + "\n## Changes\n\nAgain.\n\n## F. Rollback: more\n\nText.\n"
+    stub = _stub("upgrade")
+    text = f"{stub}\n## Changes\n\nAgain.\n\n## F. Rollback: more\n\nText.\n"
     assert _guide_issues(text) == [
         f'{GUIDE}: "## Changes" appears twice',
         f'{GUIDE}: "## F. Rollback: more" appears twice',
@@ -156,7 +156,7 @@ def test_a_layout_section_after_changes_is_flagged():
 def test_checklist_out_of_order_gives_only_the_order_finding():
     stub = _stub("upgrade")
     checklist = stub[stub.index("## Checklist\n") : stub.index("## A. Once per cluster\n")]
-    text = stub.replace(checklist, "").replace("## F. Rollback\n", checklist + "## F. Rollback\n")
+    text = stub.replace(checklist, "").replace("## F. Rollback\n", f"{checklist}## F. Rollback\n")
     issues = _guide_issues(text)
     assert len(issues) == 1
     assert issues[0].startswith(f'{GUIDE}: "## Checklist" comes after "## E. After the deploy"')
@@ -172,8 +172,9 @@ def test_closing_marks_and_exact_if_the_run_fails():
 
 
 def test_values_deltas_component_and_gateway_sections_pass():
+    stub = _stub("values-deltas")
     text = (
-        _stub("values-deltas") + "\n## keycloak 26.7.3 → 26.8.1\n\nOnly where ...:\n\n```yaml\nk: v  # new\n```\n\n"
+        f"{stub}\n## keycloak 26.7.3 → 26.8.1\n\nOnly where ...:\n\n```yaml\nk: v  # new\n```\n\n"
         "## openinwoner 2.4.7 (unchanged) (chart 2.4.0 → 2.6.0)\n\n### Admin OIDC\n\nText.\n\n"
         "## `ssl-gateway.yml`\n\nEvery environment:\n"
     )
@@ -181,7 +182,8 @@ def test_values_deltas_component_and_gateway_sections_pass():
 
 
 def test_values_deltas_hand_written_section_is_flagged():
-    text = _stub("values-deltas") + "\n## Background\n\nWhy this changed.\n"
+    stub = _stub("values-deltas")
+    text = f"{stub}\n## Background\n\nWhy this changed.\n"
     issues = values_deltas_layout_issues(DELTAS, text)
     assert len(issues) == 1
     assert issues[0].startswith(f'{DELTAS}: "## Background" is neither a component section')
@@ -234,7 +236,8 @@ def test_check_passes_on_the_stubs_and_ignores_released_guides(chart_dir: Path, 
 
 def test_check_reports_each_issue_but_never_fails(chart_dir: Path, capsys: pytest.CaptureFixture[str]):
     _write(chart_dir, GUIDE, _stub("upgrade").replace("## F. Rollback\n\nNothing for this hop.\n\n", ""))
-    _write(chart_dir, DELTAS, _stub("values-deltas") + "\n## Background\n\nText.\n")
+    deltas_stub = _stub("values-deltas")
+    _write(chart_dir, DELTAS, f"{deltas_stub}\n## Background\n\nText.\n")
     assert check_upgrade_doc_layout(chart_dir) == (True, "2 layout issue(s) (report-only, not a failure)")
     out = capsys.readouterr().out
     assert "WARNING: no git repository, so whether 4.10.0 is released is unknown — checking its docs anyway" in out
@@ -243,22 +246,18 @@ def test_check_reports_each_issue_but_never_fails(chart_dir: Path, capsys: pytes
     assert f'{DELTAS}: "## Background" is neither' in out
 
 
-def _git(chart_dir: Path, *args: str):
-    subprocess.run(["git", "-C", str(chart_dir), *args], check=True, capture_output=True)
-
-
 def test_check_skips_a_released_target_and_checks_an_unreleased_one(
     chart_dir: Path, capsys: pytest.CaptureFixture[str]
 ):
     _write(chart_dir, GUIDE, "# Upgrade guide: PodiumD 4.9.5 → 4.10.0\n\n## Changes\n")
-    _git(chart_dir, "init", "-q")
-    _git(chart_dir, "-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "x")
+    init_git_repo(chart_dir)
+    git("commit", "-q", "--allow-empty", "-m", "x", cwd=chart_dir)
     ok, detail = check_upgrade_doc_layout(chart_dir)
     assert ok
     assert detail.endswith("layout issue(s) (report-only, not a failure)")
     assert "no git repository" not in capsys.readouterr().out
 
-    _git(chart_dir, "tag", "podiumd-4.10.0")
+    git("tag", "podiumd-4.10.0", cwd=chart_dir)
     assert check_upgrade_doc_layout(chart_dir) == (True, "4.10.0 is released — skipped")
     assert "podiumd-4.10.0 is tagged" in capsys.readouterr().out
 

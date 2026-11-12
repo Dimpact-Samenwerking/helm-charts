@@ -11,8 +11,8 @@ from lib.component_docs.changes_section import DocContext
 from lib.component_docs.images_manifest_entries import expected_changes_items
 from lib.component_docs.images_manifest_entries import fix_stale_changes_items
 from lib.component_docs.images_manifest_entries import stale_changes_items
-from lib.image.docs import changes_sections_contradicting_rows
-from lib.image.docs import rebuild_changes_sections_contradicting_rows
+from lib.image.docs import rebuild_contradicting_sections
+from lib.image.docs import sections_contradicting_rows
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.resolve_component_row import resolve_component_row
 from lib.upgradedoc.sorting_and_ordering import OrderingContext
@@ -89,35 +89,35 @@ def _contexts(chart_dir: Path) -> tuple[DocContext, OrderingContext]:
 
 def test_contradicting_section_is_reported_and_rebuilt_from_its_row(chart_dir: Path):
     doc_context, ordering = _contexts(chart_dir)
-    found_list = changes_sections_contradicting_rows(DOC, doc_context, ordering)
+    found_list = sections_contradicting_rows(DOC, doc_context, ordering)
     assert len(found_list) == 1
     found = found_list[0]
     assert found.expected_heading == "openbao 2.5.5 → 2.6.3 (chart 0.28.4 → 0.29.6)"
     assert found.repairable
 
-    text, rebuilt = rebuild_changes_sections_contradicting_rows(DOC, doc_context, ordering)
+    text, rebuilt = rebuild_contradicting_sections(DOC, doc_context, ordering)
 
     assert [s.heading for s in rebuilt] == [found.heading]
     assert "### openbao 2.5.5 → 2.6.3 (chart 0.28.4 → 0.29.6)\n" in text
     assert "PodiumD 4.9.3 upgrades **openbao** from app version 2.5.5\nto 2.6.3.\n" in text
     assert "- Helm chart `openbao` `0.28.4` → `0.29.6` in\n" in text
-    assert not changes_sections_contradicting_rows(text, doc_context, ordering)
+    assert not sections_contradicting_rows(text, doc_context, ordering)
 
 
 def test_rebuild_keeps_hand_written_text_of_the_section(chart_dir: Path):
     """Only the generated heading, intro and bullets are rewritten; the user's note stays in place."""
     note = "Restart the vault pods after the upgrade.\n"
-    doc = DOC.replace("- Image / digest", note + "\n- Image / digest")
+    doc = DOC.replace("- Image / digest", f"{note}\n- Image / digest")
     doc_context, ordering = _contexts(chart_dir)
 
-    text, rebuilt = rebuild_changes_sections_contradicting_rows(doc, doc_context, ordering)
+    text, rebuilt = rebuild_contradicting_sections(doc, doc_context, ordering)
 
     assert len(rebuilt) == 1
     assert "### openbao 2.5.5 → 2.6.3 (chart 0.28.4 → 0.29.6)\n" in text
     assert "PodiumD 4.9.3 upgrades **openbao** from app version 2.5.5\nto 2.6.3.\n" in text
     assert "introduces **openbao**" not in text
     assert note in text
-    assert not changes_sections_contradicting_rows(text, doc_context, ordering)
+    assert not sections_contradicting_rows(text, doc_context, ordering)
 
 
 def test_contradiction_in_a_hand_written_heading_is_reported_but_not_repaired(chart_dir: Path):
@@ -125,10 +125,10 @@ def test_contradiction_in_a_hand_written_heading_is_reported_but_not_repaired(ch
     doc = DOC.replace("### openbao 2.5.5 → 2.6.3 (chart 0.29.6, new)", "### openbao vault bump (chart 0.29.6, new)")
     doc_context, ordering = _contexts(chart_dir)
 
-    found_list = changes_sections_contradicting_rows(doc, doc_context, ordering)
+    found_list = sections_contradicting_rows(doc, doc_context, ordering)
     assert len(found_list) == 1
     assert not found_list[0].repairable
-    text, rebuilt = rebuild_changes_sections_contradicting_rows(doc, doc_context, ordering)
+    text, rebuilt = rebuild_contradicting_sections(doc, doc_context, ordering)
     assert rebuilt == []
     assert text == doc
 

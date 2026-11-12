@@ -1,0 +1,50 @@
+name: PodiumD pip-audit
+
+# Known vulnerabilities in the charts/podiumd/bin/ tools. A new advisory fails
+# this without a code change, so it is a separate check that reports, not part
+# of run_python_checks' gate.
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  push:
+    branches: [main]
+    paths:
+      - 'charts/podiumd/bin/requirements.txt'
+      - 'charts/podiumd/bin/pyproject.toml'
+      - '.github/workflows/podiumd-pip-audit.yaml'
+  pull_request:
+    paths:
+      - 'charts/podiumd/bin/requirements.txt'
+      - 'charts/podiumd/bin/pyproject.toml'
+      - '.github/workflows/podiumd-pip-audit.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pip-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: charts/podiumd/bin/requirements.txt
+
+      # The same unpinned, newest tool versions run_python_checks installs.
+      - name: Install the tools
+        run: python3 -m pip install --quiet --disable-pip-version-check --upgrade pip -r charts/podiumd/bin/requirements.txt
+
+      # Own cache, as in run_python_checks: pip-audit cannot read the cache
+      # entries of the newer pip installed above.
+      - name: pip-audit
+        run: pip-audit --progress-spinner off --cache-dir .cache/pip-audit

@@ -1,7 +1,7 @@
 """lib.component_docs.doc_lines: placeholder spans and the blank line before an inserted section."""
 
 from lib.component_docs.doc_lines import is_bare_placeholder_span
-from lib.component_docs.doc_lines import normalize_blank_line_before_insert
+from lib.component_docs.doc_lines import normalize_blank_before_insert
 
 
 def test_is_bare_placeholder_span_only_placeholder_and_blanks():
@@ -16,11 +16,11 @@ def test_is_bare_placeholder_span_false_with_other_text():
 
 def test_normalize_blank_line_before_insert_adds_missing_blank():
     lines = ["# Title\n", "text\n"]
-    assert normalize_blank_line_before_insert(lines, 2) == 3
+    assert normalize_blank_before_insert(lines, 2) == 3
     assert lines == ["# Title\n", "text\n", "\n"]
 
 
 def test_normalize_blank_line_before_insert_collapses_extra_blanks():
     lines = ["text\n", "\n", "\n", "\n", "## Next\n"]
-    assert normalize_blank_line_before_insert(lines, 4) == 2
+    assert normalize_blank_before_insert(lines, 4) == 2
     assert lines == ["text\n", "\n", "## Next\n"]

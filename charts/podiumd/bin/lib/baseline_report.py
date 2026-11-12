@@ -3,7 +3,7 @@
 from collections.abc import Callable
 
 
-def show_baseline_section(label: str, baseline: str | None, resolve: Callable[[str], str | None]) -> bool:
+def has_shown_baseline_section(label: str, baseline: str | None, resolve: Callable[[str], str | None]) -> bool:
     """Print "=== {label} baseline ===" and one section outcome; True if the section was shown.
 
     - `baseline` None: a "no {label} key — skipping" note (not an error).

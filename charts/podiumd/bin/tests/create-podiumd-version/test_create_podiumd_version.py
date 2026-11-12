@@ -11,30 +11,23 @@ from types import ModuleType
 
 import pytest
 
-
-def git(*args, cwd):
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
+from tests.git_repo import commit_tagged
+from tests.git_repo import init_git_repo
 
 
 @pytest.fixture
 def repo(tmp_path: Path):
     """Hermetic git repo tagged podiumd-4.8.5 and podiumd-4.9.0."""
-    git("init", "-q", cwd=tmp_path)
-    git("config", "user.email", "test@example.com", cwd=tmp_path)
-    git("config", "user.name", "Test", cwd=tmp_path)
+    init_git_repo(tmp_path)
     (tmp_path / "README.md").write_text("x\n", encoding="utf-8")
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "baseline 4.8.5", cwd=tmp_path)
-    git("tag", "podiumd-4.8.5", cwd=tmp_path)
+    commit_tagged(tmp_path, "baseline 4.8.5", "4.8.5")
     (tmp_path / "README.md").write_text("y\n", encoding="utf-8")
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "baseline 4.9.0", cwd=tmp_path)
-    git("tag", "podiumd-4.9.0", cwd=tmp_path)
+    commit_tagged(tmp_path, "baseline 4.9.0", "4.9.0")
     return tmp_path
 
 
 def write_chart_yaml(path, version, app_version=None):
-    app_version = app_version if app_version is not None else version
+    app_version = version if app_version is None else app_version
     path.write_text(
         f"apiVersion: v2\nname: podiumd\ntype: application\n"
         f'version: {version}\nappVersion: "{app_version}"\ndependencies: []\n',
@@ -42,7 +35,19 @@ def write_chart_yaml(path, version, app_version=None):
     )
 
 
-# --- current_chart_version / version_tuple ---
+def _point_main_at(cpv: ModuleType, monkeypatch: pytest.MonkeyPatch, repo: Path, chart: str, branch: str) -> Path:
+    """main() run in `repo` on `branch`, with a Chart.yaml at version `chart`; returns that Chart.yaml."""
+    chart_yaml = repo / "Chart.yaml"
+    write_chart_yaml(chart_yaml, chart)
+    monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
+    monkeypatch.setattr(cpv, "CHART_DIR", repo)
+    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version"])
+    monkeypatch.setattr(cpv, "find_repo_root", lambda chart_dir: repo)
+    monkeypatch.setattr(cpv, "current_branch", lambda repo_root: branch)
+    return chart_yaml
+
+
+# --- current_chart_version ---
 
 
 def test_current_chart_version_reads_chart_yaml(cpv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -50,11 +55,6 @@ def test_current_chart_version_reads_chart_yaml(cpv: ModuleType, tmp_path: Path,
     write_chart_yaml(chart_yaml, "4.9.0")
     monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
     assert cpv.current_chart_version() == "4.9.0"
-
-
-def test_version_tuple_orders_numerically_not_lexically(cpv: ModuleType):
-    assert cpv.version_tuple("4.9.0") < cpv.version_tuple("4.10.0")
-    assert cpv.version_tuple("4.9.0") == (4, 9, 0)
 
 
 # --- bump_kind ---
@@ -292,13 +292,7 @@ def test_patch_bump_without_a_recorded_release_table_baseline_refused(
 ):
     """A patch bump keeps release_table as-is, so with no
     release-baseline.yaml it must refuse rather than record none."""
-    chart_yaml = repo / "Chart.yaml"
-    write_chart_yaml(chart_yaml, "4.9.0")
-    monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
-    monkeypatch.setattr(cpv, "CHART_DIR", repo)
-    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version"])
-    monkeypatch.setattr(cpv, "find_repo_root", lambda chart_dir: repo)
-    monkeypatch.setattr(cpv, "current_branch", lambda repo_root: "feature/podiumd-4.9.1")
+    chart_yaml = _point_main_at(cpv, monkeypatch, repo, "4.9.0", "feature/podiumd-4.9.1")
 
     with pytest.raises(SystemExit) as exc_info:
         cpv.main()
@@ -313,15 +307,9 @@ def test_patch_bump_without_a_recorded_release_table_baseline_refused(
 def test_patch_bump_with_unresolvable_existing_release_table_refused(
     cpv: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    chart_yaml = repo / "Chart.yaml"
-    write_chart_yaml(chart_yaml, "4.9.0")
+    _point_main_at(cpv, monkeypatch, repo, "4.9.0", "feature/podiumd-4.9.1")
     (repo / "etc").mkdir()
     (repo / "etc" / "release-baseline.yaml").write_text('release_table: "9.9.9"\n', encoding="utf-8")
-    monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
-    monkeypatch.setattr(cpv, "CHART_DIR", repo)
-    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version"])
-    monkeypatch.setattr(cpv, "find_repo_root", lambda chart_dir: repo)
-    monkeypatch.setattr(cpv, "current_branch", lambda repo_root: "feature/podiumd-4.9.1")
 
     with pytest.raises(SystemExit) as exc_info:
         cpv.main()
@@ -340,13 +328,7 @@ def test_minor_bump_writes_both_baselines_and_delegates(
 ):
     """Regression: versions compare numerically ("4.9.0" > "4.10.0"
     lexically). A minor bump writes both baselines."""
-    chart_yaml = repo / "Chart.yaml"
-    write_chart_yaml(chart_yaml, "4.9.0")
-    monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
-    monkeypatch.setattr(cpv, "CHART_DIR", repo)
-    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version"])
-    monkeypatch.setattr(cpv, "find_repo_root", lambda chart_dir: repo)
-    monkeypatch.setattr(cpv, "current_branch", lambda repo_root: "feature/podiumd-4.10.0")
+    chart_yaml = _point_main_at(cpv, monkeypatch, repo, "4.9.0", "feature/podiumd-4.10.0")
 
     calls = []
 
@@ -376,15 +358,9 @@ def test_minor_bump_writes_both_baselines_and_delegates(
 def test_patch_bump_writes_only_upgrade_docs_leaves_release_table(
     cpv: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    chart_yaml = repo / "Chart.yaml"
-    write_chart_yaml(chart_yaml, "4.9.0")
+    chart_yaml = _point_main_at(cpv, monkeypatch, repo, "4.9.0", "feature/podiumd-4.9.1")
     (repo / "etc").mkdir()
     (repo / "etc" / "release-baseline.yaml").write_text('release_table: "4.8.5"\n', encoding="utf-8")
-    monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
-    monkeypatch.setattr(cpv, "CHART_DIR", repo)
-    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version"])
-    monkeypatch.setattr(cpv, "find_repo_root", lambda chart_dir: repo)
-    monkeypatch.setattr(cpv, "current_branch", lambda repo_root: "feature/podiumd-4.9.1")
     monkeypatch.setattr(cpv, "run_script", lambda cmd, *a, **k: subprocess.CompletedProcess(cmd, 0))
 
     with pytest.raises(SystemExit) as exc_info:
@@ -404,13 +380,7 @@ def test_patch_bump_writes_only_upgrade_docs_leaves_release_table(
 def test_success_propagates_create_doc_version_failure_exit_code(
     cpv: ModuleType, repo, monkeypatch: pytest.MonkeyPatch
 ):
-    chart_yaml = repo / "Chart.yaml"
-    write_chart_yaml(chart_yaml, "4.9.0")
-    monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
-    monkeypatch.setattr(cpv, "CHART_DIR", repo)
-    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version"])
-    monkeypatch.setattr(cpv, "find_repo_root", lambda chart_dir: repo)
-    monkeypatch.setattr(cpv, "current_branch", lambda repo_root: "feature/podiumd-4.10.0")
+    _point_main_at(cpv, monkeypatch, repo, "4.9.0", "feature/podiumd-4.10.0")
     monkeypatch.setattr(cpv, "run_script", lambda cmd, *a, **k: subprocess.CompletedProcess(cmd, 1))
 
     with pytest.raises(SystemExit) as exc_info:
@@ -424,13 +394,9 @@ def test_baseline_unresolvable_fails_without_writing_anything(
 ):
     """A baseline with no podiumd-<baseline> tag or branch is refused before
     any write (same guard as change-podiumd-baseline)."""
-    chart_yaml = repo / "Chart.yaml"
-    write_chart_yaml(chart_yaml, "9.9.9")  # no podiumd-9.9.9 tag/branch exists
-    monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
-    monkeypatch.setattr(cpv, "CHART_DIR", repo)
-    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version"])
-    monkeypatch.setattr(cpv, "find_repo_root", lambda chart_dir: repo)
-    monkeypatch.setattr(cpv, "current_branch", lambda repo_root: "feature/podiumd-9.9.10")
+    chart_yaml = _point_main_at(
+        cpv, monkeypatch, repo, "9.9.9", "feature/podiumd-9.9.10"
+    )  # no podiumd-9.9.9 tag/branch exists
 
     with pytest.raises(SystemExit) as exc_info:
         cpv.main()
@@ -447,15 +413,9 @@ def test_baseline_unresolvable_fails_without_writing_anything(
 
 
 def _rerun_setup(cpv: ModuleType, repo: Path, monkeypatch: pytest.MonkeyPatch, chart: str, baselines: str, branch: str):
-    chart_yaml = repo / "Chart.yaml"
-    write_chart_yaml(chart_yaml, chart)
+    chart_yaml = _point_main_at(cpv, monkeypatch, repo, chart, branch)
     (repo / "etc").mkdir()
     (repo / "etc" / "release-baseline.yaml").write_text(baselines, encoding="utf-8")
-    monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
-    monkeypatch.setattr(cpv, "CHART_DIR", repo)
-    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version"])
-    monkeypatch.setattr(cpv, "find_repo_root", lambda chart_dir: repo)
-    monkeypatch.setattr(cpv, "current_branch", lambda repo_root: branch)
     monkeypatch.setattr(cpv, "run_script", lambda cmd, *a, **k: subprocess.CompletedProcess(cmd, 0))
     return chart_yaml
 

@@ -7,6 +7,8 @@ import yaml
 
 from dep_helpers import make_dep
 
+from tests.fixture_data import write_chart_dependencies
+
 REAL_MANIFEST = """\
 # Baseline: podiumd 4.8.5 (origin/feature/podiumd-4.8.5 @ f27a008).
 #   git diff f27a008..HEAD -- charts/podiumd/Chart.yaml charts/podiumd/values.yaml
@@ -298,7 +300,7 @@ def test_images_manifest_format_source_vs_baseline(libimagesmanifest: ModuleType
 def test_images_manifest_format_source_vs_baseline_mismatch(libimagesmanifest: ModuleType, tmp_path: Path):
     # chart_dir resolves "openpolicyagent/opa" to its values-tree path.
     baseline_values = {"zac": {"opa": {"image": {"tag": "2.0.0-static@sha256:old"}}}}
-    (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": DEPS}), encoding="utf-8")
+    write_chart_dependencies(tmp_path / "Chart.yaml", DEPS)
     (tmp_path / "values.yaml").write_text(yaml.safe_dump(VALUES), encoding="utf-8")
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(REAL_MANIFEST)
@@ -354,7 +356,7 @@ REDIS_OPERATOR_MANIFEST = """\
 def test_images_manifest_format_component_version_path_change_is_recognized(
     libimagesmanifest: ModuleType, tmp_path: Path
 ):
-    (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": REDIS_OPERATOR_DEPS}), encoding="utf-8")
+    write_chart_dependencies(tmp_path / "Chart.yaml", REDIS_OPERATOR_DEPS)
     (tmp_path / "values.yaml").write_text(yaml.safe_dump(redis_operator_values("v0.26.0")), encoding="utf-8")
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(REDIS_OPERATOR_MANIFEST)
@@ -860,7 +862,7 @@ def test_images_manifest_format_new_component_image_already_in_historical_manife
     """A new dependency (no baseline key) whose exact version+digest is in an earlier
     docs/images/images-4.8.0.yaml must not be flagged as missing an entry."""
     (tmp_path / "docs" / "images").mkdir(parents=True)
-    (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": NEW_DEP_DEPS}), encoding="utf-8")
+    write_chart_dependencies(tmp_path / "Chart.yaml", NEW_DEP_DEPS)
     (tmp_path / "values.yaml").write_text(yaml.safe_dump(NEW_DEP_VALUES), encoding="utf-8")
     (tmp_path / "docs" / "images" / "images-4.8.0.yaml").write_text(
         "- name: brp-api/personen-mock\n"
@@ -890,7 +892,7 @@ def test_images_manifest_format_new_component_image_not_in_historical_manifest(
 ):
     """No historical manifest records the repository: flagged as missing."""
     (tmp_path / "docs" / "images").mkdir(parents=True)
-    (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": NEW_DEP_DEPS}), encoding="utf-8")
+    write_chart_dependencies(tmp_path / "Chart.yaml", NEW_DEP_DEPS)
     (tmp_path / "values.yaml").write_text(yaml.safe_dump(NEW_DEP_VALUES), encoding="utf-8")
     (tmp_path / "docs" / "images" / "images-4.8.0.yaml").write_text(
         '- name: some-other/image\n  url: ghcr.io/some-other/image\n  version: "1.0.0"\n  digest: "sha256:cccc"\n',
@@ -913,8 +915,8 @@ def test_images_manifest_format_new_component_image_not_in_historical_manifest(
 
 
 def test_images_manifest_format_reports_an_entry_count_mismatch(libimagesmanifest: ModuleType, tmp_path: Path):
-    """An entry whose "name:" is not its first key is valid YAML but not
-    matched by "^-\\s*name:", so entries and comments can not be paired:
+    r"""An entry whose "name:" is not its first key is valid YAML but not
+    matched by "^-\s*name:", so entries and comments can not be paired:
     one issue, never a zip(strict=True) crash."""
     text = REAL_MANIFEST.replace(
         "- name: openpolicyagent/opa\n  url: openpolicyagent/opa\n",

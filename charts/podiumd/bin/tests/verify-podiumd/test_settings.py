@@ -6,6 +6,7 @@ Partial-file fallback is only covered for dry_check/cve_scan/release_secret.
 from pathlib import Path
 from types import ModuleType
 
+import pytest
 import yaml
 
 FULL_SETTINGS = {
@@ -77,27 +78,27 @@ def write_settings(chart_dir, data):
 
 # (accessor, section, key, default, FULL_SETTINGS override, cast applied to both)
 ACCESSOR_CASES = [
-    ("cve_max_cves_per_package_before_summarizing", 5, 9, None),
+    ("cve_max_per_package", 5, 9, None),
     ("cve_scan_cache_ttl_days", 7, 14, None),
-    ("image_upgrade_tag_check_cache_ttl_days", 1, 2, None),
+    ("image_upgrade_cache_ttl_days", 1, 2, None),
     ("repo_access_cache_ttl_minutes", 30, 60, None),
-    ("repo_access_request_timeout_seconds", 10, 20, None),
-    ("repo_access_never_probe_host_suffixes", ("azurecr.io",), ("azurecr.io", "example.internal"), tuple),
-    ("render_report_top_n_largest_templates_shown", 5, 10, None),
-    ("render_report_default_output_file_name", "rendered-helm.yaml", "custom-render.yaml", None),
+    ("repo_access_timeout_seconds", 10, 20, None),
+    ("repo_access_no_probe_suffixes", ("azurecr.io",), ("azurecr.io", "example.internal"), tuple),
+    ("render_report_top_n", 5, 10, None),
+    ("render_report_output_file", "rendered-helm.yaml", "custom-render.yaml", None),
     ("dry_check_similarity_threshold", 0.6, 0.5, None),
-    ("dry_check_high_similarity_threshold", 0.75, 0.8, None),
-    ("dry_check_min_significant_lines", 8, 12, None),
-    ("release_secret_kubernetes_limit_bytes", 1024 * 1024, 2097152, None),
-    ("release_secret_warn_at_fraction_of_limit", 0.90, 0.75, None),
-    ("dependency_fetch_retry_attempts", 3, 5, None),
-    ("dependency_fetch_retry_backoff_seconds", (5, 15, 45), (1, 2, 3), tuple),
-    ("quality_gates_kubeconform_failing_statuses", {"statusError", "statusInvalid"}, {"statusError"}, set),
-    ("quality_gates_shellcheck_failing_levels", {"error", "warning"}, {"error"}, set),
-    ("quality_gates_shellcheck_shell_names", {"sh", "bash", "dash", "ksh"}, {"sh", "bash"}, set),
-    ("quality_gates_yamllint_failing_rules", {"key-duplicates", "syntax"}, {"syntax"}, set),
-    ("quality_gates_markdown_disabled_rules", ["md013", "md014"], ["md013"], list),
-    ("quality_gates_kube_score_check_id", "container-resources", "custom-check", None),
+    ("dry_check_high_similarity", 0.75, 0.8, None),
+    ("dry_check_min_lines", 8, 12, None),
+    ("release_secret_limit_bytes", 1024 * 1024, 2097152, None),
+    ("release_secret_warn_fraction", 0.9, 0.75, None),
+    ("fetch_retry_attempts", 3, 5, None),
+    ("fetch_retry_backoff_seconds", (5, 15, 45), (1, 2, 3), tuple),
+    ("gate_kubeconform_statuses", {"statusError", "statusInvalid"}, {"statusError"}, set),
+    ("gate_shellcheck_levels", {"error", "warning"}, {"error"}, set),
+    ("gate_shellcheck_shells", {"sh", "bash", "dash", "ksh"}, {"sh", "bash"}, set),
+    ("gate_yamllint_rules", {"key-duplicates", "syntax"}, {"syntax"}, set),
+    ("gate_markdown_disabled", ["md013", "md014"], ["md013"], list),
+    ("gate_kube_score_check", "container-resources", "custom-check", None),
     ("helm_doc_max_diff_lines_shown", 40, 100, None),
     (
         "vendor_classification_keywords",
@@ -112,7 +113,7 @@ ACCESSOR_CASES = [
         {"maykinmedia": "Maykin", "infonl": "Info(NL)"},
         dict,
     ),
-    ("vendor_classification_chart_overrides", {"kiss": "ICATT"}, {"kiss": "ICATT", "foo": "Bar"}, dict),
+    ("vendor_chart_overrides", {"kiss": "ICATT"}, {"kiss": "ICATT", "foo": "Bar"}, dict),
     (
         "helm_repos_urls_by_alias",
         {
@@ -130,25 +131,25 @@ ACCESSOR_CASES = [
         dict,
     ),
     (
-        "component_resolution_chart_version_lockstep_components",
-        frozenset({"kiss-chart", "pabc", "eck-operator", "internetaakafhandeling"}),
-        frozenset({"kiss-chart", "pabc"}),
+        "resolution_lockstep_components",
+        frozenset(("kiss-chart", "pabc", "eck-operator", "internetaakafhandeling")),
+        frozenset(("kiss-chart", "pabc")),
         frozenset,
     ),
     (
-        "component_resolution_native_components",
-        frozenset({"frankgateway", "keycloak", "kiss-eck"}),
-        frozenset({"other-native"}),
+        "resolution_native_components",
+        frozenset(("frankgateway", "keycloak", "kiss-eck")),
+        frozenset(("other-native",)),
         frozenset,
     ),
     (
-        "component_resolution_version_repository_paths",
+        "resolution_version_repo_paths",
         {"redis-operator": "redisOperator.imageName"},
         {"redis-operator": "redisOperator.imageName", "foo-op": "fooOperator.imageName"},
         dict,
     ),
     (
-        "component_resolution_image_paths",
+        "resolution_image_paths",
         {
             "zgw-office-addin": ["frontend.image", "backend.image"],
             "keycloak-operator": ["operator.image"],
@@ -162,9 +163,9 @@ ACCESSOR_CASES = [
         {"widget": ["image"]},
         dict,
     ),
-    ("component_resolution_default_image_paths", ["image"], ["custom-default-image"], list),
+    ("resolution_default_image_paths", ["image"], ["custom-default-image"], list),
     (
-        "component_resolution_version_paths",
+        "resolution_version_paths",
         {
             "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version", "eck-enterprise-search.version"],
             "redis-operator": ["redisOperator.imageTag", "redisOperator.initContainerImageTag"],
@@ -178,7 +179,8 @@ ACCESSOR_CASES = [
 
 def test_every_accessor_documented_and_present(libsettings: ModuleType):
     """A typo'd accessor name must not silently drop out of the parametrized tests."""
-    for name, *_ in ACCESSOR_CASES:
+    names = [case[0] for case in ACCESSOR_CASES]
+    for name in names:
         assert hasattr(libsettings, name), f"lib.settings.{name} missing"
 
 
@@ -190,7 +192,7 @@ def test_missing_settings_file_falls_back_to_defaults(libsettings: ModuleType, t
 
 def test_no_etc_directory_at_all_does_not_crash(libsettings: ModuleType, tmp_path: Path):
     """A chart_dir with no etc/ directory at all must not crash."""
-    assert libsettings._load_settings(tmp_path) == {}
+    assert libsettings.load_settings(tmp_path) == {}
     for name, default, _override, _cast in ACCESSOR_CASES:
         assert getattr(libsettings, name)(tmp_path) == default
 
@@ -217,11 +219,11 @@ def test_partial_settings_file_mixes_overrides_and_defaults(libsettings: ModuleT
             },
         },
     )
-    assert libsettings.dry_check_similarity_threshold(tmp_path) == 0.5
-    assert libsettings.dry_check_high_similarity_threshold(tmp_path) == 0.8
-    assert libsettings.dry_check_min_significant_lines(tmp_path) == 12
+    assert libsettings.dry_check_similarity_threshold(tmp_path) == pytest.approx(0.5)
+    assert libsettings.dry_check_high_similarity(tmp_path) == pytest.approx(0.8)
+    assert libsettings.dry_check_min_lines(tmp_path) == 12
 
-    assert libsettings.cve_max_cves_per_package_before_summarizing(tmp_path) == 5
+    assert libsettings.cve_max_per_package(tmp_path) == 5
     assert libsettings.cve_scan_cache_ttl_days(tmp_path) == 7
 
     write_settings(
@@ -233,15 +235,15 @@ def test_partial_settings_file_mixes_overrides_and_defaults(libsettings: ModuleT
             },
         },
     )
-    assert libsettings.release_secret_kubernetes_limit_bytes(tmp_path) == 2097152
-    assert libsettings.release_secret_warn_at_fraction_of_limit(tmp_path) == 0.90
+    assert libsettings.release_secret_limit_bytes(tmp_path) == 2097152
+    assert libsettings.release_secret_warn_fraction(tmp_path) == pytest.approx(0.9)
 
 
 def test_empty_settings_file_does_not_crash(libsettings: ModuleType, tmp_path: Path):
     """A settings.yaml that parses to None (empty file) behaves like a missing one."""
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "settings.yaml").write_text("", encoding="utf-8")
-    assert libsettings._load_settings(tmp_path) == {}
+    assert libsettings.load_settings(tmp_path) == {}
     for name, default, _override, _cast in ACCESSOR_CASES:
         assert getattr(libsettings, name)(tmp_path) == default
 
@@ -303,10 +305,10 @@ def test_digest_pinning_exceptions_partial_entry_defaults_missing_keys(libsettin
 
 def test_setting_returns_a_copy_of_the_cached_value(libsettings: ModuleType, tmp_path: Path):
     write_settings(tmp_path, FULL_SETTINGS)
-    suffixes = libsettings._setting(tmp_path, "repo_access", "never_probe_host_suffixes")
+    suffixes = libsettings.setting(tmp_path, "repo_access", "never_probe_host_suffixes")
     assert isinstance(suffixes, list)
     suffixes.append("CHANGED")
-    assert libsettings._setting(tmp_path, "repo_access", "never_probe_host_suffixes") == [
+    assert libsettings.setting(tmp_path, "repo_access", "never_probe_host_suffixes") == [
         "azurecr.io",
         "example.internal",
     ]

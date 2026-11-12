@@ -13,35 +13,35 @@ import yaml
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import native_components
+from lib.chart.repo_and_path_resolution import RepoGroups
 from lib.chart.repo_and_path_resolution import repository_group_key
+from lib.chart.values_tree_primitives import ValuesPath
 from lib.chart.values_tree_primitives import dep_for_values_key
 from lib.chart.values_tree_primitives import values_key_of
-from lib.component_docs.images_manifest_changes_header import covered_display_names
+from lib.component_docs.images_manifest_changes_header import uncovered_manifest_entries
 from lib.image.repository_check import find_images_without_repository
 from lib.images_manifest import ManifestEntry
 from lib.images_manifest import ParsedManifest
 from lib.images_manifest import entry_line_indices
 from lib.images_manifest import images_manifest_problem
 from lib.images_manifest import is_images_manifest
-from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
-from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.chart_image_index import ChartImageIndex
-from lib.upgradedoc.consistency_checks import find_wrong_or_duplicate_dependency_claims
+from lib.upgradedoc.chart_image_index import entry_resolution_of
+from lib.upgradedoc.consistency_checks import find_wrong_dependency_claims
 from lib.upgradedoc.consistency_checks import resolve_component_identity
-from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment
-from lib.upgradedoc.grouped_comments_and_changes_block import parse_changes_block
-from lib.upgradedoc.grouped_comments_and_changes_block import path_display_name
+from lib.upgradedoc.grouped_comments import find_grouped_preceding_comment
+from lib.upgradedoc.grouped_comments import parse_changes_block
+from lib.upgradedoc.grouped_comments import path_display_name
 from lib.upgradedoc.images_manifest_list_diff import ManifestDiffContext
 from lib.upgradedoc.images_manifest_list_diff import ManifestDiffInputs
 from lib.upgradedoc.images_manifest_list_diff import find_images_manifest_list_diff
+from lib.upgradedoc.images_manifest_ordering import MIN_SORTABLE_ENTRIES
 from lib.upgradedoc.images_manifest_ordering import EntryResolution
-from lib.upgradedoc.images_manifest_ordering import ManifestSortContext
-from lib.upgradedoc.images_manifest_ordering import find_images_manifest_faulty_headers
-from lib.upgradedoc.images_manifest_ordering import images_manifest_display_name_positions
-from lib.upgradedoc.images_manifest_ordering import images_manifest_entries_share_group
-from lib.upgradedoc.images_manifest_ordering import images_manifest_entry_positions
+from lib.upgradedoc.images_manifest_ordering import are_manifest_entries_grouped
+from lib.upgradedoc.images_manifest_ordering import build_entry_resolution
+from lib.upgradedoc.images_manifest_ordering import find_faulty_manifest_headers
 from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
 from lib.upgradedoc.string_and_parsing_basics import extract_target_version
@@ -69,7 +69,7 @@ class ResolvedManifest:
 
     entries: list[ManifestEntry]
     resolution: EntryResolution
-    repo_groups: dict[str, list[ImagePath]]
+    repo_groups: RepoGroups
 
 
 @dataclass
@@ -77,57 +77,24 @@ class ListDiffInputs:
     """find_images_manifest_list_diff's caller-varying inputs (manifest, baseline_paths)."""
 
     manifest: ResolvedManifest
-    baseline_paths: dict[ImagePath, str]
+    baseline_paths: dict[ValuesPath, str]
 
 
-def _uncovered_entry_display_names(
-    entries: list[ManifestEntry], entry_positions: dict[str, int], resolution: EntryResolution, covered_names: set[str]
-) -> list[str]:
-    """First display name of every entry group not in `covered_names`, skipping raw-dotted-path names."""
-    missing: list[str] = []
-    seen: set[str] = set()
-    for entry in entries:
-        if entry["name"] not in entry_positions:
-            continue
-        path = resolve_entry_image_path(entry["name"], resolution.current_paths.keys(), resolution.repo_map)
-        if not path:
-            continue
-        display_name = path_display_name(path, resolution.deps, resolution.canonical_names)
-        if display_name in seen or display_name == ".".join(path):
-            continue
-        seen.add(display_name)
-        if display_name not in covered_names:
-            missing.append(display_name)
-    return missing
-
-
-def find_images_manifest_entries_missing_changes_mention(
-    text: str, entries: list[ManifestEntry], context: ManifestSortContext
-) -> list[str]:
+def entries_without_mention(text: str, entries: list[ManifestEntry], resolution: EntryResolution) -> list[str]:
     """Display names of every entry group with no "# Changes:" item resolving to it.
 
-    The check counterpart of add_missing_images_manifest_entries' backfill pass:
-    list-diff only catches changed images without an entry, not entries missing from
-    the header. `context` is a ManifestSortContext.
-
-    Uses covered_display_names, as the fixer does. Compared by display name,
-    since one item covers every entry of a multi-image component (e.g. eck-stack's
-    elasticsearch + kibana). Raw-dotted-path display names are skipped (no human writes
-    those). [] for invalid YAML or fewer than 2 entries.
+    The check counterpart of add_missing_manifest_entries' backfill pass,
+    through the same uncovered_manifest_entries: list-diff only catches
+    changed images without an entry, not entries missing from the header.
+    `entries` are text's parsed entries; [] for fewer than 2.
     """
-    entry_positions = images_manifest_entry_positions(text, context)
-    if not entry_positions:
+    if len(entries) < MIN_SORTABLE_ENTRIES:
         return []
-    display_name_positions = images_manifest_display_name_positions(text, context)
-
-    current_paths = chart_image_paths(context.values, context.deps)
-    resolution = EntryResolution(context.deps, current_paths, context.repo_map, context.canonical_names)
-
-    covered_names = covered_display_names(text.splitlines(keepends=True), display_name_positions)
-    return sorted(_uncovered_entry_display_names(entries, entry_positions, resolution, covered_names))
+    lines = text.splitlines(keepends=True)
+    return sorted({name for _idx, name in uncovered_manifest_entries(lines, resolution)})
 
 
-def _manifest_resolution_context(context: ManifestCheckContext) -> tuple[dict[str, list[ImagePath]], EntryResolution]:
+def _manifest_resolution_context(context: ManifestCheckContext) -> tuple[RepoGroups, EntryResolution]:
     """(repo_groups, EntryResolution) derived from `context`, computed once up front.
 
     Needed early: canonical "<key> - <image-basename>" Changes items resolve via their known
@@ -136,11 +103,11 @@ def _manifest_resolution_context(context: ManifestCheckContext) -> tuple[dict[st
     """
     index = ChartImageIndex(context.chart_dir, context.deps, context.values)
     if context.chart_dir is None:
-        return {}, EntryResolution(context.deps, index.paths, {}, {})
-    return index.repo_groups, EntryResolution(context.deps, index.paths, index.repo_map, index.canonical_names)
+        return {}, build_entry_resolution(context.deps, index.values, {}, {}, index.paths)
+    return index.repo_groups, entry_resolution_of(index)
 
 
-def _changes_item_version_mismatches(
+def _item_version_mismatches(
     name: str, item: VersionRow, actual_app: str | None, actual_chart: str | None, baseline_app: str | None
 ):
     """One issue per version cell an item claims that disagrees with a known actual value."""
@@ -159,13 +126,13 @@ def _changes_item_version_mismatches(
     return issues
 
 
-def _entries_by_path(resolved: ResolvedManifest) -> dict[ImagePath, ManifestEntry]:
+def _entries_by_path(resolved: ResolvedManifest) -> dict[ValuesPath, ManifestEntry]:
     """{values path: entry} for every path of every entry's repository (one entry covers all its paths)."""
     resolution = resolved.resolution
-    by_path: dict[ImagePath, ManifestEntry] = {}
+    by_path: dict[ValuesPath, ManifestEntry] = {}
     for entry in resolved.entries:
-        path = resolve_entry_image_path(entry["name"], resolution.current_paths.keys(), resolution.repo_map)
-        for group_path in resolved.repo_groups.get(entry["name"], [path] if path is not None else []):
+        path = resolution.entry_path(entry["name"])
+        for group_path in resolved.repo_groups.get(entry["name"], [] if path is None else [path]):
             by_path.setdefault(group_path, entry)
     return by_path
 
@@ -187,19 +154,20 @@ def _changes_item_issues(
         baseline_app = (
             actual_app_version(context.baseline_values, values_key, dep["name"]) if context.baseline_values else None
         )
-        return _changes_item_version_mismatches(name, item, actual_app, str(dep["version"]), baseline_app)
+        return _item_version_mismatches(name, item, actual_app, str(dep["version"]), baseline_app)
     if identity is not None and identity[0] != "sidecar" and identity[1] in native_components(context.chart_dir):
         # A native component resolves as its table row does (resolve_component_row):
         # by its primary pin, never by whichever manifest entry under its key comes
         # first (frankgateway's nginx-unprivileged shim can precede its own image).
         actual_app = actual_app_version(context.values, identity[1], identity[1], chart_dir=context.chart_dir)
-        return _changes_item_version_mismatches(name, item, actual_app, None, None)
+        return _item_version_mismatches(name, item, actual_app, None, None)
     entries = _entries_by_path(resolved)
     entry = None
     if identity is not None and identity[0] == "sidecar":
         entry = entries.get(identity[1])
     elif identity is not None:
-        entry = next((e for path, e in entries.items() if path[0] == identity[1]), None)
+        component_key = identity[1]
+        entry = next((manifest_entry for path, manifest_entry in entries.items() if path[0] == component_key), None)
     if entry is None:
         return [
             (
@@ -208,7 +176,7 @@ def _changes_item_issues(
             )
         ]
     # A sidecar, shared or native image: its entry has the version, and there is no chart.
-    return _changes_item_version_mismatches(name, item, entry.get("version"), None, None)
+    return _item_version_mismatches(name, item, entry.get("version"), None, None)
 
 
 def _changes_block_item_issues(name: str, text: str, resolved: ResolvedManifest, context: ManifestCheckContext):
@@ -218,9 +186,7 @@ def _changes_block_item_issues(name: str, text: str, resolved: ResolvedManifest,
     exactly (e.g. "Kiss's ECK-managed Elasticsearch ..." matching "kiss").
     """
     items = list(parse_changes_block(text))
-    duplicate_names, wrong_fuzzy_names = find_wrong_or_duplicate_dependency_claims(
-        [item["name"] for item in items], context.deps
-    )
+    duplicate_names, wrong_fuzzy_names = find_wrong_dependency_claims([item["name"] for item in items], context.deps)
     issues: list[str] = []
     for item in items:
         if item["name"] in duplicate_names | wrong_fuzzy_names:
@@ -232,8 +198,8 @@ def _changes_block_item_issues(name: str, text: str, resolved: ResolvedManifest,
     return issues
 
 
-def _entry_comment_version_mismatches(
-    name: str, entry: ManifestEntry, comment: str, resolution: EntryResolution, baseline_paths: dict[ImagePath, str]
+def _comment_version_mismatches(
+    name: str, entry: ManifestEntry, comment: str, resolution: EntryResolution, baseline_paths: dict[ValuesPath, str]
 ):
     """Issues for one entry's preceding comment: target vs actual, source vs baseline."""
     issues: list[str] = []
@@ -243,7 +209,7 @@ def _entry_comment_version_mismatches(
         issues.append(f'{name}: entry "{entry["name"]}" comment says target "{target}", entry version is "{version}"')
 
     if baseline_paths:
-        path = resolve_entry_image_path(entry["name"], resolution.current_paths.keys(), resolution.repo_map)
+        path = resolution.entry_path(entry["name"])
         baseline_tag = baseline_paths.get(path) if path else None
         baseline_version = baseline_tag.split("@")[0] if baseline_tag else None
         source = extract_source_version(comment)
@@ -260,7 +226,7 @@ def _entry_comment_issues(
     lines: list[str],
     resolved: ResolvedManifest,
     entry_starts: list[int],
-    baseline_paths: dict[ImagePath, str],
+    baseline_paths: dict[ValuesPath, str],
 ):
     """One issue per entry whose preceding comment is missing or disagrees on versions.
 
@@ -277,29 +243,29 @@ def _entry_comment_issues(
             )
         ]
 
-    def same_group(entry_a: ManifestEntry, entry_b: ManifestEntry) -> bool:
-        return images_manifest_entries_share_group(
+    def is_same_group(entry_a: ManifestEntry, entry_b: ManifestEntry) -> bool:
+        return are_manifest_entries_grouped(
             entry_a, entry_b, resolved.resolution.current_paths, resolved.resolution.repo_map
         )
 
     issues: list[str] = []
     for index, (entry, _line_idx) in enumerate(zip(resolved.entries, entry_starts, strict=True)):
-        comment = find_grouped_preceding_comment(lines, resolved.entries, entry_starts, index, same_group)
+        comment = find_grouped_preceding_comment(lines, resolved.entries, entry_starts, index, is_same_group)
         if not comment:
             issues.append(f'{name}: entry "{entry["name"]}" has no preceding comment')
             continue
-        issues.extend(_entry_comment_version_mismatches(name, entry, comment, resolved.resolution, baseline_paths))
+        issues.extend(_comment_version_mismatches(name, entry, comment, resolved.resolution, baseline_paths))
     return issues
 
 
 def _sidecar_header_issues(name: str, parsed: ParsedManifest, resolution: EntryResolution):
     """One issue per sidecar entry lacking its own "# sidecar: <parent> - <image-basename> ..." header.
 
-    Borrowing a preceding entry's header via same_group is wrong when versions merely
+    Borrowing a preceding entry's header via is_same_group is wrong when versions merely
     coincide (kiss-elastic-sync 0.3.3 -> 3.0.0 under "# KISS — 2.2.4 -> 3.0.0").
     """
     issues: list[str] = []
-    for entry_name, expected, problem in find_images_manifest_faulty_headers(parsed, resolution):
+    for entry_name, expected, problem in find_faulty_manifest_headers(parsed, resolution):
         if problem == "missing":
             issues.append(
                 f'{name}: entry "{entry_name}" is a sidecar of "{expected.split(" - ")[0]}" '
@@ -311,38 +277,33 @@ def _sidecar_header_issues(name: str, parsed: ParsedManifest, resolution: EntryR
     return issues
 
 
-def _missing_changes_mention_issues(
-    name: str, text: str, entries: list[ManifestEntry], sort_context: ManifestSortContext
-):
+def _missing_mention_issues(name: str, text: str, parsed: ParsedManifest, resolution: EntryResolution):
     """One issue per entry with no "# Changes:" mention at all (see
-    find_images_manifest_entries_missing_changes_mention)."""
+    entries_without_mention)."""
     return [
         f'{name}: image "{entry_name}" has an entry but no mention in the "# Changes:" list'
-        for entry_name in find_images_manifest_entries_missing_changes_mention(text, entries, sort_context)
+        for entry_name in entries_without_mention(text, parsed.entries, resolution)
     ]
 
 
-def _structural_issues(
-    name: str, text: str, parsed: ParsedManifest, resolution: EntryResolution, context: ManifestCheckContext
-):
+def _structural_issues(name: str, text: str, parsed: ParsedManifest, resolution: EntryResolution):
     """chart_dir-gated structural checks: sidecar headers and Changes coverage.
 
     fix-doc-consistency orders the entries and "# Changes:" items and numbers the items.
     """
     issues = _sidecar_header_issues(name, parsed, resolution)
-    sort_context = ManifestSortContext(context.deps, context.values, resolution.repo_map, resolution.canonical_names)
-    issues.extend(_missing_changes_mention_issues(name, text, parsed.entries, sort_context))
+    issues.extend(_missing_mention_issues(name, text, parsed, resolution))
     return issues
 
 
 def expected_entry_name(entry: ManifestEntry) -> str | None:
     """The expected "name:" for `entry`: its "url:" minus the registry host (the ACR mirror
-    name), or None without a "url:". Same key fix_images_manifest_entry_names uses."""
+    name), or None without a "url:". Same key fix_manifest_entry_names uses."""
     url = entry.get("url")
     return repository_group_key(url) if isinstance(url, str) else None
 
 
-def _renamable_entry_names(entries: list[ManifestEntry], repo_map: Mapping[str, ImagePath]) -> set[str]:
+def _renamable_entry_names(entries: list[ManifestEntry], repo_map: Mapping[str, ValuesPath]) -> set[str]:
     """Names that differ from expected_entry_name but are known repositories.
 
     Renaming would make them resolve, so _entry_name_issues already reports them.
@@ -420,10 +381,10 @@ def check_images_manifest_format(images_path: Path, context: ManifestCheckContex
     text = images_path.read_text(encoding="utf-8")
     try:
         entries = parse_yaml(text, images_path.name)
-    except yaml.YAMLError as e:
-        return [f"{images_path.name} is not valid YAML: {e}"]
-    except YamlShapeError as e:
-        return [str(e)]
+    except yaml.YAMLError as error:
+        return [f"{images_path.name} is not valid YAML: {error}"]
+    except YamlShapeError as error:
+        return [str(error)]
     problem = images_manifest_problem(entries)
     if problem is not None or not is_images_manifest(entries):
         return [f"{images_path.name} {problem}"]
@@ -442,7 +403,7 @@ def check_images_manifest_format(images_path: Path, context: ManifestCheckContex
 
     if context.chart_dir is not None:
         parsed = ParsedManifest(entries, line_indices, lines)
-        issues.extend(_structural_issues(images_path.name, text, parsed, resolution, context))
+        issues.extend(_structural_issues(images_path.name, text, parsed, resolution))
 
     # baseline_paths is empty without a resolvable baseline, so "changed" can't be computed.
     if baseline_paths and context.chart_dir is not None:

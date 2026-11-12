@@ -120,6 +120,23 @@ def test_verify_chart_version_missing_exits_one(
     assert "FAIL: chart version does not exist" in out
 
 
+def test_verify_chart_version_missing_ends_fail_line_with_fail_note(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    libchartpullandsubchartresolution: ModuleType,
+):
+    monkeypatch.setattr(
+        libchartpullandsubchartresolution, "pull_chart", lambda dep, version, dest: (False, "version not found")
+    )
+    dep = {"name": "zaakafhandelcomponent", "version": "1.0.297", "repository": "@zac"}
+
+    with pytest.raises(SystemExit):
+        libchartpullandsubchartresolution.verify_chart_version(tmp_path, dep, "9.9.9", fail_note=" — refusing")
+
+    assert "FAIL: chart version does not exist — refusing\n" in capsys.readouterr().out
+
+
 # --- check_image_versions ---
 
 
@@ -131,9 +148,7 @@ def image_pins(*paths: str) -> list[PinPath]:
 def test_check_image_versions_single_path_found(
     monkeypatch: pytest.MonkeyPatch, libchartrepoandpathresolution: ModuleType
 ):
-    monkeypatch.setattr(
-        libchartrepoandpathresolution, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:abc")
-    )
+    monkeypatch.setattr("lib.registry.registry_tag_exists", lambda host, repo, tag: (True, "sha256:abc"))
     values = {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"}}
     results = libchartrepoandpathresolution.check_image_versions(None, None, values, image_pins("image"), "5.4.3")
     assert results == [
@@ -142,6 +157,7 @@ def test_check_image_versions_single_path_found(
             "repository": "ghcr.io/infonl/zaakafhandelcomponent",
             "host": "ghcr.io",
             "repo_path": "infonl/zaakafhandelcomponent",
+            "tag": "5.4.3",
             "exists": True,
             "digest": "sha256:abc",
         }
@@ -151,7 +167,7 @@ def test_check_image_versions_single_path_found(
 def test_check_image_versions_reports_missing_tag(
     monkeypatch: pytest.MonkeyPatch, libchartrepoandpathresolution: ModuleType
 ):
-    monkeypatch.setattr(libchartrepoandpathresolution, "registry_tag_exists", lambda host, repo, tag: (False, None))
+    monkeypatch.setattr("lib.registry.registry_tag_exists", lambda host, repo, tag: (False, None))
     values = {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"}}
     results = libchartrepoandpathresolution.check_image_versions(None, None, values, image_pins("image"), "9.9.9")
     assert results[0]["exists"] is False
@@ -167,7 +183,7 @@ def test_check_image_versions_checks_every_multi_image_path(
         checked.append(repo)
         return True, "sha256:fake"
 
-    monkeypatch.setattr(libchartrepoandpathresolution, "registry_tag_exists", fake_registry_tag_exists)
+    monkeypatch.setattr("lib.registry.registry_tag_exists", fake_registry_tag_exists)
     values = {
         "frontend": {"image": {"repository": "ghcr.io/infonl/zgw-office-addin-frontend"}},
         "backend": {"image": {"repository": "ghcr.io/infonl/zgw-office-addin-backend"}},
@@ -183,9 +199,7 @@ def test_check_image_versions_skips_path_with_no_repository(
     monkeypatch: pytest.MonkeyPatch, libchartrepoandpathresolution: ModuleType
 ):
     """A path without "repository:" is skipped while another path still resolves."""
-    monkeypatch.setattr(
-        libchartrepoandpathresolution, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:fake")
-    )
+    monkeypatch.setattr("lib.registry.registry_tag_exists", lambda host, repo, tag: (True, "sha256:fake"))
     values = {
         "frontend": {"image": {"repository": "ghcr.io/infonl/zgw-office-addin-frontend"}},
         "backend": {"image": {}},
@@ -212,7 +226,7 @@ def test_check_image_versions_honours_sibling_registry(
         checked.append((host, repo))
         return True, "sha256:fake"
 
-    monkeypatch.setattr(libchartrepoandpathresolution, "registry_tag_exists", fake_registry_tag_exists)
+    monkeypatch.setattr("lib.registry.registry_tag_exists", fake_registry_tag_exists)
     values = {"server": {"image": {"registry": "quay.io", "repository": "openbao/openbao"}}}
     libchartrepoandpathresolution.check_image_versions(None, None, values, image_pins("server.image"), "2.5.5")
     assert checked == [("quay.io", "openbao/openbao")]
@@ -240,7 +254,7 @@ def test_check_image_versions_resolves_registered_sibling_repository_field(
         checked.append((host, repo, tag))
         return True, "sha256:fake"
 
-    monkeypatch.setattr(libchartrepoandpathresolution, "registry_tag_exists", fake_registry_tag_exists)
+    monkeypatch.setattr("lib.registry.registry_tag_exists", fake_registry_tag_exists)
     dep: ChartDependency = {"name": "redis-operator", "version": "0.26.1", "repository": "@ot-helm"}
     values = {"redisOperator": {"imageName": "quay.io/opstree/redis-operator", "imageTag": "v0.26.0"}}
     pins = pin_paths_for("redis-operator", CHART_DIR)
@@ -250,7 +264,7 @@ def test_check_image_versions_resolves_registered_sibling_repository_field(
     assert checked == [("quay.io", "opstree/redis-operator", "v0.27.0")]
 
 
-def test_print_image_version_results_prints_a_shared_image_once(
+def test_require_image_versions_prints_a_shared_image_once(
     capsys: pytest.CaptureFixture[str], libchartpullandsubchartresolution: ModuleType
 ):
     """Two pins of one image (redis-operator's imageTag and initContainerImageTag) print one line."""
@@ -259,8 +273,29 @@ def test_print_image_version_results_prints_a_shared_image_once(
         {**result, "path": "redisOperator.imageTag", "exists": True, "digest": "sha256:fake"},
         {**result, "path": "redisOperator.initContainerImageTag", "exists": True, "digest": "sha256:fake"},
     ]
-    assert libchartpullandsubchartresolution.print_image_version_results(results, "v0.27.0") is True
+    libchartpullandsubchartresolution.require_image_versions(results, "v0.27.0")
     assert capsys.readouterr().out == "  [FOUND  ] quay.io/opstree/redis-operator:v0.27.0  digest=sha256:fake\n"
+
+
+def test_require_image_versions_missing_exits_one_with_fail_note(
+    capsys: pytest.CaptureFixture[str], libchartpullandsubchartresolution: ModuleType
+):
+    results = [
+        {
+            "path": "image.tag",
+            "repository": "ghcr.io/infonl/zaakafhandelcomponent",
+            "host": "ghcr.io",
+            "repo_path": "infonl/zaakafhandelcomponent",
+            "exists": False,
+            "digest": None,
+        }
+    ]
+    with pytest.raises(SystemExit) as exc_info:
+        libchartpullandsubchartresolution.require_image_versions(results, "9.9.9", fail_note=" — refusing")
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "  [MISSING] ghcr.io/infonl/zaakafhandelcomponent:9.9.9\n" in out
+    assert out.endswith("FAIL: one or more app image versions do not exist yet — refusing\n")
 
 
 # --- component_check_values ---
@@ -472,8 +507,8 @@ def test_subchart_values_missing_tgz_returns_none(tmp_path: Path, libchartpullan
 def test_subchart_values_missing_member_returns_none(tmp_path: Path, libchartpullandsubchartresolution: ModuleType):
     charts_dir = tmp_path / "charts"
     charts_dir.mkdir()
-    with tarfile.open(charts_dir / "openzaak-1.14.2.tgz", "w:gz"):
-        pass  # empty archive, no values.yaml member
+    with tarfile.open(charts_dir / "openzaak-1.14.2.tgz", "w:gz") as tar:
+        tar.addfile(tarfile.TarInfo("openzaak/Chart.yaml"))
     dep = {"name": "openzaak", "version": "1.14.2"}
     assert libchartpullandsubchartresolution.subchart_values(tmp_path, dep) is None
 

@@ -30,13 +30,15 @@ from lib.chart.chart_yaml import chart_dependency_problem
 from lib.chart.chart_yaml import dependencies_problem
 from lib.chart.chart_yaml import is_chart_dependency_list
 from lib.chart.values_tree_primitives import text_at
+from lib.checks.vendored_tgz import other_vendored_versions
+from lib.checks.vendored_tgz import vendored_tgz_names
 from lib.procutil import run
 from lib.render_scope import CHART_NAME
 from lib.render_scope import render_chart
-from lib.settings import release_secret_kubernetes_limit_bytes
-from lib.settings import release_secret_warn_at_fraction_of_limit
-from lib.settings import render_report_default_output_file_name
-from lib.upgradedoc.string_and_parsing_basics import table_cells
+from lib.settings import release_secret_limit_bytes
+from lib.settings import release_secret_warn_fraction
+from lib.settings import render_report_output_file
+from lib.upgradedoc.string_and_parsing_basics import table_data_cells
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import YamlShapeError
 from lib.yaml_types import load_yaml_mapping
@@ -53,27 +55,33 @@ def packaged_files(chart_dir: Path) -> dict[str, bytes]:
 
     render-podiumd's default output file is dropped: a local, gitignored artifact
     (~1.4 MB) that a clean release checkout never contains."""
-    rendered_output_name = render_report_default_output_file_name(chart_dir)
+    rendered_output_name = render_report_output_file(chart_dir)
     with tempfile.TemporaryDirectory() as tmp:
         result = run(["helm", "package", str(chart_dir), "-d", tmp], capture_output=True, text=True)
         if result.returncode != 0:
             msg = f"helm package failed: {result.stderr.strip()}"
             raise RuntimeError(msg)
-        tgz_path = next(Path(tmp).glob("*.tgz"))
-        out: dict[str, bytes] = {}
-        with tarfile.open(tgz_path, "r:gz") as tar:
-            for member in tar.getmembers():
-                if not member.isfile():
-                    continue
-                # strip the leading "<chartname>/" the archive wraps everything in
-                rel = PurePosixPath(member.name)
-                rel = PurePosixPath(*rel.parts[1:]) if len(rel.parts) > 1 else rel
-                if str(rel) == rendered_output_name:
-                    continue
-                extracted = tar.extractfile(member)
-                if extracted is not None:
-                    out[str(rel)] = extracted.read()
+        return _archive_files(next(Path(tmp).glob("*.tgz")), rendered_output_name)
+
+
+def _archive_files(tgz_path: Path, skipped_name: str) -> dict[str, bytes]:
+    """{chart-relative path: content} of every regular file in a packaged chart, except `skipped_name`."""
+    out: dict[str, bytes] = {}
+    with tarfile.open(tgz_path, "r:gz") as tar:
+        for member in tar.getmembers():
+            rel = _chart_relative(member.name)
+            extracted = tar.extractfile(member) if member.isfile() and rel != skipped_name else None
+            if extracted is not None:
+                out[rel] = extracted.read()
     return out
+
+
+def _chart_relative(member_name: str) -> str:
+    """An archive member's path without the leading "<chartname>/" the archive wraps everything in."""
+    rel = PurePosixPath(member_name)
+    if len(rel.parts) > 1:
+        rel = PurePosixPath(*rel.parts[1:])
+    return str(rel)
 
 
 CHART_YAML_SOURCE = "Chart.yaml"
@@ -84,38 +92,43 @@ def check_subchart_freshness(chart_dir: Path, metadata: YamlMapping):
 
     `helm package` bundles charts/ as-is, so a stale vendor skews the estimate.
     Returns unprefixed strings; callers choose where to print them."""
-    charts_subdir = chart_dir / "charts"
-    vendored = list(charts_subdir.glob("*.tgz")) if charts_subdir.is_dir() else []
     deps = metadata.get("dependencies")
     if deps is not None and not is_chart_dependency_list(deps):
         problem = dependencies_problem(metadata, chart_dependency_problem, required=False) or "invalid dependencies"
         raise YamlShapeError(CHART_YAML_SOURCE, problem)
-    warnings: list[str] = []
-    for dep in deps or []:
-        name, version = dep["name"], dep["version"]
-        if not name or not version:
-            continue
-        matches = [p for p in vendored if p.name.startswith(f"{name}-")]
-        if not matches:
-            continue  # not vendored locally (e.g. condition-disabled) — nothing to compare
-        if not any(p.name == f"{name}-{version}.tgz" for p in matches):
-            found = ", ".join(sorted(p.name for p in matches))
-            warnings.append(
-                f"Chart.yaml declares {name}@{version}, but the vendored charts/ directory has "
-                f"{found} — run `helm dependency update` before trusting this estimate; it may be "
-                "sized against a stale subchart."
-            )
-    return warnings
+    tgz_names = vendored_tgz_names(chart_dir / "charts")
+    warnings = [_stale_vendor_warning(tgz_names, dep["name"], dep["version"]) for dep in deps or []]
+    return [warning for warning in warnings if warning is not None]
 
 
-def bucket_files(paths: dict[str, bytes]) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+def _stale_vendor_warning(tgz_names: set[str], name: str, version: str) -> str | None:
+    """check_subchart_freshness' warning for one dependency, or None."""
+    if not name or not version:
+        return None
+    others = other_vendored_versions(tgz_names, name, version)
+    # Not vendored locally (e.g. condition-disabled): nothing to compare.
+    if not others:
+        return None
+    found = ", ".join(f"{name}-{other}.tgz" for other in others)
+    return (
+        f"Chart.yaml declares {name}@{version}, but the vendored charts/ directory has "
+        f"{found} — run `helm dependency update` before trusting this estimate; it may be "
+        "sized against a stale subchart."
+    )
+
+
+# {"name": path, "data": base64 content} of one chart file, as Helm serializes it.
+type SerializedFile = dict[str, str]
+
+
+def bucket_files(paths: dict[str, bytes]) -> tuple[list[SerializedFile], list[SerializedFile]]:
     """(templates, files) as Helm's loader.LoadFiles buckets them.
 
     Skips charts/ (never serialized) and Chart.yaml/Chart.lock/values.yaml/
     values.schema.json, which the caller handles separately."""
     special = {"Chart.yaml", "Chart.lock", "values.yaml", "values.schema.json"}
-    templates: list[dict[str, str]] = []
-    files: list[dict[str, str]] = []
+    templates: list[SerializedFile] = []
+    files: list[SerializedFile] = []
     for rel in sorted(paths):
         if rel.startswith("charts/") or rel in special:
             continue
@@ -243,24 +256,27 @@ def _doc_header(chart_name: str):
 def _merge_row(doc_path: Path, lines: list[str], version: str, row: str):
     """Replace `version`'s table row with `row`, or append it; warns when duplicates already exist."""
     replaced = False
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if not stripped.startswith("|") or stripped.startswith("|---"):
+    for index, line in enumerate(lines):
+        if _row_version(line) != version:
             continue
-        cells = table_cells(stripped)
-        if cells and cells[0] == version:
-            if replaced:
-                print(
-                    f"WARNING: {doc_path} already had more than one row for version {version} "
-                    "before this update — leaving the extras in place, only the first match "
-                    "was replaced. Clean up duplicates by hand."
-                )
-                continue
-            lines[i] = row
-            replaced = True
+        if replaced:
+            print(
+                f"WARNING: {doc_path} already had more than one row for version {version} "
+                "before this update — leaving the extras in place, only the first match "
+                "was replaced. Clean up duplicates by hand."
+            )
+            continue
+        lines[index] = row
+        replaced = True
     if not replaced:
         lines.append(row)
     return lines
+
+
+def _row_version(line: str) -> str | None:
+    """The version cell of a table data row; None for any other line."""
+    cells = table_data_cells(line)
+    return cells[0] if cells else None
 
 
 def record_result(chart_dir: Path, chart_name: str, version: str, encoded_bytes: int, pct: float):
@@ -272,9 +288,9 @@ def record_result(chart_dir: Path, chart_name: str, version: str, encoded_bytes:
 
     if doc_path.exists():
         lines = _merge_row(doc_path, doc_path.read_text().splitlines(), version, row)
-        text = "\n".join(lines) + "\n"
+        text = "".join(f"{line}\n" for line in lines)
     else:
-        text = _doc_header(chart_name) + row + "\n"
+        text = f"{_doc_header(chart_name)}{row}\n"
 
     doc_path.write_text(text)
     return doc_path
@@ -294,8 +310,8 @@ def check_release_secret_size(chart_dir: Path, extra_args: list[str]):
 
     Renders via render_chart with `extra_args` (lint_args_for's result), which
     also locates the values override. Never writes the doc."""
-    secret_limit = release_secret_kubernetes_limit_bytes(chart_dir)
-    warn_threshold = release_secret_warn_at_fraction_of_limit(chart_dir)
+    secret_limit = release_secret_limit_bytes(chart_dir)
+    warn_threshold = release_secret_warn_fraction(chart_dir)
 
     result = render_chart(chart_dir, extra_args)
     if result.returncode != 0:

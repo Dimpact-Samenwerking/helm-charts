@@ -1,4 +1,4 @@
-"""check_subchart_image_visibility: render-gate (rendered_chart_paths),
+"""check_subchart_images: render-gate (rendered_chart_paths),
 zaakbrug.staging as an ordinary finding, and the subchart_template_text
 filter for unreferenced keys."""
 
@@ -14,6 +14,8 @@ import yaml
 
 from dep_helpers import make_dep
 
+from tests.fixture_data import write_chart_dependencies
+
 DIGEST_A = "a" * 64
 
 
@@ -22,7 +24,7 @@ def write_values_yaml(chart_dir, text):
 
 
 def write_chart_yaml(chart_dir, deps):
-    (chart_dir / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}), encoding="utf-8")
+    write_chart_dependencies(chart_dir / "Chart.yaml", deps)
 
 
 def make_tgz(charts_dir, name, version, values, templates=None, chart_yaml=None, extra_files=None):
@@ -92,7 +94,7 @@ def test_condition_disabled_dependency_not_reported_when_its_own_path_never_rend
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, [])  # zaakbrug's own path never rendered
 
-    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
+    ok, detail = vp.check_subchart_images(tmp_path, [])
 
     assert ok is True
     assert detail == "0 unresolved"
@@ -119,7 +121,7 @@ def test_null_tag_subchart_default_resolved_via_own_app_version_is_reported(
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/eck-operator"])
 
-    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
+    ok, detail = vp.check_subchart_images(tmp_path, [])
 
     assert ok is False
     assert detail == "1 floating (failing)"
@@ -135,7 +137,7 @@ def test_null_tag_with_no_repository_is_skipped(
     make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {"tag": None}})
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/openzaak"])
-    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
+    ok, detail = vp.check_subchart_images(tmp_path, [])
     assert ok is True
     assert detail == "0 unresolved"
 
@@ -171,7 +173,7 @@ def test_nested_subchart_default_not_reported_when_its_own_path_never_renders(
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/openinwoner"])
 
-    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
+    ok, detail = vp.check_subchart_images(tmp_path, [])
 
     assert ok is True
     assert detail == "0 unresolved"
@@ -213,7 +215,7 @@ def test_nested_subchart_default_reported_when_its_own_path_does_render(
         ["podiumd/charts/openinwoner", "podiumd/charts/openinwoner/charts/eck-operator"],
     )
 
-    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
+    ok, detail = vp.check_subchart_images(tmp_path, [])
 
     assert ok is False
     assert detail == "1 floating (failing)"
@@ -243,7 +245,7 @@ def test_zaakbrug_staging_is_now_an_ordinary_unexempted_finding(
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/zaakbrug"])
 
-    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
+    ok, detail = vp.check_subchart_images(tmp_path, [])
 
     assert ok is False
     assert detail == "1 floating (failing)"
@@ -270,7 +272,7 @@ def test_zaakbrug_staging_nested_prefix_is_also_an_ordinary_finding(
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/zaakbrug"])
 
-    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
+    ok, detail = vp.check_subchart_images(tmp_path, [])
 
     assert ok is False
     assert detail == "1 floating (failing)"
@@ -296,7 +298,7 @@ def test_multiple_findings_from_different_dependencies_all_reported_plainly(
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/zaakbrug", "podiumd/charts/openzaak"])
 
-    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
+    ok, detail = vp.check_subchart_images(tmp_path, [])
 
     assert ok is False
     assert detail == "2 floating (failing)"
@@ -337,7 +339,7 @@ pabc:
     )
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/pabc"])
 
-    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
+    ok, detail = vp.check_subchart_images(tmp_path, [])
 
     assert ok is True
     assert detail == "0 unresolved"
@@ -364,7 +366,7 @@ def test_referenced_subchart_key_is_still_reported_even_with_templates_present(
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/openzaak"])
 
-    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
+    ok, detail = vp.check_subchart_images(tmp_path, [])
 
     assert ok is False
     assert detail == "1 floating (failing)"
@@ -386,7 +388,7 @@ def test_unreferenced_key_without_a_templates_dir_at_all_is_still_reported(
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/pabc"])
 
-    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
+    ok, detail = vp.check_subchart_images(tmp_path, [])
 
     assert ok is False
     assert detail == "1 floating (failing)"
@@ -433,7 +435,7 @@ def test_nested_dependency_finding_survives_when_parent_templates_never_mention_
         ["podiumd/charts/openinwoner", "podiumd/charts/openinwoner/charts/eck-operator"],
     )
 
-    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
+    ok, detail = vp.check_subchart_images(tmp_path, [])
 
     assert ok is False
     assert detail == "1 floating (failing)"

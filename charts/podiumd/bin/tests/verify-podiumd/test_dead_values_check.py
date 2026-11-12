@@ -38,7 +38,7 @@ def write_chart_yaml_with_dep(tmp_path: Path, dep):
 
 
 def make_tgz(charts_dir, name, version):
-    """Empty vendored <name>-<version>.tgz; only _resolve_scope's `.is_file()` needs it."""
+    """Empty vendored <name>-<version>.tgz; only resolve_scope's `.is_file()` needs it."""
     charts_dir.mkdir(parents=True, exist_ok=True)
     tgz_path = charts_dir / f"{name}-{version}.tgz"
     data = yaml.safe_dump({}).encode("utf-8")
@@ -137,7 +137,7 @@ def test_condition_leaf_paths_reads_every_dependency_condition(libdeadvalueschec
             make_dep("no-condition-dep", "1.0.0"),
         ],
     )
-    paths = libdeadvaluescheck._condition_leaf_paths(tmp_path)
+    paths = libdeadvaluescheck.condition_leaf_paths(tmp_path)
     assert paths == {("zac", "enabled"), ("kiss-eck", "enabled")}
 
 
@@ -281,8 +281,11 @@ def fake_run_scoped(call_log=None, *, full_reads_dead=False):
             if full_reads_dead:
                 dead = _get(overrides, ("zac", "dead"), "xyz")
                 lines.append(f"dead: {dead!r}")
-        stdout = "---\n# Source: podiumd/templates/x.yaml\nkind: ConfigMap\nmetadata:\n  name: x\ndata:\n" + "".join(
-            f"  {line}\n" for line in lines
+        stdout = "".join(
+            [
+                "---\n# Source: podiumd/templates/x.yaml\nkind: ConfigMap\nmetadata:\n  name: x\ndata:\n",
+                *(f"  {line}\n" for line in lines),
+            ]
         )
         return SimpleNamespace(returncode=0, stdout=stdout, stderr="")
 
@@ -357,7 +360,7 @@ def test_resolve_scope_prefers_own_scope_without_matching_dependency(libdeadvalu
     own_scope = {"chart_name": "podiumd", "baseline_docs": []}
     full_scope = {"chart_name": "podiumd", "baseline_docs": []}
     context = libdeadvaluescheck.ScopeResolutionContext(tmp_path, {}, {}, own_scope, full_scope)
-    scope = libdeadvaluescheck._resolve_scope(context, "keycloak")
+    scope = libdeadvaluescheck.resolve_scope(context, "keycloak")
     assert scope is own_scope
 
 
@@ -366,7 +369,7 @@ def test_resolve_scope_falls_back_to_full_scope_without_matching_dependency_or_o
 ):
     full_scope = {"chart_name": "podiumd", "baseline_docs": []}
     context = libdeadvaluescheck.ScopeResolutionContext(tmp_path, {}, {}, None, full_scope)
-    scope = libdeadvaluescheck._resolve_scope(context, "keycloak")
+    scope = libdeadvaluescheck.resolve_scope(context, "keycloak")
     assert scope is full_scope
 
 
@@ -374,13 +377,13 @@ def test_resolve_scope_falls_back_to_full_scope_without_vendored_tgz(libdeadvalu
     full_scope = {"chart_name": "podiumd", "baseline_docs": []}
     dep_by_key = {"zac": make_dep("zac", "1.0.0")}
     context = libdeadvaluescheck.ScopeResolutionContext(tmp_path, {"zac": {"a": "b"}}, dep_by_key, None, full_scope)
-    scope = libdeadvaluescheck._resolve_scope(context, "zac")
+    scope = libdeadvaluescheck.resolve_scope(context, "zac")
     assert scope is full_scope
 
 
 def test_dependency_by_key_uses_alias_when_present(libdeadvaluescheck: ModuleType, tmp_path: Path):
     write_chart_yaml_with_dep(tmp_path, make_dep("zaakafhandelcomponent", "1.0.0", alias="zac"))
-    dep_by_key = libdeadvaluescheck._dependency_by_key(tmp_path)
+    dep_by_key = libdeadvaluescheck.dependency_by_key(tmp_path)
     assert "zac" in dep_by_key
     assert dep_by_key["zac"]["name"] == "zaakafhandelcomponent"
 
@@ -390,6 +393,6 @@ def test_load_merged_values_layers_extra_args_over_values_yaml(libdeadvalueschec
     overlay_path = tmp_path / "overlay.yaml"
     overlay_path.write_text("foo:\n  b: 3\n  c: 4\n", encoding="utf-8")
 
-    merged = libdeadvaluescheck._load_merged_values(tmp_path, ["-f", str(overlay_path)])
+    merged = libdeadvaluescheck.load_merged_values(tmp_path, ["-f", str(overlay_path)])
 
     assert merged == {"foo": {"a": 1, "b": 3, "c": 4}}

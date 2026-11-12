@@ -9,18 +9,8 @@ import pytest
 
 from lib.image.version import basenames_under_scope
 from lib.release_table.component_resolution import exact_match
-
-
-def write_chart_yaml_with_dependencies(chart_dir, deps):
-    """`deps`: [(name, alias_or_None), ...]."""
-    lines = ["apiVersion: v2", "name: podiumd", "version: 1.0.0", "dependencies:"]
-    for name, alias in deps:
-        lines.append(f"  - name: {name}")
-        if alias:
-            lines.append(f"    alias: {alias}")
-        lines += ["    version: 1.0.0", '    repository: "@x"']
-    (chart_dir / "Chart.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
-
+from tests.fixture_data import write_chart_with_dependencies
+from tests.fixture_data import write_values_text
 
 PRODUCT_TABLE_HTML = """
 <h2>Product component versies</h2>
@@ -236,10 +226,6 @@ DIGEST_B = "b" * 64
 DIGEST_C = "c" * 64
 
 
-def write_values_yaml_raw(chart_dir, text):
-    (chart_dir / "values.yaml").write_text(text, encoding="utf-8")
-
-
 def test_exact_match_whole_name():
     assert exact_match("Solr", {"solr", "solr-operator"}) == "solr"
 
@@ -266,7 +252,7 @@ def test_exact_match_no_match_is_none():
 
 
 def test_basenames_under_scope_finds_nested_pins(tmp_path: Path):
-    write_values_yaml_raw(
+    write_values_text(
         tmp_path,
         f"""\
 zac:
@@ -285,7 +271,7 @@ zac:
 
 
 def test_basenames_under_scope_ignores_other_components(tmp_path: Path):
-    write_values_yaml_raw(
+    write_values_text(
         tmp_path,
         f"""\
 zac:
@@ -308,7 +294,7 @@ def test_resolve_image_basenames_missing_values_yaml_is_blank(ecrt: ModuleType, 
 
 
 def test_resolve_image_basenames_technische_row_matches_its_own_image(ecrt: ModuleType, tmp_path: Path):
-    write_values_yaml_raw(
+    write_values_text(
         tmp_path,
         f"""\
 zac:
@@ -329,7 +315,7 @@ zac:
 
 
 def test_resolve_image_basenames_role_named_row_resolves_via_bracket_hint(ecrt: ModuleType, tmp_path: Path):
-    write_values_yaml_raw(
+    write_values_text(
         tmp_path,
         f"""\
 zac:
@@ -365,7 +351,7 @@ zac:
 def test_resolve_image_basenames_primary_row_gets_leftover_after_technische_claims(ecrt: ModuleType, tmp_path: Path):
     """After used_by siblings claim theirs, the registered primary image goes
     to the primary (used_by-blank) row."""
-    write_values_yaml_raw(
+    write_values_text(
         tmp_path,
         f"""\
 zac:
@@ -390,7 +376,7 @@ def test_resolve_image_basenames_primary_claims_its_own_name_before_siblings(ecr
     """The primary row's exact match is claimed first: every "Frank Gateway
     <Role>" sibling also contains "frankgateway" and would otherwise steal
     "frank-gateway". An unmatched sibling stays blank, never guessed."""
-    write_values_yaml_raw(
+    write_values_text(
         tmp_path,
         f"""\
 frankgateway:
@@ -414,7 +400,7 @@ def test_resolve_image_basenames_primary_row_first_refusal_is_exact_match_only(e
     """ "Redis Operator" merely contains "redis": "redis" goes to the sibling
     naming it exactly, and the operator row (versioned by its chart) stays
     blank."""
-    write_values_yaml_raw(
+    write_values_text(
         tmp_path,
         f"""\
 redis-operator:
@@ -441,7 +427,7 @@ redis-operator:
 def test_resolve_image_basenames_primary_row_gets_multiple_leftover_basenames(ecrt: ModuleType, tmp_path: Path):
     """Several registered primary images (zgw-office-addin frontend/backend,
     one shared version) are comma-joined on the primary row."""
-    write_values_yaml_raw(
+    write_values_text(
         tmp_path,
         f"""\
 zgw-office-addin:
@@ -462,7 +448,7 @@ zgw-office-addin:
 
 def test_resolve_image_basenames_unresolvable_technische_row_is_blank(ecrt: ModuleType, tmp_path: Path):
     """No shared text with the actual basename: left blank, not guessed."""
-    write_values_yaml_raw(
+    write_values_text(
         tmp_path,
         f"""\
 ita:
@@ -477,7 +463,7 @@ ita:
 
 
 def test_resolve_image_basenames_multiple_row_resolves_via_global_image_key(ecrt: ModuleType, tmp_path: Path):
-    write_values_yaml_raw(
+    write_values_text(
         tmp_path,
         f"""\
 global:
@@ -492,13 +478,13 @@ global:
 
 
 def test_resolve_image_basenames_multiple_row_no_repository_is_blank(ecrt: ModuleType, tmp_path: Path):
-    write_values_yaml_raw(tmp_path, "global:\n  images:\n    curl: {}\n")
+    write_values_text(tmp_path, "global:\n  images:\n    curl: {}\n")
     rows = [["Overige", "", "", "curl", "MULTIPLE", "MULTIPLE", "1", "1", "1", "1"]]
     assert ecrt.resolve_image_basenames(rows, tmp_path) == [""]
 
 
 def test_resolve_image_basenames_unknown_component_is_blank(ecrt: ModuleType, tmp_path: Path):
-    write_values_yaml_raw(tmp_path, "")
+    write_values_text(tmp_path, "")
     rows = [["Technische", "", "", "python image", "UNKNOWN", "", "1", "1", "1", "1"]]
     assert ecrt.resolve_image_basenames(rows, tmp_path) == [""]
 
@@ -506,8 +492,8 @@ def test_resolve_image_basenames_unknown_component_is_blank(ecrt: ModuleType, tm
 def test_resolve_image_basenames_native_component_scans_its_own_key(ecrt: ModuleType, tmp_path: Path):
     """Native keycloak is its own component: its server and config-cli images
     resolve under "keycloak", not keycloak-operator."""
-    write_chart_yaml_with_dependencies(tmp_path, [("keycloak-operator", None)])
-    write_values_yaml_raw(
+    write_chart_with_dependencies(tmp_path, [("keycloak-operator", None)])
+    write_values_text(
         tmp_path,
         f"""\
 keycloak:
@@ -535,7 +521,7 @@ keycloak-operator:
 
 def test_extract_release_rows_end_to_end_populates_image_basename(ecrt: ModuleType, tmp_path: Path):
     """extract_release_rows inserts the resolved basename at the right column."""
-    write_chart_yaml_with_dependencies(tmp_path, [("zaakafhandelcomponent", "zac")])
+    write_chart_with_dependencies(tmp_path, [("zaakafhandelcomponent", "zac")])
     values_path = tmp_path / "values.yaml"
     values_path.write_text(
         f"""\
@@ -567,7 +553,7 @@ def test_extract_release_rows_leaves_out_release_table_ignored_rows(
     ecrt: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
     """A row whose whole name equals an ignored_rows entry (case/punctuation ignored) is left out; a partial match stays."""
-    write_chart_yaml_with_dependencies(tmp_path, [("zaakafhandelcomponent", "zac"), ("openzaak", None)])
+    write_chart_with_dependencies(tmp_path, [("zaakafhandelcomponent", "zac"), ("openzaak", None)])
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "settings.yaml").write_text(
         'release_table:\n  ignored_rows: ["OPEN-ZAAK", "ZAC (old)", "()"]\n', encoding="utf-8"
@@ -585,7 +571,7 @@ def test_resolve_image_basenames_falls_back_to_any_tag_when_digest_required_scan
 ):
     """omc's tag has no digest (its subchart can't handle one), so resolution
     must fall back to basenames_under_scope_any_tag."""
-    write_values_yaml_raw(
+    write_values_text(
         tmp_path,
         """\
 omc:
@@ -603,7 +589,7 @@ def test_resolve_image_basenames_any_tag_fallback_does_not_override_digest_scan_
 ):
     """The any_tag fallback is per-basename additive: it never replaces a
     basename the digest-required scan already found."""
-    write_values_yaml_raw(
+    write_values_text(
         tmp_path,
         f"""\
 zac:
@@ -623,7 +609,7 @@ def test_resolve_image_basenames_any_tag_fallback_supplements_a_partially_digest
     sibling "sha:" field, invisible to the digest-required scan, while its
     other image is digest-pinned. The any_tag fallback must run per-basename,
     not only when the whole scope is empty."""
-    write_values_yaml_raw(
+    write_values_text(
         tmp_path,
         f"""\
 keycloak-operator:
@@ -647,7 +633,7 @@ keycloak-operator:
 def test_resolve_image_basenames_unclaimed_sidecar_is_not_given_to_the_primary_row(ecrt: ModuleType, tmp_path: Path):
     """An unclaimed image off the registered primary paths stays unassigned;
     verify-release-table-with-podiumd reports it."""
-    write_values_yaml_raw(
+    write_values_text(
         tmp_path,
         f"""\
 zac:
@@ -667,7 +653,7 @@ zac:
 def test_resolve_image_basenames_multiple_row_resolves_via_global_image_basename(ecrt: ModuleType, tmp_path: Path):
     """A MULTIPLE row may name the global.images entry by its image
     basename instead of its key: "Nginx (nginx-unprivileged)"."""
-    write_values_yaml_raw(
+    write_values_text(
         tmp_path,
         f"""\
 global:

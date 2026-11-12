@@ -1,16 +1,14 @@
 """main() against a real temp git repo: <key> <image-basename> resolved against
 values.yaml as of each release-baseline.yaml baseline (via `git show`)."""
 
-import subprocess
-
 from pathlib import Path
 from types import ModuleType
 
 import pytest
 
-
-def git(*args, cwd):
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
+from tests.git_repo import commit_all
+from tests.git_repo import commit_tagged
+from tests.git_repo import init_git_repo
 
 
 def write_zac_values(chart_dir, version, digest):
@@ -22,27 +20,20 @@ def write_zac_values(chart_dir, version, digest):
 
 @pytest.fixture
 def repo(tmp_path: Path):
-    git("init", "-q", cwd=tmp_path)
-    git("config", "user.email", "test@example.com", cwd=tmp_path)
-    git("config", "user.name", "Test", cwd=tmp_path)
+    init_git_repo(tmp_path)
     chart_dir = tmp_path / "charts" / "podiumd"
     chart_dir.mkdir(parents=True)
     (chart_dir / "Chart.yaml").write_text(
         "dependencies:\n  - name: zaakafhandelcomponent\n    alias: zac\n    version: 1.0.297\n", encoding="utf-8"
     )
     write_zac_values(chart_dir, "5.0.2", "a" * 64)
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "baseline", cwd=tmp_path)
-    git("tag", "podiumd-4.8.5", cwd=tmp_path)
+    commit_tagged(tmp_path, "baseline", "4.8.5")
 
     (chart_dir / "values.yaml").write_text("zac: {}\n", encoding="utf-8")
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "rely on chart default", cwd=tmp_path)
-    git("tag", "podiumd-4.9.0", cwd=tmp_path)
+    commit_tagged(tmp_path, "rely on chart default", "4.9.0")
 
     write_zac_values(chart_dir, "5.4.3", "b" * 64)
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "bump zac", cwd=tmp_path)
+    commit_all(tmp_path, "bump zac")
     return tmp_path
 
 

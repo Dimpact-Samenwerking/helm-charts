@@ -6,7 +6,7 @@ from pathlib import Path
 from lib.chart.chart_yaml import ChartDependency
 from lib.component_docs.owned_parts import generated_heading_name
 from lib.component_docs.values_delta_sections import has_blank_body
-from lib.upgradedoc.consistency_checks import find_changes_row_correspondence_gaps
+from lib.upgradedoc.consistency_checks import find_correspondence_gaps
 from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 
@@ -19,7 +19,7 @@ class ValuesDeltaInputs:
     canonical_names: dict[str, tuple[str, ...]] | None = None
 
 
-def check_values_deltas_empty_sections(doc_path: Path):
+def check_empty_delta_sections(doc_path: Path):
     """Flag every "## ..." section with an entirely blank body."""
     text = doc_path.read_text(encoding="utf-8")
     lines = text.splitlines(keepends=True)
@@ -30,9 +30,7 @@ def check_values_deltas_empty_sections(doc_path: Path):
     ]
 
 
-def check_values_deltas_rowless_headings(
-    doc_path: Path, upgrade_doc_path: Path, inputs: ValuesDeltaInputs
-) -> list[str]:
+def check_rowless_delta_headings(doc_path: Path, upgrade_doc_path: Path, inputs: ValuesDeltaInputs) -> list[str]:
     """Flag a generated "## <component> <old> → <new>" heading naming no row of the upgrade doc's table.
 
     Such a heading names a version change that isn't there (the component is
@@ -46,7 +44,7 @@ def check_values_deltas_rowless_headings(
         for section in parse_values_delta_sections(doc_path.read_text(encoding="utf-8"))
         if generated_heading_name(section["heading"]) is not None
     ]
-    _rows_without_heading, rowless = find_changes_row_correspondence_gaps(
+    _rows_without_heading, rowless = find_correspondence_gaps(
         parse_upgrade_doc_rows(upgrade_doc_path.read_text(encoding="utf-8")),
         headings,
         inputs.deps,

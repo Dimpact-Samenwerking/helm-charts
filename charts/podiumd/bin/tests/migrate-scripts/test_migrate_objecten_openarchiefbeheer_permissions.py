@@ -6,7 +6,7 @@ from types import ModuleType
 import pytest
 
 OBJECTTYPES = '      objecttypes:\n        items:\n          - uuid: "REP_ZAC_PRODUCTAANVRAAG_UUID_REP"\n'
-PREFIX = "objecten:\n  configuration:\n    data: |\n" + OBJECTTYPES + "      tokenauth:\n        items:\n"
+PREFIX = f"objecten:\n  configuration:\n    data: |\n{OBJECTTYPES}      tokenauth:\n        items:\n"
 OAB = ["- identifier: openarchiefbeheer", '  token: "REP_OBJECTEN_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"']
 PERMISSION = ["  permissions:", '    - object_type: "REP_ZAC_PRODUCTAANVRAAG_UUID_REP"', "      mode: read_and_write"]
 ADDED = "tokenauth.items[0] (openarchiefbeheer): added read_and_write on REP_ZAC_PRODUCTAANVRAAG_UUID_REP"
@@ -63,7 +63,7 @@ def test_a_file_without_the_item_changes_nothing(oab: ModuleType):
     ],
 )
 def test_the_object_type_is_found_by_name_or_uuid(oab: ModuleType, objecttype: str):
-    text = items(*OAB).replace('"REP_ZAC_PRODUCTAANVRAAG_UUID_REP"\n', objecttype + "\n", 1)
+    text = items(*OAB).replace('"REP_ZAC_PRODUCTAANVRAAG_UUID_REP"\n', f"{objecttype}\n", 1)
     assert oab.migrate_text(text)[1] == [ADDED]
 
 

@@ -1,9 +1,15 @@
 """Orchestration helpers (die, require_helm, lint_args_for, print_summary, ...) and main() step selection."""
 
+import inspect
+import re
+
+from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
 
 import pytest
+
+from tests.fixture_data import raising
 
 
 def test_die_exits_nonzero_and_prints_to_stderr(vp: ModuleType, capsys: pytest.CaptureFixture[str]):
@@ -53,7 +59,8 @@ def test_print_summary_all_pass(vp: ModuleType, capsys: pytest.CaptureFixture[st
     results = [("Lint", True, "0 errors"), ("Render", True, "257 manifests")]
     vp.print_summary(results, overall_ok=True)
     out = capsys.readouterr().out
-    assert "Lint" in out and "PASS" in out
+    assert "Lint" in out
+    assert "PASS" in out
     assert "All checks passed." in out
 
 
@@ -70,35 +77,36 @@ def test_print_summary_reports_skip(vp: ModuleType, capsys: pytest.CaptureFixtur
     results = [("Lint", None, "skipped"), ("Full render", True, "257 manifests")]
     vp.print_summary(results, overall_ok=True)
     out = capsys.readouterr().out
-    assert "Lint" in out and "SKIP" in out
+    assert "Lint" in out
+    assert "SKIP" in out
     assert "All checks passed." in out
 
 
 # --- SKIPPABLE_STEPS ---
 
 
-def test_skippable_steps_names_match_main_run_steps(vp: ModuleType):
-    """Every SKIPPABLE_STEPS name must be a step _run_all_steps runs; a typo makes --skip= a no-op."""
-    import inspect
-    import re
+def _run_steps_source(vp: ModuleType) -> str:
+    """The source of the step-group functions run_all_steps calls, in call order."""
+    groups = re.findall(r"^\s+(run_\w+_steps)\(", inspect.getsource(vp.run_all_steps), re.MULTILINE)
+    return "".join(inspect.getsource(getattr(vp, group)) for group in groups)
 
-    source = inspect.getsource(vp._run_all_steps)
+
+def test_skippable_steps_names_match_main_run_steps(vp: ModuleType):
+    """Every SKIPPABLE_STEPS name must be a step run_all_steps runs; a typo makes --skip= a no-op."""
+    source = _run_steps_source(vp)
     for _, step_name in vp.SKIPPABLE_STEPS:
         assert re.search(rf'runner\.run\(\s*"{re.escape(step_name)}"', source), (
-            f'no runner.run("{step_name}", ...) call found in _run_all_steps()'
+            f'no runner.run("{step_name}", ...) call found in run_all_steps()'
         )
 
 
 def test_skippable_steps_order_matches_main_run_order(vp: ModuleType):
     """SKIPPABLE_STEPS must be in run order, since it drives the --help listing."""
-    import inspect
-    import re
-
-    source = inspect.getsource(vp._run_all_steps)
+    source = _run_steps_source(vp)
     positions = []
     for _, step_name in vp.SKIPPABLE_STEPS:
         m = re.search(rf'runner\.run\(\s*"{re.escape(step_name)}"', source)
-        assert m is not None, f"{step_name!r} is not run in _run_all_steps"
+        assert m is not None, f"{step_name!r} is not run in run_all_steps"
         positions.append(m.start())
     assert positions == sorted(positions)
 
@@ -133,60 +141,82 @@ def test_steps_help_is_in_argparse_epilog(
 # --- main(): --skip= end-to-end ---
 
 
-def test_main_skips_requested_steps_and_runs_the_rest(
-    vp: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-):
-    """--skip=helm-lint,full-render skips exactly those steps; the rest run and exit is 0."""
-    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--skip=helm-lint,full-render"])
+CHECKS_THAT_RUN = (
+    ("check_utf8_format", "utf8"),
+    ("check_dependencies", "deps"),
+    ("check_repo_access", "repo-access"),
+    ("check_duplicate_keys", "dupe"),
+    ("check_dry", "dry"),
+    ("check_image_references", "image-refs"),
+    ("check_node_selector", "node-selector"),
+    ("check_oidc_url_coverage", "oidc-url-coverage"),
+    ("check_digest_pinning", "digest-pinning"),
+    ("check_subchart_images", "subchart-images"),
+    ("check_shared_image_usage", "shared-image-usage"),
+    ("check_image_repository", "image-repository"),
+    ("check_image_digests", "digests"),
+    ("check_docs_consistency", "docs"),
+    ("check_helm_docs", "helm-docs"),
+    ("check_markdown", "markdown"),
+    ("check_upgrade_doc_layout", "upgrade-doc-layout"),
+    ("check_vendored_tgz_extraction", "tgz"),
+    ("check_release_baseline", "release-baseline"),
+    ("check_lockstep_versions", "lockstep"),
+    ("check_yamllint", "yamllint"),
+    ("check_kubeconform", "kubeconform"),
+    ("check_shellcheck", "shellcheck"),
+    ("check_kube_score", "kube-score"),
+    ("check_release_secret_size", "release-secret-size"),
+    ("check_chart_upgrades", "chart-upgrades"),
+    ("check_root_containers", "root-containers"),
+    ("check_image_upgrades", "image-upgrades"),
+    ("check_cves", "cves"),
+    ("check_cve_diff", "cve-diff"),
+)
+
+
+# Every step's check, CHECKS_THAT_RUN plus the two the --skip= test skips.
+ALL_CHECKS = (*CHECKS_THAT_RUN, ("check_lint", "helm-lint"), ("check_render", "full-render"))
+
+
+def _stub_main_environment(vp: ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
+    """main() without helm, a real chart directory or repository configuration."""
     monkeypatch.setattr(vp, "require_helm", lambda: None)
     monkeypatch.setattr(vp, "resolve_chart_dir", lambda: Path("/fake/chart/dir"))
     monkeypatch.setattr(vp, "ensure_repos_configured", lambda chart_dir: (True, "ok"))
     monkeypatch.setattr(vp, "lint_args_for", lambda chart_dir: [])
 
-    ran = []
 
-    def make_check(name):
-        def check(*args, **kwargs):
-            ran.append(name)
-            return True, "ok"
+def _recording_check(
+    ran: list[str], name: str, result: tuple[bool, str] = (True, "ok")
+) -> Callable[..., tuple[bool, str]]:
+    """A check that appends `name` to `ran` and returns `result`."""
 
-        return check
+    def check(*args: object, **kwargs: object) -> tuple[bool, str]:
+        ran.append(name)
+        return result
 
-    monkeypatch.setattr(vp, "check_utf8_format", make_check("utf8"))
-    monkeypatch.setattr(vp, "check_dependencies", make_check("deps"))
-    monkeypatch.setattr(vp, "check_repo_access", make_check("repo-access"))
-    monkeypatch.setattr(vp, "check_duplicate_keys", make_check("dupe"))
-    monkeypatch.setattr(vp, "check_dry", make_check("dry"))
-    monkeypatch.setattr(vp, "check_image_references", make_check("image-refs"))
-    monkeypatch.setattr(vp, "check_node_selector", make_check("node-selector"))
-    monkeypatch.setattr(vp, "check_oidc_url_coverage", make_check("oidc-url-coverage"))
-    monkeypatch.setattr(vp, "check_digest_pinning", make_check("digest-pinning"))
-    monkeypatch.setattr(vp, "check_subchart_image_visibility", make_check("subchart-images"))
-    monkeypatch.setattr(vp, "check_shared_image_usage", make_check("shared-image-usage"))
-    monkeypatch.setattr(vp, "check_image_repository", make_check("image-repository"))
-    monkeypatch.setattr(vp, "check_image_digests", make_check("digests"))
-    monkeypatch.setattr(vp, "check_docs_consistency", make_check("docs"))
-    monkeypatch.setattr(vp, "check_helm_docs", make_check("helm-docs"))
-    monkeypatch.setattr(vp, "check_markdown", make_check("markdown"))
-    monkeypatch.setattr(vp, "check_upgrade_doc_layout", make_check("upgrade-doc-layout"))
-    monkeypatch.setattr(vp, "check_vendored_tgz_extraction", make_check("tgz"))
-    monkeypatch.setattr(vp, "check_release_baseline", make_check("release-baseline"))
-    monkeypatch.setattr(vp, "check_lockstep_versions", make_check("lockstep"))
-    monkeypatch.setattr(vp, "check_yamllint", make_check("yamllint"))
-    monkeypatch.setattr(vp, "check_kubeconform", make_check("kubeconform"))
-    monkeypatch.setattr(vp, "check_shellcheck", make_check("shellcheck"))
-    monkeypatch.setattr(vp, "check_kube_score", make_check("kube-score"))
-    monkeypatch.setattr(vp, "check_release_secret_size", make_check("release-secret-size"))
-    monkeypatch.setattr(vp, "check_chart_upgrades", make_check("chart-upgrades"))
-    monkeypatch.setattr(vp, "check_root_containers", make_check("root-containers"))
-    monkeypatch.setattr(vp, "check_image_upgrades", make_check("image-upgrades"))
-    monkeypatch.setattr(vp, "check_cves", make_check("cves"))
-    monkeypatch.setattr(vp, "check_cve_diff", make_check("cve-diff"))
+    return check
 
-    def fail_if_called(*args):
-        msg = "this check should have been skipped"
-        raise AssertionError(msg)
 
+def _stub_checks(
+    vp: ModuleType, monkeypatch: pytest.MonkeyPatch, ran: list[str], checks: tuple[tuple[str, str], ...]
+) -> None:
+    """Replace each (check function, step label) of `checks` by a _recording_check."""
+    for check_name, step in checks:
+        monkeypatch.setattr(vp, check_name, _recording_check(ran, step))
+
+
+def test_main_skips_requested_steps_and_runs_the_rest(
+    vp: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    """--skip=helm-lint,full-render skips exactly those steps; the rest run and exit is 0."""
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--skip=helm-lint,full-render"])
+    _stub_main_environment(vp, monkeypatch)
+    ran: list[str] = []
+    _stub_checks(vp, monkeypatch, ran, CHECKS_THAT_RUN)
+
+    fail_if_called = raising(AssertionError("this check should have been skipped"))
     monkeypatch.setattr(vp, "check_lint", fail_if_called)
     monkeypatch.setattr(vp, "check_render", fail_if_called)
 
@@ -225,8 +255,10 @@ def test_main_skips_requested_steps_and_runs_the_rest(
         "cve-diff",
     ]
     out = capsys.readouterr().out
-    assert "Helm lint" in out and "SKIP" in out
-    assert "Full render" in out and "SKIP" in out
+    assert "Helm lint" in out
+    assert "SKIP" in out
+    assert "Full render" in out
+    assert "SKIP" in out
     assert "All checks passed." in out
 
 
@@ -258,7 +290,7 @@ def test_main_skipped_step_does_not_count_as_failure(vp: ModuleType, monkeypatch
         "check_helm_docs",
         "check_markdown",
         "check_upgrade_doc_layout",
-        "check_subchart_image_visibility",
+        "check_subchart_images",
         "check_shared_image_usage",
         "check_image_repository",
         "check_yamllint",
@@ -284,52 +316,10 @@ def test_main_continues_past_a_failed_step(
 ):
     """A failing step doesn't abort the run; every step not blocked via STEP_PREREQUISITES still runs."""
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd"])
-    monkeypatch.setattr(vp, "require_helm", lambda: None)
-    monkeypatch.setattr(vp, "resolve_chart_dir", lambda: Path("/fake/chart/dir"))
-    monkeypatch.setattr(vp, "ensure_repos_configured", lambda chart_dir: (True, "ok"))
-    monkeypatch.setattr(vp, "lint_args_for", lambda chart_dir: [])
-
-    ran = []
-
-    def make_check(name, result=(True, "ok")):
-        def check(*args, **kwargs):
-            ran.append(name)
-            return result
-
-        return check
-
-    monkeypatch.setattr(vp, "check_utf8_format", make_check("utf8", (False, "BOM found")))
-    monkeypatch.setattr(vp, "check_dependencies", make_check("deps"))
-    monkeypatch.setattr(vp, "check_repo_access", make_check("repo-access"))
-    monkeypatch.setattr(vp, "check_duplicate_keys", make_check("dupe"))
-    monkeypatch.setattr(vp, "check_dry", make_check("dry"))
-    monkeypatch.setattr(vp, "check_image_references", make_check("image-refs"))
-    monkeypatch.setattr(vp, "check_node_selector", make_check("node-selector"))
-    monkeypatch.setattr(vp, "check_oidc_url_coverage", make_check("oidc-url-coverage"))
-    monkeypatch.setattr(vp, "check_digest_pinning", make_check("digest-pinning"))
-    monkeypatch.setattr(vp, "check_subchart_image_visibility", make_check("subchart-images"))
-    monkeypatch.setattr(vp, "check_shared_image_usage", make_check("shared-image-usage"))
-    monkeypatch.setattr(vp, "check_image_repository", make_check("image-repository"))
-    monkeypatch.setattr(vp, "check_image_digests", make_check("digests"))
-    monkeypatch.setattr(vp, "check_docs_consistency", make_check("docs"))
-    monkeypatch.setattr(vp, "check_helm_docs", make_check("helm-docs"))
-    monkeypatch.setattr(vp, "check_markdown", make_check("markdown"))
-    monkeypatch.setattr(vp, "check_upgrade_doc_layout", make_check("upgrade-doc-layout"))
-    monkeypatch.setattr(vp, "check_vendored_tgz_extraction", make_check("tgz"))
-    monkeypatch.setattr(vp, "check_release_baseline", make_check("release-baseline"))
-    monkeypatch.setattr(vp, "check_lockstep_versions", make_check("lockstep"))
-    monkeypatch.setattr(vp, "check_lint", make_check("helm-lint"))
-    monkeypatch.setattr(vp, "check_render", make_check("full-render"))
-    monkeypatch.setattr(vp, "check_yamllint", make_check("yamllint"))
-    monkeypatch.setattr(vp, "check_kubeconform", make_check("kubeconform"))
-    monkeypatch.setattr(vp, "check_shellcheck", make_check("shellcheck"))
-    monkeypatch.setattr(vp, "check_kube_score", make_check("kube-score"))
-    monkeypatch.setattr(vp, "check_release_secret_size", make_check("release-secret-size"))
-    monkeypatch.setattr(vp, "check_chart_upgrades", make_check("chart-upgrades"))
-    monkeypatch.setattr(vp, "check_root_containers", make_check("root-containers"))
-    monkeypatch.setattr(vp, "check_image_upgrades", make_check("image-upgrades"))
-    monkeypatch.setattr(vp, "check_cves", make_check("cves"))
-    monkeypatch.setattr(vp, "check_cve_diff", make_check("cve-diff"))
+    _stub_main_environment(vp, monkeypatch)
+    ran: list[str] = []
+    _stub_checks(vp, monkeypatch, ran, ALL_CHECKS)
+    monkeypatch.setattr(vp, "check_utf8_format", _recording_check(ran, "utf8", (False, "BOM found")))
 
     with pytest.raises(SystemExit) as exc_info:
         vp.main()
@@ -371,7 +361,8 @@ def test_main_continues_past_a_failed_step(
         "cve-diff",
     ]
     out = capsys.readouterr().out
-    assert "UTF-8 format" in out and "FAIL" in out
+    assert "UTF-8 format" in out
+    assert "FAIL" in out
     assert "One or more checks failed" in out
 
 
@@ -380,10 +371,7 @@ def test_main_skips_dependents_of_a_failed_prerequisite(
 ):
     """A failed "Dependencies" skips its dependents (avoids noisy follow-on failures); others still run."""
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd"])
-    monkeypatch.setattr(vp, "require_helm", lambda: None)
-    monkeypatch.setattr(vp, "resolve_chart_dir", lambda: Path("/fake/chart/dir"))
-    monkeypatch.setattr(vp, "ensure_repos_configured", lambda chart_dir: (True, "ok"))
-    monkeypatch.setattr(vp, "lint_args_for", lambda chart_dir: [])
+    _stub_main_environment(vp, monkeypatch)
 
     def ok(*args, **kwargs):
         return True, "ok"
@@ -414,7 +402,7 @@ def test_main_skips_dependents_of_a_failed_prerequisite(
     monkeypatch.setattr(vp, "check_dependencies", lambda *a: (False, "helm dependency update failed"))
     for name in (
         "check_docs_consistency",
-        "check_subchart_image_visibility",
+        "check_subchart_images",
         "check_shared_image_usage",
         "check_image_repository",
         "check_image_digests",
@@ -437,7 +425,8 @@ def test_main_skips_dependents_of_a_failed_prerequisite(
     assert exc_info.value.code == 1
 
     out = capsys.readouterr().out
-    assert "Dependencies" in out and "FAIL" in out
+    assert "Dependencies" in out
+    assert "FAIL" in out
     assert 'prerequisite "Dependencies" failed' in out
 
 
@@ -479,51 +468,10 @@ def test_prerequisites_for_standalone_check_has_none(vp: ModuleType):
 # --- main(): --include= end-to-end ---
 
 
-def _stub_all_checks(vp: ModuleType, monkeypatch: pytest.MonkeyPatch, ran):
+def _stub_all_checks(vp: ModuleType, monkeypatch: pytest.MonkeyPatch, ran: list[str]) -> None:
     """Stub every step check for the --include= tests."""
-
-    def make_check(name):
-        def check(*args, **kwargs):
-            ran.append(name)
-            return True, "ok"
-
-        return check
-
-    monkeypatch.setattr(vp, "require_helm", lambda: None)
-    monkeypatch.setattr(vp, "resolve_chart_dir", lambda: Path("/fake/chart/dir"))
-    monkeypatch.setattr(vp, "ensure_repos_configured", lambda chart_dir: (True, "ok"))
-    monkeypatch.setattr(vp, "lint_args_for", lambda chart_dir: [])
-    monkeypatch.setattr(vp, "check_utf8_format", make_check("utf8"))
-    monkeypatch.setattr(vp, "check_dependencies", make_check("deps"))
-    monkeypatch.setattr(vp, "check_repo_access", make_check("repo-access"))
-    monkeypatch.setattr(vp, "check_duplicate_keys", make_check("dupe"))
-    monkeypatch.setattr(vp, "check_dry", make_check("dry"))
-    monkeypatch.setattr(vp, "check_image_references", make_check("image-refs"))
-    monkeypatch.setattr(vp, "check_node_selector", make_check("node-selector"))
-    monkeypatch.setattr(vp, "check_oidc_url_coverage", make_check("oidc-url-coverage"))
-    monkeypatch.setattr(vp, "check_digest_pinning", make_check("digest-pinning"))
-    monkeypatch.setattr(vp, "check_subchart_image_visibility", make_check("subchart-images"))
-    monkeypatch.setattr(vp, "check_shared_image_usage", make_check("shared-image-usage"))
-    monkeypatch.setattr(vp, "check_image_digests", make_check("digests"))
-    monkeypatch.setattr(vp, "check_docs_consistency", make_check("docs"))
-    monkeypatch.setattr(vp, "check_helm_docs", make_check("helm-docs"))
-    monkeypatch.setattr(vp, "check_markdown", make_check("markdown"))
-    monkeypatch.setattr(vp, "check_upgrade_doc_layout", make_check("upgrade-doc-layout"))
-    monkeypatch.setattr(vp, "check_vendored_tgz_extraction", make_check("tgz"))
-    monkeypatch.setattr(vp, "check_release_baseline", make_check("release-baseline"))
-    monkeypatch.setattr(vp, "check_lockstep_versions", make_check("lockstep"))
-    monkeypatch.setattr(vp, "check_lint", make_check("lint"))
-    monkeypatch.setattr(vp, "check_render", make_check("render"))
-    monkeypatch.setattr(vp, "check_yamllint", make_check("yamllint"))
-    monkeypatch.setattr(vp, "check_kubeconform", make_check("kubeconform"))
-    monkeypatch.setattr(vp, "check_shellcheck", make_check("shellcheck"))
-    monkeypatch.setattr(vp, "check_kube_score", make_check("kube-score"))
-    monkeypatch.setattr(vp, "check_release_secret_size", make_check("release-secret-size"))
-    monkeypatch.setattr(vp, "check_chart_upgrades", make_check("chart-upgrades"))
-    monkeypatch.setattr(vp, "check_root_containers", make_check("root-containers"))
-    monkeypatch.setattr(vp, "check_image_upgrades", make_check("image-upgrades"))
-    monkeypatch.setattr(vp, "check_cves", make_check("cves"))
-    monkeypatch.setattr(vp, "check_cve_diff", make_check("cve-diff"))
+    _stub_main_environment(vp, monkeypatch)
+    _stub_checks(vp, monkeypatch, ran, ALL_CHECKS)
 
 
 def test_include_flag_runs_target_plus_its_prerequisite(
@@ -569,7 +517,8 @@ def test_include_flag_standalone_step_runs_without_dependencies(
 
     assert ran == ["image-refs"]
     out = capsys.readouterr().out
-    assert "Dependencies" in out and "SKIP" in out
+    assert "Dependencies" in out
+    assert "SKIP" in out
 
 
 def test_include_and_skip_together_errors(
@@ -646,7 +595,8 @@ def test_skip_cve_scan_skips_it(vp: ModuleType, monkeypatch: pytest.MonkeyPatch,
 
     assert "cves" not in ran
     out = capsys.readouterr().out
-    assert "CVE scan" in out and "SKIP" in out
+    assert "CVE scan" in out
+    assert "SKIP" in out
 
 
 def test_include_cve_scan_runs_it_plus_dependencies_and_image_upgrades(vp: ModuleType, monkeypatch: pytest.MonkeyPatch):
@@ -669,7 +619,8 @@ def test_skip_cve_diff_skips_it(vp: ModuleType, monkeypatch: pytest.MonkeyPatch,
 
     assert "cve-diff" not in ran
     out = capsys.readouterr().out
-    assert "CVE diff" in out and "SKIP" in out
+    assert "CVE diff" in out
+    assert "SKIP" in out
 
 
 def test_include_cve_diff_runs_it_plus_its_prerequisites(vp: ModuleType, monkeypatch: pytest.MonkeyPatch):
@@ -694,7 +645,8 @@ def test_skip_image_upgrades_skips_it(
 
     assert "image-upgrades" not in ran
     out = capsys.readouterr().out
-    assert "Image upgrades" in out and "SKIP" in out
+    assert "Image upgrades" in out
+    assert "SKIP" in out
 
 
 def test_include_image_upgrades_runs_it_plus_dependencies(vp: ModuleType, monkeypatch: pytest.MonkeyPatch):
@@ -718,7 +670,8 @@ def test_skip_release_secret_size_skips_it(
 
     assert "release-secret-size" not in ran
     out = capsys.readouterr().out
-    assert "Release secret size" in out and "SKIP" in out
+    assert "Release secret size" in out
+    assert "SKIP" in out
 
 
 def test_include_release_secret_size_runs_it_plus_dependencies(vp: ModuleType, monkeypatch: pytest.MonkeyPatch):
@@ -741,7 +694,8 @@ def test_skip_helm_doc_skips_it(vp: ModuleType, monkeypatch: pytest.MonkeyPatch,
 
     assert "helm-docs" not in ran
     out = capsys.readouterr().out
-    assert "Helm doc" in out and "SKIP" in out
+    assert "Helm doc" in out
+    assert "SKIP" in out
 
 
 def test_include_helm_doc_runs_standalone(vp: ModuleType, monkeypatch: pytest.MonkeyPatch):
@@ -832,7 +786,7 @@ def test_guard_not_called_when_dependencies_step_runs(vp: ModuleType, monkeypatc
     """The "Dependencies" step repairs a stale charts/ itself — no guard."""
     calls = []
     monkeypatch.setattr(vp, "ensure_vendored_dependencies", calls.append)
-    vp._ensure_vendored_dependencies_if_skipped(Path("/chart"), set())
+    vp.ensure_vendored_if_skipped(Path("/chart"), set())
     assert not calls
 
 
@@ -841,7 +795,7 @@ def test_guard_called_when_dependencies_skipped_but_a_dependent_step_runs(
 ):
     calls = []
     monkeypatch.setattr(vp, "ensure_vendored_dependencies", calls.append)
-    vp._ensure_vendored_dependencies_if_skipped(Path("/chart"), {"Dependencies"})
+    vp.ensure_vendored_if_skipped(Path("/chart"), {"Dependencies"})
     assert calls == [Path("/chart")]
 
 
@@ -849,5 +803,5 @@ def test_guard_not_called_when_every_dependent_step_is_skipped_too(vp: ModuleTyp
     calls = []
     monkeypatch.setattr(vp, "ensure_vendored_dependencies", calls.append)
     dependents = {name for _, name in vp.SKIPPABLE_STEPS if "Dependencies" in vp.prerequisites_for(name)}
-    vp._ensure_vendored_dependencies_if_skipped(Path("/chart"), {"Dependencies", *dependents})
+    vp.ensure_vendored_if_skipped(Path("/chart"), {"Dependencies", *dependents})
     assert not calls

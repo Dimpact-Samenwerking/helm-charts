@@ -27,6 +27,7 @@ Options:
 import sys
 
 from pathlib import Path
+from typing import NoReturn
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -41,11 +42,14 @@ from lib.chart.values_tree_primitives import mapping_at
 from lib.checks.oidc_url_coverage import OIDC_CLIENTS_LIST_RE
 from lib.checks.oidc_url_coverage import REALM_CONFIG_TEMPLATE
 from lib.checks.oidc_url_coverage import scan_oidc_url_coverage
-from lib.cli import exit_on_help
+from lib.cli import flag_args
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import load_yaml_mapping
 
 KEYCLOAK_CLIENTS_PREFIX = "keycloak.config.clients."
+
+# (new entry lines, unresolved ".Values.<path>"s) -- see find_fixes.
+type OidcFixes = tuple[list[str], list[str]]
 
 
 def client_block(values_path: str) -> tuple[str, str]:
@@ -56,7 +60,7 @@ def client_block(values_path: str) -> tuple[str, str]:
     if values_path.startswith(KEYCLOAK_CLIENTS_PREFIX):
         name = values_path.removeprefix(KEYCLOAK_CLIENTS_PREFIX).split(".")[0]
         return name, KEYCLOAK_CLIENTS_PREFIX + name
-    top = values_path.split(".")[0]
+    top = values_path.split(".", maxsplit=1)[0]
     return top, top
 
 
@@ -69,13 +73,13 @@ def has_enabled_switch(block: str, values: YamlMapping, deps: list[ChartDependen
         return True
     dep = dep_for_values_key(deps, block)
     conditions = (dep or {}).get("condition", "")
-    return f"{block}.enabled" in [c.strip() for c in conditions.split(",")]
+    return f"{block}.enabled" in [condition.strip() for condition in conditions.split(",")]
 
 
 def _pad_to(text: str, column: int) -> str:
     """`text` padded with spaces to `column` characters, or with one
     space when it's already that long."""
-    return text.ljust(column) if len(text) < column else text + " "
+    return text.ljust(column) if len(text) < column else f"{text} "
 
 
 def entry_line(values_path: str, first_entry: str) -> str:
@@ -86,13 +90,11 @@ def entry_line(values_path: str, first_entry: str) -> str:
     indent = first_entry[: len(first_entry) - len(first_entry.lstrip())]
     line = _pad_to(f'{indent}(dict "name" "{name}"', first_entry.find('"enabled"'))
     line = _pad_to(f'{line}"enabled" .Values.{block}.enabled', first_entry.find('"oidcUrl"'))
-    line += f'"oidcUrl" .Values.{values_path}'
-    if values_path != f"{name}.configuration.oidcUrl":
-        line += f' "field" "{values_path}"'
-    return line + ")"
+    field = "" if values_path == f"{name}.configuration.oidcUrl" else f' "field" "{values_path}"'
+    return f'{line}"oidcUrl" .Values.{values_path}{field})'
 
 
-def find_fixes(text: str, values: YamlMapping, deps: list[ChartDependency]) -> tuple[list[str], list[str]] | None:
+def find_fixes(text: str, values: YamlMapping, deps: list[ChartDependency]) -> OidcFixes | None:
     """(new entry lines, unresolved ".Values.<path>"s) for the template
     `text`, or None when it has no `$oidcClients` list or that list has
     no entry to align to."""
@@ -100,7 +102,8 @@ def find_fixes(text: str, values: YamlMapping, deps: list[ChartDependency]) -> t
     list_m = OIDC_CLIENTS_LIST_RE.search(text)
     if result is None or list_m is None:
         return None
-    first_entry = next((line for line in list_m.group("body").splitlines() if '"oidcUrl"' in line), None)
+    body_lines = list_m.group("body").splitlines()
+    first_entry = next((line for line in body_lines if '"oidcUrl"' in line), None)
     if first_entry is None:
         return None
     entries: list[str] = []
@@ -122,36 +125,50 @@ def apply_fixes(text: str, entries: list[str]) -> str:
         return text
     end = list_m.end("body")
     insert_at = len(text[:end].rstrip("- \t\n"))
-    return text[:insert_at] + "".join(f"\n{entry}" for entry in entries) + text[insert_at:]
+    appended = "".join(f"\n{entry}" for entry in entries)
+    return text[:insert_at] + appended + text[insert_at:]
 
 
-def main():
-    """CLI entry point; exits 1 on unresolved paths, or in dry-run when anything would change."""
-    exit_on_help(__doc__)
-    args = sys.argv[1:]
-    if args not in ([], ["--dry-run"]):
-        print(__doc__)
-        sys.exit(1)
-    dry_run = bool(args)
-
-    template = CHART_DIR / REALM_CONFIG_TEMPLATE
-    if not template.is_file():
-        print(f"error: {REALM_CONFIG_TEMPLATE} not found")
-        sys.exit(1)
-    text = template.read_text(encoding="utf-8")
+def template_fixes(text: str) -> OidcFixes:
+    """find_fixes for the realm-config template `text` against the chart; exits 1 without a `$oidcClients` list."""
     values = load_yaml_mapping(CHART_DIR / "values.yaml")
     deps = load_chart_dependencies(CHART_DIR / "Chart.yaml")
     fixes = find_fixes(text, values, deps)
     if fixes is None:
         print(f"error: no `$oidcClients := list ...` entries found in {REALM_CONFIG_TEMPLATE}")
         sys.exit(1)
-    entries, unresolved = fixes
+    return fixes
 
+
+def print_fixes(entries: list[str], unresolved: list[str], *, dry_run: bool) -> None:
+    """One line per entry to add and per path left for a human."""
     action = "would add" if dry_run else "added"
     for entry in entries:
         print(f"  {REALM_CONFIG_TEMPLATE}: {action} {entry.strip()}")
     for path in unresolved:
         print(f"  {REALM_CONFIG_TEMPLATE}: {path}: no enabled switch found for its block — add the entry by hand")
+
+
+def write_fixes(template: Path, new_text: str, added: int, unresolved: int) -> NoReturn:
+    """Write the template when entries were added; exit 1 when paths are left unresolved."""
+    if added:
+        template.write_text(new_text, encoding="utf-8")
+    unresolved_note = f"; {unresolved} left unresolved — review by hand" if unresolved else ""
+    print(f"\nAdded {added} $oidcClients entry(ies){unresolved_note}")
+    sys.exit(1 if unresolved else 0)
+
+
+def main():
+    """CLI entry point; exits 1 on unresolved paths, or in dry-run when anything would change."""
+    dry_run = "--dry-run" in flag_args(__doc__, "--dry-run")
+
+    template = CHART_DIR / REALM_CONFIG_TEMPLATE
+    if not template.is_file():
+        print(f"error: {REALM_CONFIG_TEMPLATE} not found")
+        sys.exit(1)
+    text = template.read_text(encoding="utf-8")
+    entries, unresolved = template_fixes(text)
+    print_fixes(entries, unresolved, dry_run=dry_run)
 
     if not entries and not unresolved:
         print("OK: every Keycloak client redirect URI built from .Values has a matching $oidcClients oidcUrl entry")
@@ -159,13 +176,7 @@ def main():
     if dry_run:
         print(f"\n{len(entries)} $oidcClients entry(ies) would be added (dry-run, not writing)")
         sys.exit(1)
-    if entries:
-        template.write_text(apply_fixes(text, entries), encoding="utf-8")
-    print(
-        f"\nAdded {len(entries)} $oidcClients entry(ies)"
-        + (f"; {len(unresolved)} left unresolved — review by hand" if unresolved else "")
-    )
-    sys.exit(1 if unresolved else 0)
+    write_fixes(template, apply_fixes(text, entries), len(entries), len(unresolved))
 
 
 if __name__ == "__main__":

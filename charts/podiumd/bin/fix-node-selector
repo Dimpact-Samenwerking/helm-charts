@@ -19,6 +19,8 @@ import re
 import sys
 
 from pathlib import Path
+from typing import NamedTuple
+from typing import NoReturn
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -43,23 +45,32 @@ NODE_SELECTOR_BLOCK = "{indent}nodeSelector:\n{indent}  kubernetes.azure.com/mod
 def split_docs_with_offsets(text: str):
     """Docs split by DOC_SPLIT_RE (as the check does), as (doc, start offset) pairs."""
     seps = list(DOC_SPLIT_RE.finditer(text))
-    starts = [0] + [m.end() for m in seps]
-    ends = [m.start() for m in seps] + [len(text)]
-    return [(text[s:e], s) for s, e in zip(starts, ends, strict=False)]
+    starts = [0, *(sep.end() for sep in seps)]
+    ends = [*(sep.start() for sep in seps), len(text)]
+    return [(text[start:end], start) for start, end in zip(starts, ends, strict=False)]
 
 
-# (insert_at, new_text, kind, name) -- see find_fixes.
-NodeSelectorFix = tuple[int, str, str, str]
+class NodeSelectorFix(NamedTuple):
+    """A nodeSelector block to insert at an offset of a template file, for workload kind/name."""
+
+    insert_at: int
+    new_text: str
+    kind: str
+    name: str
 
 
-def find_fixes(text: str) -> tuple[list[NodeSelectorFix], list[tuple[str, str]]]:
+# (kind, name) of a workload.
+type Workload = tuple[str, str]
+
+
+def find_fixes(text: str) -> tuple[list[NodeSelectorFix], list[Workload]]:
     """(fixes, unresolved) for one file.
 
-    fixes: (insert_at, block, kind, name), inserted before `containers:` at its indent.
+    fixes: blocks to insert before `containers:` at its indent.
     unresolved: (kind, name) of workloads missing nodeSelector without `containers:`.
     """
     fixes: list[NodeSelectorFix] = []
-    unresolved: list[tuple[str, str]] = []
+    unresolved: list[Workload] = []
     define_bodies = file_define_bodies(text)
     for doc, offset in split_docs_with_offsets(text):
         missing = missing_node_selector(doc, define_bodies)
@@ -74,42 +85,37 @@ def find_fixes(text: str) -> tuple[list[NodeSelectorFix], list[tuple[str, str]]]
 
         indent = containers_m.group("indent")
         insert_at = offset + containers_m.start()
-        fixes.append((insert_at, NODE_SELECTOR_BLOCK.format(indent=indent), kind, name))
+        fixes.append(NodeSelectorFix(insert_at, NODE_SELECTOR_BLOCK.format(indent=indent), kind, name))
     return fixes, unresolved
 
 
 def apply_fixes(text: str, fixes: list[NodeSelectorFix]):
     """Apply fixes in reverse offset order so earlier offsets stay valid."""
-    for insert_at, new_text, _kind, _name in sorted(fixes, key=lambda f: f[0], reverse=True):
-        text = text[:insert_at] + new_text + text[insert_at:]
+    for fix in sorted(fixes, key=lambda fix: fix.insert_at, reverse=True):
+        text = text[: fix.insert_at] + fix.new_text + text[fix.insert_at :]
     return text
 
 
-def main():
-    """CLI entry point; exits 1 on unresolved docs, or in dry-run when anything would change."""
-    dry_run = "--dry-run" in flag_args(__doc__, "--dry-run")
+def fix_template(path: Path, text: str, *, dry_run: bool) -> tuple[int, list[Workload]]:
+    """Insert the missing nodeSelectors of one template file and print each one;
+    (insertion count, unresolved workloads)."""
+    fixes, unresolved = find_fixes(text)
+    rel = path.relative_to(CHART_DIR)
 
-    templates_dir = CHART_DIR / "templates"
-    total_fixed = 0
-    total_unresolved: list[tuple[Path, str, str]] = []
+    action = "would insert" if dry_run else "inserted"
+    for fix in fixes:
+        print(f"  {rel}  {fix.kind}/{fix.name}: {action} nodeSelector")
+    for kind, name in unresolved:
+        print(f"  {rel}  {kind}/{name}: no containers: key found — left as-is, review by hand")
 
-    for path, text in template_texts(templates_dir):
-        fixes, unresolved = find_fixes(text)
-        rel = path.relative_to(CHART_DIR)
+    if fixes and not dry_run:
+        path.write_text(apply_fixes(text, fixes), encoding="utf-8")
+    return len(fixes), unresolved
 
-        for _insert_at, _new_text, kind, name in fixes:
-            action = "would insert" if dry_run else "inserted"
-            print(f"  {rel}  {kind}/{name}: {action} nodeSelector")
-        for kind, name in unresolved:
-            print(f"  {rel}  {kind}/{name}: no containers: key found — left as-is, review by hand")
-            total_unresolved.append((rel, kind, name))
 
-        if fixes and not dry_run:
-            path.write_text(apply_fixes(text, fixes), encoding="utf-8")
-
-        total_fixed += len(fixes)
-
-    if total_fixed == 0 and not total_unresolved:
+def exit_with_summary(total_fixed: int, unresolved_count: int, *, dry_run: bool) -> NoReturn:
+    """Print the run's totals; exit 1 on unresolved docs, or in dry-run when anything would change."""
+    if total_fixed == 0 and not unresolved_count:
         print(
             "OK: every Deployment/StatefulSet/DaemonSet/Job/CronJob in templates/*.yaml "
             "already exposes a nodeSelector field"
@@ -120,11 +126,22 @@ def main():
         print(f"\n{total_fixed} nodeSelector insertion(s) would be made (dry-run, not writing)")
         sys.exit(1)
 
-    print(
-        f"\nInserted nodeSelector into {total_fixed} template(s)"
-        + (f"; {len(total_unresolved)} left unresolved — review by hand" if total_unresolved else "")
-    )
-    sys.exit(1 if total_unresolved else 0)
+    unresolved_note = f"; {unresolved_count} left unresolved — review by hand" if unresolved_count else ""
+    print(f"\nInserted nodeSelector into {total_fixed} template(s){unresolved_note}")
+    sys.exit(1 if unresolved_count else 0)
+
+
+def main():
+    """CLI entry point; exits 1 on unresolved docs, or in dry-run when anything would change."""
+    dry_run = "--dry-run" in flag_args(__doc__, "--dry-run")
+
+    total_fixed = 0
+    unresolved_count = 0
+    for path, text in template_texts(CHART_DIR / "templates"):
+        fixed, unresolved = fix_template(path, text, dry_run=dry_run)
+        total_fixed += fixed
+        unresolved_count += len(unresolved)
+    exit_with_summary(total_fixed, unresolved_count, dry_run=dry_run)
 
 
 if __name__ == "__main__":

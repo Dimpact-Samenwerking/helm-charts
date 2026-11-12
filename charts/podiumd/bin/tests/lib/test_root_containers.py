@@ -1,5 +1,6 @@
 """lib.checks.root_containers, image_config_user and rendered_containers."""
 
+import io
 import urllib.error
 import urllib.request
 
@@ -16,7 +17,7 @@ from lib.checks.cve import split_image_ref
 from lib.checks.root_containers import RunAs
 from lib.checks.root_containers import check_root_containers
 from lib.checks.root_containers import effective_run_as
-from lib.checks.root_containers import image_user_is_root
+from lib.checks.root_containers import is_root_image_user
 from lib.checks.root_containers import root_verdict
 from lib.registry import image_config_user
 from lib.render_scope import RenderedDocs
@@ -24,6 +25,8 @@ from lib.render_scope import rendered_containers
 from lib.render_scope import split_rendered_by_source
 
 if TYPE_CHECKING:
+    from http.client import HTTPMessage
+
     from lib.yaml_types import YamlValue
 
 
@@ -67,8 +70,8 @@ def test_root_verdict(run_as: RunAs, image_user: str | None, verdict: str):
 
 
 def test_image_user_is_root():
-    assert all(image_user_is_root(u) for u in ("", "root", "0", "0:0", "root:root"))
-    assert not any(image_user_is_root(u) for u in ("1000", "65532:65532", "curl_user"))
+    assert all(is_root_image_user(u) for u in ("", "root", "0", "0:0", "root:root"))
+    assert not any(is_root_image_user(u) for u in ("1000", "65532:65532", "curl_user"))
 
 
 RENDER = """\
@@ -215,18 +218,20 @@ def test_image_config_user_without_user_is_root(monkeypatch: pytest.MonkeyPatch)
 
 
 def test_redirect_to_another_host_drops_the_authorization_header():
-    handler = registry._DropAuthOnRedirect()  # pyright: ignore[reportPrivateUsage]
+    handler = registry.DropAuthOnRedirect()
     request = urllib.request.Request(
         "https://registry.example/v2/x/blobs/sha256:1", headers={"Authorization": "Bearer t"}
     )
-    headers = cast("registry.HTTPMessage", Message())
-    fp = cast("registry.IO[bytes]", None)
+    headers = cast("HTTPMessage", Message())
+    fp = io.BytesIO()
 
     to_cdn = handler.redirect_request(request, fp, 307, "Temporary Redirect", headers, "https://cdn.example/blob")
     same_host = handler.redirect_request(request, fp, 307, "Temporary Redirect", headers, "https://registry.example/b")
 
-    assert to_cdn is not None and not to_cdn.has_header("Authorization")
-    assert same_host is not None and same_host.has_header("Authorization")
+    assert to_cdn is not None
+    assert not to_cdn.has_header("Authorization")
+    assert same_host is not None
+    assert same_host.has_header("Authorization")
 
 
 @pytest.mark.parametrize(

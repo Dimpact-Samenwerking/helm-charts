@@ -1,4 +1,4 @@
-# ruff, pylint, isort, vulture, bandit, basedpyright and coverage config for
+# ruff, flake8, pylint, isort, vulture, bandit, basedpyright, deptry and coverage config for
 # charts/podiumd/bin/ (scripts, lib/, tests/). Not applied to
 # charts/podiumd/scripts/.
 
@@ -6,6 +6,7 @@
 # Shared with [tool.ruff.format] and pylint max-line-length.
 line-length = 120
 indent-width = 4
+target-version = "py312"
 force-exclude = true
 
 [tool.ruff.lint]
@@ -30,6 +31,7 @@ select = [
     "F",    # Pyflakes
     "FA",   # flake8-future-annotations
     "FBT",  # flake8-boolean-trap
+    "FIX",  # flake8-fixme: no TODO, FIXME or XXX left in the code
     "FLY",  # pyflint
     "FURB", # refurb
     "G",    # flake8-logging-format
@@ -45,6 +47,7 @@ select = [
     "PERF", # perflint
     "PGH",
     "PIE",  # flake8-pie
+    "PL",   # pylint: ruff owns the pylint checks it has (pylint drops them, see [tool.pylint."messages control"])
     "PT",   # flake8-pytest-style
     "PTH",  # flake8-use-pathlib
     "PYI",
@@ -58,21 +61,37 @@ select = [
     "SLOT", # flake8-slots
     "T10",
     "T20",
+    "TD",   # flake8-todos
     "TCH",
     "TID",
     "TRY",  # tryceratops
     "UP",   # pyupgrade
     "W",    # pycodestyle
     "YTT",  # flake8-2020
+    # Preview rules, each selected by its code (explicit-preview-rules):
+    "PLR0904",  # too many public methods
+    "PLR0914",  # too many locals
+    "PLR6201",  # membership test on a list or tuple literal, a set is meant
+    "PLW0717",  # too many statements in a try body: the except catches only what it is meant for
+    "PLW1514",  # text mode open without an explicit encoding
+    "PLR6301",  # method that does not use self: a module-level function (WPS602 forbids staticmethod)
+    "RUF039",   # regex pattern not a raw string
+    "FURB113",  # repeated append: one extend
+    "FURB140",  # comprehension that starmap does
 ]
+# Only the preview rules selected by code above, not every preview rule of a selected group.
+preview = true
+explicit-preview-rules = true
 ignore = [
     "COM812", # Conflicts when used with the formatter
     "ISC001", # Rule may cause conflicts when used with the formatter, disable is recommended by ruff
     "T201", # 'print' statement found, sometimes these are deliberate
     "EXE001", # shebang permission mismatch between host and Docker container
     "E501", # line-too-long: pylint's job now (C0301), avoid flagging the same line twice
-    "ERA001", # commented-out-code: current hits are prose that resembles code
+    "ERA001", # commented-out-code: flags the jscpd:ignore markers and prose that resembles code
 ]
+# These codes in noqa comments belong to flake8 and its plugins, not to ruff.
+external = ["WPS", "CCE", "FNE"]
 # Allow fix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]
 unfixable = []
@@ -83,8 +102,6 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 # Mirror [tool.isort] below so ruff and isort agree on import layout.
 force-single-line = true
 lines-between-types = 1
-# No target-version is set, so ruff doesn't know tomllib (3.11+) is stdlib.
-extra-standard-library = ["tomllib"]
 
 [tool.ruff.lint.flake8-bandit]
 check-typed-exception = true  # Enable additional checks for try-except-pass
@@ -122,11 +139,15 @@ check-typed-exception = true  # Enable additional checks for try-except-pass
 "verify-podiumd-dead-values" = ["E402"]
 "verify-release-table-with-podiumd" = ["E402"]
 
-# tests/: pytest asserts, fixture/mock params (ARG), private-helper access
-# (SLF001), no __init__.py (INP001), composite asserts (PT018), unused
-# unpacked vars (RUF059), fixed-argv `git` calls (S603/S607), fake tokens
-# (S106). bandit does not scan tests/ either.
-"tests/**" = ["S101", "ARG001", "ARG005", "SLF001", "INP001", "PT018", "RUF059", "S603", "S607", "S106"]
+# tests/: pytest asserts, fixture/mock params (ARG), no __init__.py (INP001),
+# unused unpacked vars (RUF059), fixed-argv `git` calls (S603/S607). bandit does not scan tests/ either. Test values in asserts
+# (PLR2004), fixtures and fakes with many parameters (PLR0913, PLR0917),
+# imports inside a test (PLC0415), setup and assert together in a try
+# (PLW0717), test classes with many tests (PLR0904) and locals (PLR0914).
+"tests/**" = [
+    "S101", "ARG001", "ARG005", "INP001", "RUF059", "S603", "S607",
+    "PLR2004", "PLR0913", "PLR0917", "PLC0415", "PLW0717", "PLR0904", "PLR0914",
+]
 
 # S310: these urlopen() calls only target config-derived trusted hosts.
 "lib/registry.py" = ["S310"]
@@ -140,10 +161,73 @@ indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
 
+[tool.flake8]
+# Only the rules ruff and pylint lack: wemake-python-styleguide (WPS), flake8-bugbear's
+# B042 (an exception's __init__ passes all its args to super, else pickle and copy break),
+# flake8-class-attributes-order (CCE) and flake8-functions-names (FNE005: a bool function
+# is named is_/has_). Limits and ignores follow podiumd-tests.
+select = ["WPS", "B042", "CCE001", "FNE005"]
+max-line-length = 120
+# Jones complexity of a line (default 14): only the really dense lines
+max-line-complexity = 18
+max-cognitive-average = 6
+max-name-length = 30
+max-tuple-unpack-length = 3
+max-except-exceptions = 2
+max-lines-in-finally = 1
+max-noqa-comments = 5
+ignore = [
+    # done by ruff or pylint
+    "WPS210",  # too many locals: PLR0914
+    "WPS211",  # too many arguments: PLR0913, PLR0917
+    "WPS214",  # too many methods: PLR0904
+    "WPS421",  # print: T201, off on purpose (the scripts print)
+    "WPS432",  # magic number: PLR2004 (comparisons), elsewhere a named constant is not clearer
+    "WPS441",  # control variable used after its loop: B020, PLW2901 (a comprehension reusing names is no bug)
+    # opinion, or in conflict with this code base
+    "WPS110",  # names like result, data, value: clear in their context
+    "WPS201",  # too many imports: isort force-single-line gives one import per line
+    "WPS202",  # too many module members: lib modules group one concept
+    "WPS204",  # overused expression: flags raise X(msg), the pattern ruff EM asks for
+    "WPS226",  # string constant overuse: YAML and JSON keys are data
+    "WPS237",  # complex f-string: a subscript or call in an f-string reads fine
+    "WPS407",  # mutable module constant: freezing nested dicts breaks json and yaml dumps
+    "WPS430",  # nested function: closures on purpose (callbacks, fakes)
+    "WPS529",  # implicit .get(): flags a dispatch on which keys a dict has; SIM401 catches the if/else default case
+]
+# flake8 applies only the longest pattern that matches a file (* matches / too).
+per-file-ignores = [
+    # tests: counts and sizes (asserts, comparisons, line complexity, annotations of fixtures), test idioms (short
+    # names, == [] in an assert, nested classes for fakes, list multiplication, slices, float values)
+    "tests/*:WPS111,WPS114,WPS118,WPS218,WPS219,WPS221,WPS228,WPS230,WPS234,WPS301,WPS324,WPS358,WPS362,WPS431,WPS435,WPS458,WPS520",
+    # the scripts have kebab-case names (pylint module-rgx in [tool.pylint.basic])
+    "./*-*:WPS102",
+    # a script name over 30 characters is the command people type; WPS118 is then off for the whole file, so
+    # names inside these three are kept short by hand
+    "./export-confluence-release-table:WPS102,WPS118",
+    "./show-component-baseline-version:WPS102,WPS118",
+    "./verify-release-table-with-podiumd:WPS102,WPS118",
+]
+
 # pylint covers checks ruff lacks; overlapping rules are owned by one tool.
 # Extensionless scripts must be passed explicitly (see run_python_checks).
 # tests/ also disables [tool.podiumd.pylint-tests]: pylint has no
 # per-directory config.
+
+[tool.pylint."messages control"]
+# Owned by ruff (PL rules, [tool.ruff.lint]), which also reads the noqa comments that suppress them.
+disable = [
+    "too-many-arguments",             # PLR0913
+    "too-many-positional-arguments",  # PLR0917
+    "too-many-return-statements",     # PLR0911
+    "too-many-branches",              # PLR0912
+    "too-many-statements",            # PLR0915
+    "too-many-locals",                # PLR0914
+    "too-many-public-methods",        # PLR0904
+    "too-many-boolean-expressions",   # PLR0916
+    "import-outside-toplevel",        # PLC0415
+    "unspecified-encoding",           # PLW1514
+]
 
 [tool.pylint.basic]
 # Allow hyphens for the kebab-case script names (e.g. "verify-podiumd").
@@ -160,17 +244,12 @@ disable = [
     "missing-function-docstring",
     "wrong-import-position",
     "unused-argument",
-    "protected-access",
     "unused-variable",
     "redefined-outer-name",
     "duplicate-code",
     # Not enforced for tests:
-    "import-outside-toplevel",
     "consider-using-from-import",
     "use-implicit-booleaness-not-comparison",
-    "too-many-positional-arguments",
-    "too-many-arguments",
-    "too-many-locals",
     "import-error",
     "superfluous-parens",
     "too-many-lines",
@@ -227,20 +306,45 @@ skips = [
 
 # "." also measures the extensionless scripts, which tests load with
 # SourceFileLoader.
+[tool.pytest.ini_options]
+# --tb=short: long tracebacks print the arguments of each frame, tokens included.
+addopts = "-ra --tb=short"
+
 [tool.coverage.run]
 source = ["."]
 omit = ["tests/*"]
 
+[tool.deptry]
+# requirements.txt also lists the check tools, which nothing imports; ruamel.yaml is
+# imported by charts/podiumd/scripts/, which tests/migrate-scripts/ test.
+[tool.deptry.per_rule_ignores]
+DEP002 = [
+    "ruff", "pymarkdownlnt", "pylint", "vulture", "isort", "pytest", "pytest-cov", "pytest-xdist", "bandit",
+    "basedpyright", "jscpd", "flake8-pyproject", "wemake-python-styleguide", "flake8-bugbear",
+    "flake8-class-attributes-order", "flake8-functions-names", "pip-audit", "deptry", "ruamel.yaml",
+]
+
 [tool.coverage.report]
 fail_under = 97
+# With the default precision 0 the total is rounded before the compare, so 96.6 passes 97.
+precision = 2
 
 [tool.basedpyright]
 exclude = [
     "**/__pycache__",
 ]
+pythonVersion = "3.12"
 typeCheckingMode = "strict"
 reportUnusedImport = false  # done by ruff F401
-reportUntypedBaseClass = false # dony by ruff N801
+reportUntypedBaseClass = false # done by ruff N801
+reportUnnecessaryTypeIgnoreComment = "error"
+reportImplicitOverride = "error"
+reportCallInDefaultInitializer = "error"
+reportInvalidCast = "error"
+reportExplicitAny = "error"
+reportUnusedParameter = "error"
+reportPrivateLocalImportUsage = "error"
+reportUnannotatedClassAttribute = "error"
 
 # tests/: fakes, parametrize args and monkeypatch lambdas are unannotated
 # and scripts load as ModuleType, so Unknown types remain.
@@ -254,3 +358,5 @@ reportUnknownArgumentType = false
 reportUnknownParameterType = false
 reportUnknownMemberType = false
 reportUnknownVariableType = false
+# fixtures and fakes keep the signature of what they replace (ruff ARG001 is off here too)
+reportUnusedParameter = false

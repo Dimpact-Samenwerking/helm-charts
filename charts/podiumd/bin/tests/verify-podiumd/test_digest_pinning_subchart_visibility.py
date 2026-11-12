@@ -1,4 +1,4 @@
-"""Tests for resolve_values_path_source and check_subchart_image_visibility.
+"""Tests for resolve_values_path_source and check_subchart_images.
 
 The latter is a report-only scan for images defined only in a vendored subchart's
 default values.yaml, which check_digest_pinning (podiumd values only) can't see."""
@@ -15,6 +15,8 @@ import yaml
 
 from dep_helpers import make_dep
 
+from tests.fixture_data import write_chart_dependencies
+
 DIGEST_A = "a" * 64
 DIGEST_B = "b" * 64
 
@@ -24,7 +26,7 @@ def write_values_yaml(chart_dir, text):
 
 
 def write_chart_yaml(chart_dir, deps):
-    (chart_dir / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}), encoding="utf-8")
+    write_chart_dependencies(chart_dir / "Chart.yaml", deps)
 
 
 def make_tgz(charts_dir, name, version, values, templates=None, chart_yaml=None, extra_files=None):
@@ -159,7 +161,7 @@ zac:
     assert "frankgateway.nginx.image  [local: templates/frankgateway-nginx.yaml]" in out
 
 
-# --- check_subchart_image_visibility / find_unresolved_subchart_images ---
+# --- check_subchart_images / find_unresolved_images ---
 # Findings are gated on whether the owning chart-tree path rendered; stub_render fakes
 # that. Paths are given as "podiumd/charts/<name>" (see lib.chart.resolve_subchart_default).
 
@@ -170,7 +172,7 @@ def test_no_dependencies_passes(
     write_chart_yaml(tmp_path, [])
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, [])
-    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
+    ok, detail = vp.check_subchart_images(tmp_path, [])
     assert ok is True
     assert detail == "0 unresolved"
 
@@ -182,7 +184,7 @@ def test_dependency_not_yet_vendored_is_skipped(
     write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/openzaak"])
-    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
+    ok, detail = vp.check_subchart_images(tmp_path, [])
     assert ok is True
     assert detail == "0 unresolved"
 
@@ -204,7 +206,7 @@ openzaak:
 """,
     )
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/openzaak"])
-    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
+    ok, detail = vp.check_subchart_images(tmp_path, [])
     assert ok is True
     assert detail == "0 unresolved"
 
@@ -225,7 +227,7 @@ def test_unoverridden_floating_subchart_image_fails_the_check(
     # Helm's "# Source:" names the chart-tree dir by alias ("oz") when one is declared
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/oz"])
 
-    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
+    ok, detail = vp.check_subchart_images(tmp_path, [])
 
     assert ok is False
     assert detail == "1 floating (failing)"
@@ -253,7 +255,7 @@ def test_subchart_image_visibility_finding_annotated_with_its_owning_chart(
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/eck-operator"])
 
-    ok, _detail = vp.check_subchart_image_visibility(tmp_path, [])
+    ok, _detail = vp.check_subchart_images(tmp_path, [])
 
     assert ok is False
     out = capsys.readouterr().out
@@ -284,7 +286,7 @@ def test_unoverridden_already_pinned_subchart_image_never_fails(
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/zac"])
 
-    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
+    ok, detail = vp.check_subchart_images(tmp_path, [])
 
     assert ok is True
     assert detail == "0 floating, 1 pinned (report only)"
@@ -328,7 +330,7 @@ def test_mix_of_floating_and_pinned_findings_fails_overall(
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/openzaak", "podiumd/charts/zac"])
 
-    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
+    ok, detail = vp.check_subchart_images(tmp_path, [])
 
     assert ok is False
     assert detail == "1 floating (failing), 1 pinned (report only)"
@@ -359,7 +361,7 @@ openzaak:
 """,
     )
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/openzaak"])
-    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
+    ok, detail = vp.check_subchart_images(tmp_path, [])
     assert ok is True
     assert detail == "0 unresolved"
 
@@ -387,7 +389,7 @@ keycloak-operator:
 """,
     )
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/keycloak-operator"])
-    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
+    ok, detail = vp.check_subchart_images(tmp_path, [])
     assert ok is True
     assert detail == "0 unresolved"
 
@@ -411,7 +413,7 @@ def test_multiple_unresolved_images_all_reported(
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/openzaak", "podiumd/charts/openklant"])
 
-    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
+    ok, detail = vp.check_subchart_images(tmp_path, [])
 
     assert ok is False
     assert detail == "2 floating (failing)"
@@ -428,6 +430,6 @@ def test_check_subchart_image_visibility_render_failure(
         "render_chart",
         lambda chart_dir, extra_args: SimpleNamespace(returncode=1, stdout="", stderr="boom"),
     )
-    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
+    ok, detail = vp.check_subchart_images(tmp_path, [])
     assert ok is False
     assert "helm template failed to render" in detail

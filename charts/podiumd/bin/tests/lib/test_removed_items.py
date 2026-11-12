@@ -87,7 +87,7 @@ def test_sync_removed_items_keeps_user_text_in_a_removed_section(tmp_path: Path)
     items, ordering = _items_and_ordering(tmp_path)
     text, _synced = sync_removed_items(DOC, items, "4.9.3", ordering)
     note = "Delete the kiss namespace by hand.\n"
-    text = text.replace("(was 3.1.1).\n", "(was 3.1.1).\n\n" + note)
+    text = text.replace("(was 3.1.1).\n", f"(was 3.1.1).\n\n{note}")
 
     assert sync_removed_items(text, items, "4.9.3", ordering) == (text, [])
     assert note in text

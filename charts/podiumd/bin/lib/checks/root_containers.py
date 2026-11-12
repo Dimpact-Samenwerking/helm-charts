@@ -7,8 +7,7 @@ the gitignored .cache/image-user-cache.json; a digest's config never
 changes. Never fails on findings.
 """
 
-import urllib.error
-
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -29,7 +28,7 @@ from lib.render_scope import RenderedContainer
 from lib.render_scope import friendly_vendor_charts
 from lib.render_scope import render_chart_docs
 from lib.render_scope import rendered_containers
-from lib.settings import repo_access_request_timeout_seconds
+from lib.settings import repo_access_timeout_seconds
 from lib.settings import root_containers_accepted
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import shape_problem
@@ -73,7 +72,7 @@ def effective_run_as(pod_spec: YamlMapping, container: YamlMapping) -> RunAs:
 
     def pick(key: str) -> object:
         own = _security_value(container, key)
-        return own if own is not None else _security_value(pod_spec, key)
+        return _security_value(pod_spec, key) if own is None else own
 
     user, non_root = pick("runAsUser"), pick("runAsNonRoot")
     return RunAs(
@@ -82,10 +81,10 @@ def effective_run_as(pod_spec: YamlMapping, container: YamlMapping) -> RunAs:
     )
 
 
-def image_user_is_root(user: str) -> bool:
+def is_root_image_user(user: str) -> bool:
     """Whether an image config "User" ("name", "uid", "uid:gid" or empty) is root."""
     name = user.split(":", 1)[0].strip()
-    return name in ("", "root", "0")
+    return name in {"", "root", "0"}
 
 
 def root_verdict(run_as: RunAs, image_user: str | None) -> Verdict:
@@ -99,10 +98,10 @@ def root_verdict(run_as: RunAs, image_user: str | None) -> Verdict:
         return "root-manifest" if run_as.user == 0 else "ok"
     if image_user is None:
         return "unknown"
-    numeric_non_root = image_user.split(":", 1)[0].isdigit() and not image_user_is_root(image_user)
+    numeric_non_root = image_user.split(":", 1)[0].isdigit() and not is_root_image_user(image_user)
     if run_as.non_root:
         return "ok" if numeric_non_root else "will-not-start"
-    return "root-image" if image_user_is_root(image_user) else "ok"
+    return "root-image" if is_root_image_user(image_user) else "ok"
 
 
 def _image_reference(image: str) -> tuple[str, str, str | None]:
@@ -128,16 +127,16 @@ class _UserLookup:
             return self.users[image]
         repository, reference, key = _image_reference(image)
         cached = self.old_cache.get(key) if key else None
-        if cached is not None:
-            user: str | None = cached["user"]
-        else:
+        if cached is None:
             host, repo_path = parse_repo(repository)
             print(f"  reading the default user of {host}/{repo_path}@{reference[:19]}...", flush=True)
             try:
                 user = image_config_user(host, repo_path, reference, timeout=self.timeout)
-            except (urllib.error.URLError, OSError) as e:
-                print(f"  [FETCH-ERR] {image}  {e}")
+            except OSError as error:  # URLError is an OSError
+                print(f"  [FETCH-ERR] {image}  {error}")
                 user = None
+        else:
+            user: str | None = cached["user"]
         if key and user is not None:
             self.new_cache[key] = {"user": user}
         self.users[image] = user
@@ -161,11 +160,11 @@ class Finding:
 
     def lines(self) -> list[str]:
         """The report block for this finding: the container, then its image and verdict indented."""
-        c = self.container
+        rendered = self.container
         vendor = f" [{self.label}]" if self.bucket == "partner" else ""
         what = VERDICT_TEXT.get(self.verdict, "could not read the image's default user")
         return [
-            f"{c.source} {c.kind}/{c.name} [{c.container.get('name', '')}]{vendor}:",
+            f"{rendered.source} {rendered.kind}/{rendered.name} [{rendered.container.get('name', '')}]{vendor}:",
             f"    {self.image}",
             f"    {what}",
         ]
@@ -174,13 +173,13 @@ class Finding:
 def _findings(containers: list[RenderedContainer], lookup: _UserLookup, vendor_map: dict[str, str]) -> list[Finding]:
     """A Finding for every container whose verdict isn't "ok"."""
     findings: list[Finding] = []
-    for c in containers:
-        image = str(c.container.get("image") or "")
-        run_as = effective_run_as(c.pod_spec, c.container)
-        verdict = root_verdict(run_as, None if run_as.user is not None else lookup.user(image))
+    for rendered in containers:
+        image = str(rendered.container.get("image") or "")
+        run_as = effective_run_as(rendered.pod_spec, rendered.container)
+        verdict = root_verdict(run_as, lookup.user(image) if run_as.user is None else None)
         if verdict != "ok":
-            label = classify_source(c.source, vendor_map)
-            findings.append(Finding(bucket_of(label), label, c, image, verdict))
+            label = classify_source(rendered.source, vendor_map)
+            findings.append(Finding(bucket_of(label), label, rendered, image, verdict))
     return findings
 
 
@@ -189,31 +188,33 @@ _BUCKET_TITLES = tuple((bucket, bucket_title(bucket, "containers")) for bucket i
 
 def _print_report(findings: list[Finding], accepted: dict[str, str]) -> None:
     """Findings per bucket, then the accepted ones and fetch errors."""
-    open_findings = [f for f in findings if f.key not in accepted and f.verdict != "unknown"]
+    open_findings = [finding for finding in findings if finding.key not in accepted and finding.verdict != "unknown"]
     for bucket, title in _BUCKET_TITLES:
-        lines = [line for f in open_findings if f.bucket == bucket for line in f.lines()]
+        lines = [line for finding in open_findings if finding.bucket == bucket for line in finding.lines()]
         if lines:
             print(f"--- {title} ---")
             print("\n".join(lines))
-    accepted_findings = [f for f in findings if f.key in accepted]
+    accepted_findings = [finding for finding in findings if finding.key in accepted]
     if accepted_findings:
         print("--- Accepted (etc/settings.yaml root_containers.accepted) ---")
-        print("\n".join(line for f in accepted_findings for line in [*f.lines(), f"    accepted: {accepted[f.key]}"]))
-    unknown = [f for f in findings if f.verdict == "unknown"]
+        for finding in accepted_findings:
+            print("\n".join([*finding.lines(), f"    accepted: {accepted[finding.key]}"]))
+    unknown = [finding for finding in findings if finding.verdict == "unknown"]
     if unknown:
         print(f"INCOMPLETE: the default user of {len(unknown)} container(s) could not be read:")
-        print("\n".join(line for f in unknown for line in f.lines()))
+        print("\n".join(line for finding in unknown for line in finding.lines()))
     elif not open_findings:
         print("OK: no container runs as root")
 
 
 def _detail(findings: list[Finding], accepted: dict[str, str]) -> str:
-    open_findings = [f for f in findings if f.key not in accepted and f.verdict != "unknown"]
-    root = [f for f in open_findings if f.verdict in ("root-manifest", "root-image")]
-    counts = ", ".join(f"{sum(1 for f in root if f.bucket == b)} {b}" for b, _title in _BUCKET_TITLES)
-    will_not_start = sum(1 for f in open_findings if f.verdict == "will-not-start")
-    unknown = sum(1 for f in findings if f.verdict == "unknown")
-    accepted_count = sum(1 for f in findings if f.key in accepted)
+    open_findings = [finding for finding in findings if finding.key not in accepted and finding.verdict != "unknown"]
+    root = [finding for finding in open_findings if finding.verdict in {"root-manifest", "root-image"}]
+    root_per_bucket = Counter(finding.bucket for finding in root)
+    counts = ", ".join(f"{root_per_bucket[bucket]} {bucket}" for bucket in BUCKETS)
+    will_not_start = sum(1 for finding in open_findings if finding.verdict == "will-not-start")
+    unknown = sum(1 for finding in findings if finding.verdict == "unknown")
+    accepted_count = sum(1 for finding in findings if finding.key in accepted)
     return (
         f"root: {counts}; will not start: {will_not_start}; accepted: {accepted_count}; "
         f"unreadable image user: {unknown}"
@@ -231,9 +232,7 @@ def check_root_containers(chart_dir: Path, extra_args: list[str]) -> tuple[bool,
         return False, error or "helm template failed to render"
     containers = rendered_containers(rendered.docs)
     cache_path = cache_file(chart_dir, CACHE_FILENAME)
-    lookup = _UserLookup(
-        load_json_cache(cache_path, _is_user_entry), repo_access_request_timeout_seconds(chart_dir), {}, {}
-    )
+    lookup = _UserLookup(load_json_cache(cache_path, _is_user_entry), repo_access_timeout_seconds(chart_dir), {}, {})
     print(f"Checking the run-as user of {len(containers)} rendered container(s)...")
     findings = _findings(containers, lookup, friendly_vendor_charts(chart_dir))
     save_json_cache(cache_path, lookup.new_cache)

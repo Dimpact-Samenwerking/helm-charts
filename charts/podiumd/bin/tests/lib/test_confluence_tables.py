@@ -6,6 +6,7 @@ import urllib.request
 
 from email.message import Message
 from types import ModuleType
+from typing import override
 
 import pytest
 
@@ -85,7 +86,7 @@ def test_api_base_url_server_site(libconfluencetables: ModuleType):
 
 class FakeResponse:
     def __init__(self, payload):
-        self._payload = json.dumps(payload).encode("utf-8")
+        self._payload: bytes = json.dumps(payload).encode("utf-8")
 
     def read(self):
         return self._payload
@@ -115,7 +116,8 @@ def test_fetch_page_html_sends_basic_auth_and_returns_body_storage(libconfluence
     assert captured["url"] == "https://example.atlassian.net/wiki/rest/api/content/123?expand=body.storage"
     import base64
 
-    assert captured["auth"] == "Basic " + base64.b64encode(b"kees@info.nl:s3cr3t").decode()
+    token = base64.b64encode(b"kees@info.nl:s3cr3t").decode()
+    assert captured["auth"] == f"Basic {token}"
 
 
 def test_fetch_page_html_missing_body_storage_raises(libconfluencetables: ModuleType):
@@ -160,6 +162,7 @@ def test_fetch_page_html_url_error_raises(libconfluencetables: ModuleType):
 
 def test_fetch_page_html_non_json_response_raises(libconfluencetables: ModuleType):
     class LoginPageResponse(FakeResponse):
+        @override
         def read(self):
             return b"<html>Log in</html>"
 
@@ -469,7 +472,7 @@ def test_find_versie_groups_ignores_non_versie_columns(libconfluencetables: Modu
     assert libconfluencetables.find_versie_groups(paths) == []
 
 
-# --- select_release_columns / missing_required_release_columns ---
+# --- select_release_columns / missing_release_columns ---
 
 
 def test_select_release_columns_full_release_table(libconfluencetables: ModuleType):
@@ -563,7 +566,7 @@ def test_missing_required_release_columns_vendor_not_required(libconfluencetable
     ]
     columns = libconfluencetables.select_release_columns(paths)
     assert columns["vendor"] is None
-    assert libconfluencetables.missing_required_release_columns(columns) == []
+    assert libconfluencetables.missing_release_columns(columns) == []
 
 
 def test_missing_required_release_columns_helm_not_required(libconfluencetables: ModuleType):
@@ -572,13 +575,13 @@ def test_missing_required_release_columns_helm_not_required(libconfluencetables:
     columns = libconfluencetables.select_release_columns(paths)
     assert columns["source_helm"] is None
     assert columns["target_helm"] is None
-    assert libconfluencetables.missing_required_release_columns(columns) == []
+    assert libconfluencetables.missing_release_columns(columns) == []
 
 
 def test_missing_required_release_columns_reports_missing_app(libconfluencetables: ModuleType):
     paths = [[], ["Ontwikkelpartij"], ["Versie 4.8", "Helm"], ["Versie 4.9", "Helm"]]
     columns = libconfluencetables.select_release_columns(paths)
-    missing = libconfluencetables.missing_required_release_columns(columns)
+    missing = libconfluencetables.missing_release_columns(columns)
     assert set(missing) == {"source_app", "target_app"}
 
 

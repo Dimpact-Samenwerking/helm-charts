@@ -14,13 +14,12 @@ Tag lists are cached per (repository, version) in the gitignored
 since a new tag can appear any moment. Never fails on findings.
 """
 
-import urllib.error
-
 from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from typing import TypedDict
+from urllib.error import URLError
 
 from lib.checks.cve import BUCKETS
 from lib.checks.cve import ImageClassification
@@ -30,7 +29,7 @@ from lib.checks.cve import classify_rendered_images
 from lib.checks.cve import refs_by_bucket
 from lib.checks.cve import split_image_ref
 from lib.checks.cve import target_label
-from lib.image.digests import ImageTarget
+from lib.image.digests import ImageTargetPin
 from lib.image.digests import unique_image_targets
 from lib.image.upgrade_cache import UpgradeEntry
 from lib.image.upgrade_cache import cache_entry_is_fresh
@@ -39,7 +38,7 @@ from lib.image.upgrade_cache import load_cache
 from lib.image.upgrade_cache import save_cache
 from lib.registry import find_newer_same_variant_tags
 from lib.registry import parse_repo
-from lib.settings import image_upgrade_tag_check_cache_ttl_days
+from lib.settings import image_upgrade_cache_ttl_days
 
 
 @dataclass
@@ -106,13 +105,13 @@ class _TargetResult:
     error: bool = False
 
 
-def _fetch_target_upgrade(i: int, total: int, info: _TargetResolveInfo) -> _TargetResult:
+def _fetch_target_upgrade(position: int, total: int, info: _TargetResolveInfo) -> _TargetResult:
     """Announce and run the registry tag-list call (cache hits stay silent)."""
-    print(f"  [{i}/{total}] checking {info.image_ref} for a newer tag...", flush=True)
+    print(f"  [{position}/{total}] checking {info.image_ref} for a newer tag...", flush=True)
     try:
         newer = find_newer_same_variant_tags(info.host, info.repo_path, info.version)
-    except (urllib.error.URLError, OSError) as e:
-        print(f"  [FETCH-ERR] {info.image_ref}  {e}")
+    except (URLError, OSError) as exc:
+        print(f"  [FETCH-ERR] {info.image_ref}  {exc}")
         return _TargetResult(info.image_ref, error=True)
 
     cache_entry: UpgradeEntry = {"checked_at": datetime.now(UTC).isoformat(), "newer": newer}
@@ -120,7 +119,7 @@ def _fetch_target_upgrade(i: int, total: int, info: _TargetResolveInfo) -> _Targ
 
 
 def _resolve_target_upgrade(
-    i: int, total: int, target: tuple[ImageTarget, tuple[str | None, int]], ctx: UpgradeCheckContext
+    position: int, total: int, target: ImageTargetPin, ctx: UpgradeCheckContext
 ) -> _TargetResult:
     """Resolve one target from a fresh cache entry or the registry."""
     (repository, version), (digest, line) = target
@@ -139,29 +138,27 @@ def _resolve_target_upgrade(
         result_info = _upgrade_info(info.label, cached["newer"])
         return _TargetResult(info.image_ref, info.key, cached, result_info, cache_hit=True)
 
-    return _fetch_target_upgrade(i, total, info)
+    return _fetch_target_upgrade(position, total, info)
 
 
-def _scan_image_upgrades(
-    chart_dir: Path, targets: list[tuple[ImageTarget, tuple[str | None, int]]], ctx: UpgradeCheckContext
-) -> ImageUpgradeScan:
+def _scan_image_upgrades(chart_dir: Path, targets: list[ImageTargetPin], ctx: UpgradeCheckContext) -> ImageUpgradeScan:
     """Resolve every target, saving the cache after each registry call and at the end (drops stale entries)."""
     new_cache: dict[str, UpgradeEntry] = {}
     cache_hits = 0
     images: dict[str, ImageUpgrade] = {}
     fetch_errors: list[str] = []
 
-    for i, target in enumerate(targets, 1):
-        r = _resolve_target_upgrade(i, len(targets), target, ctx)
-        if r.error or r.key is None or r.cache_entry is None or r.info is None:
-            fetch_errors.append(r.image_ref)
+    for position, target in enumerate(targets, 1):
+        result = _resolve_target_upgrade(position, len(targets), target, ctx)
+        if result.error or result.key is None or result.cache_entry is None or result.info is None:
+            fetch_errors.append(result.image_ref)
             continue
-        new_cache[r.key] = r.cache_entry
-        if r.cache_hit:
+        new_cache[result.key] = result.cache_entry
+        if result.cache_hit:
             cache_hits += 1
         else:
             save_cache(chart_dir, new_cache)  # persist incrementally
-        images[r.image_ref] = r.info
+        images[result.image_ref] = result.info
 
     save_cache(chart_dir, new_cache)  # drop entries for images no longer pinned
 
@@ -206,7 +203,7 @@ def check_image_upgrades(chart_dir: Path, extra_args: list[str]):
     Returns (True, "upgradable: X/Y own, ...") regardless of findings, or
     (False, "helm template failed to render") if the render fails.
     """
-    ttl_days = image_upgrade_tag_check_cache_ttl_days(chart_dir)
+    ttl_days = image_upgrade_cache_ttl_days(chart_dir)
 
     classification = classify_rendered_images(chart_dir, extra_args)
     if classification is None:

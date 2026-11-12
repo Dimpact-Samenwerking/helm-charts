@@ -2,19 +2,20 @@
 
 from collections.abc import Callable
 from collections.abc import Mapping
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import native_components
+from lib.chart.values_tree_primitives import ValuesPath
 from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.values_tree_primitives import version_of
-from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.sorting_and_ordering import component_order_key
 from lib.upgradedoc.sorting_and_ordering import path_order_key
 from lib.upgradedoc.sorting_and_ordering import values_key_order
-from lib.upgradedoc.string_and_parsing_basics import text_names
+from lib.upgradedoc.string_and_parsing_basics import is_named_by_text
 
 # Sorts after its predecessor and everything nested under it.
 _AFTER_PREDECESSOR = 1 << 30
@@ -51,14 +52,13 @@ def removed_items(target: ChartImageIndex, baseline: ChartImageIndex) -> list[Re
         )
         for key, dep in removed_deps.items()
     ]
-    items += [
-        RemovedItem(name, version_of(tag) if (tag := baseline.paths.get(path)) else None, None, keys[name])
-        for name, path in removed_images.items()
-    ]
+    removed_tags = {name: baseline.paths.get(path) for name, path in removed_images.items()}
+    removed_versions = {name: version_of(tag) if tag else None for name, tag in removed_tags.items()}
+    items += [RemovedItem(name, version, None, keys[name]) for name, version in removed_versions.items()]
     return sorted(items, key=lambda item: item.order_key)
 
 
-def removed_image_paths(target: ChartImageIndex, baseline: ChartImageIndex) -> set[ImagePath]:
+def removed_image_paths(target: ChartImageIndex, baseline: ChartImageIndex) -> set[ValuesPath]:
     """The baseline image paths of the items removed_items lists: every image of a
     removed component whose repository the target no longer has, and each removed image."""
     removed_deps = _removed_deps(target, baseline)
@@ -79,7 +79,7 @@ def removed_component_image_names(target: ChartImageIndex, baseline: ChartImageI
 
 def _removed_images(
     target: ChartImageIndex, baseline: ChartImageIndex, removed_deps: Mapping[str, ChartDependency]
-) -> dict[str, ImagePath]:
+) -> dict[str, ValuesPath]:
     """{baseline row name: path} of each sidecar/shared image outside a removed component whose repository is gone."""
     gone = _repository_gone(target, baseline)
     return {
@@ -98,7 +98,7 @@ def _removed_deps(target: ChartImageIndex, baseline: ChartImageIndex) -> dict[st
     return {values_key_of(dep): dep for dep in baseline.deps if values_key_of(dep) not in target_keys}
 
 
-def _repository_gone(target: ChartImageIndex, baseline: ChartImageIndex) -> Callable[[ImagePath], bool]:
+def _repository_gone(target: ChartImageIndex, baseline: ChartImageIndex) -> Callable[[ValuesPath], bool]:
     """Whether a baseline path's repository is in no target repository group.
 
     An image that merely moved to another path (e.g. now pinned through a
@@ -116,7 +116,7 @@ def _order_keys(target: ChartImageIndex, baseline: ChartImageIndex, removed: set
     baseline_order = values_key_order(baseline.values)
     sequence = [
         ((baseline_order.index(key) if key in baseline_order else len(baseline_order), 0), key)
-        for key in (values_key_of(dep) for dep in baseline.deps)
+        for key in map(values_key_of, baseline.deps)
     ]
     sequence += [
         (path_order_key(path, baseline.deps, baseline_order, baseline.values), name)
@@ -134,10 +134,16 @@ def _order_keys(target: ChartImageIndex, baseline: ChartImageIndex, removed: set
 
 
 def removed_item_named(text: str, items: Mapping[str, RemovedItem]) -> RemovedItem | None:
-    """The removed item a row name or "### ..." heading names: an exact name, else the only one text_names finds."""
+    """The removed item a row name or "### ..." heading names: an exact name, else the only one is_named_by_text
+    finds."""
     if text in items:
         return items[text]
-    found = [name for name in items if text_names(text, name)]
+    found = [name for name in items if is_named_by_text(text, name)]
     # A name inside a longer match is dropped: "foo-bar 1.0" names foo-bar, not foo.
-    longest = [name for name in found if not any(other != name and text_names(other, name) for other in found)]
+    longest = [name for name in found if not _is_inside_other(name, found)]
     return items[longest[0]] if len(longest) == 1 else None
+
+
+def _is_inside_other(name: str, found: Sequence[str]) -> bool:
+    """True when another of the `found` names also names `name`."""
+    return any(other != name and is_named_by_text(other, name) for other in found)

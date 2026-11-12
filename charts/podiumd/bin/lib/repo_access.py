@@ -6,16 +6,19 @@ are cached briefly (lib.repo_access_cache) to avoid Docker Hub's anonymous
 pull-rate limit on repeated runs; failures are never cached."""
 
 import re
-import urllib.error
-import urllib.parse
-import urllib.request
 
 from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
+from typing import NamedTuple
 from typing import TypedDict
+from urllib.error import HTTPError
+from urllib.error import URLError
+from urllib.parse import urljoin
+from urllib.parse import urlparse
+from urllib.request import urlopen
 
 from lib.chart.chart_yaml import chart_dir_dependencies
 from lib.chart.chart_yaml import load_chart_dependencies
@@ -26,6 +29,7 @@ from lib.image.digests import cached_tag_exists
 from lib.image.digests import distinct_lines
 from lib.image.digests import image_targets
 from lib.image.digests import scan_image_pins
+from lib.image.digests import tag_digest_lookup
 from lib.registry import parse_repo
 from lib.render_scope import resolve_dependency_repo
 from lib.repo_access_cache import cache_entry_is_fresh
@@ -34,8 +38,8 @@ from lib.repo_access_cache import load_cache
 from lib.repo_access_cache import save_cache
 from lib.settings import helm_repos_urls_by_alias
 from lib.settings import repo_access_cache_ttl_minutes
-from lib.settings import repo_access_never_probe_host_suffixes
-from lib.settings import repo_access_request_timeout_seconds
+from lib.settings import repo_access_no_probe_suffixes
+from lib.settings import repo_access_timeout_seconds
 
 
 def is_denylisted_host(host: str, denylisted_host_suffixes: tuple[str, ...]):
@@ -50,18 +54,36 @@ def is_denylisted_host(host: str, denylisted_host_suffixes: tuple[str, ...]):
 DEP_NAME_RE = re.compile(r'^\s*-\s*name:\s*"?([\w.\-]+)"?\s*(?:#.*)?$')
 
 # (host, repo_path, version) of a registry artifact.
-RegistryTarget = tuple[str, str, str]
-# (name, line, kind, target) of a Chart.yaml dependency — see dependency_repos.
-DependencyRepo = tuple[str, int | None, str, str | RegistryTarget]
-# (kind, description, test_kind, target) — see _build_entries.
-AccessEntry = tuple[str, str, str, str | RegistryTarget]
+type RegistryTarget = tuple[str, str, str]
+# (target, values.yaml lines) of one pinned image — see image_repos.
+type ImageRepoTarget = tuple[RegistryTarget, list[int]]
+
+
+class DependencyRepo(NamedTuple):
+    """A network-resolved Chart.yaml dependency; see dependency_repos."""
+
+    name: str
+    line: int | None
+    kind: str
+    target: str | RegistryTarget
+
+
+class AccessEntry(NamedTuple):
+    """One unique repo or image to probe; see _build_entries."""
+
+    kind: str
+    description: str
+    test_kind: str
+    target: str | RegistryTarget
+
+
 # (kind, description, error) of an unreachable entry.
-AccessFailure = tuple[str, str, str | None]
+type AccessFailure = tuple[str, str, str | None]
 # (kind, description, host) of an entry on a denylisted host.
-DeniedEntry = tuple[str, str, str]
-ProbeResult = (
-    tuple[Literal["denied"], str, str, str] | tuple[Literal["failure"], str, str, str | None] | tuple[Literal["ok"]]
-)
+type DeniedEntry = tuple[str, str, str]
+type ProbeDenied = tuple[Literal["denied"], str, str, str]
+type ProbeFailure = tuple[Literal["failure"], str, str, str | None]
+type ProbeResult = ProbeDenied | ProbeFailure | tuple[Literal["ok"]]
 
 
 class _ChartGroup(TypedDict):
@@ -73,9 +95,12 @@ class _ChartGroup(TypedDict):
 
 def _dependency_line_numbers(chart_yaml_text: str) -> dict[str, int]:
     """name -> 1-indexed line number of its "- name: <name>" entry."""
-    return {
-        m.group(1): i + 1 for i, line in enumerate(chart_yaml_text.splitlines()) for m in [DEP_NAME_RE.match(line)] if m
-    }
+    line_numbers: dict[str, int] = {}
+    for line_number, line in enumerate(chart_yaml_text.splitlines(), start=1):
+        name_match = DEP_NAME_RE.match(line)
+        if name_match:
+            line_numbers[name_match.group(1)] = line_number
+    return line_numbers
 
 
 def dependency_repos(chart_dir: Path) -> list[DependencyRepo]:
@@ -99,13 +124,13 @@ def dependency_repos(chart_dir: Path) -> list[DependencyRepo]:
         if repository.startswith("oci://"):
             host, _, oci_path = repository[len("oci://") :].partition("/")
             repo_path = f"{oci_path}/{dep['name']}" if oci_path else dep["name"]
-            repos.append((name, line, "oci", (host, repo_path, dep["version"])))
+            repos.append(DependencyRepo(name, line, "oci", (host, repo_path, dep["version"])))
         else:
-            repos.append((name, line, "http", repository))
+            repos.append(DependencyRepo(name, line, "http", repository))
     return repos
 
 
-def image_repos(values_path: Path) -> tuple[list[tuple[RegistryTarget, list[int]]], list[ImagePin]]:
+def image_repos(values_path: Path) -> tuple[list[ImageRepoTarget], list[ImagePin]]:
     """([(target, lines) per unique (host, repo_path, version) pinned image], unresolved pins) of values.yaml.
 
     A pin whose repository is only in a subchart's default is unresolved
@@ -116,7 +141,7 @@ def image_repos(values_path: Path) -> tuple[list[tuple[RegistryTarget, list[int]
     resolved = [
         ((*parse_repo(repository), version), distinct_lines(group)) for (repository, version), group in targets.items()
     ]
-    return resolved, [p for p in pins if not p["repository"]]
+    return resolved, [pin for pin in pins if not pin["repository"]]
 
 
 def _report_unresolved(chart_dir: Path, unresolved: list[ImagePin]) -> None:
@@ -134,38 +159,35 @@ def _report_unresolved(chart_dir: Path, unresolved: list[ImagePin]) -> None:
         print(f"  {'.'.join(pin['path'])} (values.yaml:{pin['line']}): {reason}")
 
 
-def _check_http_repo(url: str, timeout_seconds: float):
+def check_http_repo(url: str, timeout_seconds: float):
     """Fetch a classic Helm repo's index.yaml to prove reachability/auth."""
-    index_url = urllib.parse.urljoin(url if url.endswith("/") else url + "/", "index.yaml")
+    index_url = urljoin(url if url.endswith("/") else f"{url}/", "index.yaml")
     try:
         # index_url comes from trusted config, never an attacker-controlled scheme.
-        with urllib.request.urlopen(index_url, timeout=timeout_seconds):  # nosec B310
-            pass
-    except urllib.error.HTTPError as e:
-        return False, f"HTTP {e.code} fetching {index_url}"
-    except (urllib.error.URLError, OSError) as e:
-        return False, f"{getattr(e, 'reason', e)} fetching {index_url}"
-    return True, None
+        with urlopen(index_url, timeout=timeout_seconds):  # nosec B310
+            return True, None
+    except HTTPError as error:
+        return False, f"HTTP {error.code} fetching {index_url}"
+    except (URLError, OSError) as error:
+        return False, f"{getattr(error, 'reason', error)} fetching {index_url}"
 
 
-def _check_registry_repo(chart_dir: Path, host: str, repo_path: str, version: str, timeout_seconds: float):
+def check_registry_repo(chart_dir: Path, host: str, repo_path: str, version: str, timeout_seconds: float):
     """Manifest-existence check for an OCI chart or image.
 
     Shares cached_tag_exists's disk cache with the image digest checks, so a
-    pin resolved by either is not fetched twice."""
-    try:
-        exists, _ = cached_tag_exists(chart_dir, f"{host}/{repo_path}", version, timeout=timeout_seconds)
-    except (urllib.error.URLError, OSError) as e:
-        return False, f"{getattr(e, 'reason', e)}"
-    if not exists:
-        return False, "not found"
-    return True, None
+    pin resolved by either is not fetched twice. One attempt: `timeout_seconds`
+    already bounds each probe of an unreachable host."""
+    _digest, error = tag_digest_lookup(
+        lambda: cached_tag_exists(chart_dir, f"{host}/{repo_path}", version, timeout=timeout_seconds), attempts=1
+    )
+    return error is None, error
 
 
 def _host_of(test_kind: str, target: str | tuple[str, ...]):
     """Hostname of an entry's target (URL for "http", tuple for "registry")."""
     if test_kind == "http" and isinstance(target, str):
-        return urllib.parse.urlparse(target).hostname or ""
+        return urlparse(target).hostname or ""
     return target[0]
 
 
@@ -179,36 +201,41 @@ class ProbeConfig:
     timeout_seconds: float
 
 
-def _build_entries(
-    chart_deps: list[DependencyRepo], img_targets: list[tuple[RegistryTarget, list[int]]]
-) -> list[AccessEntry]:
+def _build_entries(chart_deps: list[DependencyRepo], img_targets: list[ImageRepoTarget]) -> list[AccessEntry]:
     """(kind, description, test_kind, target) per unique repo/image to probe.
 
     Chart dependencies sharing one repo are grouped so each is tested once."""
-    entries: list[AccessEntry] = []
     grouped_chart: dict[tuple[str, str | RegistryTarget], _ChartGroup] = {}
-    for name, line, kind, target in chart_deps:
-        info = grouped_chart.setdefault((kind, target), {"names": [], "lines": []})
-        info["names"].append(name)
-        if line:
-            info["lines"].append(line)
-    for (kind, target), info in grouped_chart.items():
-        location = "Chart.yaml"
-        if info["lines"]:
-            location += ":" + ",".join(str(n) for n in sorted(info["lines"]))
-        if isinstance(target, str):
-            endpoint = target
-        else:
-            host, repo_path, version = target
-            endpoint = f"oci://{host}/{repo_path}:{version}"
-        entries.append(("chart", f"{endpoint}  ({', '.join(info['names'])} — {location})", kind, target))
-
+    for dep_repo in chart_deps:
+        info = grouped_chart.setdefault((dep_repo.kind, dep_repo.target), {"names": [], "lines": []})
+        info["names"].append(dep_repo.name)
+        if dep_repo.line:
+            info["lines"].append(dep_repo.line)
+    entries = [_chart_entry(kind, target, info) for (kind, target), info in grouped_chart.items()]
     for target, lines in img_targets:
         host, repo_path, version = target
         endpoint = f"{host}/{repo_path}:{version}"
-        location = "values.yaml:" + ",".join(str(n) for n in sorted(lines))
-        entries.append(("image", f"{endpoint}  ({location})", "registry", target))
+        location = f"values.yaml:{_joined_line_numbers(lines)}"
+        entries.append(AccessEntry("image", f"{endpoint}  ({location})", "registry", target))
     return entries
+
+
+def _chart_entry(kind: str, target: str | RegistryTarget, info: _ChartGroup) -> AccessEntry:
+    """The AccessEntry of the Chart.yaml dependencies sharing one (kind, target)."""
+    location = "Chart.yaml"
+    if info["lines"]:
+        location = f"{location}:{_joined_line_numbers(info['lines'])}"
+    if isinstance(target, str):
+        endpoint = target
+    else:
+        host, repo_path, version = target
+        endpoint = f"oci://{host}/{repo_path}:{version}"
+    names = ", ".join(info["names"])
+    return AccessEntry("chart", f"{endpoint}  ({names} — {location})", kind, target)
+
+
+def _joined_line_numbers(lines: list[int]) -> str:
+    return ",".join(str(line_number) for line_number in sorted(lines))
 
 
 def _probe_entry(config: ProbeConfig, entry: AccessEntry) -> ProbeResult:
@@ -216,7 +243,8 @@ def _probe_entry(config: ProbeConfig, entry: AccessEntry) -> ProbeResult:
 
     Returns ("denied", kind, description, host), ("failure", kind,
     description, error), or ("ok",)."""
-    kind, description, test_kind, target = entry
+    kind, description = entry.kind, entry.description
+    test_kind, target = entry.test_kind, entry.target
     host = _host_of(test_kind, target)
     if is_denylisted_host(host, config.denylisted_host_suffixes):
         print(
@@ -237,11 +265,13 @@ def _probe_entry(config: ProbeConfig, entry: AccessEntry) -> ProbeResult:
         return ("ok",)
 
     if isinstance(target, str):
-        ok, error = _check_http_repo(target, config.timeout_seconds)
+        ok, error = check_http_repo(target, config.timeout_seconds)
     else:
         host, repo_path, version = target
-        ok, error = _check_registry_repo(config.chart_dir, host, repo_path, version, config.timeout_seconds)
-    print(f"  [{'OK' if ok else 'FAIL'}] {kind:5}  {description}" + (f"  — {error}" if error else ""))
+        ok, error = check_registry_repo(config.chart_dir, host, repo_path, version, config.timeout_seconds)
+    status = "OK" if ok else "FAIL"
+    error_suffix = f"  — {error}" if error else ""
+    print(f"  [{status}] {kind:5}  {description}{error_suffix}")
     if not ok:
         return "failure", kind, description, error
     if test_kind == "http":
@@ -279,9 +309,9 @@ def check_repo_access(chart_dir: Path):
     cached_tag_exists."""
     config = ProbeConfig(
         chart_dir,
-        repo_access_never_probe_host_suffixes(chart_dir),
+        repo_access_no_probe_suffixes(chart_dir),
         repo_access_cache_ttl_minutes(chart_dir),
-        repo_access_request_timeout_seconds(chart_dir),
+        repo_access_timeout_seconds(chart_dir),
     )
 
     chart_deps = dependency_repos(chart_dir)

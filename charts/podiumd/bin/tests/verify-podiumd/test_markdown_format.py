@@ -84,7 +84,7 @@ def test_doc_title_flags_stale_baseline(libdocsconsistencymarkdown: ModuleType, 
 def test_doc_title_compares_whole_versions(libdocsconsistencymarkdown: ModuleType, tmp_path: Path, title: str):
     """ "14.8.5" contains "4.8.5" but is another version, as for fix-doc-consistency's rewrite."""
     doc = tmp_path / "doc.md"
-    doc.write_text(title + "\n")
+    doc.write_text(f"{title}\n")
     assert len(libdocsconsistencymarkdown.check_doc_title(doc, "4.8.5", "4.9.0")) == 1
 
 
@@ -117,11 +117,11 @@ def test_check_baseline_doc_set_all_three_missing(libdocsconsistencymarkdown: Mo
 
 
 def test_check_baseline_doc_set_all_present_and_valid(libdocsconsistencymarkdown: ModuleType, tmp_path: Path):
-    for suffix, title in [
+    for suffix, title in (
         ("upgrade", "Upgrade guide"),
         ("gemeente-specific", "Gemeente-specific notes"),
         ("values-deltas", "Values deltas"),
-    ]:
+    ):
         (tmp_path / f"4.8.5-to-4.9.0-{suffix}.md").write_text(f"# {title} — PodiumD 4.8.5 → 4.9.0\n\ncontent\n")
     assert libdocsconsistencymarkdown.check_baseline_doc_set(tmp_path, "4.8.5", "4.9.0") == []
 

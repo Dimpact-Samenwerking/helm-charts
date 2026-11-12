@@ -1,26 +1,29 @@
 """Lookups of settings.yaml's component_resolution.* registrations: image/version paths, lockstep, primaries."""
 
+import sys
+
 from pathlib import Path
 from typing import NamedTuple
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.paths import CHART_DIR
+from lib.chart.values_tree_primitives import ValuesPath
 from lib.chart.values_tree_primitives import dep_for_values_key
-from lib.chart.values_tree_primitives import same_name
+from lib.chart.values_tree_primitives import is_same_name
 from lib.chart.values_tree_primitives import values_key_of
-from lib.settings import component_resolution_chart_version_lockstep_components
-from lib.settings import component_resolution_default_image_paths
-from lib.settings import component_resolution_embedded_version_images
-from lib.settings import component_resolution_image_paths
-from lib.settings import component_resolution_native_components
-from lib.settings import component_resolution_version_paths
-from lib.settings import component_resolution_version_repository_paths
+from lib.settings import resolution_default_image_paths
+from lib.settings import resolution_embedded_images
+from lib.settings import resolution_image_paths
+from lib.settings import resolution_lockstep_components
+from lib.settings import resolution_native_components
+from lib.settings import resolution_version_paths
+from lib.settings import resolution_version_repo_paths
 
 
 def component_image_paths(chart_dir: Path | None = None):
-    """component_resolution_image_paths; chart_dir defaults to CHART_DIR."""
+    """resolution_image_paths; chart_dir defaults to CHART_DIR."""
     chart_dir = chart_dir or CHART_DIR
-    return component_resolution_image_paths(chart_dir)
+    return resolution_image_paths(chart_dir)
 
 
 def image_paths_for(component: str, chart_dir: Path | None = None):
@@ -32,13 +35,13 @@ def image_paths_for(component: str, chart_dir: Path | None = None):
     if component in paths:
         return paths[component]
     resolved = chart_dir or CHART_DIR
-    return component_resolution_default_image_paths(resolved)
+    return resolution_default_image_paths(resolved)
 
 
 def component_version_paths(chart_dir: Path | None = None):
-    """component_resolution_version_paths; chart_dir defaults to CHART_DIR."""
+    """resolution_version_paths; chart_dir defaults to CHART_DIR."""
     chart_dir = chart_dir or CHART_DIR
-    return component_resolution_version_paths(chart_dir)
+    return resolution_version_paths(chart_dir)
 
 
 def version_paths_for(component: str, chart_dir: Path | None = None):
@@ -54,9 +57,9 @@ def split_version_fields(chart_dir: Path | None = None) -> dict[str, str]:
     entry is a sibling. chart_dir defaults to CHART_DIR.
     """
     chart_dir = chart_dir or CHART_DIR
-    version_paths = component_resolution_version_paths(chart_dir)
+    version_paths = resolution_version_paths(chart_dir)
     fields: dict[str, str] = {}
-    for component, repository_path in component_resolution_version_repository_paths(chart_dir).items():
+    for component, repository_path in resolution_version_repo_paths(chart_dir).items():
         parent, _, repository_field = repository_path.rpartition(".")
         for path in version_paths.get(component, []):
             path_parent, _, version_field = path.rpartition(".")
@@ -66,20 +69,20 @@ def split_version_fields(chart_dir: Path | None = None) -> dict[str, str]:
 
 
 def native_components(chart_dir: Path | None = None):
-    """component_resolution_native_components; chart_dir defaults to CHART_DIR."""
+    """resolution_native_components; chart_dir defaults to CHART_DIR."""
     chart_dir = chart_dir or CHART_DIR
-    return component_resolution_native_components(chart_dir)
+    return resolution_native_components(chart_dir)
 
 
 def is_native_chart_version(chart_version: str) -> bool:
     """Whether a <chart-version> argument is "native" (any case): the
     component has no Chart.yaml dependency (native_components)."""
-    return same_name(chart_version.strip(), "native")
+    return is_same_name(chart_version.strip(), "native")
 
 
 def native_component_named(chart_dir: Path, name: str) -> str | None:
     """The native_components entry equal to `name` ignoring case, or None."""
-    return next((n for n in native_components(chart_dir) if same_name(n, name)), None)
+    return next((native for native in native_components(chart_dir) if is_same_name(native, name)), None)
 
 
 def resolve_native_component(chart_dir: Path, name: str) -> str:
@@ -92,14 +95,14 @@ def resolve_native_component(chart_dir: Path, name: str) -> str:
             f"settings.yaml's component_resolution.native_components ({natives}); "
             f"'{name}' isn't one — did you mean to pass its real chart version?"
         )
-        raise SystemExit(msg)
+        sys.exit(msg)
     return native
 
 
-def chart_version_lockstep_components(chart_dir: Path | None = None):
-    """component_resolution_chart_version_lockstep_components; chart_dir defaults to CHART_DIR."""
+def chart_lockstep_components(chart_dir: Path | None = None):
+    """resolution_lockstep_components; chart_dir defaults to CHART_DIR."""
     chart_dir = chart_dir or CHART_DIR
-    return component_resolution_chart_version_lockstep_components(chart_dir)
+    return resolution_lockstep_components(chart_dir)
 
 
 class PinPath(NamedTuple):
@@ -126,13 +129,13 @@ def pin_paths_for(component: str, chart_dir: Path | None = None) -> list[PinPath
     """
     version_paths = version_paths_for(component, chart_dir)
     registered_images = component_image_paths(chart_dir).get(component)
-    if registered_images is not None:
-        image_paths = registered_images
-    elif version_paths:
-        image_paths = []
+    if registered_images is None:
+        image_paths = [] if version_paths else image_paths_for(component, chart_dir)
     else:
-        image_paths = image_paths_for(component, chart_dir)
-    return [PinPath(p, f"{p}.tag") for p in image_paths] + [PinPath(p, p) for p in version_paths]
+        image_paths = registered_images
+    return [PinPath(image_path, f"{image_path}.tag") for image_path in image_paths] + [
+        PinPath(version_path, version_path) for version_path in version_paths
+    ]
 
 
 def is_primary_rel_path(owner_name: str, rel_path: str, chart_dir: Path | None = None):
@@ -145,7 +148,7 @@ def is_primary_rel_path(owner_name: str, rel_path: str, chart_dir: Path | None =
     return any(pin.path == rel_path for pin in pin_paths_for(owner_name, chart_dir))
 
 
-def is_primary_image_path(path: tuple[str, ...], deps: list[ChartDependency], chart_dir: Path | None = None):
+def is_primary_image_path(path: ValuesPath, deps: list[ChartDependency], chart_dir: Path | None = None):
     """Whether `path` is a dependency's primary image/version field rather than a sidecar.
 
     Also True for a path with no owning dependency (native components,
@@ -162,10 +165,19 @@ def is_primary_image_path(path: tuple[str, ...], deps: list[ChartDependency], ch
     return is_primary_rel_path(dep["name"], ".".join(path[1:]), chart_dir)
 
 
+class ComponentChartVersions(NamedTuple):
+    """A component's dependency and chart versions; old_chart is None when the baseline lacks it."""
+
+    dep: ChartDependency | None
+    chart_name: str
+    old_chart: str | None
+    new_chart: str
+
+
 def component_chart_versions(
     chart_dir: Path | None, key: str, deps: list[ChartDependency], baseline_deps: list[ChartDependency] | None
-) -> tuple[ChartDependency | None, str, str | None, str] | None:
-    """(dep, chart_name, old_chart, new_chart) for values key `key`, or None if not a component.
+) -> ComponentChartVersions | None:
+    """The ComponentChartVersions of values key `key`, or None if not a component.
 
     A native component gives (None, key, None, "-"); old_chart is None when
     the dependency is not in baseline_deps.
@@ -174,13 +186,13 @@ def component_chart_versions(
     if dep is not None:
         baseline_dep = dep_for_values_key(baseline_deps, key) if baseline_deps else None
         old_chart = str(baseline_dep["version"]) if baseline_dep else None
-        return dep, dep["name"], old_chart, str(dep["version"])
+        return ComponentChartVersions(dep, dep["name"], old_chart, str(dep["version"]))
     if key in native_components(chart_dir):
-        return None, key, None, "-"
+        return ComponentChartVersions(None, key, None, "-")
     return None
 
 
 def embedded_version_images(chart_dir: Path | None = None):
-    """component_resolution_embedded_version_images; chart_dir defaults to CHART_DIR."""
+    """resolution_embedded_images; chart_dir defaults to CHART_DIR."""
     chart_dir = chart_dir or CHART_DIR
-    return component_resolution_embedded_version_images(chart_dir)
+    return resolution_embedded_images(chart_dir)

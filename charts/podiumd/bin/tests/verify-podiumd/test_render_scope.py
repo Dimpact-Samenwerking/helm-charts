@@ -87,7 +87,7 @@ def test_friendly_vendor_charts_matches_mixed_case_keyword(
     repository."""
     monkeypatch.setattr(librenderscope, "helm_repos_urls_by_alias", lambda chart_dir: {})
     monkeypatch.setattr(librenderscope, "vendor_classification_keywords", lambda chart_dir: {"InfoNL": "Info(NL)"})
-    monkeypatch.setattr(librenderscope, "vendor_classification_chart_overrides", lambda chart_dir: {})
+    monkeypatch.setattr(librenderscope, "vendor_chart_overrides", lambda chart_dir: {})
     monkeypatch.setattr(
         librenderscope,
         "load_chart_dependencies",

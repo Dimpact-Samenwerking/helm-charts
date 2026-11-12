@@ -7,23 +7,42 @@ from pathlib import Path
 
 import yaml
 
+from lib.chart.values_tree_primitives import ValuesPath
+
 _MERGE_TAG = "tag:yaml.org,2002:merge"
 
 
 def _mapping_pairs(node: yaml.MappingNode) -> Iterator[tuple[str, yaml.Node]]:
     """(key, value) pairs of `node` with "<<" merges expanded; explicit keys win over merged ones."""
-    explicit = {k.value for k, _ in node.value if isinstance(k, yaml.ScalarNode) and k.tag != _MERGE_TAG}
+    explicit = {
+        explicit_key.value
+        for explicit_key, _ in node.value
+        if isinstance(explicit_key, yaml.ScalarNode) and explicit_key.tag != _MERGE_TAG
+    }
     for key_node, value_node in node.value:
         if key_node.tag == _MERGE_TAG:
-            sources = value_node.value if isinstance(value_node, yaml.SequenceNode) else [value_node]
-            for source in sources:
-                if isinstance(source, yaml.MappingNode):
-                    yield from ((k, v) for k, v in _mapping_pairs(source) if k not in explicit)
+            yield from _merged_pairs(value_node, explicit)
         elif isinstance(key_node, yaml.ScalarNode):
             yield key_node.value, value_node
 
 
-def _scalar_nodes(node: yaml.Node, path: tuple[str, ...] = ()) -> Iterator[tuple[tuple[str, ...], yaml.ScalarNode]]:
+def _merged_pairs(merge_value: yaml.Node, explicit: set[str]) -> Iterator[tuple[str, yaml.Node]]:
+    """The pairs a "<<" merge of `merge_value` (one mapping or a list of them) adds, minus `explicit` keys."""
+    sources = merge_value.value if isinstance(merge_value, yaml.SequenceNode) else [merge_value]
+    for source in sources:
+        if isinstance(source, yaml.MappingNode):
+            yield from (
+                (merged_key, merged_value)
+                for merged_key, merged_value in _mapping_pairs(source)
+                if merged_key not in explicit
+            )
+
+
+# A scalar's values path and its node.
+type PathScalar = tuple[ValuesPath, yaml.ScalarNode]
+
+
+def _scalar_nodes(node: yaml.Node, path: ValuesPath = ()) -> Iterator[PathScalar]:
     """(path, node) for every scalar under a mapping, in document order; an alias yields its anchor's node."""
     if isinstance(node, yaml.MappingNode):
         for key, value in _mapping_pairs(node):
@@ -33,7 +52,7 @@ def _scalar_nodes(node: yaml.Node, path: tuple[str, ...] = ()) -> Iterator[tuple
 
 
 @functools.lru_cache(maxsize=8)
-def _scalars_in_text(text: str) -> tuple[tuple[tuple[str, ...], yaml.ScalarNode], ...]:
+def _scalars_in_text(text: str) -> tuple[PathScalar, ...]:
     """_scalar_nodes of the whole document; () for an empty one."""
     # yaml.compose without its untyped stub.
     root = yaml.SafeLoader(text).get_single_node()
@@ -63,7 +82,7 @@ def alias_groups(values_path: Path) -> dict[str, tuple[str, ...]]:
     return alias_groups_in_text(values_path.read_text(encoding="utf-8"))
 
 
-def scalar_lines_in_text(text: str) -> dict[tuple[str, ...], int]:
+def scalar_lines_in_text(text: str) -> dict[ValuesPath, int]:
     """{path: 1-based line of its scalar value} for every scalar outside a sequence.
 
     An aliased path gets the line of its anchor, where the literal value is

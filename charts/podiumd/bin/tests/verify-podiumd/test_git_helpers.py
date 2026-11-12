@@ -1,23 +1,18 @@
-"""find_repo_root, resolve_git_ref, git_show_yaml — against a real, hermetic
+"""find_repo_root, resolve_git_ref — against a real, hermetic
 temp git repo (not the actual project repo)."""
-
-import subprocess
 
 from pathlib import Path
 from types import ModuleType
 
 import pytest
 
-
-def git(*args, cwd):
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
+from tests.git_repo import git
+from tests.git_repo import init_git_repo
 
 
 @pytest.fixture
 def repo(tmp_path: Path):
-    git("init", "-q", cwd=tmp_path)
-    git("config", "user.email", "test@example.com", cwd=tmp_path)
-    git("config", "user.name", "Test", cwd=tmp_path)
+    init_git_repo(tmp_path)
     (tmp_path / "values.yaml").write_text("zac:\n  enabled: true\n")
     git("add", "values.yaml", cwd=tmp_path)
     git("commit", "-q", "-m", "initial", cwd=tmp_path)
@@ -45,18 +40,3 @@ def test_resolve_git_ref_finds_existing_tag(libgitutil: ModuleType, repo):
 
 def test_resolve_git_ref_returns_none_when_nothing_resolves(libgitutil: ModuleType, repo):
     assert libgitutil.resolve_git_ref(repo, ["nonexistent-1", "nonexistent-2"]) is None
-
-
-def test_git_show_yaml_reads_file_at_ref(libgitutil: ModuleType, repo):
-    data = libgitutil.git_show_yaml(repo, "podiumd-1.0.0", "values.yaml")
-    assert data == {"zac": {"enabled": True}}
-    data_head = libgitutil.git_show_yaml(repo, "HEAD", "values.yaml")
-    assert data_head == {"zac": {"enabled": False}}
-
-
-def test_git_show_yaml_returns_none_for_missing_file(libgitutil: ModuleType, repo):
-    assert libgitutil.git_show_yaml(repo, "HEAD", "does-not-exist.yaml") is None
-
-
-def test_git_show_yaml_returns_none_for_bad_ref(libgitutil: ModuleType, repo):
-    assert libgitutil.git_show_yaml(repo, "not-a-real-ref", "values.yaml") is None

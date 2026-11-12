@@ -15,9 +15,7 @@ kiss-eck:
       - name: default
         count: 1
 """
-ECK_AFTER = (
-    ECK_BEFORE
-    + """\
+ECK_AFTER = f"""{ECK_BEFORE}\
         podTemplate:
           spec:
             containers:
@@ -30,7 +28,6 @@ ECK_AFTER = (
                     cpu: 2000m
                     memory: 2Gi
 """
-)
 
 OPENFORMS_AFTER = """\
 openformulieren:
@@ -41,7 +38,7 @@ openformulieren:
           - identifier: objecten
             name: Objecten
 """
-OPENFORMS_BEFORE = OPENFORMS_AFTER + "            catalogue_domain: ALG\n" + '            catalogue_rsin: "123456789"\n'
+OPENFORMS_BEFORE = f'{OPENFORMS_AFTER}            catalogue_domain: ALG\n            catalogue_rsin: "123456789"\n'
 
 OPENINWONER_BEFORE = """\
 openinwoner:
@@ -105,9 +102,7 @@ spec:
         - name: zac
           port: 80
 """
-GATEWAY_AFTER = (
-    GATEWAY_BEFORE
-    + """\
+GATEWAY_AFTER = f"""{GATEWAY_BEFORE}\
       filters:
         - type: ResponseHeaderModifier
           responseHeaderModifier:
@@ -117,7 +112,6 @@ GATEWAY_AFTER = (
               - name: X-Content-Type-Options
                 value: nosniff
 """
-)
 
 
 @pytest.mark.parametrize(

@@ -1,6 +1,7 @@
 """fix-doc-consistency's text/heading helpers and the git-mv rename step."""
 
 import re
+import sys
 
 from pathlib import Path
 
@@ -21,7 +22,11 @@ HEADING_LINE_RE = re.compile(r"^#{1,6}\s")
 _LINK_FRAGMENT_RE = re.compile(r"\]\(#(?P<fragment>[^)\s]+)\)")
 
 
-def find_collisions(by_suffix: dict[str, list[tuple[str, Path]]]):
+# suffix -> [(baseline, path), ...] of the docs a rebase renames.
+type DocsBySuffix = dict[str, list[tuple[str, Path]]]
+
+
+def find_collisions(by_suffix: DocsBySuffix):
     """suffix -> [(baseline, path), ...] for suffixes whose sources would collide on rename."""
     return {suffix: entries for suffix, entries in by_suffix.items() if len(entries) > 1}
 
@@ -39,10 +44,11 @@ def git_mv(src: Path, dst: Path):
     if tracked.returncode != 0:
         src.rename(dst)
         return
-    result = run(["git", "mv", str(src), str(dst)], cwd=src.parent, capture_output=True, text=True)
+    mv_command = ["git", "mv", str(src), str(dst)]
+    result = run(mv_command, cwd=src.parent, capture_output=True, text=True)
     if result.returncode != 0:
         msg = f"error: git mv {src} -> {dst} failed: {result.stderr.strip()}"
-        raise SystemExit(msg)
+        sys.exit(msg)
 
 
 def update_title_line(text: str, target: str, new_baseline: str):
@@ -51,14 +57,16 @@ def update_title_line(text: str, target: str, new_baseline: str):
     lines = text.splitlines(keepends=True)
     if not lines:
         return text, False
-    new_first = title_arrow_re(target).sub(lambda m: f"{new_baseline}{m.group('arrow')}{target}", lines[0])
+    new_first = title_arrow_re(target).sub(
+        lambda arrow_match: f"{new_baseline}{arrow_match.group('arrow')}{target}", lines[0]
+    )
     if new_first == lines[0]:
         return text, False
     lines[0] = new_first
     return "".join(lines), True
 
 
-def update_component_versions_heading(text: str, target: str, new_baseline: str):
+def update_versions_heading(text: str, target: str, new_baseline: str):
     """Point a "Component versions (<target> vs <baseline>)" heading anywhere
     in the body at new_baseline. Returns (new_text, changed)."""
     pattern = re.compile(COMPONENT_VERSIONS_RE_TMPL.format(target=re.escape(target)))
@@ -70,9 +78,10 @@ def join_and(parts: list[str]):
     """ "a" | "a and b" | "a, b, and c"."""
     if len(parts) <= 1:
         return "".join(parts)
-    if len(parts) == 2:
-        return f"{parts[0]} and {parts[1]}"
-    return ", ".join(parts[:-1]) + f", and {parts[-1]}"
+    *head, last = parts
+    if len(head) == 1:
+        return f"{head[0]} and {last}"
+    return f"{', '.join(head)}, and {last}"
 
 
 def remaining_mentions(text: str, old_baseline: str):
@@ -81,10 +90,10 @@ def remaining_mentions(text: str, old_baseline: str):
     Whole versions only: "14.8.4" or "4.8.40" is not 4.8.4, "v4.8.4." is.
     """
     pattern = re.compile(rf"(?<![\d.]){re.escape(old_baseline)}(?!\.?\d)")
-    return [i + 1 for i, line in enumerate(text.splitlines()) if pattern.search(line)]
+    return [index + 1 for index, line in enumerate(text.splitlines()) if pattern.search(line)]
 
 
-def ensure_blank_lines_around_headings(text: str):
+def ensure_heading_blank_lines(text: str):
     """Insert missing blank lines around "#" headings (MD022).
 
     Lines inside fenced code blocks are skipped (fenced_line_flags). No
@@ -92,25 +101,24 @@ def ensure_blank_lines_around_headings(text: str):
     lines = text.splitlines(keepends=True)
     fenced = fenced_line_flags(lines)
     result: list[str] = []
-    for i, line in enumerate(lines):
-        if not fenced[i] and HEADING_LINE_RE.match(line):
-            if result and result[-1].strip():
-                result.append("\n")
-            result.append(line)
-            if i + 1 < len(lines) and lines[i + 1].strip():
-                result.append("\n")
-        else:
-            result.append(line)
+    for index, line in enumerate(lines):
+        is_heading = not fenced[index] and HEADING_LINE_RE.match(line)
+        if is_heading and result and result[-1].strip():
+            result.append("\n")
+        result.append(line)
+        followed_by_text = index + 1 < len(lines) and lines[index + 1].strip()
+        if is_heading and followed_by_text:
+            result.append("\n")
     return "".join(result)
 
 
 def collapse_multiple_blank_lines(text: str):
-    """Normalize blank lines before writing a managed .md doc (MD022/MD012).
+    r"""Normalize blank lines before writing a managed .md doc (MD022/MD012).
 
     Ensures blank lines around headings, collapses runs of blank lines to
     one, and trims trailing blanks to a single final newline: pymarkdown
-    counts EOF as a blank line, so "content\\n\\n" already fails MD012."""
-    text = ensure_blank_lines_around_headings(text)
+    counts EOF as a blank line, so "content\n\n" already fails MD012."""
+    text = ensure_heading_blank_lines(text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return re.sub(r"\n+\Z", "\n", text)
 
@@ -144,11 +152,11 @@ def retarget_heading_links(old_text: str, new_text: str) -> tuple[str, list[str]
         return new_text, []
     retargeted: list[str] = []
 
-    def retarget(m: re.Match[str]):
-        target = moves.get(m.group("fragment"))
+    def retarget(fragment_match: re.Match[str]):
+        target = moves.get(fragment_match.group("fragment"))
         if target is None:
-            return m.group(0)
-        retargeted.append(f"#{m.group('fragment')} -> #{target}")
+            return fragment_match.group(0)
+        retargeted.append(f"#{fragment_match.group('fragment')} -> #{target}")
         return f"](#{target})"
 
     lines = new_text.splitlines(keepends=True)

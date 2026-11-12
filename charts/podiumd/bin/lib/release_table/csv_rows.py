@@ -2,6 +2,7 @@
 column set, the ReleaseTableRow type and the checked reader."""
 
 import csv
+import sys
 
 from pathlib import Path
 from typing import TypedDict
@@ -40,46 +41,48 @@ class ReleaseTableRow(TypedDict):
 def _row(values: list[str], where: str) -> ReleaseTableRow:
     if len(values) != len(CSV_HEADER):
         msg = f"error: {where} has {len(values)} column(s), expected {len(CSV_HEADER)}"
-        raise SystemExit(msg)
-    (
-        section,
-        vendor,
-        used_by,
-        name,
-        component,
-        alias,
-        image_basename,
-        source_version_app,
-        source_version_helm,
-        target_version_app,
-        target_version_helm,
-    ) = values
+        sys.exit(msg)
+    cells = dict(zip(CSV_HEADER, values, strict=True))
     return {
-        "section": section,
-        "vendor": vendor,
-        "used_by": used_by,
-        "name": name,
-        "component": component,
-        "alias": alias,
-        "image_basename": image_basename,
-        "source_version_app": source_version_app,
-        "source_version_helm": source_version_helm,
-        "target_version_app": target_version_app,
-        "target_version_helm": target_version_helm,
+        "section": cells["section"],
+        "vendor": cells["vendor"],
+        "used_by": cells["used_by"],
+        "name": cells["name"],
+        "component": cells["component"],
+        "alias": cells["alias"],
+        "image_basename": cells["image_basename"],
+        "source_version_app": cells["source_version_app"],
+        "source_version_helm": cells["source_version_helm"],
+        "target_version_app": cells["target_version_app"],
+        "target_version_helm": cells["target_version_helm"],
     }
 
 
-def release_table_records(path: Path) -> list[tuple[int, list[str]]]:
+# (line number, values) of one release-table.csv data row.
+type CsvRecord = tuple[int, list[str]]
+
+
+def release_table_records(path: Path) -> list[CsvRecord]:
     """(line number, values) of each data row of the release-table.csv at `path`; exits on a bad header."""
-    with path.open(newline="", encoding="utf-8") as f:
-        reader = csv.reader(f)
+    with path.open(newline="", encoding="utf-8") as csv_file:
+        reader = csv.reader(csv_file)
         header = next(reader, None)
         if header != CSV_HEADER:
             msg = f"error: {path}'s header doesn't match the release-table.csv columns ({', '.join(CSV_HEADER)})"
-            raise SystemExit(msg)
+            sys.exit(msg)
         return [(reader.line_num, values) for values in reader]
 
 
 def read_release_table(path: Path) -> list[ReleaseTableRow]:
     """The rows of the release-table.csv at `path`; exits on a bad header or column count."""
     return [_row(values, f"{path} line {line_num}") for line_num, values in release_table_records(path)]
+
+
+def read_existing_release_table(path: Path) -> list[ReleaseTableRow]:
+    """read_release_table, but first exit 1 with how to create the file when it is missing."""
+    if not path.is_file():
+        print(f"error: {path} not found")
+        print("Create it first with export-confluence-release-table, e.g.:")
+        print("    export-confluence-release-table --url <page-url> --user <email> --token-file <path>")
+        sys.exit(1)
+    return read_release_table(path)

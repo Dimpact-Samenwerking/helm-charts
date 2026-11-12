@@ -27,7 +27,7 @@ def render_returning(returncode: int, stdout: str):
 def test_refresh_images_baseline_passes_the_render_to_the_regeneration(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """The render's paths reach regenerate_images_baseline_manifest, and
+    """The render's paths reach regenerate_images_baseline, and
     its result (written count, unresolvable repositories) is reported."""
     seen: dict[str, object] = {}
 
@@ -47,7 +47,7 @@ def test_refresh_images_baseline_passes_the_render_to_the_regeneration(
     monkeypatch.setattr(baseline_refresh, "lint_args_for", no_lint_args)
     monkeypatch.setattr(baseline_refresh, "render_chart", render_returning(0, "rendered"))
     monkeypatch.setattr(baseline_refresh, "rendered_chart_paths", rendered_paths_of)
-    monkeypatch.setattr(baseline_refresh, "regenerate_images_baseline_manifest", fake_regenerate)
+    monkeypatch.setattr(baseline_refresh, "regenerate_images_baseline", fake_regenerate)
     path = tmp_path / "images-baseline.yaml"
 
     baseline_refresh.refresh_images_baseline(tmp_path, [{"name": "zac", "version": "1.0.0"}], {"zac": {}}, path)

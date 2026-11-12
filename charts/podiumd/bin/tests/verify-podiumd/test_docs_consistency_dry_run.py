@@ -5,11 +5,7 @@ import subprocess
 from pathlib import Path
 
 from lib.docs_consistency.dry_run import fix_docs_dry_run
-
-
-def _docs_snapshot(chart_dir: Path) -> dict[str, str]:
-    docs = chart_dir / "docs"
-    return {str(p.relative_to(docs)): p.read_text(encoding="utf-8") for p in sorted(docs.rglob("*")) if p.is_file()}
+from tests.chart_repo import docs_text
 
 
 def test_consistent_docs_give_no_changes(chart_repo: Path):
@@ -22,14 +18,14 @@ def test_consistent_docs_give_no_changes(chart_repo: Path):
 
 def test_a_rebase_renames_in_the_copy_and_leaves_the_real_docs_alone(chart_repo: Path):
     """Rebasing onto 4.8.6 renames every doc; git mv must not run on the real docs."""
-    before = _docs_snapshot(chart_repo)
+    before = docs_text(chart_repo)
 
     with fix_docs_dry_run(chart_repo, "4.9.0", "4.8.6") as dry:
         changes = {change.name: change.status for change in dry.changes}
 
     assert changes["_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md"] == "removed"
     assert changes["_UPGRADE_PATHS/4.8.6-to-4.9.0-upgrade.md"] == "created"
-    assert _docs_snapshot(chart_repo) == before
+    assert docs_text(chart_repo) == before
     status = subprocess.run(
         ["git", "status", "--porcelain"], cwd=chart_repo, check=True, capture_output=True, text=True
     ).stdout
@@ -39,7 +35,8 @@ def test_a_rebase_renames_in_the_copy_and_leaves_the_real_docs_alone(chart_repo:
 def test_a_removed_line_starting_with_two_dashes_counts_as_changed(chart_repo: Path):
     """Its diff line "--- ..." is content, not a file header."""
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
-    doc.write_text(doc.read_text(encoding="utf-8") + "\n-- a removed SQL comment\n", encoding="utf-8")
+    original = doc.read_text(encoding="utf-8")
+    doc.write_text(f"{original}\n-- a removed SQL comment\n", encoding="utf-8")
     old_lines = doc.read_text(encoding="utf-8").splitlines()
 
     with fix_docs_dry_run(chart_repo, "4.9.0", "4.8.6") as dry:

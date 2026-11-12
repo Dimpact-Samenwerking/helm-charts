@@ -1,21 +1,19 @@
 """Baseline/images-manifest helpers, plus main() integration for
 images-<target>.yaml handling and component-version-table correction."""
 
-import subprocess
-
 from pathlib import Path
 from types import ModuleType
 
 import pytest
 import yaml
 
-from lib.fix_doc_consistency.baseline_and_images_manifest_handling import extract_images_baseline
-from lib.fix_doc_consistency.baseline_and_images_manifest_handling import fix_images_manifest_header_lines
-from lib.fix_doc_consistency.baseline_and_images_manifest_handling import update_sibling_doc_refs
-
-
-def git(*args, cwd):
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
+from lib.fix_doc_consistency.baseline_and_manifest import extract_images_baseline
+from lib.fix_doc_consistency.baseline_and_manifest import fix_manifest_header_lines
+from lib.fix_doc_consistency.baseline_and_manifest import update_sibling_doc_refs
+from tests.chart_repo import seed_chart_repo
+from tests.fixture_data import SHA256_A
+from tests.git_repo import commit_all
+from tests.git_repo import commit_tagged
 
 
 def write(path, text):
@@ -41,7 +39,7 @@ def test_current_chart_version_reads_chart_yaml(cdb: ModuleType, tmp_path: Path,
     assert cdb.current_chart_version() == "4.9.0"
 
 
-# --- extract_images_baseline / update_sibling_doc_refs / fix_images_manifest_header_lines ---
+# --- extract_images_baseline / update_sibling_doc_refs / fix_manifest_header_lines ---
 
 
 def test_extract_images_baseline_finds_version(cdb: ModuleType):
@@ -84,7 +82,7 @@ def test_fix_images_manifest_header_lines_rewrites_both_lines(cdb: ModuleType):
         "#\n"
         "# Images new or changed in podiumd 4.9.0 vs 4.8.2.\n"
     )
-    new_text, changed = fix_images_manifest_header_lines(text, "4.9.0", "4.8.5")
+    new_text, changed = fix_manifest_header_lines(text, "4.9.0", "4.8.5")
     assert changed is True
     assert "Baseline: podiumd 4.8.5 (main @ abc1234)" in new_text
     assert "podiumd 4.9.0 vs 4.8.5" in new_text
@@ -92,14 +90,14 @@ def test_fix_images_manifest_header_lines_rewrites_both_lines(cdb: ModuleType):
 
 def test_fix_images_manifest_header_lines_corrects_a_wrong_target(cdb: ModuleType):
     text = "# Baseline: podiumd 4.8.5.\n#\n# Images new or changed in podiumd 4.8.9 vs 4.8.5.\n"
-    new_text, changed = fix_images_manifest_header_lines(text, "4.9.0", "4.8.5")
+    new_text, changed = fix_manifest_header_lines(text, "4.9.0", "4.8.5")
     assert changed is True
     assert "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n" in new_text
 
 
 def test_fix_images_manifest_header_lines_adds_a_missing_vs_line_after_the_baseline_line(cdb: ModuleType):
     text = "# Baseline: podiumd 4.8.5. Re-verify before release.\n#\n# Changes:\n#\n"
-    new_text, changed = fix_images_manifest_header_lines(text, "4.9.0", "4.8.5")
+    new_text, changed = fix_manifest_header_lines(text, "4.9.0", "4.8.5")
     assert changed is True
     assert new_text == (
         "# Baseline: podiumd 4.8.5. Re-verify before release.\n"
@@ -109,7 +107,7 @@ def test_fix_images_manifest_header_lines_adds_a_missing_vs_line_after_the_basel
 
 
 def test_fix_images_manifest_header_lines_adds_both_lines_to_a_bare_manifest(cdb: ModuleType):
-    new_text, changed = fix_images_manifest_header_lines("[]\n", "4.9.0", "4.8.5")
+    new_text, changed = fix_manifest_header_lines("[]\n", "4.9.0", "4.8.5")
     assert changed is True
     assert new_text.startswith(
         "# Baseline: podiumd 4.8.5. Re-verify before release.\n#\n# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n"
@@ -118,7 +116,7 @@ def test_fix_images_manifest_header_lines_adds_both_lines_to_a_bare_manifest(cdb
 
 def test_fix_images_manifest_header_lines_correct_lines_are_unchanged(cdb: ModuleType):
     text = "# Baseline: podiumd 4.8.5.\n#\n# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n"
-    assert fix_images_manifest_header_lines(text, "4.9.0", "4.8.5") == (text, False)
+    assert fix_manifest_header_lines(text, "4.9.0", "4.8.5") == (text, False)
 
 
 # --- main() integration: images-<target>.yaml handling ---
@@ -226,33 +224,20 @@ def repo_with_mi_shaped_stale_docs(tmp_path: Path):
     pinned there, so its app version is unresolvable and must render
     "(new)". Row and both headings were written by a buggy run with a stale
     transition and, for the headings, the bare "mi" name."""
-    git("init", "-q", cwd=tmp_path)
-    git("config", "user.email", "test@example.com", cwd=tmp_path)
-    git("config", "user.name", "Test", cwd=tmp_path)
-
-    write(
-        tmp_path / "Chart.yaml",
-        yaml.safe_dump(
+    doc_dir = seed_chart_repo(
+        tmp_path,
+        [
             {
-                "dependencies": [
-                    {
-                        "name": "mi-data",
-                        "alias": "mi",
-                        "version": "1.0.0",
-                        "repository": "file://../mi-data",
-                        "condition": "mi.enabled",
-                    },
-                ],
-            }
-        ),
+                "name": "mi-data",
+                "alias": "mi",
+                "version": "1.0.0",
+                "repository": "file://../mi-data",
+                "condition": "mi.enabled",
+            },
+        ],
+        {"mi": {"enabled": False}},
     )
-    write(tmp_path / "values.yaml", yaml.safe_dump({"mi": {"enabled": False}}))
-    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
-    doc_dir.mkdir(parents=True)
-    (tmp_path / "docs" / "images").mkdir(parents=True)
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
-    git("tag", "podiumd-4.9.0", cwd=tmp_path)
+    commit_tagged(tmp_path, "baseline state", "4.9.0")
 
     write(
         tmp_path / "Chart.yaml",
@@ -276,7 +261,7 @@ def repo_with_mi_shaped_stale_docs(tmp_path: Path):
             {
                 "mi": {
                     "enabled": False,
-                    "image": {"repository": "mcr.microsoft.com/azure-cli", "tag": "2.90.0@sha256:" + "a" * 64},
+                    "image": {"repository": "mcr.microsoft.com/azure-cli", "tag": f"2.90.0@{SHA256_A}"},
                 },
             }
         ),
@@ -298,8 +283,7 @@ def repo_with_mi_shaped_stale_docs(tmp_path: Path):
         "## mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)\n\n"
         "- Key `mi.transfer.noEpsv` (optional) added.\n",
     )
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "mi bump, stale docs from an old buggy run", cwd=tmp_path)
+    commit_all(tmp_path, "mi bump, stale docs from an old buggy run")
     return doc_dir
 
 

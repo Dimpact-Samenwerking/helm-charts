@@ -1,17 +1,15 @@
 """main() integration: adding missing sidecar/shared-image rows and Changes
 sections, plus the short-alias row-collision regression."""
 
-import subprocess
-
 from pathlib import Path
 from types import ModuleType
 
 import pytest
 import yaml
 
-
-def git(*args, cwd):
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
+from tests.chart_repo import seed_chart_repo
+from tests.chart_repo import tagged_baseline_repo
+from tests.git_repo import commit_all
 
 
 def write(path, text):
@@ -31,35 +29,16 @@ def set_argv_and_dir(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch, doc_dir, 
 def repo_with_new_sidecar_pinned_to_a_known_mirrored_image(tmp_path: Path):
     """redis-operator's "k8s" sidecar is a new path, but its exact pin is
     already recorded in an earlier images-4.8.0.yaml manifest."""
-    git("init", "-q", cwd=tmp_path)
-    git("config", "user.email", "test@example.com", cwd=tmp_path)
-    git("config", "user.name", "Test", cwd=tmp_path)
-
-    write(
-        tmp_path / "Chart.yaml",
-        yaml.safe_dump(
-            {
-                "dependencies": [{"name": "redis-operator", "version": "1.36.1", "repository": "@opstree"}],
-            }
-        ),
+    doc_dir = tagged_baseline_repo(
+        tmp_path,
+        [{"name": "redis-operator", "version": "1.36.1", "repository": "@opstree"}],
+        {
+            "redis-operator": {
+                "redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.2@sha256:aaaa"}}
+            },
+        },
     )
-    write(
-        tmp_path / "values.yaml",
-        yaml.safe_dump(
-            {
-                "redis-operator": {
-                    "redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.2@sha256:aaaa"}}
-                },
-            }
-        ),
-    )
-    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     images_dir = tmp_path / "docs" / "images"
-    doc_dir.mkdir(parents=True)
-    images_dir.mkdir(parents=True)
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
-    git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
     write(
         tmp_path / "Chart.yaml",
@@ -94,8 +73,7 @@ def repo_with_new_sidecar_pinned_to_a_known_mirrored_image(tmp_path: Path):
         images_dir / "images-4.8.0.yaml",
         '- name: alpine/k8s\n  url: quay.io/alpine/k8s\n  version: "1.36.2"\n  digest: "sha256:cccc"\n',
     )
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "add k8s sidecar, pinned to an already-mirrored image", cwd=tmp_path)
+    commit_all(tmp_path, "add k8s sidecar, pinned to an already-mirrored image")
     return doc_dir
 
 
@@ -103,7 +81,7 @@ def test_main_new_sidecar_path_at_its_version_in_a_historical_manifest_gets_no_r
     cdb: ModuleType, repo_with_new_sidecar_pinned_to_a_known_mirrored_image, monkeypatch: pytest.MonkeyPatch
 ):
     """A new sidecar path whose pin is in an earlier manifest at the same version
-    is unchanged, as the checker resolves it (resolved_row_unchanged): no row."""
+    is unchanged, as the checker resolves it (is_resolved_row_unchanged): no row."""
     doc_dir = repo_with_new_sidecar_pinned_to_a_known_mirrored_image
     set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
     cdb.main()
@@ -150,7 +128,7 @@ def test_main_updates_a_changes_heading_missing_its_app_version(
     resolves; the old body is discarded as its accuracy is unknowable.
 
     "widget" is registered via tmp_path/etc/settings.yaml, which
-    update_stale_app_version_headings reaches through its chart_dir."""
+    update_stale_headings reaches through its chart_dir."""
     import io
     import tarfile
 
@@ -160,29 +138,13 @@ def test_main_updates_a_changes_heading_missing_its_app_version(
         encoding="utf-8",
     )
 
-    git("init", "-q", cwd=tmp_path)
-    git("config", "user.email", "test@example.com", cwd=tmp_path)
-    git("config", "user.name", "Test", cwd=tmp_path)
-
-    write(
-        tmp_path / "Chart.yaml",
-        yaml.safe_dump(
-            {
-                "dependencies": [{"name": "widget", "version": "2.0.0", "repository": "@example"}],
-            }
-        ),
+    doc_dir = seed_chart_repo(
+        tmp_path,
+        [{"name": "widget", "version": "2.0.0", "repository": "@example"}],
+        {
+            "widget": {"image": {"repository": "example/widget", "tag": ""}},
+        },
     )
-    write(
-        tmp_path / "values.yaml",
-        yaml.safe_dump(
-            {
-                "widget": {"image": {"repository": "example/widget", "tag": ""}},
-            }
-        ),
-    )
-    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
-    doc_dir.mkdir(parents=True)
-    (tmp_path / "docs" / "images").mkdir(parents=True)
 
     charts_dir = tmp_path / "charts"
     charts_dir.mkdir()
@@ -203,8 +165,7 @@ def test_main_updates_a_changes_heading_missing_its_app_version(
         "### widget 2.0.0\n\n"
         "TODO: describe this component's changes — its app version could not be resolved from the table row.\n\n",
     )
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "seed doc with a stale chart-only heading", cwd=tmp_path)
+    commit_all(tmp_path, "seed doc with a stale chart-only heading")
 
     set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
     cdb.main()
@@ -228,7 +189,7 @@ def test_main_adds_sections_for_both_rows_named_by_a_two_component_heading(
     combined_heading = "### ZAC (Zaakafhandelcomponent) 5.0.1 → 5.0.2 + redis-operator 0.26.0 → 0.26.1\n\n"
     doc.write_text(
         doc.read_text(encoding="utf-8").replace(
-            "## Changes\n\n", "## Changes\n\n" + combined_heading + "Some shared prose that must not be touched.\n\n"
+            "## Changes\n\n", f"## Changes\n\n{combined_heading}Some shared prose that must not be touched.\n\n"
         ),
         encoding="utf-8",
     )
@@ -257,36 +218,17 @@ def test_main_adds_version_pin_bullet_for_a_version_paths_component(
     Uses the real "redis-operator" registration: the baseline-side lookup
     calls actual_app_version without chart_dir, so a tmp_path-only
     settings override would be seen on the target side only."""
-    git("init", "-q", cwd=tmp_path)
-    git("config", "user.email", "test@example.com", cwd=tmp_path)
-    git("config", "user.name", "Test", cwd=tmp_path)
-
-    write(
-        tmp_path / "Chart.yaml",
-        yaml.safe_dump(
-            {
-                "dependencies": [
-                    {"name": "widget-a", "version": "1.0.0", "repository": "@example"},
-                    {"name": "redis-operator", "version": "2.0.0", "repository": "@example"},
-                ],
-            }
-        ),
+    doc_dir = tagged_baseline_repo(
+        tmp_path,
+        [
+            {"name": "widget-a", "version": "1.0.0", "repository": "@example"},
+            {"name": "redis-operator", "version": "2.0.0", "repository": "@example"},
+        ],
+        {
+            "widget-a": {"image": {"tag": "1.1.0@sha256:aaaa"}},
+            "redis-operator": {"redisOperator": {"imageTag": "2.1.0"}},
+        },
     )
-    write(
-        tmp_path / "values.yaml",
-        yaml.safe_dump(
-            {
-                "widget-a": {"image": {"tag": "1.1.0@sha256:aaaa"}},
-                "redis-operator": {"redisOperator": {"imageTag": "2.1.0"}},
-            }
-        ),
-    )
-    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
-    doc_dir.mkdir(parents=True)
-    (tmp_path / "docs" / "images").mkdir(parents=True)
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
-    git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
     write(
         tmp_path / "values.yaml",
@@ -307,8 +249,7 @@ def test_main_adds_version_pin_bullet_for_a_version_paths_component(
         "| redis-operator | 2.1.0 → 2.2.0 | 2.0.0 (unchanged) | - |\n\n"
         "## Changes\n\n",
     )
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "bump", cwd=tmp_path)
+    commit_all(tmp_path, "bump")
 
     set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
     cdb.main()
@@ -351,34 +292,15 @@ def test_main_leaves_unchanged_sidecar_with_no_row_alone(
 ):
     """A sidecar whose tag didn't change gets no row; only real changes are
     documented."""
-    git("init", "-q", cwd=tmp_path)
-    git("config", "user.email", "test@example.com", cwd=tmp_path)
-    git("config", "user.name", "Test", cwd=tmp_path)
-
-    write(
-        tmp_path / "Chart.yaml",
-        yaml.safe_dump(
-            {
-                "dependencies": [{"name": "redis-operator", "version": "0.26.1", "repository": "@opstree"}],
-            }
-        ),
+    doc_dir = tagged_baseline_repo(
+        tmp_path,
+        [{"name": "redis-operator", "version": "0.26.1", "repository": "@opstree"}],
+        {
+            "redis-operator": {
+                "redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.2@sha256:aaaa"}}
+            },
+        },
     )
-    write(
-        tmp_path / "values.yaml",
-        yaml.safe_dump(
-            {
-                "redis-operator": {
-                    "redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.2@sha256:aaaa"}}
-                },
-            }
-        ),
-    )
-    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
-    doc_dir.mkdir(parents=True)
-    (tmp_path / "docs" / "images").mkdir(parents=True)
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
-    git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
     write(
         doc_dir / "4.8.5-to-4.9.0-upgrade.md",
@@ -388,8 +310,7 @@ def test_main_leaves_unchanged_sidecar_with_no_row_alone(
         "| --- | --- | --- | --- |\n\n"
         "## Changes\n\n",
     )
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "unrelated commit, redis-ha's own image untouched", cwd=tmp_path)
+    commit_all(tmp_path, "unrelated commit, redis-ha's own image untouched")
 
     set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
     cdb.main()
@@ -405,27 +326,13 @@ def repo_with_short_alias_collision_risk(tmp_path: Path):
     """Regression fixture: alias "mi" is a mid-word substring of
     "ensurePodiumdAdminUser"; without word boundaries in find_component_row,
     adding "mi" overwrote that unrelated row."""
-    git("init", "-q", cwd=tmp_path)
-    git("config", "user.email", "test@example.com", cwd=tmp_path)
-    git("config", "user.name", "Test", cwd=tmp_path)
-
-    write(
-        tmp_path / "Chart.yaml",
-        yaml.safe_dump(
-            {
-                "dependencies": [
-                    {"name": "mi-data", "alias": "mi", "version": "1.0.0", "repository": "@dimpact"},
-                ],
-            }
-        ),
+    doc_dir = tagged_baseline_repo(
+        tmp_path,
+        [
+            {"name": "mi-data", "alias": "mi", "version": "1.0.0", "repository": "@dimpact"},
+        ],
+        {"mi": {"image": {"tag": "2.0.0@sha256:aaaa"}}},
     )
-    write(tmp_path / "values.yaml", yaml.safe_dump({"mi": {"image": {"tag": "2.0.0@sha256:aaaa"}}}))
-    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
-    doc_dir.mkdir(parents=True)
-    (tmp_path / "docs" / "images").mkdir(parents=True)
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
-    git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
     write(tmp_path / "values.yaml", yaml.safe_dump({"mi": {"image": {"tag": "2.1.0@sha256:bbbb"}}}))
     write(
@@ -437,8 +344,7 @@ def repo_with_short_alias_collision_risk(tmp_path: Path):
         "| Python (ensurePodiumdAdminUser init image) | 3.14-slim (unchanged) | 1.0.0 (unchanged) | - |\n\n"
         "## Changes\n\n",
     )
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "bump mi, no doc row added", cwd=tmp_path)
+    commit_all(tmp_path, "bump mi, no doc row added")
     return doc_dir
 
 

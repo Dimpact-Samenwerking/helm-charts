@@ -66,6 +66,16 @@ def stale_upgrade_entry(*newer):
     return {"checked_at": (datetime.now(UTC) - timedelta(days=30)).isoformat(), "newer": list(newer)}
 
 
+def _stub_zac_upgrade_candidate(libcvediffcheck: ModuleType, monkeypatch: pytest.MonkeyPatch, *newer: str) -> None:
+    """The upgrade cache offers zac 1.0.0 the `newer` tags; no sliding pins."""
+    monkeypatch.setattr(
+        libcvediffcheck,
+        "load_upgrade_cache",
+        lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry(*newer)},
+    )
+    monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
+
+
 def make_run_trivy(vulns_by_ref, calls=None):
     def _run_trivy(ref):
         if calls is not None:
@@ -132,12 +142,7 @@ zac:
     tag: "1.0.0@sha256:{DIGEST_A}"
 """,
     )
-    monkeypatch.setattr(
-        libcvediffcheck,
-        "load_upgrade_cache",
-        lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
-    )
-    monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
+    _stub_zac_upgrade_candidate(libcvediffcheck, monkeypatch, "1.1.0")
     monkeypatch.setattr("lib.checks.cve.registry_tag_exists", lambda host, repo, tag: (False, None))
 
     vulns_by_ref = {
@@ -169,12 +174,7 @@ zac:
     tag: "1.0.0@sha256:{DIGEST_A}"
 """,
     )
-    monkeypatch.setattr(
-        libcvediffcheck,
-        "load_upgrade_cache",
-        lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
-    )
-    monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
+    _stub_zac_upgrade_candidate(libcvediffcheck, monkeypatch, "1.1.0")
     monkeypatch.setattr("lib.checks.cve.registry_tag_exists", lambda host, repo, tag: (False, None))
 
     calls = []
@@ -311,12 +311,7 @@ zac:
     tag: "1.0.0@sha256:{DIGEST_A}"
 """,
     )
-    monkeypatch.setattr(
-        libcvediffcheck,
-        "load_upgrade_cache",
-        lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
-    )
-    monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
+    _stub_zac_upgrade_candidate(libcvediffcheck, monkeypatch, "1.1.0")
 
     resolve_calls = []
 
@@ -359,12 +354,7 @@ zac:
     tag: "1.0.0@sha256:{DIGEST_A}"
 """,
     )
-    monkeypatch.setattr(
-        libcvediffcheck,
-        "load_upgrade_cache",
-        lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
-    )
-    monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
+    _stub_zac_upgrade_candidate(libcvediffcheck, monkeypatch, "1.1.0")
 
     def failing_resolve(host, repo, tag):
         msg = "network down"
@@ -403,12 +393,7 @@ zac:
     tag: "1.0.0@sha256:{DIGEST_A}"
 """,
     )
-    monkeypatch.setattr(
-        libcvediffcheck,
-        "load_upgrade_cache",
-        lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
-    )
-    monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
+    _stub_zac_upgrade_candidate(libcvediffcheck, monkeypatch, "1.1.0")
     monkeypatch.setattr("lib.checks.cve.registry_tag_exists", lambda host, repo, tag: (False, None))
 
     # pre-populate the shared cve-scan cache for the CURRENT side only
@@ -453,12 +438,7 @@ zac:
     tag: "1.0.0@sha256:{DIGEST_A}"
 """,
     )
-    monkeypatch.setattr(
-        libcvediffcheck,
-        "load_upgrade_cache",
-        lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry()},
-    )
-    monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
+    _stub_zac_upgrade_candidate(libcvediffcheck, monkeypatch)
 
     calls = []
     monkeypatch.setattr(libcvecheck, "run_trivy", make_run_trivy({}, calls))
@@ -491,12 +471,7 @@ zac:
     tag: "1.0.0@sha256:{DIGEST_A}"
 """,
     )
-    monkeypatch.setattr(
-        libcvediffcheck,
-        "load_upgrade_cache",
-        lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
-    )
-    monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
+    _stub_zac_upgrade_candidate(libcvediffcheck, monkeypatch, "1.1.0")
     monkeypatch.setattr("lib.checks.cve.registry_tag_exists", lambda host, repo, tag: (False, None))
 
     vulns_by_ref = {
@@ -529,12 +504,7 @@ zac:
     tag: "1.0.0@sha256:{DIGEST_A}"
 """,
     )
-    monkeypatch.setattr(
-        libcvediffcheck,
-        "load_upgrade_cache",
-        lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
-    )
-    monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
+    _stub_zac_upgrade_candidate(libcvediffcheck, monkeypatch, "1.1.0")
     monkeypatch.setattr("lib.checks.cve.registry_tag_exists", lambda host, repo, tag: (False, None))
 
     vulns_by_ref = {
@@ -568,12 +538,7 @@ zac:
     tag: "1.0.0@sha256:{DIGEST_A}"
 """,
     )
-    monkeypatch.setattr(
-        libcvediffcheck,
-        "load_upgrade_cache",
-        lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
-    )
-    monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
+    _stub_zac_upgrade_candidate(libcvediffcheck, monkeypatch, "1.1.0")
     monkeypatch.setattr("lib.checks.cve.registry_tag_exists", lambda host, repo, tag: (False, None))
 
     vulns_by_ref = {
@@ -610,12 +575,7 @@ zac:
     tag: "1.0.0@sha256:{DIGEST_A}"
 """,
     )
-    monkeypatch.setattr(
-        libcvediffcheck,
-        "load_upgrade_cache",
-        lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
-    )
-    monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
+    _stub_zac_upgrade_candidate(libcvediffcheck, monkeypatch, "1.1.0")
     monkeypatch.setattr("lib.checks.cve.registry_tag_exists", lambda host, repo, tag: (False, None))
     monkeypatch.setattr(libcvecheck, "run_trivy", make_run_trivy({}))
 
@@ -864,15 +824,18 @@ def test_check_cve_diff_splits_own_partner_other_in_order_with_correct_content(
 
     assert "ghcr.io/infonl/zac: 1.0.0 -> 1.1.0  [upgrade]" in own_section
     assert "closed: 1 CRIT" in own_section
-    assert "ghcr.io/infonl/zac" not in partner_section and "ghcr.io/infonl/zac" not in other_section
+    assert "ghcr.io/infonl/zac" not in partner_section
+    assert "ghcr.io/infonl/zac" not in other_section
 
     assert "maykinmedia/objects-api: 1.0.0 -> 1.1.0  [upgrade]" in partner_section
     assert "introduced: 1 HIGH" in partner_section
-    assert "maykinmedia/objects-api" not in own_section and "maykinmedia/objects-api" not in other_section
+    assert "maykinmedia/objects-api" not in own_section
+    assert "maykinmedia/objects-api" not in other_section
 
     assert "docker.io/alpine/k8s: 1.36.2 -> 1.36.3  [upgrade]" in other_section
     assert "introduced: 1 LOW" in other_section
-    assert "docker.io/alpine/k8s" not in own_section and "docker.io/alpine/k8s" not in partner_section
+    assert "docker.io/alpine/k8s" not in own_section
+    assert "docker.io/alpine/k8s" not in partner_section
 
 
 def test_check_cve_diff_bucket_with_no_candidates_prints_no_header(

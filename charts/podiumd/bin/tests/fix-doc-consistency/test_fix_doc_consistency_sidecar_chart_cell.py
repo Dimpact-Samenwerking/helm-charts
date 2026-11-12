@@ -28,7 +28,7 @@ def test_fix_component_version_table_sets_a_sidecar_rows_chart_cell_to_dash() ->
         BaselineState([{"name": "redis-operator", "version": "0.26.1"}], redis_values("8.6.2")),
     )
 
-    new_text, changed, _unmatched, _unresolved = fix_component_version_table(text, resolution)
+    result = fix_component_version_table(text, resolution)
 
-    assert len(changed) == 1
-    assert "| redis-operator - redis | 8.6.2 → 8.6.6 | - | - |" in new_text
+    assert len(result.changed_rows) == 1
+    assert "| redis-operator - redis | 8.6.2 → 8.6.6 | - | - |" in result.text

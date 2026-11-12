@@ -41,10 +41,8 @@ FIX_DOC_CONSISTENCY_SCRIPT = SCRIPT_DIR / "fix-doc-consistency"
 FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 
 
-def main():
-    """CLI entry point; exits with the first failing sub-run's code."""
-    (new_baseline,) = positional_args(__doc__, 1)
-
+def resolve_new_baseline(new_baseline: str) -> str:
+    """The git ref of release `new_baseline`; exits 1 when it is no version or no release."""
     # resolve_baseline_ref would also accept refs like "main" or "HEAD~2";
     # downstream consumers assume semver.
     if not is_bare_version(new_baseline):
@@ -57,9 +55,16 @@ def main():
         sys.exit(1)
 
     ref, error = resolve_baseline_ref(repo_root, new_baseline)
-    if error:
+    if ref is None:
         print(f"error: {error}")
         sys.exit(1)
+    return ref
+
+
+def main():
+    """CLI entry point; exits with the first failing sub-run's code."""
+    new_baseline = positional_args(__doc__, 1)[0]
+    ref = resolve_new_baseline(new_baseline)
 
     old_baseline = read_upgrade_docs_baseline(CHART_DIR)
     write_release_baselines(CHART_DIR, upgrade_docs=new_baseline)

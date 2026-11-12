@@ -20,21 +20,25 @@ def typeddict_field_names(paths: Sequence[Path]) -> list[str]:
             classes += [node for node in ast.walk(tree) if isinstance(node, ast.ClassDef)]
     typeddicts = {"TypedDict"}
     while True:
-        found = {c.name for c in classes if any(isinstance(b, ast.Name) and b.id in typeddicts for b in c.bases)}
+        found = {class_def.name for class_def in classes if _is_subclass_of_any(class_def, typeddicts)}
         if found <= typeddicts:
             break
         typeddicts |= found
     return [
         statement.target.id
-        for c in classes
-        if c.name in typeddicts
-        for statement in c.body
+        for class_def in classes
+        if class_def.name in typeddicts
+        for statement in class_def.body
         if isinstance(statement, ast.AnnAssign) and isinstance(statement.target, ast.Name)
     ]
 
 
+def _is_subclass_of_any(class_def: ast.ClassDef, base_names: set[str]) -> bool:
+    return any(isinstance(base, ast.Name) and base.id in base_names for base in class_def.bases)
+
+
 def pylint_disable_for_tests(pyproject: Path) -> str:
     """[tool.podiumd.pylint-tests] disable, comma-joined for pylint --disable."""
-    with pyproject.open("rb") as f:
-        config = tomllib.load(f)
+    with pyproject.open("rb") as handle:
+        config = tomllib.load(handle)
     return ",".join(config["tool"]["podiumd"]["pylint-tests"]["disable"])

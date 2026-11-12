@@ -16,7 +16,7 @@ from typing import TypedDict
 from typing import TypeGuard
 
 from lib.json_cache import cache_file
-from lib.json_cache import checked_within
+from lib.json_cache import is_checked_within
 from lib.json_cache import load_json_cache
 from lib.json_cache import save_json_cache
 from lib.yaml_types import shape_problem
@@ -63,4 +63,4 @@ def cache_key(test_kind: str, target: str | tuple[str, ...]):
 
 def cache_entry_is_fresh(entry: RepoAccessEntry, ttl_minutes: float):
     """True when `entry` was checked within the last `ttl_minutes` minutes."""
-    return checked_within(entry.get("checked_at"), timedelta(minutes=ttl_minutes))
+    return is_checked_within(entry.get("checked_at"), timedelta(minutes=ttl_minutes))

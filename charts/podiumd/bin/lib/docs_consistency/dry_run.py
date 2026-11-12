@@ -11,7 +11,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from lib.fix_doc_consistency.run import FixDocPaths
+from lib.fix_doc_consistency.rebase_state import FixDocPaths
 from lib.fix_doc_consistency.run import fix_docs
 
 # The only docs/ subdirectories fix_docs writes.
@@ -54,8 +54,15 @@ def _files(docs_dir: Path) -> dict[str, str]:
 
 def _change(name: str, old: str | None, new: str | None) -> DocChange:
     """Skips unified_diff's two file-header lines by position: a content line can also start with "--- "."""
-    diff = list(difflib.unified_diff((old or "").splitlines(), (new or "").splitlines(), lineterm="", n=0))[2:]
-    status = "created" if old is None else "removed" if new is None else "changed"
+    old_lines = (old or "").splitlines()
+    new_lines = (new or "").splitlines()
+    diff = list(difflib.unified_diff(old_lines, new_lines, lineterm="", n=0))[2:]
+    if old is None:
+        status = "created"
+    elif new is None:
+        status = "removed"
+    else:
+        status = "changed"
     changed_lines = sum(1 for line in diff if line.startswith(("+", "-")))
     return DocChange(name, status, diff, changed_lines)
 

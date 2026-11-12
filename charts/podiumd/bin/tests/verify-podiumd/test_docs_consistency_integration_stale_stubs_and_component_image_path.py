@@ -3,12 +3,18 @@
 Covers baseline sanity, stale stub-placeholder findings and component-specific
 image path sections."""
 
-import subprocess
-
 from pathlib import Path
 from types import ModuleType
 
 import pytest
+
+from tests.chart_repo import GEMEENTE_DOC_PATH
+from tests.chart_repo import IMAGES_MANIFEST_PATH
+from tests.chart_repo import UPGRADE_DOC_PATH
+from tests.chart_repo import VALUES_DELTAS_PATH
+from tests.chart_repo import commit_hop
+from tests.chart_repo import commit_text_baseline
+from tests.chart_repo import make_doc_dirs
 
 CHART_YAML = """\
 apiVersion: v2
@@ -73,10 +79,6 @@ IMAGES_MANIFEST = """\
 ZAC_ROW = "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | n/a |\n"
 
 
-def git(*args, cwd):
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
-
-
 def values_yaml(app_version):
     return (
         f'zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n    tag: "{app_version}@sha256:abc"\n'
@@ -134,7 +136,8 @@ def test_bare_changes_todo_stub_with_no_real_block_is_not_flagged(
 
     The bare section trips an unrelated row/section check, so only this finding is asserted."""
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
-    doc.write_text(doc.read_text() + "\n## Changes\n\nTODO\n")
+    original = doc.read_text()
+    doc.write_text(f"{original}\n## Changes\n\nTODO\n")
 
     vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
 
@@ -194,8 +197,7 @@ def test_bare_gemeente_specific_stub_with_no_real_section_is_not_flagged(
 
 def test_no_matching_docs_is_a_soft_pass(vp: ModuleType, tmp_path: Path):
     chart_dir = tmp_path / "charts" / "podiumd"
-    (chart_dir / "docs" / "_UPGRADE_PATHS").mkdir(parents=True)
-    (chart_dir / "docs" / "images").mkdir(parents=True)
+    make_doc_dirs(chart_dir)
     (chart_dir / "Chart.yaml").write_text(CHART_YAML)
     (chart_dir / "values.yaml").write_text(values_yaml("5.4.3"))
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
@@ -212,7 +214,7 @@ def test_unmatched_row_is_reported_as_a_wrong_phrasing_mismatch(
     update-image-version "<component> - <image-basename>"/"<image-basename>" row."""
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(
-        doc.read_text().replace(ZAC_ROW, ZAC_ROW + "| Grafana | 1.0.0 → 1.0.1 | 1.0.0 (unchanged) | n/a |\n")
+        doc.read_text().replace(ZAC_ROW, f"{ZAC_ROW}| Grafana | 1.0.0 → 1.0.1 | 1.0.0 (unchanged) | n/a |\n")
     )
 
     ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
@@ -230,7 +232,7 @@ def test_duplicate_row_names_are_reported(vp: ModuleType, chart_repo, capsys: py
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(
         doc.read_text().replace(
-            ZAC_ROW, ZAC_ROW + "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | dup |\n"
+            ZAC_ROW, f"{ZAC_ROW}| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | dup |\n"
         )
     )
 
@@ -252,7 +254,7 @@ def test_exact_dependency_match_wins_over_a_fuzzy_duplicate_claim(
     This holds even when its cells are correct, so the per-row content check would miss it."""
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(
-        doc.read_text().replace(ZAC_ROW, ZAC_ROW + "| zac | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | exact match |\n")
+        doc.read_text().replace(ZAC_ROW, f"{ZAC_ROW}| zac | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | exact match |\n")
     )
 
     ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
@@ -301,7 +303,7 @@ def test_undocumented_new_component_is_caught_everywhere(
 ):
     """An undocumented new component gets its upgrade.md row and manifest item."""
     (chart_repo / "Chart.yaml").write_text(
-        CHART_YAML + '  - name: openformulieren\n    version: "1.12.0"\n    repository: "@openformulieren"\n'
+        f'{CHART_YAML}  - name: openformulieren\n    version: "1.12.0"\n    repository: "@openformulieren"\n'
     )
     (chart_repo / "values.yaml").write_text(
         values_yaml("5.4.3")
@@ -324,52 +326,40 @@ def test_component_with_only_a_new_sidecar_of_its_own_is_not_flagged_missing_a_r
     """Regression: zac gaining only a new sidecar (own app+chart unchanged) needs no row of its own.
 
     The sidecar gets its own row; check-doc and fix-doc-consistency share
-    resolve_component_own_version_change so they agree on which rows are needed."""
-    repo_root = tmp_path
-    chart_dir = repo_root / "charts" / "podiumd"
-    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
-    images_dir = chart_dir / "docs" / "images"
-    for d in (doc_dir, images_dir):
-        d.mkdir(parents=True)
-
-    git("init", "-q", cwd=repo_root)
-    git("config", "user.email", "test@example.com", cwd=repo_root)
-    git("config", "user.name", "Test", cwd=repo_root)
-
-    (chart_dir / "Chart.yaml").write_text(CHART_YAML)
-    (chart_dir / "values.yaml").write_text(values_yaml("5.4.3"))
-    git("add", "-A", cwd=repo_root)
-    git("commit", "-q", "-m", "baseline", cwd=repo_root)
-    git("tag", "podiumd-4.8.5", cwd=repo_root)
-
-    # zac's own app version is unchanged; it just gains a brand-new sidecar.
-    (chart_dir / "values.yaml").write_text(
-        "zac:\n"
-        "  image:\n"
-        "    repository: ghcr.io/infonl/zaakafhandelcomponent\n"
-        '    tag: "5.4.3@sha256:abc"\n'
-        "  otel:\n"
-        "    image:\n"
-        "      repository: otel/opentelemetry-collector-contrib\n"
-        '      tag: "0.158.0@sha256:def"\n'
+    resolve_own_version_change so they agree on which rows are needed."""
+    chart_dir = commit_text_baseline(tmp_path, CHART_YAML, values_yaml("5.4.3"))
+    commit_hop(
+        chart_dir,
+        "zac gains a brand-new otel sidecar",
+        {
+            # zac's own app version is unchanged; it just gains a brand-new sidecar.
+            "values.yaml": (
+                "zac:\n"
+                "  image:\n"
+                "    repository: ghcr.io/infonl/zaakafhandelcomponent\n"
+                '    tag: "5.4.3@sha256:abc"\n'
+                "  otel:\n"
+                "    image:\n"
+                "      repository: otel/opentelemetry-collector-contrib\n"
+                '      tag: "0.158.0@sha256:def"\n'
+            ),
+            UPGRADE_DOC_PATH: (
+                "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+                "## Component versions (4.9.0 vs 4.8.5)\n\n"
+                "| Component | App version | Helm chart | Notes |\n"
+                "| --- | --- | --- | --- |\n\n"
+                "## Changes\n\n"
+            ),
+            GEMEENTE_DOC_PATH: GEMEENTE_DOC.format(baseline="4.8.5"),
+            VALUES_DELTAS_PATH: (
+                "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\nNo gemeente `podiumd.yml` changes are required for this hop.\n"
+            ),
+            IMAGES_MANIFEST_PATH: (
+                "# Baseline: podiumd 4.8.5 (test @ 0000000).\n#\n"
+                "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n#\n# Zero changes:\n#\n\n[]\n"
+            ),
+        },
     )
-    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
-        "## Component versions (4.9.0 vs 4.8.5)\n\n"
-        "| Component | App version | Helm chart | Notes |\n"
-        "| --- | --- | --- | --- |\n\n"
-        "## Changes\n\n"
-    )
-    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(GEMEENTE_DOC.format(baseline="4.8.5"))
-    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
-        "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\nNo gemeente `podiumd.yml` changes are required for this hop.\n"
-    )
-    (images_dir / "images-4.9.0.yaml").write_text(
-        "# Baseline: podiumd 4.8.5 (test @ 0000000).\n#\n"
-        "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n#\n# Zero changes:\n#\n\n[]\n"
-    )
-    git("add", "-A", cwd=repo_root)
-    git("commit", "-q", "-m", "zac gains a brand-new otel sidecar", cwd=repo_root)
 
     vp.check_docs_consistency(chart_dir, upgrade_docs_baseline="4.8.5")
 
@@ -458,7 +448,8 @@ def test_stale_pointer_reference_does_not_block_every_other_check(
 
     The link is repaired and an unrelated by-hand finding is still reported in the same run."""
     gemeente = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-gemeente-specific.md"
-    gemeente.write_text(gemeente.read_text() + "\nSee [4.8.3-to-4.9.0-upgrade.md](4.8.3-to-4.9.0-upgrade.md).\n")
+    original = gemeente.read_text()
+    gemeente.write_text(f"{original}\nSee [4.8.3-to-4.9.0-upgrade.md](4.8.3-to-4.9.0-upgrade.md).\n")
 
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(doc.read_text().replace("ZAC (Zaakafhandelcomponent)", "Some Unrelated Name"))
@@ -509,27 +500,17 @@ def keycloak_chart_repo(tmp_path: Path):
     """keycloak-operator's app image lives at "operator.image.tag" (component_resolution.image_paths).
 
     The doc row's "-" app version must therefore be flagged, not skipped."""
-    repo_root = tmp_path
-    chart_dir = repo_root / "charts" / "podiumd"
-    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
-    doc_dir.mkdir(parents=True)
-
-    git("init", "-q", cwd=repo_root)
-    git("config", "user.email", "test@example.com", cwd=repo_root)
-    git("config", "user.name", "Test", cwd=repo_root)
-
-    (chart_dir / "Chart.yaml").write_text(KEYCLOAK_CHART_YAML)
-    (chart_dir / "values.yaml").write_text(keycloak_values("26.6.4"))
-    git("add", "-A", cwd=repo_root)
-    git("commit", "-q", "-m", "baseline", cwd=repo_root)
-    git("tag", "podiumd-4.8.5", cwd=repo_root)
-
-    (chart_dir / "values.yaml").write_text(keycloak_values("26.7.2"))
-    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(KEYCLOAK_UPGRADE_DOC.format(baseline="4.8.5"))
-    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(KEYCLOAK_GEMEENTE_DOC.format(baseline="4.8.5"))
-    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(KEYCLOAK_VALUES_DELTAS_DOC.format(baseline="4.8.5"))
-    git("add", "-A", cwd=repo_root)
-    git("commit", "-q", "-m", "bump keycloak-operator app image, row left unresolved", cwd=repo_root)
+    chart_dir = commit_text_baseline(tmp_path, KEYCLOAK_CHART_YAML, keycloak_values("26.6.4"))
+    commit_hop(
+        chart_dir,
+        "bump keycloak-operator app image, row left unresolved",
+        {
+            "values.yaml": keycloak_values("26.7.2"),
+            UPGRADE_DOC_PATH: KEYCLOAK_UPGRADE_DOC.format(baseline="4.8.5"),
+            GEMEENTE_DOC_PATH: KEYCLOAK_GEMEENTE_DOC.format(baseline="4.8.5"),
+            VALUES_DELTAS_PATH: KEYCLOAK_VALUES_DELTAS_DOC.format(baseline="4.8.5"),
+        },
+    )
 
     return chart_dir
 

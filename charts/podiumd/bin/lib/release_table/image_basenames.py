@@ -34,12 +34,12 @@ def resolve_image_basenames(rows: list[list[str]], chart_dir: Path) -> list[str]
         return ["" for _ in rows]
     lines = values_path.read_text(encoding="utf-8").splitlines()
 
-    result = [""] * len(rows)
+    result = ["" for _ in rows]
     by_component = _by_component_row_indices(rows)
 
     for component, info in by_component.items():
         scope_key = info["alias"] or component
-        available = _available_basenames_for_component(lines, [scope_key])
+        available = _component_basenames(lines, [scope_key])
         primary = _registered_primary_basenames(lines, scope_key, image_paths_for(component, chart_dir), available)
         _assign_component_basenames(rows, result, info, available, primary)
 
@@ -51,17 +51,15 @@ def resolve_image_basenames(rows: list[list[str]], chart_dir: Path) -> list[str]
 def _by_component_row_indices(rows: list[list[str]]) -> dict[str, ComponentRows]:
     """component -> {"alias", "indices"}; MULTIPLE/UNKNOWN/blank rows are left out."""
     by_component: dict[str, ComponentRows] = {}
-    for i, row in enumerate(rows):
+    for row_index, row in enumerate(rows):
         component, alias = row[4], row[5]
-        if component in ("MULTIPLE", "UNKNOWN", ""):
+        if component in {"MULTIPLE", "UNKNOWN", ""}:
             continue
-        by_component.setdefault(component, {"alias": alias, "indices": []})["indices"].append(i)
+        by_component.setdefault(component, {"alias": alias, "indices": []})["indices"].append(row_index)
     return by_component
 
 
-def _available_basenames_for_component(
-    lines: list[str], scope_keys: list[str]
-) -> dict[str, list[DigestPin | VersionPin]]:
+def _component_basenames(lines: list[str], scope_keys: list[str]) -> dict[str, list[DigestPin | VersionPin]]:
     """basename -> pins under scope_keys: digest-pinned first, plus bare-tag pins for missing basenames.
 
     The per-basename fallback covers omc (no digests at all) and
@@ -75,20 +73,24 @@ def _available_basenames_for_component(
     for scope_key in scope_keys:
         for basename, pins in basenames_under_scope_any_tag(lines, scope_key).items():
             if basename not in available:
-                available[basename] = [*pins]
+                available[basename] = list(pins)
     return available
 
 
 def _registered_primary_basenames(
-    lines: list[str], scope_key: str, primary_paths: list[str], available: dict[str, list[DigestPin | VersionPin]]
+    lines: list[str],
+    scope_key: str,
+    primary_paths: list[str],
+    available: dict[str, list[DigestPin | VersionPin]],
 ) -> set[str]:
     """The `available` basenames pinned on a registered primary image path (relative to `scope_key`)."""
     registered = {f"{scope_key}.{path}.tag" for path in primary_paths}
-    return {
-        basename
-        for basename, pins in available.items()
-        if any(dotted_key_path(lines, pin["line"] - 1) in registered for pin in pins)
-    }
+    return {basename for basename, pins in available.items() if _is_pinned_on(lines, pins, registered)}
+
+
+def _is_pinned_on(lines: list[str], pins: list[DigestPin | VersionPin], tag_paths: set[str]) -> bool:
+    """Whether any of `pins` sits on one of the dotted `tag_paths`."""
+    return any(dotted_key_path(lines, pin["line"] - 1) in tag_paths for pin in pins)
 
 
 def _assign_component_basenames(
@@ -106,19 +108,19 @@ def _assign_component_basenames(
     3. Remaining component rows get the unclaimed primary basenames (e.g.
        zgw-office-addin's frontend and backend).
     """
-    sub_indices = [i for i in info["indices"] if rows[i][2]]
-    primary_indices = [i for i in info["indices"] if not rows[i][2]]
+    sub_indices = [row_index for row_index in info["indices"] if rows[row_index][2]]
+    primary_indices = [row_index for row_index in info["indices"] if not rows[row_index][2]]
 
     def claim(indices: list[int]) -> list[int]:
         """Give each row the available basename its name matches exactly; returns the rows left without one."""
         unclaimed: list[int] = []
-        for i in indices:
-            match = exact_match(rows[i][3], available.keys())
+        for row_index in indices:
+            match = exact_match(rows[row_index][3], available.keys())
             if match is None:
-                unclaimed.append(i)
+                unclaimed.append(row_index)
                 continue
-            result[i] = match
-            del available[match]
+            result[row_index] = match
+            available.pop(match)
         return unclaimed
 
     unclaimed_primary_indices = claim(primary_indices)
@@ -126,18 +128,18 @@ def _assign_component_basenames(
 
     remaining = sorted(basename for basename in available if basename in primary)
     if unclaimed_primary_indices and remaining:
-        for i in unclaimed_primary_indices:
-            result[i] = ",".join(remaining)
+        for row_index in unclaimed_primary_indices:
+            result[row_index] = ",".join(remaining)
 
 
 def _assign_multiple_row_basenames(rows: list[list[str]], result: list[str], basename_by_key: dict[str, str]) -> None:
     """Resolve each MULTIPLE row's basename via the global.images key or basename it names exactly."""
-    for i, row in enumerate(rows):
+    for row_index, row in enumerate(rows):
         used_by, name, component = row[2], row[3], row[4]
         if component != "MULTIPLE":
             continue
         key = exact_match(used_by or name, basename_by_key.keys())
-        if key is not None:
-            result[i] = basename_by_key[key]
+        if key is None:
+            result[row_index] = exact_match(used_by or name, basename_by_key.values()) or ""
         else:
-            result[i] = exact_match(used_by or name, basename_by_key.values()) or ""
+            result[row_index] = basename_by_key[key]

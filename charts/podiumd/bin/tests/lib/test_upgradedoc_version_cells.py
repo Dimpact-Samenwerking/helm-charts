@@ -128,10 +128,8 @@ def test_replace_version_spec_no_match_returns_unchanged(libupgradedocversioncel
 
 def test_replace_version_spec_literal_replacement_not_backslash_processed(libupgradedocversioncells: ModuleType):
     """new_spec is inserted literally, not as an re.sub replacement pattern."""
-    assert (
-        libupgradedocversioncells.replace_version_spec("# name 1.0.0 -> 2.0.0\n", r"\1.0.0 (new)")
-        == "# name \\1.0.0 (new)\n"
-    )
+    new_spec = r"\1.0.0 (new)"
+    assert libupgradedocversioncells.replace_version_spec("# name 1.0.0 -> 2.0.0\n", new_spec) == f"# name {new_spec}\n"
 
 
 # --- compute_changed_components ---

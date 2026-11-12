@@ -1,17 +1,20 @@
 """End-to-end check_docs_consistency on a small podiumd-like chart in a temp git repo:
 redis-operator sidecar and keycloak/keycloak-operator split tag/sha cases."""
 
-import subprocess
-
 from pathlib import Path
 from types import ModuleType
 
 import pytest
 
-
-def git(*args, cwd):
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
-
+from tests.chart_repo import GEMEENTE_DOC_PATH
+from tests.chart_repo import IMAGES_MANIFEST_PATH
+from tests.chart_repo import UPGRADE_DOC_PATH
+from tests.chart_repo import VALUES_DELTAS_PATH
+from tests.chart_repo import commit_hop
+from tests.chart_repo import commit_text_baseline
+from tests.fixture_data import HEX_C
+from tests.fixture_data import HEX_E
+from tests.fixture_data import SHA256_E
 
 # --- sidecar image (nested under a dependency, not its primary image): row named
 # "<values_key> - <image-basename>", as update-image-version writes it ---
@@ -83,36 +86,22 @@ def redis_values(tag, digest="abc"):
 def redis_sidecar_chart_repo(tmp_path: Path):
     """redis-ha's image is a sidecar under "redis-operator" (no primary "image" key),
     matched only via canonical_sidecar_row_names, never match_component."""
-    repo_root = tmp_path
-    chart_dir = repo_root / "charts" / "podiumd"
-    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
-    images_dir = chart_dir / "docs" / "images"
-    for d in (doc_dir, images_dir):
-        d.mkdir(parents=True)
-
-    git("init", "-q", cwd=repo_root)
-    git("config", "user.email", "test@example.com", cwd=repo_root)
-    git("config", "user.name", "Test", cwd=repo_root)
-
-    (chart_dir / "Chart.yaml").write_text(REDIS_CHART_YAML)
-    (chart_dir / "values.yaml").write_text(redis_values("8.6.2"))
-    git("add", "-A", cwd=repo_root)
-    git("commit", "-q", "-m", "baseline", cwd=repo_root)
-    git("tag", "podiumd-4.8.5", cwd=repo_root)
-
-    (chart_dir / "values.yaml").write_text(redis_values("8.6.6"))
-    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        REDIS_UPGRADE_DOC.format(baseline="4.8.5", app_source="8.6.2", app_target="8.6.6")
+    chart_dir = commit_text_baseline(tmp_path, REDIS_CHART_YAML, redis_values("8.6.2"))
+    commit_hop(
+        chart_dir,
+        "bump redis-ha's redis image, row uses canonical sidecar name",
+        {
+            "values.yaml": redis_values("8.6.6"),
+            UPGRADE_DOC_PATH: REDIS_UPGRADE_DOC.format(baseline="4.8.5", app_source="8.6.2", app_target="8.6.6"),
+            GEMEENTE_DOC_PATH: REDIS_GEMEENTE_DOC.format(baseline="4.8.5"),
+            VALUES_DELTAS_PATH: REDIS_VALUES_DELTAS_DOC.format(
+                baseline="4.8.5", app_source="8.6.2", app_target="8.6.6"
+            ),
+            IMAGES_MANIFEST_PATH: REDIS_IMAGES_MANIFEST.format(
+                baseline="4.8.5", app_source="8.6.2", app_target="8.6.6"
+            ),
+        },
     )
-    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(REDIS_GEMEENTE_DOC.format(baseline="4.8.5"))
-    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
-        REDIS_VALUES_DELTAS_DOC.format(baseline="4.8.5", app_source="8.6.2", app_target="8.6.6")
-    )
-    (images_dir / "images-4.9.0.yaml").write_text(
-        REDIS_IMAGES_MANIFEST.format(baseline="4.8.5", app_source="8.6.2", app_target="8.6.6")
-    )
-    git("add", "-A", cwd=repo_root)
-    git("commit", "-q", "-m", "bump redis-ha's redis image, row uses canonical sidecar name", cwd=repo_root)
 
     return chart_dir
 
@@ -171,48 +160,36 @@ def test_sidecar_digest_only_repin_is_not_flagged_as_changed(
     documents version changes only.
 
     images-4.9.0.yaml compares digests too, so its missing entry IS flagged."""
-    repo_root = tmp_path
-    chart_dir = repo_root / "charts" / "podiumd"
-    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
-    images_dir = chart_dir / "docs" / "images"
-    for d in (doc_dir, images_dir):
-        d.mkdir(parents=True)
-
-    git("init", "-q", cwd=repo_root)
-    git("config", "user.email", "test@example.com", cwd=repo_root)
-    git("config", "user.name", "Test", cwd=repo_root)
-
-    (chart_dir / "Chart.yaml").write_text(REDIS_CHART_YAML)
-    (chart_dir / "values.yaml").write_text(redis_values("8.6.6", digest="a" * 64))
-    git("add", "-A", cwd=repo_root)
-    git("commit", "-q", "-m", "baseline", cwd=repo_root)
-    git("tag", "podiumd-4.8.5", cwd=repo_root)
-
-    # Same version (8.6.6), digest-only re-pin.
-    (chart_dir / "values.yaml").write_text(redis_values("8.6.6", digest="b" * 64))
-    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
-        "## Component versions (4.9.0 vs 4.8.5)\n\n"
-        "| Component | App version | Helm chart | Notes |\n"
-        "| --- | --- | --- | --- |\n\n"
-        "See [`4.8.5-to-4.9.0-values-deltas.md`](4.8.5-to-4.9.0-values-deltas.md).\n"
+    chart_dir = commit_text_baseline(tmp_path, REDIS_CHART_YAML, redis_values("8.6.6", digest="a" * 64))
+    commit_hop(
+        chart_dir,
+        "digest-only re-pin, no version change",
+        {
+            # Same version (8.6.6), digest-only re-pin.
+            "values.yaml": redis_values("8.6.6", digest="b" * 64),
+            UPGRADE_DOC_PATH: (
+                "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+                "## Component versions (4.9.0 vs 4.8.5)\n\n"
+                "| Component | App version | Helm chart | Notes |\n"
+                "| --- | --- | --- | --- |\n\n"
+                "See [`4.8.5-to-4.9.0-values-deltas.md`](4.8.5-to-4.9.0-values-deltas.md).\n"
+            ),
+            GEMEENTE_DOC_PATH: REDIS_GEMEENTE_DOC.format(baseline="4.8.5"),
+            VALUES_DELTAS_PATH: (
+                "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\nNo gemeente podiumd.yml changes are required for this hop.\n"
+            ),
+            IMAGES_MANIFEST_PATH: (
+                "# Baseline: podiumd 4.8.5 (test @ 0000000).\n"
+                "#\n"
+                "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n"
+                "#\n"
+                "# Changes:\n"
+                "#\n"
+                "# See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.\n\n"
+                "[]\n"
+            ),
+        },
     )
-    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(REDIS_GEMEENTE_DOC.format(baseline="4.8.5"))
-    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
-        "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\nNo gemeente podiumd.yml changes are required for this hop.\n"
-    )
-    (images_dir / "images-4.9.0.yaml").write_text(
-        "# Baseline: podiumd 4.8.5 (test @ 0000000).\n"
-        "#\n"
-        "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n"
-        "#\n"
-        "# Changes:\n"
-        "#\n"
-        "# See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.\n\n"
-        "[]\n"
-    )
-    git("add", "-A", cwd=repo_root)
-    git("commit", "-q", "-m", "digest-only re-pin, no version change", cwd=repo_root)
 
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline="4.8.5")
 
@@ -317,44 +294,30 @@ def keycloak_split_values(app_tag, app_digest, op_tag, op_digest):
 def keycloak_split_chart_repo(tmp_path: Path):
     """Chart whose digests live in a sibling "sha:" field, so the per-entry check must
     resolve the split pin (resolved_digest_pin) instead of comparing the bare tag."""
-    repo_root = tmp_path
-    chart_dir = repo_root / "charts" / "podiumd"
-    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
-    images_dir = chart_dir / "docs" / "images"
-    for d in (doc_dir, images_dir):
-        d.mkdir(parents=True)
-
-    git("init", "-q", cwd=repo_root)
-    git("config", "user.email", "test@example.com", cwd=repo_root)
-    git("config", "user.name", "Test", cwd=repo_root)
-
-    (chart_dir / "Chart.yaml").write_text(KEYCLOAK_SPLIT_CHART_YAML)
-    (chart_dir / "values.yaml").write_text(keycloak_split_values("26.7.2", "a" * 64, "26.6.4", "b" * 64))
-    git("add", "-A", cwd=repo_root)
-    git("commit", "-q", "-m", "baseline", cwd=repo_root)
-    git("tag", "podiumd-4.8.5", cwd=repo_root)
-
-    (chart_dir / "values.yaml").write_text(keycloak_split_values("26.7.3", "c" * 64, "26.7.3", "d" * 64))
-    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        KEYCLOAK_SPLIT_UPGRADE_DOC.format(
-            baseline="4.8.5", app_source="26.7.2", app_target="26.7.3", op_source="26.6.4", op_target="26.7.3"
-        )
+    chart_dir = commit_text_baseline(
+        tmp_path, KEYCLOAK_SPLIT_CHART_YAML, keycloak_split_values("26.7.2", "a" * 64, "26.6.4", "b" * 64)
     )
-    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(KEYCLOAK_SPLIT_GEMEENTE_DOC.format(baseline="4.8.5"))
-    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(KEYCLOAK_SPLIT_VALUES_DELTAS_DOC.format(baseline="4.8.5"))
-    (images_dir / "images-4.9.0.yaml").write_text(
-        KEYCLOAK_SPLIT_IMAGES_MANIFEST.format(
-            baseline="4.8.5",
-            app_source="26.7.2",
-            app_target="26.7.3",
-            app_digest="c" * 64,
-            op_source="26.6.4",
-            op_target="26.7.3",
-            op_digest="d" * 64,
-        )
+    commit_hop(
+        chart_dir,
+        "bump keycloak's and keycloak-operator's split tag/sha images",
+        {
+            "values.yaml": keycloak_split_values("26.7.3", "c" * 64, "26.7.3", "d" * 64),
+            UPGRADE_DOC_PATH: KEYCLOAK_SPLIT_UPGRADE_DOC.format(
+                baseline="4.8.5", app_source="26.7.2", app_target="26.7.3", op_source="26.6.4", op_target="26.7.3"
+            ),
+            GEMEENTE_DOC_PATH: KEYCLOAK_SPLIT_GEMEENTE_DOC.format(baseline="4.8.5"),
+            VALUES_DELTAS_PATH: KEYCLOAK_SPLIT_VALUES_DELTAS_DOC.format(baseline="4.8.5"),
+            IMAGES_MANIFEST_PATH: KEYCLOAK_SPLIT_IMAGES_MANIFEST.format(
+                baseline="4.8.5",
+                app_source="26.7.2",
+                app_target="26.7.3",
+                app_digest="c" * 64,
+                op_source="26.6.4",
+                op_target="26.7.3",
+                op_digest="d" * 64,
+            ),
+        },
     )
-    git("add", "-A", cwd=repo_root)
-    git("commit", "-q", "-m", "bump keycloak's and keycloak-operator's split tag/sha images", cwd=repo_root)
 
     return chart_dir
 
@@ -404,13 +367,13 @@ def test_split_tag_sha_path_real_mismatch_is_still_caught(
 ):
     """A real digest mismatch on a resolved sha: field must still be caught."""
     values_path = keycloak_split_chart_repo / "values.yaml"
-    values_path.write_text(values_path.read_text().replace('"' + "c" * 64 + '"', '"' + "e" * 64 + '"'))
+    values_path.write_text(values_path.read_text().replace(f'"{HEX_C}"', f'"{HEX_E}"'))
 
     ok, _detail = vp.check_docs_consistency(keycloak_split_chart_repo, upgrade_docs_baseline="4.8.5")
     out = capsys.readouterr().out
 
     assert ok is False
-    assert_would_change(out, '+  digest: "sha256:' + "e" * 64)
+    assert_would_change(out, f'+  digest: "{SHA256_E}')
 
 
 def test_sidecar_with_no_row_at_all_is_caught_as_missing(

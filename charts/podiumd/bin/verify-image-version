@@ -61,11 +61,11 @@ def main():
 
     print(f"Checking image version {image_version!r} for {key!r} {basename!r}:")
     ok = True
-    for r in results:
-        status = "FOUND  " if r["exists"] else "MISSING"
-        suffix = f"  digest={r['digest']}" if r["digest"] else ""
-        print(f"  [{status}] {r['host']}/{r['repo_path']}:{image_version}{suffix}")
-        ok = ok and r["exists"]
+    for result in results:
+        status = "FOUND  " if result["exists"] else "MISSING"
+        suffix = f"  digest={result['digest']}" if result["digest"] else ""
+        print(f"  [{status}] {result['host']}/{result['repo_path']}:{image_version}{suffix}")
+        ok = ok and result["exists"]
 
     print()
     print("OK: image version exists" if ok else "FAIL: image version does not exist yet")

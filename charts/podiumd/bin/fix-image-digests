@@ -38,7 +38,6 @@ Examples:
 # jscpd:ignore-end
 
 import sys
-import urllib.error
 
 from pathlib import Path
 
@@ -57,10 +56,10 @@ from lib.image.digests import ImagePin
 from lib.image.digests import ImageTarget
 from lib.image.digests import StaleReferenceComment
 from lib.image.digests import digest_pin_targets
+from lib.image.digests import pin_drift
 from lib.image.digests import sync_reference_comments
 from lib.image.version import resolve_scoped_image_pins
 from lib.procutil import run_script
-from lib.registry import is_sliding_tag
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
 
@@ -78,8 +77,8 @@ def _resolve_digest_pin_targets(chart_dir: Path):
     """digest_pin_targets(chart_dir), re-vendoring dependencies once when a pin's subchart .tgz is missing."""
     pins, targets = digest_pin_targets(chart_dir)
     deps = chart_dir_dependencies(chart_dir)
-    unresolved = [p for p in pins if not p["repository"]]
-    if not any(subchart_needs_vendoring(chart_dir, deps, p["path"]) for p in unresolved):
+    unresolved = [pin for pin in pins if not pin["repository"]]
+    if not any(subchart_needs_vendoring(chart_dir, deps, pin["path"]) for pin in unresolved):
         return pins, targets
 
     print(
@@ -95,19 +94,6 @@ def _resolve_digest_pin_targets(chart_dir: Path):
     return digest_pin_targets(chart_dir)
 
 
-def _fetch_live_digest(host: str, repo_path: str, version: str) -> tuple[str | None, str | None]:
-    """(digest, error) from the registry; retries once on URLError/OSError."""
-    digest, error = None, None
-    for _attempt in range(2):
-        try:
-            exists, digest = registry_tag_exists(host, repo_path, version)
-            error = None if exists else "tag not found upstream"
-            break
-        except (urllib.error.URLError, OSError) as e:
-            error = str(e)
-    return digest, error
-
-
 def _check_target(
     target: ImageTarget, pinned_digest: str, lines_for_pin: list[int], values_path: Path
 ) -> tuple[StaleDigest | None, FetchError | None]:
@@ -118,13 +104,15 @@ def _check_target(
     repository, version = target
     host, repo_path = parse_repo(repository)
 
-    digest, error = _fetch_live_digest(host, repo_path, version)
+    # Uncached, unlike check_image_digests: a write needs the live digest.
+    digest, error, drift = pin_drift(
+        lambda: registry_tag_exists(host, repo_path, version), values_path, target, pinned_digest
+    )
 
     if error:
         return None, (repository, version, error, lines_for_pin)
-    if digest and digest != f"sha256:{pinned_digest}":
-        sliding = is_sliding_tag(values_path, host, repo_path, version, digest)
-        return (repository, version, pinned_digest, digest, lines_for_pin, sliding), None
+    if digest is not None and drift is not None:
+        return (repository, version, pinned_digest, digest, lines_for_pin, drift == "sliding"), None
     return None, None
 
 
@@ -138,7 +126,7 @@ def find_stale_digests(
     SystemExit if it identifies none or several.
     """
     pins, targets = _resolve_digest_pin_targets(values_path.parent)
-    unresolved = [p for p in pins if not p["repository"]]
+    unresolved = [pin for pin in pins if not pin["repository"]]
     if scope is not None:
         repository = resolve_scoped_image_pins(pins, *scope)[0]["repository"]
         targets = {target: entry for target, entry in targets.items() if target[0] == repository}
@@ -162,8 +150,8 @@ def _parse_args(argv: list[str]):
         print(__doc__)
         sys.exit(0)
     dry_run = "--dry-run" in argv
-    positional = [a for a in argv if not a.startswith("-")]
-    if len(positional) not in (0, 2):
+    positional = [arg for arg in argv if not arg.startswith("-")]
+    if len(positional) not in {0, 2}:
         print(f"error: expected either no target, or <key> <image-basename> — got: {', '.join(positional)}")
         sys.exit(1)
     key, basename = positional or (None, None)
@@ -174,8 +162,8 @@ def _report_unresolved_and_errors(unresolved: list[ImagePin], fetch_errors: list
     """Print unresolved pins and fetch errors, if any."""
     if unresolved:
         print(f"\n{len(unresolved)} pin(s) could not be resolved to a repository (skipped):")
-        for p in unresolved:
-            print(f"  values.yaml:{p['line']}: {p['version']}")
+        for pin in unresolved:
+            print(f"  values.yaml:{pin['line']}: {pin['version']}")
 
     if fetch_errors:
         print(f"\n{len(fetch_errors)} fetch error(s):")
@@ -202,9 +190,9 @@ def _sync_reference_comments(text: str, *, dry_run: bool) -> tuple[str, list[Sta
     new_text, stale = sync_reference_comments(text)
     if stale:
         print(f"\n{len(stale)} stale reference comment(s){' (dry-run, not writing)' if dry_run else ''}:")
-        for s in stale:
-            print(f"  values.yaml:{s.line}: {s.written.strip()}")
-            print(f"    new: {s.expected.strip()}")
+        for comment in stale:
+            print(f"  values.yaml:{comment.line}: {comment.written.strip()}")
+            print(f"    new: {comment.expected.strip()}")
     return (text if dry_run else new_text), stale
 
 
@@ -219,6 +207,14 @@ def _regenerate_docs():
     result = run_script([sys.executable, str(FIX_DOC_CONSISTENCY_SCRIPT)])
     if result.returncode != 0:
         sys.exit(result.returncode)
+
+
+def _write_values(text: str, digest_count: int, comment_count: int) -> None:
+    """Write `text` as values.yaml and regenerate the docs that pin its digests."""
+    VALUES_PATH.write_text(text, encoding="utf-8")
+    print(f"\nWrote {digest_count} updated digest(s) and {comment_count} reference comment(s) to {VALUES_PATH}.")
+    print("Re-render the chart to confirm (verify-podiumd or /helm-render-all) before committing.")
+    _regenerate_docs()
 
 
 def main():
@@ -241,20 +237,14 @@ def main():
     if scope is None:
         text, stale_comments = _sync_reference_comments(text, dry_run=dry_run)
     if not to_update and not stale_comments:
-        if scope is not None:
-            print(f"\n'{key}' '{basename}' has no stale digest to update — nothing to do.")
-        else:
+        if scope is None:
             print("\nNo stale digests or reference comments found — nothing to do.")
+        else:
+            print(f"\n'{key}' '{basename}' has no stale digest to update — nothing to do.")
         sys.exit(1 if fetch_errors else 0)
 
     if not dry_run:
-        VALUES_PATH.write_text(text, encoding="utf-8")
-        print(
-            f"\nWrote {len(to_update)} updated digest(s) and {len(stale_comments)} reference comment(s) "
-            f"to {VALUES_PATH}."
-        )
-        print("Re-render the chart to confirm (verify-podiumd or /helm-render-all) before committing.")
-        _regenerate_docs()
+        _write_values(text, len(to_update), len(stale_comments))
 
     sys.exit(1 if fetch_errors else 0)
 

@@ -11,8 +11,6 @@ from collections.abc import Hashable
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Generic
-from typing import TypeVar
 
 import yaml
 
@@ -22,10 +20,12 @@ from lib.chart.values_tree_primitives import values_key_of
 from lib.procutil import RunResult
 from lib.procutil import run
 from lib.settings import helm_repos_urls_by_alias
-from lib.settings import vendor_classification_chart_overrides
+from lib.settings import vendor_chart_overrides
 from lib.settings import vendor_classification_keywords
 from lib.yaml_types import YamlMapping
+from lib.yaml_types import YamlValue
 from lib.yaml_types import is_yaml_mapping
+from lib.yaml_types import is_yaml_value
 
 CHART_NAME = "podiumd"
 
@@ -43,7 +43,10 @@ def lint_args_for(chart_dir: Path) -> list[str]:
     return []
 
 
-_render_cache: dict[tuple[str, tuple[str, ...]], RunResult] = {}
+# (chart_dir, extra_args) of one render_chart call.
+type RenderCacheKey = tuple[str, tuple[str, ...]]
+
+_render_cache: dict[RenderCacheKey, RunResult] = {}
 
 
 def render_chart(chart_dir: Path, extra_args: list[str]) -> RunResult:
@@ -70,17 +73,17 @@ def report_largest_templates(rendered_text: str, top_n: int):
     counts: Counter[str] = Counter()
     current = None
     for line in rendered_text.splitlines():
-        m = source_re.match(line)
-        if m:
-            current = m.group(1)
+        source_match = source_re.match(line)
+        if source_match:
+            current = source_match.group(1)
         elif current:
             counts[current] += 1
 
     if not counts:
         return
     print("Largest rendered templates (by line count):")
-    for path, n in counts.most_common(top_n):
-        print(f"  {n:6d}  {path}")
+    for path, line_count in counts.most_common(top_n):
+        print(f"  {line_count:6d}  {path}")
 
 
 # Chart-tree directory before "/templates/" in a "# Source:" path or helm
@@ -105,15 +108,15 @@ def report_errors_by_subchart(error_text: str):
     if not counts:
         return
     print("Errors by sub-chart:")
-    for chart, n in counts.most_common():
-        print(f"  {chart}: {n}")
+    for chart, error_count in counts.most_common():
+        print(f"  {chart}: {error_count}")
 
 
 def chart_name_from_source(source: str | None) -> str:
     """Leaf chart name of `source`'s chart-tree path, e.g. "eck-operator";
     falls back to `source` or "(unknown source)"."""
-    m = CHART_TREE_PATH_RE.search(source or "")
-    return m.group(1).rsplit("/", 1)[-1] if m else (source or "(unknown source)")
+    path_match = CHART_TREE_PATH_RE.search(source or "")
+    return path_match.group(1).rsplit("/", 1)[-1] if path_match else (source or "(unknown source)")
 
 
 def rendered_chart_paths(rendered_text: str) -> set[str]:
@@ -134,8 +137,10 @@ def rendered_chart_paths(rendered_text: str) -> set[str]:
     ancestors: set[str] = set()
     for path in paths:
         segments = path.split("/charts/")
-        for depth in range(2, len(segments)):
-            ancestors.add("/charts/".join(segments[:depth]))
+        ancestor = segments[0]
+        for segment in segments[1:-1]:
+            ancestor = f"{ancestor}/charts/{segment}"
+            ancestors.add(ancestor)
     return paths | ancestors
 
 
@@ -156,7 +161,7 @@ def friendly_vendor_charts(chart_dir: Path) -> dict[str, str]:
     Other vendored charts stay count-only."""
     required_repos = helm_repos_urls_by_alias(chart_dir)
     keywords = vendor_classification_keywords(chart_dir)
-    chart_overrides = vendor_classification_chart_overrides(chart_dir)
+    chart_overrides = vendor_chart_overrides(chart_dir)
 
     deps = load_chart_dependencies(chart_dir / "Chart.yaml")
     dep_chart_names = {values_key_of(dep) for dep in deps}
@@ -166,16 +171,18 @@ def friendly_vendor_charts(chart_dir: Path) -> dict[str, str]:
     # would silently inherit an override meant for a specific chart.
     mapping = {name: vendor for name, vendor in chart_overrides.items() if name in dep_chart_names}
     for dep in deps:
-        chart_name = values_key_of(dep)
-        repo = resolve_dependency_repo(dep.get("repository", ""), required_repos)
-        if repo.startswith("file://"):
-            mapping[chart_name] = "Local"
-            continue
-        for keyword, vendor in keywords.items():
-            if keyword.lower() in repo.lower():
-                mapping[chart_name] = vendor
-                break
+        vendor = _repository_vendor(resolve_dependency_repo(dep.get("repository", ""), required_repos), keywords)
+        if vendor is not None:
+            mapping[values_key_of(dep)] = vendor
     return mapping
+
+
+def _repository_vendor(repo: str, keywords: dict[str, str]) -> str | None:
+    """The vendor label of a resolved repository: "Local" for file://, else the first keyword it contains."""
+    if repo.startswith("file://"):
+        return "Local"
+    lowered = repo.lower()
+    return next((vendor for keyword, vendor in keywords.items() if keyword.lower() in lowered), None)
 
 
 def build_line_sources(rendered_text: str) -> dict[int, str | None]:
@@ -183,10 +190,10 @@ def build_line_sources(rendered_text: str) -> dict[int, str | None]:
     line-only findings (yamllint) can be attributed to a template."""
     sources: dict[int, str | None] = {}
     current: str | None = None
-    for i, line in enumerate(rendered_text.splitlines(), 1):
+    for line_number, line in enumerate(rendered_text.splitlines(), 1):
         if line.startswith("# Source: "):
             current = line[len("# Source: ") :].strip()
-        sources[i] = current
+        sources[line_number] = current
     return sources
 
 
@@ -194,20 +201,22 @@ def build_line_sources(rendered_text: str) -> dict[int, str | None]:
 # split before validation (see split_rendered_by_source).
 # (kind, namespace, name) -> 1-based rendered line; see build_resource_locations.
 ResourceLocations = dict[tuple[str, str, str], int]
+# (source, doc_text) of one "# Source:" block; see split_rendered_by_source.
+type RenderedDoc = tuple[str, str]
 
 SOURCE_DOC_SPLIT_RE = re.compile(r"(?m)^---\n(?=# Source: )")
 
 
-def split_rendered_by_source(rendered_text: str) -> list[tuple[str, str]]:
+def split_rendered_by_source(rendered_text: str) -> list[RenderedDoc]:
     """Split a render into (source, doc_text) pairs per "# Source:" block.
     Each doc_text keeps its "---" header, so any subset concatenates into a
     valid YAML stream."""
     docs = SOURCE_DOC_SPLIT_RE.split(rendered_text)
-    result: list[tuple[str, str]] = []
+    result: list[RenderedDoc] = []
     for doc in docs:
-        m = re.match(r"# Source: (.+)\n", doc)
-        if m:
-            result.append((m.group(1).strip(), f"---\n{doc}"))
+        source_match = re.match(r"# Source: (.+)\n", doc)
+        if source_match:
+            result.append((source_match.group(1).strip(), f"---\n{doc}"))
     return result
 
 
@@ -251,28 +260,37 @@ def rendered_containers(docs: Sequence[tuple[str, str]]) -> list[RenderedContain
     """
     containers: list[RenderedContainer] = []
     for source, doc in docs:
-        try:
-            resources = list(yaml.safe_load_all(doc))
-        except yaml.YAMLError:  # noqa: S112 -- a doc that isn't YAML has no containers to report
-            continue
-        for resource in resources:
-            if not is_yaml_mapping(resource):
-                continue
-            pod_spec = _pod_spec(resource)
-            if pod_spec is None:
-                continue
-            kind, name, namespace = (
-                str(resource["kind"]),
-                text_at(resource, "metadata.name") or "",
-                text_at(resource, "metadata.namespace"),
-            )
-            for field, init in (("initContainers", True), ("containers", False)):
-                items = pod_spec.get(field)
-                containers.extend(
-                    RenderedContainer(source, kind, name, namespace, pod_spec, container, init)
-                    for container in (items if isinstance(items, list) else [])
-                    if is_yaml_mapping(container)
-                )
+        for resource in _doc_resources(doc):
+            if is_yaml_mapping(resource):
+                containers.extend(_workload_containers(source, resource))
+    return containers
+
+
+def _doc_resources(doc: str) -> list[object]:
+    """The YAML documents in `doc`; [] when it isn't YAML, so it has no containers to report."""
+    try:
+        return list(yaml.safe_load_all(doc))
+    except yaml.YAMLError:
+        return []
+
+
+def _workload_containers(source: str, resource: YamlMapping) -> list[RenderedContainer]:
+    """rendered_containers for one resource; [] when it is not a workload."""
+    pod_spec = _pod_spec(resource)
+    if pod_spec is None:
+        return []
+    kind = str(resource["kind"])
+    name = text_at(resource, "metadata.name") or ""
+    namespace = text_at(resource, "metadata.namespace")
+    containers: list[RenderedContainer] = []
+    for field, init in (("initContainers", True), ("containers", False)):
+        items = pod_spec.get(field)
+        listed = items if isinstance(items, list) else []
+        containers.extend(
+            RenderedContainer(source, kind, name, namespace, pod_spec, container, init)
+            for container in listed
+            if is_yaml_mapping(container)
+        )
     return containers
 
 
@@ -281,26 +299,38 @@ def build_resource_locations(rendered_text: str) -> ResourceLocations:
     starts in the render, for tools without line numbers. namespace is ""
     when unset (most resources; some set it explicitly)."""
     lines = rendered_text.splitlines()
-    marker_indices = [i for i, line in enumerate(lines) if line.startswith("# Source: ")]
+    marker_indices = [index for index, line in enumerate(lines) if line.startswith("# Source: ")]
     locations: ResourceLocations = {}
-    for pos, start in enumerate(marker_indices):
-        end = marker_indices[pos + 1] - 1 if pos + 1 < len(marker_indices) else len(lines)
-        doc_lines = lines[start + 1 : end]
-        if doc_lines and doc_lines[-1].strip() == "---":
-            doc_lines = doc_lines[:-1]
-        try:
-            parsed = yaml.safe_load("\n".join(doc_lines))
-        except yaml.YAMLError:  # noqa: S112 -- not a YAML resource, has no location to record
-            continue
-        if not is_yaml_mapping(parsed):
-            continue
-        kind = text_at(parsed, "kind")
-        name = text_at(parsed, "metadata.name")
-        if not kind or not name:
-            continue
-        namespace = text_at(parsed, "metadata.namespace") or ""
-        locations[(kind, namespace, name)] = start + 2  # 1-based line right after "# Source:"
+    ends = [next_start - 1 for next_start in marker_indices[1:]] + [len(lines)]
+    for start, end in zip(marker_indices, ends, strict=True):
+        kind, namespace, name = _block_identity(lines[start + 1 : end])
+        if kind and name:
+            locations[(kind, namespace or "", name)] = start + 2  # 1-based line right after "# Source:"
     return locations
+
+
+def _block_identity(doc_lines: list[str]) -> tuple[str | None, str | None, str | None]:
+    """resource_identity of one "# Source:" block's lines, without a trailing "---" separator."""
+    if doc_lines and doc_lines[-1].strip() == "---":
+        doc_lines = doc_lines[:-1]
+    parsed = parse_rendered_doc("\n".join(doc_lines))
+    return (None, None, None) if parsed is None else resource_identity(parsed)
+
+
+def parse_rendered_doc(doc_text: str) -> YamlValue | None:
+    """One rendered doc parsed, or None when it is empty or not YAML (not a resource)."""
+    try:
+        parsed = yaml.safe_load(doc_text)
+    except yaml.YAMLError:
+        return None
+    return parsed if parsed is not None and is_yaml_value(parsed) else None
+
+
+def resource_identity(parsed: YamlValue) -> tuple[str | None, str | None, str | None]:
+    """(kind, namespace or "", name) of a single-object doc; all None otherwise, so no resource_line lookup."""
+    if not isinstance(parsed, dict):
+        return None, None, None
+    return text_at(parsed, "kind"), text_at(parsed, "metadata.namespace") or "", text_at(parsed, "metadata.name")
 
 
 def resource_line(
@@ -313,15 +343,15 @@ def resource_line(
         return None
     if namespace is not None:
         return locations.get((kind, namespace, name))
-    candidates = {line for (k, _ns, n), line in locations.items() if k == kind and n == name}
+    candidates = {
+        line
+        for (located_kind, _ns, located_name), line in locations.items()
+        if located_kind == kind and located_name == name
+    }
     return candidates.pop() if len(candidates) == 1 else None
 
 
-FindingT = TypeVar("FindingT")
-GroupKeyT = TypeVar("GroupKeyT", bound=Hashable)
-
-
-def print_grouped_findings(
+def print_grouped_findings[FindingT, GroupKeyT: Hashable](
     findings: Sequence[FindingT],
     key_fn: Callable[[FindingT], GroupKeyT],
     item_fn: Callable[[FindingT], object],
@@ -337,16 +367,12 @@ def print_grouped_findings(
         count = f" x{len(group)}" if len(group) > 1 else ""
         print(f"  {label_fn(key)}{count}")
         print(f"      {items_label}:")
-        for f in group:
-            print(f"        {item_fn(f)}")
-
-
-OwnFindingT = TypeVar("OwnFindingT")
-VendoredFindingT = TypeVar("VendoredFindingT")
+        for finding in group:
+            print(f"        {item_fn(finding)}")
 
 
 @dataclass
-class VendorBucketScan(Generic[OwnFindingT, VendoredFindingT]):
+class VendorBucketScan[OwnFindingT, VendoredFindingT]:
     """A render + tool pass: line lookup, friendly-vendor map, and findings
     split into own / vendored-friendly / vendored-other."""
 
@@ -364,7 +390,7 @@ class RenderedDocs:
     (source, text) docs (see split_rendered_by_source)."""
 
     locations: ResourceLocations
-    docs: list[tuple[str, str]]
+    docs: list[RenderedDoc]
 
 
 def render_chart_docs(chart_dir: Path, extra_args: list[str]) -> tuple[RenderedDocs | None, str | None]:
@@ -376,15 +402,22 @@ def render_chart_docs(chart_dir: Path, extra_args: list[str]) -> tuple[RenderedD
     return RenderedDocs(build_resource_locations(result.stdout), split_rendered_by_source(result.stdout)), None
 
 
-def scan_rendered_chart(
+# (findings or None, error) of a check tool run over own docs.
+type OwnFindingsResult[ResultT] = tuple[list[ResultT] | None, str | None]
+# (friendly, other or None, error) of a check tool run over vendored docs.
+type VendoredFindingsResult[ResultT] = tuple[list[ResultT] | None, list[ResultT] | None, str | None]
+type OwnFindingsRun[ResultT] = Callable[[list[RenderedDoc]], OwnFindingsResult[ResultT]]
+type VendoredFindingsRun[ResultT] = Callable[[list[RenderedDoc], dict[str, str]], VendoredFindingsResult[ResultT]]
+# (scan or None, error) of scan_rendered_chart.
+type ScanResult[OwnT, VendoredT] = tuple[VendorBucketScan[OwnT, VendoredT] | None, str | None]
+
+
+def scan_rendered_chart[OwnFindingT, VendoredFindingT](
     chart_dir: Path,
     extra_args: list[str],
-    own_findings: Callable[[list[tuple[str, str]]], tuple[list[OwnFindingT] | None, str | None]],
-    vendored_findings: Callable[
-        [list[tuple[str, str]], dict[str, str]],
-        tuple[list[VendoredFindingT] | None, list[VendoredFindingT] | None, str | None],
-    ],
-) -> tuple[VendorBucketScan[OwnFindingT, VendoredFindingT] | None, str | None]:
+    own_findings: OwnFindingsRun[OwnFindingT],
+    vendored_findings: VendoredFindingsRun[VendoredFindingT],
+) -> ScanResult[OwnFindingT, VendoredFindingT]:
     """Render the chart and run one tool over it, as check_kubeconform and
     check_shellcheck do. own_findings(own_docs) returns (own_real, error);
     vendored_findings(vendored_docs, vendor_map) returns
@@ -393,8 +426,8 @@ def scan_rendered_chart(
     rendered, error = render_chart_docs(chart_dir, extra_args)
     if rendered is None:
         return None, error
-    own_docs = [(s, t) for s, t in rendered.docs if s.startswith(OWN_TEMPLATES_PREFIX)]
-    vendored_docs = [(s, t) for s, t in rendered.docs if not s.startswith(OWN_TEMPLATES_PREFIX)]
+    own_docs = [doc for doc in rendered.docs if doc[0].startswith(OWN_TEMPLATES_PREFIX)]
+    vendored_docs = [doc for doc in rendered.docs if not doc[0].startswith(OWN_TEMPLATES_PREFIX)]
     own_real, error = own_findings(own_docs)
     if own_real is None:
         return None, error

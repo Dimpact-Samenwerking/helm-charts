@@ -44,7 +44,7 @@ def write_realm_config(chart_dir: Path, text: str):
 
 
 def realm(*clients: str, header: str = OIDC_CLIENTS) -> str:
-    return header + "data:\n  realm.yaml: |\n    clients:\n" + "".join(clients)
+    return "".join((header, "data:\n  realm.yaml: |\n    clients:\n", *clients))
 
 
 def test_covered_client_passes(vp: ModuleType, tmp_path: Path):

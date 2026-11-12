@@ -13,6 +13,7 @@ from lib.chart.pull_and_subchart_resolution import subchart_app_version
 from lib.chart.registered_paths import component_image_paths
 from lib.chart.registered_paths import pin_paths_for
 from lib.chart.registered_paths import version_paths_for
+from lib.chart.values_tree_primitives import ValuesPath
 from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
@@ -53,24 +54,23 @@ def actual_app_version(
 
 
 # A path into a values tree, one key (or list index, as a string) per level.
-ImagePath = tuple[str, ...]
 
 
 @overload
 def find_image_tag_paths(
-    node: YamlValue, path: ImagePath = (), *, include_null_tags: Literal[False] = False
-) -> Iterator[tuple[ImagePath, str]]: ...
+    node: YamlValue, path: ValuesPath = (), *, include_null_tags: Literal[False] = False
+) -> Iterator[tuple[ValuesPath, str]]: ...
 
 
 @overload
 def find_image_tag_paths(
-    node: YamlValue, path: ImagePath = (), *, include_null_tags: bool
-) -> Iterator[tuple[ImagePath, str | None]]: ...
+    node: YamlValue, path: ValuesPath = (), *, include_null_tags: bool
+) -> Iterator[tuple[ValuesPath, str | None]]: ...
 
 
 def find_image_tag_paths(
-    node: YamlValue, path: ImagePath = (), *, include_null_tags: bool = False
-) -> Iterator[tuple[ImagePath, str | None]]:
+    node: YamlValue, path: ValuesPath = (), *, include_null_tags: bool = False
+) -> Iterator[tuple[ValuesPath, str | None]]:
     """Yield (path, tag) for every "<key>: {tag: ...}" block where <key> is "image" or ends in "Image".
 
     The path includes that key (e.g. ("zac", "opa", "image")), so callers must use
@@ -83,24 +83,41 @@ def find_image_tag_paths(
     resolve it via lib.chart.resolve_subchart_default. A blank-string tag is never
     yielded: that case is resolved through actual_app_version."""
     if isinstance(node, dict):
-        for key, value in node.items():
-            if (key == "image" or key.endswith("Image")) and isinstance(value, dict):
-                tag = value.get("tag")
-                tag_text = scalar_text(tag)
-                if tag_text:
-                    yield (*path, key), tag_text
-                elif include_null_tags and tag is None and value.get("repository"):
-                    yield (*path, key), None
-        for key, value in node.items():
-            if key == "image" or key.endswith("Image"):
-                continue
-            yield from find_image_tag_paths(value, (*path, str(key)), include_null_tags=include_null_tags)
+        yield from _mapping_image_tag_paths(node, path, include_null_tags=include_null_tags)
     elif isinstance(node, list):
-        for i, item in enumerate(node):
-            yield from find_image_tag_paths(item, (*path, str(i)), include_null_tags=include_null_tags)
+        for item_index, item in enumerate(node):
+            yield from find_image_tag_paths(item, (*path, str(item_index)), include_null_tags=include_null_tags)
 
 
-def find_component_version_tags(values: YamlMapping, deps: list[ChartDependency]) -> Iterator[tuple[ImagePath, str]]:
+def _is_image_key(key: str) -> bool:
+    return key == "image" or key.endswith("Image")
+
+
+def _mapping_image_tag_paths(
+    node: YamlMapping, path: ValuesPath, *, include_null_tags: bool
+) -> Iterator[tuple[ValuesPath, str | None]]:
+    """find_image_tag_paths for a mapping: its own image blocks first, then those under its other keys."""
+    for key, value in node.items():
+        if _is_image_key(key) and isinstance(value, dict):
+            yield from _image_block_tag_paths(value, (*path, key), include_null_tags=include_null_tags)
+    for key, value in node.items():
+        if not _is_image_key(key):
+            yield from find_image_tag_paths(value, (*path, str(key)), include_null_tags=include_null_tags)
+
+
+def _image_block_tag_paths(
+    block: YamlMapping, path: ValuesPath, *, include_null_tags: bool
+) -> Iterator[tuple[ValuesPath, str | None]]:
+    """The image block at `path` with its tag; a null tag only when asked for and the block has a repository."""
+    tag = block.get("tag")
+    tag_text = scalar_text(tag)
+    if tag_text:
+        yield path, tag_text
+    elif include_null_tags and tag is None and block.get("repository"):
+        yield path, None
+
+
+def find_component_version_tags(values: YamlMapping, deps: list[ChartDependency]) -> Iterator[tuple[ValuesPath, str]]:
     """(path, value) for every registered bare version field pinned in `values`.
 
     Covers flat scalar fields find_image_tag_paths can't see (e.g.
@@ -113,14 +130,14 @@ def find_component_version_tags(values: YamlMapping, deps: list[ChartDependency]
                 yield tuple(values_key.split(".")) + tuple(rel.split(".")), value
 
 
-def find_all_image_and_version_paths(values: YamlMapping, deps: list[ChartDependency]) -> list[tuple[ImagePath, str]]:
+def find_image_and_version_paths(values: YamlMapping, deps: list[ChartDependency]) -> list[tuple[ValuesPath, str]]:
     """find_image_tag_paths plus find_component_version_tags: every pinned image tag and bare version.
 
     Use this wherever the complete set matters, e.g. detecting image changes vs baseline."""
     return list(find_image_tag_paths(values)) + list(find_component_version_tags(values, deps))
 
 
-def chart_image_paths(values: YamlMapping | None, deps: list[ChartDependency]) -> dict[ImagePath, str]:
+def chart_image_paths(values: YamlMapping | None, deps: list[ChartDependency]) -> dict[ValuesPath, str]:
     """{path: tag} for every pinned image tag, bare version field and global.images anchor; {} without values.
 
     The one complete path set: every writer, the checker and the name/repository
@@ -128,7 +145,7 @@ def chart_image_paths(values: YamlMapping | None, deps: list[ChartDependency]) -
     """
     if not values:
         return {}
-    return {**dict(find_all_image_and_version_paths(values, deps)), **dict(global_image_paths(values))}
+    return {**dict(find_image_and_version_paths(values, deps)), **dict(global_image_paths(values))}
 
 
 def resolve_entry_path(entry_name: str, paths: Collection[tuple[str, ...]]):
@@ -145,25 +162,37 @@ def resolve_entry_path(entry_name: str, paths: Collection[tuple[str, ...]]):
 
     best_path, best_diff = None, None
     for path in paths:
-        descriptive = path[:-1] if path and (path[-1] == "image" or path[-1].endswith("Image")) else path
-        path_words = [w for segment in descriptive for w in words_of(segment)]
-        if not path_words or path_words[-1] != entry_words[-1]:
-            continue
-        norm_path = "".join(path_words)
-        if norm_path == norm_entry:
+        diff = _containment_length_diff(path, entry_words, norm_entry)
+        if diff == 0:
             return path
-        if norm_path in norm_entry or norm_entry in norm_path:
-            # closest length = least unrelated extra text pulled in by the
-            # containment match
-            diff = abs(len(norm_path) - len(norm_entry))
-            if best_diff is None or diff < best_diff:
-                best_path, best_diff = path, diff
+        if diff is not None and (best_diff is None or diff < best_diff):
+            best_path, best_diff = path, diff
     return best_path
 
 
+def _containment_length_diff(path: tuple[str, ...], entry_words: list[str], norm_entry: str) -> int | None:
+    """Length difference of a containment match of `path` (0: exact), None when it doesn't match.
+
+    Closest length = least unrelated extra text pulled in by the containment match.
+    """
+    path_words = _descriptive_words(path)
+    if not path_words or path_words[-1] != entry_words[-1]:
+        return None
+    norm_path = "".join(path_words)
+    if norm_path in norm_entry or norm_entry in norm_path:
+        return abs(len(norm_path) - len(norm_entry))
+    return None
+
+
+def _descriptive_words(path: tuple[str, ...]) -> list[str]:
+    """The words of `path`'s segments, a trailing image key left out."""
+    descriptive = path[:-1] if path and _is_image_key(path[-1]) else path
+    return [word for segment in descriptive for word in words_of(segment)]
+
+
 def resolve_entry_image_path(
-    name: str, paths: Collection[ImagePath], repo_map: Mapping[str, ImagePath] | None = None
-) -> ImagePath | None:
+    name: str, paths: Collection[ValuesPath], repo_map: Mapping[str, ValuesPath] | None = None
+) -> ValuesPath | None:
     """Match an images-manifest entry's "name:" to a values-tree path.
 
     Exact repo_map lookup first; falls back to resolve_entry_path's fuzzy matching

@@ -2,20 +2,30 @@
 
 import json
 import re
-import urllib.error
-import urllib.parse
-import urllib.request
 
+from collections.abc import Iterable
+from http import HTTPStatus
 from http.client import HTTPMessage
 from pathlib import Path
 from typing import IO
 from typing import BinaryIO
 from typing import TypedDict
+from typing import override
+from urllib.error import HTTPError
+from urllib.error import URLError
+from urllib.parse import urlencode
+from urllib.parse import urljoin
+from urllib.parse import urlsplit
+from urllib.request import HTTPRedirectHandler
+from urllib.request import Request
+from urllib.request import build_opener
+from urllib.request import urlopen
 
 from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import text_at
 from lib.procutil import run
 from lib.version_numbers import NUMERIC_PREFIX_RE
+from lib.version_numbers import TagVersion
 from lib.version_numbers import dotted_numbers
 from lib.version_numbers import newest_per_major
 from lib.yaml_types import YamlValue
@@ -43,11 +53,12 @@ BEARER_CHALLENGE_PARAM_RE = re.compile(r'(\w+)="([^"]*)"')
 
 class TagCheck(TypedDict):
     """Whether one repository has a tag upstream: the repository, its
-    parse_repo split, and registry_tag_exists' (exists, digest)."""
+    parse_repo split, the tag, and registry_tag_exists' (exists, digest)."""
 
     repository: str
     host: str
     repo_path: str
+    tag: str
     exists: bool
     digest: str | None
 
@@ -67,12 +78,12 @@ def _read_json(resp: BinaryIO) -> YamlValue:
     where = getattr(resp, "url", None) or "registry"
     try:
         data: object = json.loads(raw)
-    except (json.JSONDecodeError, UnicodeDecodeError) as e:
-        msg = f"non-JSON response from {where}: {e}"
-        raise urllib.error.URLError(msg) from e
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        msg = f"non-JSON response from {where}: {error}"
+        raise URLError(msg) from error
     if not is_yaml_value(data):
         msg = f"unexpected JSON from {where}"
-        raise urllib.error.URLError(msg)
+        raise URLError(msg)
     return data
 
 
@@ -81,21 +92,21 @@ def _read_token(resp: BinaryIO) -> str:
     token = text_at(_read_json(resp), "token")
     if token is None:
         msg = "auth response carried no token"
-        raise urllib.error.URLError(msg)
+        raise URLError(msg)
     return token
 
 
-def _urlopen(url_or_req: str | urllib.request.Request, timeout: float | None = None):
-    """urllib.request.urlopen, passing timeout= only when given.
+def _urlopen(url_or_req: str | Request, timeout: float | None = None):
+    """urlopen, passing timeout= only when given.
 
     Tests mock urlopen with a single-arg callable."""
     # Hosts are config-derived trusted registries, never attacker-controlled (same as ruff S310 exemption).
     if timeout is None:
-        return urllib.request.urlopen(url_or_req)  # nosec B310
-    return urllib.request.urlopen(url_or_req, timeout=timeout)  # nosec B310
+        return urlopen(url_or_req)  # nosec B310
+    return urlopen(url_or_req, timeout=timeout)  # nosec B310
 
 
-def _parse_bearer_challenge(header_value: str | None):
+def parse_bearer_challenge(header_value: str | None):
     """Parse a `WWW-Authenticate: Bearer realm=...,service=...,scope=...` header into a dict.
 
     None unless it is a Bearer challenge with a realm."""
@@ -105,32 +116,32 @@ def _parse_bearer_challenge(header_value: str | None):
     return params if "realm" in params else None
 
 
-class _DropAuthOnRedirect(urllib.request.HTTPRedirectHandler):
+class DropAuthOnRedirect(HTTPRedirectHandler):
     """Follow a redirect to another host without the Authorization header.
 
     Registries redirect blob downloads to a storage CDN (docker.elastic.co does),
     which answers HTTP 400 to the registry's bearer token."""
 
-    # Signature fixed by urllib.request.HTTPRedirectHandler.redirect_request, which this overrides.
-    def redirect_request(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    @override
+    def redirect_request(
         self,
-        req: urllib.request.Request,
+        req: Request,
         fp: IO[bytes],
         code: int,
         msg: str,
         headers: HTTPMessage,
         newurl: str,
-    ) -> urllib.request.Request | None:
+    ) -> Request | None:
         new = super().redirect_request(req, fp, code, msg, headers, newurl)
-        if new is not None and urllib.parse.urlsplit(newurl).netloc != urllib.parse.urlsplit(req.full_url).netloc:
+        if new is not None and urlsplit(newurl).netloc != urlsplit(req.full_url).netloc:
             new.remove_header("Authorization")
         return new
 
 
-_BLOB_OPENER = urllib.request.build_opener(_DropAuthOnRedirect)
+_BLOB_OPENER = build_opener(DropAuthOnRedirect)
 
 
-def _urlopen_blob(url_or_req: str | urllib.request.Request, timeout: float | None = None):
+def _urlopen_blob(url_or_req: str | Request, timeout: float | None = None):
     """_urlopen for blob downloads: redirects to another host drop the Authorization header."""
     # Same trusted registry hosts as _urlopen.
     return _BLOB_OPENER.open(url_or_req, timeout=timeout)  # nosec B310
@@ -148,25 +159,29 @@ def _get_with_dynamic_auth(
     Needed for registries not in TOKEN_ENDPOINTS, e.g. docker.elastic.co (realm
     docker-auth.elastic.co). Re-raises a 401 without a Bearer challenge. The retry uses the
     same method. A blob download follows a redirect to another host without the
-    Authorization header (see _DropAuthOnRedirect).
+    Authorization header (see DropAuthOnRedirect).
 
     The token is stored in `headers`, so a caller's next request with the same
     dict (list_tags' next page) skips the 401 and the token fetch."""
-    urlopen = _urlopen_blob if "/blobs/" in url else _urlopen
+    opener = _urlopen_blob if "/blobs/" in url else _urlopen
     try:
-        return urlopen(urllib.request.Request(url, headers=headers, method=method), timeout=timeout)
-    except urllib.error.HTTPError as e:
-        if e.code != 401:
-            raise
-        challenge = _parse_bearer_challenge(e.headers.get("WWW-Authenticate"))
+        return opener(Request(url, headers=headers, method=method), timeout=timeout)
+    except HTTPError as error:
+        challenge = None
+        if error.code == HTTPStatus.UNAUTHORIZED:
+            challenge = parse_bearer_challenge(error.headers.get("WWW-Authenticate"))
         if not challenge:
             raise
-        query = {"scope": challenge.get("scope") or f"repository:{repo}:pull"}
-        if challenge.get("service"):
-            query["service"] = challenge["service"]
-        token = _read_token(_urlopen(f"{challenge['realm']}?{urllib.parse.urlencode(query)}", timeout=timeout))
-        headers["Authorization"] = f"Bearer {token}"
-        return urlopen(urllib.request.Request(url, headers=headers, method=method), timeout=timeout)
+        headers["Authorization"] = f"Bearer {_challenge_token(challenge, repo, timeout)}"
+        return opener(Request(url, headers=headers, method=method), timeout=timeout)
+
+
+def _challenge_token(challenge: dict[str, str], repo: str, timeout: float | None) -> str:
+    """A pull token from a Bearer challenge's realm, for its scope (default: pull of `repo`) and service."""
+    query = {"scope": challenge.get("scope") or f"repository:{repo}:pull"}
+    if challenge.get("service"):
+        query["service"] = challenge["service"]
+    return _read_token(_urlopen(f"{challenge['realm']}?{urlencode(query)}", timeout=timeout))
 
 
 # Hosts that reject even anonymous manifest reads (network restriction); check_image_digests
@@ -210,8 +225,8 @@ def _fetch_manifest_digest(
     try:
         with _get_with_dynamic_auth(url, repo, headers, timeout=timeout, method=method) as resp:
             return True, resp.headers.get("Docker-Content-Digest")
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
+    except HTTPError as error:
+        if error.code == HTTPStatus.NOT_FOUND:
             return False, None
         raise
 
@@ -227,10 +242,39 @@ def registry_tag_exists(
     url, headers = _registry_request(registry_host, repo, f"manifests/{tag}", MANIFEST_ACCEPT, timeout)
     try:
         return _fetch_manifest_digest(url, repo, headers, timeout, "HEAD")
-    except urllib.error.HTTPError as e:
-        if e.code != 405:
+    except HTTPError as error:
+        if error.code != HTTPStatus.METHOD_NOT_ALLOWED:
             raise
         return _fetch_manifest_digest(url, repo, headers, timeout, "GET")
+
+
+def check_repositories_at(repositories: Iterable[str], tag: str, known: Iterable[TagCheck] = ()) -> dict[str, TagCheck]:
+    """{repository: TagCheck} of `tag`, one registry_tag_exists lookup per distinct image.
+
+    An image with a check in `known` at the same tag is not looked up again.
+    """
+    lookups: dict[tuple[str, str, str], tuple[bool, str | None]] = {}
+    for check in known:
+        image = (check["host"], check["repo_path"], check["tag"])
+        lookups[image] = (check["exists"], check["digest"])
+    checks: dict[str, TagCheck] = {}
+    for repository in repositories:
+        if repository in checks:
+            continue
+        host, repo_path = parse_repo(repository)
+        image = (host, repo_path, tag)
+        if image not in lookups:
+            lookups[image] = registry_tag_exists(host, repo_path, tag)
+        exists, digest = lookups[image]
+        checks[repository] = {
+            "repository": repository,
+            "host": host,
+            "repo_path": repo_path,
+            "tag": tag,
+            "exists": exists,
+            "digest": digest,
+        }
+    return checks
 
 
 IMAGE_CONFIG_ACCEPT = "application/vnd.oci.image.config.v1+json,application/vnd.docker.container.image.v1+json"
@@ -254,7 +298,7 @@ def _platform_manifest_digest(index: YamlValue) -> str:
         if platform == NODE_PLATFORM and digest:
             return digest
     msg = f"no {'/'.join(NODE_PLATFORM)} image in the index"
-    raise urllib.error.URLError(msg)
+    raise URLError(msg)
 
 
 def _config_blob_path(registry_host: str, repo: str, manifest: YamlValue, reference: str) -> str:
@@ -262,7 +306,7 @@ def _config_blob_path(registry_host: str, repo: str, manifest: YamlValue, refere
     config_digest = text_at(manifest, "config.digest")
     if not config_digest:
         msg = f"manifest of {registry_host}/{repo}:{reference} has no config"
-        raise urllib.error.URLError(msg)
+        raise URLError(msg)
     return f"blobs/{config_digest}"
 
 
@@ -314,9 +358,9 @@ def historical_digests_for_tag(values_path: Path, version: str) -> set[str]:
     for line in result.stdout.splitlines():
         if line.startswith(("+++", "---")) or not line.startswith(("+", "-")):
             continue
-        m = pattern.search(line)
-        if m:
-            digests.add(m.group(1))
+        digest_match = pattern.search(line)
+        if digest_match:
+            digests.add(digest_match.group(1))
     return digests
 
 
@@ -330,8 +374,8 @@ MAX_TAG_PAGES = 200
 
 def _next_page_url(url: str, link_header: str | None) -> str | None:
     """The absolute URL of the Link header's rel="next" target, or None on the last page."""
-    m = LINK_NEXT_RE.search(link_header or "")
-    return urllib.parse.urljoin(url, m.group(1)) if m else None
+    link_match = LINK_NEXT_RE.search(link_header or "")
+    return urljoin(url, link_match.group(1)) if link_match else None
 
 
 def list_tags(registry_host: str, repo: str):
@@ -349,17 +393,27 @@ def list_tags(registry_host: str, repo: str):
         if next_url in seen or len(seen) >= MAX_TAG_PAGES:
             reason = "a page repeats" if next_url in seen else f"more than {MAX_TAG_PAGES} pages"
             msg = f"tags/list of {repo} on {registry_host}: {reason}; the newest tags may be missing"
-            raise urllib.error.URLError(msg)
+            raise URLError(msg)
         seen.add(next_url)
-        with _get_with_dynamic_auth(next_url, repo, headers) as resp:
-            page = get_path(_read_json(resp), "tags") or []
-            following = _next_page_url(next_url, resp.headers.get("Link"))
-        if not isinstance(page, list) or not all(isinstance(tag, str) for tag in page):
-            msg = f"tags/list response from {urllib.parse.urlsplit(url).netloc} is not a list of tag names"
-            raise urllib.error.URLError(msg)
-        tags.extend(tag for tag in page if isinstance(tag, str))
-        next_url = following
+        page, next_url = _tags_page(next_url, repo, headers, urlsplit(url).netloc)
+        tags.extend(page)
     return tags
+
+
+def _tags_page(
+    page_url: str,
+    repo: str,
+    headers: dict[str, str],
+    netloc: str,
+) -> tuple[list[str], str | None]:
+    """(tag names, next page URL or None) of one tags/list page; URLError when it is not a list of names."""
+    with _get_with_dynamic_auth(page_url, repo, headers) as resp:
+        page = get_path(_read_json(resp), "tags") or []
+        following = _next_page_url(page_url, resp.headers.get("Link"))
+    if not isinstance(page, list) or not all(isinstance(tag, str) for tag in page):
+        msg = f"tags/list response from {netloc} is not a list of tag names"
+        raise URLError(msg)
+    return [tag for tag in page if isinstance(tag, str)], following
 
 
 def _split_tag(tag: str) -> tuple[str, str | None, str]:
@@ -367,13 +421,13 @@ def _split_tag(tag: str) -> tuple[str, str | None, str]:
     run and everything after. ("", None, tag) if it doesn't start with a digit after the "v".
 
     The "v" is part of the variant: "v1.2" and "1.2" are different tag series."""
-    m = NUMERIC_PREFIX_RE.match(tag)
-    if not m:
+    tag_match = NUMERIC_PREFIX_RE.match(tag)
+    if not tag_match:
         return "", None, tag
-    return m.group(1), m.group(2), tag[m.end() :]
+    return tag_match.group(1), tag_match.group(2), tag[tag_match.end() :]
 
 
-def _is_more_specific_tag(candidate: str, version: str):
+def is_more_specific_tag(candidate: str, version: str):
     """True if candidate refines version, e.g. "3.14.7-slim" or "3.14-slim-trixie" for "3.14-slim".
 
     Not a string-prefix check: the numeric parts must match as whole dot components
@@ -392,7 +446,7 @@ def find_newer_same_variant_tags(registry_host: str, repo: str, version: str) ->
     """The highest published tag with version's "v" and suffix above version, one per major
     (see newest_per_major); [] if none or version isn't numeric.
 
-    Unlike _is_more_specific_tag, any newer same-variant release counts. Candidates must
+    Unlike is_more_specific_tag, any newer same-variant release counts. Candidates must
     have as many dot components as version: frank-gateway publishes bare CI run-ID tags
     ("12294937630"), and (12294937630,) > (1, 1, 0) in tuple comparison."""
     ver_v, ver_num, ver_suffix = _split_tag(version)
@@ -400,24 +454,31 @@ def find_newer_same_variant_tags(registry_host: str, repo: str, version: str) ->
         return []
 
     arity = len(ver_num.split("."))
-    candidates: list[tuple[str, tuple[int, ...]]] = []
+    candidates: list[TagVersion] = []
     for tag in list_tags(registry_host, repo):
-        v, num, suffix = _split_tag(tag)
-        if num is not None and (v, suffix) == (ver_v, ver_suffix) and len(num.split(".")) == arity:
+        tag_v, num, suffix = _split_tag(tag)
+        same_variant = (tag_v, suffix) == (ver_v, ver_suffix)
+        if num is not None and same_variant and len(num.split(".")) == arity:
             candidates.append((tag, dotted_numbers(num)))
     return newest_per_major(dotted_numbers(ver_num), candidates)
 
 
-def find_more_specific_tag_at_same_digest(registry_host: str, repo: str, version: str, live_digest: str):
+def find_more_specific_tag(registry_host: str, repo: str, version: str, live_digest: str):
     """A published tag more specific than version that currently has the same digest, or None.
 
     Evidence version is a rolling alias; reflects current registry state, not past drift."""
-    candidates = sorted(t for t in list_tags(registry_host, repo) if t != version and _is_more_specific_tag(t, version))
-    for t in candidates:
-        exists, digest = registry_tag_exists(registry_host, repo, t)
+    candidates = sorted(
+        tag for tag in list_tags(registry_host, repo) if tag != version and is_more_specific_tag(tag, version)
+    )
+    for tag in candidates:
+        exists, digest = registry_tag_exists(registry_host, repo, tag)
         if exists and digest == live_digest:
-            return t
+            return tag
     return None
+
+
+# Two digests in git history prove the tag has moved at least once.
+_SLIDING_MIN_DIGESTS = 2
 
 
 def is_sliding_tag(values_path: Path, registry_host: str, repo: str, version: str, live_digest: str):
@@ -426,9 +487,9 @@ def is_sliding_tag(values_path: Path, registry_host: str, repo: str, version: st
     Proof: >= 2 historical digests in git. Otherwise falls back to a more specific tag at the
     same live digest. A network error there counts as not sliding, so real mismatches are
     never downgraded."""
-    if len(historical_digests_for_tag(values_path, version)) >= 2:
+    if len(historical_digests_for_tag(values_path, version)) >= _SLIDING_MIN_DIGESTS:
         return True
     try:
-        return find_more_specific_tag_at_same_digest(registry_host, repo, version, live_digest) is not None
-    except (urllib.error.URLError, OSError):
+        return find_more_specific_tag(registry_host, repo, version, live_digest) is not None
+    except (URLError, OSError):
         return False

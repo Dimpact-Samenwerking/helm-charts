@@ -7,15 +7,16 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 from lib.component_docs.changes_section import VersionChange
-from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
-from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
-from lib.component_docs.images_manifest_changes_header import images_manifest_changes_item_spans
-from lib.upgradedoc.grouped_comments_and_changes_block import parse_changes_block
-from lib.upgradedoc.images_manifest_ordering import match_changes_item_display_name
+from lib.component_docs.images_manifest_changes_header import changes_item_spans
+from lib.component_docs.images_manifest_changes_header import find_changes_header
+from lib.images_manifest import CHANGES_ITEM_RE
+from lib.upgradedoc.grouped_comments import parse_changes_block
+from lib.upgradedoc.images_manifest_ordering import match_item_display_name
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.resolve_component_row import ResolvedRow
+from lib.upgradedoc.resolve_component_row import UnmatchedRow
+from lib.upgradedoc.resolve_component_row import is_resolved_row_unchanged
 from lib.upgradedoc.resolve_component_row import resolve_component_row
-from lib.upgradedoc.resolve_component_row import resolved_row_unchanged
 from lib.upgradedoc.string_and_parsing_basics import match_located_line
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.version_cells import image_manifest_version_text
@@ -66,18 +67,31 @@ def expected_changes_items(
     names = rows + [item["name"] for item in parse_changes_block(manifest_text) if item["name"] not in rows]
     expected: dict[str, ExpectedChangesItem] = {}
     for name in names:
-        resolved = resolve_component_row(name, canonical_names, resolution)
-        if resolved["kind"] == "unmatched" or resolved["target_app"] is None or resolved["baseline_app"] is None:
-            continue
-        if resolved["kind"] != "native" and resolved["baseline_resolved"] is not True:
-            continue
-        digest_only = resolved_row_unchanged(resolved)
-        if digest_only and name in rows:
-            continue
-        item = _expected_changes_item(name, resolved, digest_only=digest_only)
+        item = _expected_item_for_name(
+            name, resolve_component_row(name, canonical_names, resolution), has_row=name in rows
+        )
         if item is not None:
             expected[name] = item
     return expected
+
+
+def _is_fully_resolved(resolved: ResolvedRow) -> bool:
+    """True when both app versions and, for a dependency, the baseline are known."""
+    if resolved["target_app"] is None or resolved["baseline_app"] is None:
+        return False
+    return resolved["kind"] == "native" or resolved["baseline_resolved"] is True
+
+
+def _expected_item_for_name(
+    name: str, resolved: UnmatchedRow | ResolvedRow, *, has_row: bool
+) -> ExpectedChangesItem | None:
+    """The expected item of one name; None when unresolvable or an unchanged row."""
+    if resolved["kind"] == "unmatched" or not _is_fully_resolved(resolved):
+        return None
+    digest_only = is_resolved_row_unchanged(resolved)
+    if digest_only and has_row:
+        return None
+    return _expected_changes_item(name, resolved, digest_only=digest_only)
 
 
 def _expected_changes_item(name: str, resolved: ResolvedRow, *, digest_only: bool) -> ExpectedChangesItem | None:
@@ -90,8 +104,8 @@ def _expected_changes_item(name: str, resolved: ResolvedRow, *, digest_only: boo
         change = VersionChange(
             resolved["baseline_app"], resolved["target_app"], resolved["baseline_chart"], resolved["target_chart"]
         )
-        m = _CHART_CLAUSE_RE.search(changes_header_item_text(name, change))
-        chart_clause = m.group(1) if m else None
+        clause_match = _CHART_CLAUSE_RE.search(changes_header_item_text(name, change))
+        chart_clause = clause_match.group(1) if clause_match else None
         chart_changed = normalize_version(resolved["baseline_chart"]) != normalize_version(resolved["target_chart"])
     version_text = image_manifest_version_text(
         resolved["baseline_app"], resolved["target_app"], digest_only_change=digest_only
@@ -102,22 +116,22 @@ def _expected_changes_item(name: str, resolved: ResolvedRow, *, digest_only: boo
 def stale_changes_items(lines: list[str], expected: Mapping[str, ExpectedChangesItem]) -> list[tuple[int, str, str]]:
     """(line index, current text, expected text) of each one-line "# Changes:" item that contradicts its row.
 
-    An item belongs to the longest row name it names (match_changes_item_display_name),
+    An item belongs to the longest row name it names (match_item_display_name),
     so a sidecar item "zac - solr ..." never belongs to row "zac". Its versions must
     match. The "(chart ...)" clause is required when the chart version
     changed; otherwise only checked when present, since an item of an
     unchanged chart is written without it.
     """
-    header_idx, _header_has_count = find_images_manifest_changes_header(lines)
+    header_idx, _header_has_count = find_changes_header(lines)
     if header_idx is None:
         return []
-    spans, _block_end = images_manifest_changes_item_spans(lines, header_idx)
+    spans, _block_end = changes_item_spans(lines, header_idx)
     stale: list[tuple[int, str, str]] = []
     for start, end in spans:
         if end - start != 1:
             continue
         rest = match_located_line(CHANGES_ITEM_RE, lines[start]).group("rest").strip()
-        name = match_changes_item_display_name(rest, expected)
+        name = match_item_display_name(rest, expected)
         if name is None:
             continue
         wanted = expected[name].text(with_chart=_CHART_CLAUSE_RE.search(rest) is not None)
@@ -130,7 +144,7 @@ def fix_stale_changes_items(lines: list[str], expected: Mapping[str, ExpectedCha
     """Rewrite the items stale_changes_items reports, keeping their numbers; returns [(old, new), ...]."""
     fixed: list[tuple[str, str]] = []
     for idx, current, wanted in stale_changes_items(lines, expected):
-        m = match_located_line(CHANGES_ITEM_RE, lines[idx])
-        lines[idx] = f"#   {m.group('num')}. {wanted}\n"
+        item_match = match_located_line(CHANGES_ITEM_RE, lines[idx])
+        lines[idx] = f"#   {item_match.group('num')}. {wanted}\n"
         fixed.append((current, wanted))
     return fixed

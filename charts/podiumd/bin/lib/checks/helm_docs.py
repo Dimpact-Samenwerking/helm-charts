@@ -18,6 +18,11 @@ TEMPLATE_FILENAME = "README.md.gotmpl"
 FIX_COMMAND = "fix-helm-doc"
 
 
+def _is_change_line(line: str) -> bool:
+    """A "+"/"-" line of a unified diff, not its "+++"/"---" file header."""
+    return line.startswith(("+", "-")) and not line.startswith(("+++", "---"))
+
+
 def check_helm_docs(chart_dir: Path):
     """Diff `helm-docs --dry-run` output against README.md; fail on drift or missing helm-docs/README."""
     if shutil.which("helm-docs") is None:
@@ -51,7 +56,7 @@ def check_helm_docs(chart_dir: Path):
             lineterm="",
         )
     )
-    changed = sum(1 for line in diff if line[:1] in ("+", "-") and line[:3] not in ("+++", "---"))
+    changed = sum(1 for line in diff if _is_change_line(line))
     max_diff_lines = helm_doc_max_diff_lines_shown(chart_dir)
 
     print(f"DRIFT: {readme_path} is out of sync with values.yaml — {changed} line(s) would change:")

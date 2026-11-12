@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from types import ModuleType
+from typing import NamedTuple
 
 DEPS = [
     {"name": "openzaak", "version": "1.14.2"},
@@ -14,7 +15,16 @@ DEPS = [
 # Shared by fix-doc-consistency's row rewriter and the docs_consistency checker.
 
 
-def _redis_sidecar_deps_and_values(target_tag="8.6.6", baseline_tag="8.6.2"):
+class _SidecarCharts(NamedTuple):
+    """Chart.yaml dependencies and values of a target and a baseline chart."""
+
+    target_deps: list[dict[str, str]]
+    target_values: dict[str, dict[str, dict[str, dict[str, str]]]]
+    baseline_deps: list[dict[str, str]]
+    baseline_values: dict[str, dict[str, dict[str, dict[str, str]]]]
+
+
+def _redis_sidecar_deps_and_values(target_tag: str = "8.6.6", baseline_tag: str = "8.6.2") -> _SidecarCharts:
     target_deps = [{"name": "redis-operator", "version": "0.26.1"}]
     baseline_deps = [{"name": "redis-operator", "version": "0.25.0"}]
     target_values = {
@@ -27,7 +37,7 @@ def _redis_sidecar_deps_and_values(target_tag="8.6.6", baseline_tag="8.6.2"):
             "redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": f"{baseline_tag}@sha256:aaaa"}}
         }
     }
-    return target_deps, target_values, baseline_deps, baseline_values
+    return _SidecarCharts(target_deps, target_values, baseline_deps, baseline_values)
 
 
 def _resolution(
@@ -236,13 +246,13 @@ def test_resolve_component_row_native_component_falls_back_to_historical_images_
 
 
 def test_resolve_component_row_sidecar_resolved(libupgradedocresolverow: ModuleType):
-    target_deps, target_values, baseline_deps, baseline_values = _redis_sidecar_deps_and_values()
+    sidecar = _redis_sidecar_deps_and_values()
     canonical_names = {"redis-operator - redis": ("redis-operator", "redis-ha", "image")}
 
     resolved = libupgradedocresolverow.resolve_component_row(
         "redis-operator - redis",
         canonical_names,
-        _resolution(libupgradedocresolverow, None, target_deps, target_values, baseline_deps, baseline_values),
+        _resolution(libupgradedocresolverow, None, *sidecar),
     )
 
     assert resolved["kind"] == "sidecar"
@@ -257,13 +267,15 @@ def test_resolve_component_row_sidecar_resolved(libupgradedocresolverow: ModuleT
 
 
 def test_resolve_component_row_sidecar_missing_baseline_tag_is_unresolved(libupgradedocresolverow: ModuleType):
-    target_deps, target_values, baseline_deps, _ = _redis_sidecar_deps_and_values()
+    sidecar = _redis_sidecar_deps_and_values()
     canonical_names = {"redis-operator - redis": ("redis-operator", "redis-ha", "image")}
 
     resolved = libupgradedocresolverow.resolve_component_row(
         "redis-operator - redis",
         canonical_names,
-        _resolution(libupgradedocresolverow, None, target_deps, target_values, baseline_deps, {}),
+        _resolution(
+            libupgradedocresolverow, None, sidecar.target_deps, sidecar.target_values, sidecar.baseline_deps, {}
+        ),
     )
 
     assert resolved["baseline_resolved"] is False
@@ -362,13 +374,13 @@ def test_resolve_component_row_sidecar_target_itself_unresolvable_also_baseline_
     libupgradedocresolverow: ModuleType,
 ):
     """An unresolvable target path gives target_app None, so callers can tell "broken" from "new"."""
-    target_deps, target_values, baseline_deps, baseline_values = _redis_sidecar_deps_and_values()
+    sidecar = _redis_sidecar_deps_and_values()
     canonical_names = {"redis-operator - ghost-sidecar": ("redis-operator", "redis-ha", "ghostImage")}
 
     resolved = libupgradedocresolverow.resolve_component_row(
         "redis-operator - ghost-sidecar",
         canonical_names,
-        _resolution(libupgradedocresolverow, None, target_deps, target_values, baseline_deps, baseline_values),
+        _resolution(libupgradedocresolverow, None, *sidecar),
     )
 
     assert resolved["baseline_resolved"] is False
@@ -379,33 +391,33 @@ def test_resolve_component_row_sidecar_shaped_name_with_no_canonical_match_is_un
     libupgradedocresolverow: ModuleType,
 ):
     """A sidecar-shaped name not in canonical_names is unmatched, never fuzzy-matched to its parent."""
-    target_deps, target_values, baseline_deps, baseline_values = _redis_sidecar_deps_and_values()
+    sidecar = _redis_sidecar_deps_and_values()
     canonical_names = {"redis-operator - redis": ("redis-operator", "redis-ha", "image")}
 
     resolved = libupgradedocresolverow.resolve_component_row(
         "redis-operator - ghost",
         canonical_names,
-        _resolution(libupgradedocresolverow, None, target_deps, target_values, baseline_deps, baseline_values),
+        _resolution(libupgradedocresolverow, None, *sidecar),
     )
 
     assert resolved == {"kind": "unmatched"}
 
 
-# --- changes_heading_has_app_version ---
+# --- heading_has_app_version ---
 
 
 def test_changes_heading_has_app_version_arrow_shape(libupgradedocresolverow: ModuleType):
-    assert libupgradedocresolverow.changes_heading_has_app_version("openzaak 1.27.4 → 1.29.3 (chart 1.0.0, unchanged)")
+    assert libupgradedocresolverow.heading_has_app_version("openzaak 1.27.4 → 1.29.3 (chart 1.0.0, unchanged)")
 
 
 def test_changes_heading_has_app_version_new_shape(libupgradedocresolverow: ModuleType):
     """A "(new)" app version without an arrow counts as having one."""
-    assert libupgradedocresolverow.changes_heading_has_app_version("openbao v2.5.5 (new) (chart 0.28.4, unchanged)")
+    assert libupgradedocresolverow.heading_has_app_version("openbao v2.5.5 (new) (chart 0.28.4, unchanged)")
 
 
 def test_changes_heading_has_app_version_unchanged_shape(libupgradedocresolverow: ModuleType):
     """An "(unchanged)" app version counts, not confused with the chart clause's "unchanged"."""
-    assert libupgradedocresolverow.changes_heading_has_app_version(
+    assert libupgradedocresolverow.heading_has_app_version(
         "mi-data (MI-data exports) 2.71.0 (unchanged) (chart 1.0.0 → 1.1.0)"
     )
 
@@ -414,15 +426,15 @@ def test_changes_heading_has_app_version_chart_only_unchanged_is_not_confused_fo
     libupgradedocresolverow: ModuleType,
 ):
     """Only text outside the "(chart ...)" clause counts as the app version."""
-    assert not libupgradedocresolverow.changes_heading_has_app_version("openbao 0.28.4 (chart 0.28.4, unchanged)")
+    assert not libupgradedocresolverow.heading_has_app_version("openbao 0.28.4 (chart 0.28.4, unchanged)")
 
 
 def test_changes_heading_has_app_version_chart_only_stub_has_none(libupgradedocresolverow: ModuleType):
     """The chart-only TODO stub has no app version."""
-    assert not libupgradedocresolverow.changes_heading_has_app_version("openbao 0.28.4")
+    assert not libupgradedocresolverow.heading_has_app_version("openbao 0.28.4")
 
 
-# --- resolved_row_unchanged ---
+# --- is_resolved_row_unchanged ---
 
 
 def test_resolved_row_unchanged_true_when_app_and_chart_equal_baseline(libupgradedocresolverow: ModuleType):
@@ -431,7 +443,7 @@ def test_resolved_row_unchanged_true_when_app_and_chart_equal_baseline(libupgrad
     resolved = libupgradedocresolverow.resolve_component_row(
         "ZAC", {}, _resolution(libupgradedocresolverow, None, deps, values, deps, values)
     )
-    assert libupgradedocresolverow.resolved_row_unchanged(resolved) is True
+    assert libupgradedocresolverow.is_resolved_row_unchanged(resolved) is True
 
 
 def test_resolved_row_unchanged_false_when_only_chart_equals_baseline(libupgradedocresolverow: ModuleType):
@@ -441,7 +453,7 @@ def test_resolved_row_unchanged_false_when_only_chart_equals_baseline(libupgrade
     resolved = libupgradedocresolverow.resolve_component_row(
         "ZAC", {}, _resolution(libupgradedocresolverow, None, deps, values, deps, baseline_values)
     )
-    assert libupgradedocresolverow.resolved_row_unchanged(resolved) is False
+    assert libupgradedocresolverow.is_resolved_row_unchanged(resolved) is False
 
 
 def test_resolved_row_unchanged_false_without_baseline(libupgradedocresolverow: ModuleType):
@@ -450,4 +462,4 @@ def test_resolved_row_unchanged_false_without_baseline(libupgradedocresolverow: 
     resolved = libupgradedocresolverow.resolve_component_row(
         "ZAC", {}, _resolution(libupgradedocresolverow, None, deps, values)
     )
-    assert libupgradedocresolverow.resolved_row_unchanged(resolved) is False
+    assert libupgradedocresolverow.is_resolved_row_unchanged(resolved) is False

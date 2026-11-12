@@ -53,11 +53,21 @@ from lib.cli import positional_args
 from lib.cli import print_section
 from lib.component_docs.doc_updates import complete_docs_and_finish
 from lib.dependencies import ensure_vendored_dependencies
+from lib.image.version import PinUpdate
+from lib.image.version import print_pin_updates
 from lib.image.version import resolve_key_scope
 from lib.image.version import update_image_version
 from lib.procutil import run_script
 
 FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
+
+
+def print_written_pins(changes: list[PinUpdate]) -> None:
+    """The pin updates written to values.yaml and their count."""
+    print(f"=== Writing {VALUES_YAML} ===")
+    print_pin_updates(changes)
+    print()
+    print(f"Updated {len(changes)} pin(s).")
 
 
 def main():
@@ -70,13 +80,7 @@ def main():
 
     changes = update_image_version(VALUES_YAML, key, basename, new_version)
     if changes:
-        print(f"=== Writing {VALUES_YAML} ===")
-        for c in changes:
-            print(f"  values.yaml:{c['line']}  ({c['repository']})")
-            print(f"    {c['old_version']}@{c['old_digest']}")
-            print(f"    {c['new_version']}@{c['new_digest']}")
-        print()
-        print(f"Updated {len(changes)} pin(s).")
+        print_written_pins(changes)
     else:
         # An earlier run may have written values.yaml and stopped before its docs.
         print(f"'{basename}' under '{key}' is already at {new_version} everywhere it's pinned; completing docs.")

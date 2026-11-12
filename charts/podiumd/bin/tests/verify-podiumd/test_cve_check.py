@@ -16,6 +16,10 @@ from types import SimpleNamespace
 
 import pytest
 
+from tests.fixture_data import SHA256_B
+from tests.fixture_data import SHA256_E
+from tests.fixture_data import raising
+
 
 def trivy_result(returncode=0, stdout="", stderr=""):
     return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
@@ -191,11 +195,11 @@ def test_run_trivy_nonzero_exit_with_parseable_output_returns_none(
 
 
 def test_digest_ref_uses_the_pinned_digest(libcvecheck: ModuleType):
-    assert libcvecheck._digest_ref("org/repo", DIGEST_A) == f"docker.io/org/repo@sha256:{DIGEST_A}"
+    assert libcvecheck.digest_ref("org/repo", DIGEST_A) == f"docker.io/org/repo@sha256:{DIGEST_A}"
 
 
 def test_digest_ref_without_a_digest_is_none(libcvecheck: ModuleType):
-    assert libcvecheck._digest_ref("org/repo", "") is None
+    assert libcvecheck.digest_ref("org/repo", "") is None
 
 
 # --- scan_cached (shared by check_cves and lib.checks.cve_diff) ---
@@ -343,8 +347,8 @@ def test_open_cache_session_new_cache_is_a_separate_copy(libcvecheck: ModuleType
     assert new_cache == old_cache
     assert new_cache is not old_cache  # mutating one must never affect the other
 
-    new_cache["org/other@sha256:" + "b" * 64] = {"vulnerabilities": []}
-    assert "org/other@sha256:" + "b" * 64 not in old_cache
+    new_cache[f"org/other@{SHA256_B}"] = {"vulnerabilities": []}
+    assert f"org/other@{SHA256_B}" not in old_cache
 
 
 def test_open_cache_session_empty_when_no_cache_file_exists(libcvecheck: ModuleType, tmp_path: Path):
@@ -555,7 +559,8 @@ def test_check_cves_splits_own_partner_other_and_never_fails(
     out = capsys.readouterr().out
     assert "--- Own images ---" in out
     assert "1 CRIT, 1 LOW CVE(s)" in out  # own: per-image totals only by default, same as partner
-    assert "CVE-OWN-1" not in out and "CVE-OWN-2" not in out
+    assert "CVE-OWN-1" not in out
+    assert "CVE-OWN-2" not in out
 
     assert "--- Partner-vendor images ---" in out
     assert "[Maykin]" in out
@@ -758,7 +763,9 @@ def test_print_bucket_report_totals_mode_never_itemizes_even_high_severity(
     assert "docker.io/maykinmedia/objects-api:1.0.0 [Maykin]\n" in out
     assert "upgradable" not in out
     assert "1 CRIT, 1 HIGH, 1 MEDIUM CVE(s)" in out
-    assert "CVE-1" not in out and "CVE-2" not in out and "CVE-3" not in out
+    assert "CVE-1" not in out
+    assert "CVE-2" not in out
+    assert "CVE-3" not in out
     assert "openssl" not in out
 
 
@@ -923,7 +930,7 @@ def test_check_cves_preserves_entries_for_unpinned_images(
     entries now age out on their own TTL."""
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
-    unrelated_key = "org/proposed-candidate@sha256:" + "e" * 64
+    unrelated_key = f"org/proposed-candidate@{SHA256_E}"
     unrelated_entry = {
         "scanned_at": datetime.now(UTC).isoformat(),
         "vulnerabilities": [trimmed(vuln("CRITICAL", cve="CVE-PROPOSED"))],
@@ -981,7 +988,7 @@ def test_resolve_scan_digest_looks_up_an_unpinned_tag(libcvecheck: ModuleType, m
     "lookup",
     [
         lambda host, repo, tag: (False, None),
-        lambda host, repo, tag: (_ for _ in ()).throw(urllib.error.URLError("network down")),
+        raising(urllib.error.URLError("network down")),
     ],
     ids=["tag-missing", "network-error"],
 )

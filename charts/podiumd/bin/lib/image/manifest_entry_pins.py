@@ -30,17 +30,21 @@ def entry_pin(
     if not path:
         return None, None
     tag = paths[path]
-    return path, tag and (resolved_digest_pin(values, path, tag, sibling_fields) or tag)
+    if not tag:
+        return path, tag
+    return path, resolved_digest_pin(values, path, tag, sibling_fields) or tag
 
 
 def _rewrite_entry_pin(lines: list[str], start: int, tag: str) -> None:
     """Sets the version:/digest: lines of the entry starting at
     lines[start] to `tag` ("<version>@<digest>")."""
     version, digest = tag.split("@", 1)
-    for i in range(start, entry_block_end(lines, start)):
-        m = re.match(r"^\s*(version|digest):", lines[i])
-        if m:
-            lines[i] = replace_scalar_value(lines[i], version if m.group(1) == "version" else digest)
+    for line_index in range(start, entry_block_end(lines, start)):
+        field_match = re.match(r"^\s*(version|digest):", lines[line_index])
+        if field_match:
+            lines[line_index] = replace_scalar_value(
+                lines[line_index], version if field_match.group(1) == "version" else digest
+            )
 
 
 def sync_entry_pins(
@@ -57,7 +61,8 @@ def sync_entry_pins(
     synced: list[str] = []
     for start, entry in zip(parsed.entry_line_indices, parsed.entries, strict=True):
         _path, tag = entry_pin(entry, index.values, index.paths, index.repo_map, sibling_fields)
-        if tag is None or "@" not in tag or tag == f"{entry.get('version')}@{entry.get('digest')}":
+        written = f"{entry.get('version')}@{entry.get('digest')}"
+        if tag is None or "@" not in tag or tag == written:
             continue
         _rewrite_entry_pin(lines, start, tag)
         synced.append(entry["name"])

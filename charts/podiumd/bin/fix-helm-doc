@@ -43,6 +43,25 @@ def build_cmd(*, dry_run: bool):
     return cmd
 
 
+def run_helm_docs(*, dry_run: bool) -> str:
+    """helm-docs' stdout; exits 1 when helm-docs fails."""
+    result = run(build_cmd(dry_run=dry_run), capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"FAIL: helm-docs failed: {result.stderr.strip()}", file=sys.stderr)
+        sys.exit(1)
+    return result.stdout
+
+
+def report_readme_diff(readme_path: Path) -> None:
+    """Print git's diff stat of the regenerated README, or that nothing changed."""
+    diff = run(["git", "diff", "--stat", "--", str(readme_path)], capture_output=True, text=True)
+    if diff.stdout.strip():
+        print(diff.stdout, end="")
+        print(f"{README_FILENAME} regenerated — review the diff above and stage it yourself before committing")
+    else:
+        print(f"OK: {README_FILENAME} already matched helm-docs output — nothing changed")
+
+
 def main():
     """CLI entry point; writes only when the output differs, so a no-op run keeps the mtime."""
     dry_run = "--dry-run" in flag_args(__doc__, "--dry-run")
@@ -55,27 +74,14 @@ def main():
         sys.exit(0 if ok else 1)
 
     readme_path = CHART_DIR / README_FILENAME
-    dry_result = run(build_cmd(dry_run=True), capture_output=True, text=True)
-    if dry_result.returncode != 0:
-        print(f"FAIL: helm-docs failed: {dry_result.stderr.strip()}", file=sys.stderr)
-        sys.exit(1)
-
+    expected = run_helm_docs(dry_run=True)
     current_lines = readme_path.read_text(encoding="utf-8").splitlines() if readme_path.is_file() else None
-    if dry_result.stdout.splitlines() == current_lines:
+    if expected.splitlines() == current_lines:
         print(f"OK: {README_FILENAME} already matched helm-docs output — nothing changed")
         return
 
-    result = run(build_cmd(dry_run=False), capture_output=True, text=True)
-    if result.returncode != 0:
-        print(f"FAIL: helm-docs failed: {result.stderr.strip()}", file=sys.stderr)
-        sys.exit(1)
-
-    diff = run(["git", "diff", "--stat", "--", str(readme_path)], capture_output=True, text=True)
-    if diff.stdout.strip():
-        print(diff.stdout, end="")
-        print(f"{README_FILENAME} regenerated — review the diff above and stage it yourself before committing")
-    else:
-        print(f"OK: {README_FILENAME} already matched helm-docs output — nothing changed")
+    run_helm_docs(dry_run=False)
+    report_readme_diff(readme_path)
 
 
 if __name__ == "__main__":

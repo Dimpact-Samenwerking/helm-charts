@@ -11,6 +11,7 @@ from collections.abc import Callable
 from collections.abc import Mapping
 from pathlib import Path
 from typing import TypeGuard
+from typing import override
 
 import yaml
 
@@ -27,7 +28,13 @@ class YamlShapeError(ValueError):
     """Parsed YAML does not have the shape its reader expects."""
 
     def __init__(self, source: str, problem: str):
-        super().__init__(f"{source}: {problem}")
+        super().__init__(source, problem)
+        self.source: str = source
+        self.problem: str = problem
+
+    @override
+    def __str__(self) -> str:
+        return f"{self.source}: {self.problem}"
 
 
 def yaml_path(where: str, key: str) -> str:
@@ -46,7 +53,7 @@ def is_object_dict(value: object) -> TypeGuard[dict[object, object]]:
 
 
 def _list_problem(items: list[object], where: str) -> str | None:
-    return next((p for i, item in enumerate(items) if (p := yaml_problem(item, f"{where}[{i}]")) is not None), None)
+    return first_problem(*(yaml_problem(item, f"{where}[{index}]") for index, item in enumerate(items)))
 
 
 def _mapping_problem(mapping: dict[object, object], where: str) -> str | None:
@@ -87,7 +94,7 @@ def key_problem(
 
 def first_problem(*problems: str | None) -> str | None:
     """The first of `problems` that is not None, or None."""
-    return next((p for p in problems if p is not None), None)
+    return next((problem for problem in problems if problem is not None), None)
 
 
 def is_yaml_mapping(value: object) -> TypeGuard[YamlMapping]:
@@ -171,32 +178,37 @@ def _is_object_tuple(value: object) -> TypeGuard[tuple[object, ...]]:
 
 def _alternatives_problem(value: object, shape: tuple[object, ...], where: str) -> str | None:
     problems = [shape_problem(value, alternative, where) for alternative in shape]
-    return None if None in problems else next(p for p in problems if p is not None)
+    return None if None in problems else first_problem(*problems)
 
 
 def _list_problem_of(value: object, item_shape: object, where: str) -> str | None:
     if not is_object_list(value):
         return f"{where or '(top level)'}: expected a list, got {type(value).__name__}"
-    return first_problem(*(shape_problem(item, item_shape, f"{where}[{i}]") for i, item in enumerate(value)))
+    item_problems = (shape_problem(item, item_shape, f"{where}[{index}]") for index, item in enumerate(value))
+    return first_problem(*item_problems)
 
 
 def _mapping_problem_of(value: object, shape: dict[object, object], where: str) -> str | None:
     if not is_object_dict(value):
         return f"{where or '(top level)'}: expected a mapping, got {type(value).__name__}"
-    mapping = value
     for spec, key_shape in shape.items():
-        if not isinstance(spec, str):
-            msg = f"not a shape key: {spec!r}"
-            raise TypeError(msg)
-        key = spec.removesuffix("?")
-        if key not in mapping:
-            if spec.endswith("?"):
-                continue
-            return f"{where or '(top level)'}: missing {key!r}"
-        problem = shape_problem(mapping[key], key_shape, yaml_path(where, key))
+        problem = _key_problem(value, spec, key_shape, where)
         if problem is not None:
             return problem
     return None
+
+
+def _key_problem(mapping: dict[object, object], spec: object, key_shape: object, where: str) -> str | None:
+    """What is wrong with `mapping`'s key `spec` ("key?" when optional) against `key_shape`, or None."""
+    if not isinstance(spec, str):
+        msg = f"not a shape key: {spec!r}"
+        raise TypeError(msg)
+    key = spec.removesuffix("?")
+    if key in mapping:
+        return shape_problem(mapping[key], key_shape, yaml_path(where, key))
+    if spec.endswith("?"):
+        return None
+    return f"{where or '(top level)'}: missing {key!r}"
 
 
 def shape_problem(value: object, shape: object, where: str = "") -> str | None:

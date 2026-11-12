@@ -1,4 +1,4 @@
-"""add_missing_images_manifest_entries ordering, header and backfill scenarios
+"""add_missing_manifest_entries ordering, header and backfill scenarios
 (ordered_images_manifest_chart_dir fixture cluster)."""
 
 from pathlib import Path
@@ -8,8 +8,13 @@ import pytest
 import yaml
 
 from lib.chart.chart_yaml import ChartDependency
-from lib.fix_doc_consistency.manifest_entries_new_and_urls import MissingEntriesContext
-from lib.fix_doc_consistency.manifest_entries_new_and_urls import add_missing_images_manifest_entries
+from lib.docs_consistency.images_manifest_format import entries_without_mention
+from lib.fix_doc_consistency.new_and_removed_entries import MissingEntriesContext
+from lib.fix_doc_consistency.new_and_removed_entries import add_missing_manifest_entries
+from lib.images_manifest import ManifestEntry
+from lib.images_manifest import try_parse_images_manifest
+from lib.upgradedoc.chart_image_index import ChartImageIndex
+from lib.upgradedoc.chart_image_index import entry_resolution_of
 from lib.yaml_types import YamlMapping
 
 
@@ -75,8 +80,8 @@ def _ordered_baseline_values() -> YamlMapping:
 def test_add_missing_images_manifest_entries_ignores_wrapped_line_that_looks_like_an_item(
     cdb: ModuleType, ordered_images_manifest_chart_dir
 ):
-    """A continuation line starting with a version ("1.19.1-static, ...")
-    is not a numbered item; a loose "\\d+\\." regex split item prose this
+    r"""A continuation line starting with a version ("1.19.1-static, ...")
+    is not a numbered item; a loose "\d+\." regex split item prose this
     way, CHANGES_ITEM_RE (whitespace after the period) does not."""
     text = (
         "# One change:\n"
@@ -102,7 +107,7 @@ def test_add_missing_images_manifest_entries_ignores_wrapped_line_that_looks_lik
         '  digest: "sha256:bbbb"\n'
     )
 
-    new_text, added, skipped, backfilled = add_missing_images_manifest_entries(
+    result = add_missing_manifest_entries(
         text,
         MissingEntriesContext(
             ordered_images_manifest_chart_dir,
@@ -112,15 +117,15 @@ def test_add_missing_images_manifest_entries_ignores_wrapped_line_that_looks_lik
         ),
     )
 
-    assert added == []
-    assert skipped == []
-    assert set(backfilled) == {"zac", "keycloak-operator - postgres"}
+    assert result.added_names == []
+    assert result.skipped_names == []
+    assert set(result.backfilled_names) == {"zac", "keycloak-operator - postgres"}
     # Item 1's two-line prose stays intact.
     assert (
         "#   1. openzaak 1.27.4 -> 1.29.3. Also touches related versions:\n"
         "#      1.19.1-static and 2.3.4-slim, both unrelated to this number.\n"
         "#   2."
-    ) in new_text
+    ) in result.text
 
 
 def test_add_missing_images_manifest_entries_creates_missing_header_from_scratch(
@@ -142,7 +147,7 @@ def test_add_missing_images_manifest_entries_creates_missing_header_from_scratch
         '  digest: "sha256:aaaa"\n'
     )
 
-    new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
+    result = add_missing_manifest_entries(
         text,
         MissingEntriesContext(
             ordered_images_manifest_chart_dir,
@@ -152,13 +157,13 @@ def test_add_missing_images_manifest_entries_creates_missing_header_from_scratch
         ),
     )
 
-    assert skipped == []
-    assert set(added) == {"keycloak-operator - postgres", "zac"}
-    assert "# Changes:\n" in new_text
-    header_idx = new_text.index("# Changes:\n")
-    intro_idx = new_text.index("# Images new or changed")
+    assert result.skipped_names == []
+    assert set(result.added_names) == {"keycloak-operator - postgres", "zac"}
+    assert "# Changes:\n" in result.text
+    header_idx = result.text.index("# Changes:\n")
+    intro_idx = result.text.index("# Images new or changed")
     assert intro_idx < header_idx  # created right after the intro block, not just anywhere
-    changes_block = new_text[header_idx:]
+    changes_block = result.text[header_idx:]
     for name in ("openzaak", "keycloak-operator - postgres", "zac"):
         assert f". {name} " in changes_block, f"{name!r} has no '# Changes:' list item"
 
@@ -182,7 +187,7 @@ def test_add_missing_images_manifest_entries_empty_bare_header_gets_first_item(
         "[]\n"
     )
 
-    new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
+    result = add_missing_manifest_entries(
         text,
         MissingEntriesContext(
             ordered_images_manifest_chart_dir,
@@ -192,12 +197,12 @@ def test_add_missing_images_manifest_entries_empty_bare_header_gets_first_item(
         ),
     )
 
-    assert skipped == []
-    assert set(added) == {"keycloak-operator - postgres", "openzaak", "zac"}
-    header_idx = new_text.index("# Changes:\n")
-    first_item_idx = new_text.index("#   1. ")
+    assert result.skipped_names == []
+    assert set(result.added_names) == {"keycloak-operator - postgres", "openzaak", "zac"}
+    header_idx = result.text.index("# Changes:\n")
+    first_item_idx = result.text.index("#   1. ")
     assert header_idx < first_item_idx < header_idx + len("# Changes:\n") + 40
-    assert "# See docs/_UPGRADE_PATHS" in new_text  # rest of the header preserved
+    assert "# See docs/_UPGRADE_PATHS" in result.text  # rest of the header preserved
 
 
 def test_add_missing_images_manifest_entries_stub_placeholder_not_left_alongside_first_entry(
@@ -207,7 +212,7 @@ def test_add_missing_images_manifest_entries_stub_placeholder_not_left_alongside
     "[]" followed by "- name:" is invalid YAML."""
     text = "# Baseline: podiumd 4.8.5. Re-verify before release.\n#\n# Changes:\n#\n\n[]\n"
 
-    new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
+    result = add_missing_manifest_entries(
         text,
         MissingEntriesContext(
             ordered_images_manifest_chart_dir,
@@ -217,10 +222,10 @@ def test_add_missing_images_manifest_entries_stub_placeholder_not_left_alongside
         ),
     )
 
-    assert skipped == []
-    assert set(added) == {"keycloak-operator - postgres", "openzaak", "zac"}
-    assert "[]" not in new_text
-    yaml.safe_load(new_text)  # must not raise
+    assert result.skipped_names == []
+    assert set(result.added_names) == {"keycloak-operator - postgres", "openzaak", "zac"}
+    assert "[]" not in result.text
+    yaml.safe_load(result.text)  # must not raise
 
 
 def test_add_missing_images_manifest_entries_second_run_is_a_noop_not_a_duplicate(
@@ -230,7 +235,7 @@ def test_add_missing_images_manifest_entries_second_run_is_a_noop_not_a_duplicat
     no entries and re-add them all. Runs must be idempotent."""
     text = "# Baseline: podiumd 4.8.5. Re-verify before release.\n#\n# Changes:\n#\n\n[]\n"
 
-    first_text, first_added, _skipped, _backfilled = add_missing_images_manifest_entries(
+    first_result = add_missing_manifest_entries(
         text,
         MissingEntriesContext(
             ordered_images_manifest_chart_dir,
@@ -239,10 +244,10 @@ def test_add_missing_images_manifest_entries_second_run_is_a_noop_not_a_duplicat
             _ordered_baseline_values(),
         ),
     )
-    assert first_added != []
+    assert first_result.added_names != []
 
-    second_text, second_added, _second_skipped, second_backfilled = add_missing_images_manifest_entries(
-        first_text,
+    second_result = add_missing_manifest_entries(
+        first_result.text,
         MissingEntriesContext(
             ordered_images_manifest_chart_dir,
             _ordered_deps(),
@@ -251,11 +256,11 @@ def test_add_missing_images_manifest_entries_second_run_is_a_noop_not_a_duplicat
         ),
     )
 
-    assert second_added == []
-    assert second_backfilled == []
-    assert second_text == first_text
-    assert second_text.count("- name: library/postgres") == 1
-    assert second_text.count("- name: openzaak/open-zaak") == 1
+    assert second_result.added_names == []
+    assert second_result.backfilled_names == []
+    assert second_result.text == first_result.text
+    assert second_result.text.count("- name: library/postgres") == 1
+    assert second_result.text.count("- name: openzaak/open-zaak") == 1
 
 
 def test_add_missing_images_manifest_entries_backfills_header_item_for_existing_entry(
@@ -287,7 +292,7 @@ def test_add_missing_images_manifest_entries_backfills_header_item_for_existing_
         '  digest: "sha256:cccc"\n'
     )
 
-    new_text, added, skipped, backfilled = add_missing_images_manifest_entries(
+    result = add_missing_manifest_entries(
         text,
         MissingEntriesContext(
             ordered_images_manifest_chart_dir,
@@ -297,14 +302,14 @@ def test_add_missing_images_manifest_entries_backfills_header_item_for_existing_
         ),
     )
 
-    assert added == []
-    assert skipped == []
-    assert backfilled == ["keycloak-operator - postgres"]
+    assert result.added_names == []
+    assert result.skipped_names == []
+    assert result.backfilled_names == ["keycloak-operator - postgres"]
     # Appended; fix-doc-consistency's sort puts it in place.
-    assert "#   3. keycloak-operator - postgres 16 -> 16.15." in new_text
-    assert "#   2. zac 5.0.2 -> 5.1.0." in new_text
-    assert "# Three changes:" in new_text
-    assert new_text.count("- name: postgres") == 1
+    assert "#   3. keycloak-operator - postgres 16 -> 16.15." in result.text
+    assert "#   2. zac 5.0.2 -> 5.1.0." in result.text
+    assert "# Three changes:" in result.text
+    assert result.text.count("- name: postgres") == 1
 
 
 @pytest.fixture
@@ -357,7 +362,7 @@ def test_add_missing_images_manifest_entries_lockstep_component_gets_one_header_
         }
     }
 
-    new_text, added, skipped, _backfilled = add_missing_images_manifest_entries(
+    result = add_missing_manifest_entries(
         text,
         MissingEntriesContext(
             zgw_office_addin_chart_dir,
@@ -367,11 +372,55 @@ def test_add_missing_images_manifest_entries_lockstep_component_gets_one_header_
         ),
     )
 
-    assert skipped == []
-    assert added == ["zgw-office-addin", "zgw-office-addin"]
-    assert new_text.count("zgw-office-addin v0.9.313 -> 0.11.0.") == 1
-    assert new_text.count("- name: infonl/zgw-office-addin-frontend") == 1
-    assert new_text.count("- name: infonl/zgw-office-addin-backend") == 1
+    assert result.skipped_names == []
+    assert result.added_names == ["zgw-office-addin", "zgw-office-addin"]
+    assert result.text.count("zgw-office-addin v0.9.313 -> 0.11.0.") == 1
+    assert result.text.count("- name: infonl/zgw-office-addin-frontend") == 1
+    assert result.text.count("- name: infonl/zgw-office-addin-backend") == 1
+
+
+def parse_entries(text: str) -> list[ManifestEntry]:
+    entries = try_parse_images_manifest(text)
+    assert entries is not None
+    return entries
+
+
+def test_backfill_writer_then_checker_reports_nothing(ordered_images_manifest_chart_dir: Path):
+    """The checker reports the entry the writer backfills, and nothing after it; a second run changes nothing."""
+    text = (
+        "# Two changes:\n"
+        "#   1. openzaak 1.27.4 -> 1.29.3.\n"
+        "#   2. zac 5.0.2 -> 5.1.0.\n"
+        "\n"
+        "# openzaak — 1.27.4 -> 1.29.3\n"
+        "- name: openzaak/open-zaak\n"
+        "  url: openzaak/open-zaak\n"
+        '  version: "1.29.3"\n'
+        '  digest: "sha256:aaaa"\n'
+        "\n"
+        "# keycloak-operator - postgres — 16 -> 16.15\n"
+        "- name: postgres\n"
+        "  url: postgres\n"
+        '  version: "16.15"\n'
+        '  digest: "sha256:bbbb"\n'
+        "\n"
+        "# zac — 5.0.2 -> 5.1.0\n"
+        "- name: infonl/zaakafhandelcomponent\n"
+        "  url: infonl/zaakafhandelcomponent\n"
+        '  version: "5.1.0"\n'
+        '  digest: "sha256:cccc"\n'
+    )
+    deps, values = _ordered_deps(), _ordered_target_values()
+    resolution = entry_resolution_of(ChartImageIndex(ordered_images_manifest_chart_dir, deps, values))
+    writer_context = MissingEntriesContext(ordered_images_manifest_chart_dir, deps, values, _ordered_baseline_values())
+
+    assert entries_without_mention(text, parse_entries(text), resolution) == ["keycloak-operator - postgres"]
+    first = add_missing_manifest_entries(text, writer_context)
+    assert first.backfilled_names == ["keycloak-operator - postgres"]
+    assert entries_without_mention(first.text, parse_entries(first.text), resolution) == []
+    second = add_missing_manifest_entries(first.text, writer_context)
+    assert second.backfilled_names == []
+    assert second.text == first.text
 
 
 def test_add_missing_images_manifest_entries_does_not_backfill_already_covered_entry(
@@ -404,7 +453,7 @@ def test_add_missing_images_manifest_entries_does_not_backfill_already_covered_e
         '  digest: "sha256:cccc"\n'
     )
 
-    new_text, added, skipped, backfilled = add_missing_images_manifest_entries(
+    result = add_missing_manifest_entries(
         text,
         MissingEntriesContext(
             ordered_images_manifest_chart_dir,
@@ -414,13 +463,13 @@ def test_add_missing_images_manifest_entries_does_not_backfill_already_covered_e
         ),
     )
 
-    assert added == []
-    assert skipped == []
+    assert result.added_names == []
+    assert result.skipped_names == []
     # The dependency-level mention doesn't cover the postgres sidecar; its item
     # is appended (fix-doc-consistency's sort puts it in place).
-    assert backfilled == ["keycloak-operator - postgres"]
-    assert "#   4. keycloak-operator - postgres 16 -> 16.15." in new_text
-    assert "#   3. zac 5.0.2 -> 5.1.0." in new_text
+    assert result.backfilled_names == ["keycloak-operator - postgres"]
+    assert "#   4. keycloak-operator - postgres 16 -> 16.15." in result.text
+    assert "#   3. zac 5.0.2 -> 5.1.0." in result.text
 
 
 def test_add_missing_images_manifest_entries_backfill_is_noop_when_already_covered(
@@ -452,7 +501,7 @@ def test_add_missing_images_manifest_entries_backfill_is_noop_when_already_cover
         '  digest: "sha256:cccc"\n'
     )
 
-    new_text, added, skipped, backfilled = add_missing_images_manifest_entries(
+    result = add_missing_manifest_entries(
         text,
         MissingEntriesContext(
             ordered_images_manifest_chart_dir,
@@ -462,10 +511,10 @@ def test_add_missing_images_manifest_entries_backfill_is_noop_when_already_cover
         ),
     )
 
-    assert added == []
-    assert skipped == []
-    assert backfilled == []
-    assert new_text == text
+    assert result.added_names == []
+    assert result.skipped_names == []
+    assert result.backfilled_names == []
+    assert result.text == text
 
 
 def test_add_missing_images_manifest_entries_backfill_coverage_check_is_case_insensitive(
@@ -497,7 +546,7 @@ def test_add_missing_images_manifest_entries_backfill_coverage_check_is_case_ins
         '  digest: "sha256:bbbb"\n'
     )
 
-    new_text, added, skipped, backfilled = add_missing_images_manifest_entries(
+    result = add_missing_manifest_entries(
         text,
         MissingEntriesContext(
             ordered_images_manifest_chart_dir,
@@ -508,10 +557,10 @@ def test_add_missing_images_manifest_entries_backfill_coverage_check_is_case_ins
     )
 
     # "zac" is covered by item 2; only the postgres sidecar needs an item.
-    assert added == []
-    assert skipped == []
-    assert backfilled == ["keycloak-operator - postgres"]
-    assert new_text.count("ZAC (Zaakafhandelcomponent)") == 1  # item 2 untouched, never duplicated
+    assert result.added_names == []
+    assert result.skipped_names == []
+    assert result.backfilled_names == ["keycloak-operator - postgres"]
+    assert result.text.count("ZAC (Zaakafhandelcomponent)") == 1  # item 2 untouched, never duplicated
 
 
 def test_add_missing_images_manifest_entries_skips_dotted_fallback_name_entirely(cdb: ModuleType, tmp_path: Path):
@@ -563,7 +612,7 @@ def test_add_missing_images_manifest_entries_skips_dotted_fallback_name_entirely
         '  digest: "sha256:bbbb"\n'
     )
 
-    new_text, added, skipped, backfilled = add_missing_images_manifest_entries(
+    result = add_missing_manifest_entries(
         text,
         MissingEntriesContext(
             tmp_path,
@@ -573,7 +622,7 @@ def test_add_missing_images_manifest_entries_skips_dotted_fallback_name_entirely
         ),
     )
 
-    assert added == []
-    assert skipped == []
-    assert backfilled == []
-    assert new_text == text
+    assert result.added_names == []
+    assert result.skipped_names == []
+    assert result.backfilled_names == []
+    assert result.text == text

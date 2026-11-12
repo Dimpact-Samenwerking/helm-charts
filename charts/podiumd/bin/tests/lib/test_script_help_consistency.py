@@ -21,25 +21,37 @@ def _python_scripts() -> list[Path]:
     return sorted(
         path
         for path in BIN_DIR.iterdir()
-        if path.is_file() and path.stat().st_mode & 0o100 and path.read_text(encoding="utf-8").startswith("#!")
-        if "python" in path.read_text(encoding="utf-8").splitlines()[0]
+        if path.is_file()
+        and path.stat().st_mode & 0o100
+        and path.read_text(encoding="utf-8").startswith("#!")
+        and "python" in path.read_text(encoding="utf-8").splitlines()[0]
     )
+
+
+def _argument_section_lines(doc: str) -> list[str]:
+    """The lines of a docstring's Arguments/Options sections, with an empty line for every heading."""
+    lines: list[str] = []
+    in_section = False
+    for line in doc.splitlines():
+        if re.match(r"^\S", line):
+            in_section = line.strip() in SECTIONS
+            lines.append("")
+        elif in_section:
+            lines.append(line)
+    return lines
 
 
 def _help_entries(doc: str) -> dict[str, str]:
     """{argument or option name: explanation, wrapped lines joined} of a docstring's Arguments/Options sections."""
     entries: dict[str, str] = {}
-    in_section, current = False, None
-    for line in doc.splitlines():
-        if re.match(r"^\S", line):
-            in_section, current = line.strip() in SECTIONS, None
-            continue
-        match = ENTRY_RE.match(line) if in_section else None
+    current = None
+    for line in _argument_section_lines(doc):
+        match = ENTRY_RE.match(line)
         if match:
             current = match.group("name")
             entries[current] = match.group("text").strip()
         elif current and line.startswith("      ") and line.strip():
-            entries[current] += " " + line.strip()
+            entries[current] = " ".join((entries[current], line.strip()))
         else:
             current = None
     return entries
@@ -67,6 +79,6 @@ def test_one_argument_name_has_one_explanation_in_every_script():
     drifted = {name: dict(texts) for name, texts in _explanations_by_name().items() if len(texts) > 1}
 
     assert not drifted, "\n".join(
-        f"{name}:\n" + "\n".join(f"  {scripts}: {text}" for text, scripts in texts.items())
+        "\n".join([f"{name}:", *(f"  {scripts}: {text}" for text, scripts in texts.items())])
         for name, texts in drifted.items()
     )

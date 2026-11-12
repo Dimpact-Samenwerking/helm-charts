@@ -1,7 +1,6 @@
 """Resolve a chart dependency's vendored or pulled chart: values, appVersion, image repositories, pins."""
 
 import copy
-import shutil
 import sys
 import tempfile
 
@@ -13,7 +12,10 @@ from lib.chart.chart_yaml import parse_chart_app_version
 from lib.chart.chart_yaml import parse_chart_dependencies
 from lib.chart.nested_subchart_identity import nested_subchart_raw_text
 from lib.chart.registered_paths import image_paths_for
+from lib.chart.values_tree_primitives import ValuesPath
 from lib.chart.values_tree_primitives import deep_merge
+from lib.chart.values_tree_primitives import dependency_name_and_alias
+from lib.chart.values_tree_primitives import field_text
 from lib.chart.values_tree_primitives import mapping_at
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
@@ -32,9 +34,9 @@ from lib.yaml_types import scalar_text
 
 def resolved_digest_pin(
     values: YamlMapping | None,
-    path: tuple[str, ...],
+    path: ValuesPath,
     tag: str,
-    sibling_fields: Mapping[tuple[str, ...], DigestPinningException],
+    sibling_fields: Mapping[ValuesPath, DigestPinningException],
 ) -> str | None:
     """`tag` with its digest: its own "@sha256:" suffix, or one read from a registered sibling field.
 
@@ -46,10 +48,10 @@ def resolved_digest_pin(
     if "@" in tag:
         return tag
     exception = sibling_fields.get(path)
-    sibling_field = exception.get("sibling_field") if exception is not None else None
+    sibling_field = None if exception is None else exception.get("sibling_field")
     if sibling_field is None:
         return None
-    digest = text_at(values, ".".join(path) + f".{sibling_field}")
+    digest = field_text(values, path, sibling_field)
     if not isinstance(digest, str) or not digest:
         return None
     return f"{tag}@{digest}" if digest.startswith("sha256:") else f"{tag}@sha256:{digest}"
@@ -69,7 +71,7 @@ def chart_ref(dep: ChartDependency):
     if repo.startswith("file://"):
         return None, None
     msg = f"error: unsupported repository scheme: {repo}"
-    raise SystemExit(msg)
+    sys.exit(msg)
 
 
 def local_chart_dir(chart_dir: Path, dep: ChartDependency):
@@ -87,7 +89,7 @@ def require_local_chart_dir(local_dir: Path, dep: ChartDependency) -> None:
             f"error: dependency '{dep['name']}' declares local path repository "
             f"({dep.get('repository')}), but {local_dir} does not exist"
         )
-        raise SystemExit(msg)
+        sys.exit(msg)
 
 
 def pull_chart(dep: ChartDependency, version: str, dest: Path):
@@ -107,29 +109,27 @@ def pull_chart(dep: ChartDependency, version: str, dest: Path):
 
 def pulled_chart_dir(tmpdir: Path):
     """The single chart directory `helm pull --untar` produced under tmpdir."""
-    chart_dirs = [p for p in Path(tmpdir).iterdir() if p.is_dir()]
+    chart_dirs = [entry for entry in Path(tmpdir).iterdir() if entry.is_dir()]
     if not chart_dirs:
         msg = f"error: helm pull produced no chart directory in {tmpdir}"
-        raise SystemExit(msg)
+        sys.exit(msg)
     return chart_dirs[0]
 
 
 def pull_chart_values(dep: ChartDependency, version: str):
     """The parsed values.yaml of `dep` at `version`, pulled into a temp dir; exits if the pull fails."""
-    tmpdir = Path(tempfile.mkdtemp(prefix="pull-chart-values-"))
-    try:
+    with tempfile.TemporaryDirectory(prefix="pull-chart-values-", ignore_cleanup_errors=True) as tmp:
+        tmpdir = Path(tmp)
         ok, stderr = pull_chart(dep, version, tmpdir)
         if not ok:
             msg = f"error: could not pull {dep['name']} {version}: {stderr}"
-            raise SystemExit(msg)
+            sys.exit(msg)
         chart_dir = pulled_chart_dir(tmpdir)
         return load_yaml_mapping(chart_dir / "values.yaml")
-    finally:
-        shutil.rmtree(tmpdir, ignore_errors=True)
 
 
-def verify_chart_version(chart_dir: Path, dep: ChartDependency, version: str):
-    """Print a FOUND/MISSING line for `dep` at `version` and exit 1 if missing.
+def verify_chart_version(chart_dir: Path, dep: ChartDependency, version: str, *, fail_note: str = ""):
+    """Print a FOUND/MISSING line for `dep` at `version` and exit 1 if missing; `fail_note` ends the FAIL line.
 
     Prefers a vendored .tgz over `helm pull` (see resolve_chart_values).
     Returns the chart's parsed values.yaml, needed for the image check.
@@ -137,12 +137,12 @@ def verify_chart_version(chart_dir: Path, dep: ChartDependency, version: str):
     chart_name = dep["name"]
     print(f"Checking chart version {version!r} for {chart_name}:")
     values, source, error = resolve_chart_values(chart_dir, dep, version)
-    status = "FOUND  " if values is not None else "MISSING"
-    suffix = f"  ({source})" if values is not None else f"  ({error})"
+    status = "MISSING" if values is None else "FOUND  "
+    suffix = f"  ({error})" if values is None else f"  ({source})"
     print(f"  [{status}] {chart_name} {version}{suffix}")
     if values is None:
         print()
-        print("FAIL: chart version does not exist")
+        print(f"FAIL: chart version does not exist{fail_note}")
         sys.exit(1)
     return values
 
@@ -158,15 +158,15 @@ def formatted_repo(repo: str):
     return f"{host}/{repo_path}"
 
 
-def own_full_repository(values: YamlMapping | None, path: tuple[str, ...]):
+def own_full_repository(values: YamlMapping | None, path: ValuesPath):
     """The host-qualified repository of the image block at `path`, honouring a sibling "registry:"; or None.
 
     First tier of full_repository_for_path.
     """
-    own_repo = text_at(values, ".".join(path) + ".repository")
+    own_repo = field_text(values, path, "repository")
     if not (isinstance(own_repo, str) and own_repo):
         return None
-    registry = text_at(values, ".".join(path) + ".registry")
+    registry = field_text(values, path, "registry")
     if isinstance(registry, str) and registry:
         registry_head = registry.partition("/")[0]
         if "." in registry_head or ":" in registry_head or registry_head == "localhost":
@@ -182,17 +182,20 @@ def component_check_values(chart_values: YamlMapping, component_values: YamlMapp
     return merged
 
 
-def print_image_version_results(results: list[ImagePathTagCheck], app_version: str) -> bool:
-    """Print a FOUND/MISSING line per distinct image; True when every image version exists."""
+def require_image_versions(results: list[ImagePathTagCheck], app_version: str, *, fail_note: str = "") -> None:
+    """Print a FOUND/MISSING line per distinct image and exit 1 if any is missing; `fail_note` ends the FAIL line."""
     printed: set[tuple[str, str]] = set()
-    for r in results:
-        if (r["host"], r["repo_path"]) in printed:
+    for result in results:
+        if (result["host"], result["repo_path"]) in printed:
             continue
-        printed.add((r["host"], r["repo_path"]))
-        status = "FOUND  " if r["exists"] else "MISSING"
-        suffix = f"  digest={r['digest']}" if r["digest"] else ""
-        print(f"  [{status}] {r['host']}/{r['repo_path']}:{app_version}{suffix}")
-    return all(r["exists"] for r in results)
+        printed.add((result["host"], result["repo_path"]))
+        status = "FOUND  " if result["exists"] else "MISSING"
+        suffix = f"  digest={result['digest']}" if result["digest"] else ""
+        print(f"  [{status}] {result['host']}/{result['repo_path']}:{app_version}{suffix}")
+    if not all(result["exists"] for result in results):
+        print()
+        print(f"FAIL: one or more app image versions do not exist yet{fail_note}")
+        sys.exit(1)
 
 
 def subchart_values(chart_dir: Path, dep: ChartDependency, version: str | None = None):
@@ -228,7 +231,7 @@ def subchart_dependencies(chart_dir: Path, dep: ChartDependency, version: str | 
     return [] if raw is None else parse_chart_dependencies(raw.decode("utf-8"), f"{dep['name']} Chart.yaml")
 
 
-def resolve_subchart_default(chart_dir: Path, dep: ChartDependency, chart_name: str, path: tuple[str, ...]):
+def resolve_subchart_default(chart_dir: Path, dep: ChartDependency, chart_name: str, path: ValuesPath):
     """(chart_tree_path, version) for image `path` in `dep`'s vendored default values.
 
     chart_tree_path is the chart-tree directory owning `path`, for the
@@ -240,9 +243,11 @@ def resolve_subchart_default(chart_dir: Path, dep: ChartDependency, chart_name: 
     If path[0] names one of dep's own nested dependencies (e.g.
     openinwoner's bundled eck-operator), both come from that nested chart.
     """
-    base_path = f"{chart_name}/charts/{dep.get('alias') or dep['name']}"
+    base_path = f"{chart_name}/charts/{values_key_of(dep)}"
+    nested_deps = subchart_dependencies(chart_dir, dep)
     nested = next(
-        (d for d in subchart_dependencies(chart_dir, dep) if path and path[0] in (d.get("alias"), d["name"])), None
+        (nested_dep for nested_dep in nested_deps if path and path[0] in dependency_name_and_alias(nested_dep)),
+        None,
     )
     if nested is None:
         return base_path, subchart_app_version(chart_dir, dep)
@@ -264,15 +269,13 @@ def resolve_chart_values(chart_dir: Path, dep: ChartDependency, version: str, *,
         return values, "vendored", None
     if not allow_pull:
         return None, None, f"{dep['name']} {version} is not vendored, and pulling is disabled"
-    tmpdir = Path(tempfile.mkdtemp(prefix="resolve-chart-values-"))
-    try:
+    with tempfile.TemporaryDirectory(prefix="resolve-chart-values-", ignore_cleanup_errors=True) as tmp:
+        tmpdir = Path(tmp)
         ok, stderr = pull_chart(dep, version, tmpdir)
         if not ok:
             return None, None, stderr
         pulled_dir = pulled_chart_dir(tmpdir)
         return load_yaml_mapping(pulled_dir / "values.yaml"), "pulled", None
-    finally:
-        shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 def primary_image_repositories(
@@ -290,29 +293,30 @@ def primary_image_repositories(
     path had an override. chart_dir None counts as "not vendored, no pull".
     """
     values_key = values_key_of(dep)
-    version = version or dep["version"]
     results: dict[str, str | None] = {}
-    subchart_state: tuple[YamlMapping | None, str | None] | None = (
-        None  # lazily filled on first path that needs it: (values_or_None, error_or_None)
-    )
     for path in image_paths_for(dep["name"], chart_dir):
         repo = text_at(own_values, f"{values_key}.{path}.repository")
-        if isinstance(repo, str) and repo:
-            results[path] = repo
-            continue
-        if subchart_state is None:
-            if chart_dir is None:
-                subchart_state = (None, f"no chart_dir given — can't resolve {dep['name']}'s subchart default")
-            else:
-                values, _source, err = resolve_chart_values(chart_dir, dep, version, allow_pull=allow_pull)
-                subchart_state = (values, err)
-        values, err = subchart_state
-        results[path] = text_at(values, f"{path}.repository") if values is not None else None
-    error = subchart_state[1] if subchart_state is not None else None
+        results[path] = repo if isinstance(repo, str) and repo else None
+    missing = [path for path, repo in results.items() if repo is None]
+    if not missing:
+        return results, None
+    values, error = _subchart_default_values(chart_dir, dep, version or dep["version"], allow_pull=allow_pull)
+    for path in missing:
+        results[path] = None if values is None else text_at(values, f"{path}.repository")
     return results, error
 
 
-def global_image_paths(values: YamlMapping) -> list[tuple[tuple[str, ...], str]]:
+def _subchart_default_values(
+    chart_dir: Path | None, dep: ChartDependency, version: str, *, allow_pull: bool
+) -> tuple[YamlMapping | None, str | None]:
+    """(values_or_None, error_or_None) of dep's subchart defaults at `version`."""
+    if chart_dir is None:
+        return None, f"no chart_dir given — can't resolve {dep['name']}'s subchart default"
+    values, _source, err = resolve_chart_values(chart_dir, dep, version, allow_pull=allow_pull)
+    return values, err
+
+
+def global_image_paths(values: YamlMapping) -> list[tuple[ValuesPath, str]]:
     """[(path, tag), ...] for every entry directly under global.images.
 
     These shared anchors are skipped by find_image_tag_paths' "...Image"

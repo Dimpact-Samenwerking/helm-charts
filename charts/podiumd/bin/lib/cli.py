@@ -2,19 +2,20 @@
 read sys.argv directly, and one-line errors instead of tracebacks for bad
 user input and network failures."""
 
-import http.client
 import sys
-import urllib.error
 
 from collections.abc import Generator
 from collections.abc import Sequence
 from contextlib import contextmanager
+from http.client import InvalidURL
 from pathlib import Path
+from urllib.error import HTTPError
+from urllib.error import URLError
 
 
 def exit_on_help(doc: str | None) -> None:
     """Print doc and exit 0 when the only argument is -h or --help."""
-    if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
+    if sys.argv[1:] in (["-h"], ["--help"]):
         print(doc)
         sys.exit(0)
 
@@ -46,24 +47,23 @@ def read_user_file(path: Path, what: str) -> str:
     """Text of a user-named file (`what`, e.g. "--token-file"). SystemExit
     when it is missing, not a file, unreadable or not UTF-8."""
     if not path.is_file():
-        msg = f"error: {what} {path} does not exist or is not a file"
-        raise SystemExit(msg)
+        sys.exit(f"error: {what} {path} does not exist or is not a file")
     try:
         return path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as e:
-        msg = f"error: {what} {path} can't be read: {e}"
-        raise SystemExit(msg) from e
+    except (OSError, UnicodeDecodeError) as error:
+        sys.exit(f"error: {what} {path} can't be read: {error}")
 
 
 def check_output_path(path: Path, what: str) -> None:
     """SystemExit when output path `what` (e.g. "--output") is a directory
     or its parent doesn't exist. Call before slow work to fail fast."""
     if path.is_dir():
-        msg = f"error: {what} {path} is a directory"
-        raise SystemExit(msg)
+        sys.exit(f"error: {what} {path} is a directory")
     if not path.parent.is_dir():
-        msg = f"error: {what} {path}: directory {path.parent} does not exist"
-        raise SystemExit(msg)
+        sys.exit(f"error: {what} {path}: directory {path.parent} does not exist")
+
+
+_NETWORK_ERRORS = (URLError, TimeoutError, ConnectionError, InvalidURL)
 
 
 @contextmanager
@@ -73,18 +73,25 @@ def network_errors(what: str) -> Generator[None]:
     `what` (e.g. "container registry")."""
     try:
         yield
-    except urllib.error.HTTPError as e:
-        msg = f"error: {what} request failed: HTTP {e.code} {e.reason} ({e.url})"
-        raise SystemExit(msg) from e
-    except urllib.error.URLError as e:
-        msg = f"error: could not reach {what}: {e.reason}"
-        raise SystemExit(msg) from e
-    except (TimeoutError, ConnectionError) as e:
-        msg = f"error: connection to {what} failed: {e}"
-        raise SystemExit(msg) from e
-    except http.client.InvalidURL as e:
-        msg = f"error: invalid {what} URL: {e}"
-        raise SystemExit(msg) from e
+    except _NETWORK_ERRORS as error:
+        sys.exit(_network_error_message(what, error))
+
+
+def _network_error_message(what: str, error: OSError | InvalidURL) -> str:
+    match error:
+        case HTTPError():
+            return f"error: {what} request failed: HTTP {error.code} {error.reason} ({error.url})"
+        case URLError():
+            return f"error: could not reach {what}: {error.reason}"
+        case InvalidURL():
+            return f"error: invalid {what} URL: {error}"
+        case _:
+            return f"error: connection to {what} failed: {error}"
+
+
+def noun_for(count: int, singular: str, plural: str) -> str:
+    """`singular` for a count of one, else `plural`."""
+    return singular if count == 1 else plural
 
 
 def print_section(title: str) -> None:
@@ -93,10 +100,9 @@ def print_section(title: str) -> None:
     print(f"=== {title} ===")
 
 
-def print_section_items(title: str, items: Sequence[str]) -> bool:
-    """print_section plus one indented line per item, only when there are items; returns whether there were."""
+def print_section_items(title: str, items: Sequence[str]) -> None:
+    """print_section plus one indented line per item, only when there are items."""
     if items:
         print_section(title)
         for item in items:
             print(f"  {item}")
-    return bool(items)

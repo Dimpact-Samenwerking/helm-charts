@@ -225,7 +225,8 @@ def test_check_kube_score_own_finding_fails(
     out = capsys.readouterr().out
     assert "fail the check" in out
     assert "Deployment/apps/v1//foo (app) — rendered line 3" in out
-    assert "CPU limit is not set" in out and "Memory limit is not set" in out
+    assert "CPU limit is not set" in out
+    assert "Memory limit is not set" in out
 
 
 def test_check_kube_score_ignores_non_resource_checks(

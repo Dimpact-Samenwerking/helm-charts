@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
 #
-# Runs README-coding.md's "Before committing" checks, fastest first
-# (measured), stopping at the first failure. Tool settings live in
-# pyproject.toml and .jscpd.json.
+# Runs README-coding.md's "Before committing" checks, all at the same time,
+# and lists every failed step. Tool settings live in pyproject.toml and
+# .jscpd.json.
 set -euo pipefail
 
 usage() {
     cat <<'HELP'
 Usage: run_python_checks [-h|--help]
 
-Upgrades the tools in requirements.txt, then runs ruff check, shellcheck,
-ruff format --check, jscpd, pymarkdown, vulture, bandit, basedpyright,
-pylint and pytest with coverage on charts/podiumd/bin/, fastest first.
-Stops at the first failure. Run from charts/podiumd/bin/.
+Upgrades pip and the tools in requirements.txt, then runs ruff check,
+shellcheck, ruff format --check, flake8 (wemake-python-styleguide), deptry,
+jscpd, pymarkdown, vulture, bandit, basedpyright, pylint, pytest with
+coverage and pip-audit (only warns) on charts/podiumd/bin/, all at the same
+time; prints each step's log in that order and lists every failed step.
 HELP
 }
 
@@ -23,20 +24,16 @@ fi
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
-# Prints the step's name, runs it and prints its time, to keep the
-# fastest-first order honest; set -e stops at a failure.
-step() {
-    local name=$1 start=${EPOCHREALTIME//[!0-9]/}
-    shift
-    echo "=== $name ==="
-    "$@"
-    local hundredths=$(((${EPOCHREALTIME//[!0-9]/} - start) / 10000))
-    printf '    (%d.%02d s)\n' $((hundredths / 100)) $((hundredths % 100))
-}
+# Until the steps run (stop_steps below), a signal ends the run at once; without
+# a trap, bash would wait for the running command and then carry on.
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # requirements.txt is unpinned: local runs and CI check with the same,
 # newest tool versions.
-step "pip install --upgrade" python3 -m pip install --quiet --disable-pip-version-check --upgrade -r requirements.txt
+echo "=== pip install --upgrade ==="
+python3 -m pip install --quiet --disable-pip-version-check --upgrade pip -r requirements.txt
 
 # Arrays keep each file name one argument (SC2046). set -e misses failures
 # inside <(...), so `wait "$!"` checks each one (SC2312).
@@ -61,35 +58,170 @@ from lib.checks.markdown import pymarkdown_rule_args
 print(*pymarkdown_rule_args(CHART_DIR), sep="\n")')
 wait "$!"
 
+# Each check is a step function. Its output goes to its own log; the logs are
+# printed in order once every step has ended.
+logs=$(mktemp -d)
+trap 'rm -rf "$logs"' EXIT
+
 # vulture doesn't link TypedDict fields to string-key reads (row["app"]).
-typeddict_whitelist=$(mktemp --suffix=.py)
-trap 'rm -f "$typeddict_whitelist"' EXIT
+typeddict_whitelist="$logs/typeddict_whitelist.py"
 python3 -c '
 import sys
 from pathlib import Path
 from lib.python_checks import typeddict_field_names
 print(*typeddict_field_names([Path(p) for p in sys.argv[1:]]), sep="\n")' "${code[@]}" >"$typeddict_whitelist"
 
+pip_audit_cache=$(python3 -c '
+from lib.chart.paths import CHART_DIR
+from lib.json_cache import cache_file
+print(cache_file(CHART_DIR, "pip-audit"))')
+
 tests_pylint_disable=$(python3 -c '
 from pathlib import Path
 from lib.python_checks import pylint_disable_for_tests
 print(pylint_disable_for_tests(Path("pyproject.toml")))')
 
-step "ruff check" ruff check . "${python_scripts[@]}"
-if ((${#shell_scripts[@]})); then
-    step "shellcheck (${#shell_scripts[@]} shell script(s))" shellcheck "${shell_scripts[@]}"
-fi
-step "ruff format --check" ruff format --check . "${python_scripts[@]}"
-step "jscpd (duplicate code)" jscpd "${code[@]}"
-step "pymarkdown (bin/*.md)" pymarkdown "${pymarkdown_args[@]}" scan ./*.md
-step "vulture (dead code)" vulture "${code[@]}" "$typeddict_whitelist"
-# tests/ excluded: every assert would flag B101.
-step "bandit (security)" bandit -c pyproject.toml -r "${code[@]}" -q
-step "basedpyright (type checking)" basedpyright "${code[@]}" tests
-step "pylint (lib + scripts)" pylint "${code[@]}"
-# PYTHONPATH lets pylint resolve lib.* imports without analyzing lib.
-step "pylint (tests)" env PYTHONPATH=. pylint --disable="$tests_pylint_disable" "${test_files[@]}"
-# The threshold is [tool.coverage.report] fail_under in pyproject.toml.
-step "pytest (with coverage)" python3 -m pytest -q --cov --cov-report=term-missing:skip-covered
+step_ruff_check() { ruff check . "${python_scripts[@]}"; }
 
-echo "=== all checks passed ==="
+step_shellcheck() {
+    if ((${#shell_scripts[@]})); then
+        shellcheck "${shell_scripts[@]}"
+    fi
+}
+
+step_ruff_format() { ruff format --check . "${python_scripts[@]}"; }
+
+# Settings in pyproject.toml [tool.flake8] (flake8-pyproject).
+step_flake8() { flake8 lib tests "${python_scripts[@]}"; }
+
+# deptry reads only *.py files, so it gets the scripts as .py copies; its
+# output names the scripts again.
+step_deptry() {
+    local scripts_dir="$logs/deptry-scripts" script copy names=()
+    mkdir "$scripts_dir"
+    for script in "${python_scripts[@]}"; do
+        copy="$scripts_dir/$(basename "$script" | tr - _).py"
+        cp "$script" "$copy"
+        names+=(-e "s|$copy|$script|g")
+    done
+    deptry . "$scripts_dir" --requirements-files requirements.txt 2>&1 | sed "${names[@]}"
+}
+
+step_jscpd() { jscpd "${code[@]}"; }
+
+step_pymarkdown() { pymarkdown "${pymarkdown_args[@]}" scan ./*.md; }
+
+step_vulture() { vulture "${code[@]}" "$typeddict_whitelist"; }
+
+# tests/ excluded: every assert would flag B101.
+step_bandit() { bandit -c pyproject.toml -r "${code[@]}" -q; }
+
+step_basedpyright() { basedpyright "${code[@]}" tests; }
+
+# -j 0: one process per CPU.
+step_pylint() { pylint -j 0 "${code[@]}"; }
+
+# PYTHONPATH lets pylint resolve lib.* imports without analyzing lib.
+step_pylint_tests() { env PYTHONPATH=. pylint -j 0 --disable="$tests_pylint_disable" "${test_files[@]}"; }
+
+# The threshold is [tool.coverage.report] fail_under in pyproject.toml. More
+# than 8 workers start slower than they gain.
+step_pytest() { python3 -m pytest -q -n auto --maxprocesses 8 --cov --cov-report=term-missing:skip-covered; }
+
+# A warning only: a new advisory fails it without a code change, and that must
+# not block commits or PRs. The podiumd-pip-audit workflow reports it. Own
+# cache, in the repo-root .cache like the other caches (cache_file): pip-audit
+# cannot read the cache entries of a newer pip.
+step_pip_audit() {
+    if python3 -c 'import socket; socket.create_connection(("pypi.org", 443), 5).close()' 2>/dev/null; then
+        local output status=0
+        output=$(pip-audit --progress-spinner off --cache-dir "$pip_audit_cache" 2>&1) || status=$?
+        printf '%s\n' "$output"
+        # pip-audit exits 1 both for findings and for its own errors.
+        if ((status == 0)); then
+            return
+        elif grep -Eq '^Found [0-9]+ known vulnerabilit' <<<"$output"; then
+            echo "WARNING: pip-audit found known vulnerabilities: upgrade the package named above"
+        else
+            echo "WARNING: pip-audit failed (exit $status) without a vulnerability report: see its output above"
+        fi
+    else
+        echo "WARNING: pypi.org not reachable, pip-audit skipped"
+    fi
+}
+
+# Runs one step, its output in its own log; records "<seconds> ok|FAILED".
+run_step() {
+    local start=$SECONDS
+    if "step_$1" >"$logs/$1.log" 2>&1; then
+        echo "$((SECONDS - start)) ok" >"$logs/$1.status"
+    else
+        echo "$((SECONDS - start)) FAILED" >"$logs/$1.status"
+        return 1
+    fi
+}
+
+# All steps start at the same time (every step is short, so fail-fast groups
+# take longer), and the run lists every failed step. pip-audit mostly waits on
+# PyPI and never fails.
+steps=(
+    ruff_check shellcheck ruff_format flake8 deptry jscpd pymarkdown vulture bandit
+    basedpyright pylint pylint_tests pytest pip_audit
+)
+# Prints every step's log in a fixed order, with its time, and the failed
+# steps; returns 1 when one failed. A step without a status file was stopped
+# or died (an OOM kill), which counts as failed.
+report() {
+    local name seconds status failed=()
+    for name in "${steps[@]}"; do
+        if [[ -e "$logs/$name.status" ]]; then
+            read -r seconds status <"$logs/$name.status"
+        else
+            seconds="?"
+            status="unfinished"
+        fi
+        echo "=== $name (${seconds}s, $status) ==="
+        cat "$logs/$name.log" 2>/dev/null || true
+        [[ $status == ok ]] || failed+=("$name")
+    done
+    if ((${#failed[@]})); then
+        echo "=== FAILED: ${failed[*]} ==="
+        return 1
+    fi
+    echo "=== all checks passed ==="
+}
+
+# Background jobs of a script ignore SIGINT, and job control (set -m) gives
+# each step its own process group, which a terminal's SIGHUP or SIGINT does
+# not reach. So on HUP, INT or TERM (Ctrl-C, a closed terminal, a cancelled CI
+# job) the steps' groups are stopped here, with their tools, without
+# signalling whoever started this script; then the logs so far are printed.
+# $1 is the exit status: 128 + the signal number.
+stop_steps() {
+    trap - HUP INT TERM
+    local pid
+    for pid in "${pids[@]}"; do
+        kill -TERM -- "-$pid" 2>/dev/null || true
+    done
+    for pid in "${pids[@]}"; do
+        wait "$pid" 2>/dev/null || true
+    done
+    report || true
+    exit "$1"
+}
+
+pids=()
+trap 'stop_steps 129' HUP
+trap 'stop_steps 130' INT
+trap 'stop_steps 143' TERM
+set -m
+for name in "${steps[@]}"; do
+    # With job control on, bash no longer gives background jobs /dev/null as
+    # stdin; a step that reads stdin would stop the run.
+    run_step "$name" </dev/null &
+    pids+=("$!")
+done
+for pid in "${pids[@]}"; do
+    wait "$pid" || true
+done
+report

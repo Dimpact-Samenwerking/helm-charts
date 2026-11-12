@@ -10,8 +10,7 @@ is ".../wiki/rest/api" for Cloud and ".../rest/api" for Server/DC."""
 import base64
 import json
 import re
-import urllib.parse
-import urllib.request
+import sys
 
 from collections.abc import Callable
 from contextlib import AbstractContextManager
@@ -20,6 +19,11 @@ from dataclasses import field
 from html.parser import HTMLParser
 from typing import IO
 from typing import TypedDict
+from typing import override
+from urllib.parse import parse_qs
+from urllib.parse import urlparse
+from urllib.request import Request
+from urllib.request import urlopen as default_urlopen
 
 from lib.chart.values_tree_primitives import get_path
 from lib.cli import network_errors
@@ -30,41 +34,43 @@ PAGE_ID_RE = re.compile(r"/pages/(\d+)")
 
 def page_id_from_url(url: str) -> str:
     """The numeric content ID from a "/pages/<id>/..." or "?pageId=<id>" Confluence URL."""
-    m = PAGE_ID_RE.search(url)
-    if m:
-        return m.group(1)
-    query = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+    page_match = PAGE_ID_RE.search(url)
+    if page_match:
+        return page_match.group(1)
+    query = parse_qs(urlparse(url).query)
     if "pageId" in query:
         return query["pageId"][0]
-    msg = f"error: could not find a page ID in {url}"
-    raise SystemExit(msg)
+    sys.exit(f"error: could not find a page ID in {url}")
 
 
 def api_base_url(url: str) -> str:
     """The REST API root: ".../wiki/rest/api" for Cloud, ".../rest/api" for Server/DC."""
-    parsed = urllib.parse.urlparse(url)
+    parsed = urlparse(url)
     wiki_idx = parsed.path.find("/wiki/")
-    api_path = f"{parsed.path[:wiki_idx]}/wiki/rest/api" if wiki_idx != -1 else "/rest/api"
+    api_path = "/rest/api" if wiki_idx == -1 else f"{parsed.path[:wiki_idx]}/wiki/rest/api"
     return f"{parsed.scheme}://{parsed.netloc}{api_path}"
+
+
+# urllib.request.urlopen's shape, so tests can pass a fake.
+type UrlOpener = Callable[[Request], AbstractContextManager[IO[bytes]]]
 
 
 def fetch_page_html(
     url: str,
     user: str,
     token: str,
-    urlopen: Callable[[urllib.request.Request], AbstractContextManager[IO[bytes]]] = urllib.request.urlopen,
+    urlopen: UrlOpener = default_urlopen,
 ) -> str:
     """The page's body.storage.value via the REST API.
 
     `urlopen` is overridable for tests. Raises SystemExit on a non-http(s) URL, a
     failed request or unexpected JSON."""
-    if urllib.parse.urlparse(url).scheme not in ("http", "https"):
-        msg = f"error: --url {url} must start with https://"
-        raise SystemExit(msg)
+    if urlparse(url).scheme not in {"http", "https"}:
+        sys.exit(f"error: --url {url} must start with https://")
     page_id = page_id_from_url(url)
     api_url = f"{api_base_url(url)}/content/{page_id}?expand=body.storage"
     auth = base64.b64encode(f"{user}:{token}".encode()).decode()
-    request = urllib.request.Request(
+    request = Request(
         api_url,
         headers={
             "Authorization": f"Basic {auth}",
@@ -74,13 +80,11 @@ def fetch_page_html(
     try:
         with network_errors("Confluence"), urlopen(request) as response:
             data: object = json.load(response)
-    except (json.JSONDecodeError, UnicodeDecodeError) as e:
-        msg = f"error: Confluence didn't answer with JSON ({e}) — check --url (a login page?)"
-        raise SystemExit(msg) from e
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        sys.exit(f"error: Confluence didn't answer with JSON ({error}) — check --url (a login page?)")
     value = get_path(data, "body.storage.value") if is_yaml_value(data) else None
     if not isinstance(value, str):
-        msg = "error: response had no body.storage.value — check the URL and permissions"
-        raise SystemExit(msg)
+        sys.exit("error: response had no body.storage.value — check the URL and permissions")
     return value
 
 
@@ -111,8 +115,14 @@ class ReleaseColumns(TypedDict):
     target_helm: int | None
 
 
+# The rows of one <table>, each a list of its cells.
+type TableRows = list[list[TableCell]]
+
 # (heading, rows) of one extracted <table> — see extract_tables.
-ConfluenceTable = tuple[str | None, list[list[TableCell]]]
+type ConfluenceTable = tuple[str | None, TableRows]
+
+# (label, column indices) of one "Versie ..." header group — see find_versie_groups.
+type VersieGroup = tuple[str, list[int]]
 
 
 @dataclass
@@ -147,63 +157,81 @@ class _TableExtractor(HTMLParser):
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
-        self.tables: list[list[list[TableCell]]] = []
+        self.tables: list[TableRows] = []
         self.table_headings: list[str | None] = []
-        self._table_stack: list[list[list[TableCell]]] = []
+        self._table_stack: list[TableRows] = []
         self._row: list[TableCell] | None = None
         self._cell: _OpenCell | None = None
-        self._nested_depth = 0
-        self._heading = _HeadingState()
+        self._nested_depth: int = 0
+        self._heading: _HeadingState = _HeadingState()
 
+    @override
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]):
         if self._cell is not None:
-            if tag == "table":
-                self._nested_depth += 1
-            elif tag in BLOCK_SEPARATOR_TAGS and self._nested_depth == 0:
-                self._cell.parts.append(" ")
+            self._cell_starttag(self._cell, tag)
             return
         if tag in HEADING_TAGS:
             self._heading.tag = tag
             self._heading.text = []
             return
-        attr_map = dict(attrs)
+        self._structure_starttag(tag, dict(attrs))
+
+    @override
+    def handle_endtag(self, tag: str):
+        if self._cell is not None:
+            self._cell_endtag(self._cell, tag)
+            return
+        if tag == self._heading.tag:
+            self._heading.current = " ".join("".join(self._heading.text).split())
+            self._heading.tag = None
+            return
+        self._structure_endtag(tag)
+
+    @override
+    def handle_data(self, data: str):
+        if self._cell is not None:
+            self._cell.parts.append(data)
+        elif self._heading.tag is not None:
+            self._heading.text.append(data)
+
+    def _cell_starttag(self, cell: _OpenCell, tag: str) -> None:
+        """A start tag inside a cell: a nested table or a block separator in its text."""
+        if tag == "table":
+            self._nested_depth += 1
+        elif tag in BLOCK_SEPARATOR_TAGS and self._nested_depth == 0:
+            cell.parts.append(" ")
+
+    def _structure_starttag(self, tag: str, attr_map: dict[str, str | None]) -> None:
+        """A start tag outside any cell: a table, row or cell opens."""
         if tag == "table":
             self._table_stack.append([])
         elif tag == "tr" and self._table_stack:
             self._row = []
-        elif tag in ("td", "th") and self._row is not None:
+        elif tag in {"td", "th"} and self._row is not None:
             self._cell = _OpenCell(
                 tag, _positive_int(attr_map.get("colspan"), 1), _positive_int(attr_map.get("rowspan"), 1)
             )
             self._nested_depth = 0
 
-    def handle_endtag(self, tag: str):
-        if self._cell is not None:
-            if tag == "table" and self._nested_depth > 0:
-                self._nested_depth -= 1
-            elif tag in ("tr", "td", "th") and self._nested_depth > 0:
-                pass  # a nested table's own row/cell close — not the outer cell's
-            elif tag in ("td", "th"):
-                if self._row is not None:
-                    self._row.append(self._cell.finished())
-                self._cell = None
-            return
-        if tag == self._heading.tag:
-            self._heading.current = " ".join("".join(self._heading.text).split())
-            self._heading.tag = None
-        elif tag == "table" and self._table_stack:
+    def _cell_endtag(self, cell: _OpenCell, tag: str) -> None:
+        """An end tag inside a cell: a nested table closes, or the cell itself."""
+        if tag == "table" and self._nested_depth > 0:
+            self._nested_depth -= 1
+        # Inside a nested table a td/th close is that table's own, not the outer cell's.
+        elif tag in {"td", "th"} and self._nested_depth == 0:
+            if self._row is not None:
+                self._row.append(cell.finished())
+            self._cell = None
+
+    def _structure_endtag(self, tag: str) -> None:
+        """An end tag outside any cell and heading: a table or row closes."""
+        if tag == "table" and self._table_stack:
             self.tables.append(self._table_stack.pop())
             self.table_headings.append(self._heading.current)
         elif tag == "tr" and self._row is not None:
             if self._table_stack:
                 self._table_stack[-1].append(self._row)
             self._row = None
-
-    def handle_data(self, data: str):
-        if self._cell is not None:
-            self._cell.parts.append(data)
-        elif self._heading.tag is not None:
-            self._heading.text.append(data)
 
 
 def _positive_int(value: str | None, default: int) -> int:
@@ -223,52 +251,58 @@ def extract_tables(html_text: str) -> list[ConfluenceTable]:
     return list(zip(parser.table_headings, parser.tables, strict=True))
 
 
-def tables_under_headings(
-    tables: list[ConfluenceTable], headings: list[str]
-) -> list[tuple[str, list[list[TableCell]]]]:
+def tables_under_headings(tables: list[ConfluenceTable], headings: list[str]) -> list[tuple[str, TableRows]]:
     """Tables whose heading matches one of `headings` (case- and whitespace-insensitive, exact)."""
-    wanted = {_normalize(h) for h in headings}
+    wanted = {_normalize(heading) for heading in headings}
     return [(heading, rows) for heading, rows in tables if heading and _normalize(heading) in wanted]
 
 
-def expand_grid(rows: list[list[TableCell]]) -> list[list[str]]:
+def expand_grid(rows: TableRows) -> list[list[str]]:
     """Rows as a rectangular grid of strings, with colspan/rowspan expanded; gaps become ""."""
-    grid: list[list[str]] = []
     carry: dict[int, tuple[str, int]] = {}  # column -> (text, remaining_rows_including_this_one)
-    for row in rows:
-        grid_row: list[str] = []
-        col = 0
-        cell_iter = iter(row)
-        current_cell = next(cell_iter, None)
-        while current_cell is not None or any(k >= col for k in carry):
-            if col in carry:
-                text, remaining = carry[col]
-                grid_row.append(text)
-                if remaining <= 1:
-                    del carry[col]
-                else:
-                    carry[col] = (text, remaining - 1)
-                col += 1
-                continue
-            if current_cell is None:
-                grid_row.append("")
-                col += 1
-                continue
-            colspan, rowspan, text = current_cell["colspan"], current_cell["rowspan"], current_cell["text"]
-            for i in range(colspan):
-                grid_row.append(text)
-                if rowspan > 1:
-                    carry[col + i] = (text, rowspan - 1)
-            col += colspan
-            current_cell = next(cell_iter, None)
-        grid.append(grid_row)
-    width = max((len(r) for r in grid), default=0)
-    for r in grid:
-        r.extend([""] * (width - len(r)))
+    grid = [_expand_row(row, carry) for row in rows]
+    width = max((len(grid_row) for grid_row in grid), default=0)
+    for grid_row in grid:
+        grid_row.extend("" for _ in range(width - len(grid_row)))
     return grid
 
 
-def leading_header_row_count(rows: list[list[TableCell]]) -> int:
+def _expand_row(row: list[TableCell], carry: dict[int, tuple[str, int]]) -> list[str]:
+    """One row's grid cells; takes from and adds to `carry`, the rowspans still open."""
+    grid_row: list[str] = []
+    cell_iter = iter(row)
+    current_cell = next(cell_iter, None)
+    while current_cell is not None or any(carried_col >= len(grid_row) for carried_col in carry):
+        if len(grid_row) in carry:
+            grid_row.append(_take_carried(carry, len(grid_row)))
+        elif current_cell is None:
+            grid_row.append("")
+        else:
+            _place_cell(grid_row, current_cell, carry)
+            current_cell = next(cell_iter, None)
+    return grid_row
+
+
+def _take_carried(carry: dict[int, tuple[str, int]], col: int) -> str:
+    """The text a rowspan carries into column `col`, counting down its remaining rows."""
+    text, remaining = carry[col]
+    if remaining <= 1:
+        carry.pop(col)
+    else:
+        carry[col] = (text, remaining - 1)
+    return text
+
+
+def _place_cell(grid_row: list[str], cell: TableCell, carry: dict[int, tuple[str, int]]) -> None:
+    """Append `cell` across its colspan and carry it down its rowspan."""
+    col = len(grid_row)
+    for span_offset in range(cell["colspan"]):
+        grid_row.append(cell["text"])
+        if cell["rowspan"] > 1:
+            carry[col + span_offset] = (cell["text"], cell["rowspan"] - 1)
+
+
+def leading_header_row_count(rows: TableRows) -> int:
     """Number of leading rows containing a <th>; 0 when the table has none."""
     count = 0
     for row in rows:
@@ -290,7 +324,7 @@ def fallback_header_row_count(grid: list[list[str]]) -> int:
     return count
 
 
-def effective_header_row_count(rows: list[list[TableCell]], grid: list[list[str]]) -> int:
+def effective_header_row_count(rows: TableRows, grid: list[list[str]]) -> int:
     """leading_header_row_count, else fallback_header_row_count; at least 1."""
     count = leading_header_row_count(rows)
     if count == 0:
@@ -301,17 +335,19 @@ def effective_header_row_count(rows: list[list[TableCell]], grid: list[list[str]
 def header_paths(grid: list[list[str]], header_row_count: int) -> list[list[str]]:
     """Per column, the distinct header texts above it, top first (e.g. ["Versie 4.8", "App"])."""
     width = len(grid[0]) if grid else 0
-    paths: list[list[str]] = []
-    for col in range(width):
-        path: list[str] = []
-        prev = None
-        for row_idx in range(header_row_count):
-            text = grid[row_idx][col] if col < len(grid[row_idx]) else ""
-            if text and text != prev:
-                path.append(text)
-            prev = text
-        paths.append(path)
-    return paths
+    return [_header_path(grid, col, header_row_count) for col in range(width)]
+
+
+def _header_path(grid: list[list[str]], col: int, header_row_count: int) -> list[str]:
+    """header_paths' distinct header texts above column `col`."""
+    path: list[str] = []
+    prev = None
+    for header_row in grid[:header_row_count]:
+        text = header_row[col] if col < len(header_row) else ""
+        if text and text != prev:
+            path.append(text)
+        prev = text
+    return path
 
 
 def _normalize(text: str) -> str:
@@ -319,9 +355,13 @@ def _normalize(text: str) -> str:
     return " ".join(text.lower().replace("-", "").split())
 
 
-def find_column(paths: list[list[str]], contains_all: list[str], candidates: list[int] | None = None) -> int | None:
+def find_column(
+    paths: list[list[str]],
+    contains_all: list[str],
+    candidates: list[int] | None = None,
+) -> int | None:
     """First column in `candidates` whose joined header path contains all of `contains_all`, or None."""
-    needles = [_normalize(n) for n in contains_all]
+    needles = [_normalize(needle) for needle in contains_all]
     indices = range(len(paths)) if candidates is None else candidates
     for idx in indices:
         joined = _normalize(" ".join(paths[idx]))
@@ -330,12 +370,12 @@ def find_column(paths: list[list[str]], contains_all: list[str], candidates: lis
     return None
 
 
-def find_versie_groups(paths: list[list[str]]) -> list[tuple[str, list[int]]]:
+def find_versie_groups(paths: list[list[str]]) -> list[VersieGroup]:
     """(label, column indices) per top-level "Versie ..." header group, left to right.
 
     Labels change every release, so they are matched by prefix; groups[0] is the
     source version, groups[1] the target."""
-    groups: list[tuple[str, list[int]]] = []
+    groups: list[VersieGroup] = []
     index_by_label: dict[str, int] = {}
     for idx, path in enumerate(paths):
         if not path or not _normalize(path[0]).startswith("versie"):
@@ -370,27 +410,29 @@ def select_release_columns(paths: list[list[str]]) -> ReleaseColumns:
         "target_app": None,
         "target_helm": None,
     }
-    groups = find_versie_groups(paths)
-    if len(groups) == 2:
-        # pylint can't see the len(groups) == 2 guard.
-        # pylint: disable-next=unbalanced-tuple-unpacking
-        (_, source_cols), (_, target_cols) = groups
-        columns["source_helm"] = find_column(paths, ["helm"], candidates=source_cols)
-        columns["source_app"] = (
-            source_cols[0]
-            if len(source_cols) == 1 and columns["source_helm"] is None
-            else find_column(paths, ["app"], candidates=source_cols)
-        )
-        columns["target_helm"] = find_column(paths, ["helm"], candidates=target_cols)
-        columns["target_app"] = (
-            target_cols[0]
-            if len(target_cols) == 1 and columns["target_helm"] is None
-            else find_column(paths, ["app"], candidates=target_cols)
-        )
+    match find_versie_groups(paths):
+        case [(_, source_cols), (_, target_cols)]:
+            source_app, source_helm = _app_and_helm_columns(paths, source_cols)
+            target_app, target_helm = _app_and_helm_columns(paths, target_cols)
+            columns.update(source_app=source_app, source_helm=source_helm)
+            columns.update(target_app=target_app, target_helm=target_helm)
+        case _:
+            pass
     return columns
 
 
-def missing_required_release_columns(columns: ReleaseColumns):
+def _app_and_helm_columns(
+    paths: list[list[str]],
+    group_cols: list[int],
+) -> tuple[int | None, int | None]:
+    """(App, Helm) column of one "Versie ..." group."""
+    helm_col = find_column(paths, ["helm"], candidates=group_cols)
+    if len(group_cols) == 1 and helm_col is None:
+        return group_cols[0], helm_col
+    return find_column(paths, ["app"], candidates=group_cols), helm_col
+
+
+def missing_release_columns(columns: ReleaseColumns):
     """REQUIRED_RELEASE_COLUMNS keys that resolved to None."""
     return [key for key in REQUIRED_RELEASE_COLUMNS if columns.get(key) is None]
 
@@ -414,5 +456,5 @@ MAJOR_MINOR_RE = re.compile(r"(\d+)\.(\d+)")
 
 def major_minor(text: str):
     """The first "MAJOR.MINOR" in `text` (e.g. "4.9" from "Versie 4.9" or "v4.9.2-rc1"), or None."""
-    m = MAJOR_MINOR_RE.search(text)
-    return f"{m.group(1)}.{m.group(2)}" if m else None
+    version_match = MAJOR_MINOR_RE.search(text)
+    return f"{version_match.group(1)}.{version_match.group(2)}" if version_match else None

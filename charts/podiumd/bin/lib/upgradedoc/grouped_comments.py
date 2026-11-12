@@ -8,7 +8,10 @@ from collections.abc import Mapping
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import is_primary_image_path
+from lib.chart.values_tree_primitives import ValuesPath
 from lib.chart.values_tree_primitives import values_key_of
+from lib.images_manifest import BARE_CHANGES_HEADER_RE
+from lib.images_manifest import CHANGES_ITEM_RE
 from lib.images_manifest import ManifestEntry
 from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
@@ -31,12 +34,17 @@ _SINGLE_VERSION_SPEC_RE = re.compile(r"(?<!\S)(?P<version>v?\d[\w.\-]*)\s*\((?P<
 
 def find_preceding_comment(lines: list[str], entry_line_index: int) -> str:
     """The contiguous comment line(s) directly above a "- name: ..." line, joined."""
-    comment_lines: list[str] = []
-    j = entry_line_index - 1
-    while j >= 0 and lines[j].strip().startswith("#"):
-        comment_lines.insert(0, lines[j].strip())
-        j -= 1
-    return " ".join(comment_lines)
+    return " ".join(lines[line_index].strip() for line_index in reversed(comment_lines_above(lines, entry_line_index)))
+
+
+def comment_lines_above(lines: list[str], entry_line_index: int) -> list[int]:
+    """The indices of the contiguous comment lines directly above entry_line_index, closest first."""
+    indices: list[int] = []
+    line_index = entry_line_index - 1
+    while line_index >= 0 and lines[line_index].strip().startswith("#"):
+        indices.append(line_index)
+        line_index -= 1
+    return indices
 
 
 def find_preceding_comment_line(lines: list[str], entry_line_index: int) -> int | None:
@@ -44,12 +52,8 @@ def find_preceding_comment_line(lines: list[str], entry_line_index: int) -> int 
 
     A spec is an arrow pair or a bare "(new)"/"(unchanged)"/"(digest changed)"
     (VERSION_SPEC_RE). Stops at the first blank/non-comment line."""
-    j = entry_line_index - 1
-    while j >= 0 and lines[j].strip().startswith("#"):
-        if VERSION_SPEC_RE.search(lines[j]):
-            return j
-        j -= 1
-    return None
+    above = comment_lines_above(lines, entry_line_index)
+    return next((line_index for line_index in above if VERSION_SPEC_RE.search(lines[line_index])), None)
 
 
 def find_grouped_preceding_comment(
@@ -57,31 +61,39 @@ def find_grouped_preceding_comment(
     entries: list[ManifestEntry],
     entry_line_indices: list[int],
     index: int,
-    same_group: Callable[[ManifestEntry, ManifestEntry], bool],
+    is_same_group: Callable[[ManifestEntry, ManifestEntry], bool],
 ) -> str:
     """The comment describing entries[index]'s version bump.
 
     Its own preceding comment if any, else that of the previous entry when
-    same_group says they share one comment block (e.g. zgw-office-addin's
-    frontend + backend). same_group should require the same component and
+    is_same_group says they share one comment block (e.g. zgw-office-addin's
+    frontend + backend). is_same_group should require the same component and
     declared version, so independently versioned siblings (zac vs zac.opa)
     don't inherit each other's comment."""
     owner = _comment_owner(
-        entries, entry_line_indices, index, same_group, lambda i: bool(find_preceding_comment(lines, i))
+        entries,
+        entry_line_indices,
+        index,
+        is_same_group,
+        lambda line_index: bool(find_preceding_comment(lines, line_index)),
     )
     return "" if owner is None else find_preceding_comment(lines, entry_line_indices[owner])
 
 
-def find_grouped_preceding_comment_line(
+def find_grouped_comment_line(
     lines: list[str],
     entries: list[ManifestEntry],
     entry_line_indices: list[int],
     index: int,
-    same_group: Callable[[ManifestEntry, ManifestEntry], bool],
+    is_same_group: Callable[[ManifestEntry, ManifestEntry], bool],
 ) -> int | None:
     """Like find_grouped_preceding_comment, but returns the comment's line index."""
     owner = _comment_owner(
-        entries, entry_line_indices, index, same_group, lambda i: find_preceding_comment_line(lines, i) is not None
+        entries,
+        entry_line_indices,
+        index,
+        is_same_group,
+        lambda line_index: find_preceding_comment_line(lines, line_index) is not None,
     )
     return None if owner is None else find_preceding_comment_line(lines, entry_line_indices[owner])
 
@@ -90,12 +102,12 @@ def _comment_owner(
     entries: list[ManifestEntry],
     entry_line_indices: list[int],
     index: int,
-    same_group: Callable[[ManifestEntry, ManifestEntry], bool],
+    is_same_group: Callable[[ManifestEntry, ManifestEntry], bool],
     has_comment: Callable[[int], bool],
 ) -> int | None:
     """Index of the entry whose comment describes entries[index]: itself, or an earlier entry of its group."""
     while not has_comment(entry_line_indices[index]):
-        if index == 0 or not same_group(entries[index], entries[index - 1]):
+        if index == 0 or not is_same_group(entries[index], entries[index - 1]):
             return None
         index -= 1
     return index
@@ -111,40 +123,36 @@ def parse_changes_block(text: str) -> list[VersionRow]:
     items: list[VersionRow] = []
     current = None  # raw text accumulated so far for the item being parsed
     for line in _changes_block_lines(text):
-        # "\.\s+", not "\.\s*": a version like "1.17.1" on a continuation line
-        # must not look like a new list item.
-        m = re.match(r"^#\s*\d+\.\s+(.+)$", line)
-        if m:
-            if current is not None:
-                items.append(_finalize_changes_item(current))
-            current = m.group(1)
-            continue
-
-        cont_m = re.match(r"^#\s{2,}(\S.*)$", line)
-        if cont_m and current is not None:
-            current += " " + cont_m.group(1)
-        elif current is not None:
-            items.append(_finalize_changes_item(current))
-            current = None
-
+        finished, current = _next_changes_item_state(current, line)
+        if finished is not None:
+            items.append(_finalize_changes_item(finished))
     if current is not None:
         items.append(_finalize_changes_item(current))
     return items
 
 
+def _next_changes_item_state(current: str | None, line: str) -> tuple[str | None, str | None]:
+    """(the item text `line` finishes or None, the item text being parsed after `line`)."""
+    item_match = CHANGES_ITEM_RE.match(line)
+    if item_match:
+        return current, item_match.group("rest")
+    if current is None:
+        return None, None
+    cont_m = re.match(r"^#\s{2,}(\S.*)$", line)
+    if cont_m:
+        return None, f"{current} {cont_m.group(1)}"
+    return current, None
+
+
 def _changes_block_lines(text: str):
     """Yield the "#" comment lines after the "# Changes:" heading, up to
     the first non-comment line."""
-    in_changes = False
-    for line in text.splitlines():
+    lines = text.splitlines()
+    after_heading = (index + 1 for index, line in enumerate(lines) if BARE_CHANGES_HEADER_RE.match(line))
+    for line in lines[next(after_heading, len(lines)) :]:
         if not line.startswith("#"):
-            if in_changes:
-                return
-            continue
-        if re.match(r"^#\s*Changes:\s*$", line):
-            in_changes = True
-            continue
-        if in_changes:
+            return
+        if not BARE_CHANGES_HEADER_RE.match(line):
             yield line
 
 
@@ -164,7 +172,7 @@ def _finalize_changes_item(rest: str) -> VersionRow:
         if chart_source is None:
             chart_source = extract_source_version(bare_chart_m.group(0))
             chart_target = extract_target_version(bare_chart_m.group(0))
-        app_search_text = rest[: bare_chart_m.start()] + " " + rest[bare_chart_m.end() :]
+        app_search_text = f"{rest[: bare_chart_m.start()]} {rest[bare_chart_m.end() :]}"
 
     app_source, app_target, name = _app_versions_and_name(rest, app_search_text)
     return {
@@ -197,9 +205,7 @@ def _app_versions_and_name(rest: str, app_search_text: str) -> tuple[str | None,
     return app_source, app_target, app_search_text[: single_m.start()].strip()
 
 
-def path_display_name(
-    path: tuple[str, ...], deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]]
-) -> str:
+def path_display_name(path: ValuesPath, deps: list[ChartDependency], canonical_names: Mapping[str, ValuesPath]) -> str:
     """Doc-facing name for a values-tree image path.
 
     "<values_key>" for a dependency's primary image, else the name

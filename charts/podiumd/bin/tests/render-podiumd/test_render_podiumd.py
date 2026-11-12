@@ -1,5 +1,7 @@
 """render-podiumd main(), with rp.render_chart mocked (no real helm)."""
 
+import sys
+
 from pathlib import Path
 from types import ModuleType
 from types import SimpleNamespace
@@ -276,37 +278,48 @@ def test_stdout_flag_failure_puts_everything_on_stderr_and_writes_nothing(
 # --- stale vendored sub-charts guard ---
 
 
+def _write_stale_kiss_chart(chart_dir: Path) -> None:
+    """Chart.yaml at kiss-chart 3.1.1 while Chart.lock and charts/ still hold 3.0.0."""
+    (chart_dir / "Chart.yaml").write_text(
+        "dependencies:\n  - name: kiss-chart\n    version: 3.1.1\n    repository: oci://ghcr.io/kiss\n",
+        encoding="utf-8",
+    )
+    (chart_dir / "Chart.lock").write_text(
+        "dependencies:\n  - name: kiss-chart\n    version: 3.0.0\n    repository: oci://ghcr.io/kiss\n",
+        encoding="utf-8",
+    )
+    (chart_dir / "charts").mkdir()
+    (chart_dir / "charts" / "kiss-chart-3.0.0.tgz").touch()
+
+
+def _fake_helm(cmd: list[str], **kwargs: object) -> SimpleNamespace:
+    """helm that succeeds, and on `pull` drops kiss-chart-3.1.1.tgz in the destination."""
+    if cmd[1] == "pull":
+        dest = Path(cmd[cmd.index("--destination") + 1])
+        (dest / "kiss-chart-3.1.1.tgz").touch()
+    return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+
+def _vendor_with_fake_helm(rp: ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
+    """render-podiumd's real re-vendoring, with _fake_helm in place of helm."""
+    monkeypatch.setattr(dependencies, "run", _fake_helm)
+    monkeypatch.setattr(rp, "ensure_vendored_dependencies", dependencies.ensure_vendored_dependencies)
+
+
 def test_stale_vendored_dependencies_re_vendored_before_rendering(
     rp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     """A stale vendored kiss-chart is re-vendored before render_chart, which
     would otherwise fail on a confusing schema error. helm is stubbed."""
-    (tmp_path / "Chart.yaml").write_text(
-        "dependencies:\n  - name: kiss-chart\n    version: 3.1.1\n    repository: oci://ghcr.io/kiss\n",
-        encoding="utf-8",
-    )
-    (tmp_path / "Chart.lock").write_text(
-        "dependencies:\n  - name: kiss-chart\n    version: 3.0.0\n    repository: oci://ghcr.io/kiss\n",
-        encoding="utf-8",
-    )
-    (tmp_path / "charts").mkdir()
-    (tmp_path / "charts" / "kiss-chart-3.0.0.tgz").touch()
-
-    def fake_helm(cmd, **kwargs):
-        if cmd[1] == "pull":
-            dest = Path(cmd[cmd.index("--destination") + 1])
-            (dest / "kiss-chart-3.1.1.tgz").touch()
-        return SimpleNamespace(returncode=0, stdout="", stderr="")
-
+    _write_stale_kiss_chart(tmp_path)
     rendered = []
-    monkeypatch.setattr(dependencies, "run", fake_helm)
-    monkeypatch.setattr(rp, "ensure_vendored_dependencies", dependencies.ensure_vendored_dependencies)
+    _vendor_with_fake_helm(rp, monkeypatch)
     monkeypatch.setattr(rp, "CHART_DIR", tmp_path)
     monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", str(tmp_path / "out.yaml")])
 
     def fake_render(chart_dir, extra_args):
         rendered.append(dependencies.vendored_dependency_problems(chart_dir))
-        raise SystemExit(0)
+        sys.exit(0)
 
     monkeypatch.setattr(rp, "render_chart", fake_render)
 

@@ -117,7 +117,7 @@ def test_an_alias_with_the_baseline_version_of_the_new_pin_shows_unchanged():
 def test_an_alias_with_another_baseline_value_documented_elsewhere_gets_no_bullet():
     """A path that joined the anchor and has its own section is not documented twice."""
     baseline = baseline_with("v1.25.4")
-    doc = DOC + "\n### redis-operator - pre v1.25.4 → 1.37.1\n\n- `redis-operator.pre.image.tag` `v1.25.4` → `1.37.1`\n"
+    doc = f"{DOC}\n### redis-operator - pre v1.25.4 → 1.37.1\n\n- `redis-operator.pre.image.tag` `v1.25.4` → `1.37.1`\n"
     assert add_missing_pin_bullets(doc, GROUPS, baseline)[1] == [
         MissingPinBullet("openbao 2.5.4 → 2.5.5 (chart 0.28.4, unchanged)", BAO[1], BAO[0]),
     ]

@@ -1,6 +1,8 @@
 """verify-component-version glue: dependency lookup, image_paths_for and the
 app-image report lines; lib.chart's chart pull and registry check are mocked."""
 
+import sys
+
 from pathlib import Path
 from types import ModuleType
 
@@ -10,12 +12,12 @@ import yaml
 from lib.chart.registered_paths import PinPath
 from lib.registry import ImagePathTagCheck
 from lib.yaml_types import YamlMapping
+from tests.fixture_data import write_chart_dependencies
 
 
 def write_chart_yaml(vcv: ModuleType, dependencies):
-    """Chart.yaml with `dependencies`, each given a version unless set."""
-    versioned = [{"version": "1.0.0", **dep} for dep in dependencies]
-    vcv.CHART_YAML.write_text(yaml.safe_dump({"dependencies": versioned}))
+    """Chart.yaml with `dependencies`, each versioned unless the test sets one."""
+    write_chart_dependencies(vcv.CHART_YAML, [{"version": "1.0.0", **dep} for dep in dependencies])
 
 
 # --- find_dependency ---
@@ -188,7 +190,7 @@ def test_main_missing_chart_version_propagates(vcv: ModuleType, tmp_path: Path, 
     write_chart_yaml(vcv, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
 
     def raise_pull_failure(chart_dir, dep, version):
-        raise SystemExit(1)
+        sys.exit(1)
 
     monkeypatch.setattr(vcv, "verify_chart_version", raise_pull_failure)
     exc = run_main(vcv, monkeypatch, ["zac", "5.4.3", "9.9.9"])
@@ -236,7 +238,7 @@ def test_main_no_repository_at_configured_path_propagates(
     def raise_no_repo(_chart_dir, _dep, values, pins, app_version):
         image_paths = [pin.path for pin in pins]
         msg = f"error: no repository found at {', '.join(f'{p}.repository' for p in image_paths)}"
-        raise SystemExit(msg)
+        sys.exit(msg)
 
     monkeypatch.setattr(vcv, "check_image_versions", raise_no_repo)
     exc = run_main(vcv, monkeypatch, ["zac", "5.4.3", "1.0.297"])
@@ -282,6 +284,7 @@ def test_main_native_component_reads_podiumd_values(
                 "repository": "x/fg",
                 "host": "docker.io",
                 "repo_path": "x/fg",
+                "tag": app_version,
                 "exists": True,
                 "digest": None,
             }

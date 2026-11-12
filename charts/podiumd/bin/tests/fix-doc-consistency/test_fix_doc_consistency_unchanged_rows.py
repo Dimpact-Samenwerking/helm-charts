@@ -1,10 +1,10 @@
-"""remove_unchanged_component_rows: a "Component versions" row whose app and
+"""remove_unchanged_rows: a "Component versions" row whose app and
 chart both equal the baseline's is removed with the generated parts of its "### ..." section."""
 
 from lib.chart.chart_state import BaselineState
 from lib.chart.chart_state import ComponentState
 from lib.chart.chart_yaml import ChartDependency
-from lib.fix_doc_consistency.component_version_table import remove_unchanged_component_rows
+from lib.fix_doc_consistency.component_version_table import remove_unchanged_rows
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.yaml_types import YamlMapping
 
@@ -48,7 +48,7 @@ def test_remove_unchanged_component_rows_removes_row_and_section() -> None:
         BaselineState(DEPS, values("v8.6.6", "5.4.4")),
     )
 
-    new_text, removed = remove_unchanged_component_rows(DOC, resolution)
+    new_text, removed = remove_unchanged_rows(DOC, resolution)
 
     assert removed == ["ZAC (Zaakafhandelcomponent)"]
     assert "ZAC" not in new_text
@@ -66,7 +66,7 @@ def test_remove_unchanged_component_rows_keeps_hand_written_text_of_the_section(
         BaselineState(DEPS, values("v8.6.6", "5.4.4")),
     )
 
-    new_text, removed = remove_unchanged_component_rows(doc, resolution)
+    new_text, removed = remove_unchanged_rows(doc, resolution)
 
     assert removed == ["ZAC (Zaakafhandelcomponent)"]
     assert "| ZAC (Zaakafhandelcomponent) |" not in new_text
@@ -84,7 +84,7 @@ def test_remove_unchanged_component_rows_reverted_sidecar() -> None:
         BaselineState(DEPS, values("v8.6.6", "5.4.4")),
     )
 
-    new_text, removed = remove_unchanged_component_rows(DOC, resolution)
+    new_text, removed = remove_unchanged_rows(DOC, resolution)
 
     assert removed == ["redis-operator - redis"]
     assert "redis" not in new_text
@@ -97,7 +97,7 @@ def test_remove_unchanged_component_rows_keeps_rows_without_baseline() -> None:
         BaselineState(None, None),
     )
 
-    new_text, removed = remove_unchanged_component_rows(DOC, resolution)
+    new_text, removed = remove_unchanged_rows(DOC, resolution)
 
     assert removed == []
     assert new_text == DOC

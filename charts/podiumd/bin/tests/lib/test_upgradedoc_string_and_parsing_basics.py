@@ -80,11 +80,11 @@ def test_parse_upgrade_doc_rows_no_table_returns_empty(libupgradedocbasics: Modu
     assert libupgradedocbasics.parse_upgrade_doc_rows("# Upgrade guide\n\nJust prose.\n") == []
 
 
-# --- _word_aligned_spans ---
+# --- word_aligned_spans ---
 
 
 def test_word_aligned_spans_includes_every_contiguous_word_run(libupgradedocbasics: ModuleType):
-    spans = libupgradedocbasics._word_aligned_spans("ZGW Office Add-in")
+    spans = libupgradedocbasics.word_aligned_spans("ZGW Office Add-in")
     assert spans == {
         "zgw",
         "zgwoffice",
@@ -101,7 +101,7 @@ def test_word_aligned_spans_includes_every_contiguous_word_run(libupgradedocbasi
 
 def test_word_aligned_spans_excludes_mid_word_fragments(libupgradedocbasics: ModuleType):
     """ "mi" (a substring of "admin") never appears as a span: spans concatenate whole words only."""
-    spans = libupgradedocbasics._word_aligned_spans("ensurePodiumdAdminUser")
+    spans = libupgradedocbasics.word_aligned_spans("ensurePodiumdAdminUser")
     assert "mi" not in spans
     assert spans == {"ensurepodiumdadminuser"}
 
@@ -197,7 +197,7 @@ def test_changes_heading_identities_does_not_double_count_an_alias_nested_inside
     libupgradedocbasics: ModuleType,
 ):
     """Regression: "kiss-eck" contains the word "kiss" (KISS's alias); the heading must resolve to one
-    identity, or find_changes_row_correspondence_gaps flags it as ambiguous."""
+    identity, or find_correspondence_gaps flags it as ambiguous."""
     deps = [
         {"name": "kiss", "alias": "KISS", "version": "3.0.0"},
         {"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"},
@@ -257,5 +257,5 @@ def test_markdown_headings_skip_fences_and_comments_and_drop_closing_marks(libup
 
 
 def test_parse_upgrade_doc_rows_ignores_a_fenced_heading_inside_the_table_section(libupgradedocbasics: ModuleType):
-    text = TABLE + "\n```bash\n## x\n```\n\n| Late | 1 → 2 | - | - |\n"
+    text = f"{TABLE}\n```bash\n## x\n```\n\n| Late | 1 → 2 | - | - |\n"
     assert [r["name"] for r in libupgradedocbasics.parse_upgrade_doc_rows(text)][-1] == "Late"

@@ -8,6 +8,8 @@ from types import ModuleType
 
 import pytest
 
+from tests.fixture_data import write_lines
+
 BASE_LINES = [
     "apiVersion: v1",
     "kind: Pod",
@@ -25,7 +27,7 @@ BASE_LINES = [
 def write_template(chart_dir, name, lines):
     templates_dir = chart_dir / "templates"
     templates_dir.mkdir(exist_ok=True)
-    (templates_dir / name).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    write_lines(templates_dir / name, lines)
 
 
 def test_no_templates_dir_passes(vp: ModuleType, tmp_path: Path):
@@ -54,7 +56,8 @@ def test_near_identical_pair_flagged_as_likely_worth_deduping(
     assert "1 candidate(s)" in detail
     out = capsys.readouterr().out
     assert "90% similar" in out
-    assert "a.yaml" in out and "b.yaml" in out
+    assert "a.yaml" in out
+    assert "b.yaml" in out
     assert "likely worth deduping" in out
 
 
@@ -126,7 +129,7 @@ def test_threshold_classifies_the_real_storage_pvc_case_as_worth_deduping(
     write_template(tmp_path, "openklant-storage.yaml", b)
 
     ratio = difflib.SequenceMatcher(None, a, b).ratio()
-    assert ratio >= libdrycheck.dry_check_high_similarity_threshold(tmp_path), (
+    assert ratio >= libdrycheck.dry_check_high_similarity(tmp_path), (
         f"test fixture ratio {ratio} no longer represents the real ~0.89 storage-file case"
     )
 

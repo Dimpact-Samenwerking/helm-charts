@@ -24,6 +24,7 @@ reports version mismatches / missing rows / missing pins. The script's
 
 from collections import defaultdict
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
@@ -42,7 +43,7 @@ from lib.image.version import MULTIPLE_KEY
 from lib.image.version import basenames_under_scope_any_tag
 from lib.image.version import find_matches_any_tag
 from lib.image.version import image_basename
-from lib.image.version import repository_for_basename_in_scope
+from lib.image.version import scoped_basename_repository
 from lib.release_table.csv_rows import ReleaseTableRow
 from lib.release_table.state import ChartState
 from lib.release_table.state import Comparison
@@ -57,12 +58,16 @@ UNRESOLVED_COMPONENTS = ("", "UNKNOWN")
 # "missing_from_chart") -> its finding lines, as compare() collects them.
 Findings = defaultdict[str, list[str]]
 # What _SourceResolver.resolve_at_baseline found for one basename.
-BaselineResolution = tuple[Literal["found"], str, str] | tuple[Literal["ambiguous"], str] | tuple[Literal["absent"]]
+type BaselineFound = tuple[Literal["found"], str, str]
+type BaselineAmbiguous = tuple[Literal["ambiguous"], str]
+type BaselineResolution = BaselineFound | BaselineAmbiguous | tuple[Literal["absent"]]
+# Finding lines by category, as compare() returns them.
+type FindingsByCategory = dict[str, list[str]]
 
 
 def split_basenames(value: str):
     """A comma-separated CSV basenames cell as a list, stripped, blanks dropped."""
-    return [b.strip() for b in value.split(",") if b.strip()]
+    return [basename.strip() for basename in value.split(",") if basename.strip()]
 
 
 def is_verifiable_target(target: str):
@@ -199,24 +204,29 @@ def check_chart_version(ref: ComponentRef, rows: list[ReleaseTableRow], state: C
     """
     actual = str(ref.dep["version"]) if ref.dep else ""
     for row in rows:
-        target = row["target_version_helm"]
-        if is_verifiable_target(target):
-            if target != actual:
-                report_mismatch(findings, "CHART", row, ref.component, Observed(target, actual, "Chart.yaml"))
-        else:
-            # A blank target doesn't excuse a stale source: that's unrecorded drift.
-            source = row["source_version_helm"]
-            if is_verifiable_target(source) and source != actual:
-                findings["mismatches"].append(
-                    f"[CHART] {row['name']} ({ref.component}): release-table target is blank (recorded "
-                    f"source {source}) but Chart.yaml is now {actual} — target_version_helm was never "
-                    f"filled in for this change"
-                )
+        _check_row_chart_version(ref.component, row, actual, findings)
     if not chart_version_ever_tracked(rows):
         hint = missing_chart_version_hint(ref, state, rows)
         findings["missing_from_release_table"].append(
             f"[CHART] Chart.yaml dependency '{ref.component}' has release-table.csv row(s), but none "
             f"records a Helm chart version\n      {hint}"
+        )
+
+
+def _check_row_chart_version(component: str, row: ReleaseTableRow, actual: str, findings: Findings) -> None:
+    """check_chart_version for one row against Chart.yaml's version `actual`."""
+    target = row["target_version_helm"]
+    if is_verifiable_target(target):
+        if target != actual:
+            report_mismatch(findings, "CHART", row, component, Observed(target, actual, "Chart.yaml"))
+        return
+    # A blank target doesn't excuse a stale source: that's unrecorded drift.
+    source = row["source_version_helm"]
+    if is_verifiable_target(source) and source != actual:
+        findings["mismatches"].append(
+            f"[CHART] {row['name']} ({component}): release-table target is blank (recorded "
+            f"source {source}) but Chart.yaml is now {actual} — target_version_helm was never "
+            f"filled in for this change"
         )
 
 
@@ -236,30 +246,32 @@ def check_chart_version_source(
     "-PRESENCE" finding (per dependency: sidecar rows carry no chart version).
     """
     baseline_dep = find_dependency(baseline_deps, dep["name"])
-    any_source_recorded = False
-    for row in rows:
-        source = row["source_version_helm"]
-        if not is_verifiable_target(source):
-            continue
-        any_source_recorded = True
-        if baseline_dep is None:
-            findings["mismatches"].append(
-                f"[CHART-SOURCE] {row['name']} ({dep['name']}): release-table claims source chart version "
-                f"{source}, but this dependency didn't exist at the release_table baseline yet"
-            )
-            continue
-        actual = str(baseline_dep["version"])
-        if source != actual:
-            findings["mismatches"].append(
-                f"[CHART-SOURCE] {row['name']} ({dep['name']}): release-table source {source} != "
-                f"baseline Chart.yaml {actual}"
-            )
+    sourced_rows = [row for row in rows if is_verifiable_target(row["source_version_helm"])]
+    any_source_recorded = bool(sourced_rows)
+    for row in sourced_rows:
+        finding = _chart_source_finding(dep["name"], row, baseline_dep)
+        if finding is not None:
+            findings["mismatches"].append(finding)
     if strict_presence and not any_source_recorded and baseline_dep is not None:
         findings["mismatches"].append(
             f"[CHART-SOURCE-PRESENCE] Chart.yaml dependency '{dep['name']}' has release-table.csv row(s), but "
             f"none records a source_version_helm, even though it already existed at the release_table baseline "
             f"(version {baseline_dep['version']})"
         )
+
+
+def _chart_source_finding(name: str, row: ReleaseTableRow, baseline_dep: ChartDependency | None) -> str | None:
+    """The finding for a row's recorded source chart version against the baseline dependency, or None."""
+    source = row["source_version_helm"]
+    if baseline_dep is None:
+        return (
+            f"[CHART-SOURCE] {row['name']} ({name}): release-table claims source chart version "
+            f"{source}, but this dependency didn't exist at the release_table baseline yet"
+        )
+    actual = str(baseline_dep["version"])
+    if source == actual:
+        return None
+    return f"[CHART-SOURCE] {row['name']} ({name}): release-table source {source} != baseline Chart.yaml {actual}"
 
 
 def missing_image_hint(
@@ -322,7 +334,7 @@ def _unscoped_fallback_pins(
     keycloak-config-cli under "keycloak"). Ambiguous, with a finding
     recorded, when the matches span several repositories."""
     pins = find_matches_any_tag(state.lines, basename) or None
-    repos = {repository_group_key(p["repository"]) for p in pins or [] if p["repository"]}
+    repos = {repository_group_key(pin["repository"]) for pin in pins or [] if pin["repository"]}
     if len(repos) > 1:
         findings["ambiguous"].append(
             f"[IMAGE] '{basename}' matches {len(repos)} different repositories outside "
@@ -333,7 +345,7 @@ def _unscoped_fallback_pins(
     return pins, False
 
 
-def _check_primary_row_without_basename(
+def _check_bare_primary_row(
     ref: ComponentRef, rows: list[ReleaseTableRow], state: ChartState, findings: Findings, primary_basename: str | None
 ) -> None:
     """Compare the single blank-image_basename row with actual_app_version, if no other row claims the primary.
@@ -345,7 +357,7 @@ def _check_primary_row_without_basename(
     blank_rows = [row for row in rows if not split_basenames(row["image_basename"])]
     if len(blank_rows) != 1:
         return
-    if primary_basename is not None and any(primary_basename in split_basenames(r["image_basename"]) for r in rows):
+    if primary_basename is not None and any(primary_basename in split_basenames(row["image_basename"]) for row in rows):
         return
     actual = actual_app_version(state.values, ref.scope_key, ref.component, state.chart_dir, ref.dep)
     row = blank_rows[0]
@@ -366,50 +378,67 @@ def check_images(ref: ComponentRef, rows: list[ReleaseTableRow], state: ChartSta
     give "ambiguous". Then every pinned basename under the scope that no row
     claims gets a "missing_from_release_table" finding with a hint.
     """
-    actual_basenames = basenames_under_scope_any_tag(state.lines, ref.scope_key)
+    scan = _ImageScan(ref, state, findings, basenames_under_scope_any_tag(state.lines, ref.scope_key))
     csv_basenames: set[str] = set()
     # Resolved once per component (not per pin) — see primary_image_basename.
     primary_basename = None if ref.component == MULTIPLE_KEY else primary_image_basename(ref, state)
-
     for row in rows:
-        basenames = split_basenames(row["image_basename"])
-        if not basenames:
-            continue
-
-        for basename in basenames:
+        for basename in split_basenames(row["image_basename"]):
             csv_basenames.add(basename)
-            pins = actual_basenames.get(basename)
-            if pins is None:
-                pins, ambiguous = _unscoped_fallback_pins(ref, state, basename, findings)
-                if ambiguous:
-                    continue
-            if pins is None:
-                findings["missing_from_chart"].append(
-                    f"[IMAGE] release-table image '{basename}' for component '{ref.component}' "
-                    f"(row '{row['name']}') is not pinned anywhere under '{ref.scope_key}' in values.yaml"
-                )
-                continue
+            _check_row_basename(scan, row, basename)
+    _check_bare_primary_row(ref, rows, state, findings, primary_basename)
+    _report_untracked_basenames(scan, rows, csv_basenames, primary_basename)
 
-            versions = {p["version"] for p in pins}
-            if len(versions) > 1:
-                findings["ambiguous"].append(
-                    f"[IMAGE] '{basename}' under '{ref.scope_key}' is pinned at {len(versions)} different "
-                    f"versions ({', '.join(sorted(versions))}) -- can't compare to release-table"
-                )
-                continue
-            _record_image_result(ref, row, basename, next(iter(versions)), findings)
 
-    _check_primary_row_without_basename(ref, rows, state, findings, primary_basename)
+@dataclass
+class _ImageScan:
+    """One component's check_images inputs: the basenames pinned under its scope."""
 
-    for basename, pins in actual_basenames.items():
-        if basename not in csv_basenames:
-            versions = {p["version"] for p in pins}
-            primary = ref.component != MULTIPLE_KEY and basename == primary_basename
-            hint = missing_image_hint(rows, ref, basename, versions, primary=primary)
-            findings["missing_from_release_table"].append(
-                f"[IMAGE] '{ref.scope_key}' image '{basename}' is pinned in values.yaml but not tracked "
-                f"in release-table.csv\n      {hint}"
-            )
+    ref: ComponentRef
+    state: ChartState
+    findings: Findings
+    actual_basenames: dict[str, list[VersionPin]]
+
+
+def _check_row_basename(scan: _ImageScan, row: ReleaseTableRow, basename: str) -> None:
+    """Compare one row basename's pinned version (scoped, else unscoped) with the row."""
+    ref, findings = scan.ref, scan.findings
+    pins = scan.actual_basenames.get(basename)
+    if pins is None:
+        pins, ambiguous = _unscoped_fallback_pins(ref, scan.state, basename, findings)
+        if ambiguous:
+            return
+    if pins is None:
+        findings["missing_from_chart"].append(
+            f"[IMAGE] release-table image '{basename}' for component '{ref.component}' "
+            f"(row '{row['name']}') is not pinned anywhere under '{ref.scope_key}' in values.yaml"
+        )
+        return
+    versions = {pin["version"] for pin in pins}
+    if len(versions) > 1:
+        findings["ambiguous"].append(
+            f"[IMAGE] '{basename}' under '{ref.scope_key}' is pinned at {len(versions)} different "
+            f"versions ({', '.join(sorted(versions))}) -- can't compare to release-table"
+        )
+        return
+    _record_image_result(ref, row, basename, next(iter(versions)), findings)
+
+
+def _report_untracked_basenames(
+    scan: _ImageScan, rows: list[ReleaseTableRow], csv_basenames: set[str], primary_basename: str | None
+) -> None:
+    """A "missing_from_release_table" finding, with a hint, per pinned basename no row claims."""
+    ref = scan.ref
+    for basename, pins in scan.actual_basenames.items():
+        if basename in csv_basenames:
+            continue
+        versions = {pin["version"] for pin in pins}
+        primary = ref.component != MULTIPLE_KEY and basename == primary_basename
+        hint = missing_image_hint(rows, ref, basename, versions, primary=primary)
+        scan.findings["missing_from_release_table"].append(
+            f"[IMAGE] '{ref.scope_key}' image '{basename}' is pinned in values.yaml but not tracked "
+            f"in release-table.csv\n      {hint}"
+        )
 
 
 def _check_image_source_pin(
@@ -501,14 +530,17 @@ class _BaselineSourceResolver:
     """Tier resolution of one ref's basenames at the baseline; pulls the subchart at most once."""
 
     def __init__(self, ref: ComponentRef, baseline: ChartState, current: ChartState):
-        self.ref = ref
-        self.baseline = baseline
-        self.current = current
-        self.baseline_basenames = basenames_under_scope_any_tag(baseline.lines, ref.scope_key)
-        self.baseline_dep = (
+        self.ref: ComponentRef = ref
+        self.baseline: ChartState = baseline
+        self.current: ChartState = current
+        self.baseline_basenames: dict[str, list[VersionPin]] = basenames_under_scope_any_tag(
+            baseline.lines, ref.scope_key
+        )
+        self.baseline_dep: ChartDependency | None = (
             find_dependency(baseline.deps, ref.dep["name"]) if ref.dep is not None and baseline.deps else None
         )
-        self._subchart_repos_state = None  # lazily filled: (repos, error) from primary_image_repositories
+        # filled on first use: pulling the subchart is slow
+        self._subchart_repos_state: tuple[dict[str, str | None], str | None] | None = None
 
     def resolve_subchart_source(self, basename: str):
         """(version, None) from the subchart-default fallback, (None, error)
@@ -521,32 +553,17 @@ class _BaselineSourceResolver:
                 baseline.chart_dir, self.baseline_dep, baseline.values, allow_pull=True
             )
         repos, error = self._subchart_repos_state
-        matching_paths = [p for p, repo in repos.items() if repo and image_basename(repo) == basename]
+        matching_paths = [path for path, repo in repos.items() if repo and image_basename(repo) == basename]
         if matching_paths:
             tag = text_at(baseline.values, f"{self.ref.scope_key}.{matching_paths[0]}.tag")
             return (version_of(tag) if isinstance(tag, str) and tag else None), None
         if error and all(
-            not text_at(baseline.values, f"{self.ref.scope_key}.{p}.repository")
-            for p in image_paths_for(self.baseline_dep["name"], baseline.chart_dir)
+            not text_at(baseline.values, f"{self.ref.scope_key}.{path}.repository")
+            for path in image_paths_for(self.baseline_dep["name"], baseline.chart_dir)
         ):
             # Resolution failed and no primary path has an override: may be this basename, so unverifiable.
             return None, error
         return None, None
-
-    def _unscoped_fallback_pins(self, basename: str):
-        """find_matches_any_tag pins for basename at the baseline, kept only
-        when their repository matches basename's CURRENT scoped repository."""
-        fallback_pins = find_matches_any_tag(self.baseline.lines, basename)
-        if not fallback_pins:
-            return fallback_pins
-        current_repo = repository_for_basename_in_scope(self.current.lines, self.ref.scope_key, basename)
-        return [
-            p
-            for p in fallback_pins
-            if current_repo is not None
-            and p["repository"]
-            and repository_group_key(p["repository"]) == repository_group_key(current_repo)
-        ]
 
     def resolve_at_baseline(self, basename: str) -> BaselineResolution:
         """Resolve `basename` at the baseline, shared by the source comparison and strict_presence.
@@ -559,7 +576,7 @@ class _BaselineSourceResolver:
         if pins is None:
             pins = self._unscoped_fallback_pins(basename) or None
         if pins is not None:
-            versions = {p["version"] for p in pins}
+            versions = {pin["version"] for pin in pins}
             if len(versions) > 1:
                 return (
                     "ambiguous",
@@ -584,6 +601,21 @@ class _BaselineSourceResolver:
         if subchart_actual is not None:
             return ("found", subchart_actual, "subchart-default values.yaml")
         return ("absent",)
+
+    def _unscoped_fallback_pins(self, basename: str):
+        """find_matches_any_tag pins for basename at the baseline, kept only
+        when their repository matches basename's CURRENT scoped repository."""
+        fallback_pins = find_matches_any_tag(self.baseline.lines, basename)
+        if not fallback_pins:
+            return fallback_pins
+        current_repo = scoped_basename_repository(self.current.lines, self.ref.scope_key, basename)
+        return [
+            pin
+            for pin in fallback_pins
+            if current_repo is not None
+            and pin["repository"]
+            and repository_group_key(pin["repository"]) == repository_group_key(current_repo)
+        ]
 
 
 def _check_dependency(
@@ -641,9 +673,28 @@ def _check_unmatched_component(
         )
 
 
+type RowsByComponent = defaultdict[str, list[ReleaseTableRow]]
+
+
+def _split_rows(rows: list[ReleaseTableRow]) -> tuple[RowsByComponent, list[ReleaseTableRow], list[ReleaseTableRow]]:
+    """(rows by component, MULTIPLE rows, rows the export never resolved)."""
+    rows_by_component: RowsByComponent = defaultdict(list)
+    multiple_rows: list[ReleaseTableRow] = []
+    unresolved: list[ReleaseTableRow] = []
+    for row in rows:
+        component = row["component"]
+        if component == MULTIPLE_KEY:
+            multiple_rows.append(row)
+        elif component in UNRESOLVED_COMPONENTS:
+            unresolved.append(row)
+        else:
+            rows_by_component[component].append(row)
+    return rows_by_component, multiple_rows, unresolved
+
+
 def compare(
     rows: list[ReleaseTableRow], state: ChartState, baseline: ChartState | None = None, *, baseline_only: bool = False
-) -> tuple[dict[str, list[str]], list[ReleaseTableRow]]:
+) -> tuple[FindingsByCategory, list[ReleaseTableRow]]:
     """(findings by category, rows whose component the export never resolved).
 
     `state` is the current chart; state.chart_dir None disables only the
@@ -653,20 +704,11 @@ def compare(
     skips target-side checks and enables strict_presence.
     """
     findings: Findings = defaultdict(list)
-    unresolved: list[ReleaseTableRow] = []
-    state = ChartState(state.chart_dir, state.deps, state.values if isinstance(state.values, dict) else {}, state.lines)
+    values = state.values if isinstance(state.values, dict) else {}
+    state = ChartState(state.chart_dir, state.deps, values, state.lines)
     comparison = Comparison(state, baseline)
 
-    rows_by_component: defaultdict[str, list[ReleaseTableRow]] = defaultdict(list)
-    multiple_rows: list[ReleaseTableRow] = []
-    for row in rows:
-        component = row["component"]
-        if component == MULTIPLE_KEY:
-            multiple_rows.append(row)
-        elif component in UNRESOLVED_COMPONENTS:
-            unresolved.append(row)
-        else:
-            rows_by_component[component].append(row)
+    rows_by_component, multiple_rows, unresolved = _split_rows(rows)
 
     # Even with no MULTIPLE rows, so an untracked global image is still reported.
     multiple_ref = ComponentRef(GLOBAL_IMAGES_SCOPE, MULTIPLE_KEY)

@@ -1,6 +1,7 @@
 """Values-tree and dependency-list primitives; no other lib.chart.* imports."""
 
 import re
+import sys
 
 from collections.abc import Iterable
 from pathlib import Path
@@ -12,6 +13,9 @@ from lib.yaml_types import YamlValue
 from lib.yaml_types import scalar_text
 
 UTF8_BOM = b"\xef\xbb\xbf"
+
+# A path into a values tree, one key (or list index, as a string) per level.
+type ValuesPath = tuple[str, ...]
 
 
 def get_path(node: YamlValue, dotted_path: str) -> YamlValue:
@@ -27,6 +31,11 @@ def text_at(node: YamlValue, dotted_path: str) -> str | None:
     """get_path, as the scalar text Helm renders there (see scalar_text):
     None when the value is missing or not a string or number."""
     return scalar_text(get_path(node, dotted_path))
+
+
+def field_text(node: YamlValue, path: ValuesPath, field: str) -> str | None:
+    """text_at of `field` in the block at `path` (e.g. the "repository" of an image block)."""
+    return text_at(node, ".".join((*path, field)))
 
 
 def mapping_at(node: YamlValue, dotted_path: str) -> YamlMapping:
@@ -53,23 +62,28 @@ def replace_scalar_value(line: str, new_value: str) -> str:
     Avoids a load/dump round trip that would lose comments. Dropping an
     "&anchor" would break every "*anchor" alias to it.
     """
-    m = re.match(
+    line_match = re.match(
         r'^(?P<indent>\s*)(?P<key>[^:\n]+:)\s*(?P<anchor>&\S+\s+)?(?P<quote>["\']?)'
         r"(?P<value>.*?)(?P=quote)\s*(?P<comment>#.*)?\s*$",
         line,
     )
-    if not m:
+    if not line_match:
         msg = f"error: could not parse line for replacement: {line!r}"
-        raise SystemExit(msg)
-    anchor = m.group("anchor") or ""
-    quote = m.group("quote")
-    comment = f"  {m.group('comment')}" if m.group("comment") else ""
-    return f"{m.group('indent')}{m.group('key')} {anchor}{quote}{new_value}{quote}{comment}\n"
+        sys.exit(msg)
+    anchor = line_match.group("anchor") or ""
+    quote = line_match.group("quote")
+    comment = f"  {line_match.group('comment')}" if line_match.group("comment") else ""
+    return f"{line_match.group('indent')}{line_match.group('key')} {anchor}{quote}{new_value}{quote}{comment}\n"
 
 
-def same_name(a: str, b: str) -> bool:
+def is_same_name(first: str, second: str) -> bool:
     """True if two component or image names match, ignoring case."""
-    return a.casefold() == b.casefold()
+    return first.casefold() == second.casefold()
+
+
+def dependency_name_and_alias(dep: ChartDependency) -> tuple[str, str | None]:
+    """A dependency's name and alias (None without one): the names it may be called by."""
+    return dep["name"], dep.get("alias")
 
 
 def values_key_of(dep: ChartDependency) -> str:
@@ -92,15 +106,15 @@ def find_dependency(deps: list[ChartDependency], name_or_alias: str) -> ChartDep
     match ignoring case.
     """
     for dep in deps:
-        if name_or_alias in (dep["name"], dep.get("alias")):
+        if name_or_alias in dependency_name_and_alias(dep):
             return dep
     matches = [
-        dep for dep in deps if same_name(dep["name"], name_or_alias) or same_name(dep.get("alias") or "", name_or_alias)
+        dep for dep in deps if any(is_same_name(name or "", name_or_alias) for name in dependency_name_and_alias(dep))
     ]
     if len(matches) > 1:
         names = ", ".join(values_key_of(dep) for dep in matches)
         msg = f"error: '{name_or_alias}' matches more than one dependency ignoring case: {names}"
-        raise SystemExit(msg)
+        sys.exit(msg)
     return matches[0] if matches else None
 
 
@@ -111,7 +125,7 @@ def require_dependency(chart_yaml: Path, name_or_alias: str) -> ChartDependency:
     dep = find_dependency(deps, name_or_alias)
     if dep is None:
         msg = f"error: no dependency named or aliased '{name_or_alias}' found in {chart_yaml}"
-        raise SystemExit(msg)
+        sys.exit(msg)
     return dep
 
 
@@ -132,7 +146,7 @@ def own_template_files_referencing(chart_dir: Path, key: str) -> list[str]:
     ]
 
 
-def resolve_values_path_source(chart_dir: Path, deps: list[ChartDependency], path: tuple[str, ...]) -> str:
+def resolve_values_path_source(chart_dir: Path, deps: list[ChartDependency], path: ValuesPath) -> str:
     """Where `path`'s top-level key comes from: its dependency chart and version, or the templates using it."""
     dep = find_dependency(deps, path[0])
     if dep is not None:
@@ -165,7 +179,7 @@ def version_of(tag: str) -> str:
     return tag.split("@", 1)[0]
 
 
-def image_version_changed(old_tag: str | None, new_tag: str | None) -> bool:
+def is_image_version_changed(old_tag: str | None, new_tag: str | None) -> bool:
     """Whether an image pin's version (not just its digest) changed; a pin new at this path counts as changed."""
     if new_tag is None:
         return False
@@ -183,13 +197,13 @@ def dotted_key_path(lines: list[str], line_index: int) -> str:
     """
     stack: list[tuple[int, str]] = []
     for raw in lines[: line_index + 1]:
-        m = KEY_LINE_RE.match(raw)
-        if not m:
+        key_match = KEY_LINE_RE.match(raw)
+        if not key_match:
             continue
-        indent = len(m.group("indent"))
+        indent = len(key_match.group("indent"))
         while stack and stack[-1][0] >= indent:
             stack.pop()
-        stack.append((indent, m.group("key")))
+        stack.append((indent, key_match.group("key")))
     return ".".join(key for _, key in stack)
 
 
@@ -211,15 +225,26 @@ def find_images(node: YamlValue, path: str = "") -> list[tuple[str, str, str]]:
     tag) for every dict that has both a non-empty "repository" and "tag"
     scalar (as the text Helm renders, see scalar_text)."""
     images: list[tuple[str, str, str]] = []
-    if isinstance(node, dict):
-        if "repository" in node and "tag" in node:
-            repo, tag = scalar_text(node["repository"]), scalar_text(node["tag"])
-            if repo and tag:
-                images.append((path or "(root)", repo, tag))
-        for key, value in node.items():
-            child_path = f"{path}.{key}" if path else key
-            images.extend(find_images(value, child_path))
-    elif isinstance(node, list):
-        for i, item in enumerate(node):
-            images.extend(find_images(item, f"{path}[{i}]"))
+    own = _own_image(node, path)
+    if own is not None:
+        images.append(own)
+    for child_path, child in _child_nodes(node, path):
+        images.extend(find_images(child, child_path))
     return images
+
+
+def _own_image(node: YamlValue, path: str) -> tuple[str, str, str] | None:
+    """find_images' (path, repository, tag) for `node` itself, or None."""
+    if not isinstance(node, dict) or "repository" not in node or "tag" not in node:
+        return None
+    repo, tag = scalar_text(node["repository"]), scalar_text(node["tag"])
+    return (path or "(root)", repo, tag) if repo and tag else None
+
+
+def _child_nodes(node: YamlValue, path: str) -> list[tuple[str, YamlValue]]:
+    """(child_path, child) for each mapping value or list item directly under `node`."""
+    if isinstance(node, dict):
+        return [(f"{path}.{key}" if path else key, value) for key, value in node.items()]
+    if isinstance(node, list):
+        return [(f"{path}[{index}]", item) for index, item in enumerate(node)]
+    return []

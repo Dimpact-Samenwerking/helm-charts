@@ -242,7 +242,7 @@ def test_find_image_tag_paths_include_null_tags_does_not_affect_real_tags(libupg
     assert paths[("eck-operator", "image")] is None
 
 
-# --- find_component_version_tags / find_all_image_and_version_paths ---
+# --- find_component_version_tags / find_image_and_version_paths ---
 # Flat version fields (e.g. redisOperator.imageTag) are invisible to
 # find_image_tag_paths; missing them hid real bumps from the list-diff check.
 
@@ -297,7 +297,7 @@ def test_find_all_image_and_version_paths_combines_both(libupgradedocappversion:
             "redis-ha": {"image": {"tag": "8.6.6@sha256:bbbb"}},
         }
     }
-    paths = dict(libupgradedocappversion.find_all_image_and_version_paths(values, deps))
+    paths = dict(libupgradedocappversion.find_image_and_version_paths(values, deps))
     assert paths[("redis-operator", "redisOperator", "imageTag")] == "v0.26.0@sha256:aaaa"
     assert paths[("redis-operator", "redis-ha", "image")] == "8.6.6@sha256:bbbb"
 

@@ -91,3 +91,14 @@ def test_find_extracted_vendored_dirs_returns_sorted_names(libvendoredtgzcheck: 
     write_tgz(tmp_path, "clamav-3.7.1.tgz")
     write_extracted_dir(tmp_path, "clamav")
     assert libvendoredtgzcheck.find_extracted_vendored_dirs(tmp_path) == ["clamav", "openzaak"]
+
+
+def test_find_extracted_vendored_dirs_reads_a_hyphenated_version_against_the_directory_name(
+    libvendoredtgzcheck: ModuleType, tmp_path: Path
+):
+    """foo-1.0.0-rc-1.tgz belongs to foo/; keycloak-operator-0.4.0.tgz does not belong to keycloak/."""
+    write_tgz(tmp_path, "foo-1.0.0-rc-1.tgz")
+    write_extracted_dir(tmp_path, "foo")
+    write_tgz(tmp_path, "keycloak-operator-0.4.0.tgz")
+    write_extracted_dir(tmp_path, "keycloak")
+    assert libvendoredtgzcheck.find_extracted_vendored_dirs(tmp_path) == ["foo"]

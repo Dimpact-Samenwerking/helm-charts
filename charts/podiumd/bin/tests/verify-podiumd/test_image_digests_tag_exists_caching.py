@@ -13,7 +13,7 @@ from types import ModuleType
 
 import pytest
 
-import lib.repo_access_cache as repo_access_cache
+from lib import repo_access_cache
 
 
 @pytest.fixture(autouse=True)

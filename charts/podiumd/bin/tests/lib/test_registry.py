@@ -1,18 +1,33 @@
 """lib.registry tests; urlopen is monkeypatched, git history uses a temp repo."""
 
 import json
-import subprocess
-import urllib.error
-import urllib.request
 
 from email.message import Message
 from io import BytesIO
 from pathlib import Path
 from types import ModuleType
+from typing import TypeGuard
+from urllib.error import HTTPError
+from urllib.error import URLError
+from urllib.request import Request
 
 import pytest
 
+from tests.fixture_data import SHA256_A
+from tests.fixture_data import SHA256_B
+from tests.fixture_data import SHA256_C
+from tests.fixture_data import SHA256_D
+from tests.fixture_data import SHA256_E
+from tests.fixture_data import sha256_digest
+from tests.git_repo import commit_all
+from tests.git_repo import init_git_repo
+
 # --- parse_repo ---
+
+
+def is_request(arg: object) -> TypeGuard[Request]:
+    # S310 flags every reference to Request, but this one opens no URL.
+    return isinstance(arg, Request)  # noqa: S310 -- a type check, no URL is opened
 
 
 def _headers(values: dict[str, str]) -> Message:
@@ -52,8 +67,8 @@ def test_parse_repo_host_with_port(libregistry: ModuleType):
 
 class FakeResponse:
     def __init__(self, headers=None, body=b""):
-        self.headers = headers or {}
-        self._body = body
+        self.headers: dict[str, str] = headers or {}
+        self._body: bytes = body
 
     def read(self):
         return self._body
@@ -68,12 +83,12 @@ class FakeResponse:
 def test_registry_tag_exists_no_token_needed(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
     def fake_urlopen(req):
         assert "Authorization" not in req.headers
-        return FakeResponse(headers={"Docker-Content-Digest": "sha256:" + "a" * 64})
+        return FakeResponse(headers={"Docker-Content-Digest": SHA256_A})
 
-    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(libregistry, "urlopen", fake_urlopen)
     exists, digest = libregistry.registry_tag_exists("quay.io", "coreos/etcd", "v3.5.16")
     assert exists is True
-    assert digest == "sha256:" + "a" * 64
+    assert digest == SHA256_A
 
 
 def test_registry_tag_exists_fetches_token_for_docker_hub(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
@@ -84,22 +99,22 @@ def test_registry_tag_exists_fetches_token_for_docker_hub(libregistry: ModuleTyp
         calls.append(url)
         if "auth.docker.io" in url:
             return FakeResponse(body=json.dumps({"token": "faketoken"}).encode())
-        assert isinstance(arg, urllib.request.Request)
+        assert is_request(arg)
         assert arg.headers.get("Authorization") == "Bearer faketoken"
-        return FakeResponse(headers={"Docker-Content-Digest": "sha256:" + "b" * 64})
+        return FakeResponse(headers={"Docker-Content-Digest": SHA256_B})
 
-    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(libregistry, "urlopen", fake_urlopen)
     exists, digest = libregistry.registry_tag_exists("docker.io", "library/python", "3.14-slim")
     assert exists is True
-    assert digest == "sha256:" + "b" * 64
+    assert digest == SHA256_B
     assert any("auth.docker.io" in c for c in calls)
 
 
 def test_registry_tag_exists_404_returns_false(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
     def fake_urlopen(req):
-        raise urllib.error.HTTPError(req.full_url, 404, "Not Found", Message(), BytesIO(b""))
+        raise HTTPError(req.full_url, 404, "Not Found", Message(), BytesIO(b""))
 
-    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(libregistry, "urlopen", fake_urlopen)
     exists, digest = libregistry.registry_tag_exists("quay.io", "coreos/etcd", "nonexistent")
     assert exists is False
     assert digest is None
@@ -107,10 +122,10 @@ def test_registry_tag_exists_404_returns_false(libregistry: ModuleType, monkeypa
 
 def test_registry_tag_exists_reraises_non_404_error(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
     def fake_urlopen(req):
-        raise urllib.error.HTTPError(req.full_url, 500, "Server Error", Message(), BytesIO(b""))
+        raise HTTPError(req.full_url, 500, "Server Error", Message(), BytesIO(b""))
 
-    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
-    with pytest.raises(urllib.error.HTTPError):
+    monkeypatch.setattr(libregistry, "urlopen", fake_urlopen)
+    with pytest.raises(HTTPError):
         libregistry.registry_tag_exists("quay.io", "coreos/etcd", "v3.5.16")
 
 
@@ -119,9 +134,9 @@ def test_registry_tag_exists_passes_timeout_when_given(libregistry: ModuleType, 
 
     def fake_urlopen(req, timeout=None):
         seen["timeout"] = timeout
-        return FakeResponse(headers={"Docker-Content-Digest": "sha256:" + "a" * 64})
+        return FakeResponse(headers={"Docker-Content-Digest": SHA256_A})
 
-    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(libregistry, "urlopen", fake_urlopen)
     libregistry.registry_tag_exists("quay.io", "coreos/etcd", "v3.5.16", timeout=7)
     assert seen["timeout"] == 7
 
@@ -130,9 +145,9 @@ def test_registry_tag_exists_omits_timeout_kwarg_by_default(libregistry: ModuleT
     """No timeout kwarg by default, so single-arg urlopen mocks keep working."""
 
     def fake_urlopen(req):
-        return FakeResponse(headers={"Docker-Content-Digest": "sha256:" + "a" * 64})
+        return FakeResponse(headers={"Docker-Content-Digest": SHA256_A})
 
-    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(libregistry, "urlopen", fake_urlopen)
     exists, _digest = libregistry.registry_tag_exists("quay.io", "coreos/etcd", "v3.5.16")
     assert exists is True
 
@@ -148,10 +163,10 @@ def test_registry_tag_exists_discovers_token_via_bearer_challenge(
         calls.append(url)
         if "docker-auth.elastic.co" in url:
             return FakeResponse(body=json.dumps({"token": "elastictoken"}).encode())
-        assert isinstance(arg, urllib.request.Request)
+        assert is_request(arg)
         if arg.headers.get("Authorization") == "Bearer elastictoken":
-            return FakeResponse(headers={"Docker-Content-Digest": "sha256:" + "e" * 64})
-        raise urllib.error.HTTPError(
+            return FakeResponse(headers={"Docker-Content-Digest": SHA256_E})
+        raise HTTPError(
             url,
             401,
             "Unauthorized",
@@ -165,10 +180,10 @@ def test_registry_tag_exists_discovers_token_via_bearer_challenge(
             BytesIO(b""),
         )
 
-    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(libregistry, "urlopen", fake_urlopen)
     exists, digest = libregistry.registry_tag_exists("docker.elastic.co", "integrations/crawler", "1.0.0")
     assert exists is True
-    assert digest == "sha256:" + "e" * 64
+    assert digest == SHA256_E
     assert any("docker-auth.elastic.co" in c for c in calls)
 
 
@@ -176,10 +191,10 @@ def test_registry_tag_exists_401_without_challenge_reraises(libregistry: ModuleT
     """A 401 without a Bearer challenge is a real auth wall: propagate, don't retry."""
 
     def fake_urlopen(req):
-        raise urllib.error.HTTPError(req.full_url, 401, "Unauthorized", Message(), BytesIO(b""))
+        raise HTTPError(req.full_url, 401, "Unauthorized", Message(), BytesIO(b""))
 
-    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
-    with pytest.raises(urllib.error.HTTPError) as exc_info:
+    monkeypatch.setattr(libregistry, "urlopen", fake_urlopen)
+    with pytest.raises(HTTPError) as exc_info:
         libregistry.registry_tag_exists("firewalled-registry.example.com", "some/repo", "1.0.0")
     assert exc_info.value.code == 401
 
@@ -190,9 +205,9 @@ def test_registry_tag_exists_issues_a_head_request(libregistry: ModuleType, monk
 
     def fake_urlopen(req):
         seen["method"] = req.get_method()
-        return FakeResponse(headers={"Docker-Content-Digest": "sha256:" + "a" * 64})
+        return FakeResponse(headers={"Docker-Content-Digest": SHA256_A})
 
-    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(libregistry, "urlopen", fake_urlopen)
     libregistry.registry_tag_exists("quay.io", "coreos/etcd", "v3.5.16")
     assert seen["method"] == "HEAD"
 
@@ -204,13 +219,13 @@ def test_registry_tag_exists_falls_back_to_get_on_405(libregistry: ModuleType, m
     def fake_urlopen(req):
         calls.append(req.get_method())
         if req.get_method() == "HEAD":
-            raise urllib.error.HTTPError(req.full_url, 405, "Method Not Allowed", Message(), BytesIO(b""))
-        return FakeResponse(headers={"Docker-Content-Digest": "sha256:" + "a" * 64})
+            raise HTTPError(req.full_url, 405, "Method Not Allowed", Message(), BytesIO(b""))
+        return FakeResponse(headers={"Docker-Content-Digest": SHA256_A})
 
-    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(libregistry, "urlopen", fake_urlopen)
     exists, digest = libregistry.registry_tag_exists("quay.io", "coreos/etcd", "v3.5.16")
     assert exists is True
-    assert digest == "sha256:" + "a" * 64
+    assert digest == SHA256_A
     assert calls == ["HEAD", "GET"]
 
 
@@ -221,9 +236,9 @@ def test_registry_tag_exists_404_on_head_returns_false_without_get_fallback(
 
     def fake_urlopen(req):
         assert req.get_method() == "HEAD"
-        raise urllib.error.HTTPError(req.full_url, 404, "Not Found", Message(), BytesIO(b""))
+        raise HTTPError(req.full_url, 404, "Not Found", Message(), BytesIO(b""))
 
-    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(libregistry, "urlopen", fake_urlopen)
     exists, digest = libregistry.registry_tag_exists("quay.io", "coreos/etcd", "nonexistent")
     assert exists is False
     assert digest is None
@@ -236,10 +251,10 @@ def test_registry_tag_exists_500_on_head_reraises_without_get_fallback(
 
     def fake_urlopen(req):
         assert req.get_method() == "HEAD"
-        raise urllib.error.HTTPError(req.full_url, 500, "Server Error", Message(), BytesIO(b""))
+        raise HTTPError(req.full_url, 500, "Server Error", Message(), BytesIO(b""))
 
-    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
-    with pytest.raises(urllib.error.HTTPError) as exc_info:
+    monkeypatch.setattr(libregistry, "urlopen", fake_urlopen)
+    with pytest.raises(HTTPError) as exc_info:
         libregistry.registry_tag_exists("quay.io", "coreos/etcd", "v3.5.16")
     assert exc_info.value.code == 500
 
@@ -254,11 +269,11 @@ def test_registry_tag_exists_head_method_threaded_through_bearer_challenge_retry
         url = arg if isinstance(arg, str) else arg.full_url
         if "docker-auth.elastic.co" in url:
             return FakeResponse(body=json.dumps({"token": "elastictoken"}).encode())
-        assert isinstance(arg, urllib.request.Request)
+        assert is_request(arg)
         calls.append(arg.get_method())
         if arg.headers.get("Authorization") == "Bearer elastictoken":
-            return FakeResponse(headers={"Docker-Content-Digest": "sha256:" + "e" * 64})
-        raise urllib.error.HTTPError(
+            return FakeResponse(headers={"Docker-Content-Digest": SHA256_E})
+        raise HTTPError(
             url,
             401,
             "Unauthorized",
@@ -272,10 +287,10 @@ def test_registry_tag_exists_head_method_threaded_through_bearer_challenge_retry
             BytesIO(b""),
         )
 
-    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(libregistry, "urlopen", fake_urlopen)
     exists, digest = libregistry.registry_tag_exists("docker.elastic.co", "integrations/crawler", "1.0.0")
     assert exists is True
-    assert digest == "sha256:" + "e" * 64
+    assert digest == SHA256_E
     assert calls == ["HEAD", "HEAD"]
 
 
@@ -287,7 +302,7 @@ def test_list_tags_still_issues_a_get_request(libregistry: ModuleType, monkeypat
         seen["method"] = req.get_method()
         return FakeResponse(body=json.dumps({"tags": ["1.0.0"]}).encode())
 
-    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(libregistry, "urlopen", fake_urlopen)
     libregistry.list_tags("quay.io", "coreos/etcd")
     assert seen["method"] == "GET"
 
@@ -295,38 +310,26 @@ def test_list_tags_still_issues_a_get_request(libregistry: ModuleType, monkeypat
 # --- historical_digests_for_tag ---
 
 
-def git(*args, cwd):
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
-
-
 @pytest.fixture
 def values_repo(tmp_path: Path):
     """Temp git repo: solr's tag pinned to three digests over history, zac's to one."""
-    git("init", "-q", cwd=tmp_path)
-    git("config", "user.email", "test@example.com", cwd=tmp_path)
-    git("config", "user.name", "Test", cwd=tmp_path)
+    init_git_repo(tmp_path)
     values_path = tmp_path / "values.yaml"
 
     values_path.write_text(
-        'zac:\n  image:\n    tag: "5.1.0@sha256:' + "c" * 64 + '"\n'
-        'solr:\n  image:\n    tag: "9.10.1-slim@sha256:' + "a" * 64 + '"\n'
+        f'zac:\n  image:\n    tag: "5.1.0@{SHA256_C}"\nsolr:\n  image:\n    tag: "9.10.1-slim@{SHA256_A}"\n'
     )
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "initial", cwd=tmp_path)
+    commit_all(tmp_path, "initial")
 
     values_path.write_text(
-        'zac:\n  image:\n    tag: "5.1.0@sha256:' + "c" * 64 + '"\n'
-        'solr:\n  image:\n    tag: "9.10.1-slim@sha256:' + "b" * 64 + '"\n'
+        f'zac:\n  image:\n    tag: "5.1.0@{SHA256_C}"\nsolr:\n  image:\n    tag: "9.10.1-slim@{SHA256_B}"\n'
     )
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "refresh solr digest #1", cwd=tmp_path)
+    commit_all(tmp_path, "refresh solr digest #1")
 
     values_path.write_text(
-        'zac:\n  image:\n    tag: "5.1.0@sha256:' + "c" * 64 + '"\n'
-        'solr:\n  image:\n    tag: "9.10.1-slim@sha256:' + "d" * 64 + '"\n'
+        f'zac:\n  image:\n    tag: "5.1.0@{SHA256_C}"\nsolr:\n  image:\n    tag: "9.10.1-slim@{SHA256_D}"\n'
     )
-    git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "refresh solr digest #2", cwd=tmp_path)
+    commit_all(tmp_path, "refresh solr digest #2")
 
     return values_path
 
@@ -343,7 +346,7 @@ def test_historical_digests_for_tag_single_digest_when_never_refreshed(libregist
 
 def test_historical_digests_for_tag_empty_outside_git_repo(libregistry: ModuleType, tmp_path: Path):
     values_path = tmp_path / "values.yaml"
-    values_path.write_text('zac:\n  image:\n    tag: "5.1.0@sha256:' + "c" * 64 + '"\n')
+    values_path.write_text(f'zac:\n  image:\n    tag: "5.1.0@{SHA256_C}"\n')
     assert libregistry.historical_digests_for_tag(values_path, "5.1.0") == set()
 
 
@@ -358,7 +361,7 @@ def test_list_tags_returns_tag_names(libregistry: ModuleType, monkeypatch: pytes
     def fake_urlopen(req):
         return FakeResponse(body=json.dumps({"tags": ["9.10.1", "9.10.1-slim"]}).encode())
 
-    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(libregistry, "urlopen", fake_urlopen)
     assert libregistry.list_tags("quay.io", "coreos/etcd") == ["9.10.1", "9.10.1-slim"]
 
 
@@ -373,7 +376,7 @@ def test_list_tags_follows_link_next_pages(libregistry: ModuleType, monkeypatch:
             return FakeResponse(headers={"Link": link}, body=json.dumps({"tags": ["23.0.4-0"]}).encode())
         return FakeResponse(body=json.dumps({"tags": ["26.8.1"]}).encode())
 
-    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(libregistry, "urlopen", fake_urlopen)
     assert libregistry.list_tags("quay.io", "keycloak/keycloak") == ["23.0.4-0", "26.8.1"]
     assert seen == [
         "https://quay.io/v2/keycloak/keycloak/tags/list",
@@ -388,8 +391,8 @@ def test_list_tags_raises_when_a_page_repeats(libregistry: ModuleType, monkeypat
     def fake_urlopen(req):
         return FakeResponse(headers={"Link": link}, body=json.dumps({"tags": ["1.0.0"]}).encode())
 
-    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
-    with pytest.raises(urllib.error.URLError, match="a page repeats"):
+    monkeypatch.setattr(libregistry, "urlopen", fake_urlopen)
+    with pytest.raises(URLError, match="a page repeats"):
         libregistry.list_tags("quay.io", "coreos/etcd")
 
 
@@ -403,8 +406,8 @@ def test_list_tags_raises_past_the_page_cap(libregistry: ModuleType, monkeypatch
         return FakeResponse(headers={"Link": link}, body=json.dumps({"tags": [str(len(calls))]}).encode())
 
     monkeypatch.setattr(libregistry, "MAX_TAG_PAGES", 3)
-    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
-    with pytest.raises(urllib.error.URLError, match="more than 3 pages"):
+    monkeypatch.setattr(libregistry, "urlopen", fake_urlopen)
+    with pytest.raises(URLError, match="more than 3 pages"):
         libregistry.list_tags("quay.io", "coreos/etcd")
     assert len(calls) == 3
 
@@ -418,9 +421,9 @@ def test_list_tags_reuses_the_challenge_token_on_later_pages(libregistry: Module
         calls.append(url)
         if "docker-auth.elastic.co" in url:
             return FakeResponse(body=json.dumps({"token": "elastictoken"}).encode())
-        assert isinstance(arg, urllib.request.Request)
+        assert is_request(arg)
         if arg.headers.get("Authorization") != "Bearer elastictoken":
-            raise urllib.error.HTTPError(
+            raise HTTPError(
                 url,
                 401,
                 "Unauthorized",
@@ -432,7 +435,7 @@ def test_list_tags_reuses_the_challenge_token_on_later_pages(libregistry: Module
             return FakeResponse(headers={"Link": link}, body=json.dumps({"tags": ["8.19.22"]}).encode())
         return FakeResponse(body=json.dumps({"tags": ["8.19.23"]}).encode())
 
-    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(libregistry, "urlopen", fake_urlopen)
     assert libregistry.list_tags("docker.elastic.co", "kibana/kibana") == ["8.19.22", "8.19.23"]
     assert sum("docker-auth.elastic.co" in c for c in calls) == 1
     assert len(calls) == 4  # 401, token, page 1, page 2
@@ -446,16 +449,16 @@ def test_list_tags_fetches_token_for_docker_hub(libregistry: ModuleType, monkeyp
         calls.append(url)
         if "auth.docker.io" in url:
             return FakeResponse(body=json.dumps({"token": "faketoken"}).encode())
-        assert isinstance(arg, urllib.request.Request)
+        assert is_request(arg)
         assert arg.headers.get("Authorization") == "Bearer faketoken"
         return FakeResponse(body=json.dumps({"tags": ["3.14-slim"]}).encode())
 
-    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(libregistry, "urlopen", fake_urlopen)
     assert libregistry.list_tags("docker.io", "library/python") == ["3.14-slim"]
 
 
 def test_list_tags_empty_when_missing_from_response(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(libregistry.urllib.request, "urlopen", lambda req: FakeResponse(body=json.dumps({}).encode()))
+    monkeypatch.setattr(libregistry, "urlopen", lambda req: FakeResponse(body=json.dumps({}).encode()))
     assert libregistry.list_tags("quay.io", "coreos/etcd") == []
 
 
@@ -463,10 +466,8 @@ def test_list_tags_non_json_200_raises_urlerror_not_jsondecodeerror(
     libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
     """A 200 HTML rate-limit page raises URLError (which callers catch), not JSONDecodeError."""
-    monkeypatch.setattr(
-        libregistry.urllib.request, "urlopen", lambda req: FakeResponse(body=b"<html>429 Too Many Requests</html>")
-    )
-    with pytest.raises(urllib.error.URLError):
+    monkeypatch.setattr(libregistry, "urlopen", lambda req: FakeResponse(body=b"<html>429 Too Many Requests</html>"))
+    with pytest.raises(URLError):
         libregistry.list_tags("quay.io", "coreos/etcd")
 
 
@@ -480,18 +481,16 @@ def test_registry_tag_exists_non_json_token_response_raises_urlerror(
         msg = "must not reach the manifest request"
         raise AssertionError(msg)
 
-    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
-    with pytest.raises(urllib.error.URLError):
+    monkeypatch.setattr(libregistry, "urlopen", fake_urlopen)
+    with pytest.raises(URLError):
         libregistry.registry_tag_exists("docker.io", "library/python", "3.14-slim")
 
 
 def test_list_tags_token_response_missing_token_key_raises_urlerror(
     libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
-    monkeypatch.setattr(
-        libregistry.urllib.request, "urlopen", lambda arg: FakeResponse(body=json.dumps({"not_token": "x"}).encode())
-    )
-    with pytest.raises(urllib.error.URLError):
+    monkeypatch.setattr(libregistry, "urlopen", lambda arg: FakeResponse(body=json.dumps({"not_token": "x"}).encode()))
+    with pytest.raises(URLError):
         libregistry.list_tags("docker.io", "library/python")
 
 
@@ -500,10 +499,10 @@ def test_list_tags_discovers_token_via_bearer_challenge(libregistry: ModuleType,
         url = arg if isinstance(arg, str) else arg.full_url
         if "docker-auth.elastic.co" in url:
             return FakeResponse(body=json.dumps({"token": "elastictoken"}).encode())
-        assert isinstance(arg, urllib.request.Request)
+        assert is_request(arg)
         if arg.headers.get("Authorization") == "Bearer elastictoken":
             return FakeResponse(body=json.dumps({"tags": ["1.0.0"]}).encode())
-        raise urllib.error.HTTPError(
+        raise HTTPError(
             url,
             401,
             "Unauthorized",
@@ -513,16 +512,16 @@ def test_list_tags_discovers_token_via_bearer_challenge(libregistry: ModuleType,
             BytesIO(b""),
         )
 
-    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(libregistry, "urlopen", fake_urlopen)
     assert libregistry.list_tags("docker.elastic.co", "integrations/crawler") == ["1.0.0"]
 
 
-# --- _parse_bearer_challenge ---
+# --- parse_bearer_challenge ---
 
 
 def test_parse_bearer_challenge_extracts_all_params(libregistry: ModuleType):
     header = 'Bearer realm="https://docker-auth.elastic.co/auth",service="token-service",scope="repository:foo:pull"'
-    assert libregistry._parse_bearer_challenge(header) == {
+    assert libregistry.parse_bearer_challenge(header) == {
         "realm": "https://docker-auth.elastic.co/auth",
         "service": "token-service",
         "scope": "repository:foo:pull",
@@ -530,52 +529,52 @@ def test_parse_bearer_challenge_extracts_all_params(libregistry: ModuleType):
 
 
 def test_parse_bearer_challenge_none_for_non_bearer_scheme(libregistry: ModuleType):
-    assert libregistry._parse_bearer_challenge('Basic realm="foo"') is None
+    assert libregistry.parse_bearer_challenge('Basic realm="foo"') is None
 
 
 def test_parse_bearer_challenge_none_for_missing_header(libregistry: ModuleType):
-    assert libregistry._parse_bearer_challenge(None) is None
+    assert libregistry.parse_bearer_challenge(None) is None
 
 
 def test_parse_bearer_challenge_none_without_realm(libregistry: ModuleType):
-    assert libregistry._parse_bearer_challenge('Bearer service="token-service"') is None
+    assert libregistry.parse_bearer_challenge('Bearer service="token-service"') is None
 
 
-# --- _is_more_specific_tag ---
+# --- is_more_specific_tag ---
 
 
 def test_is_more_specific_tag_keeps_the_v_prefix_apart(libregistry: ModuleType):
-    assert libregistry._is_more_specific_tag("v0.26.1", "v0.26") is True
-    assert libregistry._is_more_specific_tag("0.26.1", "v0.26") is False
+    assert libregistry.is_more_specific_tag("v0.26.1", "v0.26") is True
+    assert libregistry.is_more_specific_tag("0.26.1", "v0.26") is False
 
 
 def test_is_more_specific_tag_patch_refinement(libregistry: ModuleType):
-    assert libregistry._is_more_specific_tag("3.14.7-slim", "3.14-slim") is True
+    assert libregistry.is_more_specific_tag("3.14.7-slim", "3.14-slim") is True
 
 
 def test_is_more_specific_tag_suffix_refinement(libregistry: ModuleType):
-    assert libregistry._is_more_specific_tag("3.14-slim-trixie", "3.14-slim") is True
+    assert libregistry.is_more_specific_tag("3.14-slim-trixie", "3.14-slim") is True
 
 
 def test_is_more_specific_tag_both_refinements(libregistry: ModuleType):
-    assert libregistry._is_more_specific_tag("3.14.7-slim-trixie", "3.14-slim") is True
+    assert libregistry.is_more_specific_tag("3.14.7-slim-trixie", "3.14-slim") is True
 
 
 def test_is_more_specific_tag_rejects_different_minor_version(libregistry: ModuleType):
     # 3.13.14 is not a refinement of 3.14 just because both start with "3.1"
-    assert libregistry._is_more_specific_tag("3.13.14-slim", "3.14-slim") is False
+    assert libregistry.is_more_specific_tag("3.13.14-slim", "3.14-slim") is False
 
 
 def test_is_more_specific_tag_rejects_different_variant(libregistry: ModuleType):
     # "9.10.1" (no suffix) is a different image variant, not a refinement
-    assert libregistry._is_more_specific_tag("9.10.1", "9.10.1-slim") is False
+    assert libregistry.is_more_specific_tag("9.10.1", "9.10.1-slim") is False
 
 
 def test_is_more_specific_tag_rejects_non_numeric_tag(libregistry: ModuleType):
-    assert libregistry._is_more_specific_tag("unrelated-tag", "3.14-slim") is False
+    assert libregistry.is_more_specific_tag("unrelated-tag", "3.14-slim") is False
 
 
-# --- find_more_specific_tag_at_same_digest ---
+# --- find_more_specific_tag ---
 
 
 def test_find_more_specific_tag_at_same_digest_finds_sibling(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
@@ -583,11 +582,9 @@ def test_find_more_specific_tag_at_same_digest_finds_sibling(libregistry: Module
     monkeypatch.setattr(
         libregistry,
         "registry_tag_exists",
-        lambda host, repo, tag: (True, "sha256:" + "b" * 64) if tag == "3.14.7-slim" else (True, "sha256:" + "z" * 64),
+        lambda host, repo, tag: (True, SHA256_B) if tag == "3.14.7-slim" else (True, sha256_digest("z")),
     )
-    found = libregistry.find_more_specific_tag_at_same_digest(
-        "docker.io", "library/python", "3.14-slim", "sha256:" + "b" * 64
-    )
+    found = libregistry.find_more_specific_tag("docker.io", "library/python", "3.14-slim", SHA256_B)
     assert found == "3.14.7-slim"
 
 
@@ -595,10 +592,8 @@ def test_find_more_specific_tag_at_same_digest_none_when_no_sibling_matches(
     libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.setattr(libregistry, "list_tags", lambda host, repo: ["9.10.1", "9.10.1-slim"])
-    monkeypatch.setattr(libregistry, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "z" * 64))
-    found = libregistry.find_more_specific_tag_at_same_digest(
-        "docker.io", "library/solr", "9.10.1-slim", "sha256:" + "a" * 64
-    )
+    monkeypatch.setattr(libregistry, "registry_tag_exists", lambda host, repo, tag: (True, sha256_digest("z")))
+    found = libregistry.find_more_specific_tag("docker.io", "library/solr", "9.10.1-slim", SHA256_A)
     assert found is None
 
 
@@ -606,10 +601,8 @@ def test_find_more_specific_tag_at_same_digest_ignores_non_prefix_tags(
     libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.setattr(libregistry, "list_tags", lambda host, repo: ["unrelated-tag"])
-    monkeypatch.setattr(libregistry, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "a" * 64))
-    found = libregistry.find_more_specific_tag_at_same_digest(
-        "docker.io", "library/python", "3.14-slim", "sha256:" + "a" * 64
-    )
+    monkeypatch.setattr(libregistry, "registry_tag_exists", lambda host, repo, tag: (True, SHA256_A))
+    found = libregistry.find_more_specific_tag("docker.io", "library/python", "3.14-slim", SHA256_A)
     assert found is None
 
 
@@ -733,7 +726,7 @@ def test_chart_app_version_none_when_the_chart_sets_none(libregistry: ModuleType
 
 def test_chart_app_version_without_config_is_a_url_error(libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(libregistry, "_registry_json", lambda host, repo, path, accept, timeout: {})
-    with pytest.raises(urllib.error.URLError):
+    with pytest.raises(URLError):
         libregistry.chart_app_version("ghcr.io", "org/ita", "2.1.0")
 
 
@@ -745,31 +738,22 @@ def test_is_sliding_tag_true_from_history_alone(libregistry: ModuleType, values_
         msg = "registry fallback should not be needed when history is conclusive"
         raise AssertionError(msg)
 
-    monkeypatch.setattr(libregistry, "find_more_specific_tag_at_same_digest", fail_if_called)
-    assert (
-        libregistry.is_sliding_tag(values_repo, "docker.io", "library/solr", "9.10.1-slim", "sha256:" + "d" * 64)
-        is True
-    )
+    monkeypatch.setattr(libregistry, "find_more_specific_tag", fail_if_called)
+    assert libregistry.is_sliding_tag(values_repo, "docker.io", "library/solr", "9.10.1-slim", SHA256_D) is True
 
 
 def test_is_sliding_tag_falls_back_to_registry_when_history_inconclusive(
     libregistry: ModuleType, values_repo, monkeypatch: pytest.MonkeyPatch
 ):
-    monkeypatch.setattr(libregistry, "find_more_specific_tag_at_same_digest", lambda *a, **k: "5.1.0-extra")
-    assert (
-        libregistry.is_sliding_tag(values_repo, "docker.io", "ghcr.io/infonl/zac", "5.1.0", "sha256:" + "c" * 64)
-        is True
-    )
+    monkeypatch.setattr(libregistry, "find_more_specific_tag", lambda *a, **k: "5.1.0-extra")
+    assert libregistry.is_sliding_tag(values_repo, "docker.io", "ghcr.io/infonl/zac", "5.1.0", SHA256_C) is True
 
 
 def test_is_sliding_tag_false_when_both_signals_say_no(
     libregistry: ModuleType, values_repo, monkeypatch: pytest.MonkeyPatch
 ):
-    monkeypatch.setattr(libregistry, "find_more_specific_tag_at_same_digest", lambda *a, **k: None)
-    assert (
-        libregistry.is_sliding_tag(values_repo, "docker.io", "ghcr.io/infonl/zac", "5.1.0", "sha256:" + "c" * 64)
-        is False
-    )
+    monkeypatch.setattr(libregistry, "find_more_specific_tag", lambda *a, **k: None)
+    assert libregistry.is_sliding_tag(values_repo, "docker.io", "ghcr.io/infonl/zac", "5.1.0", SHA256_C) is False
 
 
 def test_is_sliding_tag_false_when_registry_fallback_errors(
@@ -777,10 +761,35 @@ def test_is_sliding_tag_false_when_registry_fallback_errors(
 ):
     def raise_network_error(*a, **k):
         msg = "down"
-        raise urllib.error.URLError(msg)
+        raise URLError(msg)
 
-    monkeypatch.setattr(libregistry, "find_more_specific_tag_at_same_digest", raise_network_error)
-    assert (
-        libregistry.is_sliding_tag(values_repo, "docker.io", "ghcr.io/infonl/zac", "5.1.0", "sha256:" + "c" * 64)
-        is False
-    )
+    monkeypatch.setattr(libregistry, "find_more_specific_tag", raise_network_error)
+    assert libregistry.is_sliding_tag(values_repo, "docker.io", "ghcr.io/infonl/zac", "5.1.0", SHA256_C) is False
+
+
+# --- check_repositories_at ---
+
+
+def test_check_repositories_at_reuses_known_checks_and_looks_up_each_other_image_once(
+    libregistry: ModuleType, monkeypatch: pytest.MonkeyPatch
+):
+    looked_up: list[tuple[str, str, str]] = []
+
+    def fake_registry_tag_exists(host: str, repo: str, tag: str) -> tuple[bool, str | None]:
+        looked_up.append((host, repo, tag))
+        return True, SHA256_B
+
+    monkeypatch.setattr(libregistry, "registry_tag_exists", fake_registry_tag_exists)
+    known = [
+        {"repository": "r", "host": "quay.io", "repo_path": "opstree/redis-operator", "tag": "v1", "exists": True}
+        | {"digest": SHA256_A}
+    ]
+    repositories = ["quay.io/opstree/redis-operator", "ghcr.io/infonl/zac", "ghcr.io/infonl/zac"]
+
+    checks = libregistry.check_repositories_at(repositories, "v1", known)
+    at_other_tag = libregistry.check_repositories_at(["quay.io/opstree/redis-operator"], "v2", known)
+
+    assert looked_up == [("ghcr.io", "infonl/zac", "v1"), ("quay.io", "opstree/redis-operator", "v2")]
+    assert at_other_tag["quay.io/opstree/redis-operator"]["digest"] == SHA256_B
+    assert checks["quay.io/opstree/redis-operator"]["digest"] == SHA256_A
+    assert checks["ghcr.io/infonl/zac"]["digest"] == SHA256_B

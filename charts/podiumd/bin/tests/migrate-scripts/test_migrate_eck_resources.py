@@ -31,10 +31,8 @@ def eck(script: Callable[[str], ModuleType]) -> ModuleType:
 def container(resources: str) -> str:
     """One node set whose elasticsearch container has the `resources` line(s)."""
     return (
-        NODESETS
-        + "      - name: default\n        podTemplate:\n          spec:\n            containers:\n"
-        + "              - name: elasticsearch\n"
-        + resources
+        f"{NODESETS}      - name: default\n        podTemplate:\n          spec:\n            containers:\n"
+        f"              - name: elasticsearch\n{resources}"
     )
 
 
@@ -42,15 +40,17 @@ def container(resources: str) -> str:
     ("text", "where"),
     [
         (
-            NODESETS + "      - name: default\n        podTemplate:\n          spec:\n            containers:\n"
-            "              - {name: elasticsearch, env: []}\n",
+            (
+                f"{NODESETS}      - name: default\n        podTemplate:\n          spec:\n            containers:\n"
+                "              - {name: elasticsearch, env: []}\n"
+            ),
             "openinwoner.eck-elasticsearch.nodeSets[default].podTemplate.spec.containers[elasticsearch]",
         ),
         (
             container("                resources: {limits: {memory: 4Gi}}\n"),
             "openinwoner.eck-elasticsearch.nodeSets[default].podTemplate.spec.containers[elasticsearch].resources.limits",
         ),
-        (NODESETS + "      - {name: default, count: 1}\n", "openinwoner.eck-elasticsearch.nodeSets[default]"),
+        (f"{NODESETS}      - {{name: default, count: 1}}\n", "openinwoner.eck-elasticsearch.nodeSets[default]"),
     ],
     ids=["container", "resources", "node-set"],
 )
@@ -67,7 +67,7 @@ def test_a_flow_style_mapping_is_refused_with_its_path(eck: ModuleType, text: st
             "openinwoner.eck-elasticsearch.nodeSets[default].podTemplate.spec.containers[elasticsearch].resources",
         ),
         (
-            NODESETS + "      - name: default\n        podTemplate:\n",
+            f"{NODESETS}      - name: default\n        podTemplate:\n",
             "openinwoner.eck-elasticsearch.nodeSets[default].podTemplate",
         ),
     ],
@@ -88,7 +88,7 @@ def test_a_quoted_request_copied_into_a_limit_stays_a_string(eck: ModuleType):
 
 
 def test_only_node_sets_that_change_get_a_note(eck: ModuleType):
-    text = NODESETS + "      - name: full\n" + COMPLETE + "      - name: partial\n        count: 1\n"
+    text = f"{NODESETS}      - name: full\n{COMPLETE}      - name: partial\n        count: 1\n"
 
     _, notes = eck.migrate_text(text)
 
@@ -100,5 +100,5 @@ def test_a_kibana_container_is_added_at_the_indent_of_the_containers_list(eck: M
 
     new, notes = eck.migrate_text(text)
 
-    assert new.startswith(text + "        - name: kibana\n          resources:\n")
+    assert new.startswith(f"{text}        - name: kibana\n          resources:\n")
     assert notes == ["kiss-eck.eck-kibana.podTemplate: kibana resources"]

@@ -5,13 +5,13 @@ from types import ModuleType
 
 import pytest
 
-# --- historical_images_manifest_paths / historical_app_version_for_repository ---
+# --- historical_manifest_paths / historical_repo_app_version ---
 
 
 def _write_images_manifest(images_dir, version, entries):
     """Write images-<version>.yaml; `url` defaults to `name`.
 
-    Tests of historical_app_version_for_path's url cross-check must pass a
+    Tests of historical_path_app_version's url cross-check must pass a
     real host-qualified "url".
     """
     images_dir.mkdir(parents=True, exist_ok=True)
@@ -31,7 +31,7 @@ def test_historical_images_manifest_paths_sorts_most_recent_first(
     images_dir = tmp_path / "docs" / "images"
     for version in ("4.7.0", "4.9.0", "4.8.5"):
         _write_images_manifest(images_dir, version, [])
-    paths = libcharthistoricalbaselines.historical_images_manifest_paths(tmp_path)
+    paths = libcharthistoricalbaselines.historical_manifest_paths(tmp_path)
     assert [p.name for p in paths] == ["images-4.9.0.yaml", "images-4.8.5.yaml", "images-4.7.0.yaml"]
 
 
@@ -41,7 +41,7 @@ def test_historical_images_manifest_paths_excludes_versions_after_at_or_before(
     images_dir = tmp_path / "docs" / "images"
     for version in ("4.7.0", "4.8.5", "4.9.0", "4.9.1"):
         _write_images_manifest(images_dir, version, [])
-    paths = libcharthistoricalbaselines.historical_images_manifest_paths(tmp_path, at_or_before="4.9.0")
+    paths = libcharthistoricalbaselines.historical_manifest_paths(tmp_path, at_or_before="4.9.0")
     assert [p.name for p in paths] == ["images-4.9.0.yaml", "images-4.8.5.yaml", "images-4.7.0.yaml"]
 
 
@@ -53,15 +53,15 @@ def test_historical_images_manifest_paths_ignores_non_semver_names(
     images_dir.mkdir(parents=True)
     (images_dir / "images-baseline.yaml").write_text("[]\n", encoding="utf-8")
     _write_images_manifest(images_dir, "4.8.5", [])
-    paths = libcharthistoricalbaselines.historical_images_manifest_paths(tmp_path)
+    paths = libcharthistoricalbaselines.historical_manifest_paths(tmp_path)
     assert [p.name for p in paths] == ["images-4.8.5.yaml"]
 
 
 def test_historical_images_manifest_paths_empty_when_dir_missing(
     libcharthistoricalbaselines: ModuleType, tmp_path: Path
 ):
-    assert libcharthistoricalbaselines.historical_images_manifest_paths(tmp_path) == []
-    assert libcharthistoricalbaselines.historical_images_manifest_paths(None) == []
+    assert libcharthistoricalbaselines.historical_manifest_paths(tmp_path) == []
+    assert libcharthistoricalbaselines.historical_manifest_paths(None) == []
 
 
 def test_historical_app_version_for_repository_stops_at_most_recent_match(
@@ -77,9 +77,7 @@ def test_historical_app_version_for_repository_stops_at_most_recent_match(
     )
 
     assert (
-        libcharthistoricalbaselines.historical_app_version_for_repository(
-            tmp_path, "brp-api/personen-mock", at_or_before="4.9.0"
-        )
+        libcharthistoricalbaselines.historical_repo_app_version(tmp_path, "brp-api/personen-mock", at_or_before="4.9.0")
         == "2.6.0"
     )
 
@@ -93,9 +91,7 @@ def test_historical_app_version_for_repository_none_when_never_mentioned(
     )
 
     assert (
-        libcharthistoricalbaselines.historical_app_version_for_repository(
-            tmp_path, "brp-api/personen-mock", at_or_before="4.9.0"
-        )
+        libcharthistoricalbaselines.historical_repo_app_version(tmp_path, "brp-api/personen-mock", at_or_before="4.9.0")
         is None
     )
 
@@ -110,9 +106,7 @@ def test_historical_app_version_for_repository_ignores_manifests_after_at_or_bef
     )
 
     assert (
-        libcharthistoricalbaselines.historical_app_version_for_repository(
-            tmp_path, "brp-api/personen-mock", at_or_before="4.8.5"
-        )
+        libcharthistoricalbaselines.historical_repo_app_version(tmp_path, "brp-api/personen-mock", at_or_before="4.8.5")
         is None
     )
 
@@ -137,7 +131,7 @@ def test_historical_app_version_for_path_resolves_repo_then_searches(
     values = {"brppersonenmock": {"image": {"repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0@sha256:bbbb"}}}
 
     assert (
-        libcharthistoricalbaselines.historical_app_version_for_path(
+        libcharthistoricalbaselines.historical_path_app_version(
             tmp_path, deps, values, ("brppersonenmock", "image"), at_or_before="4.8.5"
         )
         == "2.5.0"
@@ -162,7 +156,7 @@ def test_historical_app_version_for_path_rejects_stripped_name_collision(
     values = {"global": {"images": {"redis": {"repository": "redis", "tag": "8.0@sha256:bbbb"}}}}
 
     assert (
-        libcharthistoricalbaselines.historical_app_version_for_path(
+        libcharthistoricalbaselines.historical_path_app_version(
             tmp_path, deps, values, ("global", "images", "redis"), at_or_before="4.9.0"
         )
         is None
@@ -172,7 +166,7 @@ def test_historical_app_version_for_path_rejects_stripped_name_collision(
 def test_historical_app_version_for_repository_url_mismatch_is_not_a_match(
     libcharthistoricalbaselines: ModuleType, tmp_path: Path
 ):
-    """Same collision via historical_app_version_for_repository's expected_url."""
+    """Same collision via historical_repo_app_version's expected_url."""
     images_dir = tmp_path / "docs" / "images"
     _write_images_manifest(
         images_dir,
@@ -181,18 +175,15 @@ def test_historical_app_version_for_repository_url_mismatch_is_not_a_match(
     )
 
     assert (
-        libcharthistoricalbaselines.historical_app_version_for_repository(
+        libcharthistoricalbaselines.historical_repo_app_version(
             tmp_path, "redis", at_or_before="4.9.0", expected_url="docker.io/redis"
         )
         is None
     )
     # Without expected_url, matching is by name only.
+    assert libcharthistoricalbaselines.historical_repo_app_version(tmp_path, "redis", at_or_before="4.9.0") == "v8.6.2"
     assert (
-        libcharthistoricalbaselines.historical_app_version_for_repository(tmp_path, "redis", at_or_before="4.9.0")
-        == "v8.6.2"
-    )
-    assert (
-        libcharthistoricalbaselines.historical_app_version_for_repository(
+        libcharthistoricalbaselines.historical_repo_app_version(
             tmp_path, "redis", at_or_before="4.9.0", expected_url="quay.io/opstree/redis"
         )
         == "v8.6.2"
@@ -204,7 +195,7 @@ def test_historical_app_version_for_path_none_when_path_unresolvable(
 ):
     """A path with no resolvable repository returns None."""
     assert (
-        libcharthistoricalbaselines.historical_app_version_for_path(
+        libcharthistoricalbaselines.historical_path_app_version(
             tmp_path, [], {}, ("brppersonenmock", "image"), at_or_before="4.8.5"
         )
         is None
@@ -261,12 +252,13 @@ def test_write_release_baselines_escapes_backslash_and_double_quote_correctly(
     libchartreleasebaselinebasics: ModuleType, tmp_path: Path
 ):
     """Backslashes and double quotes are escaped by PyYAML and round-trip through the reader."""
-    pathological = 'has "quotes" and a \\ backslash'
+    pathological = r'has "quotes" and a \ backslash'
     libchartreleasebaselinebasics.write_release_baselines(tmp_path, upgrade_docs=pathological)
     assert libchartreleasebaselinebasics.upgrade_docs_baseline(tmp_path) == pathological
 
     text = (tmp_path / "etc" / "release-baseline.yaml").read_text(encoding="utf-8")
-    assert text == 'upgrade_docs: "has \\"quotes\\" and a \\\\ backslash"\n'
+    expected_line = r'upgrade_docs: "has \"quotes\" and a \\ backslash"'
+    assert text == f"{expected_line}\n"
 
 
 # --- side_paths ---

@@ -7,20 +7,24 @@ from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 from typing import Literal
+from typing import NamedTuple
 from typing import TypedDict
 
 from lib.chart.chart_state import BaselineState
 from lib.chart.chart_state import ComponentState
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.historical_baselines import BaselineLookup
-from lib.chart.historical_baselines import historical_app_version_for_path
+from lib.chart.historical_baselines import historical_path_app_version
 from lib.chart.historical_baselines import sidecar_baseline_version
 from lib.chart.pull_and_subchart_resolution import global_image_paths
+from lib.chart.registered_paths import component_chart_versions
 from lib.chart.registered_paths import is_primary_rel_path
 from lib.chart.registered_paths import native_components
 from lib.chart.registered_paths import pin_paths_for
 from lib.chart.repo_and_path_resolution import paths_by_repository
+from lib.chart.values_tree_primitives import ValuesPath
 from lib.chart.values_tree_primitives import dep_for_values_key
+from lib.chart.values_tree_primitives import field_text
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
@@ -75,7 +79,7 @@ def strip_chart_clause(heading: str):
     return re.sub(r"\s*\(chart[^)]*\)", "", heading)
 
 
-def changes_heading_has_app_version(heading: str):
+def heading_has_app_version(heading: str):
     """Whether a "### ..." Changes heading shows an app-version pair.
 
     The app version follows the name as "<old> → <new>", "<new> (unchanged)" or "<new> (new)".
@@ -91,12 +95,12 @@ def changes_heading_has_app_version(heading: str):
     )
 
 
-def sidecar_tag(values: YamlMapping, sidecar_path: tuple[str, ...]):
+def sidecar_tag(values: YamlMapping, sidecar_path: ValuesPath):
     """The tag pinned at a sidecar's values-tree path (which ends in the real image key).
 
     Not actual_app_version: its fallback appends ".image.tag", which picks the wrong image
     when the key isn't "image" (keycloak-operator's job pins both "image" and "initImage")."""
-    tag = text_at(values, ".".join(sidecar_path) + ".tag")
+    tag = field_text(values, sidecar_path, "tag")
     return tag.split("@", 1)[0] if isinstance(tag, str) and tag else None
 
 
@@ -115,7 +119,7 @@ class RowMatch:
 
 
 def _match_row(
-    row_name: str, chart_dir: Path | None, canonical_names: Mapping[str, tuple[str, ...]], deps: list[ChartDependency]
+    row_name: str, chart_dir: Path | None, canonical_names: Mapping[str, ValuesPath], deps: list[ChartDependency]
 ):
     """RowMatch for row_name."""
     sidecar_path = canonical_names.get(row_name)
@@ -124,9 +128,8 @@ def _match_row(
     component = match_component(row_name, deps, native_components(chart_dir))
     if isinstance(component, str):
         path = tuple(row_name.split("."))
-        is_image = (
-            path[0] == component and len(path) > 1 and is_primary_rel_path(component, ".".join(path[1:]), chart_dir)
-        )
+        names_subpath = path[0] == component and len(path) > 1
+        is_image = names_subpath and is_primary_rel_path(component, ".".join(path[1:]), chart_dir)
         return RowMatch(None, None, component, path if is_image else None)
     return RowMatch(None, component, None)
 
@@ -173,9 +176,9 @@ def _target_result(chart_dir: Path | None, values: YamlMapping, match: RowMatch)
         "top_level_key": native_key,
         "target_chart": None,
         "target_app": (
-            sidecar_tag(values, match.native_image)
-            if match.native_image is not None
-            else actual_app_version(values, native_key, native_key, chart_dir)
+            actual_app_version(values, native_key, native_key, chart_dir)
+            if match.native_image is None
+            else sidecar_tag(values, match.native_image)
         ),
         "baseline_resolved": None,
         "baseline_chart": None,
@@ -203,7 +206,7 @@ def _historical_dependency_app(resolution: ResolutionContext, values_key: str, c
     """A dependency's or native component's app version from past images-<version>.yaml manifests, or None."""
     chart_dir, deps, values = resolution.chart_dir, resolution.target.deps, resolution.target.values
     for pin in pin_paths_for(chart_name, chart_dir):
-        app = historical_app_version_for_path(
+        app = historical_path_app_version(
             chart_dir, deps, values, (values_key, *tuple(pin.path.split("."))), resolution.upgrade_docs_baseline
         )
         if app is not None:
@@ -271,9 +274,7 @@ def native_image_baseline_app(
 def _add_baseline_result(resolution: ResolutionContext, match: RowMatch, result: ResolvedRow):
     """Fill result's baseline fields in place; only called when resolution.baseline.deps is set."""
     if match.sidecar_path is not None:
-        baseline_app = _sidecar_baseline_app(resolution, match.sidecar_path)
-        result["baseline_app"] = baseline_app
-        result["baseline_resolved"] = result["target_app"] is not None and baseline_app is not None
+        _set_baseline_app(result, _sidecar_baseline_app(resolution, match.sidecar_path))
     elif match.dep is not None:
         resolved, baseline_chart, baseline_app = _dependency_baseline_result(
             resolution, result["values_key"], match.dep
@@ -282,22 +283,38 @@ def _add_baseline_result(resolution: ResolutionContext, match: RowMatch, result:
         result["baseline_chart"] = baseline_chart
         result["baseline_app"] = baseline_app
     elif match.native_key is not None:
-        # A native component that was a dependency under the same values key at the
-        # baseline is read as that dependency, keeping its chart as baseline_chart.
-        baseline_dep = dep_for_values_key(resolution.baseline.deps or [], match.native_key)
-        if baseline_dep is not None:
-            _, baseline_chart, baseline_app = _dependency_baseline_result(resolution, match.native_key, baseline_dep)
-            result["baseline_chart"] = baseline_chart
-        else:
-            baseline_app = _native_baseline_app(resolution, match.native_key)
-        if match.native_image is not None:
-            baseline_app = sidecar_tag(
-                resolution.baseline.values or {}, match.native_image
-            ) or native_image_baseline_app(
-                resolution.chart_dir, resolution.baseline.deps or [], resolution.baseline.values, match.native_image
-            )
-        result["baseline_app"] = baseline_app
-        result["baseline_resolved"] = result["target_app"] is not None and baseline_app is not None
+        _add_native_baseline_result(resolution, match.native_key, match.native_image, result)
+
+
+def _set_baseline_app(result: ResolvedRow, baseline_app: str | None) -> None:
+    """Set baseline_app; resolved when both app versions are known."""
+    result["baseline_app"] = baseline_app
+    result["baseline_resolved"] = result["target_app"] is not None and baseline_app is not None
+
+
+def _add_native_baseline_result(
+    resolution: ResolutionContext, native_key: str, native_image: ValuesPath | None, result: ResolvedRow
+) -> None:
+    """_add_baseline_result for a native component, or one of its primary images."""
+    # A native component that was a dependency under the same values key at the
+    # baseline is read as that dependency, keeping its chart as baseline_chart.
+    baseline_dep = dep_for_values_key(resolution.baseline.deps or [], native_key)
+    if baseline_dep is None:
+        baseline_app = _native_baseline_app(resolution, native_key)
+    else:
+        _, baseline_chart, baseline_app = _dependency_baseline_result(resolution, native_key, baseline_dep)
+        result["baseline_chart"] = baseline_chart
+    if native_image is not None:
+        baseline_app = _native_image_baseline(resolution, native_image)
+    _set_baseline_app(result, baseline_app)
+
+
+def _native_image_baseline(resolution: ResolutionContext, native_image: ValuesPath) -> str | None:
+    """A native primary image's baseline tag: its own pin, else its native version pin."""
+    baseline_values = resolution.baseline.values or {}
+    return sidecar_tag(baseline_values, native_image) or native_image_baseline_app(
+        resolution.chart_dir, resolution.baseline.deps or [], resolution.baseline.values, native_image
+    )
 
 
 def resolve_component_row(
@@ -347,7 +364,7 @@ def resolve_component_row(
     return result
 
 
-def resolved_row_unchanged(resolved: ResolvedRow) -> bool:
+def is_resolved_row_unchanged(resolved: ResolvedRow) -> bool:
     """Whether a row's app and chart versions both equal the baseline's (nothing to document).
 
     False when the baseline was not requested or not resolved. Shared by checker and fixer."""
@@ -355,4 +372,55 @@ def resolved_row_unchanged(resolved: ResolvedRow) -> bool:
         return False
     return normalize_version(resolved["target_app"]) == normalize_version(resolved["baseline_app"]) and (
         normalize_version(resolved["target_chart"]) == normalize_version(resolved["baseline_chart"])
+    )
+
+
+class OwnVersionChange(NamedTuple):
+    """A component key's own chart and primary app versions (resolve_own_version_change)."""
+
+    dep: ChartDependency | None
+    chart_name: str
+    old_chart: str | None
+    new_chart: str
+    old_app: str | None
+    new_app: str | None
+    unchanged: bool
+
+
+def resolve_own_version_change(
+    key: str,
+    target_state: ComponentState,
+    baseline_state: BaselineState,
+    chart_dir: Path | None,
+    upgrade_docs_baseline: str | None = None,
+) -> OwnVersionChange | None:
+    """The OwnVersionChange of a changed component key. `unchanged` is True when both its own chart
+    and primary app version are identical: the change is elsewhere (e.g. a
+    new sidecar, which gets its own row), so no row is needed for it.
+
+    None for a key that is neither a Chart.yaml dependency nor a native
+    component. Shared by add_missing_component_rows and
+    check_docs_consistency so they agree on which keys need a row."""
+    chart_versions = component_chart_versions(chart_dir, key, target_state.deps, baseline_state.deps)
+    if chart_versions is None:
+        return None
+    dep, chart_name = chart_versions.dep, chart_versions.chart_name
+    old_chart, new_chart = chart_versions.old_chart, chart_versions.new_chart
+    # The same resolver as the key's table row, so a row added here can't contradict it.
+    resolved = resolve_component_row(
+        key, {}, ResolutionContext(chart_dir, target_state, baseline_state, upgrade_docs_baseline)
+    )
+    if resolved["kind"] == "native":
+        # A native component that was a chart at the baseline: that chart going away is a change.
+        old_chart = resolved["baseline_chart"]
+    chart_unchanged = (new_chart == "-" and old_chart is None) or (
+        old_chart is not None and normalize_version(old_chart) == normalize_version(new_chart)
+    )
+    old_app = None if resolved["kind"] == "unmatched" else resolved["baseline_app"]
+    new_app = None if resolved["kind"] == "unmatched" else resolved["target_app"]
+    # No own app version on either side (only sidecar images) is unchanged too:
+    # a sidecar change gets its own row, not one for its parent.
+    app_unchanged = normalize_version(old_app) == normalize_version(new_app)
+    return OwnVersionChange(
+        dep, chart_name, old_chart, new_chart, old_app, new_app, unchanged=chart_unchanged and app_unchanged
     )
