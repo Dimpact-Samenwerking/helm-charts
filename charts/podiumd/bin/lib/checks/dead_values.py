@@ -55,6 +55,7 @@ from lib.chart.chart_yaml import ChartYaml
 from lib.chart.chart_yaml import chart_dependencies
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.chart_yaml import load_chart_yaml
+from lib.chart.paths import files_under
 from lib.chart.pull_and_subchart_resolution import subchart_values
 from lib.chart.values_tree_primitives import ValuesPath
 from lib.chart.values_tree_primitives import deep_merge
@@ -341,9 +342,8 @@ def _own_template_subchart_refs(chart_dir: Path) -> set[str]:
     if not templates_dir.is_dir():
         return set()
     refs: set[str] = set()
-    for path in sorted(templates_dir.rglob("*.yaml")):
-        if path.is_file():
-            refs.update(re.findall(r"\.Subcharts\.([A-Za-z0-9_-]+)", path.read_text(encoding="utf-8")))
+    for path in files_under(templates_dir, "*.yaml"):
+        refs.update(re.findall(r"\.Subcharts\.([A-Za-z0-9_-]+)", path.read_text(encoding="utf-8")))
     return refs
 
 
