@@ -92,7 +92,7 @@ Does NOT define app containers directly. It:
 
 **Some deps use `alias`** to shorten names (e.g. `openformulieren` aliased from upstream). Check `Chart.yaml` for aliases before referencing sub-chart values keys.
 
-**Vendored charts:** `charts/podiumd/charts/` has pinned `.tgz` packages + `Chart.lock` for reproducible builds.
+**Vendored charts:** the dependency versions are pinned in `Chart.yaml`. `charts/podiumd/charts/*.tgz` and `Chart.lock` are gitignored and local only: `helm dependency update` downloads them, and CI does the same. Scripts in `bin/` that render the chart re-vendor stale dependencies themselves (`bin/README-release-process.md` § Vendored sub-charts).
 
 **Inspecting vendored `.tgz`:** Prefer inspection without extracting — `tar -xzOf <chart>.tgz <path>` reads a file to stdout. If you must extract `.tgz` or checkout chart dir, **always delete both extracted dir AND original `.tgz` from `charts/podiumd/charts/` when done.** Helm prefers extracted dirs over `.tgz` — leaving extracted charts causes `helm template`/`lint`/`upgrade` to silently use extracted (possibly modified) version instead of pinned package → breaks deployments.
 
@@ -210,7 +210,7 @@ For each release with breaking changes, new images, or manual steps, create `cha
 
 ## Dependency Management
 
-Renovate (`renovate.json`) auto-opens PRs for upstream bumps. Manual sub-chart upgrade: bump version in `Chart.yaml`, run `helm dependency update` from `charts/podiumd/`. Commit updated `.tgz` packages in `charts/podiumd/charts/` + `Chart.lock`.
+Renovate (`renovate.json`) auto-opens PRs for upstream bumps. Manual sub-chart upgrade: bump version in `Chart.yaml`, run `helm dependency update` from `charts/podiumd/`. Commit only `Chart.yaml`: the `.tgz` packages and `Chart.lock` are gitignored.
 
 ## Helm Value Precedence (lowest → highest)
 1. Subchart's own `values.yaml`
