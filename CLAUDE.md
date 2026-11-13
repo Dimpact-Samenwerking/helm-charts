@@ -10,7 +10,7 @@ Read [`.github/copilot-instructions.md`](.github/copilot-instructions.md) before
 - AKS-blue cluster rules (read-only; no direct `helm`/`kubectl` mutations)
 - Keycloak migration status (Bitnami → Hostzero Operator, active)
 - Release process (production, snapshot, images manifest, upgrade notes)
-- Dependency management (Renovate + manual `.tgz` workflow)
+- Dependency management (Renovate + manual `Chart.yaml` bump; `.tgz` and `Chart.lock` are local only)
 - ZAC repository conventions
 
 For `charts/podiumd/bin/`:
@@ -19,9 +19,24 @@ For `charts/podiumd/bin/`:
 
 @.claude/memory/release-tooling-rules.md
 
+When a rule, path, check or chart directory changes that the `.github/` review files (Copilot review instructions, PR template, CODEOWNERS) copy or name:
+
+@.claude/memory/github-review-files.md
+
 ## Branching strategy
 
 See [`README.md`](README.md#branching-strategy). Summary: forward-cascade from `main` → `feature/podiumd-<X.Y.0>` → `feature/podiumd-<X.Y.0>-*` feature branches and `feature/<env>-podiumd-<X.Y.0>` environment branches.
+
+## PR descriptions
+
+Follow [`.github/pull_request_template.md`](.github/pull_request_template.md). Its Authors section replaces Claude Code's PR footer: never add `🤖 Generated with [Claude Code](…)` at the end.
+
+- One `👤 Name (@handle)` line per commit author of the PR's commits, tools and bots excepted. Get the login per commit with `gh api repos/Dimpact-Samenwerking/helm-charts/commits/<sha> --jq .author.login`. When it is empty, match the author's name against the repo's collaborators and say so to the user. Ask the user who else helped without committing.
+- Write the handle as a bare `@handle`: the people listed worked on the PR and are meant to be notified.
+- Add `🤖 [Claude Code](https://claude.com/claude-code) assisted` when Claude wrote any of the commits or the description.
+- A release PR (`feature/podiumd-<X.Y.0>` into `main`) uses the release layout and has no Authors section.
+
+The squash commit message is the PR description, so Authors also lands in git history. Commit messages keep their `Co-Authored-By:` trailer.
 
 ## Pre-commit checklist
 
