@@ -8,6 +8,7 @@ from pathlib import Path
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import load_chart_dependencies
+from lib.chart.paths import files_under
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import YamlValue
 from lib.yaml_types import scalar_text
@@ -141,8 +142,8 @@ def own_template_files_referencing(chart_dir: Path, key: str) -> list[str]:
     pattern = re.compile(rf"\.Values\.{re.escape(key)}\b")
     return [
         str(path.relative_to(chart_dir))
-        for path in sorted(templates_dir.rglob("*.yaml"))
-        if path.is_file() and pattern.search(path.read_text(encoding="utf-8", errors="replace"))
+        for path in files_under(templates_dir, "*.yaml")
+        if pattern.search(path.read_text(encoding="utf-8", errors="replace"))
     ]
 
 
