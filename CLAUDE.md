@@ -10,7 +10,7 @@ Read [`.github/copilot-instructions.md`](.github/copilot-instructions.md) before
 - AKS-blue cluster rules (read-only; no direct `helm`/`kubectl` mutations)
 - Keycloak migration status (Bitnami → Hostzero Operator, active)
 - Release process (production, snapshot, images manifest, upgrade notes)
-- Dependency management (Renovate + manual `.tgz` workflow)
+- Dependency management (Renovate + manual `Chart.yaml` bump; `.tgz` and `Chart.lock` are local only)
 - ZAC repository conventions
 
 For `charts/podiumd/bin/`:
