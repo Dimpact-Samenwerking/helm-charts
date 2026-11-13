@@ -19,6 +19,10 @@ For `charts/podiumd/bin/`:
 
 @.claude/memory/release-tooling-rules.md
 
+When a rule, path, check or chart directory changes that the `.github/` review files (Copilot review instructions, PR template, CODEOWNERS) copy or name:
+
+@.claude/memory/github-review-files.md
+
 ## Branching strategy
 
 See [`README.md`](README.md#branching-strategy). Summary: forward-cascade from `main` → `feature/podiumd-<X.Y.0>` → `feature/podiumd-<X.Y.0>-*` feature branches and `feature/<env>-podiumd-<X.Y.0>` environment branches.
