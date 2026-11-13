@@ -26,6 +26,11 @@
  *                    form's ZGW or Objects API registration
  *   Onbekende service  a registration or file upload field points at a URL
  *                    without a configured service
+ *   Koppeling        an objecttype (and version), catalogue, zaaktype,
+ *                    document type, role type or product that a registration
+ *                    or Objects API prefill refers to, does not exist (or is a
+ *                    draft) in the API behind the form's API group; checked
+ *                    through Open Forms' own admin endpoints
  *
  * The 4.0 checks follow Open Forms' own scripts in /app/bin
  * (report_invalid_form_logic, check_disable_next_logic_action,
@@ -35,7 +40,8 @@
  *
  * Severity:
  *   FOUT         wrong type, broken reference, or blocks the 4.0 upgrade
- *   LET OP       a division is written to a whole-number (int) variable
+ *   LET OP       a division is written to a whole-number (int) variable, or a
+ *                linked objecttype version, zaaktype or document type is a draft
  *   CONTROLEREN  needs a manual check: result type unknown, or a rule that
  *                may behave differently
  *
@@ -901,6 +907,211 @@
     return findings;
   }
 
+  // ---- Koppelingen: references to Objecttypen and Catalogi ---------------------
+  // Checked through Open Forms' own admin endpoints, which call the APIs server-side
+  // with the API group's credentials (same in 3.5.14 and 4.0.7).
+
+  const nonEmpty = (x) => typeof x === "string" && x.trim() !== "";
+  const unique = (items) => [...new Set(items)];
+  const catalogueSet = (c) => isPlainObject(c) && nonEmpty(c.domain) && nonEmpty(c.rsin);
+  const fileDescriptions = (options) => (options.files || []).map((f) => f.documentTypeDescription);
+
+  /** What a form refers to in Objecttypen and Catalogi: registration backends and Objects API prefill. */
+  function linkReferences(form, variables) {
+    const refs = [];
+    for (const backend of form.registrationBackends || []) {
+      const o = backend.options || {};
+      const owner = { label: "Registratie", text: `${backend.name}  (${backend.backend})` };
+      if (backend.backend === "objects_api" && nonEmpty(o.objectsApiGroup)) {
+        if (nonEmpty(o.objecttype)) {
+          refs.push({ owner, type: "objecttype", group: o.objectsApiGroup, uuid: o.objecttype, version: o.objecttypeVersion });
+        }
+        if (catalogueSet(o.catalogue)) {
+          refs.push({
+            owner, type: "catalogue", api: { kind: "objects", group: o.objectsApiGroup }, catalogue: o.catalogue,
+            documentTypes: unique([o.iotSubmissionReport, o.iotSubmissionCsv, o.iotAttachment, ...fileDescriptions(o)].filter(nonEmpty)),
+            caseType: null, roleTypes: [], productUrl: null,
+          });
+        }
+      } else if (backend.backend === "zgw-create-zaak") {
+        if (o.zgwApiGroup != null && o.zgwApiGroup !== "" && catalogueSet(o.catalogue)) {
+          refs.push({
+            owner, type: "catalogue", api: { kind: "zgw", group: o.zgwApiGroup }, catalogue: o.catalogue,
+            documentTypes: unique([o.documentTypeDescription, ...fileDescriptions(o)].filter(nonEmpty)),
+            caseType: nonEmpty(o.caseTypeIdentification) ? o.caseTypeIdentification : null,
+            roleTypes: unique([o.medewerkerRoltype, o.partnersRoltype, o.childrenRoltype].filter(nonEmpty)),
+            productUrl: nonEmpty(o.productUrl) ? o.productUrl : null,
+          });
+        }
+        if (nonEmpty(o.objectsApiGroup) && nonEmpty(o.objecttype)) {
+          refs.push({ owner, type: "objecttype", group: o.objectsApiGroup, url: o.objecttype, version: o.objecttypeVersion });
+        }
+      }
+    }
+    for (const variable of variables) {
+      const p = variable.prefillOptions || {};
+      if (variable.prefillPlugin !== "objects_api" || !nonEmpty(p.objectsApiGroup) || !nonEmpty(p.objecttypeUuid)) continue;
+      refs.push({
+        owner: { label: "Prefill", text: `${variable.name || variable.key}  (sleutel '${variable.key}')` },
+        type: "objecttype", group: p.objectsApiGroup, uuid: p.objecttypeUuid, version: p.objecttypeVersion,
+      });
+    }
+    return refs;
+  }
+
+  /** Lists from Open Forms' admin endpoints, each fetched once: {data} or {error}. */
+  function makeLinkResolver(getJson, api) {
+    const cache = new Map();
+    const get = (path, params) => {
+      const url = `${api}${path}?${new URLSearchParams(params)}`;
+      if (!cache.has(url)) cache.set(url, getJson(url).then((data) => ({ data }), (error) => ({ error })));
+      return cache.get(url);
+    };
+    const zgw = "/registration/plugins/zgw-api";
+    const groupParam = ({ kind, group }) => (kind === "zgw" ? { zgw_api_group: group } : { objects_api_group: group });
+    return {
+      objecttypes: (group) => get("/objects-api/object-types", { objects_api_group: group }),
+      versions: (group, uuid) => get(`/objects-api/object-types/${encodeURIComponent(uuid)}/versions`, { objects_api_group: group }),
+      catalogues: (api) => get(api.kind === "zgw" ? `${zgw}/catalogues` : "/objects-api/catalogues", groupParam(api)),
+      documentTypes: (api, catalogueUrl, caseType) => get(
+        api.kind === "zgw" ? `${zgw}/document-types` : "/objects-api/document-types",
+        { ...groupParam(api), catalogue_url: catalogueUrl, ...(caseType ? { case_type_identification: caseType } : {}) },
+      ),
+      caseTypes: (group, catalogueUrl) => get(`${zgw}/case-types`, { zgw_api_group: group, catalogue_url: catalogueUrl }),
+      roleTypes: (group, catalogueUrl, caseType) =>
+        get(`${zgw}/role-types`, { zgw_api_group: group, catalogue_url: catalogueUrl, case_type_identification: caseType }),
+      products: (group, catalogueUrl, caseType) =>
+        get(`${zgw}/products`, { zgw_api_group: group, catalogue_url: catalogueUrl, case_type_identification: caseType }),
+    };
+  }
+
+  function fetchProblem(what, error) {
+    const status = Number(String(error.message).split(/\D/)[0]);
+    const reason = status === 400
+      ? "de API-groep bestaat niet (meer) of is niet volledig ingesteld"
+      : status >= 500
+        ? "Open Forms kon de API niet bereiken of kreeg een fout terug"
+        : error.message;
+    return `${what} konden niet worden opgehaald: ${reason}.`;
+  }
+
+  /** Findings for the references of one form; `resolver` is makeLinkResolver's result (or a test stub). */
+  async function checkLinks(refs, resolver) {
+    const findings = [];
+    const add = (ref, severity, problem, hint) =>
+      findings.push({ check: "Koppeling", severity, target: ref.owner, rule: null, problem, hint });
+    const SETTINGS_HINT = "Controleer de API-groep en de bijbehorende services in de beheeromgeving (Configuratie).";
+    const failed = (ref, what, result) => add(ref, "CONTROLEREN", fetchProblem(what, result.error), SETTINGS_HINT);
+
+    for (const ref of refs) {
+      if (ref.type === "objecttype") {
+        const shown = ref.uuid || ref.url;
+        const types = await resolver.objecttypes(ref.group);
+        if (types.error) {
+          failed(ref, `De objecttypen van API-groep '${ref.group}'`, types);
+          continue;
+        }
+        const type = types.data.find((t) => (ref.uuid ? t.uuid === ref.uuid : t.url === ref.url));
+        if (!type) {
+          add(ref, "FOUT", `Objecttype ${shown} bestaat niet (meer) in de Objecttypen van API-groep '${ref.group}'.`,
+            "Kies in de instellingen een bestaand objecttype.");
+          continue;
+        }
+        if (ref.version === null || ref.version === undefined || ref.version === "") continue;
+        const versions = await resolver.versions(ref.group, type.uuid);
+        if (versions.error) {
+          failed(ref, `De versies van objecttype '${type.name}'`, versions);
+          continue;
+        }
+        const version = versions.data.find((v) => Number(v.version) === Number(ref.version));
+        if (!version) {
+          add(ref, "FOUT", `Versie ${ref.version} van objecttype '${type.name}' bestaat niet (meer).`,
+            "Kies in de instellingen een bestaande versie van het objecttype.");
+        } else if (version.status !== "published") {
+          add(ref, "LET OP", `Versie ${ref.version} van objecttype '${type.name}' heeft status '${version.status}', niet 'published'.`,
+            "Gebruik een gepubliceerde versie van het objecttype.");
+        }
+        continue;
+      }
+
+      // type === "catalogue"
+      const { domain, rsin } = ref.catalogue;
+      const catalogues = await resolver.catalogues(ref.api);
+      if (catalogues.error) {
+        failed(ref, `De catalogi van API-groep '${ref.api.group}'`, catalogues);
+        continue;
+      }
+      const catalogue = catalogues.data.find((c) => c.domain === domain && c.rsin === rsin);
+      if (!catalogue) {
+        add(ref, "FOUT", `Catalogus ${domain} (RSIN ${rsin}) bestaat niet (meer) in API-groep '${ref.api.group}'.`,
+          "Kies in de registratie-instellingen een bestaande catalogus.");
+        continue;
+      }
+      let caseType = null;
+      if (ref.caseType) {
+        const caseTypes = await resolver.caseTypes(ref.api.group, catalogue.url);
+        if (caseTypes.error) {
+          failed(ref, `De zaaktypen van catalogus '${catalogue.label}'`, caseTypes);
+        } else {
+          caseType = caseTypes.data.find((c) => c.identification === ref.caseType) || null;
+          if (!caseType) {
+            add(ref, "FOUT", `Zaaktype '${ref.caseType}' bestaat niet (meer) in catalogus '${catalogue.label}'.`,
+              "Kies in de registratie-instellingen een bestaand zaaktype.");
+          } else if (caseType.isPublished === false) {
+            add(ref, "LET OP", `Zaaktype '${ref.caseType}' in catalogus '${catalogue.label}' is nog een concept.`,
+              "Publiceer het zaaktype, of kies een gepubliceerd zaaktype.");
+          }
+        }
+      }
+      // A missing case type is reported once; its document, role and product checks would only repeat it.
+      if (ref.caseType && !caseType) continue;
+      const within = caseType ? ` bij zaaktype '${ref.caseType}'` : "";
+      if (ref.documentTypes.length) {
+        const documentTypes = await resolver.documentTypes(ref.api, catalogue.url, caseType ? ref.caseType : null);
+        if (documentTypes.error) {
+          failed(ref, `De documenttypen van catalogus '${catalogue.label}'`, documentTypes);
+        } else {
+          for (const description of ref.documentTypes) {
+            const found = documentTypes.data.find((d) => d.description === description);
+            if (!found) {
+              add(ref, "FOUT", `Documenttype '${description}' bestaat niet (meer) in catalogus '${catalogue.label}'${within}.`,
+                "Kies in de registratie-instellingen een bestaand documenttype.");
+            } else if (found.isPublished === false) {
+              add(ref, "LET OP", `Documenttype '${description}' in catalogus '${catalogue.label}' is nog een concept.`,
+                "Publiceer het documenttype, of kies een gepubliceerd documenttype.");
+            }
+          }
+        }
+      }
+      if (!caseType) continue;
+      if (ref.roleTypes.length) {
+        const roleTypes = await resolver.roleTypes(ref.api.group, catalogue.url, ref.caseType);
+        if (roleTypes.error) {
+          failed(ref, `De roltypen van zaaktype '${ref.caseType}'`, roleTypes);
+        } else {
+          for (const description of ref.roleTypes.filter((d) => !roleTypes.data.some((r) => r.description === d))) {
+            add(ref, "FOUT", `Roltype '${description}' bestaat niet (meer)${within}.`,
+              "Kies in de registratie-instellingen een bestaand roltype.");
+          }
+        }
+      }
+      if (ref.productUrl) {
+        const products = await resolver.products(ref.api.group, catalogue.url, ref.caseType);
+        if (products.error) {
+          failed(ref, `De producten van zaaktype '${ref.caseType}'`, products);
+        } else if (!products.data.some((p) => p.url === ref.productUrl)) {
+          add(ref, "FOUT", `Product ${ref.productUrl} hoort niet (meer) bij een geldige versie van zaaktype '${ref.caseType}'.`,
+            "Kies in de registratie-instellingen een product van het zaaktype.");
+        }
+      }
+    }
+    return findings;
+  }
+
+  function sortFindings(findings) {
+    return [...findings].sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity));
+  }
+
   /** Run all checks on one form. data: {form, steps, variables, rules, staticVariables, serviceRoots}. */
   function checkForm(data) {
     const variables = {};
@@ -922,8 +1133,7 @@
       ...checkTypes(ctx), ...checkReferences(ctx), ...checkInitialValues(ctx),
       ...checkLogicEvaluation(ctx), ...checkDisableNext(ctx), ...checkClearOnHide(ctx), ...checkRegistration(ctx),
     ];
-    findings.sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity));
-    return { findings, setValueActions: actions, ruleCount: rules.length, variableCount: data.variables.length };
+    return { findings: sortFindings(findings), setValueActions: actions, ruleCount: rules.length, variableCount: data.variables.length };
   }
 
   function formatReport(results, meta) {
@@ -970,7 +1180,10 @@
     return out.join("\n");
   }
 
-  const core = { resultKinds, referencedNames, inputKeys, comparedVariables, checkForm, formatReport, literalHint };
+  const core = {
+    resultKinds, referencedNames, inputKeys, comparedVariables, checkForm, formatReport, literalHint,
+    linkReferences, makeLinkResolver, checkLinks, sortFindings,
+  };
 
   if (typeof window === "undefined") {
     module.exports = core;
@@ -1047,6 +1260,7 @@
         getAll(`${api}/services`).catch(() => null),
       ]);
       const serviceRoots = services && services.map((s) => s.apiRoot).filter(Boolean);
+      const resolver = makeLinkResolver(getJson, api);
       const results = [];
       const errors = [];
       for (const [i, form] of forms.entries()) {
@@ -1057,7 +1271,10 @@
             getJson(`${api}/forms/${form.uuid}/variables`),
             getJson(`${api}/forms/${form.uuid}/logic-rules`),
           ]);
-          results.push({ form, result: checkForm({ form, steps, variables, rules, staticVariables, serviceRoots }) });
+          const result = checkForm({ form, steps, variables, rules, staticVariables, serviceRoots });
+          status.textContent = `Open Forms configuratiecontrole: formulier ${i + 1} van ${forms.length}, koppelingen...`;
+          const links = await checkLinks(linkReferences(form, variables), resolver);
+          results.push({ form, result: { ...result, findings: sortFindings([...result.findings, ...links]) } });
         } catch (error) {
           errors.push(`${form.name}: ${error.message}`);
         }

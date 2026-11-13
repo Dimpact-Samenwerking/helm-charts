@@ -147,6 +147,62 @@ const noServices = core.checkForm({
 }).findings;
 assert.ok(!noServices.some((f) => f.check === "Onbekende service"));
 
+// ---- Koppelingen --------------------------------------------------------------
+
+const ok = (data) => Promise.resolve({ data });
+const fail = (status) => Promise.resolve({ error: new Error(`${status} bij https://open-forms/api/v2/...`) });
+const catalogueA = { domain: "ABCD", rsin: "123", label: "Catalogus A", url: "https://catalogi/a" };
+const stubResolver = {
+  objecttypes: (group) => (group === "objecten"
+    ? ok([{ uuid: "ot-1", url: "https://objecttypen/ot-1", name: "Aanvraag" }])
+    : fail(500)),
+  versions: (_group, uuid) => ok(uuid === "ot-1" ? [{ version: 1, status: "published" }, { version: 2, status: "draft" }] : []),
+  catalogues: (api) => (api.group === 9 ? fail(400) : ok([catalogueA])),
+  documentTypes: (api, _url, caseType) => ok(api.kind === "zgw" && caseType === "ZT-1"
+    ? [{ description: "Aanvraag", isPublished: true }]
+    : [{ description: "Bijlage", isPublished: true }, { description: "Concept doc", isPublished: false }]),
+  caseTypes: () => ok([{ identification: "ZT-1", isPublished: true }, { identification: "ZT-C", isPublished: false }]),
+  roleTypes: () => ok([{ description: "Behandelaar" }]),
+  products: () => ok([{ url: "https://producten/1" }]),
+};
+const linkForm = {
+  registrationBackends: [
+    { name: "Objecten", backend: "objects_api", options: {
+      objectsApiGroup: "objecten", objecttype: "ot-1", objecttypeVersion: 2, catalogue: { domain: "ABCD", rsin: "123" },
+      iotSubmissionReport: "Bijlage", iotAttachment: "Bestaat niet", files: [{ key: "bijlage", documentTypeDescription: "Concept doc" }],
+    } },
+    { name: "Weg", backend: "objects_api", options: { objectsApiGroup: "objecten", objecttype: "ot-x", objecttypeVersion: 1 } },
+    { name: "Zaak", backend: "zgw-create-zaak", options: {
+      zgwApiGroup: 1, catalogue: { domain: "ABCD", rsin: "123" }, caseTypeIdentification: "ZT-1",
+      documentTypeDescription: "Aanvraag", medewerkerRoltype: "Onbekend", productUrl: "https://producten/2",
+      objectsApiGroup: "objecten", objecttype: "https://objecttypen/ot-1", objecttypeVersion: 1,
+    } },
+    { name: "Zaak2", backend: "zgw-create-zaak", options: { zgwApiGroup: 1, catalogue: { domain: "XYZ", rsin: "999" } } },
+    { name: "Zaak3", backend: "zgw-create-zaak", options: {
+      zgwApiGroup: 1, catalogue: { domain: "ABCD", rsin: "123" }, caseTypeIdentification: "ZT-weg", documentTypeDescription: "Aanvraag",
+    } },
+    { name: "Zaak4", backend: "zgw-create-zaak", options: { zgwApiGroup: 9, catalogue: { domain: "ABCD", rsin: "123" } } },
+    { name: "Mail", backend: "email", options: { toEmails: ["a@example.org"] } },
+  ],
+};
+const linkVariables = [
+  { key: "profiel", name: "Profiel", prefillPlugin: "objects_api", prefillOptions: { objectsApiGroup: "kapot", objecttypeUuid: "ot-1", objecttypeVersion: 1 } },
+  { key: "gewoon", name: "Gewoon", prefillPlugin: "", prefillOptions: {} },
+];
+const linkSummary = (found) => found.map((f) => `${f.severity}|${f.target.text}|${f.problem}`).sort();
+const expectedLinks = [
+  "CONTROLEREN|Profiel  (sleutel 'profiel')|De objecttypen van API-groep 'kapot' konden niet worden opgehaald: Open Forms kon de API niet bereiken of kreeg een fout terug.",
+  "CONTROLEREN|Zaak4  (zgw-create-zaak)|De catalogi van API-groep '9' konden niet worden opgehaald: de API-groep bestaat niet (meer) of is niet volledig ingesteld.",
+  "FOUT|Objecten  (objects_api)|Documenttype 'Bestaat niet' bestaat niet (meer) in catalogus 'Catalogus A'.",
+  "FOUT|Weg  (objects_api)|Objecttype ot-x bestaat niet (meer) in de Objecttypen van API-groep 'objecten'.",
+  "FOUT|Zaak  (zgw-create-zaak)|Product https://producten/2 hoort niet (meer) bij een geldige versie van zaaktype 'ZT-1'.",
+  "FOUT|Zaak  (zgw-create-zaak)|Roltype 'Onbekend' bestaat niet (meer) bij zaaktype 'ZT-1'.",
+  "FOUT|Zaak2  (zgw-create-zaak)|Catalogus XYZ (RSIN 999) bestaat niet (meer) in API-groep '1'.",
+  "FOUT|Zaak3  (zgw-create-zaak)|Zaaktype 'ZT-weg' bestaat niet (meer) in catalogus 'Catalogus A'.",
+  "LET OP|Objecten  (objects_api)|Documenttype 'Concept doc' in catalogus 'Catalogus A' is nog een concept.",
+  "LET OP|Objecten  (objects_api)|Versie 2 van objecttype 'Aanvraag' heeft status 'draft', niet 'published'.",
+].sort();
+
 // ---- The minified bookmarklet ------------------------------------------------
 
 (async () => {
@@ -168,6 +224,30 @@ assert.ok(!noServices.some((f) => f.check === "Onbekende service"));
   for (const input of inputs) {
     assert.deepStrictEqual(minified.checkForm(input), core.checkForm(input));
   }
+
+  // Koppelingen, with the source and with the minified code.
+  for (const lib of [core, minified]) {
+    const found = await lib.checkLinks(lib.linkReferences(linkForm, linkVariables), stubResolver);
+    assert.deepStrictEqual(linkSummary(found), expectedLinks);
+  }
+
+  // The resolver fetches each list once and turns a failed fetch into {error}.
+  const fetched = [];
+  const fakeGetJson = (url) => {
+    fetched.push(url);
+    return url.includes("kapot") ? Promise.reject(new Error("500 bij x")) : Promise.resolve([]);
+  };
+  const resolver = core.makeLinkResolver(fakeGetJson, "https://h/api/v2");
+  await resolver.objecttypes("objecten");
+  await resolver.objecttypes("objecten");
+  const broken = await resolver.objecttypes("kapot");
+  assert.strictEqual(fetched.length, 2);
+  assert.strictEqual(fetched[0], "https://h/api/v2/objects-api/object-types?objects_api_group=objecten");
+  assert.ok(broken.error);
+  const docs = await resolver.documentTypes({ kind: "zgw", group: 1 }, "https://catalogi/a", "ZT-1");
+  assert.deepStrictEqual(docs, { data: [] });
+  assert.strictEqual(fetched[2],
+    "https://h/api/v2/registration/plugins/zgw-api/document-types?zgw_api_group=1&catalogue_url=https%3A%2F%2Fcatalogi%2Fa&case_type_identification=ZT-1");
   const results = inputs.map((input) => ({ form: { name: "x", uuid: "u", active: true, ...input.form }, result: core.checkForm(input) }));
   const meta = { host: "h", date: "d", adminBase: "https://h", errors: [], serviceRoots: [] };
   assert.strictEqual(minified.formatReport(results, meta), core.formatReport(results, meta));
