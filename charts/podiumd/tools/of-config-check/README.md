@@ -29,8 +29,17 @@ marked "3.5 only" run only on 3.5, where they prepare the upgrade to 4.0.
 | Verbergen (4.0) | Logic that compares a hidden field, or a field on a later step, with its empty value. From Open Forms 4.0 such a value is missing instead of empty, so the rule can behave differently |
 | Catalogus | A file upload field with another catalogue than the form's Objects API or ZGW registration |
 | Onbekende service | A registration or file upload field that points at a URL for which no service is configured, e.g. another environment's URL |
+| Koppeling | An objecttype (and its version), catalogue, zaaktype, document type, role type or product that an Objects API or ZGW registration, or an Objects API prefill, refers to, but that does not exist (anymore) or is a draft in the API behind the form's API group |
 
-The last five follow Open Forms' own diagnostic scripts in `/app/bin`, which
+The Koppeling check asks Open Forms' own admin endpoints
+(`/api/v2/objects-api/...` and `/api/v2/registration/plugins/zgw-api/...`),
+which call Objecttypen and Catalogi with the API group's credentials. So it
+tests exactly what Open Forms itself can reach. Each list is fetched once per
+API group and catalogue. When Open Forms cannot fetch a list, the finding is
+CONTROLEREN: an unknown API group (HTTP 400) or an API that Open Forms cannot
+reach or that returns an error (HTTP 500).
+
+The Logica 4.0 to Onbekende service checks follow Open Forms' own diagnostic scripts in `/app/bin`, which
 the PodiumD 4.10 upgrade guide runs with `kubectl exec`:
 
 | Check | Open Forms script |
@@ -52,9 +61,11 @@ Severity:
   variable there is no message, but registration, later calculations or
   templates can go wrong.
 - **LET OP**: a division is written to a whole-number variable and can give a
-  decimal number.
+  decimal number, or a linked objecttype version, zaaktype or document type
+  is a draft.
 - **CONTROLEREN**: check by hand. The type of a calculation's result cannot
-  be derived, or a rule may behave differently from Open Forms 4.0.
+  be derived, a rule may behave differently from Open Forms 4.0, or Open
+  Forms could not fetch a list for the Koppeling check.
 
 Each finding names the field, variable or registration, the logic rule, the
 problem, a suggested fix and the calculation or value. The form link searches
@@ -65,6 +76,10 @@ Not checked:
 - Prefill, fetch-from-service and DMN results: only known while a form is
   filled in.
 - Submissions, templates and registration mappings.
+- For the Koppeling check: individual objects in Objecten (forms do not refer
+  to them), zaaktype properties (eigenschappen) and the target paths of a
+  variables mapping. On Open Forms 3.5, a registration without its own
+  catalogue uses the API group's; that fallback is not followed.
 - The `V1_KEYS` and `INVALID` checks of `openforms-check-registration-options.py`:
   they need Open Forms' server-side validation. Run that script with
   `kubectl exec` as in the upgrade guide.
