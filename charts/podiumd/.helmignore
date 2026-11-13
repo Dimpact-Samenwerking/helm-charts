@@ -19,4 +19,6 @@ ci/
 scripts/
 bin/
 etc/
+# Tools run by people outside the cluster, not used by the chart
+tools/
 rendered-helm.yaml
