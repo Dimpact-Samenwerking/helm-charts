@@ -13,7 +13,7 @@ source rule updates its copy in the same commit.
 | `.github/copilot-instructions.md` § Markdown, or the `verify-podiumd` markdown settings | `.github/instructions/markdown.instructions.md` |
 | `README.md` § Branching strategy, commit message conventions, local files that must not be committed, secrets rules | `.github/instructions/pr-review.instructions.md` |
 | The checks named in `CLAUDE.md` § Pre-commit checklist, or a slash command used there is renamed or removed | `.github/pull_request_template.md` checklist |
-| The sections of `.github/pull_request_template.md`, or the release PR layout | `.github/instructions/pr-review.instructions.md` |
+| The sections of `.github/pull_request_template.md`, or the release PR layout | `.github/instructions/pr-review.instructions.md` and `CLAUDE.md` § PR descriptions |
 | A chart directory under `charts/` or a top-level tooling directory is added, removed or renamed | `.github/CODEOWNERS` |
 | A path, script, template or file named in an `*.instructions.md` file is renamed or removed | That instruction file's text and its `applyTo` globs |
 

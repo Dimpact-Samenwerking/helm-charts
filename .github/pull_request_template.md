@@ -75,3 +75,13 @@ branch that this PR leaves alone.
 ## Ticket
 
 <!-- Solves IN-xxxx, or "none". -->
+
+## Authors
+
+<!--
+One 👤 line per person who worked on this PR, also those who did not commit.
+Keep the 🤖 line only when an AI tool helped and set the name and a reference, i.e. 🤖 [Claude Code](https://claude.com/claude-code). Not in a release PR.
+-->
+
+👤 Name (@github-handle)
+🤖 [AI tool](a reference for the tool) assisted

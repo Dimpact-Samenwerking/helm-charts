@@ -27,6 +27,17 @@ When a rule, path, check or chart directory changes that the `.github/` review f
 
 See [`README.md`](README.md#branching-strategy). Summary: forward-cascade from `main` → `feature/podiumd-<X.Y.0>` → `feature/podiumd-<X.Y.0>-*` feature branches and `feature/<env>-podiumd-<X.Y.0>` environment branches.
 
+## PR descriptions
+
+Follow [`.github/pull_request_template.md`](.github/pull_request_template.md). Its Authors section replaces Claude Code's PR footer: never add `🤖 Generated with [Claude Code](…)` at the end.
+
+- One `👤 Name (@handle)` line per commit author of the PR's commits, tools and bots excepted. Get the login per commit with `gh api repos/Dimpact-Samenwerking/helm-charts/commits/<sha> --jq .author.login`. When it is empty, match the author's name against the repo's collaborators and say so to the user. Ask the user who else helped without committing.
+- Write the handle as a bare `@handle`: the people listed worked on the PR and are meant to be notified.
+- Add `🤖 [Claude Code](https://claude.com/claude-code) assisted` when Claude wrote any of the commits or the description.
+- A release PR (`feature/podiumd-<X.Y.0>` into `main`) uses the release layout and has no Authors section.
+
+The squash commit message is the PR description, so Authors also lands in git history. Commit messages keep their `Co-Authored-By:` trailer.
+
 ## Pre-commit checklist
 
 Always run before committing changes to `charts/podiumd/`:
