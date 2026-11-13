@@ -1,1 +1,12 @@
-@infojohn @canerortlek @sjoerdie @PascalIcatt  @sandervdbenschede @bas-info-nl
+# The last matching pattern wins: paths without their own line fall back to `*`.
+# Owners per path follow who maintains that path.
+
+*                           @kees-info @infojohn @bas-info-nl @jimleitch01 @githubjimmeicatt
+
+/charts/podiumd/            @kees-info @infojohn @bas-info-nl @jimleitch01 @githubjimmeicatt
+/charts/monitoring-logging/ @infojohn @jimleitch01 @bas-info-nl @annashamray @magdalena-source @githubjimmeicatt
+/charts/mi-data/            @infojohn @jimleitch01 @bas-info-nl @githubjimmeicatt
+/charts/brp-personen-mock/  @bas-info-nl @infojohn
+
+/.github/                   @kees-info @infojohn @bas-info-nl @jimleitch01 @githubjimmeicatt
+/.claude/                   @kees-info @infojohn @bas-info-nl @jimleitch01 @githubjimmeicatt
