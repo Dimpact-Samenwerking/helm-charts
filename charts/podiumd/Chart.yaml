@@ -24,7 +24,7 @@ dependencies:
     condition: mi.enabled
     alias: mi
   - name: openzaak
-    version: 1.14.2
+    version: 1.16.0
     repository: "@maykinmedia"
     condition: openzaak.enabled
   - name: opennotificaties
@@ -68,7 +68,7 @@ dependencies:
     condition: openvtb.enabled
   - name: zaakafhandelcomponent
     alias: zac
-    version: 1.0.355 # zac chart of ZAC 5.10; the image stays on 5.9.1 (zac.image.tag): the chart is bumped for its Solr probes and Solr non-root
+    version: 1.0.383 # zac chart of ZAC 5.12
     repository: "@zac"
     condition: zac.enabled
     tags:
