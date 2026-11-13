@@ -20,6 +20,32 @@ def test_get_path_non_dict_intermediate_returns_none(libchartvaluestreeprimitive
     assert libchartvaluestreeprimitives.get_path({"a": "scalar"}, "a.b") is None
 
 
+# --- files_under ---
+
+
+def _write_files(root: Path, rel_paths: list[str]) -> None:
+    for rel_path in rel_paths:
+        path = root / rel_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("x\n", encoding="utf-8")
+
+
+def test_files_under_skips_node_modules_and_directories(libchartpaths: ModuleType, tmp_path: Path):
+    _write_files(
+        tmp_path,
+        ["b/z.md", "a/x.md", "tools/check/node_modules/pkg/README.md", "node_modules/y.md", "a/notes.txt"],
+    )
+    (tmp_path / "dir.md").mkdir()
+    assert libchartpaths.files_under(tmp_path, "*.md") == [tmp_path / "a" / "x.md", tmp_path / "b" / "z.md"]
+
+
+def test_files_under_skips_node_modules_only_below_root(libchartpaths: ModuleType, tmp_path: Path):
+    """A root that itself lies inside a node_modules directory is still walked."""
+    root = tmp_path / "node_modules" / "pkg"
+    _write_files(root, ["README.md"])
+    assert libchartpaths.files_under(root, "*.md") == [root / "README.md"]
+
+
 # --- replace_scalar_value ---
 
 

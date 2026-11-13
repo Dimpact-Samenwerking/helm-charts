@@ -1,0 +1,12 @@
+{
+  "name": "of-config-check",
+  "private": true,
+  "description": "Open Forms configuration check for the browser; terser builds the bookmarklet",
+  "scripts": {
+    "build": "node build-bookmarklet.js",
+    "test": "node test-check.js"
+  },
+  "devDependencies": {
+    "terser": "5.51.2"
+  }
+}
