@@ -22,6 +22,20 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
     exit 0
 fi
 
+# On a laptop the checks yield the CPU to everything else and pytest and
+# pylint take 4 workers: all tools at once took 23 of 24 cores. CI keeps 8
+# pytest workers and one pylint process per CPU.
+pytest_workers=8
+pylint_jobs=0
+if [[ -z "${CI:-}" ]]; then
+    pytest_workers=4
+    pylint_jobs=4
+    if [[ -z "${RUN_PYTHON_CHECKS_NICE:-}" ]]; then
+        export RUN_PYTHON_CHECKS_NICE=1
+        exec nice -n 10 "$0" "$@"
+    fi
+fi
+
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 # Until the steps run (stop_steps below), a signal ends the run at once; without
@@ -118,15 +132,14 @@ step_bandit() { bandit -c pyproject.toml -r "${code[@]}" -q; }
 
 step_basedpyright() { basedpyright "${code[@]}" tests; }
 
-# -j 0: one process per CPU.
-step_pylint() { pylint -j 0 "${code[@]}"; }
+step_pylint() { pylint -j "$pylint_jobs" "${code[@]}"; }
 
 # PYTHONPATH lets pylint resolve lib.* imports without analyzing lib.
-step_pylint_tests() { env PYTHONPATH=. pylint -j 0 --disable="$tests_pylint_disable" "${test_files[@]}"; }
+step_pylint_tests() { env PYTHONPATH=. pylint -j "$pylint_jobs" --disable="$tests_pylint_disable" "${test_files[@]}"; }
 
 # The threshold is [tool.coverage.report] fail_under in pyproject.toml. More
 # than 8 workers start slower than they gain.
-step_pytest() { python3 -m pytest -q -n auto --maxprocesses 8 --cov --cov-report=term-missing:skip-covered; }
+step_pytest() { python3 -m pytest -q -n auto --maxprocesses "$pytest_workers" --cov --cov-report=term-missing:skip-covered; }
 
 # A warning only: a new advisory fails it without a code change, and that must
 # not block commits or PRs. The podiumd-pip-audit workflow reports it. Own
