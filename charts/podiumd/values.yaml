@@ -1713,7 +1713,6 @@ openklant:
       # Enough retries to outlast Keycloak still pulling its image on a fresh
       # install (podiumd-chart-31).
       backoffLimit: 12
-      ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
     secrets:
@@ -1808,7 +1807,8 @@ openklant:
       axes: redis-ha-master:6379/7
     celery:
       brokerUrl: redis://redis-ha-master:6379/8
-      resultBackendl: redis://redis-ha-master:6379/8
+      # Chart 1.14.2 reads resultBackend; 1.11.0 read the misspelled resultBackendl.
+      resultBackend: redis://redis-ha-master:6379/8
       # -- Set to debug for test/acceptance environments
       logLevel: warning
     uwsgi:
@@ -1824,7 +1824,7 @@ openklant:
     storageClassName: podiumd-standard
   image:
     repository: maykinmedia/open-klant
-    tag: "2.15.0@sha256:ce59a2c60dab1c14e62fe34a99511839390dd2d482983c27334241e0d60c693d"
+    tag: "2.19.2@sha256:f85ef0b31610cbf3ef6c09cbe217f113145e11623aa9ba140abd2e4ffb7bddff"
   resources:
     requests:
       cpu: 100m
@@ -1839,6 +1839,9 @@ openklant:
         memory: 200Mi
   nameOverride: openklant
   fullnameOverride: openklant
+  flower:
+    # chart default is true; must stay explicit false to match current behavior
+    enabled: false
   nginx:
     securityContext:
       allowPrivilegeEscalation: false
