@@ -14,7 +14,7 @@ PodiumD Helm chart
 | @maykinmedia | openbeheer | 0.1.3 |
 | @maykinmedia | openformulieren(openforms) | 1.13.0 |
 | @maykinmedia | openinwoner | 2.7.0 |
-| @maykinmedia | openklant | 1.11.0 |
+| @maykinmedia | openklant | 1.14.2 |
 | @maykinmedia | opennotificaties | 2.1.0 |
 | @maykinmedia | objecten(openobject) | 1.2.0 |
 | @maykinmedia | openvtb | 0.2.0 |
@@ -1073,13 +1073,13 @@ PodiumD Helm chart
 | openklant.configuration.job.enabled | bool | `true` |  |
 | openklant.configuration.job.resources | object | `{}` |  |
 | openklant.configuration.job.restartPolicy | string | `"OnFailure"` |  |
-| openklant.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
 | openklant.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openklant.example.nl`. |
 | openklant.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement. |
 | openklant.configuration.secrets.keycloak_client_secret | string | `""` |  |
+| openklant.flower.enabled | bool | `false` |  |
 | openklant.fullnameOverride | string | `"openklant"` |  |
 | openklant.image.repository | string | `"maykinmedia/open-klant"` |  |
-| openklant.image.tag | string | `"2.15.0@sha256:ce59a2c60dab1c14e62fe34a99511839390dd2d482983c27334241e0d60c693d"` |  |
+| openklant.image.tag | string | `"2.19.2@sha256:f85ef0b31610cbf3ef6c09cbe217f113145e11623aa9ba140abd2e4ffb7bddff"` |  |
 | openklant.nameOverride | string | `"openklant"` |  |
 | openklant.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openklant.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
@@ -1105,7 +1105,7 @@ PodiumD Helm chart
 | openklant.settings.cache.default | string | `"redis-ha-master:6379/7"` |  |
 | openklant.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/8"` |  |
 | openklant.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
-| openklant.settings.celery.resultBackendl | string | `"redis://redis-ha-master:6379/8"` |  |
+| openklant.settings.celery.resultBackend | string | `"redis://redis-ha-master:6379/8"` |  |
 | openklant.settings.database.sslmode | string | `"require"` |  |
 | openklant.settings.disable2fa | bool | `false` |  |
 | openklant.settings.email.port | int | `587` |  |
