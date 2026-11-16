@@ -5,7 +5,8 @@
 # Changes:
 #   1. openzaak 1.29.3 -> 1.31.1 (chart 1.14.2 -> 1.16.0).
 #   2. openklant 2.15.0 -> 2.19.2 (chart 1.11.0 -> 1.14.2).
-#   3. omc 2.3.1 -> 2.4.1 (chart 0.17.4 -> 0.17.8).
+#   3. zac 5.9.1 -> 5.12.0 (chart 1.0.355 -> 1.0.385).
+#   4. omc 2.3.1 -> 2.4.1 (chart 0.17.4 -> 0.17.8).
 #
 # See docs/_UPGRADE_PATHS/4.10.1-to-4.11.0-upgrade.md for the operator upgrade notes.
 #
@@ -23,6 +24,12 @@
   url: docker.io/maykinmedia/open-klant
   version: "2.19.2"
   digest: "sha256:f85ef0b31610cbf3ef6c09cbe217f113145e11623aa9ba140abd2e4ffb7bddff"
+
+# zac 5.9.1 -> 5.12.0
+- name: infonl/zaakafhandelcomponent
+  url: ghcr.io/infonl/zaakafhandelcomponent
+  version: "5.12.0"
+  digest: "sha256:2f07dbd9e5036cc217bcc51954d5a0d433210641eac256f4d6e367c6699f9cb5"
 
 # omc 2.3.1 -> 2.4.1
 - name: worthnl/notifynl-omc
