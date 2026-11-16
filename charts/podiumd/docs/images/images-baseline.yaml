@@ -79,8 +79,8 @@
 
 - name: openzaak/open-zaak
   url: docker.io/openzaak/open-zaak
-  version: "1.29.3"
-  digest: "sha256:7ac22da287ac190a0e1c14849a370c433d3511678dcc8f3897007fd6de6dd4ac"
+  version: "1.31.1"
+  digest: "sha256:63448221142145b0f56eabadaa9ef9578dd4aacc7f95476bd5368f767883ada0"
 
 - name: openzaak/open-notificaties
   url: docker.io/openzaak/open-notificaties
