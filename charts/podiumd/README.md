@@ -22,7 +22,7 @@ PodiumD Helm chart
 | @maykinmedia | referentielijsten(referentielijsten) | 0.2.0 |
 | @opstree | redis-operator | 0.27.0 |
 | @wiremind | clamav | 3.7.3 |
-| @worth-nl | omc(notifynl-omc-nodep) | 0.17.4 |
+| @worth-nl | omc(notifynl-omc-nodep) | 0.17.8 |
 | @zac | zac(zaakafhandelcomponent) | 1.0.355 |
 | @zgw-office-addin | zgw-office-addin | 0.0.93 |
 | file://../mi-data | mi(mi-data) | 1.1.0 |
@@ -689,7 +689,7 @@ PodiumD Helm chart
 | objecttypenCompatService | object | `{"enabled":true}` | Service `objecttypen` that sends the old objecttypen Service name to the objecten web pods (Objecten 4 serves the Objecttypen API). Keeps gateway ExternalNames to objecttypen.<namespace>.svc working through the upgrade, so the old objecttypen hostname has no 502 window before the gateway is repointed. Selector and port follow objecten.nameOverride and objecten.service.port. Transitional: on by default in 4.10.x only; a later minor turns it off by default. Turn it off once every gateway and client uses objecten, on a fresh install that never had objecttypen, or when something else already provides an `objecttypen` Service in the namespace. |
 | omc.enabled | bool | `false` |  |
 | omc.fullnameOverride | string | `"omc"` |  |
-| omc.image.tag | string | `"2.3.1"` |  |
+| omc.image.tag | string | `"2.4.1"` |  |
 | omc.settings.notify.api.baseUrl | string | `"https://api.notifynl.nl"` |  |
 | omc.settings.omc.auth.jwt.audience | string | `"omc"` |  |
 | omc.settings.omc.auth.jwt.issuer | string | `"omc"` |  |
