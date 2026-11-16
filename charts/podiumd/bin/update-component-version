@@ -87,7 +87,7 @@ from lib.image.version import print_pin_updates
 from lib.image.version import write_pin_updates
 from lib.procutil import run_script
 from lib.registry import ImagePathTagCheck
-from lib.settings import digest_pinning_exceptions
+from lib.settings import pin_exception_paths
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import load_yaml_mapping
 
@@ -179,12 +179,15 @@ class TargetVersions:
 
 @dataclass
 class ComponentResolution:
-    """no_chart/dep/chart_name/values_key, grouped for BumpContext."""
+    """no_chart/dep/chart_name/values_key and the pin exceptions, grouped for BumpContext."""
 
     no_chart: bool
     dep: ChartDependency | None
     chart_name: str
     values_key: str
+    # This component's pin_exception_paths, by path: a split pin's sibling field, the tag-only pins.
+    split_tag_sha_paths: dict[str, str]
+    tag_only_paths: frozenset[str]
 
 
 def _group_getattr(groups: tuple[object, ...], name: str):
@@ -216,27 +219,13 @@ class TagUpdatePlan:
     split_paths: list[PinPath]
     delegated_paths: list[PinPath]
     fallback_paths: list[PinPath]
+    tag_only_paths: list[PinPath]
 
 
 def _parse_cli_args():
     """(component, app_version, chart_version); exits on -h or a wrong argument count."""
     component, app_version, chart_version = positional_args(__doc__, 3)
     return component, app_version, chart_version
-
-
-# Split "tag:" + sibling ("sha:"/"digest:") pins from settings.yaml
-# digest_pinning.exceptions. Classified before the repository split: these
-# paths also have a "repository:".
-def load_split_tag_sha_paths() -> dict[tuple[str, str], str]:
-    """(values_key, path) -> sibling_field for writable exceptions with a sibling_field.
-
-    Writable entries without one take the ordinary tag-update route.
-    """
-    return {
-        (tuple_path[0], ".".join(tuple_path[1:])): entry["sibling_field"]
-        for tuple_path, entry in digest_pinning_exceptions(CHART_DIR).items()
-        if entry["writable"] and entry["sibling_field"] is not None
-    }
 
 
 def _resolve_bump_context(component: str, app_version: str, chart_version: str):
@@ -258,9 +247,12 @@ def _resolve_bump_context(component: str, app_version: str, chart_version: str):
         values_key = values_key_of(dep)
     # Keyed by Chart.yaml name, not alias.
     pins = pin_paths_for(chart_name, CHART_DIR)
+    exceptions = pin_exception_paths(CHART_DIR)
+    split = {path: sibling for (key, path), sibling in exceptions.split.items() if key == values_key}
+    tag_only = frozenset(path for key, path in exceptions.tag_only if key == values_key)
     return BumpContext(
         TargetVersions(app_version, chart_version, new_chart),
-        ComponentResolution(no_chart, dep, chart_name, values_key),
+        ComponentResolution(no_chart, dep, chart_name, values_key, split, tag_only),
         deps,
         values,
         pins,
@@ -334,10 +326,8 @@ def _compute_paths_to_update(ctx: BumpContext) -> list[PinPath]:
     return paths_to_update
 
 
-def _classify_paths_to_update(
-    ctx: BumpContext, paths_to_update: list[PinPath], split_tag_sha_paths: dict[tuple[str, str], str]
-) -> TagUpdatePlan:
-    """Classify pins as split tag/sha pins, own repository, or sub-chart default.
+def _classify_paths_to_update(ctx: BumpContext, paths_to_update: list[PinPath]) -> TagUpdatePlan:
+    """Classify pins as split tag/sha pins, tag-only pins, own repository, or sub-chart default.
 
     A bare version field is always podiumd's own pin: it has no "image:"
     block for a sub-chart default to fill.
@@ -345,22 +335,25 @@ def _classify_paths_to_update(
     split_paths: list[PinPath] = []
     delegated_paths: list[PinPath] = []
     fallback_paths: list[PinPath] = []
+    tag_only_paths: list[PinPath] = []
     for pin in paths_to_update:
-        if (ctx.values_key, pin.path) in split_tag_sha_paths:
+        if pin.path in ctx.resolution.split_tag_sha_paths:
             split_paths.append(pin)
+            continue
+        if pin.path in ctx.resolution.tag_only_paths:
+            tag_only_paths.append(pin)
             continue
         own = (
             not pin.is_image_block
             or own_full_repository(ctx.values, (ctx.values_key, *pin.path.split("."))) is not None
         )
         (delegated_paths if own else fallback_paths).append(pin)
-    return TagUpdatePlan(split_paths, delegated_paths, fallback_paths)
+    return TagUpdatePlan(split_paths, delegated_paths, fallback_paths, tag_only_paths)
 
 
 def _write_split_tag_sha_pins(
     ctx: BumpContext,
     split_paths: list[PinPath],
-    split_tag_sha_paths: dict[tuple[str, str], str],
     upstream_images: dict[str, ImagePathTagCheck],
 ) -> None:
     """Write the split tag/sibling pin pairs for split_paths, with the digests the version check found."""
@@ -371,7 +364,7 @@ def _write_split_tag_sha_pins(
         f"Writing split tag/sha pin(s) for {', '.join(f'{ctx.values_key}.{pin.path}' for pin in split_paths)}"
     )
     for pin in split_paths:
-        sibling_field = split_tag_sha_paths[(ctx.values_key, pin.path)]
+        sibling_field = ctx.resolution.split_tag_sha_paths[pin.path]
         write_split_tag_sha_pin(ctx, values_lines, pin.path, sibling_field, upstream_images.get(pin.path))
     VALUES_YAML.write_text("".join(values_lines), encoding="utf-8")
 
@@ -472,9 +465,9 @@ def write_delegated_tags(ctx: BumpContext, updates: list[DelegatedUpdate]) -> No
 
 
 def fallback_pin_updates(
-    ctx: BumpContext, pins: list[PinPath], upstream_images: dict[str, ImagePathTagCheck]
+    ctx: BumpContext, pins: list[PinPath], upstream_images: dict[str, ImagePathTagCheck], *, with_digest: bool
 ) -> list[PinUpdate]:
-    """The pin updates of pins whose repository is the sub-chart default, with the digests already checked."""
+    """The pin updates of pins written from the already-checked upstream images; without a digest unless with_digest."""
     lines = VALUES_YAML.read_text(encoding="utf-8").splitlines()
     updates: list[PinUpdate] = []
     for pin in pins:
@@ -493,7 +486,7 @@ def fallback_pin_updates(
                 old_version=old_version,
                 old_digest=old_digest,
                 new_version=ctx.app_version,
-                new_digest=checked["digest"],
+                new_digest=checked["digest"] if with_digest else "",
             )
         )
     return updates
@@ -503,12 +496,17 @@ def write_fallback_tags(
     ctx: BumpContext,
     fallback_paths: list[PinPath],
     upstream_images: dict[str, ImagePathTagCheck],
+    *,
+    with_digest: bool,
 ) -> None:
-    """Write the already-resolved sub-chart-default digests for fallback_paths."""
+    """Write fallback_paths from the already-checked upstream images: tag@digest, or the tag alone."""
     if not fallback_paths:
         return
-    updates = fallback_pin_updates(ctx, fallback_paths, upstream_images)
-    print_section(f"Using sub-chart default digests for: {', '.join(pin.path for pin in fallback_paths)}")
+    updates = fallback_pin_updates(ctx, fallback_paths, upstream_images, with_digest=with_digest)
+    paths = ", ".join(pin.path for pin in fallback_paths)
+    print_section(
+        f"Using sub-chart default digests for: {paths}" if with_digest else f"Writing tag-only pins for: {paths}"
+    )
     print_pin_updates(updates)
     write_pin_updates(VALUES_YAML, updates)
 
@@ -516,18 +514,18 @@ def write_fallback_tags(
 def _update_image_tags(
     ctx: BumpContext,
     paths_to_update: list[PinPath],
-    split_tag_sha_paths: dict[tuple[str, str], str],
     upstream_images: dict[str, ImagePathTagCheck],
 ) -> None:
     """Write every pin's new tag."""
     if not paths_to_update:
         return
-    plan = _classify_paths_to_update(ctx, paths_to_update, split_tag_sha_paths)
+    plan = _classify_paths_to_update(ctx, paths_to_update)
     # Resolve the delegated pins before writing anything, so an error leaves values.yaml untouched.
     delegated = plan_delegated_tags(ctx, plan.delegated_paths, upstream_images)
-    _write_split_tag_sha_pins(ctx, plan.split_paths, split_tag_sha_paths, upstream_images)
+    _write_split_tag_sha_pins(ctx, plan.split_paths, upstream_images)
     write_delegated_tags(ctx, delegated)
-    write_fallback_tags(ctx, plan.fallback_paths, upstream_images)
+    write_fallback_tags(ctx, plan.fallback_paths, upstream_images, with_digest=True)
+    write_fallback_tags(ctx, plan.tag_only_paths, upstream_images, with_digest=False)
 
 
 def _run_fix_helm_doc() -> None:
@@ -560,7 +558,6 @@ def main():
     """CLI entry point."""
     component, app_version, chart_version = _parse_cli_args()
     ensure_vendored_dependencies(CHART_DIR)
-    split_tag_sha_paths = load_split_tag_sha_paths()
     ctx = _resolve_bump_context(component, app_version, chart_version)
     check_chart_version_lockstep(ctx.chart_name, app_version, chart_version, no_chart=ctx.no_chart)
     refuse_unwritable_pins(ctx)
@@ -573,7 +570,7 @@ def main():
         print()
         print("Component is already at the requested versions; completing docs.")
 
-    _update_image_tags(ctx, paths_to_update, split_tag_sha_paths, upstream_images)
+    _update_image_tags(ctx, paths_to_update, upstream_images)
 
     if not chart_unchanged:
         _write_chart_version(ctx, chart_version)

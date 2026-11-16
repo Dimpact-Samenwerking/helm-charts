@@ -215,23 +215,3 @@ def test_update_chart_yaml_missing_dependency_raises(ucv: ModuleType, tmp_path: 
     monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)
     with pytest.raises(SystemExit):
         ucv.update_chart_yaml("totally-unknown", "9.9.9")
-
-
-# --- load_split_tag_sha_paths ---
-
-
-def test_load_split_tag_sha_paths_skips_writable_entry_without_sibling_field(
-    ucv: ModuleType, monkeypatch: pytest.MonkeyPatch
-):
-    # A writable entry without sibling_field has no split pin; keeping it
-    # would write a literal "None:" key next to its tag.
-    monkeypatch.setattr(
-        ucv,
-        "digest_pinning_exceptions",
-        lambda _chart_dir: {
-            ("keycloak", "image"): {"sibling_field": "sha", "writable": True},
-            ("zac", "image"): {"sibling_field": None, "writable": True},
-            ("omc", "image"): {"sibling_field": "digest", "writable": False},
-        },
-    )
-    assert ucv.load_split_tag_sha_paths() == {("keycloak", "image"): "sha"}

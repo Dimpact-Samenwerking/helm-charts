@@ -263,7 +263,7 @@ zac:
 
 def _write_fallback(ucv: ModuleType, values_yaml: Path, values: dict[str, object]) -> str:
     ctx = SimpleNamespace(values=values, values_key="zac", app_version="5.12.0", chart_name="zaakafhandelcomponent")
-    ucv.write_fallback_tags(ctx, image_pins("image"), {"image": ZAC_CHECKED})
+    ucv.write_fallback_tags(ctx, image_pins("image"), {"image": ZAC_CHECKED}, with_digest=True)
     return values_yaml.read_text(encoding="utf-8")
 
 
@@ -289,4 +289,38 @@ def test_write_fallback_tags_missing_path_exits(ucv: ModuleType, tmp_path: Path,
     monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
     ctx = SimpleNamespace(values={}, values_key="zac", app_version="5.12.0", chart_name="zaakafhandelcomponent")
     with pytest.raises(SystemExit):
-        ucv.write_fallback_tags(ctx, image_pins("frontend.image"), {"frontend.image": ZAC_CHECKED})
+        ucv.write_fallback_tags(ctx, image_pins("frontend.image"), {"frontend.image": ZAC_CHECKED}, with_digest=True)
+
+
+OMC_CHECKED = {
+    "path": "image",
+    "repository": "docker.io/worthnl/notifynl-omc",
+    "host": "docker.io",
+    "repo_path": "worthnl/notifynl-omc",
+    "exists": True,
+    "digest": DIGEST,
+}
+
+OMC_VALUES = """\
+omc:
+  image:
+    tag: "2.3.1" # NOTE: OMC subchart can't handle digest-pinned images, so the tag should contain ONLY version.
+"""
+
+
+def test_write_fallback_tags_without_digest_writes_the_tag_alone(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """A tag-only pin (a digest_pinning exception that is not writable) gets the version, its comment kept."""
+    values_yaml = tmp_path / "values.yaml"
+    values_yaml.write_text(OMC_VALUES, encoding="utf-8")
+    monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
+
+    def write(values: dict[str, object]) -> str:
+        ctx = SimpleNamespace(values=values, values_key="omc", app_version="2.4.1", chart_name="notifynl-omc-nodep")
+        ucv.write_fallback_tags(ctx, image_pins("image"), {"image": OMC_CHECKED}, with_digest=False)
+        return values_yaml.read_text(encoding="utf-8")
+
+    text = write({"omc": {"image": {"tag": "2.3.1"}}})
+    assert text == OMC_VALUES.replace('"2.3.1" #', '"2.4.1"  #')
+    assert write({"omc": {"image": {"tag": "2.4.1"}}}) == text

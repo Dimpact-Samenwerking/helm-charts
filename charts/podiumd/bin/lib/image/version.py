@@ -19,6 +19,7 @@ from lib.chart.values_tree_primitives import values_key_of
 from lib.image.digests import DigestPin
 from lib.image.digests import ImagePin
 from lib.image.digests import VersionPin
+from lib.image.digests import pin_text
 from lib.image.digests import scan_digest_pins
 from lib.image.digests import scan_version_pins
 from lib.image.digests import sync_reference_comments
@@ -253,8 +254,8 @@ def print_pin_updates(updates: list[PinUpdate]) -> None:
     """Print each planned pin update: its values.yaml line, repository and old and new pin."""
     for update in updates:
         print(f"  values.yaml:{update['line']}  ({update['repository']})")
-        print(f"    {update['old_version']}@{update['old_digest']}")
-        print(f"    {update['new_version']}@{update['new_digest']}")
+        print(f"    {pin_text(update['old_version'], update['old_digest'])}")
+        print(f"    {pin_text(update['new_version'], update['new_digest'])}")
 
 
 def write_pin_updates(values_path: Path, updates: list[PinUpdate]) -> None:
@@ -264,7 +265,9 @@ def write_pin_updates(values_path: Path, updates: list[PinUpdate]) -> None:
     lines = values_path.read_text(encoding="utf-8").splitlines(keepends=True)
     for update in updates:
         line_index = update["line"] - 1
-        lines[line_index] = replace_scalar_value(lines[line_index], f"{update['new_version']}@{update['new_digest']}")
+        lines[line_index] = replace_scalar_value(
+            lines[line_index], pin_text(update["new_version"], update["new_digest"])
+        )
     # The "# host/repo:tag[@sha256:...]" reference comment above a bumped pin names the same pin.
     text, _ = sync_reference_comments("".join(lines), {update["line"] for update in updates})
     values_path.write_text(text, encoding="utf-8")

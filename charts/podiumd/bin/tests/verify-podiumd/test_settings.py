@@ -319,3 +319,29 @@ def test_settings_are_reread_after_the_file_changes(libsettings: ModuleType, tmp
     assert libsettings.repo_access_cache_ttl_minutes(tmp_path) == 60
     write_settings(tmp_path, {"repo_access": {"cache_ttl_minutes": 120}})
     assert libsettings.repo_access_cache_ttl_minutes(tmp_path) == 120
+
+
+def test_is_tag_only_pin_only_for_an_entry_without_sibling_field_or_writable(libsettings: ModuleType):
+    assert libsettings.is_tag_only_pin({"sibling_field": None, "writable": False})
+    assert not libsettings.is_tag_only_pin({"sibling_field": None, "writable": True})
+    assert not libsettings.is_tag_only_pin({"sibling_field": "sha", "writable": False})
+    assert not libsettings.is_tag_only_pin({"sibling_field": "sha", "writable": True})
+
+
+def test_pin_exception_paths_splits_writable_sibling_and_tag_only_entries(libsettings: ModuleType, tmp_path: Path):
+    """A writable entry without sibling_field is in neither set: it takes the ordinary tag-update route."""
+    write_settings(
+        tmp_path,
+        {
+            "digest_pinning": {
+                "exceptions": {
+                    "keycloak.image": {"sibling_field": "sha", "writable": True},
+                    "zac.image": {"writable": True},
+                    "omc.image": {},
+                },
+            },
+        },
+    )
+    exceptions = libsettings.pin_exception_paths(tmp_path)
+    assert exceptions.split == {("keycloak", "image"): "sha"}
+    assert exceptions.tag_only == frozenset((("omc", "image"),))

@@ -94,8 +94,10 @@ helm_repos:
 digest_pinning:
   # Paths exempt from the "<tag>@sha256:<digest>" convention. sibling_field
   # names the field carrying the digest, as the upstream template expects.
-  # writable: update-component-version may write tag+digest. omc.image
-  # cannot be digest-pinned at all.
+  # writable: update-component-version may write tag+digest. An entry with
+  # neither is a tag-only pin: the upstream chart can't take a digest (omc
+  # puts the tag in a label), so the tools write the version alone and record
+  # the registry digest only in docs/images/images-<version>.yaml.
   exceptions:
     "keycloak-operator.operator.image": {sibling_field: "sha", writable: true}
     "keycloak-operator.operator.config.keycloakImage": {sibling_field: "sha", writable: true}

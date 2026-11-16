@@ -25,12 +25,14 @@ from lib.component_docs.images_manifest_changes_header import remove_changes_ite
 from lib.component_docs.images_manifest_changes_header import uncovered_manifest_entries
 from lib.fix_doc_consistency.manifest_entries_core import BaselineRelease
 from lib.fix_doc_consistency.manifest_entries_core import entry_baseline_version
+from lib.image.digests import registry_digest_pin
 from lib.image.repository_check import find_images_without_repository
 from lib.images_manifest import ENTRY_NAME_RE
 from lib.images_manifest import entry_line_indices
 from lib.images_manifest import try_parse_images_manifest
 from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
+from lib.settings import is_tag_only_pin
 from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.chart_image_index import StateImageIndexes
 from lib.upgradedoc.chart_image_index import entry_resolution_of
@@ -190,6 +192,10 @@ def _entry_fields_for_missing_path(
     current_tag = resolution.current_paths[path]
     name = path_display_name(path, context.deps, resolution.canonical_names)
     pinned_tag = resolved_digest_pin(context.target_values, path, current_tag, resolution.sibling_fields)
+    exception = resolution.sibling_fields.get(path)
+    if pinned_tag is None and full_repo_url and exception is not None and is_tag_only_pin(exception):
+        # The entry records the registry digest of a pin values.yaml can't carry one in.
+        pinned_tag = registry_digest_pin(full_repo_url, current_tag)
     if repo is None or pinned_tag is None:
         return name, None
     return name, AddedEntryFields(name, repo, full_repo_url, pinned_tag)
