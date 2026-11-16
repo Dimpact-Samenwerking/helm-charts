@@ -35,6 +35,7 @@ from lib.release_baseline import BaselineChartState
 from lib.release_baseline import resolve_baseline_chart_state
 from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
+from lib.settings import is_tag_only_pin
 from lib.upgradedoc.chart_image_index import ChartImageIndex
 from lib.upgradedoc.doc_names import STANDARD_SUFFIXES
 from lib.upgradedoc.doc_names import doc_name
@@ -163,7 +164,7 @@ def check_images_manifest_entry(
     # A path exempt from digest pinning without a digest field (omc.image) pins the
     # tag only; its entry still records the registry digest of that tag.
     exception = scan.sibling_fields.get(path)
-    tag_only = exception is not None and exception["sibling_field"] is None
+    tag_only = exception is not None and is_tag_only_pin(exception)
     if actual_tag != expected_tag and not (tag_only and actual_tag == version):
         findings.mismatches.append(
             f'{name}: values.yaml tag is "{actual_tag}", {scan.images_path.name} says "{expected_tag}"'

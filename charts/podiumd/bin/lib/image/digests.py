@@ -220,14 +220,25 @@ def _reference_comment(lines: list[str], tag_line_index: int, tag_indent: int) -
     return _reference_comment_above(lines, tag_line_index)
 
 
+def registry_digest_pin(repository: str, tag: str) -> str | None:
+    """ "<tag>@<digest>" of repository:tag from the registry; None when the tag is missing or unreachable."""
+    host, repo_path = parse_repo(repository)
+    digest, _error = tag_digest_lookup(lambda: registry_tag_exists(host, repo_path, tag))
+    return pin_text(tag, digest) if digest else None
+
+
+def pin_text(version: str, digest: str | None) -> str:
+    """A pin as values.yaml writes it: "<version>@<digest>", or the version alone without a digest."""
+    return f"{version}@{digest}" if digest else version
+
+
 def reference_comment_text(comment_line: str, version: str, digest: str | None) -> str:
     """comment_line with its tag and digest replaced by version and digest ("sha256:<hex>" or None)."""
     comment_match = REF_COMMENT_RE.match(comment_line.rstrip("\r\n"))
     if comment_match is None:
         return comment_line
     ending = comment_line[len(comment_line.rstrip("\r\n")) :]
-    pin = f"{version}@{digest}" if digest else version
-    return f"{comment_match.group('indent')}# {comment_match.group('repo')}:{pin}{ending}"
+    return f"{comment_match.group('indent')}# {comment_match.group('repo')}:{pin_text(version, digest)}{ending}"
 
 
 class StaleReferenceComment(NamedTuple):

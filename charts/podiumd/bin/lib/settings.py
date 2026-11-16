@@ -8,6 +8,7 @@ each read copies only the value it returns."""
 import copy
 import sys
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import NoReturn
 from typing import TypedDict
@@ -260,6 +261,37 @@ _DEFAULT_PINNING_EXCEPTIONS: YamlMapping = {
     "eck-operator.image": {"sibling_field": "digest", "writable": True},
     "omc.image": {},
 }
+
+
+def is_tag_only_pin(entry: DigestPinningException) -> bool:
+    """Whether the pin is the version alone: the upstream chart can't take a digest (omc.image)."""
+    return not entry["writable"] and entry["sibling_field"] is None
+
+
+@dataclass(frozen=True)
+class PinExceptions:
+    """digest_pinning.exceptions by (values_key, dotted path), as the pin writers use them.
+
+    split: writable entries with a sibling_field, -> sibling_field.
+    tag_only: is_tag_only_pin entries.
+    Writable entries without a sibling_field are in neither: they take the ordinary tag-update route.
+    """
+
+    split: dict[tuple[str, str], str]
+    tag_only: frozenset[tuple[str, str]]
+
+
+def pin_exception_paths(chart_dir: Path) -> PinExceptions:
+    """digest_pinning_exceptions split into PinExceptions."""
+    split: dict[tuple[str, str], str] = {}
+    tag_only: set[tuple[str, str]] = set()
+    for tuple_path, entry in digest_pinning_exceptions(chart_dir).items():
+        key = (tuple_path[0], ".".join(tuple_path[1:]))
+        if is_tag_only_pin(entry):
+            tag_only.add(key)
+        elif entry["writable"] and entry["sibling_field"] is not None:
+            split[key] = entry["sibling_field"]
+    return PinExceptions(split, frozenset(tag_only))
 
 
 def digest_pinning_exceptions(chart_dir: Path) -> dict[tuple[str, ...], DigestPinningException]:

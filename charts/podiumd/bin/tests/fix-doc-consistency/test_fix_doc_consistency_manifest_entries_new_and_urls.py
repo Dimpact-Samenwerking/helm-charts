@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 import pytest
 import yaml
 
+from lib.fix_doc_consistency import new_and_removed_entries
 from lib.fix_doc_consistency.manifest_entry_urls_and_names import fix_images_manifest_entry_urls
 from lib.fix_doc_consistency.manifest_entry_urls_and_names import fix_manifest_entry_names
 from lib.fix_doc_consistency.new_and_removed_entries import MissingEntriesContext
@@ -473,6 +474,31 @@ def test_add_missing_images_manifest_entries_skips_when_no_digest_pinned(images_
     assert result.added_names == []
     assert result.skipped_names == ["zac"]
     assert result.text == text
+
+
+def test_add_missing_images_manifest_entries_tag_only_pin_gets_registry_digest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """A tag-only pin (omc.image) gets an entry with the tag's registry digest; values.yaml has none."""
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({"dependencies": []}))
+    omc_image: YamlMapping = {"repository": "docker.io/worthnl/notifynl-omc", "tag": "2.4.1"}
+    write(tmp_path / "values.yaml", yaml.safe_dump({"omc": {"image": omc_image}}))
+    looked_up: list[tuple[str, str]] = []
+
+    def registry_digest_pin(repository: str, tag: str) -> str:
+        looked_up.append((repository, tag))
+        return f"{tag}@{SHA256_A}"
+
+    monkeypatch.setattr(new_and_removed_entries, "registry_digest_pin", registry_digest_pin)
+    deps: list[ChartDependency] = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.17.8"}]
+    target_values: YamlMapping = {"omc": {"image": omc_image}}
+    baseline_values: YamlMapping = {"omc": {"image": {**omc_image, "tag": "2.3.1"}}}
+
+    result = add_missing_manifest_entries("", MissingEntriesContext(tmp_path, deps, target_values, baseline_values))
+    assert result.added_names == ["omc"]
+    assert looked_up == [("docker.io/worthnl/notifynl-omc", "2.4.1")]
+    assert 'version: "2.4.1"' in result.text
+    assert f'digest: "{SHA256_A}"' in result.text
 
 
 def test_add_missing_images_manifest_entries_eck_operator_split_digest_field_resolves(images_manifest_chart_dir):
