@@ -115,7 +115,11 @@
     if (DELTA_OPS.has(op)) return new Set(["delta"]);
     if (op === "var") {
       const kind = DATA_TYPE_KIND[varTypes[varName(args)]];
-      return new Set([kind || "unknown"]);
+      const kinds = new Set([kind || "unknown"]);
+      if (Array.isArray(args) && args.length > 1) {
+        resultKinds(args[1], varTypes).forEach((k) => kinds.add(k));
+      }
+      return kinds;
     }
     if (op === "reduce" && Array.isArray(args) && args.length >= 3) {
       // The accumulator keeps the type of its start value.
@@ -331,7 +335,7 @@
           note(action.component, "actie (veld eigenschap wijzigen)", "Actie", action);
         }
         const stepUuid = action.formStepUuid;
-        if (body.type && body.type.startsWith("step-") && stepUuid && !stepUuids.has(stepUuid)) {
+        if (body.type && (body.type.startsWith("step-") || body.type === "disable-next") && stepUuid && !stepUuids.has(stepUuid)) {
           note(`stap ${stepUuid}`, "actie (stap)", "Actie", action);
         }
       }
@@ -758,7 +762,9 @@
     const findings = [];
     const { model } = ctx;
     const affected = new Set();
-    for (const [key, comp] of model.componentMap) if ((comp.conditional || {}).when) affected.add(key);
+    for (const [key, comp] of model.componentMap) {
+      if (comp.hidden || (comp.conditional || {}).when) affected.add(key);
+    }
     for (const rule of ctx.rules) {
       for (const action of rule.actions || []) {
         const body = action.action || {};
@@ -869,6 +875,8 @@
 
     for (const backend of backends.filter((b) => ZGW_BACKENDS.has(b.backend))) {
       const backendCatalogue = (backend.options || {}).catalogue || {};
+      // In 3.5 an omitted catalogue inherits the API group's configuration.
+      if (isOpenForms35(ctx.form) && Object.keys(backendCatalogue).length === 0) continue;
       for (const file of files) {
         const catalogue = (((file.component.registration || {}).documentType) || {}).catalogue;
         if (!catalogue || deepEqual(catalogue, backendCatalogue)) continue;
