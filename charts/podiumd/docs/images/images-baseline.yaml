@@ -99,8 +99,8 @@
 
 - name: maykinmedia/open-klant
   url: docker.io/maykinmedia/open-klant
-  version: "2.15.0"
-  digest: "sha256:ce59a2c60dab1c14e62fe34a99511839390dd2d482983c27334241e0d60c693d"
+  version: "2.19.2"
+  digest: "sha256:f85ef0b31610cbf3ef6c09cbe217f113145e11623aa9ba140abd2e4ffb7bddff"
 
 - name: openformulieren/open-forms
   url: docker.io/openformulieren/open-forms
