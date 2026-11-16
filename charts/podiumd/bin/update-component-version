@@ -163,25 +163,6 @@ def update_chart_yaml(chart_name: str, new_chart_version: str):
     return old_line.strip(), lines[version_line].strip()
 
 
-def update_values_yaml(
-    values_key: str, pins: list[PinPath], new_tags_by_path: dict[str, str]
-) -> list[tuple[str, str, str]]:
-    """Rewrite each "<values_key>.<version_key>" line. Returns (dotted_path, old_line, new_line) tuples."""
-    lines = VALUES_YAML.read_text(encoding="utf-8").splitlines(keepends=True)
-    changes: list[tuple[str, str, str]] = []
-    for pin in pins:
-        dotted = f"{values_key}.{pin.version_key}"
-        located = locate_dotted_key_line(lines, dotted)
-        if located is None:
-            sys.exit(f"error: could not find '{dotted}' in {VALUES_YAML}")
-        line_idx, _ = located
-        old_line = lines[line_idx]
-        lines[line_idx] = replace_scalar_value(old_line, new_tags_by_path[pin.path])
-        changes.append((dotted, old_line.strip(), lines[line_idx].strip()))
-    VALUES_YAML.write_text("".join(lines), encoding="utf-8")
-    return changes
-
-
 def current_chart_version():
     """Chart.yaml's current version."""
     return _chart_version(CHART_YAML)
@@ -490,7 +471,35 @@ def write_delegated_tags(ctx: BumpContext, updates: list[DelegatedUpdate]) -> No
         write_pin_updates(VALUES_YAML, update.changes)
 
 
-def _write_fallback_tags(
+def fallback_pin_updates(
+    ctx: BumpContext, pins: list[PinPath], upstream_images: dict[str, ImagePathTagCheck]
+) -> list[PinUpdate]:
+    """The pin updates of pins whose repository is the sub-chart default, with the digests already checked."""
+    lines = VALUES_YAML.read_text(encoding="utf-8").splitlines()
+    updates: list[PinUpdate] = []
+    for pin in pins:
+        dotted = f"{ctx.values_key}.{pin.version_key}"
+        located = locate_dotted_key_line(lines, dotted)
+        if located is None:
+            sys.exit(f"error: could not find '{dotted}' in {VALUES_YAML}")
+        checked = upstream_images.get(pin.path)
+        if checked is None or not checked["exists"] or not checked["digest"]:
+            sys.exit(f"error: no repository found at {pin.path}.repository in {ctx.chart_name}'s own values.yaml")
+        old_version, _, old_digest = (text_at(ctx.values, dotted) or "").partition("@")
+        updates.append(
+            PinUpdate(
+                line=located[0] + 1,
+                repository=f"{checked['host']}/{checked['repo_path']}",
+                old_version=old_version,
+                old_digest=old_digest,
+                new_version=ctx.app_version,
+                new_digest=checked["digest"],
+            )
+        )
+    return updates
+
+
+def write_fallback_tags(
     ctx: BumpContext,
     fallback_paths: list[PinPath],
     upstream_images: dict[str, ImagePathTagCheck],
@@ -498,20 +507,10 @@ def _write_fallback_tags(
     """Write the already-resolved sub-chart-default digests for fallback_paths."""
     if not fallback_paths:
         return
+    updates = fallback_pin_updates(ctx, fallback_paths, upstream_images)
     print_section(f"Using sub-chart default digests for: {', '.join(pin.path for pin in fallback_paths)}")
-    new_tags_by_path: dict[str, str] = {}
-    for pin in fallback_paths:
-        checked = upstream_images.get(pin.path)
-        if checked is None or not checked["exists"] or not checked["digest"]:
-            sys.exit(f"error: no repository found at {pin.path}.repository in {ctx.chart_name}'s own values.yaml")
-        new_tags_by_path[pin.path] = f"{ctx.app_version}@{checked['digest']}"
-        image = f"{checked['host']}/{checked['repo_path']}:{ctx.app_version}"
-        print(f"  {ctx.values_key}.{pin.path}: {image} -> {checked['digest']}")
-    print_section(f"Writing {VALUES_YAML}")
-    for dotted, old_v, new_v in update_values_yaml(ctx.values_key, fallback_paths, new_tags_by_path):
-        print(f"  {dotted}:")
-        print(f"    {old_v}")
-        print(f"    {new_v}")
+    print_pin_updates(updates)
+    write_pin_updates(VALUES_YAML, updates)
 
 
 def _update_image_tags(
@@ -528,7 +527,7 @@ def _update_image_tags(
     delegated = plan_delegated_tags(ctx, plan.delegated_paths, upstream_images)
     _write_split_tag_sha_pins(ctx, plan.split_paths, split_tag_sha_paths, upstream_images)
     write_delegated_tags(ctx, delegated)
-    _write_fallback_tags(ctx, plan.fallback_paths, upstream_images)
+    write_fallback_tags(ctx, plan.fallback_paths, upstream_images)
 
 
 def _run_fix_helm_doc() -> None:

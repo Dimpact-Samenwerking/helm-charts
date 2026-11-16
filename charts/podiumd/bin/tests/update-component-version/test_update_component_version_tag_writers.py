@@ -9,6 +9,8 @@ import pytest
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import PinPath
 from lib.chart.registered_paths import pin_paths_for
+from lib.image.digests import find_stale_reference_comments
+from tests.fixture_data import SHA256_A
 from tests.fixture_data import SHA256_B
 from tests.fixture_data import SHA256_E
 
@@ -234,3 +236,57 @@ def test_aliased_split_version_field_follows_its_anchor(
     )
     assert text == REDIS_OPERATOR_ALIASED_VALUES.replace(f"v0.26.0@sha256:{OLD_DIGEST}", f"v0.27.0@{NEW_DIGEST}")
     assert "initContainerImageTag: *redisOperatorImageTag\n" in text
+
+
+# --- write_fallback_tags: pins whose repository is the sub-chart default ---
+
+ZAC_CHECKED = {
+    "path": "image",
+    "repository": "ghcr.io/infonl/zaakafhandelcomponent",
+    "host": "ghcr.io",
+    "repo_path": "infonl/zaakafhandelcomponent",
+    "exists": True,
+    "digest": DIGEST,
+}
+
+ZAC_VALUES = f"""\
+zac:
+  # ghcr.io/infonl/zaakafhandelcomponent:5.9.1
+  image:
+    #repository: ghcr.io/infonl/zaakafhandelcomponent
+    tag: 5.9.1@{SHA256_A}
+  opa:
+    image:
+      tag: "1.17.1-static@{SHA256_B}"
+"""
+
+
+def _write_fallback(ucv: ModuleType, values_yaml: Path, values: dict[str, object]) -> str:
+    ctx = SimpleNamespace(values=values, values_key="zac", app_version="5.12.0", chart_name="zaakafhandelcomponent")
+    ucv.write_fallback_tags(ctx, image_pins("image"), {"image": ZAC_CHECKED})
+    return values_yaml.read_text(encoding="utf-8")
+
+
+def test_write_fallback_tags_bumps_pin_and_its_reference_comment(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """The reference comment follows the pin; the checker then finds nothing stale and a rerun changes nothing."""
+    values_yaml = tmp_path / "values.yaml"
+    values_yaml.write_text(ZAC_VALUES, encoding="utf-8")
+    monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
+    values: dict[str, object] = {"zac": {"image": {"tag": f"5.9.1@{SHA256_A}"}}}
+    text = _write_fallback(ucv, values_yaml, values)
+    assert text == ZAC_VALUES.replace(f"5.9.1@{SHA256_A}", f"5.12.0@{DIGEST}").replace(
+        "zaakafhandelcomponent:5.9.1", "zaakafhandelcomponent:5.12.0"
+    )
+    assert not find_stale_reference_comments(text.splitlines(keepends=True))
+    assert _write_fallback(ucv, values_yaml, {"zac": {"image": {"tag": f"5.12.0@{DIGEST}"}}}) == text
+
+
+def test_write_fallback_tags_missing_path_exits(ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    values_yaml = tmp_path / "values.yaml"
+    values_yaml.write_text(f"zac:\n  image:\n    tag: 5.9.1@{SHA256_A}\n", encoding="utf-8")
+    monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
+    ctx = SimpleNamespace(values={}, values_key="zac", app_version="5.12.0", chart_name="zaakafhandelcomponent")
+    with pytest.raises(SystemExit):
+        ucv.write_fallback_tags(ctx, image_pins("frontend.image"), {"frontend.image": ZAC_CHECKED})
