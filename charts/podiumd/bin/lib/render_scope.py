@@ -17,6 +17,7 @@ import yaml
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
+from lib.line_spans import consecutive_spans
 from lib.procutil import RunResult
 from lib.procutil import run
 from lib.settings import helm_repos_urls_by_alias
@@ -301,8 +302,7 @@ def build_resource_locations(rendered_text: str) -> ResourceLocations:
     lines = rendered_text.splitlines()
     marker_indices = [index for index, line in enumerate(lines) if line.startswith("# Source: ")]
     locations: ResourceLocations = {}
-    ends = [next_start - 1 for next_start in marker_indices[1:]] + [len(lines)]
-    for start, end in zip(marker_indices, ends, strict=True):
+    for start, end in consecutive_spans(marker_indices, len(lines), gap=1):
         kind, namespace, name = _block_identity(lines[start + 1 : end])
         if kind and name:
             locations[(kind, namespace or "", name)] = start + 2  # 1-based line right after "# Source:"

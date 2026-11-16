@@ -19,6 +19,7 @@ from lib.images_manifest import ParsedManifest
 from lib.images_manifest import entry_block_end
 from lib.images_manifest import entry_line_indices
 from lib.images_manifest import parse_manifest_lines
+from lib.line_spans import consecutive_spans
 from lib.upgradedoc.app_version_and_image_paths import chart_image_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.grouped_comments import comment_lines_above
@@ -382,8 +383,7 @@ def _group_texts_and_components(
     """(per_group_texts, components): each group's text span and its top-level component.
 
     A multi-entry group's internal blank lines are collapsed here."""
-    ends = [*starts[1:], len(lines)]
-    spans = zip(starts, ends, strict=True)
+    spans = consecutive_spans(starts, len(lines))
     original_texts = ["".join(lines[start:end]) for start, end in spans]
     # The cross-group merge only sees whole groups, so collapse within a group here.
     per_group_texts = [

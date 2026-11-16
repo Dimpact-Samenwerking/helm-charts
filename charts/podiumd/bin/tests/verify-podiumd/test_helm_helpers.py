@@ -155,6 +155,11 @@ def test_build_resource_locations_skips_resource_without_name(librenderscope: Mo
     assert librenderscope.build_resource_locations(rendered) == {}
 
 
+def test_build_resource_locations_without_source_marker_is_empty(librenderscope: ModuleType):
+    assert librenderscope.build_resource_locations("apiVersion: v1\nkind: ConfigMap\n") == {}
+    assert librenderscope.build_resource_locations("") == {}
+
+
 def test_build_resource_locations_multiple_documents(librenderscope: ModuleType):
     rendered = (
         "---\n"

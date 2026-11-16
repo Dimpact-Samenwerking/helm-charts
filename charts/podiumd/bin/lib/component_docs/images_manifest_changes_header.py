@@ -8,6 +8,7 @@ from lib.cli import noun_for
 from lib.images_manifest import BARE_CHANGES_HEADER_RE
 from lib.images_manifest import CHANGES_ITEM_RE
 from lib.images_manifest import ENTRY_NAME_RE
+from lib.line_spans import consecutive_spans
 from lib.upgradedoc.images_manifest_ordering import EntryResolution
 from lib.upgradedoc.images_manifest_ordering import match_item_display_name
 from lib.upgradedoc.string_and_parsing_basics import is_named_by_changes_item
@@ -149,9 +150,7 @@ def changes_item_spans(lines: list[str], header_idx: int) -> tuple[list[ItemSpan
     (start, end) line span per "#   N. ..." item, its wrapped continuation
     lines included (see images_manifest_changes_block)."""
     item_starts, block_end = images_manifest_changes_block(lines, header_idx)
-    if not item_starts:
-        return [], block_end
-    return list(zip(item_starts, [*item_starts[1:], block_end], strict=True)), block_end
+    return consecutive_spans(item_starts, block_end), block_end
 
 
 def remove_changes_item(lines: list[str], item_indices: list[int], match_idx: int) -> list[int]:

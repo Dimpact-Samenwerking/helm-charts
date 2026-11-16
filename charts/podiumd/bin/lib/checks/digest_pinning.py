@@ -304,7 +304,7 @@ def check_shared_image_usage(chart_dir: Path, extra_args: list[str]):
 def find_unresolved_images(
     chart_dir: Path, deps: list[ChartDependency], own_values: YamlMapping, rendered_paths: set[str]
 ) -> list[SubchartImageFinding]:
-    """(scope_key, subpath, tag, already_pinned) for every subchart-default image podiumd doesn't override.
+    """(scope_key, subpath, tag, pinned) for every subchart-default image podiumd doesn't override.
 
     Looks for "<key>: {tag: ...}" blocks in each vendored dependency's own values.yaml
     absent from `own_values`. `scope_key` is the dependency alias (or name); `subpath`
