@@ -4,6 +4,13 @@ Scripts that check the configuration of Open Forms forms. They run in the
 browser of a form maintainer who is logged in to the Open Forms admin, and use
 the admin API with that session. They only read; nothing in Open Forms changes.
 
+The tool is temporary: it helps form maintainers find and fix problems
+themselves, ahead of the upgrade to Open Forms 4.0. Whether an environment is
+ready for the upgrade is decided by the server-side scripts in the upgrade
+guide (Open Forms' `/app/bin` scripts and PodiumD's
+`openforms-check-registration-options.py`, run with `kubectl exec`), not by
+this tool.
+
 | File | Purpose |
 | --- | --- |
 | `form-config-check.js` | The configuration check (source; also runs in the browser console) |
