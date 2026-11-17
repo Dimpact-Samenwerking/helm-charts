@@ -1003,6 +1003,14 @@ opennotificaties:
     #         secret: {value_from: {env: opennotificaties_autorisatie_api_secret}}
     #         user_id: open-notificaties
     #         user_representation: Open Notificaties
+    #       # Open Notificaties itself, for the subscription on kanaal autorisaties below.
+    #       - identifier: notificaties-api
+    #         label: Notificaties API
+    #         api_root: https://opennotificaties.example.nl/api/v1/
+    #         api_type: nrc
+    #         auth_type: zgw
+    #         client_id: open-notificaties
+    #         secret: {value_from: {env: opennotificaties_opennotificaties_secret}}
     #   autorisaties_api_config_enable: true
     #   autorisaties_api:
     #     # Configure Open Notificaties to make use of Open Zaak's Autorisaties API
@@ -1069,6 +1077,30 @@ opennotificaties:
     #         auth: Token bar
     #         kanalen:
     #           - naam: zaken
+    #       # Open Notificaties caches a client's Applicatie from the Autorisaties API
+    #       # and refreshes it only on an autorisaties notification to its own
+    #       # callbacks endpoint (podiumd-chart-44). auth: a ZGW JWT of client
+    #       # open-notificaties, signed with its secret above.
+    #       - uuid: <new uuid per environment>
+    #         callback_url: https://opennotificaties.example.nl/api/v1/callbacks
+    #         auth: Bearer <JWT>
+    #         kanalen:
+    #           - naam: autorisaties
+    #   notifications_config_enable: true
+    #   notifications_config:
+    #     notifications_api_service_identifier: notificaties-api
+    #   # The same abonnement, so Open Notificaties knows it listens on kanaal
+    #   # autorisaties: uuid equal to the abonnement's.
+    #   notifications_subscriptions_config_enable: true
+    #   notifications_subscriptions_config:
+    #     items:
+    #       - identifier: autorisaties
+    #         callback_url: https://opennotificaties.example.nl/api/v1/callbacks
+    #         client_id: open-notificaties
+    #         secret: {value_from: {env: opennotificaties_opennotificaties_secret}}
+    #         uuid: <the abonnement uuid above>
+    #         channels:
+    #           - autorisaties
     #   sites_config_enable: true
     #   sites_config:
     #     items:
