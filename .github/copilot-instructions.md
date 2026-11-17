@@ -52,7 +52,7 @@ helm upgrade --install podiumd charts/podiumd -f <values-file.yaml> -n <namespac
 ```
 
 **Lint notes:**
-- Always `-f charts/podiumd/ci/lint-values.yaml` — default `values.yaml` leaves security fields blank (no `changeme` defaults), fails validation without real values.
+- Always `-f charts/podiumd/ci/lint-values.yaml` — default `values.yaml` has no real credentials: security fields are blank or a placeholder (`changeme`, `dummy`, `<token>`) that the placeholder check in `templates/validations.yaml` refuses, so the render fails without real values.
 - `--skip-schema-validation` needed for `helm template` — KISS subchart JSON schema requires fields not in CI values.
 - Keep `charts/podiumd/ci/lint-values.yaml` up to date with placeholders for new required fields.
 
@@ -122,7 +122,7 @@ Every container in every template **MUST** declare `requests` + `limits` for CPU
 - All custom templates (Deployments, Jobs, init containers, sidecars)
 - Sub-chart components wired via `values.yaml`
 
-Wire sub-chart resources via sub-chart's documented key (e.g. `openzaak.resources`, `keycloak-operator.operator.resources`). Document defaults + chart limitations in `charts/podiumd/docs/misc/resource-overview.md`. If sub-chart doesn't expose `resources` key, note there + raise with upstream.
+Wire sub-chart resources via sub-chart's documented key (e.g. `openzaak.resources`, `keycloak-operator.operator.resources`). Document defaults + chart limitations in `charts/podiumd/docs/misc/resource-overview.md`. If sub-chart doesn't expose `resources` key, note there + raise with upstream. A request or limit left out on purpose gets a comment naming its known issue (e.g. the memory-only limit of `zac.office_converter`, podiumd-chart-39).
 
 ### Image References
 All images in podiumd templates use `{{ include "podiumd.image" <image> }}` with `{registry, repository, tag}` map in `values.yaml`. NEVER embed plain `"repo:tag"` strings in templates.

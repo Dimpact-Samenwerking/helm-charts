@@ -19,6 +19,8 @@ excludeAgent: "cloud-agent"
   | the order of a generated list | `OrderingContext.key` / `path_order_key` |
   | generated vs user lines in a section | `owned_parts` with a `SectionShape` |
   | removed components and images | `removed_items` |
+  | which components already have a row | `rowed_component_keys` |
+  | which manifest entries a `# Changes:` item covers | `covered_display_names` |
   | table row cells | `table_cells` / `set_row_cells` |
 
 - Flag a near-copy of existing code, even one that differs in a detail, and a
