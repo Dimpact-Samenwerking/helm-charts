@@ -94,8 +94,8 @@ hostname for the management UI. Footprint is tiny: a single small pod.
     client role `administrator` (`pabc.settings.oidc.functioneelBeheerderRole`)
     grants UI access and is auto-assigned to the `administrators` group;
     claim mapping via `roleClaimType: roles`, `nameClaimType`,
-    `emailClaimType`. `pkceEnabled: true` by default: Keycloak requires
-    PKCE (S256) on the client.
+    `emailClaimType`. `pkceEnabled: true`: Keycloak requires PKCE (S256)
+    on the client; `false` fails the render.
   - `pabc-keycloak-admin` (`pabc.settings.keycloakAdmin.clientId`) — service
     account with realm-management roles `view-users`, `view-realm`,
     `view-groups`; PABC uses it to read users/groups via the Keycloak Admin

@@ -93,7 +93,7 @@ disabled bundled PostgreSQL).
   `frontendUrl`, `clientId: ita`, `clientSecret`
   (`REP_ITA_OIDC_CLIENT_SECRET_REP`, must match the realm secret
   `KC_SECRET_ITA`), PKCE (S256) required on the client via
-  `ita.web.oidc.pkceEnabled` (default `true`).
+  `ita.web.oidc.pkceEnabled` (`true`; `false` fails the render).
 - **Open Klant** — klantinteracties API token:
   `ita.apiConnections.openKlant.baseUrl` + `apiKey`
   (`REP_OPENKLANT_CREDENTIALS_ITA_TOKEN_REP`).
