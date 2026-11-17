@@ -80,7 +80,8 @@ spec:
           mountPath: /tmp
   volumes:
     - name: tmp
-      emptyDir: {}
+      emptyDir:
+        sizeLimit: 64Mi
 {{- end }}
 
 {{- $kvk := .Values.openinwoner.kvk | default dict }}

@@ -495,7 +495,8 @@ spec:
             name: create-required-catalogi-configmap
           name: jobs
         - name: tmp
-          emptyDir: {}
+          emptyDir:
+            sizeLimit: 64Mi
       {{- with .Values.openzaak.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
