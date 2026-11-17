@@ -41,6 +41,11 @@
       "id": "8693fd1f-b19f-5f4e-86a0-c9032d1ba659",
       "name": "brp_zoeken",
       "applicationId": "adb10d06-0fc6-5020-9fe8-7e008371ec1b"
+    },
+    {
+      "id": "185055e1-91e9-5a97-9d78-bd3f336c84ff",
+      "name": "zaakspecifiek_geautoriseerd",
+      "applicationId": "adb10d06-0fc6-5020-9fe8-7e008371ec1b"
     }
   ],
   "functionalRoles": [

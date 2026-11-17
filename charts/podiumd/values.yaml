@@ -4273,6 +4273,7 @@ pabc:
             - coordinator
             - raadpleger
             - recordmanager
+            - zaakspecifiek_geautoriseerd
   # -- When enabled, renders files/pabc-dataset.json into a ConfigMap named
   # pabc-dataset, for a (one-shot) seed job running the migrations image with
   # JSON_DATASET_PATH, or for migrations.dataSetPath (see caution above).
