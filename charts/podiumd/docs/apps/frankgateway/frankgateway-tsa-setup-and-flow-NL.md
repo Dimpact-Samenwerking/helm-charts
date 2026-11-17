@@ -1,7 +1,10 @@
 # Gemeente TSA - Frank!Gateway - Setup en Flow
 
-Versie 1.0. Geconverteerd uit
-`Gemeente TSA - Frank!Gateway - Setup en Flow v1.0.docx`.
+Versie 1.1. Geconverteerd uit
+`Gemeente TSA - Frank!Gateway - Setup en Flow v1.0.docx`; in versie 1.1 zijn
+de stappen voor de Azure Application Gateway ingevuld na de
+architectuurbeslissing (IN-3287) en de testronde op ontw-dim1 (november 2026,
+[`frankgateway-aag-test-round-ontw-dim1.md`](frankgateway-aag-test-round-ontw-dim1.md)).
 
 ## Executive Summary
 
@@ -20,10 +23,11 @@ toegestane afnemer komt door.
 - **Doorgifte**: na goedkeuring stuurt Frank!Gateway het verzoek door naar het
   register, dat daarna nog zijn eigen autorisatie toepast.
 
-De rol van de Azure Application Gateway (AAG) aan de voorkant is nog **in
-bespreking**. De stappen daarvoor staan hieronder op hun plek, maar zijn bewust
-leeg gelaten. De rest van de keten is werkend aangetoond op een testomgeving,
-nog niet bij een gemeente in productie.
+De Azure Application Gateway (AAG) aan de voorkant vraagt het client
+certificate op, controleert het zelf niet en geeft het als headers door aan
+Frank!Gateway (passthrough-modus). De hele keten, inclusief de AAG, is werkend
+aangetoond op een ontwikkelomgeving (ontw-dim1), nog niet bij een gemeente in
+productie.
 
 ## Betrokken partijen
 
@@ -36,7 +40,7 @@ Integratie Team legt de routes vast.
 | Gemeente - PKI/CA-beheer | Geeft het client certificate uit vanuit de eigen CA en levert de gegevens voor client certificate authenticatie |
 | Integratie Team | Keycloak-toegang tot OpenBao, Frank!Gateway-routes, deploy van de omgeving |
 | Team Leveren (Dimpact) | Aanspreekpunt voor gemeentes: verzorgt de communicatie en helpt bij de inrichting. Precieze rol **in bespreking** |
-| SSC (hosting) | Azure-omgeving en de Azure Application Gateway - rol **in bespreking** |
+| SSC (hosting) | Azure-omgeving en de Azure Application Gateway: richt per omgeving eenmalig de API-listener in (stap 3). Geen werk per TSA of per certificaat |
 | Beheerder register-API | Geeft de TSA eigen API-rechten in het register (bijv. Open Zaak) |
 
 ## Componenten
@@ -49,7 +53,7 @@ register
 | TSA (taakspecifieke applicatie) | De afnemer: roept de register-API aan met een client certificate en een eigen API-token voor het register | Datacentrum van de gemeente |
 | Diginetwerk (optioneel) | Besloten netwerk van de overheid (Logius): optionele route van de TSA naar de PodiumD-omgeving in plaats van via het open internet. De client certificate authenticatie en de rest van de keten blijven gelijk. | Tussen datacentrum gemeente en Azure |
 | Register-applicatie (bijv. Open Zaak) | Levert de gegevens; past na doorgifte zijn eigen autorisatie toe op het API-token van de TSA | PodiumD-omgeving (AKS) |
-| Azure Application Gateway (AAG) | Voorkant vanaf internet; rol bij vertrouwen van de gemeentelijke CA en certificaatcontrole is *in bespreking* | Azure, beheerd door SSC |
+| Azure Application Gateway (AAG) | Voorkant vanaf internet: beëindigt TLS, vraagt het client certificate op zonder het te controleren (elke CA) en geeft het als headers door. Beheert geen CA-lijst | Azure, beheerd door SSC |
 | NGINX Gateway Fabric (NGF) | Platform-gateway in het Kubernetes-cluster: neemt het verzoek aan en stuurt het opnieuw versleuteld door naar Frank!Gateway | AKS-cluster |
 | Frank!Gateway (inway) | Toegangspoort: kiest de route, herkent de afnemer via client certificate authenticatie, controleert de `allow`-lijst en stuurt door naar het register | AKS-cluster |
 | OpenBao | Bewaart de afnemerslijst (`frankgateway/consumers`); de gemeente beheert haar regels via de webinterface met Keycloak-inlog | PodiumD-omgeving |
@@ -79,7 +83,6 @@ flowchart TB
   inet --> aag --> ngf --> fg
   fg -. "afnemerslijst" .-> bao
   fg -- "verzoek + afnemersnaam" --> reg
-  style aag fill:#f9f2cf,stroke:#a0602a,stroke-dasharray: 5 5
 ```
 
 De TSA en de CA staan in het datacentrum van de gemeente. Alles vanaf de AAG
@@ -96,7 +99,7 @@ nieuwe afnemer op een route wel.
 flowchart TB
   s1["Stap 1: Aanvraag<br/>gemeente"]
   s2["Stap 2: Client certificate<br/>CA gemeente"]
-  s3["Stap 3: Azure Application Gateway<br/>SSC - IN BESPREKING"]
+  s3["Stap 3: Azure Application Gateway<br/>SSC, eenmalig per omgeving"]
   s4["Stap 4: Toegang tot OpenBao<br/>Integratie Team"]
   s5["Stap 5: Certificaat registreren<br/>gemeente in OpenBao"]
   s6["Stap 6: Route in Frank!Gateway<br/>Integratie Team"]
@@ -109,8 +112,8 @@ flowchart TB
   style s8 fill:#ede9fe,stroke:#7c3aed
 ```
 
-De stappen volgen de volgorde van het schema; stap 3 wacht op de uitkomst van
-het overleg over de AAG.
+De stappen volgen de volgorde van het schema; stap 3 is eenmalig per omgeving
+en vervalt voor elke volgende TSA op dezelfde omgeving.
 
 1. **Aanvraag** - *gemeente*
    - De gemeente meldt de TSA aan bij het Integratie Team: welke applicatie,
@@ -123,8 +126,22 @@ het overleg over de AAG.
      (die gebruikt stap 5).
    - Resultaat: certificaat geïnstalleerd in de TSA, klaar voor client
      certificate authenticatie.
-3. **Azure Application Gateway inrichten** - *In bespreking*
-   - *Nog in bespreking; wordt aangevuld zodra het ontwerp vaststaat.*
+3. **Azure Application Gateway inrichten** - *SSC, eenmalig per omgeving*
+   - SSC richt op de AAG een aparte listener in voor het API-adres van de
+     omgeving (bijv. `<omgeving>-podiumd-api.<domein>`), met een SSL-profiel in
+     passthrough-modus: het client certificate wordt opgevraagd, maar niet
+     gecontroleerd. Er wordt geen CA van de gemeente bij SSC geregistreerd.
+   - Op die listener zet de AAG vier headers op elk verzoek:
+     `X-Client-Cert` (het certificaat zelf), `X-Client-Cert-Fingerprint` (de
+     SHA-1-vingerafdruk, 40 tekens, kleine letters, zonder dubbele punten),
+     `X-Client-Cert-Subject` en `X-Client-Cert-Issuer`. Op alle andere
+     listeners worden deze headers verwijderd, zodat een aanroeper ze niet zelf
+     kan meesturen.
+   - Het exacte formaat van de headers is gemeten op ontw-dim1 en staat in
+     [routes → what the front door must send](frankgateway-routes.md#what-the-front-door-must-send).
+   - Resultaat: het API-adres is bereikbaar en Frank!Gateway ontvangt de
+     vingerafdruk van elk aangeboden certificaat. Bij een volgende TSA op
+     dezelfde omgeving is hier niets te doen.
 4. **Toegang tot OpenBao** - *Integratie Team*
    - De beheerder van de gemeente krijgt in Keycloak de groep
      `vault-uploaders`. Daarmee kan die inloggen op de OpenBao-webinterface van
@@ -136,7 +153,8 @@ het overleg over de AAG.
      certificate authenticatie: afnemersnaam = SHA-1-vingerafdruk van het
      certificaat (bij vervanging van het certificaat tijdelijk twee,
      komma-gescheiden; zie [routes → consumer identities](frankgateway-routes.md#consumer-identities-from-openbao-inbound)).
-   - Actief binnen 5 minuten, zonder deploy.
+   - Actief binnen 5 minuten, zonder deploy (vanaf PodiumD 4.10.1; op 4.10.0
+     pas na een herstart van de gateway).
    - *Let op: via de webinterface is dit nog niet in de praktijk beproefd; tot
      nu toe gebeurde het via de command line.*
 6. **Route in Frank!Gateway** - *Integratie Team*
@@ -153,15 +171,28 @@ het overleg over de AAG.
 8. **Samen testen** - *gemeente en Integratie Team*
    - Een toegestane aanroep geeft 200; een onbekend certificaat geeft 401; een
      bekende afnemer zonder toegang tot die route geeft 403.
-   - Testgevallen aan de kant van de AAG: *In bespreking*.
+   - Zonder client certificate geeft de route 401; een aanroep met een
+     zelf meegestuurde `X-Client-Cert-Fingerprint`-header maakt geen verschil,
+     de AAG overschrijft die.
+   - De AAG weigert zelf niets: ook een certificaat van een onbekende CA of een
+     verlopen certificaat wordt doorgegeven. Alleen de afnemerslijst bepaalt
+     wie door mag. De testgevallen en de uitkomsten op ontw-dim1 staan in
+     [`frankgateway-aag-test-round-ontw-dim1.md`](frankgateway-aag-test-round-ontw-dim1.md).
 9. **Beheer daarna** - *gemeente, Integratie Team*
    - **Certificaat vervangen**: tijdelijk beide certificaten registreren voor
      client certificate authenticatie (oud en nieuw), na de wissel alleen de
      nieuwe.
    - **Afnemer stoppen**: de regel uit de afnemerslijst halen; binnen 5 minuten
-     geldt dat.
-   - **Certificaat intrekken**: het certificaat uit de afnemerslijst halen.
-     Intrekken aan de kant van de AAG: *In bespreking*.
+     geldt dat (vanaf PodiumD 4.10.1; op 4.10.0 pas na een herstart van de
+     gateway).
+   - **Certificaat intrekken**: het certificaat uit de afnemerslijst halen. Dat
+     is de enige plek: de AAG houdt geen intrekkingslijst bij en SSC hoeft er
+     niets voor te doen.
+   - **Verlopen certificaat**: de AAG controleert de geldigheidsdatum niet.
+     Frank!Gateway gaat dat zelf doen (IN-3445, vanaf PodiumD 4.10.2); tot die
+     wijziging is uitgerold
+     blijft een verlopen maar geregistreerd certificaat werken totdat het uit
+     de afnemerslijst is gehaald. Bewaak de vervaldatum dus per afnemer.
 
 ## Verloop van een verbinding
 
@@ -172,13 +203,13 @@ het register beslist daarna wat de afnemer mag.
 ```mermaid
 sequenceDiagram
   participant TSA as TSA<br/>(DC gemeente)
-  participant AAG as Azure App Gateway<br/>(in bespreking)
+  participant AAG as Azure App Gateway
   participant NGF as NGF<br/>(AKS)
   participant FG as Frank!Gateway<br/>inway
   participant Bao as OpenBao
   participant Reg as Register<br/>(bijv. Open Zaak)
   TSA->>AAG: HTTPS + client certificate
-  AAG->>NGF: verzoek
+  AAG->>NGF: verzoek + certificaat-headers
   NGF->>FG: verzoek (opnieuw versleuteld)
   FG->>Bao: afnemerslijst (cache 5 min)
   Bao-->>FG: afnemersnaam per certificaat
@@ -191,7 +222,12 @@ sequenceDiagram
    via internet een HTTPS-verbinding naar het adres van de PodiumD-omgeving en
    toont daarbij haar client certificate. Ze stuurt ook haar eigen API-token
    voor het register mee (voor Open Zaak een ZGW-JWT).
-2. **Azure Application Gateway** - *In bespreking.*
+2. **Azure Application Gateway** - De AAG beëindigt de TLS-verbinding en vraagt
+   daarbij het client certificate op. De TLS-handshake bewijst dat de TSA de
+   private key van dat certificaat bezit; de AAG controleert verder niets
+   (geen CA, geen geldigheidsdatum). Ze zet het certificaat en de
+   SHA-1-vingerafdruk in headers op het verzoek en stuurt het, opnieuw
+   versleuteld, door naar het cluster.
 3. **Platform-gateway in AKS** - De platform-gateway (NGINX Gateway Fabric) in
    het Kubernetes-cluster neemt het verzoek aan en stuurt het, opnieuw
    versleuteld, door naar de inway van Frank!Gateway.
@@ -201,8 +237,8 @@ sequenceDiagram
 5. **Afnemer herkennen** - Frank!Gateway zoekt het client certificate op in de
    afnemerslijst in OpenBao. De lijst wordt 5 minuten bewaard; is OpenBao
    onbereikbaar, dan werkt Frank!Gateway tot een uur verder met de laatst
-   bekende lijst. Hoe de client certificate authenticatie Frank!Gateway
-   bereikt, hangt af van de AAG en is *in bespreking*.
+   bekende lijst. Frank!Gateway leest de vingerafdruk uit de header
+   `X-Client-Cert-Fingerprint` die de AAG heeft gezet.
 6. **Toegang controleren** - Onbekend client certificate: geweigerd (401).
    Bekende afnemer die niet op de lijst van deze route staat: geweigerd (403).
 7. **Doorsturen** - Frank!Gateway zet de afnemersnaam in het verzoek
@@ -217,10 +253,10 @@ sequenceDiagram
 | Situatie | Antwoord | Waar geweigerd |
 |----|----|----|
 | Toegestane afnemer, geldig API-token | 200 - antwoord van het register | - |
-| Geen client certificate | *In bespreking* | Azure Application Gateway |
-| Certificaat van een niet-vertrouwde CA | *In bespreking* | Azure Application Gateway |
+| Geen client certificate | 401 | Frank!Gateway |
+| Certificaat van een onbekende CA, niet geregistreerd | 401 | Frank!Gateway |
+| Client certificate en private key horen niet bij elkaar | geen verbinding | TLS-handshake (bij de TSA zelf of bij de AAG) |
 | Geldig certificaat, niet geregistreerd voor client certificate authenticatie | 401 | Frank!Gateway |
-| Certificaatcontrole niet bevestigd door de voorkant | 401 | Frank!Gateway |
 | Bekende afnemer, niet toegestaan op deze route | 403 | Frank!Gateway |
 | Afnemer toegelaten, maar geen of ongeldig API-token | 401 of 403 | Register |
 
