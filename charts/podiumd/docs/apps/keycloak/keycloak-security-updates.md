@@ -30,7 +30,7 @@ Settings that are already at a secure default are logged for audit purposes but 
 | `xRobotsTag` | `none` | ✅ Configured |
 | `xFrameOptions` | `SAMEORIGIN` | ✅ Configured |
 | `contentSecurityPolicy` | `frame-src 'self'; frame-ancestors 'self'; object-src 'none';` | ✅ Configured |
-| `xXSSProtection` | `1; mode=block` | ✅ Configured |
+| `xXSSProtection` | empty (no header) | ✅ Configured (was `1; mode=block`) |
 | `strictTransportSecurity` | `max-age=31536000; includeSubDomains` | ✅ Configured (was empty) |
 
 **`xContentTypeOptions: nosniff`**
@@ -186,17 +186,10 @@ Settings that are already at a secure default are logged for audit purposes but 
 
 ### Offline Session Max Lifespan
 
-| Setting | Current value | Keycloak default | Status |
-|---------|--------------|-----------------|--------|
-| `offlineSessionMaxLifespanEnabled` | `true` | `false` | ✅ Configured (was false) |
-| `offlineSessionMaxLifespan` | `7776000` s (90 d) | `5184000` s (60 d) | ✅ Configured |
-| `offlineSessionIdleTimeout` | `2592000` s (30 d) | `2592000` s | ✅ Default |
-
-**`offlineSessionMaxLifespanEnabled: true` / `offlineSessionMaxLifespan: 7776000`** ← changed from disabled
-
-- **Standard:** **RFC 9700** (OAuth 2.0 Security BCP) §2.2.2 — refresh tokens must be bounded by maximum lifetime; **Forum / OAuth NL GOV**; BIO 2.0 / ISO 27002:2022 maatregel **8.5**; **OWASP ASVS 4.0 V3.3.4**
-- **Why:** Without a maximum lifespan, offline sessions (used by native/mobile apps and persistent refresh tokens) never expire by absolute age — only by idle timeout. If a refresh token is stolen and used before the idle timeout resets, it can be kept alive indefinitely. Bounding lifetime to 90 days limits the maximum exposure window.
-- **Implementation:** `keycloak-master-realm-config.yaml` → `offlineSessionMaxLifespanEnabled`, `offlineSessionMaxLifespan`
+Not set by the import (security review IA-06). Offline access is disabled (next
+section), so no client gets an offline session for it to bound. The import no
+longer sets `offlineSessionMaxLifespanEnabled` or `offlineSessionMaxLifespan`;
+a realm created by an earlier chart version keeps its 90-day value.
 
 ### Offline Access Disabled
 
@@ -236,7 +229,7 @@ The podiumd realm exclusively serves beheer (management) users and municipality 
 | `xRobotsTag` | `none` | ✅ Configured |
 | `xFrameOptions` | `SAMEORIGIN` | ✅ Configured |
 | `contentSecurityPolicy` | `frame-src 'self'; frame-ancestors 'self'; object-src 'none';` | ✅ Configured |
-| `xXSSProtection` | `1; mode=block` | ✅ Configured |
+| `xXSSProtection` | empty (no header) | ✅ Configured (was `1; mode=block`) |
 | `strictTransportSecurity` | `max-age=31536000; includeSubDomains` | ✅ Configured (was empty) |
 
 **`strictTransportSecurity: max-age=31536000; includeSubDomains`** ← changed from empty
@@ -499,17 +492,10 @@ The podiumd realm exclusively serves beheer (management) users and municipality 
 
 ### Offline Session Max Lifespan
 
-| Setting | Current value | Keycloak default | Status |
-|---------|--------------|-----------------|--------|
-| `offlineSessionMaxLifespanEnabled` | `true` | `false` | ✅ Configured (was false) |
-| `offlineSessionMaxLifespan` | `7776000` s (90 d) | `5184000` s (60 d) | ✅ Configured |
-| `offlineSessionIdleTimeout` | `2592000` s (30 d) | `2592000` s | ✅ Default |
-
-**`offlineSessionMaxLifespanEnabled: true` / `offlineSessionMaxLifespan: 7776000`** ← changed from disabled
-
-- **Standard:** **RFC 9700** §2.2.2; **Forum / OAuth NL GOV**; BIO 2.0 / ISO 27002:2022 maatregel **8.5**; **OWASP ASVS 4.0 V3.3.4**
-- **Why:** Same rationale as master realm. 90-day maximum lifespan is a reasonable absolute bound on offline sessions for internal users.
-- **Implementation:** `keycloak-podiumd-realm-config.yaml` → `offlineSessionMaxLifespanEnabled`, `offlineSessionMaxLifespan`
+Not set by the import (security review IA-06). Offline access is disabled (next
+section), so no client gets an offline session for it to bound. The import no
+longer sets `offlineSessionMaxLifespanEnabled` or `offlineSessionMaxLifespan`;
+a realm created by an earlier chart version keeps its 90-day value.
 
 ### Offline Access Disabled
 
