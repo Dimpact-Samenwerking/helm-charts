@@ -287,10 +287,13 @@ coverage is in
 > rest of the workaround.
 
 External parties authenticate to the inway with a **client certificate**. The
-certificate is verified by the front door, which forwards the identity in a
-request header; the gateway maps that identity to a consumer name using a list
-kept in **OpenBao**, at request time — the same mechanism the API keys use, so
-onboarding or rotating a consumer needs no deploy.
+front door terminates TLS, which proves the caller holds the certificate's
+private key, and forwards the certificate's identity in request headers; the
+gateway maps that identity to a consumer name using a list kept in
+**OpenBao**, at request time — the same mechanism the API keys use, so
+onboarding or rotating a consumer needs no deploy. The design, and what was
+measured on a real Application Gateway, is in
+[`frankgateway-aag-client-certificates.md`](frankgateway-aag-client-certificates.md).
 
 ```yaml
 frankgateway:
@@ -305,7 +308,7 @@ frankgateway:
             serverless-pre-function:
               phase: access
               functions:
-                - 'local consumer_auth = require("openbao-consumer-auth") return consumer_auth({ path = "frankgateway/consumers", verificationHeader = "X-Client-Cert-Verification", allow = { "zaaksysteem-x" } })'
+                - 'local consumer_auth = require("openbao-consumer-auth") return consumer_auth({ path = "frankgateway/consumers", allow = { "zaaksysteem-x" } })'
           upstream:
             type: roundrobin
             scheme: http
@@ -322,7 +325,8 @@ frankgateway:
   old and the new list answer side by side; after 300 s every worker has the
   new one.
 - **Options:** `path` (required), `header` (default `X-Client-Cert-Fingerprint`),
-  `verificationHeader` (when set, must read `SUCCESS`), `allow` (consumer names
+  `verificationHeader` (when set, must read `SUCCESS`; only behind a front
+  door in strict mode, leave it unset in passthrough mode), `allow` (consumer names
   this route admits; omit to admit every known consumer), `stale_ttl` (seconds
   the last-good list is served while OpenBao is unreachable; default 3600, `0`
   to fail closed at once — the copy is per gateway pod, so one successful read
@@ -335,28 +339,42 @@ frankgateway:
   `X-Consumer-Username` (overwriting anything the caller sent), and the JSON
   access log carries it as `consumer`.
 - **Only on the inway.** The function trusts the header. That is sound only
-  behind a front door that verified the certificate and overwrites the header
-  on every request, with the inway reachable through nothing else
+  behind a front door that completed the TLS handshake with that certificate
+  and overwrites the header on every request, with the inway reachable through
+  nothing else
   (`networkPolicies.ingressNamespace`); the render refuses the function on any
   other class.
 
 ### What the front door must send
 
 For the Azure Application Gateway that fronts the environments (owned by the
-hosting partner): mutual authentication in **strict** mode on the listener's SSL
-profile, with the trusted client CA chain(s) uploaded, and a **rewrite rule
-set** on the routing rule that writes these request headers from server
-variables:
+hosting partner): mutual authentication in **passthrough** mode on the API
+listener's SSL profile (the client certificate is requested, not validated:
+any CA; architecture decision IN-3287), and a **rewrite rule set** on that
+listener's routing rule that writes these request headers from server
+variables. The same headers are removed on every other listener.
 
-| Header | Server variable | Note |
+| Header | Server variable | As the inway receives it (measured on ontw-dim1) |
 |---|---|---|
-| `X-Client-Cert-Fingerprint` | `{var_client_certificate_fingerprint}` | **SHA-1**, hex — the value to list in OpenBao |
-| `X-Client-Cert-Subject` | `{var_client_certificate_subject}` | subject DN; optional, for subject-based matching |
-| `X-Client-Cert-Verification` | `{var_client_certificate_verification}` | `SUCCESS` in strict mode; pass as `verificationHeader` |
+| `X-Client-Cert` | `{var_client_certificate}` | the leaf certificate only, also when the client sent a chain; PEM, URL-encoded (`%20`, `%0A`, `%2B`, `%2F`, `%3D`), about 1.9 KB for an RSA 2048 leaf |
+| `X-Client-Cert-Fingerprint` | `{var_client_certificate_fingerprint}` | **SHA-1**, 40 hex characters, lower case, no colons — the value to list in OpenBao |
+| `X-Client-Cert-Subject` | `{var_client_certificate_subject}` | subject DN, comma-separated without spaces, country first (`C=NL,O=…,CN=…`); optional, for subject-based matching |
+| `X-Client-Cert-Issuer` | `{var_client_certificate_issuer}` | issuer DN, same format; informational |
+
+Without a client certificate all four headers are absent, and a header of that
+name sent by the caller is dropped. `X-Client-Cert-Verification` is not sent in
+passthrough mode, so `verificationHeader` stays unset.
+
+In passthrough mode the Application Gateway checks nothing about the
+certificate: one from an unknown CA, an expired one and a server-only one are
+all forwarded. The consumer list in OpenBao is the only gate. The full
+measurement is in
+[`frankgateway-aag-test-round-ontw-dim1.md`](frankgateway-aag-test-round-ontw-dim1.md#header-contract).
 
 Application Gateway cannot pass TLS through (it is a terminating proxy), so the
 existing chain stays as it is: it re-encrypts to NGINX Gateway Fabric, which
-re-encrypts to the inway on 9443 (`BackendTLSPolicy`). Nothing on the AKS side
+re-encrypts to the inway on 9443 (`BackendTLSPolicy`); on ontw-dim1 that last
+hop was plain HTTP on 9080 during the test round. Nothing on the AKS side
 changes for mTLS traffic; only the headers are new. Because the gateway sets
 them on every request, a caller cannot forge one — provided the inway is not
 reachable by any other path.
