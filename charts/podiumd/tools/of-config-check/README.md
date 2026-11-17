@@ -24,7 +24,7 @@ marked "3.5 only" run only on 3.5, where they prepare the upgrade to 4.0.
 | Verwijzing | Logic that uses a field, variable or step that does not exist (anymore), e.g. after renaming a field |
 | Beginwaarde | An initial value of the wrong type, e.g. `"3"` for a whole-number variable |
 | Logica 4.0 | 3.5 only: a form with logic that still uses the old logic evaluation, or a rule with "trigger vanaf stap" under the new one. Both block the upgrade to Open Forms 4.0 |
-| Logica-cyclus | Rules that set each other's input, or a rule that sets its own input (`x = x + 1`). Open Forms 4.0 refuses these |
+| Logica-cyclus | Rules that set each other's input, or a rule that sets its own input (`x = x + 1`). Open Forms 4.0 refuses these. A service fetch whose template has a tag (`{% ... %}`) is CONTROLEREN: variables in tags are not part of the cycle analysis |
 | Volgende-knop | 3.5 only: a "Volgende uitschakelen" action whose step the 3.5 migration had to guess |
 | Verbergen (4.0) | Logic that compares a hidden field, or a field on a later step, with its empty value. From Open Forms 4.0 such a value is missing instead of empty, so the rule can behave differently |
 | Catalogus | A file upload field with another catalogue than the form's Objects API or ZGW registration |
@@ -64,7 +64,8 @@ Severity:
   decimal number, or a linked objecttype version, zaaktype or document type
   is a draft.
 - **CONTROLEREN**: check by hand. The type of a calculation's result cannot
-  be derived, a rule may behave differently from Open Forms 4.0, or Open
+  be derived (e.g. a `reduce` whose step gives another type than its start
+  value), a rule may behave differently from Open Forms 4.0, or Open
   Forms could not fetch a list for the Koppeling check.
 
 Each finding names the field, variable or registration, the logic rule, the
@@ -78,8 +79,12 @@ Not checked:
 - Submissions, templates and registration mappings.
 - For the Koppeling check: individual objects in Objecten (forms do not refer
   to them), zaaktype properties (eigenschappen) and the target paths of a
-  variables mapping. On Open Forms 3.5, a registration without its own
-  catalogue uses the API group's; that fallback is not followed.
+  variables mapping.
+- On Open Forms 3.5, a registration without its own catalogue uses the API
+  group's. That fallback is not followed: the Koppeling check skips the
+  catalogue, and the Catalogus check skips that registration.
+- Variables in template tags (`{% if x %}`) of a service fetch: the
+  Logica-cyclus check reports such a fetch as CONTROLEREN instead.
 - The `V1_KEYS` and `INVALID` checks of `openforms-check-registration-options.py`:
   they need Open Forms' server-side validation. Run that script with
   `kubectl exec` as in the upgrade guide.

@@ -122,8 +122,12 @@
       return kinds;
     }
     if (op === "reduce" && Array.isArray(args) && args.length >= 3) {
-      // The accumulator keeps the type of its start value.
-      return resultKinds(args[2], varTypes);
+      // An empty list gives the start value, any other list the reducer's result:
+      // only a reducer of the start value's own kind gives a known kind.
+      const start = resultKinds(args[2], varTypes);
+      const step = resultKinds(args[1], varTypes);
+      const same = start.size === step.size && [...step].every((k) => start.has(k));
+      return same && !step.has("unknown") ? start : new Set(["unknown"]);
     }
     if (BRANCH_OPS.has(op) && Array.isArray(args)) {
       const branches = args.filter((_, i) => i % 2 === 1);
@@ -433,19 +437,26 @@
     return out;
   }
 
-  /** Variables used in a service fetch template ({{ name }} or {% ... name ... %}). */
-  function templateVariables(fetchConfig) {
-    const out = new Set();
-    if (!isPlainObject(fetchConfig)) return out;
+  /** The template texts of a service fetch: path, query parameters and headers. */
+  function templateTexts(fetchConfig) {
+    if (!isPlainObject(fetchConfig)) return [];
     const texts = [fetchConfig.path || ""];
     for (const group of [fetchConfig.queryParams, fetchConfig.headers]) {
       for (const value of Object.values(group || {})) texts.push(...(Array.isArray(value) ? value : [value]));
     }
-    for (const text of texts) {
-      for (const match of String(text).matchAll(/\{\{\s*([A-Za-z_][\w.]*)/g)) out.add(match[1]);
+    return texts.map(String);
+  }
+
+  /** Variables used in a service fetch template as {{ name }}; tags ({% ... %}) are not parsed. */
+  function templateVariables(fetchConfig) {
+    const out = new Set();
+    for (const text of templateTexts(fetchConfig)) {
+      for (const match of text.matchAll(/\{\{\s*([A-Za-z_][\w.]*)/g)) out.add(match[1]);
     }
     return out;
   }
+
+  const hasTemplateTags = (fetchConfig) => templateTexts(fetchConfig).some((text) => text.includes("{%"));
 
   function stepUuidFromUrl(url) {
     return typeof url === "string" ? url.replace(/\/$/, "").split("/").pop() : null;
@@ -665,6 +676,22 @@
           " Open Forms 4.0 accepteert dit niet.",
         hint: "Haal de kringloop eruit, bijv. met een aparte (eigen) variabele voor de uitkomst.",
       });
+    }
+    // The cycle analysis only sees {{ name }}: a variable read in a tag can close a cycle unseen.
+    for (const rule of rules) {
+      for (const action of rule.actions || []) {
+        if ((action.action || {}).type !== "fetch-from-service") continue;
+        const variable = ctx.model.variablesByKey.get(action.variable) || {};
+        if (!hasTemplateTags(variable.serviceFetchConfiguration)) continue;
+        findings.push({
+          ...base, check: "Logica-cyclus", severity: "CONTROLEREN",
+          target: { label: "Variabele", text: action.variable }, rule: ruleLabel(rule),
+          problem: "Het ophalen uit een service gebruikt een sjabloon-tag ({% ... %}). Variabelen in zo'n tag " +
+            "worden niet meegenomen in de controle op logica-cycli.",
+          hint: "Controleer dat de regel geen variabele zet die in de tag van de service-aanroep wordt gebruikt; " +
+            "Open Forms 4.0 accepteert zo'n kringloop niet.",
+        });
+      }
     }
     return findings;
   }

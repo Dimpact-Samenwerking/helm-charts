@@ -147,6 +147,52 @@ const noServices = core.checkForm({
 }).findings;
 assert.ok(!noServices.some((f) => f.check === "Onbekende service"));
 
+// ---- Review cases (#716) -------------------------------------------------------
+
+const reviewSteps = [
+  step("r1", 0, "Stap 1", [
+    { key: "tekst", type: "textfield", label: "Tekst" },
+    { key: "getal", type: "number", label: "Getal" },
+    { key: "stil", type: "textfield", label: "Stil", hidden: true },
+    { key: "bewaard", type: "textfield", label: "Bewaard", hidden: true, clearOnHide: false },
+    { key: "bijlage", type: "file", label: "Bijlage", registration: { documentType: { catalogue: { domain: "B", rsin: "1" } } } },
+  ]),
+];
+const reviewVariables = [
+  v("tekst", "string"), v("getal", "float"), v("stil", "string"), v("bewaard", "string"), v("bijlage", "array"),
+  v("bron", "string", "user_defined"), v("lijst", "array", "user_defined"),
+  v("opgehaald", "object", "user_defined", { serviceFetchConfiguration: { path: "/zoek/{% if opgehaald %}ja{% else %}nee{% endif %}" } }),
+  v("gewoon", "object", "user_defined", { serviceFetchConfiguration: { path: "/zoek/{{ tekst }}" } }),
+];
+const fetchVar = (variable) => ({ variable, action: { type: "fetch-from-service" } });
+const catReduce = { reduce: [{ var: "lijst" }, { cat: [{ var: "accumulator" }, { var: "current" }] }, 0] };
+const reviewRules = [
+  // var with a fallback of another kind: number when 'bron' is missing.
+  rule(0, true, [setVar("tekst", { var: ["bron", 0] })]),
+  // A reducer of another kind than the start value: unknown, on a text and on a number target.
+  rule(1, true, [setVar("tekst", catReduce), setVar("getal", catReduce)]),
+  // disable-next to a step that does not exist.
+  rule(2, true, [{ formStepUuid: "weg", action: { type: "disable-next" } }]),
+  // Statically hidden field (default clearOnHide) compared with its empty value; clearOnHide: false is fine.
+  rule(3, { or: [{ "==": [{ var: "stil" }, ""] }, { "==": [{ var: "bewaard" }, ""] }] }, [setVar("getal", 1)]),
+  // A service fetch with a template tag, and one without.
+  rule(4, true, [fetchVar("opgehaald"), fetchVar("gewoon")]),
+];
+// Open Forms 3.5 ZGW registration without its own catalogue: the API group's applies, no Catalogus finding.
+const reviewForm = { newLogicEvaluationEnabled: true, registrationBackends: [{ backend: "zgw-create-zaak", name: "Zaak", options: { zgwApiGroup: 1 } }] };
+const reviewInput = { form: reviewForm, steps: reviewSteps, variables: reviewVariables, rules: reviewRules, staticVariables };
+const foundReview = summary(core.checkForm(reviewInput).findings);
+console.log(foundReview.join("\n"));
+assert.deepStrictEqual(foundReview, [
+  "CONTROLEREN|Logica-cyclus|opgehaald|nr. 5: regel 5",
+  "CONTROLEREN|Type berekening|Getal  (sleutel 'getal', type number, stap 'Stap 1')|nr. 2: regel 2",
+  "CONTROLEREN|Type berekening|Tekst  (sleutel 'tekst', type textfield, stap 'Stap 1')|nr. 2: regel 2",
+  "CONTROLEREN|Verbergen (4.0)|stil|nr. 4: regel 4",
+  "CONTROLEREN|Volgende-knop|'Volgende uitschakelen'|nr. 3: regel 3",
+  "FOUT|Type berekening|Tekst  (sleutel 'tekst', type textfield, stap 'Stap 1')|nr. 1: regel 1",
+  "FOUT|Verwijzing|'stap weg' in de actie (stap)|nr. 3: regel 3",
+].sort());
+
 // ---- Koppelingen --------------------------------------------------------------
 
 const ok = (data) => Promise.resolve({ data });
@@ -220,6 +266,7 @@ const expectedLinks = [
     { form: upgradeForm(), steps: upgradeSteps, variables: upgradeVariables, rules: upgradeRules, staticVariables,
       serviceRoots: ["https://openzaak.nl/"] },
     { form: form40, steps: upgradeSteps, variables: upgradeVariables, rules: upgradeRules, staticVariables, serviceRoots: null },
+    reviewInput,
   ];
   for (const input of inputs) {
     assert.deepStrictEqual(minified.checkForm(input), core.checkForm(input));
