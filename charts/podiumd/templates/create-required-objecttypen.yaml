@@ -180,6 +180,7 @@ spec:
   ttlSecondsAfterFinished: 600
   template:
     spec:
+      automountServiceAccountToken: false
       containers:
         - image: {{ include "podiumd.image" .Values.objecten.image }}
           command: {{ include "podiumd.retryCommand" (list "/jobs/create-required-objecttypen.py") }}

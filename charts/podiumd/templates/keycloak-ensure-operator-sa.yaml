@@ -32,6 +32,7 @@ spec:
       {{- end }}
       restartPolicy: Never
       serviceAccountName: {{ include "podiumd.serviceAccountName" . }}
+      automountServiceAccountToken: false
       initContainers:
       - name: wait-for-podiumd-admin
         image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensureOperatorSa.image }}
