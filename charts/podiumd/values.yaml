@@ -3585,6 +3585,42 @@ zac:
     user: zac
     password: changeme
   enabled: true
+  # ZAC's REST clients have no timeouts of their own, so a component that
+  # accepts a connection but does not answer holds a ZAC request until the
+  # edge's timeout (zac-5). Milliseconds, as MicroProfile Rest Client
+  # <configKey>/mp-rest/connectTimeout and readTimeout. Open Zaak (ZGW) gets
+  # 120s to read: document uploads and downloads take longer than the others.
+  # extraEnv replaces the list: an environment that sets its own extraEnv
+  # repeats these.
+  extraEnv:
+    - name: ZGW_API_CLIENT_MP_REST_CONNECTTIMEOUT
+      value: "5000"
+    - name: ZGW_API_CLIENT_MP_REST_READTIMEOUT
+      value: "120000"
+    - name: KLANTINTERACTIES_API_CLIENT_MP_REST_CONNECTTIMEOUT
+      value: "5000"
+    - name: KLANTINTERACTIES_API_CLIENT_MP_REST_READTIMEOUT
+      value: "30000"
+    - name: BRP_API_CLIENT_MP_REST_CONNECTTIMEOUT
+      value: "5000"
+    - name: BRP_API_CLIENT_MP_REST_READTIMEOUT
+      value: "30000"
+    - name: KVK_API_CLIENT_MP_REST_CONNECTTIMEOUT
+      value: "5000"
+    - name: KVK_API_CLIENT_MP_REST_READTIMEOUT
+      value: "30000"
+    - name: BAG_API_CLIENT_MP_REST_CONNECTTIMEOUT
+      value: "5000"
+    - name: BAG_API_CLIENT_MP_REST_READTIMEOUT
+      value: "30000"
+    - name: OBJECTS_API_CLIENT_MP_REST_CONNECTTIMEOUT
+      value: "5000"
+    - name: OBJECTS_API_CLIENT_MP_REST_READTIMEOUT
+      value: "30000"
+    - name: PABC_API_CLIENT_MP_REST_CONNECTTIMEOUT
+      value: "5000"
+    - name: PABC_API_CLIENT_MP_REST_READTIMEOUT
+      value: "30000"
   nameOverride: zac
   fullnameOverride: zac
   gemeente:
