@@ -205,6 +205,10 @@ def _print_kube_score_findings(scored: KubeScoreResult):
         suffix = _kube_score_line_suffix(key[1], scored.locations)
         return f"[{key[0]}] {key[1]} ({key[2]}){suffix}"
 
+    def own_label(key: tuple[str, str]) -> str:
+        suffix = _kube_score_line_suffix(key[0], scored.locations)
+        return f"{key[0]} ({key[1]}){suffix}"
+
     if scored.own_real:
         print(
             f"Found {len(scored.own_real)} real kube-score issue(s) in this chart's own templates "
@@ -215,7 +219,7 @@ def _print_kube_score_findings(scored: KubeScoreResult):
             scored.own_real,
             key_fn=lambda finding: (finding[0], finding[1]),
             item_fn=lambda finding: finding[2],
-            label_fn=lambda key: f"{key[0]} ({key[1]}){_kube_score_line_suffix(key[0], scored.locations)}",
+            label_fn=own_label,
             items_label="issue(s)",
         )
         print()

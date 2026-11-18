@@ -96,6 +96,10 @@ def _relative_path(path_str: str, base_dir: Path):
         return path_str
 
 
+def _finding_location(finding: dict[str, str]) -> str:
+    return f"{finding['path']}:{finding['line']}:{finding['col']}  {finding['message']}"
+
+
 def check_markdown(chart_dir: Path):
     """Lint in-scope *.md files with pymarkdown; fail on any finding or a missing install.
 
@@ -140,7 +144,7 @@ def check_markdown(chart_dir: Path):
         print_grouped_findings(
             findings,
             key_fn=lambda finding: (finding["rule"], finding["aliases"].split(",")[0]),
-            item_fn=lambda finding: f"{finding['path']}:{finding['line']}:{finding['col']}  {finding['message']}",
+            item_fn=_finding_location,
             label_fn=lambda key: f"{key[0]} ({key[1]})",
             items_label="location(s)",
         )

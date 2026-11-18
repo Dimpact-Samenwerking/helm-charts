@@ -73,7 +73,8 @@ def replace_scalar_value(line: str, new_value: str) -> str:
     anchor = line_match.group("anchor") or ""
     quote = line_match.group("quote")
     comment = f"  {line_match.group('comment')}" if line_match.group("comment") else ""
-    return f"{line_match.group('indent')}{line_match.group('key')} {anchor}{quote}{new_value}{quote}{comment}\n"
+    key = f"{line_match.group('indent')}{line_match.group('key')}"
+    return f"{key} {anchor}{quote}{new_value}{quote}{comment}\n"
 
 
 def is_same_name(first: str, second: str) -> bool:

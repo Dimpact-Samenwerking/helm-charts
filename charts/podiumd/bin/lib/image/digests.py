@@ -238,7 +238,8 @@ def reference_comment_text(comment_line: str, version: str, digest: str | None) 
     if comment_match is None:
         return comment_line
     ending = comment_line[len(comment_line.rstrip("\r\n")) :]
-    return f"{comment_match.group('indent')}# {comment_match.group('repo')}:{pin_text(version, digest)}{ending}"
+    prefix = f"{comment_match.group('indent')}# {comment_match.group('repo')}"
+    return f"{prefix}:{pin_text(version, digest)}{ending}"
 
 
 class StaleReferenceComment(NamedTuple):

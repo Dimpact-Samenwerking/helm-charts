@@ -84,7 +84,8 @@ def _aliased_bullet(
     pin = _PIN_TEXT_RE.search(first)
     if pin is not None and own_old != _shown_old(first):
         new = pin.group("pin_new") or pin.group("pin_kept")
-        first = f"{first[: pin.start()]}{pin_version_text(own_old, new)}{first[pin.end() :]}"
+        version_text = pin_version_text(own_old, new)
+        first = f"{first[: pin.start()]}{version_text}{first[pin.end() :]}"
     note = ALIAS_NOTE.format(path=documented_path)
     suffix = " in" if first.endswith(" in") else ""
     first = f"{first.removesuffix(suffix)} {note}{suffix}"
