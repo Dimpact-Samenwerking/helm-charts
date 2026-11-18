@@ -609,6 +609,7 @@ PodiumD Helm chart
 | kiss.settings.syncJobs.vac.schedule | string | `"*/59 * * * *"` |  |
 | kiss.settings.syncJobs.vac.token | string | `""` |  |
 | kiss.settings.syncJobs.website | list | `[]` |  |
+| maykinConfigJobs | object | `{"wait":{"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.2@sha256:dcb7185e112a453aa72f426754849a97357727ef8f40168fb208c8cf59952042"},"nodeSelector":{},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}}}}` | podiumd-chart-50 (interim): podiumd runs the Maykin apps' setup_configuration Jobs as plain Jobs that start together, and this post-install/post-upgrade hook waits for all of them; it fails the deploy when one of them fails. |
 | mi.enabled | bool | `false` |  |
 | mi.image.registry | string | `"mcr.microsoft.com"` |  |
 | mi.image.repository | string | `"azure-cli"` |  |
@@ -633,8 +634,8 @@ PodiumD Helm chart
 | objecten.configuration.enabled | bool | `true` |  |
 | objecten.configuration.initContainer.enabled | bool | `false` |  |
 | objecten.configuration.job.backoffLimit | int | `12` |  |
-| objecten.configuration.job.enabled | bool | `true` |  |
-| objecten.configuration.job.resources | object | `{}` |  |
+| objecten.configuration.job.enabled | bool | `false` |  |
+| objecten.configuration.job.resources | object | `{"limits":{"cpu":"500m","memory":"1Gi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources of the setup_configuration Job (one Django process). podiumd renders this Job (podiumd-chart-50), so it sets them; the limit leaves room until the peak is measured. |
 | objecten.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | objecten.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
 | objecten.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://objecten.example.nl`. |
@@ -713,7 +714,8 @@ PodiumD Helm chart
 | openarchiefbeheer.configuration.data | string | `""` |  |
 | openarchiefbeheer.configuration.enabled | bool | `true` |  |
 | openarchiefbeheer.configuration.job.backoffLimit | int | `12` |  |
-| openarchiefbeheer.configuration.job.enabled | bool | `true` |  |
+| openarchiefbeheer.configuration.job.enabled | bool | `false` |  |
+| openarchiefbeheer.configuration.job.resources | object | `{"limits":{"cpu":"500m","memory":"1Gi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources of the setup_configuration Job (one Django process). podiumd renders this Job (podiumd-chart-50), so it sets them; the limit leaves room until the peak is measured. |
 | openarchiefbeheer.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | openarchiefbeheer.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://abc.example.nl`. |
 | openarchiefbeheer.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. |
@@ -936,7 +938,8 @@ PodiumD Helm chart
 | openformulieren.configuration.data | string | `""` |  |
 | openformulieren.configuration.enabled | bool | `true` |  |
 | openformulieren.configuration.job.backoffLimit | int | `12` |  |
-| openformulieren.configuration.job.enabled | bool | `true` |  |
+| openformulieren.configuration.job.enabled | bool | `false` |  |
+| openformulieren.configuration.job.resources | object | `{"limits":{"cpu":"500m","memory":"1Gi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources of the setup_configuration Job (one Django process). podiumd renders this Job (podiumd-chart-50), so it sets them; the limit leaves room until the peak is measured. |
 | openformulieren.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | openformulieren.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openformulieren.example.nl`. |
 | openformulieren.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement. |
@@ -996,8 +999,8 @@ PodiumD Helm chart
 | openinwoner.configuration.enabled | bool | `true` |  |
 | openinwoner.configuration.initContainer.enabled | bool | `false` |  |
 | openinwoner.configuration.job.backoffLimit | int | `12` |  |
-| openinwoner.configuration.job.enabled | bool | `true` |  |
-| openinwoner.configuration.job.resources | object | `{}` |  |
+| openinwoner.configuration.job.enabled | bool | `false` |  |
+| openinwoner.configuration.job.resources | object | `{"limits":{"cpu":"500m","memory":"1Gi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources of the setup_configuration Job (one Django process). podiumd renders this Job (podiumd-chart-50), so it sets them; the limit leaves room until the peak is measured. |
 | openinwoner.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | openinwoner.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openinwoner.example.nl`. |
 | openinwoner.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement. |
@@ -1071,8 +1074,8 @@ PodiumD Helm chart
 | openklant.configuration.enabled | bool | `true` |  |
 | openklant.configuration.initContainer.enabled | bool | `false` |  |
 | openklant.configuration.job.backoffLimit | int | `12` |  |
-| openklant.configuration.job.enabled | bool | `true` |  |
-| openklant.configuration.job.resources | object | `{}` |  |
+| openklant.configuration.job.enabled | bool | `false` |  |
+| openklant.configuration.job.resources | object | `{"limits":{"cpu":"500m","memory":"1Gi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources of the setup_configuration Job (one Django process). podiumd renders this Job (podiumd-chart-50), so it sets them; the limit leaves room until the peak is measured. |
 | openklant.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | openklant.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openklant.example.nl`. |
 | openklant.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement. |
@@ -1125,8 +1128,8 @@ PodiumD Helm chart
 | opennotificaties.configuration.http_request_job.enabled | bool | `false` |  |
 | opennotificaties.configuration.initContainer.enabled | bool | `false` |  |
 | opennotificaties.configuration.job.backoffLimit | int | `12` |  |
-| opennotificaties.configuration.job.enabled | bool | `true` |  |
-| opennotificaties.configuration.job.resources | object | `{}` |  |
+| opennotificaties.configuration.job.enabled | bool | `false` |  |
+| opennotificaties.configuration.job.resources | object | `{"limits":{"cpu":"500m","memory":"1Gi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources of the setup_configuration Job (one Django process). podiumd renders this Job (podiumd-chart-50), so it sets them; the limit leaves room until the peak is measured. |
 | opennotificaties.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | opennotificaties.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://opennotificaties.example.nl`. |
 | opennotificaties.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement. |
@@ -1175,7 +1178,7 @@ PodiumD Helm chart
 | openvtb.configuration.data | string | `""` |  |
 | openvtb.configuration.enabled | bool | `true` |  |
 | openvtb.configuration.job.backoffLimit | int | `12` |  |
-| openvtb.configuration.job.enabled | bool | `true` |  |
+| openvtb.configuration.job.enabled | bool | `false` |  |
 | openvtb.configuration.job.resources | object | `{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources of the setup-configuration Job (one Django process). |
 | openvtb.configuration.job.restartPolicy | string | `"Never"` |  |
 | openvtb.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
@@ -1247,8 +1250,8 @@ PodiumD Helm chart
 | openzaak.configuration.enabled | bool | `true` |  |
 | openzaak.configuration.initContainer.enabled | bool | `false` |  |
 | openzaak.configuration.job.backoffLimit | int | `12` |  |
-| openzaak.configuration.job.enabled | bool | `true` |  |
-| openzaak.configuration.job.resources | object | `{}` |  |
+| openzaak.configuration.job.enabled | bool | `false` |  |
+| openzaak.configuration.job.resources | object | `{"limits":{"cpu":"500m","memory":"1Gi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources of the setup_configuration Job (one Django process). podiumd renders this Job (podiumd-chart-50), so it sets them; the limit leaves room until the peak is measured. |
 | openzaak.configuration.job.restartPolicy | string | `"Never"` |  |
 | openzaak.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
 | openzaak.configuration.notificaties.enabled | bool | `true` |  |
@@ -1393,8 +1396,8 @@ PodiumD Helm chart
 | referentielijsten.configuration.enabled | bool | `true` |  |
 | referentielijsten.configuration.initContainer.enabled | bool | `false` |  |
 | referentielijsten.configuration.job.backoffLimit | int | `12` |  |
-| referentielijsten.configuration.job.enabled | bool | `true` |  |
-| referentielijsten.configuration.job.resources | object | `{}` |  |
+| referentielijsten.configuration.job.enabled | bool | `false` |  |
+| referentielijsten.configuration.job.resources | object | `{"limits":{"cpu":"500m","memory":"1Gi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources of the setup_configuration Job (one Django process). podiumd renders this Job (podiumd-chart-50), so it sets them; the limit leaves room until the peak is measured. |
 | referentielijsten.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | referentielijsten.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
 | referentielijsten.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://referentielijsten.example.nl`. |

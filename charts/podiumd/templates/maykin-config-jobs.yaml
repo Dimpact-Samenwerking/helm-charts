@@ -1,0 +1,135 @@
+{{- /* podiumd-chart-50 (interim): the Maykin charts render their setup_configuration Job as a
+     post-install/post-upgrade hook, and Helm runs hooks one after another: nine of them took
+     about 2 minutes of every upgrade. podiumd turns those hooks off
+     (<app>.configuration.job.enabled: false) and renders the same Jobs from the sub-charts'
+     own templates as plain Jobs, which start together. One hook then waits for all of them
+     and fails when one fails, so a failing configuration still fails the deploy.
+     Remove this file when the Maykin charts can turn off the hook. */ -}}
+{{- $cfg := .Values.maykinConfigJobs }}
+{{- $names := list }}
+{{- range $alias := splitList " " (include "podiumd.maykinConfigJobApps" .) }}
+{{- $app := index $.Values $alias | default dict }}
+{{- if and (include "podiumd.dependencyEnabled" $app) (dig "configuration" "job" "enabled" false $app) }}
+{{- fail (printf "%s.configuration.job.enabled is true, so its setup_configuration would run twice: podiumd runs it as a plain Job (templates/maykin-config-jobs.yaml, podiumd-chart-50). Leave %s.configuration.job.enabled at false; %s.configuration.enabled turns the configuration off." $alias $alias $alias) }}
+{{- end }}
+{{- $job := include "podiumd.maykinConfigJob" (dict "root" $ "alias" $alias) }}
+{{- if $job }}
+{{- $names = append $names (fromYaml $job).metadata.name }}
+---
+{{ $job }}
+{{- end }}
+{{- end }}
+{{- if $names }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: maykin-config-jobs-wait
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: maykin-config-jobs-wait
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: maykin-config-jobs-wait
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: maykin-config-jobs-wait
+subjects:
+  - kind: ServiceAccount
+    name: maykin-config-jobs-wait
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: maykin-config-jobs-wait
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+  annotations:
+    # The hook that keeps a failing configuration failing the deploy, as the Maykin hooks did.
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        {{- include "podiumd.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: maykin-config-jobs-wait
+      automountServiceAccountToken: true
+      restartPolicy: Never
+      {{- with $cfg.wait.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: wait
+          image: {{ include "podiumd.image" $cfg.wait.image }}
+          resources:
+            {{- toYaml $cfg.wait.resources | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          env:
+            - name: NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            - name: JOBS
+              value: {{ join " " $names | quote }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -u
+              # Helm's --timeout bounds this hook, as it bounded each Maykin hook.
+              PENDING="$JOBS"; FAILED=""
+              while [ -n "$PENDING" ]; do
+                LEFT=""
+                for JOB in $PENDING; do
+                  STATE=$(kubectl get job "$JOB" -n "$NAMESPACE" -o jsonpath='{.status.conditions[?(@.status=="True")].type}' 2>/dev/null) || STATE=""
+                  case "$STATE" in
+                    *Failed*)
+                      echo "job/$JOB failed; its last log lines:"
+                      kubectl logs "job/$JOB" -n "$NAMESPACE" --tail=30 || true
+                      FAILED="$FAILED $JOB" ;;
+                    *Complete*) echo "job/$JOB complete" ;;
+                    *) LEFT="$LEFT $JOB" ;;
+                  esac
+                done
+                PENDING="${LEFT# }"
+                [ -z "$PENDING" ] || sleep 5
+              done
+              [ -z "$FAILED" ] || { echo "setup_configuration failed:$FAILED"; exit 1; }
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+{{- end }}

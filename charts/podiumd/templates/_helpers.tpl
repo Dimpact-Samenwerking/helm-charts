@@ -1307,3 +1307,39 @@ Usage: {{ include "podiumd.keycloak.externalClientEnabled" .Values.keycloak.conf
 {{- define "podiumd.keycloak.externalClientEnabled" -}}
 {{- if and (ne (toString .enabled) "false") (trim (toString (.oidcUrl | default ""))) -}}true{{- end -}}
 {{- end -}}
+
+{{/*
+podiumd-chart-50 (interim, until the Maykin charts can turn off the hook): the
+apps whose setup_configuration Job podiumd runs as a plain Job. Their own
+post-install/post-upgrade hook Jobs ran one after another.
+*/}}
+{{- define "podiumd.maykinConfigJobApps" -}}
+objecten openarchiefbeheer openformulieren openinwoner openklant opennotificaties openvtb openzaak referentielijsten
+{{- end -}}
+
+{{/*
+The setup_configuration Job of one Maykin app as a plain Job: the sub-chart's
+own templates/job-config.yaml, rendered with its own context, without the hook
+annotations and named <name>-<revision> so every deploy runs it again (a Job's
+pod template cannot change). Empty when the app or its configuration is off.
+
+Usage: {{ include "podiumd.maykinConfigJob" (dict "root" $ "alias" "openzaak") }}
+*/}}
+{{- define "podiumd.maykinConfigJob" -}}
+{{- $sub := index .root.Subcharts .alias -}}
+{{- if $sub -}}
+{{- $ctx := deepCopy $sub -}}
+{{- $_ := set $ctx.Values.configuration.job "enabled" true -}}
+{{- $job := include (printf "%s/charts/%s/templates/job-config.yaml" .root.Chart.Name .alias) $ctx | fromYaml -}}
+{{- if $job.metadata -}}
+{{- $_ := set $job.metadata "name" (printf "%s-%d" $job.metadata.name .root.Release.Revision) -}}
+{{- $annotations := omit ($job.metadata.annotations | default dict) "helm.sh/hook" "helm.sh/hook-delete-policy" "helm.sh/hook-weight" -}}
+{{- if $annotations -}}
+{{- $_ := set $job.metadata "annotations" $annotations -}}
+{{- else -}}
+{{- $_ := unset $job.metadata "annotations" -}}
+{{- end -}}
+{{- toYaml $job -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
