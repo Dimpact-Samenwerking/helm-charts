@@ -3697,6 +3697,11 @@ zac:
         memory: 512Mi
       limits:
         memory: 2Gi
+    # Gotenberg stops a conversion after its API timeout, 30s by default: a Word
+    # file of about 1500 pages took longer (podiumd-chart-40). 50s stays below the
+    # edge's read timeout of about 60s, so the user gets ZAC's error, not a 504.
+    env:
+      API_TIMEOUT: "50s"
   opa:
     securityContext:
       runAsNonRoot: true
