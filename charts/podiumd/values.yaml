@@ -2969,13 +2969,19 @@ openvtb:
   extraEnvVars:
     - name: OPENVTB_PORT
       value: "8000"
+  # Security review 4.10.0 WH-02, as on the other Maykin apps. The chart's
+  # configuration Job uses the same two contexts.
   securityContext:
+    allowPrivilegeEscalation: false
     capabilities:
       drop:
         - ALL
     readOnlyRootFilesystem: false
     runAsNonRoot: true
     runAsUser: 1000
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
   # -- Measured on johnb00: about 260Mi per pod idle (uWSGI 2 processes x 2 threads); the limit leaves room for load.
   resources:
     requests:
