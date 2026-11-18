@@ -3805,6 +3805,11 @@ zac:
     watchNamespaces: "podiumd"
     # -- install crds using https://github.com/pravega/zookeeper-operator/blob/master/charts/zookeeper-operator/templates/zookeeper.pravega.io_zookeeperclusters_crd.yaml
     zookeeper-operator:
+      # podiumd renders the operator itself (templates/zookeeper-operator.yaml),
+      # without the sub-chart's post-install/post-upgrade hook that waits 30 s on
+      # every upgrade (zac-49). use: true keeps solr-operator on ZookeeperCluster.
+      install: false
+      use: true
       crd:
         create: false
       hooks:
@@ -3827,6 +3832,15 @@ zac:
               - ALL
           seccompProfile:
             type: RuntimeDefault
+        # Read by podiumd's pre-delete hook Job (templates/zookeeper-operator.yaml);
+        # the sub-chart's own hooks had no resources.
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 100m
+            memory: 64Mi
       # pravega/zookeeper-operator:0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e
       image:
         #repository:
