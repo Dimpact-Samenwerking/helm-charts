@@ -4065,7 +4065,8 @@ apiproxy:
       memory: "128Mi"
   # -- Secret containing client certificate (`client.crt`/`client.key`) and CA bundle (`ca.crt`)
   # for upstream mTLS. Leave empty to disable mTLS and skip the cert volume mount.
-  # When set, `sslVerify` auto-derives to "on"; when empty it auto-derives to "off".
+  # Upstream certificates are verified either way: against ca.crt from this
+  # Secret, or without it against the image's CA bundle (security review NW-16).
   nginxCertsSecret: ""
   # -- Maximum length of the upstream server certificate chain validated by nginx
   # (`proxy_ssl_verify_depth`). Government API gateways occasionally chain through
@@ -4087,7 +4088,7 @@ apiproxy:
   resolverIp: 10.0.0.10 # KubeDNS resolver
   locations:
     commonSettings: &commonLocation
-      sslVerify: "" # Leave empty to auto-derive from nginxCertsSecret (on if set, off if not); override per-location if needed
+      sslVerify: "" # Empty means "on"; set "off" per location only for an upstream that cannot be verified
       hostHeader: "lab.api.mijniconnect.nl"
     bag:
       <<: *commonLocation
