@@ -69,7 +69,7 @@ PodiumD Helm chart
 | apiproxy.locations.kvkSearch.<<.hostHeader | string | `"lab.api.mijniconnect.nl"` |  |
 | apiproxy.locations.kvkSearch.<<.sslVerify | string | `""` |  |
 | apiproxy.locations.kvkSearch.targetUrl | string | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/zoeken/v2/zoeken"` |  |
-| apiproxy.nginxCertsSecret | string | `""` | Secret containing client certificate (`client.crt`/`client.key`) and CA bundle (`ca.crt`) for upstream mTLS. Leave empty to disable mTLS and skip the cert volume mount. When set, `sslVerify` auto-derives to "on"; when empty it auto-derives to "off". |
+| apiproxy.nginxCertsSecret | string | `""` | Secret containing client certificate (`client.crt`/`client.key`) and CA bundle (`ca.crt`) for upstream mTLS. Leave empty to disable mTLS and skip the cert volume mount. Upstream certificates are verified either way: against ca.crt from this Secret, or without it against the image's CA bundle (security review NW-16). |
 | apiproxy.nodeSelector | object | `{}` |  |
 | apiproxy.readinessProbe.initialDelaySeconds | int | `5` |  |
 | apiproxy.readinessProbe.periodSeconds | int | `10` |  |
