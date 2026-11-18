@@ -21,6 +21,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      automountServiceAccountToken: false
       containers:
       - name: nginx
         image: {{ include "podiumd.image" .Values.apiproxy.image }}
