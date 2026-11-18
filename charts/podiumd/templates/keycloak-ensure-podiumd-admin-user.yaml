@@ -48,11 +48,11 @@ spec:
             echo "keycloak-operator-client-secret not available — will run podiumd-admin setup"
             exit 0
           fi
-          TOKEN=$(curl -s -X POST \
+          TOKEN=$(printf '%s' "$CLIENT_SECRET" | curl -s -X POST \
             "http://keycloak-service:8080/realms/master/protocol/openid-connect/token" \
             --data-urlencode "grant_type=client_credentials" \
             --data-urlencode "client_id=$CLIENT_ID" \
-            --data-urlencode "client_secret=$CLIENT_SECRET" \
+            --data-urlencode "client_secret@-" \
             | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
           if [ -z "$TOKEN" ]; then
             echo "keycloak-operator SA could not authenticate — will run podiumd-admin setup"
