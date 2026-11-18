@@ -47,6 +47,7 @@ spec:
         fsGroup: 70
         seccompProfile:
           type: RuntimeDefault
+      automountServiceAccountToken: false
       containers:
         - name: schema
           image: {{ include "podiumd.image" $job.image | quote }}
