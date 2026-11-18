@@ -71,9 +71,11 @@ spec:
         configMap:
           name: {{ default "api-proxy" .Values.apiproxy.nameOverride }}-nginx-config
       - name: nginx-tmp
-        emptyDir: {}
+        emptyDir:
+          sizeLimit: 64Mi
       - name: nginx-cache
-        emptyDir: {}
+        emptyDir:
+          sizeLimit: 64Mi
       {{- if .Values.apiproxy.nginxCertsSecret }}
       - name: nginx-certs
         secret:

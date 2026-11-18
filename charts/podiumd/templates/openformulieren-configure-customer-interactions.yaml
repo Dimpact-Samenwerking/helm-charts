@@ -97,7 +97,8 @@ spec:
         {{- end }}
   volumes:
     - name: tmp
-      emptyDir: {}
+      emptyDir:
+        sizeLimit: 64Mi
     {{- if .Values.openformulieren.extraVolumes }}
     {{- include "kiss-frontend.tplvalues.render" ( dict "value" .Values.openformulieren.extraVolumes "context" $ ) | nindent 4 }}
     {{- end }}

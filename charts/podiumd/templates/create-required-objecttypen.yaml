@@ -221,7 +221,8 @@ spec:
             name: create-required-objecttypen-schemas
           name: schemas
         - name: tmp
-          emptyDir: {}
+          emptyDir:
+            sizeLimit: 64Mi
       {{- with .Values.objecten.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
