@@ -1318,20 +1318,28 @@ objecten openarchiefbeheer openformulieren openinwoner openklant opennotificatie
 {{- end -}}
 
 {{/*
-The setup_configuration Job of one Maykin app as a plain Job: the sub-chart's
-own templates/job-config.yaml, rendered with its own context, without the hook
-annotations and named <name>-<revision> so every deploy runs it again (a Job's
-pod template cannot change). Empty when the app or its configuration is off.
+The setup_configuration Job of one Maykin app, from the sub-chart's own
+templates/job-config.yaml rendered with its own context, as YAML; empty when
+the app or its configuration is off.
+
+With <app>.configuration.job.enabled false (podiumd's default) it is a plain
+Job: no hook annotations, named <name>-<revision> so every deploy runs it again
+(a Job's pod template cannot change), and ttlSecondsAfterFinished so a Job of a
+failed revision, which no later upgrade prunes, does not stay behind. With
+job.enabled true the sub-chart renders its own hook Job, as before this change;
+the YAML returned is then that hook Job (its name is what callers need).
 
 Usage: {{ include "podiumd.maykinConfigJob" (dict "root" $ "alias" "openzaak") }}
 */}}
 {{- define "podiumd.maykinConfigJob" -}}
 {{- $sub := index .root.Subcharts .alias -}}
 {{- if $sub -}}
+{{- $plain := not $sub.Values.configuration.job.enabled -}}
 {{- $ctx := deepCopy $sub -}}
 {{- $_ := set $ctx.Values.configuration.job "enabled" true -}}
-{{- $job := include (printf "%s/charts/%s/templates/job-config.yaml" .root.Chart.Name .alias) $ctx | fromYaml -}}
+{{- $job := include (printf "%s/job-config.yaml" $sub.Template.BasePath) $ctx | fromYaml -}}
 {{- if $job.metadata -}}
+{{- if $plain -}}
 {{- $_ := set $job.metadata "name" (printf "%s-%d" $job.metadata.name .root.Release.Revision) -}}
 {{- $annotations := omit ($job.metadata.annotations | default dict) "helm.sh/hook" "helm.sh/hook-delete-policy" "helm.sh/hook-weight" -}}
 {{- if $annotations -}}
@@ -1339,7 +1347,9 @@ Usage: {{ include "podiumd.maykinConfigJob" (dict "root" $ "alias" "openzaak") }
 {{- else -}}
 {{- $_ := unset $job.metadata "annotations" -}}
 {{- end -}}
-{{- toYaml $job -}}
+{{- $_ := set $job.spec "ttlSecondsAfterFinished" (.root.Values.maykinConfigJobs.ttlSecondsAfterFinished | int) -}}
+{{- end -}}
+{{- toYaml (dict "plain" $plain "job" $job) -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}

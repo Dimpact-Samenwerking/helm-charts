@@ -8,7 +8,7 @@
 {{- if and .Values.zac.enabled (include "podiumd.dependencyEnabled" .Values.openzaak) $cfg.enabled }}
 {{- $jobs := list }}
 {{- with include "podiumd.maykinConfigJob" (dict "root" . "alias" "openzaak") }}
-{{- $jobs = append $jobs (fromYaml .).metadata.name }}
+{{- $jobs = append $jobs (fromYaml .).job.metadata.name }}
 {{- end }}
 {{- if .Values.openzaak.configuration.enabled }}
 {{- if .Values.openzaak.create_required_catalogi_job.enabled }}

@@ -3,20 +3,17 @@
      about 2 minutes of every upgrade. podiumd turns those hooks off
      (<app>.configuration.job.enabled: false) and renders the same Jobs from the sub-charts'
      own templates as plain Jobs, which start together. One hook then waits for all of them
-     and fails when one fails, so a failing configuration still fails the deploy.
+     and fails when one fails, so a failing configuration still fails the deploy. An
+     environment that still sets job.enabled: true keeps the sub-chart's hook for that app.
      Remove this file when the Maykin charts can turn off the hook. */ -}}
 {{- $cfg := .Values.maykinConfigJobs }}
 {{- $names := list }}
 {{- range $alias := splitList " " (include "podiumd.maykinConfigJobApps" .) }}
-{{- $app := index $.Values $alias | default dict }}
-{{- if and (include "podiumd.dependencyEnabled" $app) (dig "configuration" "job" "enabled" false $app) }}
-{{- fail (printf "%s.configuration.job.enabled is true, so its setup_configuration would run twice: podiumd runs it as a plain Job (templates/maykin-config-jobs.yaml, podiumd-chart-50). Leave %s.configuration.job.enabled at false; %s.configuration.enabled turns the configuration off." $alias $alias $alias) }}
-{{- end }}
-{{- $job := include "podiumd.maykinConfigJob" (dict "root" $ "alias" $alias) }}
-{{- if $job }}
-{{- $names = append $names (fromYaml $job).metadata.name }}
+{{- $found := include "podiumd.maykinConfigJob" (dict "root" $ "alias" $alias) | fromYaml }}
+{{- if $found.plain }}
+{{- $names = append $names $found.job.metadata.name }}
 ---
-{{ $job }}
+{{ toYaml $found.job }}
 {{- end }}
 {{- end }}
 {{- if $names }}
@@ -109,8 +106,11 @@ spec:
             - -c
             - |
               set -u
-              # Helm's --timeout bounds this hook, as it bounded each Maykin hook.
-              PENDING="$JOBS"; FAILED=""
+              # Helm's --timeout bounds this hook, as it bounded each Maykin hook. The Jobs retry
+              # (restartPolicy OnFailure, podiumd-chart-31: Keycloak may not be ready yet), so a
+              # broken configuration restarts until the timeout: print the log of every new
+              # restart, so the cause is in this hook's log before Helm gives up.
+              PENDING="$JOBS"; FAILED=""; SEEN=""
               while [ -n "$PENDING" ]; do
                 LEFT=""
                 for JOB in $PENDING; do
@@ -121,7 +121,19 @@ spec:
                       kubectl logs "job/$JOB" -n "$NAMESPACE" --tail=30 || true
                       FAILED="$FAILED $JOB" ;;
                     *Complete*) echo "job/$JOB complete" ;;
-                    *) LEFT="$LEFT $JOB" ;;
+                    *)
+                      LEFT="$LEFT $JOB"
+                      RESTARTS=$(kubectl get pods -n "$NAMESPACE" -l "job-name=$JOB" -o jsonpath='{range .items[*]}{range .status.containerStatuses[*]}{.restartCount}{"\n"}{end}{end}' 2>/dev/null | awk '{ n += $1 } END { print n + 0 }')
+                      case " $SEEN " in
+                        *" $JOB=$RESTARTS "*) ;;
+                        *)
+                          if [ "$RESTARTS" -gt 0 ]; then
+                            echo "job/$JOB restarted $RESTARTS time(s); last log lines of the previous run:"
+                            POD=$(kubectl get pods -n "$NAMESPACE" -l "job-name=$JOB" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+                            [ -z "$POD" ] || kubectl logs "$POD" -n "$NAMESPACE" --previous --tail=15 || true
+                          fi
+                          SEEN="$(echo " $SEEN " | sed "s| $JOB=[0-9]* | |") $JOB=$RESTARTS" ;;
+                      esac ;;
                   esac
                 done
                 PENDING="${LEFT# }"
