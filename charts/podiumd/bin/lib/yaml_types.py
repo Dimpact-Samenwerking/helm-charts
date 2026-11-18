@@ -53,7 +53,8 @@ def is_object_dict(value: object) -> TypeGuard[dict[object, object]]:
 
 
 def _list_problem(items: list[object], where: str) -> str | None:
-    return first_problem(*(yaml_problem(item, f"{where}[{index}]") for index, item in enumerate(items)))
+    problems = (yaml_problem(item, f"{where}[{index}]") for index, item in enumerate(items))
+    return first_problem(*problems)
 
 
 def _mapping_problem(mapping: dict[object, object], where: str) -> str | None:

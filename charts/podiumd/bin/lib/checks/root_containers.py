@@ -163,8 +163,9 @@ class Finding:
         rendered = self.container
         vendor = f" [{self.label}]" if self.bucket == "partner" else ""
         what = VERDICT_TEXT.get(self.verdict, "could not read the image's default user")
+        container_name = rendered.container.get("name", "")
         return [
-            f"{rendered.source} {rendered.kind}/{rendered.name} [{rendered.container.get('name', '')}]{vendor}:",
+            f"{rendered.source} {rendered.kind}/{rendered.name} [{container_name}]{vendor}:",
             f"    {self.image}",
             f"    {what}",
         ]
