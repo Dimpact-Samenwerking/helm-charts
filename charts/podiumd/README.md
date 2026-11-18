@@ -772,6 +772,7 @@ PodiumD Helm chart
 | openarchiefbeheer.worker.resources.requests.cpu | string | `"100m"` |  |
 | openarchiefbeheer.worker.resources.requests.memory | string | `"256Mi"` |  |
 | openbao.configuration.bootstrapTokenSecret | string | `"openbao-bootstrap-token"` |  |
+| openbao.configuration.cliLogin | bool | `false` | Allow `bao login -method=oidc` from a workstation: adds the redirect URI http://localhost:8250/oidc/callback to the Keycloak client and the OIDC role. Off by default (security review NW-13): any local process on port 8250 could catch the login. Without it, log in to the OpenBao UI and use its token. |
 | openbao.configuration.enabled | bool | `true` |  |
 | openbao.configuration.job.backoffLimit | int | `6` |  |
 | openbao.configuration.job.image.repository | string | `"quay.io/openbao/openbao"` |  |
