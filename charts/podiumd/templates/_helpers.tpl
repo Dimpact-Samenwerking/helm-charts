@@ -167,10 +167,10 @@ master realm with $CLIENT_SECRET and may list the realms (the admin role).
 */}}
 {{- define "podiumd.keycloak.saReadyFunction" -}}
 sa_ready() {
-  SA_TOKEN=$(curl -s -X POST "http://keycloak-service:8080/realms/master/protocol/openid-connect/token" \
+  SA_TOKEN=$(printf '%s' "$CLIENT_SECRET" | curl -s -X POST "http://keycloak-service:8080/realms/master/protocol/openid-connect/token" \
     --data-urlencode "grant_type=client_credentials" \
     --data-urlencode "client_id=keycloak-operator" \
-    --data-urlencode "client_secret=$CLIENT_SECRET" \
+    --data-urlencode "client_secret@-" \
     | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
   [ -n "$SA_TOKEN" ] && [ "$(curl -s -o /dev/null -w "%{http_code}" \
     -H "Authorization: Bearer $SA_TOKEN" "http://keycloak-service:8080/admin/realms")" = "200" ]
