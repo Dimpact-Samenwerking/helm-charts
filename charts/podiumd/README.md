@@ -609,8 +609,9 @@ PodiumD Helm chart
 | kiss.settings.syncJobs.vac.schedule | string | `"*/59 * * * *"` |  |
 | kiss.settings.syncJobs.vac.token | string | `""` |  |
 | kiss.settings.syncJobs.website | list | `[]` |  |
-| maykinConfigJobs | object | `{"ttlSecondsAfterFinished":3600,"wait":{"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.2@sha256:dcb7185e112a453aa72f426754849a97357727ef8f40168fb208c8cf59952042"},"nodeSelector":{},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}}}}` | podiumd-chart-50 (interim): podiumd runs the Maykin apps' setup_configuration Jobs as plain Jobs that start together, and this post-install/post-upgrade hook waits for all of them; it fails the deploy when one of them fails. |
+| maykinConfigJobs | object | `{"ttlSecondsAfterFinished":3600,"wait":{"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.2@sha256:dcb7185e112a453aa72f426754849a97357727ef8f40168fb208c8cf59952042"},"nodeSelector":{},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"restartLimit":2}}` | podiumd-chart-50 (interim): podiumd runs the Maykin apps' setup_configuration Jobs as plain Jobs that start together, and this post-install/post-upgrade hook waits for all of them; it fails the deploy when one of them fails. |
 | maykinConfigJobs.ttlSecondsAfterFinished | int | `3600` | Seconds a finished configuration Job stays. A Job of a failed revision is never pruned by Helm, so the TTL removes it. |
+| maykinConfigJobs.wait.restartLimit | int | `2` | Restarts of a configuration Job, after Keycloak, the podiumd realm and the app's own rollout are ready, before the wait hook fails the deploy. |
 | mi.enabled | bool | `false` |  |
 | mi.image.registry | string | `"mcr.microsoft.com"` |  |
 | mi.image.repository | string | `"azure-cli"` |  |

@@ -1353,3 +1353,26 @@ Usage: {{ include "podiumd.maykinConfigJob" (dict "root" $ "alias" "openzaak") }
 {{- end -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Whether the Job that imports the podiumd realm is rendered, and its name. The name ends in a
+short checksum of the realm ConfigMap plus every resolved client secret
+(podiumd.keycloak.realmSecretsData, the same values the Secret holds, generated ones included), so
+the Job runs again on every realm change: identical values on re-apply give the same name, and a
+changed, rotated or newly generated secret a new Job, so Keycloak always gets the secret the
+Secret holds. The previous Job is garbage-collected via ttlSecondsAfterFinished. Under `helm
+template` (no cluster) generated secrets are random, so the name differs per render there. Read by
+templates/keycloak-import-podiumd-realm-job.yaml and the Maykin configuration wait hook.
+
+Usage: {{ include "podiumd.keycloak.podiumdRealmImportJobName" . }}
+*/}}
+{{- define "podiumd.keycloak.podiumdRealmImportEnabled" -}}
+{{- $operator := index .Values "keycloak-operator" -}}
+{{- $jobs := $operator.jobs -}}
+{{- if and $operator.enabled $jobs.importPodiumdRealm.enabled $jobs.ensureOperatorSa.enabled $jobs.ensureOperatorSa.clientSecret -}}true{{- end -}}
+{{- end -}}
+
+{{- define "podiumd.keycloak.podiumdRealmImportJobName" -}}
+{{- $realmCfgTpl := include (print $.Template.BasePath "/keycloak-podiumd-realm-config.yaml") . -}}
+import-podiumd-realm-job-{{ printf "%s|%s" $realmCfgTpl (include "podiumd.keycloak.realmSecretsData" .) | sha256sum | trunc 10 }}
+{{- end -}}

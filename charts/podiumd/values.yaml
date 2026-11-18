@@ -3648,6 +3648,9 @@ maykinConfigJobs:
   # Helm, so the TTL removes it.
   ttlSecondsAfterFinished: 3600
   wait:
+    # -- Restarts of a configuration Job, after Keycloak, the podiumd realm and the app's own
+    # rollout are ready, before the wait hook fails the deploy.
+    restartLimit: 2
     image: *alpineK8sImage
     nodeSelector: {}
     resources:
