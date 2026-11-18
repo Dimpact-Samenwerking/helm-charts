@@ -92,7 +92,8 @@ spec:
           - key: podiumd.yaml
             path: podiumd.yaml
       - name: tmp
-        emptyDir: {}
+        emptyDir:
+          sizeLimit: 64Mi
       containers:
       - name: kc-config-cli
         image: {{ include "podiumd.image" .Values.keycloak.keycloakConfigCli.image }}

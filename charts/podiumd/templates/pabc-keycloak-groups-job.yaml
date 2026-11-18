@@ -23,7 +23,8 @@ spec:
   automountServiceAccountToken: false
   volumes:
   - name: tmp
-    emptyDir: {}
+    emptyDir:
+      sizeLimit: 64Mi
   containers:
   - name: pabc-keycloak-groups
     image: {{ include "podiumd.image" $root.Values.keycloak.image }}

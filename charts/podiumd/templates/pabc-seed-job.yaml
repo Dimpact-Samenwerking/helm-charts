@@ -29,7 +29,8 @@ spec:
   # readOnlyRootFilesystem is on, and the .NET runtime wants a writable
   # scratch dir even though the migration service itself only reads.
   - name: tmp
-    emptyDir: {}
+    emptyDir:
+      sizeLimit: 64Mi
   {{- if .Values.pabc.migrations.prefill.applications }}
   # The pabc ConfigMap sets PREFILL_PATH whenever prefill is configured.
   - name: prefill

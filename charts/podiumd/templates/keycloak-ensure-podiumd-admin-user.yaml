@@ -280,9 +280,12 @@ spec:
           mountPath: /tmp
       volumes:
       - name: work
-        emptyDir: {}
+        emptyDir:
+          sizeLimit: 64Mi
       - name: skip-flag
-        emptyDir: {}
+        emptyDir:
+          sizeLimit: 64Mi
       - name: tmp
-        emptyDir: {}
+        emptyDir:
+          sizeLimit: 64Mi
 {{- end }}

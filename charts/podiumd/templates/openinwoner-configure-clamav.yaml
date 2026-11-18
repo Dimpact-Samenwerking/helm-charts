@@ -99,7 +99,8 @@ spec:
           mountPath: /tmp
   volumes:
     - name: tmp
-      emptyDir: {}
+      emptyDir:
+        sizeLimit: 64Mi
 {{- end }}
 
 {{- if and (include "podiumd.dependencyEnabled" .Values.openinwoner) (include "podiumd.clamavConfigJob.enabled" (dict "root" $ "job" .Values.openinwoner.clamavConfigJob)) }}
