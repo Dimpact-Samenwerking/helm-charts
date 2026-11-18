@@ -37,6 +37,7 @@ spec:
     configMap:
       name: {{ .Values.pabc.fullnameOverride | default "pabc" }}-prefill
   {{- end }}
+  automountServiceAccountToken: false
   containers:
   - name: pabc-seed
     image: {{ include "podiumd.image" .Values.pabc.migrations.image }}

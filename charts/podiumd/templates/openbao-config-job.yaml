@@ -65,6 +65,7 @@ spec:
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
+      automountServiceAccountToken: false
       containers:
         - name: config
           image: {{ include "podiumd.image" $job.image | quote }}

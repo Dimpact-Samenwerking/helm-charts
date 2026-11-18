@@ -46,6 +46,7 @@ spec:
   nodeSelector:
     {{- toYaml .Values.nodeSelector | nindent 4 }}
   {{- end }}
+  automountServiceAccountToken: false
   containers:
     - name: configure-clamav
       image: {{ include "podiumd.image" .Values.openinwoner.image }}
