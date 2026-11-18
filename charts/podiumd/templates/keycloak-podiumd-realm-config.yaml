@@ -787,8 +787,9 @@ data:
         clientAuthenticatorType: client-secret
         redirectUris:
           - "{{ .Values.openbao.configuration.oidcUrl | trimSuffix "/" }}/*"
-          # OpenBao CLI OIDC login callback (`bao login -method=oidc`).
-          - "http://localhost:8250/*"
+          {{- if .Values.openbao.configuration.cliLogin }}
+          - "http://localhost:8250/oidc/callback"
+          {{- end }}
         webOrigins:
           - "{{ .Values.openbao.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: $(KC_SECRET_OPENBAO)
@@ -1059,7 +1060,6 @@ data:
         # chain is enabled, so this is non-empty whenever this block is rendered.
         redirectUris:
           - "https://{{ $fgInst.dashboard.auth.hostname }}/oauth2/callback"
-          - "http://localhost:8080/oauth2/callback"
         webOrigins:
           - "+"
         protocolMappers:
