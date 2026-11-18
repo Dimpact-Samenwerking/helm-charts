@@ -5,8 +5,8 @@
 #
 # Run it after the `helm upgrade` that deployed OpenBao, from a pipeline step
 # or an operator machine. It is idempotent: on an operational vault it mints
-# nothing and only re-runs the openbao-config Job (step 5), so it can run after
-# every deploy. --check changes nothing at all.
+# nothing and at most re-runs the openbao-config Job (step 5), so it can run
+# after every deploy. --check changes nothing at all.
 #
 # What one run does:
 #   1. Preflight (read-only, stops on the first problem): cluster, release,
@@ -27,7 +27,8 @@
 #      asked to rotate it.
 #   5. Re-run the openbao-config Job from the deployed release
 #      (`helm get hooks`), so the Keycloak login, the kv mount and the uploader
-#      policy are configured without a second deploy.
+#      policy are configured without a second deploy. The run of the deploy's
+#      own hook is kept when it configured the vault with the current token.
 #   6. Revoke the root token. The root token is never stored: the script uses
 #      the one `bao operator init` returns, or creates a temporary one from the
 #      key in Key Vault (legacy sys/generate-root API) when it has to mint a
@@ -616,31 +617,56 @@ fi
 ###############################################################################
 step "5. Configure (openbao-config Job from the deployed release)"
 ###############################################################################
-JOB_YAML=$(hc get hooks "${RELEASE}" | awk '
-  /^---/ { if (doc ~ /kind: Job/ && doc ~ /\n  name: openbao-config\n/) print doc; doc=""; next }
-  { doc = doc $0 "\n" }
-  END { if (doc ~ /kind: Job/ && doc ~ /\n  name: openbao-config\n/) print doc }')
-[[ -n "${JOB_YAML}" ]] || fail "openbao-config Job not found in the release hooks"
-kc delete job openbao-config --ignore-not-found --wait=true >/dev/null
-printf '%s\n' "${JOB_YAML}" | kc create -f - >/dev/null
-# Poll the Job's conditions: `kubectl wait --for=condition=complete` would sit
-# out the whole timeout on a Job that has already failed.
-JOB_STATE=""
-for _ in $(seq 1 60); do
-  JOB_STATE=$(kc get job openbao-config -o jsonpath='{.status.conditions[?(@.status=="True")].type}' 2>/dev/null || true)
-  [[ "${JOB_STATE}" == *Complete* || "${JOB_STATE}" == *Failed* ]] && break
-  sleep 5
-done
-if [[ "${JOB_STATE}" != *Complete* ]]; then
-  kc logs job/openbao-config | tail -20 >&2
-  fail "openbao-config Job did not complete (${JOB_STATE:-still running after 300s})"
+# The deploy's own hook usually ran this Job seconds ago; running it again
+# costs a pod start for nothing. Its run counts only when it belongs to the
+# current revision: the release Secret is written before the hooks run, and
+# both timestamps come from the API server, so client clock skew cannot
+# matter. With another HELM_DRIVER the Secret is missing and the Job reruns.
+hook_job_reusable() {
+  local rev release_created job log
+  [[ "${NEED_CONFIG}" -eq 0 ]] || return 1
+  rev=$(hc status "${RELEASE}" -o json | jq -r .version) || return 1
+  release_created=$(kc get secret "sh.helm.release.v1.${RELEASE}.v${rev}" \
+    -o jsonpath='{.metadata.creationTimestamp}' 2>/dev/null) || return 1
+  [[ -n "${release_created}" ]] || return 1
+  job=$(kc get job openbao-config -o json 2>/dev/null) || return 1
+  jq -e --arg released "${release_created}" '
+    .metadata.creationTimestamp >= $released
+    and any(.status.conditions[]?; .type == "Complete" and .status == "True")' \
+    <<<"${job}" >/dev/null || return 1
+  log=$(kc logs job/openbao-config 2>/dev/null) || return 1
+  [[ -n "${log}" ]] && ! grep -qi 'skipping' <<<"${log}"
+}
+
+if hook_job_reusable; then
+  ok "openbao-config Job of this release revision configured the vault"
+else
+  JOB_YAML=$(hc get hooks "${RELEASE}" | awk '
+    /^---/ { if (doc ~ /kind: Job/ && doc ~ /\n  name: openbao-config\n/) print doc; doc=""; next }
+    { doc = doc $0 "\n" }
+    END { if (doc ~ /kind: Job/ && doc ~ /\n  name: openbao-config\n/) print doc }')
+  [[ -n "${JOB_YAML}" ]] || fail "openbao-config Job not found in the release hooks"
+  kc delete job openbao-config --ignore-not-found --wait=true >/dev/null
+  printf '%s\n' "${JOB_YAML}" | kc create -f - >/dev/null
+  # Poll the Job's conditions: `kubectl wait --for=condition=complete` would sit
+  # out the whole timeout on a Job that has already failed.
+  JOB_STATE=""
+  for _ in $(seq 1 60); do
+    JOB_STATE=$(kc get job openbao-config -o jsonpath='{.status.conditions[?(@.status=="True")].type}' 2>/dev/null || true)
+    [[ "${JOB_STATE}" == *Complete* || "${JOB_STATE}" == *Failed* ]] && break
+    sleep 5
+  done
+  if [[ "${JOB_STATE}" != *Complete* ]]; then
+    kc logs job/openbao-config | tail -20 >&2
+    fail "openbao-config Job did not complete (${JOB_STATE:-still running after 300s})"
+  fi
+  JOB_LOG=$(kc logs job/openbao-config)
+  if grep -qi 'skipping' <<<"${JOB_LOG}"; then
+    echo "${JOB_LOG}" | tail -5 >&2
+    fail "openbao-config Job skipped instead of configuring"
+  fi
+  ok "openbao-config Job configured the vault"
 fi
-JOB_LOG=$(kc logs job/openbao-config)
-if grep -qi 'skipping' <<<"${JOB_LOG}"; then
-  echo "${JOB_LOG}" | tail -5 >&2
-  fail "openbao-config Job skipped instead of configuring"
-fi
-ok "openbao-config Job configured the vault"
 
 ###############################################################################
 step "6. Revoke the root token"
