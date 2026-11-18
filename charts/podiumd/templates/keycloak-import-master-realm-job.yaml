@@ -44,11 +44,11 @@ spec:
         - |
           echo "Waiting for keycloak-operator client credentials to work..."
           for i in $(seq 1 60); do
-            RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            RESPONSE=$(printf '%s' "$CLIENT_SECRET" | curl -s -w "\n%{http_code}" -X POST \
               "http://keycloak-service:8080/realms/master/protocol/openid-connect/token" \
               --data-urlencode "grant_type=client_credentials" \
               --data-urlencode "client_id=keycloak-operator" \
-              --data-urlencode "client_secret=$CLIENT_SECRET")
+              --data-urlencode "client_secret@-")
             STATUS=$(printf '%s' "$RESPONSE" | tail -n1)
             if [ "$STATUS" = "200" ]; then echo "keycloak-operator SA authenticated."; exit 0; fi
             echo "Attempt $i/60 — status=$STATUS, body: $(printf '%s' "$RESPONSE" | head -n1)"
