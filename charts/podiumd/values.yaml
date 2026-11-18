@@ -3266,9 +3266,10 @@ kiss:
       authority: ""
       clientId: kiss
       clientSecret: "<kiss>"
-      # -- Enable PKCE (S256) on the Keycloak client for KISS.
-      # KISS is a React frontend; the OIDC client library must support PKCE.
-      pkceEnabled: false
+      # -- Require PKCE (S256) on the Keycloak client for KISS. KISS sends PKCE
+      # itself; the upstream chart has no app-side switch. No opt-out: `false`
+      # fails the render.
+      pkceEnabled: true
       medewerkerIdentificatie:
         claim: samaccountname
         truncate:
@@ -4156,10 +4157,10 @@ ita:
       frontendUrl: ""
       clientId: "ita"
       clientSecret: "REP_ITA_OIDC_CLIENT_SECRET_REP"
-      # -- Enable PKCE (S256) on the Keycloak client for ITA.
-      # ITA is a JS frontend; the upstream chart has no app-side PKCE toggle. PKCE support
-      # depends on the OIDC client library used by the application.
-      pkceEnabled: false
+      # -- Require PKCE (S256) on the Keycloak client for ITA. ITA sends PKCE
+      # itself; the upstream chart has no app-side switch. No opt-out: `false`
+      # fails the render.
+      pkceEnabled: true
       itaSystemAccessRole: "ITA_Gebruiker"
       functioneelBeheerderRole: "ITA_Functioneel_Beheerder"
       nameClaimType: "name"
@@ -4338,8 +4339,10 @@ pabc:
       authority: ""
       clientId: "pabc"
       clientSecret: ""
-      # -- Enable PKCE (S256) on the Keycloak client. PABC is a .NET app; enable when OpenIdConnect PKCE is configured in the application.
-      pkceEnabled: false
+      # -- Require PKCE (S256) on the Keycloak client for PABC. PABC sends PKCE
+      # itself; the upstream chart has no app-side switch. No opt-out: `false`
+      # fails the render.
+      pkceEnabled: true
       functioneelBeheerderRole: "administrator"
       nameClaimType: "name"
       roleClaimType: "roles"
