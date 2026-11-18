@@ -1568,7 +1568,7 @@ PodiumD Helm chart
 | zac.zacInternalEndpointsApiKey | string | `"dummy"` |  |
 | zac.zgwApis.clientId | string | `"zac"` |  |
 | zac.zgwApis.secret | string | `"changeme"` |  |
-| zac.zgwApis.url | string | `"http://open-zaak.internal"` |  |
+| zac.zgwApis.url | string | `"https://open-zaak.example.nl"` | Open Zaak base URL ZAC calls. Override per environment; an https example, so a copied default does not make plaintext ZGW calls (security review NW-18). |
 | zac.zgwApis.urlExtern | string | `"https://open-zaak.example.nl"` |  |
 | zgw-office-addin.backend.image.tag | string | `"0.12.0@sha256:886c4616c7cb88769013c8b96d72fbde8b6db6c8947e49e83cd2d2d538175bca"` |  |
 | zgw-office-addin.backend.msalSecret | string | `""` |  |
