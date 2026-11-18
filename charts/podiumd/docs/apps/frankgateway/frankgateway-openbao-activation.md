@@ -187,8 +187,9 @@ Two options for exceptional cases:
 ## 6. Give uploaders access
 
 Add the people who write secrets to the Keycloak group `vault-uploaders`,
-in the admin console or with `openbao-keycloak-setup.py --members`. They log in at the OpenBao host (or `bao login -method=oidc`) and write the
-gateway's keys, as in
+in the admin console or with `openbao-keycloak-setup.py --members`. They log
+in at the OpenBao host (or with `bao login -method=oidc`, only when
+`openbao.configuration.cliLogin` is `true`) and write the gateway's keys, as in
 [runbook step 5](frankgateway-deploy-runbook.md#step-5--put-the-gateways-secrets-in-openbao).
 
 ## 7. After every deploy, and lifecycle

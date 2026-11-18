@@ -222,8 +222,10 @@ done. Pick the variant that matches your two decisions.
 
 ## Step 5 — Put the gateway's secrets in OpenBao
 
-1. **Write the secrets**, logged in as a `vault-uploaders` member
-   (`bao login -method=oidc`):
+1. **Write the secrets**, logged in as a `vault-uploaders` member: log in to
+   the OpenBao UI, copy the token from the user menu and run
+   `bao login <token>`. `bao login -method=oidc` works only with
+   `openbao.configuration.cliLogin: true`:
 
    | What | Path | Fields | How to write it |
    |---|---|---|---|
