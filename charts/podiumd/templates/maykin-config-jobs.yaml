@@ -118,7 +118,8 @@ spec:
                   case "$STATE" in
                     *Failed*)
                       echo "job/$JOB failed; its last log lines:"
-                      kubectl logs "job/$JOB" -n "$NAMESPACE" --tail=30 || true
+                      # A log without a final newline would run into the next line.
+                      LOG=$(kubectl logs "job/$JOB" -n "$NAMESPACE" --tail=30 2>&1); echo "$LOG"
                       FAILED="$FAILED $JOB" ;;
                     *Complete*) echo "job/$JOB complete" ;;
                     *)
@@ -128,9 +129,15 @@ spec:
                         *" $JOB=$RESTARTS "*) ;;
                         *)
                           if [ "$RESTARTS" -gt 0 ]; then
-                            echo "job/$JOB restarted $RESTARTS time(s); last log lines of the previous run:"
+                            echo "job/$JOB restarted $RESTARTS time(s); its last log lines:"
                             POD=$(kubectl get pods -n "$NAMESPACE" -l "job-name=$JOB" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
-                            [ -z "$POD" ] || kubectl logs "$POD" -n "$NAMESPACE" --previous --tail=15 || true
+                            # The previous run's log is not always kept on the node; every run fails the
+                            # same way, so the current one's log shows the cause too.
+                            if [ -n "$POD" ]; then
+                              LOG=$(kubectl logs "$POD" -n "$NAMESPACE" --previous --tail=15 2>/dev/null) \
+                                || LOG=$(kubectl logs "$POD" -n "$NAMESPACE" --tail=15 2>&1)
+                              echo "$LOG"
+                            fi
                           fi
                           SEEN="$(echo " $SEEN " | sed "s| $JOB=[0-9]* | |") $JOB=$RESTARTS" ;;
                       esac ;;
