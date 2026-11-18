@@ -5313,6 +5313,8 @@ openbao:
     # client redirectUris and the OIDC role allowed_redirect_uris.
     # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openbao.example.nl`.
     oidcUrl: ""
+    # -- Allow `bao login -method=oidc` from a workstation: adds the redirect URI http://localhost:8250/oidc/callback to the Keycloak client and the OIDC role. Off by default (security review NW-13): any local process on port 8250 could catch the login. Without it, log in to the OpenBao UI and use its token.
+    cliLogin: false
     # Keycloak OIDC client secret for the `openbao` client. Empty => auto-generated
     # and kept stable across upgrades by keycloak-podiumd-realm-secrets.yaml
     # (identical pattern to the other apps' OIDC secrets).
