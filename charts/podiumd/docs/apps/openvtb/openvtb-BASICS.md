@@ -18,7 +18,10 @@ and a Keycloak client. Its footprint is small: two lightweight web pods.
   - web Deployment, `replicaCount: 2` (uWSGI, listens on container port 8000)
   - `django-setup-configuration` Job on install/upgrade
     (`openvtb.configuration.job.enabled: true`)
-- Runs as non-root uid `1000`, all capabilities dropped.
+- Runs as non-root uid `1000`, all capabilities dropped, no privilege escalation,
+  seccomp profile `RuntimeDefault`. The root filesystem is still writable.
+- ServiceAccount `openvtb` without a token mount (`templates/openvtb-serviceaccount.yaml`):
+  Open VTB does not call the Kubernetes API.
 - Unlike Open Beheer there is no nginx sidecar: the sub-chart Service (`openvtb`, port 80)
   fronts the Django pods directly.
 
