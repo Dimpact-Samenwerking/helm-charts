@@ -208,27 +208,47 @@ def cache_entry_is_fresh(entry: CveEntry, ttl_days: int):
     return is_checked_within(entry.get("scanned_at"), timedelta(days=ttl_days))
 
 
+def trivy_runner() -> str | None:
+    """How trivy runs here: "docker" (the trivy image), "trivy" (an installed
+    trivy, used when docker is missing), or None when neither is installed."""
+    if shutil.which("docker") is not None:
+        return "docker"
+    if shutil.which("trivy") is not None:
+        return "trivy"
+    return None
+
+
+def _trivy_command(runner: str) -> list[str]:
+    """The command up to trivy's own `image` arguments, for `runner`."""
+    if runner == "trivy":
+        # An installed trivy pulls the image from the registry itself: no container runtime needed.
+        return ["trivy", "image", "--image-src", "remote"]
+    return [
+        "docker",
+        "run",
+        "--rm",
+        # The host network creates no veth per container; on the bridge, each
+        # start and stop changes the host's interfaces, and browsers on the same
+        # machine (podiumd-tests' Chromium) abort page loads with ERR_NETWORK_CHANGED.
+        "--network",
+        "host",
+        "--volume",
+        f"{TRIVY_CACHE_VOLUME}:/root/.cache/trivy",
+        TRIVY_IMAGE,
+        "image",
+    ]
+
+
 def run_trivy(image_ref: str) -> list[Vulnerability] | None:
-    """Fixable vulnerabilities in image_ref via `docker run` trivy, or None on failure.
+    """Fixable vulnerabilities in image_ref via trivy (see trivy_runner), or None on failure.
 
     A non-zero exit is a failure even if stdout parses: it can be empty JSON that
     would otherwise read as a clean scan.
     """
     result = run(
         [
-            "docker",
-            "run",
-            "--rm",
-            # The host network creates no veth per container; on the bridge, each
-            # start and stop changes the host's interfaces, and browsers on the same
-            # machine (podiumd-tests' Chromium) abort page loads with ERR_NETWORK_CHANGED.
-            "--network",
-            "host",
-            "--volume",
-            f"{TRIVY_CACHE_VOLUME}:/root/.cache/trivy",
-            TRIVY_IMAGE,
-            "image",
-            # Image layers stay in memory: the shared volume then only holds the
+            *_trivy_command(trivy_runner() or "docker"),
+            # Image layers stay in memory: the cache dir then only holds the
             # database, and concurrent scans don't wait on trivy's fs cache lock.
             "--cache-backend",
             "memory",
@@ -268,7 +288,8 @@ def scan_cached(chart_dir: Path, target: ScanTarget, session: CacheSession, ttl_
             print(f"  {label}: served from cache — {target.ref}")
             return cached["vulnerabilities"], True
 
-    print(f"  {label}: scanning fresh (docker pull + trivy) — {target.ref}...", flush=True)
+    how = "trivy" if trivy_runner() == "trivy" else "docker pull + trivy"
+    print(f"  {label}: scanning fresh ({how}) — {target.ref}...", flush=True)
     vulns = run_trivy(target.ref)
     if vulns is None:
         return None, False
@@ -616,8 +637,8 @@ def check_cves(chart_dir: Path, extra_args: list[str], *, detail: bool = False):
 
     Returns (ok, detail); ok is False only when the chart fails to render.
     """
-    if shutil.which("docker") is None:
-        return True, "docker is not installed — skipped (see --help)"
+    if trivy_runner() is None:
+        return True, "docker and trivy are not installed — skipped (see --help)"
 
     settings = CveScanSettings(
         cve_max_per_package(chart_dir),

@@ -384,6 +384,7 @@ def test_cache_hit_and_fresh_scan_are_both_reported_per_side(
     capsys: pytest.CaptureFixture[str],
 ):
     """Cache hit vs fresh scan is reported per side, not as one blanket caveat."""
+    monkeypatch.setattr(libcvecheck.shutil, "which", lambda name: f"/usr/bin/{name}")
     write_values_yaml(
         tmp_path,
         f"""\

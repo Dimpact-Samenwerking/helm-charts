@@ -163,6 +163,7 @@ def test_run_trivy_uses_the_host_network_and_the_shared_database_cache(
         return trivy_result(stdout="{}")
 
     monkeypatch.setattr(libcvecheck, "run", run)
+    monkeypatch.setattr(libcvecheck.shutil, "which", lambda name: f"/usr/bin/{name}")
     libcvecheck.run_trivy("org/repo:1.0.0")
     assert len(commands) == 1
     cmd = commands[0]
@@ -171,6 +172,36 @@ def test_run_trivy_uses_the_host_network_and_the_shared_database_cache(
     assert docker_args[docker_args.index("--volume") + 1] == "trivy-cache:/root/.cache/trivy"
     assert cmd[cmd.index("--cache-backend") + 1] == "memory"
     assert cmd[-1] == "org/repo:1.0.0"
+
+
+def test_run_trivy_without_docker_uses_the_installed_trivy(libcvecheck: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    """No docker: trivy itself pulls the image from the registry, with the same scan options."""
+    commands = []
+
+    def run(cmd, **kwargs):
+        commands.append(cmd)
+        return trivy_result(stdout="{}")
+
+    monkeypatch.setattr(libcvecheck, "run", run)
+    monkeypatch.setattr(libcvecheck.shutil, "which", lambda name: "/usr/bin/trivy" if name == "trivy" else None)
+    assert libcvecheck.run_trivy("org/repo:1.0.0") == []
+    cmd = commands[0]
+    assert cmd[:4] == ["trivy", "image", "--image-src", "remote"]
+    assert "docker" not in cmd
+    assert "--ignore-unfixed" in cmd
+    assert cmd[cmd.index("--cache-backend") + 1] == "memory"
+    assert cmd[-1] == "org/repo:1.0.0"
+
+
+@pytest.mark.parametrize(
+    ("installed", "runner"),
+    [({"docker", "trivy"}, "docker"), ({"docker"}, "docker"), ({"trivy"}, "trivy"), (set(), None)],
+)
+def test_trivy_runner_prefers_docker_then_an_installed_trivy(
+    libcvecheck: ModuleType, monkeypatch: pytest.MonkeyPatch, installed: set[str], runner: str | None
+):
+    monkeypatch.setattr(libcvecheck.shutil, "which", lambda name: f"/usr/bin/{name}" if name in installed else None)
+    assert libcvecheck.trivy_runner() == runner
 
 
 def test_run_trivy_handles_missing_results_and_vulnerabilities_keys(
@@ -244,6 +275,7 @@ def test_scan_cached_reports_a_fresh_scan_and_writes_the_cache(
     new_cache = {}
     fresh_vulns = [trimmed(vuln("HIGH", cve="CVE-FRESH"))]
     monkeypatch.setattr(libcvecheck, "run_trivy", lambda ref: fresh_vulns)
+    monkeypatch.setattr(libcvecheck.shutil, "which", lambda name: f"/usr/bin/{name}")
 
     vulns, was_cached = libcvecheck.scan_cached(
         tmp_path,
@@ -505,6 +537,22 @@ def test_check_cves_no_docker_passes_and_skips(vp: ModuleType, tmp_path: Path, m
     ok, detail = vp.check_cves(chart_dir, [])
     assert ok is True
     assert "not installed" in detail
+
+
+def test_check_cves_without_docker_scans_with_an_installed_trivy(
+    vp: ModuleType,
+    libcvecheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    chart_dir = make_chart_dir(tmp_path)
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/trivy" if name == "trivy" else None)
+    monkeypatch.setattr(libcvecheck, "run", sequenced_run())
+    ok, detail = vp.check_cves(chart_dir, [])
+    assert ok is True
+    assert "not installed" not in detail
+    assert "scanning fresh (trivy)" in capsys.readouterr().out
 
 
 def test_check_cves_render_failure_fails(

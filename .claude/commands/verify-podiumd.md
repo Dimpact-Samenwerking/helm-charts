@@ -15,7 +15,7 @@ Every tool from `charts/podiumd/bin/README-release-process.md#setup` must be ins
 export PATH="$(git worktree list | head -1 | cut -d' ' -f1)/.venv/bin:$PATH"
 ```
 
-Docker is only needed for the CVE steps. Without it they are skipped, which is fine for a PR; say so in the report. For a release, start it (`colima start`) so the CVE steps run.
+The CVE steps run trivy with Docker, or with an installed `trivy` when Docker is not installed. With neither they are skipped, which is fine for a PR; say so in the report. For a release, start Docker (`colima start`) or install trivy so the CVE steps run.
 
 A FAIL from `Repo access` with `Internal Server Error` for docker.io images is usually a Docker Hub hiccup: rerun before reporting it.
 
