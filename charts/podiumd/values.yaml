@@ -3863,7 +3863,8 @@ zac:
           # prevents the cluster from recovering quorum after a node replacement event.
           reclaimPolicy: Retain
   zgwApis:
-    url: http://open-zaak.internal
+    # -- Open Zaak base URL ZAC calls. Override per environment; an https example, so a copied default does not make plaintext ZGW calls (security review NW-18).
+    url: https://open-zaak.example.nl
     urlExtern: https://open-zaak.example.nl
     clientId: zac
     secret: changeme
