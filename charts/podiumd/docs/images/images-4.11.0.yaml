@@ -3,14 +3,25 @@
 # Images new or changed in podiumd 4.11.0 vs 4.10.1.
 #
 # Changes:
-#   1. openzaak 1.29.3 -> 1.31.1 (chart 1.14.2 -> 1.16.0).
-#   2. openklant 2.15.0 -> 2.19.2 (chart 1.11.0 -> 1.14.2).
-#   3. omc 2.3.1 -> 2.4.1 (chart 0.17.4 -> 0.17.8).
+#   1. k8s 1.37.2 (digest changed).
+#   2. openzaak 1.29.3 -> 1.31.1 (chart 1.14.2 -> 1.16.0).
+#   3. openklant 2.15.0 -> 2.19.2 (chart 1.11.0 -> 1.14.2).
+#   4. zac 5.9.1 -> 5.12.0 (chart 1.0.355 -> 1.0.385).
+#   5. zac - gotenberg 8.38.1 -> 9.4.1.
+#   6. zac - opa 1.21.3-static -> 1.22.3-static.
+#   7. zac - opentelemetry-collector-contrib 0.161.0 -> 0.165.0.
+#   8. omc 2.3.1 -> 2.4.1 (chart 0.17.4 -> 0.17.8).
 #
 # See docs/_UPGRADE_PATHS/4.10.1-to-4.11.0-upgrade.md for the operator upgrade notes.
 #
 # Digests are the OCI image index (multi-arch manifest) digest as returned in
 # the Docker-Content-Digest response header from the source registry.
+
+# k8s 1.37.2 (digest changed)
+- name: alpine/k8s
+  url: docker.io/alpine/k8s
+  version: "1.37.2"
+  digest: "sha256:7a82aeefea3d554a43a8676b137f2b88bae6c1fe11c13862b191b3a086cc28c0"
 
 # openzaak 1.29.3 -> 1.31.1
 - name: openzaak/open-zaak
@@ -23,6 +34,27 @@
   url: docker.io/maykinmedia/open-klant
   version: "2.19.2"
   digest: "sha256:f85ef0b31610cbf3ef6c09cbe217f113145e11623aa9ba140abd2e4ffb7bddff"
+
+# zac 5.9.1 -> 5.12.0
+- name: infonl/zaakafhandelcomponent
+  url: ghcr.io/infonl/zaakafhandelcomponent
+  version: "5.12.0"
+  digest: "sha256:2f07dbd9e5036cc217bcc51954d5a0d433210641eac256f4d6e367c6699f9cb5"
+#   sidecar: zac - gotenberg 8.38.1 -> 9.4.1
+- name: gotenberg/gotenberg
+  url: docker.io/gotenberg/gotenberg
+  version: "9.4.1"
+  digest: "sha256:7d790c081a944f4d30cacb59a2cdccbe71569532af691b93c36551f6a877b4fc"
+#   sidecar: zac - opa 1.21.3-static -> 1.22.3-static
+- name: openpolicyagent/opa
+  url: docker.io/openpolicyagent/opa
+  version: "1.22.3-static"
+  digest: "sha256:a6ccb6e0cc91b2d1807b1b65a844b189249b9ab33d126e0bca30c0cf43b0ae07"
+#   sidecar: zac - opentelemetry-collector-contrib 0.161.0 -> 0.165.0
+- name: otel/opentelemetry-collector-contrib
+  url: docker.io/otel/opentelemetry-collector-contrib
+  version: "0.165.0"
+  digest: "sha256:e40d61f10c9a617cca1ffd1be4d7e2b3a4b0f0001798ff07e58cabe82e618cea"
 
 # omc 2.3.1 -> 2.4.1
 - name: worthnl/notifynl-omc
