@@ -42,11 +42,11 @@ spec:
         - |
           echo "Checking if keycloak-operator SA is already operational..."
           for i in $(seq 1 10); do
-            TOKEN_RESPONSE=$(curl -s -X POST \
+            TOKEN_RESPONSE=$(printf '%s' "$CLIENT_SECRET" | curl -s -X POST \
               "http://keycloak-service:8080/realms/master/protocol/openid-connect/token" \
               --data-urlencode "grant_type=client_credentials" \
               --data-urlencode "client_id=keycloak-operator" \
-              --data-urlencode "client_secret=$CLIENT_SECRET")
+              --data-urlencode "client_secret@-")
             ACCESS_TOKEN=$(printf '%s' "$TOKEN_RESPONSE" | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1 || true)
             if [ -n "$ACCESS_TOKEN" ]; then
               HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
@@ -61,12 +61,12 @@ spec:
           done
           echo "keycloak-operator SA not operational, falling back to waiting for podiumd-admin..."
           for i in $(seq 1 60); do
-            RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            RESPONSE=$(printf '%s' "$ADMIN_PASS" | curl -s -w "\n%{http_code}" -X POST \
               "http://keycloak-service:8080/realms/master/protocol/openid-connect/token" \
               --data-urlencode "grant_type=password" \
               --data-urlencode "client_id=admin-cli" \
               --data-urlencode "username=podiumd-admin" \
-              --data-urlencode "password=$ADMIN_PASS")
+              --data-urlencode "password@-")
             STATUS=$(printf '%s' "$RESPONSE" | tail -n1)
             if [ "$STATUS" = "200" ]; then echo "podiumd-admin authenticated."; exit 0; fi
             echo "Attempt $i/60 — status=$STATUS, body: $(printf '%s' "$RESPONSE" | head -n1)"
@@ -121,10 +121,10 @@ spec:
           json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 
           echo "Checking if keycloak-operator SA is already operational..."
-          SA_TOKEN=$(curl -s -X POST "$SERVER/realms/master/protocol/openid-connect/token" \
+          SA_TOKEN=$(printf '%s' "$CLIENT_SECRET" | curl -s -X POST "$SERVER/realms/master/protocol/openid-connect/token" \
             --data-urlencode "grant_type=client_credentials" \
             --data-urlencode "client_id=keycloak-operator" \
-            --data-urlencode "client_secret=$CLIENT_SECRET" \
+            --data-urlencode "client_secret@-" \
             | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
           if [ -n "$SA_TOKEN" ]; then
             HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
@@ -139,11 +139,11 @@ spec:
           : "${ADMIN_PASS:?}"
 
           echo "Obtaining admin token via ROPC..."
-          ADMIN_TOKEN=$(curl -s -X POST "$SERVER/realms/master/protocol/openid-connect/token" \
+          ADMIN_TOKEN=$(printf '%s' "$ADMIN_PASS" | curl -s -X POST "$SERVER/realms/master/protocol/openid-connect/token" \
             --data-urlencode "grant_type=password" \
             --data-urlencode "client_id=admin-cli" \
             --data-urlencode "username=$ADMIN_USER" \
-            --data-urlencode "password=$ADMIN_PASS" \
+            --data-urlencode "password@-" \
             | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
           if [ -z "$ADMIN_TOKEN" ]; then echo "Failed to obtain admin token"; exit 2; fi
 
@@ -184,15 +184,15 @@ spec:
 
           echo "Setting client secret to known value..."
           CLIENT_SECRET_JSON=$(json_escape "$CLIENT_SECRET")
-          curl -s -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
-            -d "{\"clientId\":\"keycloak-operator\",\"secret\":\"${CLIENT_SECRET_JSON}\",\"serviceAccountsEnabled\":true,\"publicClient\":false,\"directAccessGrantsEnabled\":false,\"protocol\":\"openid-connect\"}" \
+          printf '%s' "{\"clientId\":\"keycloak-operator\",\"secret\":\"${CLIENT_SECRET_JSON}\",\"serviceAccountsEnabled\":true,\"publicClient\":false,\"directAccessGrantsEnabled\":false,\"protocol\":\"openid-connect\"}" \
+            | curl -s -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -d @- \
             "$SERVER/admin/realms/master/clients/$CLIENT_ID" || true
 
           echo "Verifying client_credentials token..."
-          TOKEN_RESPONSE=$(curl -s -X POST "$SERVER/realms/master/protocol/openid-connect/token" \
+          TOKEN_RESPONSE=$(printf '%s' "$CLIENT_SECRET" | curl -s -X POST "$SERVER/realms/master/protocol/openid-connect/token" \
             --data-urlencode "grant_type=client_credentials" \
             --data-urlencode "client_id=keycloak-operator" \
-            --data-urlencode "client_secret=$CLIENT_SECRET")
+            --data-urlencode "client_secret@-")
           ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1 || true)
           if [ -z "$ACCESS_TOKEN" ]; then echo "Failed to obtain client token: $TOKEN_RESPONSE"; exit 4; fi
 
