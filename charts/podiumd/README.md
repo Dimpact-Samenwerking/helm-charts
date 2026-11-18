@@ -1199,8 +1199,10 @@ PodiumD Helm chart
 | openvtb.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | openvtb.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openvtb.persistentVolume.volumeAttributeShareName | string | `"openvtb"` |  |
+| openvtb.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | openvtb.replicaCount | int | `2` |  |
 | openvtb.resources | object | `{"limits":{"cpu":"500m","memory":"768Mi"},"requests":{"cpu":"100m","memory":"256Mi"}}` | Measured on johnb00: about 260Mi per pod idle (uWSGI 2 processes x 2 threads); the limit leaves room for load. |
+| openvtb.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | openvtb.securityContext.capabilities.drop[0] | string | `"ALL"` |  |
 | openvtb.securityContext.readOnlyRootFilesystem | bool | `false` |  |
 | openvtb.securityContext.runAsNonRoot | bool | `true` |  |
