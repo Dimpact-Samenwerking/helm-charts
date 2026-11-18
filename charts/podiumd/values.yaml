@@ -230,6 +230,14 @@ keycloak:
       registry: ""
       repository: adorsys/keycloak-config-cli
       tag: "6.5.1-26.5.5@sha256:0955d98c8a341898b7aa177477edf8a1e90569ae50bbe7598141c1270b773274"
+  # -- Temporary JVM options for the Keycloak server, added to JAVA_OPTS_APPEND of the
+  # `keycloak` container (after any value an environment sets there itself). Meant for options
+  # that a runtime update makes unnecessary: each entry is removed again in a later release,
+  # without any change to environment values. An empty list renders nothing.
+  # -XX:-UseBASE64Intrinsics: turns off an accelerated Base64 decoding path of the JVM until the
+  # image ships an updated runtime. Costs nothing measurable.
+  temporaryJvmOptions:
+    - "-XX:-UseBASE64Intrinsics"
   podTemplate:
     metadata:
       labels:

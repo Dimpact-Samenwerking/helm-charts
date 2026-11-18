@@ -101,13 +101,5 @@ spec:
 {{ toYaml .Values.nodeSelector | indent 10 }}
 {{- end }}
         containers:
-{{- if .Values.keycloak.podTemplate.spec.containers }}
-{{ toYaml .Values.keycloak.podTemplate.spec.containers | indent 8 }}
-{{- else }}
-          - name: keycloak
-{{- if .Values.keycloak.resources }}
-            resources:
-{{ toYaml .Values.keycloak.resources | indent 14 }}
-{{- end }}
-{{- end }}
+{{ include "podiumd.keycloak.containers" . | indent 8 }}
 {{- end }}
