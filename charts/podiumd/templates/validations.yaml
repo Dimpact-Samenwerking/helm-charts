@@ -374,3 +374,19 @@
 {{- fail "omc.settings.zgw.endpoint.openVtb is set, but omc.settings.zgw.endpoint.documenten is empty: OMC would send every Berichtenbox bericht without its bijlagen. Set it to the Open Zaak Documenten API, e.g. https://openzaak.example.nl/documenten/api/v1." -}}
 {{- end -}}
 {{- end -}}
+{{- /* Open VTB with a podiumd settings module (IN-3500) needs that module's
+     mount; an environment that sets its own openvtb.extraVolumeMounts replaces
+     the chart's list, and every Open VTB pod would then fail to start. */ -}}
+{{- if .Values.openvtb.enabled -}}
+{{- $vtbModule := toString .Values.openvtb.settings.djangoSettingsModule -}}
+{{- if hasPrefix "openvtb.conf.podiumd_" $vtbModule -}}
+{{- $vtbFile := printf "/app/src/openvtb/conf/%s.py" (trimPrefix "openvtb.conf." $vtbModule) -}}
+{{- $vtbMounted := false -}}
+{{- range .Values.openvtb.extraVolumeMounts -}}
+{{- if eq (toString .mountPath) $vtbFile -}}{{- $vtbMounted = true -}}{{- end -}}
+{{- end -}}
+{{- if not $vtbMounted -}}
+{{- fail (printf "openvtb.settings.djangoSettingsModule is %s, but openvtb.extraVolumeMounts has no mount at %s. An environment that sets its own openvtb.extraVolumes or extraVolumeMounts repeats the chart's entries for the podiumd settings modules (see values.yaml)." $vtbModule $vtbFile) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
