@@ -705,6 +705,7 @@ PodiumD Helm chart
 | omc.settings.zgw.auth.jwt.userId | string | `"OMC (PodiumD)"` |  |
 | omc.settings.zgw.auth.jwt.userName | string | `"OMC (PodiumD)"` |  |
 | omc.settings.zgw.auth.key.openvtb | string | `"not-configured"` |  |
+| omc.settings.zgw.endpoint.documenten | string | `""` | The Open Zaak Documenten API, e.g. `https://openzaak.example.nl/documenten/api/v1`. OMC downloads a bericht's bijlagen from it for the Berichtenbox (MOBB); without it OMC sends the bericht without them. The render fails while it is empty and `openVtb` is set. |
 | omc.settings.zgw.endpoint.openVtb | string | `"https://openvtb.invalid"` |  |
 | omc.settings.zgw.variable.objectType.decisionInfoObjectType.uuids | string | `"00000000-0000-1000-b000-000000000000"` |  |
 | omc.settings.zgw.variable.objectType.ktoObjectType.uuid | string | `"00000000-0000-1000-b000-000000000000"` |  |

@@ -4662,6 +4662,8 @@ omc:
           openvtb: "not-configured"
       endpoint:
         openVtb: "https://openvtb.invalid"
+        # -- The Open Zaak Documenten API, e.g. `https://openzaak.example.nl/documenten/api/v1`. OMC downloads a bericht's bijlagen from it for the Berichtenbox (MOBB); without it OMC sends the bericht without them. The render fails while it is empty and `openVtb` is set.
+        documenten: ""
       variable:
         # including dummy defaults for object types, because R'dam wants to POC with object-scenario's
         objectType:
