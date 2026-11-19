@@ -7,10 +7,10 @@
 {{- $cfg := .Values.zac.restartAfterOpenzaakConfig }}
 {{- if and .Values.zac.enabled (include "podiumd.dependencyEnabled" .Values.openzaak) $cfg.enabled }}
 {{- $jobs := list }}
-{{- if .Values.openzaak.configuration.enabled }}
-{{- if and .Values.global.configuration.enabled .Values.openzaak.configuration.job.enabled }}
-{{- $jobs = append $jobs (printf "%s-config" (.Values.openzaak.nameOverride | default "openzaak" | trunc 56 | trimSuffix "-")) }}
+{{- with include "podiumd.maykinConfigJob" (dict "root" . "alias" "openzaak") }}
+{{- $jobs = append $jobs (fromYaml .).job.metadata.name }}
 {{- end }}
+{{- if .Values.openzaak.configuration.enabled }}
 {{- if .Values.openzaak.create_required_catalogi_job.enabled }}
 {{- $jobs = append $jobs "create-required-catalogi-job" }}
 {{- end }}

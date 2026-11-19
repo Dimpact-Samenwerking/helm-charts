@@ -28,10 +28,11 @@ global:
       repository: library/postgres
       tag: "16.16-alpine@sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d"
       pullPolicy: IfNotPresent
-    # kubectl for the redis-ha Jobs, the zookeeper-operator hooks and the ZAC
-    # restart Job. No template reads this key: the anchor is resolved in this
-    # file only, so overriding it in an environment changes nothing.
-    # Environments set their ACR mirror on each of the four image paths that
+    # kubectl for the redis-ha Jobs, the zookeeper-operator hooks, the ZAC
+    # restart Job and the Maykin configuration wait hook. No template reads
+    # this key: the anchor is resolved in this file only, so overriding it in
+    # an environment changes nothing.
+    # Environments set their ACR mirror on each of the image paths that
     # use it (global.imageRegistry does not apply to them).
     alpineK8s: &alpineK8sImage
       repository: docker.io/alpine/k8s
@@ -679,13 +680,25 @@ openzaak:
     initContainer:
       enabled: false
     job:
-      enabled: true
+      # false: podiumd runs this Job as a plain Job, together with the other
+      # apps' (templates/maykin-config-jobs.yaml, podiumd-chart-50). true keeps
+      # the sub-chart's own hook Job, which runs after the others.
+      enabled: false
       # Enough retries to outlast Keycloak still pulling its image on a fresh
       # install (podiumd-chart-31).
       backoffLimit: 12
       ttlSecondsAfterFinished: 600
       restartPolicy: Never
-      resources: {}
+      # -- Resources of the setup_configuration Job (one Django process). podiumd
+      # renders this Job (podiumd-chart-50), so it sets them. Peak measured on
+      # minikube 2026-11-18: 119-257 MiB.
+      resources:
+        requests:
+          cpu: 50m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
     data: ""
     # e.g.
     # data: |-
@@ -965,12 +978,24 @@ opennotificaties:
     initContainer:
       enabled: false
     job:
-      enabled: true
+      # false: podiumd runs this Job as a plain Job, together with the other
+      # apps' (templates/maykin-config-jobs.yaml, podiumd-chart-50). true keeps
+      # the sub-chart's own hook Job, which runs after the others.
+      enabled: false
       # Enough retries to outlast Keycloak still pulling its image on a fresh
       # install (podiumd-chart-31).
       backoffLimit: 12
       restartPolicy: OnFailure
-      resources: {}
+      # -- Resources of the setup_configuration Job (one Django process). podiumd
+      # renders this Job (podiumd-chart-50), so it sets them. Peak measured on
+      # minikube 2026-11-18: 119-257 MiB.
+      resources:
+        requests:
+          cpu: 50m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
     secrets:
       keycloak_client_secret: ""
       # opennotificaties_autorisatie_api_secret: "<opennotificaties_autorisatie_api_secret>"
@@ -1262,13 +1287,25 @@ objecten:
     initContainer:
       enabled: false
     job:
-      enabled: true
+      # false: podiumd runs this Job as a plain Job, together with the other
+      # apps' (templates/maykin-config-jobs.yaml, podiumd-chart-50). true keeps
+      # the sub-chart's own hook Job, which runs after the others.
+      enabled: false
       # Enough retries to outlast Keycloak still pulling its image on a fresh
       # install (podiumd-chart-31).
       backoffLimit: 12
       ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
-      resources: {}
+      # -- Resources of the setup_configuration Job (one Django process). podiumd
+      # renders this Job (podiumd-chart-50), so it sets them. Peak measured on
+      # minikube 2026-11-18: 119-257 MiB.
+      resources:
+        requests:
+          cpu: 50m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
     secrets:
       keycloak_client_secret: ""
       # object_notificaties_token: "<object_notificaties_token>"
@@ -1518,13 +1555,26 @@ openarchiefbeheer:
     # -- Enable PKCE (S256) on the Keycloak client.
     pkceEnabled: false
     job:
-      enabled: true
+      # false: podiumd runs this Job as a plain Job, together with the other
+      # apps' (templates/maykin-config-jobs.yaml, podiumd-chart-50). true keeps
+      # the sub-chart's own hook Job, which runs after the others.
+      enabled: false
       # Chart 2.1.0 runs this Job as a post-install/post-upgrade hook (defaults 0 and
       # Never): retries keep a Keycloak that is not ready yet from failing the release.
       # Enough retries to outlast Keycloak still pulling its image on a fresh
       # install (podiumd-chart-31).
       backoffLimit: 12
       restartPolicy: OnFailure
+      # -- Resources of the setup_configuration Job (one Django process). podiumd
+      # renders this Job (podiumd-chart-50), so it sets them. Peak measured on
+      # minikube 2026-11-18: 119-257 MiB.
+      resources:
+        requests:
+          cpu: 50m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
     secrets:
       keycloak_client_secret: ""
     data: ""
@@ -1760,12 +1810,24 @@ openklant:
     initContainer:
       enabled: false
     job:
-      enabled: true
+      # false: podiumd runs this Job as a plain Job, together with the other
+      # apps' (templates/maykin-config-jobs.yaml, podiumd-chart-50). true keeps
+      # the sub-chart's own hook Job, which runs after the others.
+      enabled: false
       # Enough retries to outlast Keycloak still pulling its image on a fresh
       # install (podiumd-chart-31).
       backoffLimit: 12
       restartPolicy: OnFailure
-      resources: {}
+      # -- Resources of the setup_configuration Job (one Django process). podiumd
+      # renders this Job (podiumd-chart-50), so it sets them. Peak measured on
+      # minikube 2026-11-18: 119-257 MiB.
+      resources:
+        requests:
+          cpu: 50m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
     secrets:
       keycloak_client_secret: ""
       # openklant_openinwoner_token: "<openklant_openinwoner_token>"
@@ -1931,11 +1993,24 @@ openformulieren:
   configuration:
     enabled: true
     job:
-      enabled: true
+      # false: podiumd runs this Job as a plain Job, together with the other
+      # apps' (templates/maykin-config-jobs.yaml, podiumd-chart-50). true keeps
+      # the sub-chart's own hook Job, which runs after the others.
+      enabled: false
       # Enough retries to outlast Keycloak still pulling its image on a fresh
       # install (podiumd-chart-31).
       backoffLimit: 12
       restartPolicy: OnFailure
+      # -- Resources of the setup_configuration Job (one Django process). podiumd
+      # renders this Job (podiumd-chart-50), so it sets them. Peak measured on
+      # minikube 2026-11-18: 119-257 MiB.
+      resources:
+        requests:
+          cpu: 50m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
     secrets:
       keycloak_client_secret: ""
     data: ""
@@ -2259,12 +2334,24 @@ openinwoner:
     initContainer:
       enabled: false
     job:
-      enabled: true
+      # false: podiumd runs this Job as a plain Job, together with the other
+      # apps' (templates/maykin-config-jobs.yaml, podiumd-chart-50). true keeps
+      # the sub-chart's own hook Job, which runs after the others.
+      enabled: false
       # Enough retries to outlast Keycloak still pulling its image on a fresh
       # install (podiumd-chart-31).
       backoffLimit: 12
       restartPolicy: OnFailure
-      resources: {}
+      # -- Resources of the setup_configuration Job (one Django process). podiumd
+      # renders this Job (podiumd-chart-50), so it sets them. Peak measured on
+      # minikube 2026-11-18: 119-257 MiB.
+      resources:
+        requests:
+          cpu: 50m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
     data: ""
     # data: |-
     #   oidc_db_config_enable: true
@@ -2627,13 +2714,25 @@ referentielijsten:
     initContainer:
       enabled: false
     job:
-      enabled: true
+      # false: podiumd runs this Job as a plain Job, together with the other
+      # apps' (templates/maykin-config-jobs.yaml, podiumd-chart-50). true keeps
+      # the sub-chart's own hook Job, which runs after the others.
+      enabled: false
       # Enough retries to outlast Keycloak still pulling its image on a fresh
       # install (podiumd-chart-31).
       backoffLimit: 12
       ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
-      resources: {}
+      # -- Resources of the setup_configuration Job (one Django process). podiumd
+      # renders this Job (podiumd-chart-50), so it sets them. Peak measured on
+      # minikube 2026-11-18: 119-257 MiB.
+      resources:
+        requests:
+          cpu: 50m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
     # keycloak_client_secret is required in all environments (also used as Keycloak realm client secret).
     secrets:
       keycloak_client_secret: ""
@@ -2921,7 +3020,10 @@ openvtb:
     enabled: true
     overwrite: false
     job:
-      enabled: true
+      # false: podiumd runs this Job as a plain Job, together with the other
+      # apps' (templates/maykin-config-jobs.yaml, podiumd-chart-50). true keeps
+      # the sub-chart's own hook Job, which runs after the others.
+      enabled: false
       # Enough retries to outlast Keycloak still pulling its image on a fresh
       # install (podiumd-chart-31).
       backoffLimit: 12
@@ -3573,6 +3675,27 @@ setupConfigurationChecks:
         cpu: 200m
         memory: 64Mi
 
+# -- podiumd-chart-50 (interim): podiumd runs the Maykin apps' setup_configuration
+# Jobs as plain Jobs that start together, and this post-install/post-upgrade hook
+# waits for all of them; it fails the deploy when one of them fails.
+maykinConfigJobs:
+  # -- Seconds a finished configuration Job stays. A Job of a failed revision is never pruned by
+  # Helm, so the TTL removes it.
+  ttlSecondsAfterFinished: 3600
+  wait:
+    # -- Restarts of a configuration Job, after Keycloak, the podiumd realm and the app's own
+    # rollout are ready, before the wait hook fails the deploy.
+    restartLimit: 2
+    image: *alpineK8sImage
+    nodeSelector: {}
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
+
 zac:
   # Security review 4.10.0 WH-05: UIDs checked on the running images
   # (ZAC 1001, OPA 1000, gotenberg 1001, curl init 100).
@@ -3840,7 +3963,7 @@ zac:
       resources:
         requests:
           cpu: 500m
-          memory: 1Gi
+          memory: 512Mi
         limits:
           cpu: 2000m
           memory: 2Gi
