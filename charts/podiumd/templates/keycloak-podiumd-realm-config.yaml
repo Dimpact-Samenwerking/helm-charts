@@ -102,7 +102,9 @@ data:
       xRobotsTag: "none"
       xFrameOptions: "SAMEORIGIN"
       contentSecurityPolicy: "frame-src 'self'; frame-ancestors 'self'; object-src 'none';"
-      xXSSProtection: "1; mode=block"
+      # Empty: Keycloak sends no X-XSS-Protection header. Browsers ignore it, and
+      # leaving the key out would keep an existing realm's value (IA-06).
+      xXSSProtection: ""
       strictTransportSecurity: "max-age=31536000; includeSubDomains"
     bruteForceProtected: true
     failureFactor: 5
@@ -111,8 +113,6 @@ data:
     adminEventsEnabled: true
     adminEventsDetailsEnabled: true
     eventsExpiration: 2592000
-    offlineSessionMaxLifespanEnabled: true
-    offlineSessionMaxLifespan: 7776000
     # Disable offline_access (persistent refresh-token) grants realm-wide. This
     # realm serves browser-based admin/beheer sessions and service accounts only
     # — no client needs a refresh token that keeps working after the user is no
@@ -787,8 +787,9 @@ data:
         clientAuthenticatorType: client-secret
         redirectUris:
           - "{{ .Values.openbao.configuration.oidcUrl | trimSuffix "/" }}/*"
-          # OpenBao CLI OIDC login callback (`bao login -method=oidc`).
-          - "http://localhost:8250/*"
+          {{- if .Values.openbao.configuration.cliLogin }}
+          - "http://localhost:8250/oidc/callback"
+          {{- end }}
         webOrigins:
           - "{{ .Values.openbao.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: $(KC_SECRET_OPENBAO)
@@ -1059,7 +1060,6 @@ data:
         # chain is enabled, so this is non-empty whenever this block is rendered.
         redirectUris:
           - "https://{{ $fgInst.dashboard.auth.hostname }}/oauth2/callback"
-          - "http://localhost:8080/oauth2/callback"
         webOrigins:
           - "+"
         protocolMappers:

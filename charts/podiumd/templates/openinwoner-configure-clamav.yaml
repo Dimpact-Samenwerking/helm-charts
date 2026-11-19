@@ -46,6 +46,7 @@ spec:
   nodeSelector:
     {{- toYaml .Values.nodeSelector | nindent 4 }}
   {{- end }}
+  automountServiceAccountToken: false
   containers:
     - name: configure-clamav
       image: {{ include "podiumd.image" .Values.openinwoner.image }}
@@ -99,7 +100,8 @@ spec:
           mountPath: /tmp
   volumes:
     - name: tmp
-      emptyDir: {}
+      emptyDir:
+        sizeLimit: 64Mi
 {{- end }}
 
 {{- if and (include "podiumd.dependencyEnabled" .Values.openinwoner) (include "podiumd.clamavConfigJob.enabled" (dict "root" $ "job" .Values.openinwoner.clamavConfigJob)) }}

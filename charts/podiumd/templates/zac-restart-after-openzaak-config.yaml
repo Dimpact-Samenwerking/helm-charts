@@ -157,6 +157,7 @@ spec:
               [ -z "$PODS" ] && echo "ZAC started normally: nothing to do" || echo "WARNING: $PODS neither Ready nor failed within 180s; ZAC is not restarted"
       volumes:
         - name: tmp
-          emptyDir: {}
+          emptyDir:
+            sizeLimit: 64Mi
 {{- end }}
 {{- end }}

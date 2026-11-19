@@ -118,7 +118,8 @@ spec:
               mountPath: /tmp
       volumes:
         - name: tmp
-          emptyDir: {}
+          emptyDir:
+            sizeLimit: 64Mi
       {{- with $redisHa.preDeleteJob.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

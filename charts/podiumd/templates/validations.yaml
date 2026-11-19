@@ -363,3 +363,14 @@
 {{- if and .Values.zac.enabled (regexMatch "(^|/)k8s-kubectl$" (toString ($zkHooksImage.repository | default ""))) (not (hasPrefix "v" (toString ($zkHooksImage.tag | default "")))) -}}
 {{- fail (printf "zac.solr-operator.zookeeper-operator.hooks.image.repository is %q, the old k8s-kubectl image, but 4.10.0 pins alpine/k8s %s. Point it at the same registry's alpine/k8s (scripts/migrate-zookeeper-hooks-image-4.10.0.py does that), and mirror alpine/k8s:1.37.1 by digest. See \"alpine/k8s: set the ACR mirror on all three image paths\" in docs/_UPGRADE_PATHS/4.9.5-to-4.10.0-upgrade.md" (toString $zkHooksImage.repository) (toString $zkHooksImage.tag)) -}}
 {{- end -}}
+{{- /* OMC's Berichtenbox (MOBB) scenario downloads a bericht's bijlagen from
+     the Documenten API. Without the endpoint OMC sends the bericht without
+     them and only logs it, so fail once Open VTB is configured. The OMC chart
+     takes its values as they are, so the endpoint cannot be derived from
+     endpoint.openZaak. */ -}}
+{{- if .Values.omc.enabled -}}
+{{- $omcEndpoint := .Values.omc.settings.zgw.endpoint -}}
+{{- if and (ne (toString $omcEndpoint.openVtb) "https://openvtb.invalid") (not (trim (toString ($omcEndpoint.documenten | default "")))) -}}
+{{- fail "omc.settings.zgw.endpoint.openVtb is set, but omc.settings.zgw.endpoint.documenten is empty: OMC would send every Berichtenbox bericht without its bijlagen. Set it to the Open Zaak Documenten API, e.g. https://openzaak.example.nl/documenten/api/v1." -}}
+{{- end -}}
+{{- end -}}

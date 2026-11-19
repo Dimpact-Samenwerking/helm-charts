@@ -418,7 +418,7 @@
           "type" : "boolean"
         }
       },
-      "oneOf" : [
+      "anyOf" : [
         {
           "required" : [
             "inpBsn",

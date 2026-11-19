@@ -21,6 +21,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      automountServiceAccountToken: false
       containers:
       - name: nginx
         image: {{ include "podiumd.image" .Values.apiproxy.image }}
@@ -71,9 +72,11 @@ spec:
         configMap:
           name: {{ default "api-proxy" .Values.apiproxy.nameOverride }}-nginx-config
       - name: nginx-tmp
-        emptyDir: {}
+        emptyDir:
+          sizeLimit: 64Mi
       - name: nginx-cache
-        emptyDir: {}
+        emptyDir:
+          sizeLimit: 64Mi
       {{- if .Values.apiproxy.nginxCertsSecret }}
       - name: nginx-certs
         secret:

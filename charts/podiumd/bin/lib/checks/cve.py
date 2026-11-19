@@ -673,12 +673,16 @@ def print_findings_per_package(vulns: list[Vulnerability], threshold: int) -> No
         print_package_line(pkg, vulns_for_pkg, threshold)
 
 
+def _vuln_label(vuln: Vulnerability) -> str:
+    return f"{severity_label(vuln['Severity'])} {vuln['VulnerabilityID']}"
+
+
 def print_package_line(pkg: str, vulns_for_pkg: list[Vulnerability], threshold: int):
     """Print `pkg`'s CVE IDs worst-first, or per-severity counts when more than `threshold`."""
     ordered = sorted(vulns_for_pkg, key=lambda vuln: SEVERITY_ORDER.index(vuln["Severity"]))
 
     if len(ordered) <= threshold:
-        ids = ", ".join(f"{severity_label(vuln['Severity'])} {vuln['VulnerabilityID']}" for vuln in ordered)
+        ids = ", ".join(_vuln_label(vuln) for vuln in ordered)
         print(f"  {pkg}: {ids}")
         return
 
