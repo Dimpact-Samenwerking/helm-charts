@@ -1195,6 +1195,16 @@ PodiumD Helm chart
 | openvtb.extraEnvVars[0].value | string | `"8000"` |  |
 | openvtb.extraEnvVars[1].name | string | `"NOTIFICATIONS_SOURCE"` |  |
 | openvtb.extraEnvVars[1].value | string | `"openvtb"` |  |
+| openvtb.extraVolumeMounts[0].mountPath | string | `"/app/src/openvtb/conf/podiumd_berichten.py"` |  |
+| openvtb.extraVolumeMounts[0].name | string | `"{{ include \"podiumd.openvtb.settingsVolume\" . }}"` |  |
+| openvtb.extraVolumeMounts[0].readOnly | bool | `true` |  |
+| openvtb.extraVolumeMounts[0].subPath | string | `"podiumd_berichten.py"` |  |
+| openvtb.extraVolumeMounts[1].mountPath | string | `"/app/src/openvtb/conf/podiumd_all.py"` |  |
+| openvtb.extraVolumeMounts[1].name | string | `"{{ include \"podiumd.openvtb.settingsVolume\" . }}"` |  |
+| openvtb.extraVolumeMounts[1].readOnly | bool | `true` |  |
+| openvtb.extraVolumeMounts[1].subPath | string | `"podiumd_all.py"` |  |
+| openvtb.extraVolumes[0].configMap.name | string | `"{{ .Values.fullnameOverride | default \"openvtb\" }}-podiumd-settings"` |  |
+| openvtb.extraVolumes[0].name | string | `"{{ include \"podiumd.openvtb.settingsVolume\" . }}"` |  |
 | openvtb.fullnameOverride | string | `"openvtb"` |  |
 | openvtb.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openvtb.image.repository | string | `"maykinmedia/open-vtb"` |  |
@@ -1227,7 +1237,7 @@ PodiumD Helm chart
 | openvtb.settings.database.sslmode | string | `"require"` |  |
 | openvtb.settings.database.username | string | `""` |  |
 | openvtb.settings.debug | bool | `false` |  |
-| openvtb.settings.djangoSettingsModule | string | `"openvtb.conf.docker"` |  |
+| openvtb.settings.djangoSettingsModule | string | `"openvtb.conf.podiumd_berichten"` | `openvtb.conf.podiumd_berichten`: only the Berichten API; `/verzoeken/` and `/taken/` answer 404 and no Taken events go out (IN-3500). `openvtb.conf.podiumd_all` turns Verzoeken and Taken on again. See templates/_openvtb-settings.tpl. |
 | openvtb.settings.elasticapm.serviceName | string | `""` |  |
 | openvtb.settings.elasticapm.token | string | `""` |  |
 | openvtb.settings.elasticapm.url | string | `""` |  |
