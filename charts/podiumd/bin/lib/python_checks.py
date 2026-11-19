@@ -6,6 +6,8 @@ import tomllib
 from collections.abc import Sequence
 from pathlib import Path
 
+from lib.chart.paths import files_under
+
 
 def typeddict_field_names(paths: Sequence[Path]) -> list[str]:
     """The field names of every TypedDict, also one subclassing another, in `paths` (files or directories).
@@ -15,7 +17,7 @@ def typeddict_field_names(paths: Sequence[Path]) -> list[str]:
     """
     classes: list[ast.ClassDef] = []
     for path in paths:
-        for file in [path] if path.is_file() else sorted(path.rglob("*.py")):
+        for file in [path] if path.is_file() else files_under(path, "*.py"):
             tree = ast.parse(file.read_text(encoding="utf-8"))
             classes += [node for node in ast.walk(tree) if isinstance(node, ast.ClassDef)]
     typeddicts = {"TypedDict"}
