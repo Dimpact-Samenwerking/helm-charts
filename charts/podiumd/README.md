@@ -1173,11 +1173,11 @@ PodiumD Helm chart
 | opennotificaties.worker.resources.requests.cpu | string | `"50m"` |  |
 | opennotificaties.worker.resources.requests.memory | string | `"386Mi"` |  |
 | openvtb.celery.beat.extraEnvVars | list | `[]` | Extra environment variables of the beat, after openvtb.extraEnvVars, e.g. EVENTS_BERICHTEN_JOB_HOUR and EVENTS_BERICHTEN_JOB_MINUTE: bericht-gepubliceerd is sent once per that many hours (default every hour, at minute 0, UTC). |
-| openvtb.celery.beat.resources | object | `{"limits":{"cpu":"200m","memory":"384Mi"},"requests":{"cpu":"10m","memory":"192Mi"}}` | Resources of the Celery beat (one process; always one replica). |
+| openvtb.celery.beat.resources | object | `{"limits":{"cpu":"200m","memory":"384Mi"},"requests":{"cpu":"10m","memory":"256Mi"}}` | Resources of the Celery beat (one process; always one replica). Measured on minikube: 224 MiB. |
 | openvtb.celery.enabled | bool | `true` | Run the Open VTB Celery worker and beat (only while openvtb.enabled). |
 | openvtb.celery.worker.extraEnvVars | list | `[]` | Extra environment variables of the worker, after openvtb.extraEnvVars, e.g. CELERY_WORKER_CONCURRENCY (default 1). |
 | openvtb.celery.worker.replicaCount | int | `1` | Number of Celery worker pods. |
-| openvtb.celery.worker.resources | object | `{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources of the Celery worker (one process, concurrency 1). |
+| openvtb.celery.worker.resources | object | `{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"50m","memory":"320Mi"}}` | Resources of the Celery worker (one process, concurrency 1). Measured on minikube: 295 MiB, about 15m CPU. |
 | openvtb.configuration.data | string | `""` |  |
 | openvtb.configuration.enabled | bool | `true` |  |
 | openvtb.configuration.job.backoffLimit | int | `12` |  |

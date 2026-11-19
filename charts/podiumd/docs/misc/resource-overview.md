@@ -409,10 +409,11 @@ Optional (`openvtb.enabled`, default off). Default replicas: **2**.
 |-----------|-------------|-------------|-----------|-----------|
 | openvtb | 100m | 256Mi | 500m | 768Mi |
 | job: openvtb-config | 50m | 256Mi | 500m | 512Mi |
-| openvtb-worker (x1) | 50m | 256Mi | 500m | 512Mi |
-| openvtb-beat (x1) | 10m | 192Mi | 200m | 384Mi |
+| openvtb-worker (x1) | 50m | 320Mi | 500m | 512Mi |
+| openvtb-beat (x1) | 10m | 256Mi | 200m | 384Mi |
 
-Measured on johnb00: about 260Mi per pod at rest (uWSGI, 2 processes x 2 threads).
+Measured on johnb00: about 260Mi per pod at rest (uWSGI, 2 processes x 2 threads). Worker and beat measured on minikube
+(2026-11-19): 295 MiB and 224 MiB.
 
 ---
 

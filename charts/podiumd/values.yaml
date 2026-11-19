@@ -3056,22 +3056,22 @@ openvtb:
       replicaCount: 1
       # -- Extra environment variables of the worker, after openvtb.extraEnvVars, e.g. CELERY_WORKER_CONCURRENCY (default 1).
       extraEnvVars: []
-      # -- Resources of the Celery worker (one process, concurrency 1).
+      # -- Resources of the Celery worker (one process, concurrency 1). Measured on minikube: 295 MiB, about 15m CPU.
       resources:
         requests:
           cpu: 50m
-          memory: 256Mi
+          memory: 320Mi
         limits:
           cpu: 500m
           memory: 512Mi
     beat:
       # -- Extra environment variables of the beat, after openvtb.extraEnvVars, e.g. EVENTS_BERICHTEN_JOB_HOUR and EVENTS_BERICHTEN_JOB_MINUTE: bericht-gepubliceerd is sent once per that many hours (default every hour, at minute 0, UTC).
       extraEnvVars: []
-      # -- Resources of the Celery beat (one process; always one replica).
+      # -- Resources of the Celery beat (one process; always one replica). Measured on minikube: 224 MiB.
       resources:
         requests:
           cpu: 10m
-          memory: 192Mi
+          memory: 256Mi
         limits:
           cpu: 200m
           memory: 384Mi
