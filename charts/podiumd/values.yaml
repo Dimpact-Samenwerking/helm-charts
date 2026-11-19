@@ -2969,6 +2969,11 @@ openvtb:
   extraEnvVars:
     - name: OPENVTB_PORT
       value: "8000"
+    # Open VTB sends no CloudEvent while this is empty (its default), and the
+    # source identifies it in every CloudEvent. Also given to the Celery worker
+    # and beat (templates/openvtb-celery.yaml).
+    - name: NOTIFICATIONS_SOURCE
+      value: "openvtb"
   # Security review 4.10.0 WH-02, as on the other Maykin apps. The chart's
   # configuration Job uses the same two contexts.
   securityContext:
@@ -3049,7 +3054,7 @@ openvtb:
     worker:
       # -- Number of Celery worker pods.
       replicaCount: 1
-      # -- Extra environment variables of the worker, e.g. CELERY_WORKER_CONCURRENCY (default 1).
+      # -- Extra environment variables of the worker, after openvtb.extraEnvVars, e.g. CELERY_WORKER_CONCURRENCY (default 1).
       extraEnvVars: []
       # -- Resources of the Celery worker (one process, concurrency 1).
       resources:
@@ -3060,7 +3065,7 @@ openvtb:
           cpu: 500m
           memory: 512Mi
     beat:
-      # -- Extra environment variables of the beat, e.g. EVENTS_BERICHTEN_JOB_HOUR and EVENTS_BERICHTEN_JOB_MINUTE: bericht-gepubliceerd is sent once per that many hours (default every hour, at minute 0, UTC).
+      # -- Extra environment variables of the beat, after openvtb.extraEnvVars, e.g. EVENTS_BERICHTEN_JOB_HOUR and EVENTS_BERICHTEN_JOB_MINUTE: bericht-gepubliceerd is sent once per that many hours (default every hour, at minute 0, UTC).
       extraEnvVars: []
       # -- Resources of the Celery beat (one process; always one replica).
       resources:
