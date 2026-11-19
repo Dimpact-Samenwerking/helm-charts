@@ -484,7 +484,7 @@ redis-operator:
   #   openarchiefbeheer  : db 13 (cache+axes), db 14 (choices + celery)
   #   referentielijsten  : db 15 (cache), db 16 (reserved — celery not yet used)
   #   openbeheer         : db 17 (cache), db 18 (reserved — celery not yet used)
-  #   openvtb            : db 19 (cache+axes), db 20 (celery broker/result; no worker deployed)
+  #   openvtb            : db 19 (cache+axes), db 20 (celery broker/result)
   #   <future component> : db 21 (cache), db 22 (celery)
   #   db 23–31           : unallocated
   # See docs/apps/redis/redis-ha-databases.md for the full allocation table and guidance.
@@ -3028,8 +3028,7 @@ openvtb:
     cache:
       default: redis-ha-master:6379/19
       axes: redis-ha-master:6379/19
-    # No Celery worker is deployed, but the openvtb chart templates CELERY_BROKER_URL / CELERY_RESULT_BACKEND
-    # unconditionally, so they must be set (db 20).
+    # Broker and result backend of the worker and beat in templates/openvtb-celery.yaml (db 20).
     celery:
       brokerUrl: redis://redis-ha-master:6379/20
       resultBackend: redis://redis-ha-master:6379/20
@@ -3041,6 +3040,36 @@ openvtb:
       maxRequests: "1000"
     otel:
       disabled: true
+  # Celery worker and beat (templates/openvtb-celery.yaml): Open VTB sends
+  # its CloudEvents to Open Notificaties from Celery tasks, so without them
+  # OMC never hears of a bericht (IN-3501).
+  celery:
+    # -- Run the Open VTB Celery worker and beat (only while openvtb.enabled).
+    enabled: true
+    worker:
+      # -- Number of Celery worker pods.
+      replicaCount: 1
+      # -- Extra environment variables of the worker, e.g. CELERY_WORKER_CONCURRENCY (default 1).
+      extraEnvVars: []
+      # -- Resources of the Celery worker (one process, concurrency 1).
+      resources:
+        requests:
+          cpu: 50m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+    beat:
+      # -- Extra environment variables of the beat, e.g. EVENTS_BERICHTEN_JOB_HOUR and EVENTS_BERICHTEN_JOB_MINUTE: bericht-gepubliceerd is sent once per that many hours (default every hour, at minute 0, UTC).
+      extraEnvVars: []
+      # -- Resources of the Celery beat (one process; always one replica).
+      resources:
+        requests:
+          cpu: 10m
+          memory: 192Mi
+        limits:
+          cpu: 200m
+          memory: 384Mi
   tags:
     redis: false
 

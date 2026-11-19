@@ -90,7 +90,7 @@ operator.
   | 3, 6 | opennotificaties (cache / celery result backend¹) | 13–14 | openarchiefbeheer (cache+axes / choices+celery) |
   | 4–5 | openzaak (cache / celery) | 15–16 | referentielijsten (cache / reserved) |
   | 7–8 | openklant (cache / celery) | 17–18 | openbeheer (cache / reserved) |
-  | | | 19–20 | openvtb (cache+axes / celery, no worker) |
+  | | | 19–20 | openvtb (cache+axes / celery) |
   | | | 21–22 | reserved for next component; 23–31 unallocated |
 
   ¹ Per the `values.yaml` allocation comment, the opennotificaties Celery
