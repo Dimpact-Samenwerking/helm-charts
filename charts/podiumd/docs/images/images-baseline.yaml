@@ -19,8 +19,8 @@
 
 - name: nginxinc/nginx-unprivileged
   url: docker.io/nginxinc/nginx-unprivileged
-  version: "1.31.6"
-  digest: "sha256:929e1d5e610e8aa89a1715ba44dce5edb4d42c172a208c171233292f472560c5"
+  version: "1.31.7"
+  digest: "sha256:09b0d3eda2aa592d2487f284519419015cab010d7df16cd0fe224b585fc60eb6"
 
 - name: curlimages/curl
   url: docker.io/curlimages/curl
