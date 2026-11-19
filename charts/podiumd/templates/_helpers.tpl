@@ -1307,3 +1307,72 @@ Usage: {{ include "podiumd.keycloak.externalClientEnabled" .Values.keycloak.conf
 {{- define "podiumd.keycloak.externalClientEnabled" -}}
 {{- if and (ne (toString .enabled) "false") (trim (toString (.oidcUrl | default ""))) -}}true{{- end -}}
 {{- end -}}
+
+{{/*
+podiumd-chart-50 (interim, until the Maykin charts can turn off the hook): the
+apps whose setup_configuration Job podiumd runs as a plain Job. Their own
+post-install/post-upgrade hook Jobs ran one after another.
+*/}}
+{{- define "podiumd.maykinConfigJobApps" -}}
+objecten openarchiefbeheer openformulieren openinwoner openklant opennotificaties openvtb openzaak referentielijsten
+{{- end -}}
+
+{{/*
+The setup_configuration Job of one Maykin app, from the sub-chart's own
+templates/job-config.yaml rendered with its own context, as YAML; empty when
+the app or its configuration is off.
+
+With <app>.configuration.job.enabled false (podiumd's default) it is a plain
+Job: no hook annotations, named <name>-<revision> so every deploy runs it again
+(a Job's pod template cannot change), and ttlSecondsAfterFinished so a Job of a
+failed revision, which no later upgrade prunes, does not stay behind. With
+job.enabled true the sub-chart renders its own hook Job, as before this change;
+the YAML returned is then that hook Job (its name is what callers need).
+
+Usage: {{ include "podiumd.maykinConfigJob" (dict "root" $ "alias" "openzaak") }}
+*/}}
+{{- define "podiumd.maykinConfigJob" -}}
+{{- $sub := index .root.Subcharts .alias -}}
+{{- if $sub -}}
+{{- $plain := not $sub.Values.configuration.job.enabled -}}
+{{- $ctx := deepCopy $sub -}}
+{{- $_ := set $ctx.Values.configuration.job "enabled" true -}}
+{{- $job := include (printf "%s/job-config.yaml" $sub.Template.BasePath) $ctx | fromYaml -}}
+{{- if $job.metadata -}}
+{{- if $plain -}}
+{{- $_ := set $job.metadata "name" (printf "%s-%d" $job.metadata.name .root.Release.Revision) -}}
+{{- $annotations := omit ($job.metadata.annotations | default dict) "helm.sh/hook" "helm.sh/hook-delete-policy" "helm.sh/hook-weight" -}}
+{{- if $annotations -}}
+{{- $_ := set $job.metadata "annotations" $annotations -}}
+{{- else -}}
+{{- $_ := unset $job.metadata "annotations" -}}
+{{- end -}}
+{{- $_ := set $job.spec "ttlSecondsAfterFinished" (.root.Values.maykinConfigJobs.ttlSecondsAfterFinished | int) -}}
+{{- end -}}
+{{- toYaml (dict "plain" $plain "job" $job) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Whether the Job that imports the podiumd realm is rendered, and its name. The name ends in a
+short checksum of the realm ConfigMap plus every resolved client secret
+(podiumd.keycloak.realmSecretsData, the same values the Secret holds, generated ones included), so
+the Job runs again on every realm change: identical values on re-apply give the same name, and a
+changed, rotated or newly generated secret a new Job, so Keycloak always gets the secret the
+Secret holds. The previous Job is garbage-collected via ttlSecondsAfterFinished. Under `helm
+template` (no cluster) generated secrets are random, so the name differs per render there. Read by
+templates/keycloak-import-podiumd-realm-job.yaml and the Maykin configuration wait hook.
+
+Usage: {{ include "podiumd.keycloak.podiumdRealmImportJobName" . }}
+*/}}
+{{- define "podiumd.keycloak.podiumdRealmImportEnabled" -}}
+{{- $operator := index .Values "keycloak-operator" -}}
+{{- $jobs := $operator.jobs -}}
+{{- if and $operator.enabled $jobs.importPodiumdRealm.enabled $jobs.ensureOperatorSa.enabled $jobs.ensureOperatorSa.clientSecret -}}true{{- end -}}
+{{- end -}}
+
+{{- define "podiumd.keycloak.podiumdRealmImportJobName" -}}
+{{- $realmCfgTpl := include (print $.Template.BasePath "/keycloak-podiumd-realm-config.yaml") . -}}
+import-podiumd-realm-job-{{ printf "%s|%s" $realmCfgTpl (include "podiumd.keycloak.realmSecretsData" .) | sha256sum | trunc 10 }}
+{{- end -}}
