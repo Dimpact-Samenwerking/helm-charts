@@ -1240,6 +1240,9 @@ PodiumD Helm chart
 | openvtb.settings.uwsgi.processes | string | `"2"` |  |
 | openvtb.settings.uwsgi.threads | string | `"2"` |  |
 | openvtb.tags.redis | bool | `false` |  |
+| openzaak.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.labelSelector.matchLabels."app.kubernetes.io/name" | string | `"openzaak"` |  |
+| openzaak.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.topologyKey | string | `"kubernetes.io/hostname"` |  |
+| openzaak.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].weight | int | `100` |  |
 | openzaak.beat.resources.requests.cpu | string | `"10m"` |  |
 | openzaak.beat.resources.requests.memory | string | `"160Mi"` |  |
 | openzaak.configuration.data | string | `""` |  |
@@ -1288,7 +1291,8 @@ PodiumD Helm chart
 | openzaak.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openzaak.persistentVolume.volumeAttributeShareName | string | `"openzaak"` |  |
 | openzaak.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
-| openzaak.resources.requests.cpu | string | `"250m"` |  |
+| openzaak.replicaCount | int | `2` |  |
+| openzaak.resources.requests.cpu | string | `"1"` |  |
 | openzaak.resources.requests.memory | string | `"1Gi"` |  |
 | openzaak.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | openzaak.settings.allowedHosts | string | `".svc.cluster.local"` |  |

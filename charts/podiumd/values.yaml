@@ -653,6 +653,23 @@ openzaak:
     create: true
     minAvailable: ""
     maxUnavailable: 1
+  # podiumd-chart-51: one pod caps Open Zaak at about 2 cores (2 uWSGI
+  # processes, Python's GIL), and every app's ZGW calls go through it. Two
+  # replicas, set here so an environment that lowers it does so on purpose
+  # (until now 2 came only from the openzaak chart default).
+  replicaCount: 2
+  # Spread the web pods over nodes. The openzaak chart uses this affinity for
+  # all its Deployments, so nginx, worker and beat also prefer a node without
+  # a web pod; preferred only, so a single node still schedules everything.
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: openzaak
   configuration:
     enabled: true
     notificatiesAuthorization:
@@ -860,7 +877,9 @@ openzaak:
     tag: "1.31.1@sha256:63448221142145b0f56eabadaa9ef9578dd4aacc7f95476bd5368f767883ada0"
   resources:
     requests:
-      cpu: 250m
+      # podiumd-chart-51: under parallel load one pod used p95 1.68, peak 2.34
+      # cores; with two replicas each needs about half, plus headroom.
+      cpu: "1"
       # Peaked at 872Mi storing four concurrent 45 MB documents.
       memory: 1Gi
   worker:
