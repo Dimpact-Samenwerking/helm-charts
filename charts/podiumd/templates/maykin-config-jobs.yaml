@@ -119,14 +119,22 @@ spec:
             - -c
             - |
               set -u
-              # The Jobs retry (restartPolicy OnFailure, podiumd-chart-31): on a fresh install they
+              # The Jobs retry (backoffLimit, podiumd-chart-31): on a fresh install they
               # fail until Keycloak and the podiumd realm are up, and on an upgrade until the app's
               # new pods have migrated its database. Once those are ready (the gate), a Job that
               # restarts RESTART_LIMIT more times is broken: fail the deploy with its log, instead
               # of waiting for Helm's --timeout. Until then every restart's log is printed.
               val() { echo " $1 " | tr ' ' '\n' | sed -n "s/^$2=//p"; }
+              # restartPolicy Never (Open Zaak, Open VTB) starts a new pod per attempt: the newest
+              # failed pod has the cause; OnFailure keeps one pod that restarts.
+              newest_pod() {
+                NAME=$1; shift
+                kubectl get pods -n "$NAMESPACE" -l "job-name=$NAME" "$@" --sort-by=.metadata.creationTimestamp \
+                  -o jsonpath='{.items[-1:].metadata.name}' 2>/dev/null
+              }
               show_log() {
-                POD=$(kubectl get pods -n "$NAMESPACE" -l "job-name=$1" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+                POD=$(newest_pod "$1" --field-selector=status.phase=Failed)
+                [ -n "$POD" ] || POD=$(newest_pod "$1")
                 [ -n "$POD" ] || return 0
                 # The previous run's log is not always kept on the node; every run fails the
                 # same way, so the current one's log shows the cause too.
@@ -161,7 +169,11 @@ spec:
                       LOG=$(kubectl logs "job/$JOB" -n "$NAMESPACE" --tail=30 2>&1); echo "$LOG"
                       FAILED="$FAILED $JOB"; continue ;;
                   esac
-                  RESTARTS=$(kubectl get pods -n "$NAMESPACE" -l "job-name=$JOB" -o jsonpath='{range .items[*]}{range .status.containerStatuses[*]}{.restartCount}{"\n"}{end}{end}' 2>/dev/null | awk '{ n += $1 } END { print n + 0 }')
+                  # Container restarts (OnFailure) plus failed pods (Never).
+                  RESTARTS=$({
+                    kubectl get pods -n "$NAMESPACE" -l "job-name=$JOB" -o jsonpath='{range .items[*]}{range .status.containerStatuses[*]}{.restartCount}{"\n"}{end}{end}' 2>/dev/null
+                    kubectl get job "$JOB" -n "$NAMESPACE" -o jsonpath='{.status.failed}{"\n"}' 2>/dev/null
+                  } | awk '{ n += $1 } END { print n + 0 }')
                   if [ "$RESTARTS" != "$(val "$SEEN" "$JOB")" ]; then
                     SEEN="$(echo " $SEEN " | sed "s| $JOB=[0-9]* | |") $JOB=$RESTARTS"
                     if [ "$RESTARTS" -gt 0 ]; then
