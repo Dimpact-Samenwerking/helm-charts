@@ -285,7 +285,11 @@ coverage is in
 
 > **Temporary by design** — see the note at the top of the previous section.
 > `openbao-consumer-auth.lua` is retired in the next release, along with the
-> rest of the workaround.
+> rest of the workaround. One behaviour of it must survive the replacement:
+> the validity-period check on the client certificate (`validity`, IN-3445,
+> decided on IN-3411). The front door does not check it, so the replacement
+> Frank!Gateway OpenBao integration has to, or an expired certificate keeps
+> its access until someone removes the fingerprint.
 
 External parties authenticate to the inway with a **client certificate**. The
 front door terminates TLS, which proves the caller holds the certificate's
@@ -331,14 +335,36 @@ frankgateway:
   this route admits; omit to admit every known consumer), `stale_ttl` (seconds
   the last-good list is served while OpenBao is unreachable; default 3600, `0`
   to fail closed at once — the copy is per gateway pod, so one successful read
-  since the pod started covers every worker in it). Values are compared case-insensitively with colons
-  and spaces removed, so forwarding the certificate **subject** instead and
-  listing subject DNs works the same way.
+  since the pod started covers every worker in it), `validity` (default
+  `true`: the certificate PEM in `certHeader` is parsed and the request
+  refused outside its notBefore..notAfter; `false` only behind a front door
+  that cannot forward the PEM), `certHeader` (default `X-Client-Cert`; the
+  PEM, URL-encoded or plain, leaf first). Values are compared
+  case-insensitively with colons and spaces removed, so forwarding the
+  certificate **subject** instead and listing subject DNs works the same way;
+  several DNs for one consumer are separated by `;`, because a DN contains
+  commas itself.
 - **Answers:** 401 without an identity or with an unknown one, 403 for a known
-  consumer not in `allow`, 503 when OpenBao is unreachable and no last-good
-  list is within `stale_ttl`. On success the upstream receives
-  `X-Consumer-Username` (overwriting anything the caller sent), and the JSON
-  access log carries it as `consumer`.
+  consumer not in `allow`, with `validity` 401 for a known, allowed consumer
+  whose certificate is expired, not yet valid, missing from `certHeader`,
+  unreadable or not the one the fingerprint names (`error` in the body says
+  which), 503 when OpenBao is unreachable and no last-good list is within
+  `stale_ttl`. On success the upstream receives `X-Consumer-Username`
+  (overwriting anything the caller sent), and the JSON access log carries it
+  as `consumer`.
+- **What is and is not checked.** The fingerprint pins one certificate and the
+  front door's TLS handshake proves possession of its private key, so a CA
+  chain check would add no authentication and there is none: any CA, allow
+  list in OpenBao (architecture decision, IN-3287). The validity period is
+  checked here (`validity`) because nothing else on the path reads it: the
+  front door runs in passthrough mode and forwards an expired certificate like
+  any other, and a registered fingerprint would otherwise keep working until
+  someone removes it. When the identity header is a SHA-1 fingerprint the PEM
+  must be the certificate it names (a mismatch is a broken rewrite rule, not a
+  caller); with a subject identity the PEM is checked for its validity period
+  only. Revocation is still removal from OpenBao; there is no CRL or OCSP on
+  the path. The gateway's own clock decides, so an expired certificate
+  answers 401 from the minute it expires, not from the next cache refresh.
 - **Only on the inway.** The function trusts the header. That is sound only
   behind a front door that completed the TLS handshake with that certificate
   and overwrites the header on every request, with the inway reachable through
@@ -369,6 +395,21 @@ passthrough mode, so `verificationHeader` stays unset.
 In passthrough mode the Application Gateway checks nothing about the
 certificate: one from an unknown CA, an expired one and a server-only one are
 all forwarded. The consumer list in OpenBao is the only gate. The full
+measurement is in
+[`frankgateway-aag-test-round-ontw-dim1.md`](frankgateway-aag-test-round-ontw-dim1.md#header-contract).
+| `X-Client-Cert` | `{var_client_certificate}` | the leaf certificate only, also when the client sent a chain; PEM, URL-encoded (`%20`, `%0A`, `%2B`, `%2F`, `%3D`), about 1.9 KB for an RSA 2048 leaf — read by `validity` |
+| `X-Client-Cert-Fingerprint` | `{var_client_certificate_fingerprint}` | **SHA-1**, 40 hex characters, lower case, no colons — the value to list in OpenBao |
+| `X-Client-Cert-Subject` | `{var_client_certificate_subject}` | subject DN, comma-separated without spaces, country first (`C=NL,O=…,CN=…`); optional, for subject-based matching |
+| `X-Client-Cert-Issuer` | `{var_client_certificate_issuer}` | issuer DN, same format; informational |
+
+Without a client certificate all four headers are absent, and a header of that
+name sent by the caller is dropped. `X-Client-Cert-Verification` is not sent in
+passthrough mode, so `verificationHeader` stays unset.
+
+In passthrough mode the Application Gateway checks nothing about the
+certificate: one from an unknown CA, an expired one and a server-only one are
+all forwarded. The consumer list in OpenBao and the validity check on the
+inway are the only gates. The full
 measurement is in
 [`frankgateway-aag-test-round-ontw-dim1.md`](frankgateway-aag-test-round-ontw-dim1.md#header-contract).
 
