@@ -49,33 +49,34 @@ trap 'exit 143' TERM
 echo "=== pip install --upgrade ==="
 python3 -m pip install --quiet --disable-pip-version-check --upgrade pip -r requirements.txt
 
-# Arrays keep each file name one argument (SC2046). set -e misses failures
-# inside <(...), so `wait "$!"` checks each one (SC2312).
-# Extensionless Python scripts must be passed to every tool explicitly.
-mapfile -t python_scripts < <(find . -maxdepth 1 -type f -perm -u+x -exec grep -l '^#!.*python' {} +)
-wait "$!"
-mapfile -t test_files < <(find tests -name '*.py')
-wait "$!"
-# Shell scripts: sh/bash/dash/ksh shebang, or *.sh.
-mapfile -t shell_scripts < <(
-    find . -path ./.venv -prune -o -path '*/__pycache__' -prune -o -type f -print0 |
-        xargs -0 awk 'FNR == 1 && (/^#!.*[\/ ](ba|da|k)?sh([ \t]|$)/ || FILENAME ~ /\.sh$/) {print FILENAME} {nextfile}' |
-        sort
-)
-wait "$!"
-code=(lib "${python_scripts[@]}")
-
-# Same rules as verify-podiumd's markdown check, which skips bin/.
-mapfile -t pymarkdown_args < <(python3 -c '
-from lib.chart.paths import CHART_DIR
-from lib.checks.markdown import pymarkdown_rule_args
-print(*pymarkdown_rule_args(CHART_DIR), sep="\n")')
-wait "$!"
-
 # Each check is a step function. Its output goes to its own log; the logs are
 # printed in order once every step has ended.
 logs=$(mktemp -d)
 trap 'rm -rf "$logs"' EXIT
+
+# Arrays keep each file name one argument (SC2046). The lists go through a
+# file, not mapfile or <(...): macOS ships Bash 3.2, which has neither mapfile
+# nor $! for a process substitution, and set -e with pipefail stops at a
+# failing list command. read returns 1 at the end of the file.
+
+# Extensionless Python scripts must be passed to every tool explicitly.
+find . -maxdepth 1 -type f -perm -u+x -exec grep -l '^#!.*python' {} + >"$logs/python_scripts"
+IFS=$'\n' read -r -d '' -a python_scripts <"$logs/python_scripts" || true
+find tests -name '*.py' >"$logs/test_files"
+IFS=$'\n' read -r -d '' -a test_files <"$logs/test_files" || true
+# Shell scripts: sh/bash/dash/ksh shebang, or *.sh.
+find . -path ./.venv -prune -o -path '*/__pycache__' -prune -o -type f -print0 |
+    xargs -0 awk 'FNR == 1 && (/^#!.*[\/ ](ba|da|k)?sh([ \t]|$)/ || FILENAME ~ /\.sh$/) {print FILENAME} {nextfile}' |
+    sort >"$logs/shell_scripts"
+IFS=$'\n' read -r -d '' -a shell_scripts <"$logs/shell_scripts" || true
+code=(lib "${python_scripts[@]}")
+
+# Same rules as verify-podiumd's markdown check, which skips bin/.
+python3 -c '
+from lib.chart.paths import CHART_DIR
+from lib.checks.markdown import pymarkdown_rule_args
+print(*pymarkdown_rule_args(CHART_DIR), sep="\n")' >"$logs/pymarkdown_args"
+IFS=$'\n' read -r -d '' -a pymarkdown_args <"$logs/pymarkdown_args" || true
 
 # vulture doesn't link TypedDict fields to string-key reads (row["app"]).
 typeddict_whitelist="$logs/typeddict_whitelist.py"
