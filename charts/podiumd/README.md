@@ -1177,10 +1177,10 @@ PodiumD Helm chart
 | opennotificaties.worker.replicaCount | int | `1` |  |
 | opennotificaties.worker.resources.requests.cpu | string | `"50m"` |  |
 | opennotificaties.worker.resources.requests.memory | string | `"386Mi"` |  |
-| openvtb.celery.beat.extraEnvVars | list | `[]` | Extra environment variables of the beat, e.g. EVENTS_BERICHTEN_JOB_HOUR and EVENTS_BERICHTEN_JOB_MINUTE: bericht-gepubliceerd is sent once per that many hours (default every hour, at minute 0, UTC). |
+| openvtb.celery.beat.extraEnvVars | list | `[]` | Extra environment variables of the beat, after openvtb.extraEnvVars, e.g. EVENTS_BERICHTEN_JOB_HOUR and EVENTS_BERICHTEN_JOB_MINUTE: bericht-gepubliceerd is sent once per that many hours (default every hour, at minute 0, UTC). |
 | openvtb.celery.beat.resources | object | `{"limits":{"cpu":"200m","memory":"384Mi"},"requests":{"cpu":"10m","memory":"192Mi"}}` | Resources of the Celery beat (one process; always one replica). |
 | openvtb.celery.enabled | bool | `true` | Run the Open VTB Celery worker and beat (only while openvtb.enabled). |
-| openvtb.celery.worker.extraEnvVars | list | `[]` | Extra environment variables of the worker, e.g. CELERY_WORKER_CONCURRENCY (default 1). |
+| openvtb.celery.worker.extraEnvVars | list | `[]` | Extra environment variables of the worker, after openvtb.extraEnvVars, e.g. CELERY_WORKER_CONCURRENCY (default 1). |
 | openvtb.celery.worker.replicaCount | int | `1` | Number of Celery worker pods. |
 | openvtb.celery.worker.resources | object | `{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources of the Celery worker (one process, concurrency 1). |
 | openvtb.configuration.data | string | `""` |  |
@@ -1197,6 +1197,8 @@ PodiumD Helm chart
 | openvtb.enabled | bool | `false` |  |
 | openvtb.extraEnvVars[0].name | string | `"OPENVTB_PORT"` |  |
 | openvtb.extraEnvVars[0].value | string | `"8000"` |  |
+| openvtb.extraEnvVars[1].name | string | `"NOTIFICATIONS_SOURCE"` |  |
+| openvtb.extraEnvVars[1].value | string | `"openvtb"` |  |
 | openvtb.fullnameOverride | string | `"openvtb"` |  |
 | openvtb.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openvtb.image.repository | string | `"maykinmedia/open-vtb"` |  |
