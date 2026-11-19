@@ -28,6 +28,23 @@ and a Keycloak client. Its footprint is small: two lightweight web pods.
     `bericht-gepubliceerd` only. Open VTB sends no CloudEvent while
     `NOTIFICATIONS_SOURCE` is empty: podiumd sets it to `openvtb` in
     `openvtb.extraEnvVars`, which the worker and beat get too.
+- Only the Berichten API by default (IN-3500): Open VTB 0.2.0 has no switch
+  per API, so podiumd mounts two settings modules into `openvtb.conf`
+  (`templates/_openvtb-settings.tpl`) and `openvtb.settings.djangoSettingsModule`
+  picks one:
+  - `openvtb.conf.podiumd_berichten` (default): `/verzoeken/` and `/taken/`
+    answer 404 for every caller, before authentication, and the beat task
+    `send-taken-events` is disabled, so no Taken CloudEvents go out. The
+    Verzoeken and Taken tables and admin pages stay.
+  - `openvtb.conf.podiumd_all`: every API, and `send-taken-events` enabled
+    again (the beat keeps a task's enabled flag in its database, so
+    `openvtb.conf.docker` would leave it off).
+
+  The modules come from ConfigMap `openvtb-podiumd-settings`, mounted through
+  `openvtb.extraVolumes`/`extraVolumeMounts` in the web pods, the
+  configuration Job, the worker and the beat. An environment that sets its own
+  `extraVolumes` or `extraVolumeMounts` repeats those entries; the render fails
+  while the mount of the chosen module is missing.
 - Runs as non-root uid `1000`, all capabilities dropped.
 - Unlike Open Beheer there is no nginx sidecar: the sub-chart Service (`openvtb`, port 80)
   fronts the Django pods directly.

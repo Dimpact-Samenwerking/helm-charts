@@ -1,0 +1,12 @@
+{{- /* The settings modules of templates/_openvtb-settings.tpl. */ -}}
+{{- if .Values.openvtb.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.openvtb.fullnameOverride | default "openvtb" }}-podiumd-settings
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: openvtb
+data:
+  {{- include "podiumd.openvtb.settingsFiles" . | nindent 2 }}
+{{- end }}
