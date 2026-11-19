@@ -162,26 +162,37 @@ local function fetch(path)
   return data
 end
 
+-- cached(lru, key, loader) -> value, err
+--
+-- Reads `key` through an lrucache, loading it with `loader(key) -> value, err`
+-- on a miss. lrucache stores only successes: the creation function returns
+-- nil on failure, so nothing is cached and the next request retries. The
+-- reason travels out through an upvalue rather than a second return value,
+-- because lrucache keeps only the first. Shared with the parsed-certificate
+-- cache in openbao-consumer-auth.lua.
+function _M.cached(lru, key, loader)
+  local last_err
+  local value = lru(key, nil, function(k)
+    local v, e = loader(k)
+    last_err = e
+    return v
+  end, key)
+  return value, last_err
+end
+
 -- get(path, opts) -> data, err, stale
 --   data   the secret's fields, or nil
 --   err    the reason for the last failed read (also set when stale is true)
 --   stale  true when data comes from the last-good copy because a re-read failed
---
--- lrucache stores only successes: the creation function returns nil on
--- failure, so nothing is cached and the next request retries. The reason
--- travels out through an upvalue rather than a second return value, because
--- lrucache keeps only the first.
 function _M.get(path, opts)
   local stale_ttl = (opts and opts.stale_ttl) or 0
-  local last_err
-  local data = cache(path, nil, function(p)
+  local data, last_err = _M.cached(cache, path, function(p)
     local v, e = fetch(p)
-    last_err = e
     if v then
       last_good_set(p, v)
     end
-    return v
-  end, path)
+    return v, e
+  end)
   if data then
     return data, nil, false
   end
