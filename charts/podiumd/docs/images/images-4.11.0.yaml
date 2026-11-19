@@ -3,16 +3,23 @@
 # Images new or changed in podiumd 4.11.0 vs 4.10.1.
 #
 # Changes:
-#   1. openzaak 1.29.3 -> 1.31.1 (chart 1.14.2 -> 1.16.0).
-#   2. zac 5.9.1 -> 5.12.0 (chart 1.0.355 -> 1.0.383).
-#   3. zac - gotenberg 8.38.1 -> 9.4.0.
-#   4. zac - opa 1.21.3-static -> 1.22.3-static.
-#   5. zac - opentelemetry-collector-contrib 0.161.0 -> 0.165.0.
+#   1. nginx-unprivileged 1.31.7 -> 1.31.9.
+#   2. openzaak 1.29.3 -> 1.31.1 (chart 1.14.2 -> 1.16.0).
+#   3. zac 5.9.1 -> 5.12.0 (chart 1.0.355 -> 1.0.383).
+#   4. zac - gotenberg 8.38.1 -> 9.4.0.
+#   5. zac - opa 1.21.3-static -> 1.22.3-static.
+#   6. zac - opentelemetry-collector-contrib 0.161.0 -> 0.165.0.
 #
 # See docs/_UPGRADE_PATHS/4.10.1-to-4.11.0-upgrade.md for the operator upgrade notes.
 #
 # Digests are the OCI image index (multi-arch manifest) digest as returned in
 # the Docker-Content-Digest response header from the source registry.
+
+# nginx-unprivileged 1.31.7 -> 1.31.9
+- name: nginx/nginx-unprivileged
+  url: docker.io/nginx/nginx-unprivileged
+  version: "1.31.9"
+  digest: "sha256:0255fc1dcc1d7b358aac20166543e52029fea577413edadb0912f5b928c7e312"
 
 # openzaak 1.29.3 -> 1.31.1
 - name: openzaak/open-zaak
