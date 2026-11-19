@@ -25,7 +25,9 @@ and a Keycloak client. Its footprint is small: two lightweight web pods.
     `bericht-gepubliceerd` from the beat task `send_berichten_events`, once
     an hour by default (`EVENTS_BERICHTEN_JOB_HOUR`/`_MINUTE` in
     `openvtb.celery.beat.extraEnvVars`). OMC's Berichtenbox scenario acts on
-    `bericht-gepubliceerd` only.
+    `bericht-gepubliceerd` only. Open VTB sends no CloudEvent while
+    `NOTIFICATIONS_SOURCE` is empty: podiumd sets it to `openvtb` in
+    `openvtb.extraEnvVars`, which the worker and beat get too.
 - Runs as non-root uid `1000`, all capabilities dropped.
 - Unlike Open Beheer there is no nginx sidecar: the sub-chart Service (`openvtb`, port 80)
   fronts the Django pods directly.
