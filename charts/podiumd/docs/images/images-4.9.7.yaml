@@ -1,0 +1,17 @@
+# Baseline: podiumd 4.9.6. Re-verify before release.
+#
+# Images new or changed in podiumd 4.9.7 vs 4.9.6.
+#
+# Changes:
+#   1. nginx-unprivileged 1.31.6 -> 1.31.7.
+#
+# See docs/_UPGRADE_PATHS/4.9.6-to-4.9.7-upgrade.md for the operator upgrade notes.
+#
+# Digests are the OCI image index (multi-arch manifest) digest as returned in
+# the Docker-Content-Digest response header from the source registry.
+
+# nginx-unprivileged 1.31.6 -> 1.31.7
+- name: nginxinc/nginx-unprivileged
+  url: docker.io/nginxinc/nginx-unprivileged
+  version: "1.31.7"
+  digest: "sha256:09b0d3eda2aa592d2487f284519419015cab010d7df16cd0fe224b585fc60eb6"
