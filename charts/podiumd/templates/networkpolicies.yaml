@@ -152,7 +152,9 @@ spec:
                   - opennotificaties-config
                   - opennotificaties-worker
                   - openvtb
+                  - openvtb-beat
                   - openvtb-config
+                  - openvtb-worker
                   - openzaak
                   - openzaak-beat
                   - openzaak-config

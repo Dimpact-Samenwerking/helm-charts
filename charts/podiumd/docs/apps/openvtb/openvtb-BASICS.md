@@ -18,10 +18,17 @@ and a Keycloak client. Its footprint is small: two lightweight web pods.
   - web Deployment, `replicaCount: 2` (uWSGI, listens on container port 8000)
   - `django-setup-configuration` Job on install/upgrade
     (`openvtb.configuration.job.enabled: true`)
-- Runs as non-root uid `1000`, all capabilities dropped, no privilege escalation,
-  seccomp profile `RuntimeDefault`. The root filesystem is still writable.
-- ServiceAccount `openvtb` without a token mount (`templates/openvtb-serviceaccount.yaml`):
-  Open VTB does not call the Kubernetes API.
+  - Celery worker `openvtb-worker` and beat `openvtb-beat`, one pod each,
+    rendered by podiumd (`templates/openvtb-celery.yaml`, `openvtb.celery.*`):
+    the sub-chart has neither. Open VTB sends its CloudEvents from Celery
+    tasks: `bericht-geregistreerd` when a bericht is created, and
+    `bericht-gepubliceerd` from the beat task `send_berichten_events`, once
+    an hour by default (`EVENTS_BERICHTEN_JOB_HOUR`/`_MINUTE` in
+    `openvtb.celery.beat.extraEnvVars`). OMC's Berichtenbox scenario acts on
+    `bericht-gepubliceerd` only. Open VTB sends no CloudEvent while
+    `NOTIFICATIONS_SOURCE` is empty: podiumd sets it to `openvtb` in
+    `openvtb.extraEnvVars`, which the worker and beat get too.
+- Runs as non-root uid `1000`, all capabilities dropped.
 - Unlike Open Beheer there is no nginx sidecar: the sub-chart Service (`openvtb`, port 80)
   fronts the Django pods directly.
 
@@ -56,7 +63,7 @@ sub-chart ships an optional classic Ingress (`openvtb.ingress.*`, disabled by de
 ### Other dependencies
 
 - **Redis**: shared `redis-ha`, **db 19** for `default` and `axes` caches
-  (`openvtb.settings.cache.*`); db 20 holds the Celery broker/result URLs (the sub-chart requires them; no worker is deployed). See
+  (`openvtb.settings.cache.*`); db 20 is the Celery broker and result backend of the worker and beat. See
   `docs/apps/redis/redis-ha-databases.md`.
 - **Keycloak**: OIDC client `openvtb` on realm `podiumd`, created by the realm-config job
   only while `openvtb.enabled: true`; secret from

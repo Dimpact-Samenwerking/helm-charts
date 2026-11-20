@@ -485,7 +485,7 @@ redis-operator:
   #   openarchiefbeheer  : db 13 (cache+axes), db 14 (choices + celery)
   #   referentielijsten  : db 15 (cache), db 16 (reserved — celery not yet used)
   #   openbeheer         : db 17 (cache), db 18 (reserved — celery not yet used)
-  #   openvtb            : db 19 (cache+axes), db 20 (celery broker/result; no worker deployed)
+  #   openvtb            : db 19 (cache+axes), db 20 (celery broker/result)
   #   <future component> : db 21 (cache), db 22 (celery)
   #   db 23–31           : unallocated
   # See docs/apps/redis/redis-ha-databases.md for the full allocation table and guidance.
@@ -3090,6 +3090,11 @@ openvtb:
   extraEnvVars:
     - name: OPENVTB_PORT
       value: "8000"
+    # Open VTB sends no CloudEvent while this is empty (its default), and the
+    # source identifies it in every CloudEvent. Also given to the Celery worker
+    # and beat (templates/openvtb-celery.yaml).
+    - name: NOTIFICATIONS_SOURCE
+      value: "openvtb"
   # Security review 4.10.0 WH-02, as on the other Maykin apps. The chart's
   # configuration Job uses the same two contexts.
   securityContext:
@@ -3154,8 +3159,7 @@ openvtb:
     cache:
       default: redis-ha-master:6379/19
       axes: redis-ha-master:6379/19
-    # No Celery worker is deployed, but the openvtb chart templates CELERY_BROKER_URL / CELERY_RESULT_BACKEND
-    # unconditionally, so they must be set (db 20).
+    # Broker and result backend of the worker and beat in templates/openvtb-celery.yaml (db 20).
     celery:
       brokerUrl: redis://redis-ha-master:6379/20
       resultBackend: redis://redis-ha-master:6379/20
@@ -3167,6 +3171,36 @@ openvtb:
       maxRequests: "1000"
     otel:
       disabled: true
+  # Celery worker and beat (templates/openvtb-celery.yaml): Open VTB sends
+  # its CloudEvents to Open Notificaties from Celery tasks, so without them
+  # OMC never hears of a bericht (IN-3501).
+  celery:
+    # -- Run the Open VTB Celery worker and beat (only while openvtb.enabled).
+    enabled: true
+    worker:
+      # -- Number of Celery worker pods.
+      replicaCount: 1
+      # -- Extra environment variables of the worker, after openvtb.extraEnvVars, e.g. CELERY_WORKER_CONCURRENCY (default 1).
+      extraEnvVars: []
+      # -- Resources of the Celery worker (one process, concurrency 1). Measured on minikube: 295 MiB, about 15m CPU.
+      resources:
+        requests:
+          cpu: 50m
+          memory: 320Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+    beat:
+      # -- Extra environment variables of the beat, after openvtb.extraEnvVars, e.g. EVENTS_BERICHTEN_JOB_HOUR and EVENTS_BERICHTEN_JOB_MINUTE: bericht-gepubliceerd is sent once per that many hours (default every hour, at minute 0, UTC).
+      extraEnvVars: []
+      # -- Resources of the Celery beat (one process; always one replica). Measured on minikube: 224 MiB.
+      resources:
+        requests:
+          cpu: 10m
+          memory: 256Mi
+        limits:
+          cpu: 200m
+          memory: 384Mi
   tags:
     redis: false
 
@@ -4633,6 +4667,8 @@ omc:
           openvtb: "not-configured"
       endpoint:
         openVtb: "https://openvtb.invalid"
+        # -- The Open Zaak Documenten API, e.g. `https://openzaak.example.nl/documenten/api/v1`. OMC downloads a bericht's bijlagen from it for the Berichtenbox (MOBB); without it OMC sends the bericht without them. The render fails while it is empty and `openVtb` is set.
+        documenten: ""
       variable:
         # including dummy defaults for object types, because R'dam wants to POC with object-scenario's
         objectType:
