@@ -1178,6 +1178,9 @@ PodiumD Helm chart
 | opennotificaties.worker.replicaCount | int | `1` |  |
 | opennotificaties.worker.resources.requests.cpu | string | `"50m"` |  |
 | opennotificaties.worker.resources.requests.memory | string | `"386Mi"` |  |
+| openvtb.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.labelSelector.matchLabels."app.kubernetes.io/name" | string | `"openvtb"` |  |
+| openvtb.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.topologyKey | string | `"kubernetes.io/hostname"` |  |
+| openvtb.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].weight | int | `100` |  |
 | openvtb.celery.beat.extraEnvVars | list | `[]` | Extra environment variables of the beat, after openvtb.extraEnvVars, e.g. EVENTS_BERICHTEN_JOB_HOUR and EVENTS_BERICHTEN_JOB_MINUTE: bericht-gepubliceerd is sent once per that many hours (default every hour, at minute 0, UTC). |
 | openvtb.celery.beat.resources | object | `{"limits":{"cpu":"200m","memory":"384Mi"},"requests":{"cpu":"10m","memory":"256Mi"}}` | Resources of the Celery beat (one process; always one replica). Measured on minikube: 224 MiB. |
 | openvtb.celery.enabled | bool | `true` | Run the Open VTB Celery worker and beat (only while openvtb.enabled). |
@@ -1208,13 +1211,28 @@ PodiumD Helm chart
 | openvtb.extraVolumeMounts[1].name | string | `"{{ include \"podiumd.openvtb.settingsVolume\" . }}"` |  |
 | openvtb.extraVolumeMounts[1].readOnly | bool | `true` |  |
 | openvtb.extraVolumeMounts[1].subPath | string | `"podiumd_all.py"` |  |
+| openvtb.extraVolumeMounts[2].mountPath | string | `"/tmp"` |  |
+| openvtb.extraVolumeMounts[2].name | string | `"tmp"` |  |
+| openvtb.extraVolumeMounts[3].mountPath | string | `"/app/tmp"` |  |
+| openvtb.extraVolumeMounts[3].name | string | `"app-tmp"` |  |
+| openvtb.extraVolumeMounts[4].mountPath | string | `"/app/celerybeat"` |  |
+| openvtb.extraVolumeMounts[4].name | string | `"celerybeat"` |  |
 | openvtb.extraVolumes[0].configMap.name | string | `"{{ .Values.fullnameOverride | default \"openvtb\" }}-podiumd-settings"` |  |
 | openvtb.extraVolumes[0].name | string | `"{{ include \"podiumd.openvtb.settingsVolume\" . }}"` |  |
+| openvtb.extraVolumes[1].emptyDir.sizeLimit | string | `"256Mi"` |  |
+| openvtb.extraVolumes[1].name | string | `"tmp"` |  |
+| openvtb.extraVolumes[2].emptyDir.sizeLimit | string | `"64Mi"` |  |
+| openvtb.extraVolumes[2].name | string | `"app-tmp"` |  |
+| openvtb.extraVolumes[3].emptyDir.sizeLimit | string | `"64Mi"` |  |
+| openvtb.extraVolumes[3].name | string | `"celerybeat"` |  |
 | openvtb.fullnameOverride | string | `"openvtb"` |  |
 | openvtb.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openvtb.image.repository | string | `"maykinmedia/open-vtb"` |  |
 | openvtb.image.tag | string | `"0.2.0@sha256:b382b2fdeb052994d6a785864f1277bffb2490e61de2a0222ad74379dede2f01"` |  |
 | openvtb.nameOverride | string | `"openvtb"` |  |
+| openvtb.pdb.create | bool | `true` |  |
+| openvtb.pdb.maxUnavailable | int | `1` |  |
+| openvtb.pdb.minAvailable | string | `""` |  |
 | openvtb.persistence.enabled | bool | `true` |  |
 | openvtb.persistence.existingClaim | string | `"openvtb"` |  |
 | openvtb.persistence.mediaMountSubpath | string | `"openvtb/media"` |  |
@@ -1227,7 +1245,7 @@ PodiumD Helm chart
 | openvtb.resources | object | `{"limits":{"cpu":"500m","memory":"768Mi"},"requests":{"cpu":"100m","memory":"256Mi"}}` | Measured on johnb00: about 260Mi per pod idle (uWSGI 2 processes x 2 threads); the limit leaves room for load. |
 | openvtb.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | openvtb.securityContext.capabilities.drop[0] | string | `"ALL"` |  |
-| openvtb.securityContext.readOnlyRootFilesystem | bool | `false` |  |
+| openvtb.securityContext.readOnlyRootFilesystem | bool | `true` |  |
 | openvtb.securityContext.runAsNonRoot | bool | `true` |  |
 | openvtb.securityContext.runAsUser | int | `1000` |  |
 | openvtb.settings.allowedHosts | string | `".svc.cluster.local"` |  |

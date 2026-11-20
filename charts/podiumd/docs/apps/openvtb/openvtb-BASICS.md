@@ -90,6 +90,24 @@ sub-chart ships an optional classic Ingress (`openvtb.ingress.*`, disabled by de
 - Django `SECRET_KEY` via `openvtb.settings.secretKey` (pipeline-injected).
 - No Open Notificaties subscription, Open Zaak or Objecten wiring is provisioned by this chart.
 
+### Pod security and availability
+
+- The root filesystem is read-only in every Open VTB container (web,
+  configuration Job, worker, beat). Three `emptyDir` volumes in
+  `openvtb.extraVolumes` hold what Open VTB writes: `/tmp`, `/app/tmp` (the
+  worker's probe files) and `/app/celerybeat` (the beat's schedule file). An
+  environment that sets its own `openvtb.extraVolumes` or `extraVolumeMounts`
+  repeats them; the render fails while one is missing.
+- The web pods have a PodDisruptionBudget (`maxUnavailable: 1`) and prefer
+  different nodes (`openvtb.affinity`).
+- The worker has a startup, a liveness and a readiness probe. The beat has no
+  probe and always one replica: two schedulers would send every task twice.
+- NetworkPolicy: Open VTB has no policy of its own. With
+  `networkPolicies.namespaceIsolation.enabled: true` its pods accept traffic
+  only from this namespace, the ingress controller and monitoring.
+- Not changed here: the probes of the web pods use `/admin/`, which the
+  openvtb chart fixes in its template.
+
 ## CPU and memory
 
 Chart defaults (`openvtb.resources.requests`, no section in `docs/misc/resource-overview.md`
