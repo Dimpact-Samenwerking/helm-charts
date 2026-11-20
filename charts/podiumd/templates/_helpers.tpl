@@ -1307,3 +1307,49 @@ Usage: {{ include "podiumd.keycloak.externalClientEnabled" .Values.keycloak.conf
 {{- define "podiumd.keycloak.externalClientEnabled" -}}
 {{- if and (ne (toString .enabled) "false") (trim (toString (.oidcUrl | default ""))) -}}true{{- end -}}
 {{- end -}}
+
+{{/*
+The containers of the Keycloak pod template: keycloak.podTemplate.spec.containers, or a bare
+`keycloak` container with keycloak.resources when that list is empty. keycloak.temporaryJvmOptions
+is added to JAVA_OPTS_APPEND of the `keycloak` container, after an existing literal value; an
+existing JAVA_OPTS_APPEND from valueFrom cannot be extended and fails the render.
+*/}}
+{{- define "podiumd.keycloak.containers" -}}
+{{- $containers := list -}}
+{{- if .Values.keycloak.podTemplate.spec.containers -}}
+{{- $containers = deepCopy .Values.keycloak.podTemplate.spec.containers -}}
+{{- else -}}
+{{- $bare := dict "name" "keycloak" -}}
+{{- with .Values.keycloak.resources }}{{- $_ := set $bare "resources" (deepCopy .) -}}{{- end -}}
+{{- $containers = list $bare -}}
+{{- end -}}
+{{- $options := .Values.keycloak.temporaryJvmOptions | default list -}}
+{{- if $options -}}
+{{- $joined := join " " $options -}}
+{{- $out := list -}}
+{{- range $c := $containers -}}
+{{- if eq $c.name "keycloak" -}}
+{{- $env := list -}}
+{{- $found := false -}}
+{{- range $e := ($c.env | default list) -}}
+{{- if eq $e.name "JAVA_OPTS_APPEND" -}}
+{{- if hasKey $e "valueFrom" -}}
+{{- fail "keycloak.temporaryJvmOptions: the keycloak container sets JAVA_OPTS_APPEND with valueFrom; set it as a literal value or empty keycloak.temporaryJvmOptions" -}}
+{{- end -}}
+{{- $found = true -}}
+{{- $env = append $env (dict "name" "JAVA_OPTS_APPEND" "value" (trim (printf "%s %s" ($e.value | default "") $joined))) -}}
+{{- else -}}
+{{- $env = append $env $e -}}
+{{- end -}}
+{{- end -}}
+{{- if not $found -}}
+{{- $env = append $env (dict "name" "JAVA_OPTS_APPEND" "value" $joined) -}}
+{{- end -}}
+{{- $_ := set $c "env" $env -}}
+{{- end -}}
+{{- $out = append $out $c -}}
+{{- end -}}
+{{- $containers = $out -}}
+{{- end -}}
+{{- toYaml $containers -}}
+{{- end }}

@@ -469,6 +469,7 @@ PodiumD Helm chart
 | keycloak.resources.requests.cpu | string | `"500m"` |  |
 | keycloak.resources.requests.memory | string | `"1700Mi"` |  |
 | keycloak.secretsName | string | `"keycloak-secrets"` |  |
+| keycloak.temporaryJvmOptions | list | `["-XX:-UseBASE64Intrinsics"]` | Temporary JVM options for the Keycloak server, added to JAVA_OPTS_APPEND of the `keycloak` container (after any value an environment sets there itself). Meant for options that a runtime update makes unnecessary: each entry is removed again in a later release, without any change to environment values. An empty list renders nothing. -XX:-UseBASE64Intrinsics: turns off an accelerated Base64 decoding path of the JVM until the image ships an updated runtime. Costs nothing measurable. |
 | keycloak.update.strategy | string | `"Auto"` | Keycloak operator update strategy: Auto, Explicit or RecreateOnImageChange. |
 | kiss-eck.eck-elasticsearch.enabled | bool | `true` |  |
 | kiss-eck.eck-elasticsearch.fullnameOverride | string | `"kiss"` |  |
