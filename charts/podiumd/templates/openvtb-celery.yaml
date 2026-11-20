@@ -89,6 +89,19 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 15
             failureThreshold: 30
+          {{- /* The same check as the startup probe. */}}
+          readinessProbe:
+            exec:
+              command:
+                - maykin-common
+                - worker-health-check
+                - --skip-ping
+                - --skip-event-loop-liveness
+                - --no-skip-readiness
+                - --readiness-file=/app/tmp/celery_worker.ready
+            periodSeconds: 30
+            timeoutSeconds: 15
+            failureThreshold: 3
           livenessProbe:
             exec:
               command:
