@@ -31,6 +31,7 @@ import yaml
 
 from lib.checks.cve import BUCKETS
 from lib.checks.cve import SEVERITY_ORDER
+from lib.checks.cve import TRIVY_UNAVAILABLE
 from lib.checks.cve import CacheSession
 from lib.checks.cve import ImageClassification
 from lib.checks.cve import ScanTarget
@@ -47,6 +48,7 @@ from lib.checks.cve import save_cache
 from lib.checks.cve import scan_cached
 from lib.checks.cve import severity_label
 from lib.checks.cve import target_label
+from lib.checks.cve import trivy_runner
 from lib.checks.cve import unrendered_classification
 from lib.image.digests import find_sliding_pins
 from lib.image.digests import unique_image_targets
@@ -321,6 +323,9 @@ def _build_detail_message(buckets: list[CandidateBucket], totals: dict[str, tupl
 
 def check_cve_diff(chart_dir: Path, extra_args: list[str], *, detail: bool = False):
     """The "CVE diff" step. Always returns ok=True; the detail carries per-bucket counts."""
+    if trivy_runner() is None:
+        return True, TRIVY_UNAVAILABLE
+
     candidates = gather_candidates(chart_dir)
 
     if not candidates:
