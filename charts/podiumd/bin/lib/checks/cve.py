@@ -18,6 +18,7 @@ Results are cached per (repository, digest) in <repo-root>/.cache/cve-scan-cache
 capped by cve_scan.scan_cache_ttl_days because trivy's DB changes even when the image doesn't.
 """
 
+import functools
 import json
 import re
 import shutil
@@ -208,10 +209,28 @@ def cache_entry_is_fresh(entry: CveEntry, ttl_days: int):
     return is_checked_within(entry.get("scanned_at"), timedelta(days=ttl_days))
 
 
+TRIVY_UNAVAILABLE = "no running docker and no installed trivy — skipped (see --help)"
+
+
+def is_docker_running() -> bool:
+    """Whether the docker CLI is installed and its daemon answers.
+
+    The CLI alone is not enough: with the daemon stopped (Colima off), or without
+    access to the docker socket, every `docker run` fails.
+    """
+    if shutil.which("docker") is None:
+        return False
+    return run(["docker", "info"], capture_output=True, text=True).returncode == 0
+
+
+@functools.cache
 def trivy_runner() -> str | None:
-    """How trivy runs here: "docker" (the trivy image), "trivy" (an installed
-    trivy, used when docker is missing), or None when neither is installed."""
-    if shutil.which("docker") is not None:
+    """How trivy runs here: "docker" (the trivy image, when the docker daemon
+    answers), "trivy" (an installed trivy), or None when neither can run.
+
+    Decided once per run: `docker info` costs a process start.
+    """
+    if is_docker_running():
         return "docker"
     if shutil.which("trivy") is not None:
         return "trivy"
@@ -243,11 +262,15 @@ def run_trivy(image_ref: str) -> list[Vulnerability] | None:
     """Fixable vulnerabilities in image_ref via trivy (see trivy_runner), or None on failure.
 
     A non-zero exit is a failure even if stdout parses: it can be empty JSON that
-    would otherwise read as a clean scan.
+    would otherwise read as a clean scan. Without a runner nothing can scan,
+    which is a failure too.
     """
+    runner = trivy_runner()
+    if runner is None:
+        return None
     result = run(
         [
-            *_trivy_command(trivy_runner() or "docker"),
+            *_trivy_command(runner),
             # Image layers stay in memory: the cache dir then only holds the
             # database, and concurrent scans don't wait on trivy's fs cache lock.
             "--cache-backend",
@@ -288,7 +311,7 @@ def scan_cached(chart_dir: Path, target: ScanTarget, session: CacheSession, ttl_
             print(f"  {label}: served from cache — {target.ref}")
             return cached["vulnerabilities"], True
 
-    how = "trivy" if trivy_runner() == "trivy" else "docker pull + trivy"
+    how = "trivy" if trivy_runner() == "trivy" else "trivy in docker"
     print(f"  {label}: scanning fresh ({how}) — {target.ref}...", flush=True)
     vulns = run_trivy(target.ref)
     if vulns is None:
@@ -638,7 +661,7 @@ def check_cves(chart_dir: Path, extra_args: list[str], *, detail: bool = False):
     Returns (ok, detail); ok is False only when the chart fails to render.
     """
     if trivy_runner() is None:
-        return True, "docker and trivy are not installed — skipped (see --help)"
+        return True, TRIVY_UNAVAILABLE
 
     settings = CveScanSettings(
         cve_max_per_package(chart_dir),

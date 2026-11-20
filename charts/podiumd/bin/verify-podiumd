@@ -46,10 +46,10 @@ Steps, in run order:
                        (report only)
   image-upgrades       newer same-variant tags published (report only)
   cve-scan             fixable CVEs via trivy, run with docker or, without
-                       docker, an installed trivy (report only; skipped
-                       when neither is installed)
+                       a running docker, an installed trivy (report only;
+                       skipped when neither can run)
   cve-diff             CVEs closed/introduced by upgrade candidates (report
-                       only)
+                       only; skipped like cve-scan)
 
 Vendored sub-chart findings of yamllint, kubeconform, shellcheck and
 kube-score never fail; partner vendors (lib.render_scope) get per-item
@@ -352,8 +352,8 @@ STEPS_HELP = (
 
 REQUIRED_TOOLS_HELP = """
 Requires: the tools listed in README-release-process.md#setup. A step whose
-tool is missing fails; skip it with --skip. Without docker the CVE scan uses
-an installed trivy; with neither it is reported as skipped.
+tool is missing fails; skip it with --skip. Without a running docker the CVE
+steps use an installed trivy; with neither they are reported as skipped.
 """
 
 

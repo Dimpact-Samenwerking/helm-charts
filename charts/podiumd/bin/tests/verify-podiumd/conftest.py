@@ -349,6 +349,25 @@ def chart_repo(tmp_path: Path):
     return chart_dir
 
 
+@pytest.fixture(scope="session")
+def real_is_docker_running():
+    """The is_docker_running that hermetic_trivy_runner replaces."""
+    return cve_check.is_docker_running
+
+
+@pytest.fixture(autouse=True)
+def hermetic_trivy_runner(vp: ModuleType, monkeypatch: pytest.MonkeyPatch, real_is_docker_running):
+    """No test runs `docker info` on the host: docker counts as running when shutil.which finds it.
+
+    trivy_runner decides once per run, so each test starts without a decision.
+    real_is_docker_running is requested first, so that it holds the original.
+    """
+    cve_check.trivy_runner.cache_clear()
+    monkeypatch.setattr(cve_check, "is_docker_running", lambda: vp.shutil.which("docker") is not None)
+    yield
+    cve_check.trivy_runner.cache_clear()
+
+
 @pytest.fixture(autouse=True)
 def stub_ensure_vendored_dependencies(vp: ModuleType, monkeypatch: pytest.MonkeyPatch):
     """Stub ensure_vendored_dependencies: fake chart dirs have no vendored sub-charts."""

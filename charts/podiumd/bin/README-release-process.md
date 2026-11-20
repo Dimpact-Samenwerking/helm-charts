@@ -31,7 +31,7 @@ enforced minimums:
 - `kubeconform` — kubeconform check (known-working: v0.8.0)
 - `shellcheck` — shellcheck check (known-working: 0.9.0)
 - `kube-score` — kube-score check (known-working: 1.20.0)
-- `docker` — CVE scan, runs the trivy image (known-working: 29.8.0). Without docker an installed `trivy` is used (known-working: 0.76.2); with neither, the CVE scan is reported as skipped
+- `docker` — CVE scan, runs the trivy image (known-working: 29.8.0). Without a running docker daemon an installed `trivy` is used (known-working: 0.76.2); with neither, the CVE scan and the CVE diff are reported as skipped
 - `python3-venv` (Debian only) — to create the `.venv`; the tooling needs Python 3.12 or newer (known-working: 3.13)
 
 ### Debian setup

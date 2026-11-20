@@ -34,6 +34,12 @@ version: 0.0.1
 """
 
 
+@pytest.fixture(autouse=True)
+def docker_runs(libcvecheck: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    """These tests stub the scans; the runner choice must not depend on the host's tools."""
+    monkeypatch.setattr(libcvecheck.shutil, "which", lambda name: f"/usr/bin/{name}")
+
+
 def write_chart_yaml(chart_dir, text=MINIMAL_CHART_YAML):
     (chart_dir / "Chart.yaml").write_text(text, encoding="utf-8")
 
@@ -416,7 +422,7 @@ zac:
 
     out = capsys.readouterr().out
     assert "current: served from cache" in out
-    assert "proposed: scanning fresh (docker pull + trivy)" in out
+    assert "proposed: scanning fresh (trivy in docker)" in out
     assert "ghcr.io/infonl/zac:1.0.0" not in trivy_calls  # current side never actually scanned
 
 
@@ -894,3 +900,18 @@ def test_check_cve_diff_summary_reports_correct_per_bucket_counts(
         "1 other-vendor (0 closed, 1 introduced); "
         "0 scan error(s)"
     )
+
+
+def test_check_cve_diff_without_docker_and_trivy_passes_and_skips(
+    libcvediffcheck: ModuleType, libcvecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Like check_cves: with neither tool the step is skipped before it gathers candidates or scans."""
+    monkeypatch.setattr(libcvecheck.shutil, "which", lambda name: None)
+    calls = []
+    monkeypatch.setattr(libcvediffcheck, "gather_candidates", calls.append)
+
+    ok, detail = libcvediffcheck.check_cve_diff(tmp_path, [])
+
+    assert ok is True
+    assert detail == libcvecheck.TRIVY_UNAVAILABLE
+    assert not calls

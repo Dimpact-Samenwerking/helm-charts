@@ -204,6 +204,65 @@ def test_trivy_runner_prefers_docker_then_an_installed_trivy(
     assert libcvecheck.trivy_runner() == runner
 
 
+@pytest.mark.parametrize(("installed", "runner"), [({"docker", "trivy"}, "trivy"), ({"docker"}, None)])
+def test_trivy_runner_skips_a_docker_whose_daemon_does_not_answer(
+    libcvecheck: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    real_is_docker_running,
+    installed: set[str],
+    runner: str | None,
+):
+    """A docker CLI with the daemon stopped (Colima off) can scan nothing: an installed trivy takes over."""
+    commands = []
+
+    def run(cmd, **kwargs):
+        commands.append(cmd)
+        return trivy_result(returncode=1, stderr="Cannot connect to the Docker daemon")
+
+    monkeypatch.setattr(libcvecheck, "is_docker_running", real_is_docker_running)
+    monkeypatch.setattr(libcvecheck, "run", run)
+    monkeypatch.setattr(libcvecheck.shutil, "which", lambda name: f"/usr/bin/{name}" if name in installed else None)
+    assert libcvecheck.trivy_runner() == runner
+    assert commands == [["docker", "info"]]
+
+
+def test_trivy_runner_asks_docker_once_per_run(
+    libcvecheck: ModuleType, monkeypatch: pytest.MonkeyPatch, real_is_docker_running
+):
+    commands = []
+
+    def run(cmd, **kwargs):
+        commands.append(cmd)
+        return trivy_result()
+
+    monkeypatch.setattr(libcvecheck, "is_docker_running", real_is_docker_running)
+    monkeypatch.setattr(libcvecheck, "run", run)
+    monkeypatch.setattr(libcvecheck.shutil, "which", lambda name: f"/usr/bin/{name}")
+    assert [libcvecheck.trivy_runner() for _ in range(3)] == ["docker"] * 3
+    assert commands == [["docker", "info"]]
+
+
+def test_is_docker_running_without_the_cli_starts_no_process(
+    libcvecheck: ModuleType, monkeypatch: pytest.MonkeyPatch, real_is_docker_running
+):
+    commands = []
+    monkeypatch.setattr(libcvecheck, "run", lambda cmd, **kw: commands.append(cmd))
+    monkeypatch.setattr(libcvecheck.shutil, "which", lambda name: None)
+    assert real_is_docker_running() is False
+    assert not commands
+
+
+def test_run_trivy_without_a_runner_fails_without_starting_a_process(
+    libcvecheck: ModuleType, monkeypatch: pytest.MonkeyPatch
+):
+    """With neither tool it must not build a docker command: that raised FileNotFoundError."""
+    commands = []
+    monkeypatch.setattr(libcvecheck, "run", lambda cmd, **kw: commands.append(cmd))
+    monkeypatch.setattr(libcvecheck.shutil, "which", lambda name: None)
+    assert libcvecheck.run_trivy("org/repo:1.0.0") is None
+    assert not commands
+
+
 def test_run_trivy_handles_missing_results_and_vulnerabilities_keys(
     libcvecheck: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
@@ -291,7 +350,7 @@ def test_scan_cached_reports_a_fresh_scan_and_writes_the_cache(
     assert new_cache[key]["vulnerabilities"] == fresh_vulns
     assert libcvecheck.load_cache(tmp_path)[key]["vulnerabilities"] == fresh_vulns  # persisted, not just in-memory
     out = capsys.readouterr().out
-    assert "proposed: scanning fresh (docker pull + trivy) — org/repo:1.0.0..." in out
+    assert "proposed: scanning fresh (trivy in docker) — org/repo:1.0.0..." in out
 
 
 def test_scan_cached_stale_entry_is_not_used(libcvecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -536,7 +595,7 @@ def test_check_cves_no_docker_passes_and_skips(vp: ModuleType, tmp_path: Path, m
     monkeypatch.setattr(vp.shutil, "which", lambda name: None)
     ok, detail = vp.check_cves(chart_dir, [])
     assert ok is True
-    assert "not installed" in detail
+    assert "skipped" in detail
 
 
 def test_check_cves_without_docker_scans_with_an_installed_trivy(
@@ -551,7 +610,7 @@ def test_check_cves_without_docker_scans_with_an_installed_trivy(
     monkeypatch.setattr(libcvecheck, "run", sequenced_run())
     ok, detail = vp.check_cves(chart_dir, [])
     assert ok is True
-    assert "not installed" not in detail
+    assert "skipped" not in detail
     assert "scanning fresh (trivy)" in capsys.readouterr().out
 
 
@@ -620,7 +679,7 @@ def test_check_cves_splits_own_partner_other_and_never_fails(
     assert "CVE-OTHER-1" not in out  # totals only by default, no individual CVE IDs
 
     # a per-image progress line per uncached scan, so a slow trivy pull doesn't look hung
-    scan_lines = [line for line in out.splitlines() if "scanning fresh" in line and "docker pull + trivy" in line]
+    scan_lines = [line for line in out.splitlines() if "scanning fresh" in line and "trivy in docker" in line]
     assert len(scan_lines) == 3
     assert any(line.startswith("  [1/3] this image: scanning fresh ") for line in scan_lines)
     assert any(line.startswith("  [3/3] this image: scanning fresh ") for line in scan_lines)
