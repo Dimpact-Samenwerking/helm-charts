@@ -41,6 +41,7 @@ spec:
   nodeSelector:
     {{- toYaml .Values.nodeSelector | nindent 4 }}
   {{- end }}
+  automountServiceAccountToken: false
   containers:
     - name: configure-clamav
       image: {{ include "podiumd.image" .Values.openformulieren.image }}
@@ -98,7 +99,8 @@ spec:
         {{- end }}
   volumes:
     - name: tmp
-      emptyDir: {}
+      emptyDir:
+        sizeLimit: 64Mi
     {{- if .Values.openformulieren.extraVolumes }}
     {{- include "kiss-frontend.tplvalues.render" ( dict "value" .Values.openformulieren.extraVolumes "context" $ ) | nindent 4 }}
     {{- end }}

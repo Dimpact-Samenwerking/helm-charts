@@ -275,9 +275,11 @@ route MUST satisfy:
   OIDC role `allowed_redirect_uris`; a mismatch breaks OIDC login
   (`redirect_uri` rejected).
 - **UI:** the server sets `ui = true`; the OIDC callback path used is
-  `<oidcUrl>/ui/vault/auth/oidc/oidc/callback`. The `localhost:8250` redirect
-  URI additionally enables `bao login -method=oidc` from an operator
-  workstation.
+  `<oidcUrl>/ui/vault/auth/oidc/oidc/callback`. With
+  `openbao.configuration.cliLogin: true`, the redirect URI
+  `http://localhost:8250/oidc/callback` also enables `bao login -method=oidc`
+  from an operator workstation. It is off by default, because any local
+  process on port 8250 could catch the login.
 
 > The intra-cluster HA port `[::]:8201` (`cluster_address`) is used for
 > leader-forwarding between replicas and is **not** routed externally.
@@ -475,8 +477,9 @@ Trust and risk:
 All rendered into the **podiumd realm** import (`keycloak-podiumd-realm-config.yaml`):
 
 - **OIDC client `openbao`** — `client-secret` auth, `redirectUris`
-  `<oidcUrl>/*` **and** `http://localhost:8250/*` (for `bao login -method=oidc`
-  CLI), `webOrigins` `<oidcUrl>/*`, secret injected as `$(KC_SECRET_OPENBAO)`.
+  `<oidcUrl>/*`, plus `http://localhost:8250/oidc/callback` for
+  `bao login -method=oidc` only with `openbao.configuration.cliLogin: true`,
+  `webOrigins` `<oidcUrl>/*`, secret injected as `$(KC_SECRET_OPENBAO)`.
   Protocol mappers: `preferred_username` and a **client-role → `groups` claim**
   mapper (client roles of the `openbao` client are emitted in the `groups`
   claim).
@@ -512,7 +515,8 @@ The `openbao-config` Job then makes the vault usable, idempotently:
    (`oidc_discovery_url = <keycloak.url>/realms/<realm>`, client `openbao`,
    `KC_SECRET_OPENBAO`, `default_role = uploader`);
 4. create the **`uploader` OIDC role** (`user_claim=sub`, `groups_claim=groups`,
-   `allowed_redirect_uris` from `oidcUrl` + `localhost:8250`). Deliberately
+   `allowed_redirect_uris` from `oidcUrl`, plus `localhost:8250` with
+   `cliLogin`). Deliberately
    **no `token_policies`** — the policy comes via the group binding in step 5,
    so login alone grants nothing;
 5. bind the Keycloak uploaders to the `uploader` policy via an external
@@ -647,8 +651,10 @@ pod that restarts between deploys, and they do not re-run the
   granted via the external group, so `bao token lookup` shows it under
   `identity_policies` (not `policies`). A user *without* the role gets only
   `default`.
-- **OIDC login (CLI):** `bao login -method=oidc` completes via the
-  `localhost:8250` callback.
+- **OIDC login (CLI):** only with `openbao.configuration.cliLogin: true`,
+  `bao login -method=oidc` completes via the `localhost:8250` callback.
+  Without it, log in to the UI, copy the token from the user menu and run
+  `bao login <token>`.
 - **Upload:** as an uploader, `bao kv put secret/<path> k=v` succeeds; a
   non-member is denied.
 

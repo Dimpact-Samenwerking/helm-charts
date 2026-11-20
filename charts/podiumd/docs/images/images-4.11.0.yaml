@@ -1,0 +1,38 @@
+# Baseline: podiumd 4.10.1. Re-verify before release.
+#
+# Images new or changed in podiumd 4.11.0 vs 4.10.1.
+#
+# Changes:
+#   1. nginx-unprivileged 1.31.7 -> 1.31.9.
+#   2. openzaak 1.29.3 -> 1.31.1 (chart 1.14.2 -> 1.16.0).
+#   3. openklant 2.15.0 -> 2.19.2 (chart 1.11.0 -> 1.14.2).
+#   4. omc 2.3.1 -> 2.4.1 (chart 0.17.4 -> 0.17.8).
+#
+# See docs/_UPGRADE_PATHS/4.10.1-to-4.11.0-upgrade.md for the operator upgrade notes.
+#
+# Digests are the OCI image index (multi-arch manifest) digest as returned in
+# the Docker-Content-Digest response header from the source registry.
+
+# nginx-unprivileged 1.31.7 -> 1.31.9
+- name: nginx/nginx-unprivileged
+  url: docker.io/nginx/nginx-unprivileged
+  version: "1.31.9"
+  digest: "sha256:0255fc1dcc1d7b358aac20166543e52029fea577413edadb0912f5b928c7e312"
+
+# openzaak 1.29.3 -> 1.31.1
+- name: openzaak/open-zaak
+  url: docker.io/openzaak/open-zaak
+  version: "1.31.1"
+  digest: "sha256:63448221142145b0f56eabadaa9ef9578dd4aacc7f95476bd5368f767883ada0"
+
+# openklant 2.15.0 -> 2.19.2
+- name: maykinmedia/open-klant
+  url: docker.io/maykinmedia/open-klant
+  version: "2.19.2"
+  digest: "sha256:f85ef0b31610cbf3ef6c09cbe217f113145e11623aa9ba140abd2e4ffb7bddff"
+
+# omc 2.3.1 -> 2.4.1
+- name: worthnl/notifynl-omc
+  url: docker.io/worthnl/notifynl-omc
+  version: "2.4.1"
+  digest: "sha256:2836b71bae7eeb01999bb1550542a6d1a9d6394ca70ddf3f26b3237805a3b54c"

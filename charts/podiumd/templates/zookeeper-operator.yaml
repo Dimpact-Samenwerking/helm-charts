@@ -1,0 +1,297 @@
+{{- /*
+ZooKeeper operator for ZAC's Solr, rendered by podiumd instead of the
+zookeeper-operator 0.2.15 sub-chart of solr-operator (zac-49). The sub-chart's
+post-install/post-upgrade hook sleeps 30 s and then only checks that the
+ZookeeperCluster CRD exists, on every upgrade. pravega/zookeeper-operator is
+unmaintained (0.2.15 is its last release), so no upstream fix will come.
+
+podiumd values set zac.solr-operator.zookeeper-operator.install: false (the
+sub-chart is not rendered) and use: true (solr-operator keeps using
+ZookeeperCluster objects). The resources below are the sub-chart's, with the
+same names, labels and selector, so an upgrade takes over the existing
+Deployment (its selector is immutable). Only the post-install/post-upgrade hook
+is left out; the pre-delete hook stays (hooks.delete).
+
+The sub-chart's own defaults are not loaded when it is not installed, so its
+defaults that podiumd does not set are written here.
+*/ -}}
+{{- define "podiumd.zookeeperOperator.labels" -}}
+app.kubernetes.io/name: zookeeper-operator
+app.kubernetes.io/version: "0.2.15"
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+helm.sh/chart: "zookeeper-operator-0.2.15"
+{{- end }}
+{{- define "podiumd.zookeeperOperator.hookAnnotations" -}}
+"helm.sh/hook": pre-delete
+"helm.sh/hook-weight": {{ . | quote }}
+"helm.sh/hook-delete-policy": hook-succeeded, before-hook-creation, hook-failed
+{{- end }}
+{{- $solr := dig "solr-operator" (dict) (.Values.zac | default dict) -}}
+{{- $zk := dig "zookeeper-operator" (dict) $solr -}}
+{{- if and .Values.zac.enabled (dig "enabled" true $solr) (not (dig "install" true $zk)) (dig "use" false $zk) -}}
+{{- $name := "zookeeper-operator" -}}
+{{- $image := $zk.image | default dict -}}
+{{- $hooks := $zk.hooks | default dict -}}
+{{- $pullSecrets := .Values.global.imagePullSecrets | default list -}}
+apiVersion: v1
+kind: ServiceAccount
+{{- with $pullSecrets }}
+imagePullSecrets:
+  {{- range . }}
+  - name: {{ . }}
+  {{- end }}
+{{- end }}
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.zookeeperOperator.labels" . | nindent 4 }}
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "podiumd.zookeeperOperator.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["zookeeper.pravega.io"]
+    resources: ["*"]
+    verbs: ["*"]
+  - apiGroups: [""]
+    resources: [nodes, pods, services, endpoints, persistentvolumeclaims, events, configmaps, secrets, serviceaccounts]
+    verbs: ["*"]
+  - apiGroups: [apps]
+    resources: [deployments, daemonsets, replicasets, statefulsets]
+    verbs: ["*"]
+  - apiGroups: [policy]
+    resources: [poddisruptionbudgets]
+    verbs: ["*"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "podiumd.zookeeperOperator.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: {{ $name }}
+  apiGroup: rbac.authorization.k8s.io
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.zookeeperOperator.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["zookeeper.pravega.io"]
+    resources: ["*"]
+    verbs: ["*"]
+  - apiGroups: [""]
+    resources: [pods, services, endpoints, persistentvolumeclaims, events, configmaps, secrets]
+    verbs: ["*"]
+  - apiGroups: [apps]
+    resources: [deployments, daemonsets, replicasets, statefulsets]
+    verbs: ["*"]
+  - apiGroups: [policy]
+    resources: [poddisruptionbudgets]
+    verbs: ["*"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.zookeeperOperator.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+roleRef:
+  kind: Role
+  name: {{ $name }}
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.zookeeperOperator.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: {{ $name }}
+  template:
+    metadata:
+      labels:
+        name: {{ $name }}
+        component: zookeeper-operator
+        {{- with $zk.labels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with $zk.annotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ $name }}
+      containers:
+        - name: {{ $name }}
+          image: {{ include "podiumd.image" $image | quote }}
+          imagePullPolicy: {{ $image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - containerPort: 6000
+              name: metrics
+          command:
+            - zookeeper-operator
+          env:
+            - name: WATCH_NAMESPACE
+              value: {{ $zk.watchNamespace | default "" | quote }}
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPERATOR_NAME
+              value: {{ $name }}
+          {{- with $zk.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with $zk.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $zk.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $zk.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- if dig "delete" true $hooks }}
+{{- /* Uninstall stops while a ZookeeperCluster exists, as in the sub-chart. */}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}-pre-delete
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- include "podiumd.zookeeperOperator.hookAnnotations" "1" | nindent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-pre-delete
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- include "podiumd.zookeeperOperator.hookAnnotations" "1" | nindent 4 }}
+data:
+  pre-delete.sh: |
+    #!/bin/sh
+    exit_code=0
+    echo "Checking for ZookeeperCluster Resource"
+
+    ret=$(kubectl get zookeepercluster --all-namespaces --no-headers 2>&1)
+    if (echo $ret | grep -e "No resources found" -e "the server doesn't have a resource type \"zookeepercluster\"" > /dev/null);
+    then
+      echo "None"
+    else
+      echo "$ret"
+      exit_code=1
+    fi
+
+    if [ $exit_code -ne 0 ];
+    then
+      echo "Pre-delete Check Failed"
+      exit $exit_code
+    fi
+    echo "Pre-delete Check OK"
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ $name }}-pre-delete
+  annotations:
+    {{- include "podiumd.zookeeperOperator.hookAnnotations" "1" | nindent 4 }}
+rules:
+  - apiGroups: ["zookeeper.pravega.io"]
+    resources: ["*"]
+    verbs: [get, list]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ $name }}-pre-delete
+  annotations:
+    {{- include "podiumd.zookeeperOperator.hookAnnotations" "1" | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}-pre-delete
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: {{ $name }}-pre-delete
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}-pre-delete
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- include "podiumd.zookeeperOperator.hookAnnotations" "2" | nindent 4 }}
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      name: {{ $name }}-pre-delete
+    spec:
+      serviceAccountName: {{ $name }}-pre-delete
+      restartPolicy: Never
+      containers:
+        - name: pre-delete-job
+          image: {{ include "podiumd.image" $hooks.image | quote }}
+          {{- with $hooks.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $hooks.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            - /scripts/pre-delete.sh
+          volumeMounts:
+            - name: sh
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: sh
+          configMap:
+            name: {{ $name }}-pre-delete
+            defaultMode: 0555
+      {{- with $zk.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $zk.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $zk.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
+{{- end }}

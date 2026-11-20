@@ -166,8 +166,9 @@ What it does, stopping at the first problem:
 4. **Tokens**: the scoped config token (Secret `openbao-bootstrap-token`) and,
    when Frank!Gateway is deployed, its read-only token. The gateways are
    restarted to pick it up.
-5. **Configure**: re-runs the `openbao-config` Job from the deployed release.
-   It sets up the Keycloak login, the `secret` kv mount, the uploader policy
+5. **Configure**: re-runs the `openbao-config` Job from the deployed release,
+   unless the deploy's own hook run of this revision already completed with
+   the current config token. It sets up the Keycloak login, the `secret` kv mount, the uploader policy
    and the group binding. A skipped run fails the script.
 6. **Revoke the root token.**
 7. **Verify** every pod and both tokens.
@@ -187,14 +188,16 @@ Two options for exceptional cases:
 ## 6. Give uploaders access
 
 Add the people who write secrets to the Keycloak group `vault-uploaders`,
-in the admin console or with `openbao-keycloak-setup.py --members`. They log in at the OpenBao host (or `bao login -method=oidc`) and write the
-gateway's keys, as in
+in the admin console or with `openbao-keycloak-setup.py --members`. They log
+in at the OpenBao host (or with `bao login -method=oidc`, only when
+`openbao.configuration.cliLogin` is `true`) and write the gateway's keys, as in
 [runbook step 5](frankgateway-deploy-runbook.md#step-5--put-the-gateways-secrets-in-openbao).
 
 ## 7. After every deploy, and lifecycle
 
 Run the same command after every deploy. On an operational vault it checks,
-re-runs the `openbao-config` Job (which renews the config token) and exits.
+keeps or re-runs the `openbao-config` Job (which renews the config token) and
+exits.
 
 | Event | What happens | Action |
 |---|---|---|
