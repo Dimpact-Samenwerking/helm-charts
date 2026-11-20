@@ -3095,6 +3095,24 @@ openvtb:
     # and beat (templates/openvtb-celery.yaml).
     - name: NOTIFICATIONS_SOURCE
       value: "openvtb"
+  # The settings modules of templates/_openvtb-settings.tpl, chosen with
+  # settings.djangoSettingsModule. Also mounted in the Celery worker and beat.
+  # An environment that sets its own extraVolumes or extraVolumeMounts repeats
+  # these; the render fails while a podiumd settings module is chosen and its
+  # mount is missing.
+  extraVolumes:
+    - name: '{{ include "podiumd.openvtb.settingsVolume" . }}'
+      configMap:
+        name: '{{ .Values.fullnameOverride | default "openvtb" }}-podiumd-settings'
+  extraVolumeMounts:
+    - name: '{{ include "podiumd.openvtb.settingsVolume" . }}'
+      mountPath: /app/src/openvtb/conf/podiumd_berichten.py
+      subPath: podiumd_berichten.py
+      readOnly: true
+    - name: '{{ include "podiumd.openvtb.settingsVolume" . }}'
+      mountPath: /app/src/openvtb/conf/podiumd_all.py
+      subPath: podiumd_all.py
+      readOnly: true
   # Security review 4.10.0 WH-02, as on the other Maykin apps. The chart's
   # configuration Job uses the same two contexts.
   securityContext:
@@ -3132,7 +3150,8 @@ openvtb:
     storageClassName: podiumd-standard
   settings:
     allowedHosts: ".svc.cluster.local"
-    djangoSettingsModule: openvtb.conf.docker
+    # -- `openvtb.conf.podiumd_berichten`: only the Berichten API; `/verzoeken/` and `/taken/` answer 404 and no Taken events go out (IN-3500). `openvtb.conf.podiumd_all` turns Verzoeken and Taken on again. See templates/_openvtb-settings.tpl.
+    djangoSettingsModule: openvtb.conf.podiumd_berichten
     useXForwardedHost: false
     secretKey: ""
     environment: ""

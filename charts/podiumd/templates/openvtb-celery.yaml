@@ -11,6 +11,10 @@ beat.
 {{- if and $vtb.enabled $vtb.celery.enabled }}
 {{- $fullname := $vtb.fullnameOverride | default "openvtb" }}
 {{- $checksum := toYaml (list $vtb.settings $vtb.extraEnvVars $vtb.image) | sha256sum }}
+{{- /* openvtb.extraVolumes and extraVolumeMounts hold templates for the openvtb
+     chart's tpl (the podiumd settings modules): render them as it does, with
+     openvtb's values as .Values. */}}
+{{- $vtbCtx := dict "Values" $vtb "Release" .Release "Chart" .Chart "Capabilities" .Capabilities "Template" .Template }}
 {{- range $role := list "worker" "beat" }}
 {{- $cfg := index $vtb.celery $role }}
 ---
@@ -107,10 +111,16 @@ spec:
             - name: media
               mountPath: /app/private_media
               subPath: {{ $vtb.persistence.privateMediaMountSubpath | default "openvtb/private_media" }}
+            {{- with $vtb.extraVolumeMounts }}
+            {{- tpl (toYaml .) $vtbCtx | nindent 12 }}
+            {{- end }}
       volumes:
         - name: media
           persistentVolumeClaim:
             claimName: {{ $vtb.persistence.existingClaim | default $fullname }}
+        {{- with $vtb.extraVolumes }}
+        {{- tpl (toYaml .) $vtbCtx | nindent 8 }}
+        {{- end }}
       {{- with $vtb.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
