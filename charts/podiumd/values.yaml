@@ -3100,6 +3100,11 @@ openvtb:
     readOnlyRootFilesystem: false
     runAsNonRoot: true
     runAsUser: 1000
+  # The ServiceAccount comes from templates/openvtb-serviceaccount.yaml, without
+  # a token mount: the openvtb chart cannot turn the mount off.
+  serviceAccount:
+    create: false
+    name: openvtb
   podSecurityContext:
     seccompProfile:
       type: RuntimeDefault
