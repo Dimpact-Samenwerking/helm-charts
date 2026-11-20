@@ -3149,12 +3149,6 @@ openvtb:
   podSecurityContext:
     seccompProfile:
       type: RuntimeDefault
-  # As on the other Maykin apps (hosting standard COMP014.4): a node drain
-  # evicts one web pod at a time.
-  pdb:
-    create: true
-    minAvailable: ""
-    maxUnavailable: 1
   # Spread the web pods over nodes (hosting standard COMP014.3); preferred
   # only, so a single node still schedules both.
   affinity:

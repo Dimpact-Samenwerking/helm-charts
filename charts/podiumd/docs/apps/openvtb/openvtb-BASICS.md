@@ -98,8 +98,7 @@ sub-chart ships an optional classic Ingress (`openvtb.ingress.*`, disabled by de
   worker's probe files) and `/app/celerybeat` (the beat's schedule file). An
   environment that sets its own `openvtb.extraVolumes` or `extraVolumeMounts`
   repeats them; the render fails while one is missing.
-- The web pods have a PodDisruptionBudget (`maxUnavailable: 1`) and prefer
-  different nodes (`openvtb.affinity`).
+- The web pods prefer different nodes (`openvtb.affinity`).
 - The worker has a startup, a liveness and a readiness probe. The beat has no
   probe and always one replica: two schedulers would send every task twice.
 - NetworkPolicy: Open VTB has no policy of its own. With

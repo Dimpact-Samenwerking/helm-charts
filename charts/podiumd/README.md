@@ -1230,9 +1230,6 @@ PodiumD Helm chart
 | openvtb.image.repository | string | `"maykinmedia/open-vtb"` |  |
 | openvtb.image.tag | string | `"0.2.0@sha256:b382b2fdeb052994d6a785864f1277bffb2490e61de2a0222ad74379dede2f01"` |  |
 | openvtb.nameOverride | string | `"openvtb"` |  |
-| openvtb.pdb.create | bool | `true` |  |
-| openvtb.pdb.maxUnavailable | int | `1` |  |
-| openvtb.pdb.minAvailable | string | `""` |  |
 | openvtb.persistence.enabled | bool | `true` |  |
 | openvtb.persistence.existingClaim | string | `"openvtb"` |  |
 | openvtb.persistence.mediaMountSubpath | string | `"openvtb/media"` |  |
