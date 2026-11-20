@@ -1,0 +1,123 @@
+{{- /*
+Celery worker and beat of Open VTB. The openvtb chart (0.2.0) deploys only
+the web pods, but Open VTB sends its CloudEvents to Open Notificaties from
+Celery tasks: bericht-geregistreerd from the worker when a bericht is
+created, bericht-gepubliceerd from the beat task send_berichten_events
+(IN-3501, OMC's Berichtenbox scenario). Same image, Secret and ConfigMap as
+the web pods. Remove this file once the openvtb chart has its own worker and
+beat.
+*/ -}}
+{{- $vtb := .Values.openvtb }}
+{{- if and $vtb.enabled $vtb.celery.enabled }}
+{{- $fullname := $vtb.fullnameOverride | default "openvtb" }}
+{{- $checksum := toYaml (list $vtb.settings $vtb.extraEnvVars $vtb.image) | sha256sum }}
+{{- range $role := list "worker" "beat" }}
+{{- $cfg := index $vtb.celery $role }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-{{ $role }}
+  labels:
+    app.kubernetes.io/name: {{ $fullname }}-{{ $role }}
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/component: openvtb
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+    helm.sh/chart: {{ include "podiumd.chart" $ }}
+spec:
+  {{- if eq $role "beat" }}
+  # Two schedulers would send every scheduled task twice.
+  replicas: 1
+  strategy:
+    type: Recreate
+  {{- else }}
+  replicas: {{ $cfg.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $fullname }}-{{ $role }}
+      app.kubernetes.io/instance: {{ $.Release.Name }}
+  template:
+    metadata:
+      annotations:
+        checksum/settings: {{ $checksum }}
+      labels:
+        app.kubernetes.io/name: {{ $fullname }}-{{ $role }}
+        app.kubernetes.io/instance: {{ $.Release.Name }}
+        app.kubernetes.io/component: openvtb
+    spec:
+      {{- with $vtb.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      automountServiceAccountToken: false
+      securityContext:
+        {{- toYaml $vtb.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ $role }}
+          securityContext:
+            {{- toYaml $vtb.securityContext | nindent 12 }}
+          image: {{ include "podiumd.image" $vtb.image | quote }}
+          imagePullPolicy: {{ $vtb.image.pullPolicy }}
+          command:
+            - /celery_{{ $role }}.sh
+          envFrom:
+            - secretRef:
+                name: {{ $vtb.existingSecret | default $fullname }}
+            - configMapRef:
+                name: {{ $fullname }}
+          {{- /* The web pods' extraEnvVars too: NOTIFICATIONS_SOURCE must
+          reach the worker, which sends the CloudEvents. */}}
+          {{- with concat ($vtb.extraEnvVars | default list) ($cfg.extraEnvVars | default list) }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if eq $role "worker" }}
+          startupProbe:
+            exec:
+              command:
+                - maykin-common
+                - worker-health-check
+                - --skip-ping
+                - --skip-event-loop-liveness
+                - --no-skip-readiness
+                - --readiness-file=/app/tmp/celery_worker.ready
+            periodSeconds: 10
+            timeoutSeconds: 15
+            failureThreshold: 30
+          livenessProbe:
+            exec:
+              command:
+                - maykin-common
+                - worker-health-check
+                - --skip-ping
+                - --liveness-file=/app/tmp/celery_worker_event_loop.live
+            periodSeconds: 60
+            timeoutSeconds: 15
+            failureThreshold: 3
+          {{- end }}
+          {{- /* No beat probe: its liveness file only changes when it
+          schedules a task, and Open VTB's tasks run once an hour. */}}
+          resources:
+            {{- toYaml $cfg.resources | nindent 12 }}
+          volumeMounts:
+            - name: media
+              mountPath: /app/media
+              subPath: {{ $vtb.persistence.mediaMountSubpath | default "openvtb/media" }}
+            - name: media
+              mountPath: /app/private_media
+              subPath: {{ $vtb.persistence.privateMediaMountSubpath | default "openvtb/private_media" }}
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: {{ $vtb.persistence.existingClaim | default $fullname }}
+      {{- with $vtb.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $vtb.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
+{{- end }}
