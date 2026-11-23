@@ -14,6 +14,23 @@
 #   from pods that report role:slave themselves. masterReadinessCheck makes such
 #   a pod NotReady, and the operator, which skips pods that are not Ready, would
 #   leave the label, so a rollout could stall on it.
+# - Sentinel promotes a replica before it turns the old master into a replica,
+#   and in between the old master still accepts writes, which are lost when it
+#   becomes a replica (about 6 s after the operator's preStop failover). So the
+#   labeller also listens on every sentinel: at
+#   +failover-state-send-slaveof-noone, just before Sentinel promotes the
+#   replica, it pauses writes on the old master (CLIENT PAUSE WRITE); at
+#   +switch-master it moves the labels and fences the old master: REPLICAOF the
+#   new master (what Sentinel itself does some seconds later), CLIENT KILL of the
+#   app connections, which reconnect through redis-ha-master to the new master,
+#   and CLIENT UNPAUSE (a long pause also blocks the sentinels' hello PUBLISH,
+#   and they would call the pod down). Writes wait during the switch and fail on
+#   the closed connection instead of vanishing. For events the listener missed,
+#   the poll fences a pod that has reported role:master for REPAIR_AFTER seconds
+#   while a quorum of sentinels names another, once. Right after a switch the
+#   sentinels still disagree for a moment: the grace keeps the poll from fencing
+#   the new master, and for REPAIR_AFTER seconds after a +switch-master the poll
+#   does not move the labels back to the master a quorum still names.
 # - A replica that follows another address than the master for REPAIR_AFTER
 #   seconds gets REPLICAOF the master. The operator links replicas by IP and
 #   leaves relinking to Sentinel once Sentinel is on, so a master that restarted
@@ -23,8 +40,9 @@
 #
 # Environment: NAMESPACE, APP (the pods' app label), CR (RedisReplication
 # name), SENTINELS (number of sentinel pods), INTERVAL and REPAIR_AFTER
-# (seconds), KUBECTL and STALE_DIR (only for tests), STATE_FILE (liveness:
-# touched after every round that could list the pods).
+# (seconds), PAUSE_MS (the write pause of a fenced master), KUBECTL, STALE_DIR
+# and FENCE_DIR (only for tests), STATE_FILE (liveness: touched after every round that could
+# list the pods).
 set -u
 
 # kubectl 1.37 in alpine/k8s ignores the in-cluster config when --request-timeout
@@ -32,8 +50,12 @@ set -u
 KUBECTL=${KUBECTL:-kubectl}
 STATE_FILE=${STATE_FILE:-/tmp/alive}
 STALE_DIR=${STALE_DIR:-/tmp/stale}
+FENCE_DIR=${FENCE_DIR:-/tmp/fenced}
+SWITCH_FILE=$FENCE_DIR/.switch
+# Longer than a failover takes (sentinel.failoverTimeout is 10 s).
+PAUSE_MS=${PAUSE_MS:-15000}
 QUORUM=$((SENTINELS / 2 + 1))
-mkdir -p "$STALE_DIR"
+mkdir -p "$STALE_DIR" "$FENCE_DIR"
 
 log() {
   echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $*"
@@ -82,6 +104,55 @@ list_pods() {
     -o jsonpath='{range .items[*]}{.metadata.name}{"|"}{.metadata.labels.redis-role}{"|"}{.status.podIP}{"\n"}{end}'
 }
 
+# Turn former master $2 (address $1) into a replica of the master at address
+# $3, close its app connections (type normal), so the apps reconnect through
+# redis-ha-master, and lift a write pause. $4 says why.
+fence() {
+  redis_cmd "$1" 6379 "REPLICAOF $3 6379" >/dev/null
+  redis_cmd "$1" 6379 "CLIENT KILL TYPE normal" >/dev/null
+  redis_cmd "$1" 6379 "CLIENT UNPAUSE" >/dev/null
+  log "fence: $2 is now a replica of ${3%%.*}, its client connections closed ($4)"
+}
+
+# Follow the failovers that sentinel $1 publishes. Every sentinel publishes the
+# switch, so the first one wins and the others repeat what is already done.
+watch_switches() {
+  while true; do
+    { printf 'SUBSCRIBE +failover-state-send-slaveof-noone +switch-master\r\n'; sleep 3600; } |
+      nc -w 300 "$CR-s-$1.$CR-s-hl" 26379 2>/dev/null | tr -d '\r' |
+      while read -r kind f2 f3 f4 _ f6 f7 f8; do
+        case "$kind" in
+          # slave <name> <host> <port> @ mymaster <master host> <master port>
+          slave)
+            if [ "$f6" != "mymaster" ] || [ -z "$f8" ]; then continue; fi
+            case "${f7%%.*}" in "$CR"-[0-9]*) ;; *) continue ;; esac
+            redis_cmd "$f7" "$f8" "CLIENT PAUSE $PAUSE_MS WRITE" >/dev/null
+            log "fence: ${f7%%.*} paused for writes, sentinel $1 promotes ${f3%%.*}" ;;
+          # mymaster <old host> <old port> <new host> <new port>
+          mymaster)
+            old=${f2%%.*}
+            new=${f4%%.*}
+            case "$old $new" in
+              "$CR"-[0-9]*" $CR"-[0-9]*) ;;
+              *) continue ;;
+            esac
+            echo "$(date +%s) $new" > "$SWITCH_FILE"
+            if label "$old" slave && label "$new" master; then
+              log "master change: $new is master behind $CR-master (+switch-master from $old on sentinel $1)"
+            fi
+            fence "$f2" "$old" "$f4" "+switch-master on sentinel $1" ;;
+        esac
+      done
+    sleep 1
+  done
+}
+
+i=0
+while [ "$i" -lt "$SENTINELS" ]; do
+  watch_switches "$i" &
+  i=$((i + 1))
+done
+
 last_state=""
 while true; do
   if ! pods=$(list_pods); then
@@ -104,6 +175,16 @@ while true; do
     done
     sleep "$INTERVAL"
     continue
+  fi
+
+  # The sentinels learn a switch some seconds apart; until then a quorum can
+  # still name the old master.
+  if [ -f "$SWITCH_FILE" ]; then
+    read -r switched_at switched_to < "$SWITCH_FILE"
+    if [ "$switched_to" != "$master" ] && [ $(( $(date +%s) - switched_at )) -lt "$REPAIR_AFTER" ]; then
+      sleep "$INTERVAL"
+      continue
+    fi
   fi
 
   master_line=$(printf '%s\n' "$pods" | grep "^$master|") || {
@@ -136,15 +217,26 @@ while true; do
     [ -n "$pod" ] || continue
     stale="$STALE_DIR/$pod"
     if [ "$pod" = "$master" ] || [ -z "$ip" ]; then
-      rm -f "$stale"
+      rm -f "$stale" "$FENCE_DIR/$pod" "$FENCE_DIR/$pod.done"
       continue
     fi
     info=$(redis_cmd "$ip" 6379 "INFO replication")
     following=$(info_field "$info" master_host)
-    if [ "$(info_field "$info" role)" != "slave" ]; then
-      rm -f "$stale"
-      continue
-    fi
+    case "$(info_field "$info" role)" in
+      slave) rm -f "$FENCE_DIR/$pod" "$FENCE_DIR/$pod.done" ;;
+      master)
+        rm -f "$stale"
+        [ -f "$FENCE_DIR/$pod" ] || date +%s > "$FENCE_DIR/$pod"
+        since=$(( $(date +%s) - $(cat "$FENCE_DIR/$pod") ))
+        if [ "$since" -ge "$REPAIR_AFTER" ] && [ ! -f "$FENCE_DIR/$pod.done" ]; then
+          touch "$FENCE_DIR/$pod.done"
+          fence "$ip" "$pod" "$master.$CR-headless.$NAMESPACE.svc" "it reported role:master for ${since}s"
+        fi
+        continue ;;
+      *)
+        rm -f "$stale" "$FENCE_DIR/$pod" "$FENCE_DIR/$pod.done"
+        continue ;;
+    esac
     case "$following" in
       "$master".*|"$master_ip")
         rm -f "$stale"
@@ -162,10 +254,11 @@ while true; do
       log "repair: REPLICAOF $target on $pod failed"
     fi
   done
-  # Timers of pods that are gone.
-  for stale in "$STALE_DIR"/*; do
+  # Timers and fence markers of pods that are gone.
+  for stale in "$STALE_DIR"/* "$FENCE_DIR"/*; do
     [ -e "$stale" ] || continue
-    printf '%s\n' "$pods" | grep -q "^${stale##*/}|" || rm -f "$stale"
+    name=${stale##*/}
+    printf '%s\n' "$pods" | grep -q "^${name%.done}|" || rm -f "$stale"
   done
 
   last_state="ok:$master"

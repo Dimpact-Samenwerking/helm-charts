@@ -148,6 +148,15 @@ the chart adds:
   replicas by IP and leaves relinking to the sentinels, which do not know a replica that never
   reached the master they monitor). It replaces the `redis-ha-label-master` CronJob, whose master
   (`status.masterNode`) is stale during a failover and could label a returning old master.
+- **Fencing of the old master.** Sentinel promotes the replica before it turns the old master
+  into a replica, and the old master took writes in between (about 2.5 s on minikube, lost
+  when it rejoined). The labeller listens to every sentinel: just before the promotion
+  (`+failover-state-send-slaveof-noone`) it pauses writes on the old master
+  (`CLIENT PAUSE WRITE`), and at `+switch-master` it moves the labels, makes the old master a
+  replica of the new one, closes its app connections and lifts the pause. A write in flight
+  waits, then fails on the closed connection instead of being lost, and the apps reconnect
+  through `redis-ha-master` to the new master. A pod that still reports `role:master` 10 s
+  after the sentinels named another is fenced the same way.
 
 Hosting-standard exception: the sentinel pods have no readiness or liveness probe and a
 writable root filesystem. redis-operator 0.27 offers neither a probe nor a volume for them
@@ -162,7 +171,7 @@ Expected outage of the writes, per failure:
 
 | Failure | Outage | Writes lost |
 | --- | --- | --- |
-| Master pod stopped by Kubernetes (drain, rollout, `kubectl delete pod`) | a few seconds: the preStop failover, then the labeller | none |
+| Master pod stopped by Kubernetes (drain, rollout, `kubectl delete pod`) | 1 to 2 seconds (minikube): the preStop failover; writes wait during the switch | none: the old master is paused before the promotion |
 | Master process or container dies, master node fails | about 10 seconds: 5 s until the sentinels call it down, the failover, the labeller (9 s measured; a failed node adds up to 3 s of timeouts per check) | the writes the replicas had not received yet (asynchronous replication: usually under a second) |
 | Network partition that cuts the master off from the sentinels' majority | as above for apps on the majority side | also the writes that apps on the master's side still send to the old master; they are dropped when it rejoins as a replica |
 | A replica or one sentinel | none | none |
