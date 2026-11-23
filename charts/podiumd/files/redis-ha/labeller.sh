@@ -25,11 +25,13 @@
 #   the app connections, which reconnect through redis-ha-master to the new
 #   master, then REPLICAOF the new master (what Sentinel itself does some seconds
 #   later; REPLICAOF answers clients blocked in BRPOP with UNBLOCKED, which
-#   Celery treats as fatal, so they are closed first), and CLIENT UNPAUSE (a long pause also blocks the sentinels' hello PUBLISH,
-#   and they would call the pod down). Writes wait during the switch and fail on
-#   the closed connection instead of vanishing. The old master is addressed by
-#   its pod IP: a terminating pod (the preStop failover) has already lost its DNS
-#   name in the headless Service. For events the listener missed,
+#   Celery treats as fatal, so they are closed first), and CLIENT UNPAUSE (a
+#   long pause also blocks the sentinels' hello PUBLISH, and they would call the
+#   pod down). Writes wait during the switch and fail on the closed connection
+#   instead of vanishing. The listeners subscribe again whenever a sentinel is
+#   not up yet or its connection drops. The old master is addressed by its pod
+#   IP: a terminating pod (the preStop failover) has already lost its DNS name
+#   in the headless Service. For events the listener missed,
 #   the poll fences a pod that has reported role:master for REPAIR_AFTER seconds
 #   while a quorum of sentinels names another, once. Right after a switch the
 #   sentinels still disagree for a moment: the grace keeps the poll from fencing
@@ -46,7 +48,7 @@
 # name), SENTINELS (number of sentinel pods), INTERVAL and REPAIR_AFTER
 # (seconds), PAUSE_MS (the write pause of a fenced master), KUBECTL, STALE_DIR
 # and FENCE_DIR (only for tests), STATE_FILE (liveness: touched after every round that could
-# list the pods).
+# list the pods while a sentinel listener is subscribed).
 set -u
 
 # kubectl 1.37 in alpine/k8s ignores the in-cluster config when --request-timeout
@@ -142,9 +144,16 @@ switch_to() {
 # payload does not name the event, so the channel line before it does.
 watch_switches() {
   while true; do
-    { printf 'SUBSCRIBE +failover-state-send-slaveof-noone +promoted-slave +switch-master\r\n'; sleep 3600; } |
-      nc -w 300 "$CR-s-$1.$CR-s-hl" 26379 2>/dev/null | tr -d '\r' |
+    # PING every 2 s (allowed while subscribed): when the connection is refused
+    # or drops, the next write ends this side too, so the pipeline ends and the
+    # listener subscribes again; nc -w ends it when the sentinel stops answering.
+    {
+      printf 'SUBSCRIBE +failover-state-send-slaveof-noone +promoted-slave +switch-master\r\n'
+      while sleep 2; do printf 'PING\r\n' || exit 0; done
+    } 2>/dev/null |
+      nc -w 15 "$CR-s-$1.$CR-s-hl" 26379 2>/dev/null | tr -d '\r' |
       while read -r kind f2 f3 f4 _ f6 f7 f8; do
+        touch "$FENCE_DIR/.listener-$1"
         case "$kind" in
           +failover-state-send-slaveof-noone|+promoted-slave|+switch-master)
             event=$kind
@@ -172,7 +181,7 @@ watch_switches() {
             switch_to "${f2%%.*}" "${f4%%.*}" "$f2" "$f4" "+switch-master on sentinel $1" ;;
         esac
       done
-    sleep 1
+    sleep 2
   done
 }
 
@@ -182,6 +191,7 @@ while [ "$i" -lt "$SENTINELS" ]; do
   i=$((i + 1))
 done
 
+STARTED=$(date +%s)
 last_state=""
 while true; do
   if ! pods=$(list_pods); then
@@ -189,8 +199,18 @@ while true; do
     sleep "$INTERVAL"
     continue
   fi
-  # Only a round that reached the Kubernetes API counts for the liveness probe.
-  touch "$STATE_FILE"
+  # The liveness probe counts a round that reached the Kubernetes API while at
+  # least one sentinel listener is subscribed (after a start grace for the
+  # sentinels): without the listeners a planned failover loses writes again.
+  listening=no
+  for beat in "$FENCE_DIR"/.listener-*; do
+    [ -e "$beat" ] && [ $(( $(date +%s) - $(stat -c %Y "$beat") )) -lt 30 ] && listening=yes
+  done
+  if [ "$listening" = yes ] || [ $(( $(date +%s) - STARTED )) -lt 120 ]; then
+    touch "$STATE_FILE"
+  else
+    log "no sentinel listener subscribed; the liveness probe will restart this pod"
+  fi
   printf '%s\n' "$pods" > "$PODS_FILE.new" && mv "$PODS_FILE.new" "$PODS_FILE"
   master=$(quorum_master)
   if [ -z "$master" ]; then
