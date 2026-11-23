@@ -129,8 +129,10 @@ spec:
               value: {{ $l.repairAfter | quote }}
             - name: HOME
               value: /tmp
-          {{- /* The loop touches /tmp/alive on every round; a round takes a few seconds even
-               when sentinels or pods do not answer (every call has a 3 s timeout). */}}
+          {{- /* The loop touches /tmp/alive on every round that could list the pods, so the
+               probe fails while the labeller cannot reach the Kubernetes API. A round takes a
+               few seconds even when sentinels or pods do not answer (3 s per Redis call, 5 s per
+               kubectl call). */}}
           livenessProbe:
             exec:
               command: ["/bin/sh", "-c", "test $(( $(date +%s) - $(stat -c %Y /tmp/alive) )) -lt 60"]

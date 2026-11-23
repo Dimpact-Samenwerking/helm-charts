@@ -23,10 +23,13 @@
 #
 # Environment: NAMESPACE, APP (the pods' app label), CR (RedisReplication
 # name), SENTINELS (number of sentinel pods), INTERVAL and REPAIR_AFTER
-# (seconds), KUBECTL and STALE_DIR (only for tests), STATE_FILE (liveness).
+# (seconds), KUBECTL and STALE_DIR (only for tests), STATE_FILE (liveness:
+# touched after every round that could list the pods).
 set -u
 
-KUBECTL=${KUBECTL:-kubectl --request-timeout=3s}
+# kubectl 1.37 in alpine/k8s ignores the in-cluster config when --request-timeout
+# is given, so the calls are bounded with timeout(1) instead.
+KUBECTL=${KUBECTL:-kubectl}
 STATE_FILE=${STATE_FILE:-/tmp/alive}
 STALE_DIR=${STALE_DIR:-/tmp/stale}
 QUORUM=$((SENTINELS / 2 + 1))
@@ -70,23 +73,24 @@ info_field() {
 }
 
 label() {
-  $KUBECTL label pod -n "$NAMESPACE" "$1" "redis-role=$2" --overwrite >/dev/null
+  timeout 5 "$KUBECTL" label pod -n "$NAMESPACE" "$1" "redis-role=$2" --overwrite >/dev/null
 }
 
 # name|role|ip, one pod per line; role is empty for a pod without the label.
 list_pods() {
-  $KUBECTL get pods -n "$NAMESPACE" -l "app=$APP,role=replication" \
+  timeout 5 "$KUBECTL" get pods -n "$NAMESPACE" -l "app=$APP,role=replication" \
     -o jsonpath='{range .items[*]}{.metadata.name}{"|"}{.metadata.labels.redis-role}{"|"}{.status.podIP}{"\n"}{end}'
 }
 
 last_state=""
 while true; do
-  touch "$STATE_FILE"
   if ! pods=$(list_pods); then
     log "cannot list the redis-ha pods"
     sleep "$INTERVAL"
     continue
   fi
+  # Only a round that reached the Kubernetes API counts for the liveness probe.
+  touch "$STATE_FILE"
   master=$(quorum_master)
   if [ -z "$master" ]; then
     [ "$last_state" = "no-quorum" ] || log "no master agreed by $QUORUM of $SENTINELS sentinels; only replicas lose a master label"
