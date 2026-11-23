@@ -141,8 +141,10 @@ the chart adds:
   again: after a node failure that is again minutes. Every 2 seconds the labeller asks the
   sentinels for the master; when a majority names a pod, it first removes `redis-role=master`
   from every other pod and then labels that pod master. `redis-ha-master` therefore never
-  selects two pods. While no majority agrees it changes nothing. It also points a replica at the
-  master when the replica has followed another address for 10 seconds (the operator links
+  selects two pods. While no majority agrees it only removes the master label from pods that
+  report `role:slave` themselves (otherwise `masterReadinessCheck` keeps such a pod NotReady and
+  a rollout can stall on it). It also points a replica at the master when the replica has
+  followed another address for 10 seconds, link up or down (the operator links
   replicas by IP and leaves relinking to the sentinels, which do not know a replica that never
   reached the master they monitor). It replaces the `redis-ha-label-master` CronJob, whose master
   (`status.masterNode`) is stale during a failover and could label a returning old master.

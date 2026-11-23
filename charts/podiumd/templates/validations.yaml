@@ -483,3 +483,9 @@
 {{- if and (include "podiumd.redisHa.sentinel" .) (not ((index .Values "redis-operator").featureGates | default dict).GenerateConfigInInitContainer) -}}
 {{- fail "redis-operator.redis-ha.sentinel.enabled needs redis-operator.featureGates.GenerateConfigInInitContainer: true: without it the Redis pods do not announce their hostnames, and the sentinel labeller cannot find the master. Turn the feature gate on, or turn the sentinel off." -}}
 {{- end -}}
+{{- if include "podiumd.redisHa.sentinel" . -}}
+{{- $sentinelSize := int (index (index .Values "redis-operator") "redis-ha").sentinel.size -}}
+{{- if or (lt $sentinelSize 3) (eq (mod $sentinelSize 2) 0) -}}
+{{- fail (printf "redis-operator.redis-ha.sentinel.size is %d: it must be odd and at least 3, so that a majority of sentinels survives the loss of one node" $sentinelSize) -}}
+{{- end -}}
+{{- end -}}

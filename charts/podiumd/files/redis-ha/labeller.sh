@@ -9,20 +9,24 @@
 #
 # - It removes the master label from every other pod before it labels the new
 #   master, so the Service never selects two pods.
-# - It changes nothing while no quorum of sentinels agrees on a redis-ha pod
-#   (sentinels not configured yet, partition, sentinels down).
-# - A replica whose link is down for REPAIR_AFTER seconds while it follows
-#   another address than the master gets REPLICAOF the master. The operator
-#   links replicas by IP and leaves relinking to Sentinel once Sentinel is on,
-#   so a master that restarted before Sentinel knew it (the upgrade that turns
-#   Sentinel on) would keep its replicas on its old IP.
+# - While no quorum of sentinels agrees on a redis-ha pod (sentinels not
+#   configured yet, partition, sentinels down) it only removes the master label
+#   from pods that report role:slave themselves. masterReadinessCheck makes such
+#   a pod NotReady, and the operator, which skips pods that are not Ready, would
+#   leave the label, so a rollout could stall on it.
+# - A replica that follows another address than the master for REPAIR_AFTER
+#   seconds gets REPLICAOF the master. The operator links replicas by IP and
+#   leaves relinking to Sentinel once Sentinel is on, so a master that restarted
+#   before Sentinel knew it (the upgrade that turns Sentinel on) would keep its
+#   replicas on its old IP; after a partition a replica can also stay linked to
+#   an old master.
 #
 # Environment: NAMESPACE, APP (the pods' app label), CR (RedisReplication
 # name), SENTINELS (number of sentinel pods), INTERVAL and REPAIR_AFTER
 # (seconds), KUBECTL and STALE_DIR (only for tests), STATE_FILE (liveness).
 set -u
 
-KUBECTL=${KUBECTL:-kubectl}
+KUBECTL=${KUBECTL:-kubectl --request-timeout=3s}
 STATE_FILE=${STATE_FILE:-/tmp/alive}
 STALE_DIR=${STALE_DIR:-/tmp/stale}
 QUORUM=$((SENTINELS / 2 + 1))
@@ -65,24 +69,39 @@ info_field() {
   printf '%s\n' "$1" | sed -n "s/^$2://p"
 }
 
+label() {
+  $KUBECTL label pod -n "$NAMESPACE" "$1" "redis-role=$2" --overwrite >/dev/null
+}
+
+# name|role|ip, one pod per line; role is empty for a pod without the label.
+list_pods() {
+  $KUBECTL get pods -n "$NAMESPACE" -l "app=$APP,role=replication" \
+    -o jsonpath='{range .items[*]}{.metadata.name}{"|"}{.metadata.labels.redis-role}{"|"}{.status.podIP}{"\n"}{end}'
+}
+
 last_state=""
 while true; do
   touch "$STATE_FILE"
-  master=$(quorum_master)
-  if [ -z "$master" ]; then
-    [ "$last_state" = "no-quorum" ] || log "no master agreed by $QUORUM of $SENTINELS sentinels, labels unchanged"
-    last_state="no-quorum"
-    sleep "$INTERVAL"
-    continue
-  fi
-
-  # name|role|ip, one pod per line; role is empty for a pod without the label.
-  if ! pods=$($KUBECTL get pods -n "$NAMESPACE" -l "app=$APP,role=replication" \
-    -o jsonpath='{range .items[*]}{.metadata.name}{"|"}{.metadata.labels.redis-role}{"|"}{.status.podIP}{"\n"}{end}'); then
+  if ! pods=$(list_pods); then
     log "cannot list the redis-ha pods"
     sleep "$INTERVAL"
     continue
   fi
+  master=$(quorum_master)
+  if [ -z "$master" ]; then
+    [ "$last_state" = "no-quorum" ] || log "no master agreed by $QUORUM of $SENTINELS sentinels; only replicas lose a master label"
+    last_state="no-quorum"
+    printf '%s\n' "$pods" | while IFS='|' read -r pod role ip; do
+      if [ -z "$pod" ] || [ "$role" != "master" ] || [ -z "$ip" ]; then continue; fi
+      [ "$(info_field "$(redis_cmd "$ip" 6379 "INFO replication")" role)" = "slave" ] || continue
+      if label "$pod" slave; then
+        log "label: $pod redis-role=slave (it reports role:slave)"
+      fi
+    done
+    sleep "$INTERVAL"
+    continue
+  fi
+
   master_line=$(printf '%s\n' "$pods" | grep "^$master|") || {
     [ "$last_state" = "no-pod:$master" ] || log "sentinel master $master has no pod"
     last_state="no-pod:$master"
@@ -96,25 +115,34 @@ while true; do
   # Demote first: the Service must never select two pods.
   printf '%s\n' "$pods" | while IFS='|' read -r pod role ip; do
     if [ -z "$pod" ] || [ "$pod" = "$master" ] || [ "$role" != "master" ]; then continue; fi
-    if $KUBECTL label pod -n "$NAMESPACE" "$pod" redis-role=slave --overwrite >/dev/null; then
+    if label "$pod" slave; then
       log "label: $pod redis-role=slave (sentinel master is $master)"
     fi
   done
   if [ "$master_role" != "master" ]; then
-    if $KUBECTL label pod -n "$NAMESPACE" "$master" redis-role=master --overwrite >/dev/null; then
+    if label "$master" master; then
       log "master change: $master is master behind $CR-master (labelled master before: ${labelled:-none})"
     fi
   fi
 
-  # Replicas that still follow an address the master no longer has.
+  # Replicas that follow another address than the master. A timer file per pod
+  # gives Sentinel REPAIR_AFTER seconds to reconfigure them itself; every pod that
+  # is not such a replica in this pass loses its timer.
   printf '%s\n' "$pods" | while IFS='|' read -r pod role ip; do
-    if [ -z "$pod" ] || [ "$pod" = "$master" ] || [ -z "$ip" ]; then continue; fi
-    info=$(redis_cmd "$ip" 6379 "INFO replication")
-    [ "$(info_field "$info" role)" = "slave" ] || continue
-    following=$(info_field "$info" master_host)
+    [ -n "$pod" ] || continue
     stale="$STALE_DIR/$pod"
-    case "$(info_field "$info" master_link_status) $following" in
-      "down $master".*|"down $master_ip"|up*)
+    if [ "$pod" = "$master" ] || [ -z "$ip" ]; then
+      rm -f "$stale"
+      continue
+    fi
+    info=$(redis_cmd "$ip" 6379 "INFO replication")
+    following=$(info_field "$info" master_host)
+    if [ "$(info_field "$info" role)" != "slave" ]; then
+      rm -f "$stale"
+      continue
+    fi
+    case "$following" in
+      "$master".*|"$master_ip")
         rm -f "$stale"
         continue ;;
     esac
@@ -124,11 +152,16 @@ while true; do
     [ "$since" -ge "$REPAIR_AFTER" ] || continue
     target="$master.$CR-headless.$NAMESPACE.svc"
     if [ "$(redis_cmd "$ip" 6379 "REPLICAOF $target 6379" | head -n 1)" = "+OK" ]; then
-      log "repair: $pod followed $following (link down for ${since}s), now replica of $target"
+      log "repair: $pod followed $following for ${since}s, now replica of $target"
       rm -f "$stale"
     else
       log "repair: REPLICAOF $target on $pod failed"
     fi
+  done
+  # Timers of pods that are gone.
+  for stale in "$STALE_DIR"/*; do
+    [ -e "$stale" ] || continue
+    printf '%s\n' "$pods" | grep -q "^${stale##*/}|" || rm -f "$stale"
   done
 
   last_state="ok:$master"

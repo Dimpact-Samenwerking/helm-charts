@@ -28,8 +28,9 @@ global:
       repository: library/postgres
       tag: "16.16-alpine@sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d"
       pullPolicy: IfNotPresent
-    # kubectl for the redis-ha Jobs, the zookeeper-operator hooks, the ZAC
-    # restart Job and the Maykin configuration wait hook. No template reads
+    # kubectl for the redis-ha Jobs and the redis-ha labeller
+    # (redis-operator.redis-ha.sentinel.labeller.image), the zookeeper-operator
+    # hooks, the ZAC restart Job and the Maykin configuration wait hook. No template reads
     # this key: the anchor is resolved in this file only, so overriding it in
     # an environment changes nothing.
     # Environments set their ACR mirror on each of the image paths that
@@ -590,7 +591,8 @@ redis-operator:
         whenUnsatisfiable: ScheduleAnyway
     # -- PodDisruptionBudget the redis-operator creates for the Redis pods: a node drain evicts
     # one Redis pod at a time, so a replica is always left to take over as master. The operator
-    # selects the pods with `app: redis-ha` (the CR name), so the render fails when it is enabled
+    # selects the pods with `app: redis-ha` (the CR name) and `role: replication`, so the sentinel
+    # pods are not in it (they have redis-ha-sentinel), and the render fails when it is enabled
     # with another `serviceName`.
     pdb:
       enabled: true
@@ -612,7 +614,8 @@ redis-operator:
     # Redis pod; with one pod nothing of this is rendered. See docs/apps/redis/redis-ha.md.
     sentinel:
       enabled: true
-      # -- Number of sentinel pods; a failover needs a majority of them.
+      # -- Number of sentinel pods, odd and at least 3; a failover needs a majority of them
+      # (the operator sets the quorum to size/2+1, and so does the labeller).
       size: 3
       image:
         repository: quay.io/opstree/redis-sentinel
