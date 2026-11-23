@@ -1069,6 +1069,9 @@ PodiumD Helm chart
 | openinwoner.settings.searchIndexInitContainer | bool | `true` |  |
 | openinwoner.tags.redis | bool | `false` |  |
 | openinwoner.worker.livenessProbe.enabled | bool | `true` |  |
+| openinwoner.worker.livenessProbe.exec.command[0] | string | `"/bin/sh"` |  |
+| openinwoner.worker.livenessProbe.exec.command[1] | string | `"-c"` |  |
+| openinwoner.worker.livenessProbe.exec.command[2] | string | `"maykin-common worker-health-check --skip-event-loop-liveness --broker=\"$CELERY_BROKER_URL\""` |  |
 | openinwoner.worker.maxWorkerLivenessDelta | string | `"300"` |  |
 | openinwoner.worker.replicaCount | int | `1` |  |
 | openinwoner.worker.resources.requests.cpu | string | `"200m"` |  |
@@ -1297,7 +1300,8 @@ PodiumD Helm chart
 | openzaak.create_required_catalogi_job.resources.requests.cpu | string | `"50m"` |  |
 | openzaak.create_required_catalogi_job.resources.requests.memory | string | `"64Mi"` |  |
 | openzaak.create_required_catalogi_job.secret | string | `"<openzaak_secret>"` |  |
-| openzaak.extraEnvVars | list | `[{"name":"OPENZAAK_PORT","value":"8000"}]` | Override OPENZAAK_PORT to prevent Kubernetes service-discovery injection (tcp://<ip>:80) from being passed to uwsgi as the port number. Since Open Zaak 1.27.3 the app reads OPENZAAK_PORT for uwsgi_port; K8s auto-injects OPENZAAK_PORT=tcp://<svc-ip>:80 for the openzaak Service, which uwsgi cannot parse. See https://github.com/open-zaak/open-zaak/issues/2415 |
+| openzaak.extraEnvVars | list | `[{"name":"OPENZAAK_PORT","value":"8000"},{"name":"CELERY_MAX_AGE","value":"315360000"}]` | Override OPENZAAK_PORT to prevent Kubernetes service-discovery injection (tcp://<ip>:80) from being passed to uwsgi as the port number. Since Open Zaak 1.27.3 the app reads OPENZAAK_PORT for uwsgi_port; K8s auto-injects OPENZAAK_PORT=tcp://<svc-ip>:80 for the openzaak Service, which uwsgi cannot parse. See https://github.com/open-zaak/open-zaak/issues/2415 |
+| openzaak.extraEnvVars[1] | object | `{"name":"CELERY_MAX_AGE","value":"315360000"}` | max-age from CELERY_MAX_AGE; ten years turns the file check off, and the probe's ping round trip through the broker stays. Remove once a maykin-common release with the fix is in the image. An environment that sets its own openzaak.extraEnvVars repeats this entry. |
 | openzaak.flower.enabled | bool | `false` |  |
 | openzaak.fullnameOverride | string | `"openzaak"` |  |
 | openzaak.image.tag | string | `"1.31.1@sha256:63448221142145b0f56eabadaa9ef9578dd4aacc7f95476bd5368f767883ada0"` |  |

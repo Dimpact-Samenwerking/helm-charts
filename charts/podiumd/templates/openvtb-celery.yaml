@@ -104,13 +104,17 @@ spec:
             periodSeconds: 30
             timeoutSeconds: 15
             failureThreshold: 3
+          {{- /* maykin-common-1: not the event-loop file, which stops being updated after the
+               worker reconnects to Redis (maykin-common 0.22), so the probe killed working
+               workers 3 to 6 minutes after every Redis restart or failover; the ping round
+               trip through the broker instead. 3 x 60 s outlasts a Redis failover. Back to
+               the file once a maykin-common release with the fix is in the image. */}}
           livenessProbe:
             exec:
               command:
-                - maykin-common
-                - worker-health-check
-                - --skip-ping
-                - --liveness-file=/app/tmp/celery_worker_event_loop.live
+                - /bin/sh
+                - -c
+                - maykin-common worker-health-check --skip-event-loop-liveness --broker="$CELERY_BROKER_URL"
             periodSeconds: 60
             timeoutSeconds: 15
             failureThreshold: 3

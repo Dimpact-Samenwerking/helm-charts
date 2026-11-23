@@ -912,6 +912,16 @@ openzaak:
   extraEnvVars:
     - name: OPENZAAK_PORT
       value: "8000"
+    # maykin-common-1: the worker's event-loop liveness file stops being
+    # updated after the worker reconnects to Redis (maykin-common 0.22/0.23), so
+    # the liveness probe killed working workers 3 to 6 minutes after every Redis
+    # restart or failover. The image's /celery_worker_liveness_probe.sh takes its
+    # --max-age from CELERY_MAX_AGE; ten years turns the file check off, and the
+    # probe's ping round trip through the broker stays. Remove once a
+    # maykin-common release with the fix is in the image. An environment that
+    # sets its own openzaak.extraEnvVars repeats this entry.
+    - name: CELERY_MAX_AGE
+      value: "315360000"
   nameOverride: openzaak
   fullnameOverride: openzaak
   flower:
@@ -2593,6 +2603,17 @@ openinwoner:
     replicaCount: 1
     livenessProbe:
       enabled: true
+      # maykin-common-1: without the event-loop file, which stops being updated
+      # after the worker reconnects to Redis, so the probe killed working
+      # workers 3 to 6 minutes after every Redis restart or failover. The ping
+      # round trip through the broker stays. The chart's 3 x 50 s outlasts a
+      # Redis failover. Remove once a maykin-common release with the fix is in
+      # the image.
+      exec:
+        command:
+          - /bin/sh
+          - -c
+          - maykin-common worker-health-check --skip-event-loop-liveness --broker="$CELERY_BROKER_URL"
     maxWorkerLivenessDelta: "300"
     resources:
       requests:
