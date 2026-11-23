@@ -20,12 +20,15 @@
 #   labeller also listens on every sentinel: at
 #   +failover-state-send-slaveof-noone, just before Sentinel promotes the
 #   replica, it pauses writes on the old master (CLIENT PAUSE WRITE); at
-#   +switch-master it moves the labels and fences the old master: REPLICAOF the
-#   new master (what Sentinel itself does some seconds later), CLIENT KILL of the
-#   app connections, which reconnect through redis-ha-master to the new master,
-#   and CLIENT UNPAUSE (a long pause also blocks the sentinels' hello PUBLISH,
+#   +switch-master it moves the labels and fences the old master: CLIENT KILL of
+#   the app connections, which reconnect through redis-ha-master to the new
+#   master, then REPLICAOF the new master (what Sentinel itself does some seconds
+#   later; REPLICAOF answers clients blocked in BRPOP with UNBLOCKED, which
+#   Celery treats as fatal, so they are closed first), and CLIENT UNPAUSE (a long pause also blocks the sentinels' hello PUBLISH,
 #   and they would call the pod down). Writes wait during the switch and fail on
-#   the closed connection instead of vanishing. For events the listener missed,
+#   the closed connection instead of vanishing. The old master is addressed by
+#   its pod IP: a terminating pod (the preStop failover) has already lost its DNS
+#   name in the headless Service. For events the listener missed,
 #   the poll fences a pod that has reported role:master for REPAIR_AFTER seconds
 #   while a quorum of sentinels names another, once. Right after a switch the
 #   sentinels still disagree for a moment: the grace keeps the poll from fencing
@@ -52,6 +55,8 @@ STATE_FILE=${STATE_FILE:-/tmp/alive}
 STALE_DIR=${STALE_DIR:-/tmp/stale}
 FENCE_DIR=${FENCE_DIR:-/tmp/fenced}
 SWITCH_FILE=$FENCE_DIR/.switch
+# The last pod list of the poll, for the listeners' IP lookup.
+PODS_FILE=$FENCE_DIR/.pods
 # Longer than a failover takes (sentinel.failoverTimeout is 10 s).
 PAUSE_MS=${PAUSE_MS:-15000}
 QUORUM=$((SENTINELS / 2 + 1))
@@ -104,14 +109,21 @@ list_pods() {
     -o jsonpath='{range .items[*]}{.metadata.name}{"|"}{.metadata.labels.redis-role}{"|"}{.status.podIP}{"\n"}{end}'
 }
 
-# Turn former master $2 (address $1) into a replica of the master at address
-# $3, close its app connections (type normal), so the apps reconnect through
-# redis-ha-master, and lift a write pause. $4 says why.
+# The address of a Redis pod named in a sentinel event ($1, a hostname): its
+# pod IP from the last poll, else the hostname.
+pod_address() {
+  ip=$(grep "^${1%%.*}|" "$PODS_FILE" 2>/dev/null | awk -F'|' '{print $3}')
+  echo "${ip:-$1}"
+}
+
+# Close the app connections (type normal) of former master $2 (address $1), so
+# the apps reconnect through redis-ha-master, turn it into a replica of the
+# master at address $3 and lift a write pause. $4 says why.
 fence() {
-  redis_cmd "$1" 6379 "REPLICAOF $3 6379" >/dev/null
   redis_cmd "$1" 6379 "CLIENT KILL TYPE normal" >/dev/null
+  redis_cmd "$1" 6379 "REPLICAOF $3 6379" >/dev/null
   redis_cmd "$1" 6379 "CLIENT UNPAUSE" >/dev/null
-  log "fence: $2 is now a replica of ${3%%.*}, its client connections closed ($4)"
+  log "fence: $2 ($1) is now a replica of ${3%%.*}, its client connections closed ($4)"
 }
 
 # Follow the failovers that sentinel $1 publishes. Every sentinel publishes the
@@ -126,8 +138,9 @@ watch_switches() {
           slave)
             if [ "$f6" != "mymaster" ] || [ -z "$f8" ]; then continue; fi
             case "${f7%%.*}" in "$CR"-[0-9]*) ;; *) continue ;; esac
-            redis_cmd "$f7" "$f8" "CLIENT PAUSE $PAUSE_MS WRITE" >/dev/null
-            log "fence: ${f7%%.*} paused for writes, sentinel $1 promotes ${f3%%.*}" ;;
+            old_addr=$(pod_address "$f7")
+            redis_cmd "$old_addr" "$f8" "CLIENT PAUSE $PAUSE_MS WRITE" >/dev/null
+            log "fence: ${f7%%.*} ($old_addr) paused for writes, sentinel $1 promotes ${f3%%.*}" ;;
           # mymaster <old host> <old port> <new host> <new port>
           mymaster)
             old=${f2%%.*}
@@ -140,7 +153,7 @@ watch_switches() {
             if label "$old" slave && label "$new" master; then
               log "master change: $new is master behind $CR-master (+switch-master from $old on sentinel $1)"
             fi
-            fence "$f2" "$old" "$f4" "+switch-master on sentinel $1" ;;
+            fence "$(pod_address "$f2")" "$old" "$f4" "+switch-master on sentinel $1" ;;
         esac
       done
     sleep 1
@@ -162,6 +175,7 @@ while true; do
   fi
   # Only a round that reached the Kubernetes API counts for the liveness probe.
   touch "$STATE_FILE"
+  printf '%s\n' "$pods" > "$PODS_FILE.new" && mv "$PODS_FILE.new" "$PODS_FILE"
   master=$(quorum_master)
   if [ -z "$master" ]; then
     [ "$last_state" = "no-quorum" ] || log "no master agreed by $QUORUM of $SENTINELS sentinels; only replicas lose a master label"

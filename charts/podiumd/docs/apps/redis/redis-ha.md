@@ -152,8 +152,11 @@ the chart adds:
   into a replica, and the old master took writes in between (about 2.5 s on minikube, lost
   when it rejoined). The labeller listens to every sentinel: just before the promotion
   (`+failover-state-send-slaveof-noone`) it pauses writes on the old master
-  (`CLIENT PAUSE WRITE`), and at `+switch-master` it moves the labels, makes the old master a
-  replica of the new one, closes its app connections and lifts the pause. A write in flight
+  (`CLIENT PAUSE WRITE`), and at `+switch-master` it moves the labels, closes the old master's
+  app connections, makes it a replica of the new one and lifts the pause. It closes the
+  connections first: `REPLICAOF` answers a client blocked in `BRPOP` with `UNBLOCKED`, which
+  Celery treats as fatal. It reaches the old master by pod IP: a terminating pod has already
+  lost its DNS name in the headless Service. A write in flight
   waits, then fails on the closed connection instead of being lost, and the apps reconnect
   through `redis-ha-master` to the new master. A pod that still reports `role:master` 10 s
   after the sentinels named another is fenced the same way.
