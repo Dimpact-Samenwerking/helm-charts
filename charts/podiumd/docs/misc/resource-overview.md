@@ -81,10 +81,12 @@ Redis HA runs **3 replicas** by default (StatefulSet).
 | redis-ha `(op)` | 100m | 256Mi | 500m | 512Mi | Set via `redis-operator.redis-ha.resources` → RedisReplication CRD |
 | redis-ha exporter `(op)` | 10m | 32Mi | 100m | 64Mi | Set via `redis-operator.redis-ha.redisExporter.resources` → RedisReplication CRD (only with `redisExporter.enabled`) |
 | redis-ha init busybox `(op)` | 10m | 16Mi | 50m | 32Mi | Set via `redis-operator.redis-ha.initContainerResources` → RedisReplication CRD |
+| redis-ha-s sentinel `(op)` ×3 | 10m | 32Mi | 100m | 64Mi | Set via `redis-operator.redis-ha.sentinel.resources` → RedisReplication CRD (only with more than one Redis pod) |
+| redis-ha-labeller ×2 | 10m | 32Mi | 100m | 64Mi | `redis-operator.redis-ha.sentinel.labeller.resources` (only with the sentinels) |
 
 > ⚠️ **Increase for production**: Redis holds all Celery task queues and Django caches. Under production load 128Mi per pod may be tight if many tasks are queued simultaneously. Suggested: memory request `256Mi`, limit `512Mi`.
 
-*Redis HA StatefulSet has built-in quorum (3 replicas). A PDB is not required but may be added with `minAvailable: 2` to protect quorum.*
+*The operator's PodDisruptionBudget (`redis-operator.redis-ha.pdb`, `maxUnavailable: 1`) protects the Redis pods, and `redis-ha-sentinel` the sentinels: a node drain evicts one at a time.*
 
 ---
 

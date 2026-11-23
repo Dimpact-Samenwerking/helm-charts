@@ -43,6 +43,8 @@ With `masterReadinessCheck` on (the default since 4.10.0) the CronJob is also th
 removes a stale master label. After a failover the old master can keep `redis-role=master` for a
 while; the readiness check makes it NotReady, and redis-operator v0.27.0 skips pods that aren't
 Ready when it fixes role labels. Keep the CronJob enabled as long as the readiness check is on.
+With Sentinel (below, the default since 4.11.0 with more than one Redis pod) the chart renders no
+CronJob: the sentinel labeller removes stale master labels instead.
 
 Unlike the previous one-shot Job, the CronJob:
 
@@ -112,13 +114,72 @@ operator never finds the master and keeps reconfiguring replication.
 
 ---
 
+## Automatic failover (since 4.11.0)
+
+Until 4.11.0 redis-ha had no automatic failover (podiumd-chart-24): when the master pod went,
+the operator promoted no replica and waited until the StatefulSet had recreated that pod. After
+a pod deletion that took seconds; after a node failure several minutes (5 minutes toleration,
+then the zonal disk attaches elsewhere), and every app that writes to Redis failed meanwhile.
+
+With more than one Redis pod and `redis-operator.redis-ha.sentinel.enabled: true` (the default),
+the chart adds:
+
+- **Three sentinels** in the `RedisReplication` (`spec.sentinel`; StatefulSet `redis-ha-s`,
+  headless Service `redis-ha-s-hl`, image `quay.io/opstree/redis-sentinel`). The operator points
+  them at the master. When the master does not answer for 5 seconds
+  (`sentinel.downAfterMilliseconds`), a majority of them promotes the replica with the most
+  data and points the other pods at it. The sentinels address the pods by hostname, so a
+  recreated pod with a new IP is found again; the Redis pods announce their hostname only with
+  the operator's `GenerateConfigInInitContainer` feature gate (on in the chart), so the render
+  fails when Sentinel is on and the gate off. The operator's preStop hook on the Redis pods asks
+  the sentinels for a failover before a master stops (drain, rollout), so a planned stop loses
+  no writes. The sentinels spread over the nodes and have their own PodDisruptionBudget
+  (`redis-ha-sentinel`, `maxUnavailable: 1`).
+- **The labeller** (Deployment `redis-ha-labeller`, two pods on different nodes,
+  `templates/redis-ha-labeller.yaml` with `files/redis-ha/labeller.sh`). The operator moves the
+  `redis-role` labels, and so `redis-ha-master`, only once every Redis and sentinel pod is Ready
+  again: after a node failure that is again minutes. Every 2 seconds the labeller asks the
+  sentinels for the master; when a majority names a pod, it first removes `redis-role=master`
+  from every other pod and then labels that pod master. `redis-ha-master` therefore never
+  selects two pods. While no majority agrees it changes nothing. It also points a replica at the
+  master when the replica has followed another address for 10 seconds (the operator links
+  replicas by IP and leaves relinking to the sentinels, which do not know a replica that never
+  reached the master they monitor). It replaces the `redis-ha-label-master` CronJob, whose master
+  (`status.masterNode`) is stale during a failover and could label a returning old master.
+
+Hosting-standard exception: the sentinel pods have no readiness or liveness probe and a
+writable root filesystem. redis-operator 0.27 offers neither a probe nor a volume for them
+(`spec.sentinel`), and the image writes `/etc/redis/sentinel.conf` at start. They run as uid
+1000, non-root, with all capabilities dropped, `RuntimeDefault` seccomp, requests and limits.
+
+The apps keep connecting to `redis-ha-master:6379`; they need no Sentinel client.
+`masterReadinessCheck` stays: an old master that returns as a replica closes the app
+connections it still holds (podiumd-chart-28).
+
+Expected outage of the writes, per failure:
+
+| Failure | Outage | Writes lost |
+| --- | --- | --- |
+| Master pod stopped by Kubernetes (drain, rollout, `kubectl delete pod`) | a few seconds: the preStop failover, then the labeller | none |
+| Master process or container dies, master node fails | about 10 seconds: 5 s until the sentinels call it down, the failover, the labeller (9 s measured; a failed node adds up to 3 s of timeouts per check) | the writes the replicas had not received yet (asynchronous replication: usually under a second) |
+| Network partition that cuts the master off from the sentinels' majority | as above for apps on the majority side | also the writes that apps on the master's side still send to the old master; they are dropped when it rejoins as a replica |
+| A replica or one sentinel | none | none |
+| Two of three nodes, or two sentinels | no failover: Redis is down until a pod returns, as before 4.11.0 | as above |
+
+Every master change shows in the labeller's log (`kubectl logs deploy/redis-ha-labeller`):
+`master change: <pod> is master behind redis-ha-master (labelled master before: <pod>)`, with
+the time. The sentinels log `+switch-master`.
+
+With one Redis pod (for example minikube scaled down) there is nothing to fail over to: the chart
+renders no sentinels and no labeller, and the CronJob stays.
+
 ## Failover safeguards (since 4.10.0)
 
 Three settings under `redis-operator.redis-ha` limit what a failover does to the apps:
 
 | Value | Default | Effect |
 | --- | --- | --- |
-| `topologySpreadConstraints` | `maxSkew: 1` on `kubernetes.io/hostname`, `ScheduleAnyway` | The Redis pods go to different nodes where possible, so one node fault or drain takes out at most one of them. |
+| `topologySpreadConstraints` | `maxSkew: 1` on `kubernetes.io/hostname`, `ScheduleAnyway` | The Redis pods go to different nodes where possible. `ScheduleAnyway` does not guarantee it: with fewer nodes than pods, or a zonal disk that keeps a pod in its zone, one node fault can take out more than one pod. |
 | `pdb` | `enabled: true`, `maxUnavailable: 1` | The operator creates a PodDisruptionBudget: a node drain evicts one Redis pod at a time. |
 | `masterReadinessCheck.enabled` | `true` | A pod labelled `redis-role=master` that reports `role:slave` itself is NotReady, so it drops out of the `redis-ha-master` Service (IN-2961). A pod that reports `role:slave` also closes its client connections older than 10 seconds (podiumd-chart-28, below). |
 
@@ -157,7 +218,8 @@ correctly after a simultaneous pod restart of all three `redis-ha` pods (e.g. du
 that touches the StatefulSet). Once verified, disable the CronJob and remove this doc's "Known Bug"
 framing (fold the historical context into a changelog note instead).
 
-With `masterReadinessCheck` enabled the CronJob must stay: it is what removes the master label
-from an old master that the readiness check made NotReady (see above).
+With `masterReadinessCheck` enabled and Sentinel off, the CronJob must stay: it is what removes
+the master label from an old master that the readiness check made NotReady (see above). With
+Sentinel on, the labeller does that, and the chart renders no CronJob.
 
 Track: [https://github.com/OT-CONTAINER-KIT/redis-operator/releases](https://github.com/OT-CONTAINER-KIT/redis-operator/releases)

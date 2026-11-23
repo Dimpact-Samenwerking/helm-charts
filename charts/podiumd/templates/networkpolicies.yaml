@@ -177,6 +177,14 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/component: frankgateway-oauth2-proxy
+    {{- if include "podiumd.redisHa.sentinel" $root }}
+      ports:
+        - protocol: TCP
+          port: 6379
+    # With Sentinel (podiumd-chart-24) the sentinels, which carry the same app
+    # label, the Redis pods' preStop failover and the labeller also use 26379.
+    - from:
+    {{- end }}
         # Replication between the Redis pods.
         - podSelector:
             matchLabels:
@@ -186,9 +194,18 @@ spec:
             matchLabels:
               name: redis-operator
           namespaceSelector: {}
+        {{- if include "podiumd.redisHa.sentinel" $root }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis-ha-labeller
+        {{- end }}
       ports:
         - protocol: TCP
           port: 6379
+        {{- if include "podiumd.redisHa.sentinel" $root }}
+        - protocol: TCP
+          port: 26379
+        {{- end }}
     {{- include "podiumd.networkPolicy.monitoring" (dict "np" $np "ports" (list 9121)) }}
     {{- include "podiumd.networkPolicy.extra" (dict "peers" $extra.redis "ports" (list 6379)) }}
 {{- end }}

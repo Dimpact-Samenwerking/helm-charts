@@ -1,0 +1,170 @@
+{{- /*
+redis-ha automatic failover (podiumd-chart-24): the sentinels' PodDisruptionBudget
+and the labeller that moves redis-ha-master to the master the sentinels chose.
+The redis-operator moves the redis-role label only once every redis-ha and
+sentinel pod is Ready, so after a node failure it would take minutes; see
+files/redis-ha/labeller.sh.
+*/ -}}
+{{- if include "podiumd.redisHa.sentinel" . }}
+{{- $redisHa := index (index .Values "redis-operator") "redis-ha" }}
+{{- $s := $redisHa.sentinel }}
+{{- $l := $s.labeller }}
+{{- $app := $redisHa.serviceName | default "redis-ha" }}
+{{- $name := "redis-ha-labeller" }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: redis-ha-sentinel
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: {{ $s.pdb.maxUnavailable }}
+  selector:
+    matchLabels:
+      app: {{ $app | quote }}
+      role: sentinel
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labelsNamed" (dict "context" . "name" $name) | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labelsNamed" (dict "context" . "name" $name) | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labelsNamed" (dict "context" . "name" $name) | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labelsNamed" (dict "context" . "name" $name) | nindent 4 }}
+    app.kubernetes.io/component: redis-ha
+spec:
+  replicas: {{ $l.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "podiumd.selectorLabelsNamed" (dict "context" . "name" $name) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "podiumd.labelsNamed" (dict "context" . "name" $name) | nindent 8 }}
+        app.kubernetes.io/component: redis-ha
+    spec:
+      serviceAccountName: {{ $name }}
+      automountServiceAccountToken: true
+      {{- /* Both pods label the same master, so they need no leader; on different nodes, one
+           survives the failure of the master's node. */}}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "podiumd.selectorLabelsNamed" (dict "context" . "name" $name) | nindent 14 }}
+      {{- if $l.nodeSelector }}
+      nodeSelector:
+        {{- toYaml $l.nodeSelector | nindent 8 }}
+      {{- else if .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: labeller
+          image: {{ include "podiumd.image" $l.image }}
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              {{- .Files.Get "files/redis-ha/labeller.sh" | nindent 14 }}
+          env:
+            - name: NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            - name: APP
+              value: {{ $app | quote }}
+            - name: CR
+              value: redis-ha
+            - name: SENTINELS
+              value: {{ $s.size | quote }}
+            - name: INTERVAL
+              value: {{ $l.interval | quote }}
+            - name: REPAIR_AFTER
+              value: {{ $l.repairAfter | quote }}
+            - name: HOME
+              value: /tmp
+          {{- /* The loop touches /tmp/alive on every round; a round takes a few seconds even
+               when sentinels or pods do not answer (every call has a 3 s timeout). */}}
+          livenessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "test $(( $(date +%s) - $(stat -c %Y /tmp/alive) )) -lt 60"]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "test $(( $(date +%s) - $(stat -c %Y /tmp/alive) )) -lt 60"]
+            periodSeconds: 15
+          resources:
+            {{- toYaml $l.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labelsNamed" (dict "context" . "name" $name) | nindent 4 }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      {{- include "podiumd.selectorLabelsNamed" (dict "context" . "name" $name) | nindent 6 }}
+{{- end }}

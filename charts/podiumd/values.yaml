@@ -581,7 +581,8 @@ redis-operator:
         type: RuntimeDefault
     # -- Spread the Redis pods over the nodes, so one node failure or drain takes out at most one
     # of them. ScheduleAnyway: on a cluster with fewer nodes than replicas the pods still start.
-    # The template adds the selector (app: redis-ha) to an item without its own labelSelector.
+    # The template adds the selector (app: redis-ha; with Sentinel also role: replication, so the
+    # sentinel pods do not count) to an item without its own labelSelector.
     # Set to [] to schedule freely.
     topologySpreadConstraints:
       - maxSkew: 1
@@ -606,6 +607,54 @@ redis-operator:
     # Disable to fall back to the operator's PING probe.
     masterReadinessCheck:
       enabled: true
+    # -- Automatic failover (podiumd-chart-24): three sentinels promote a replica when the master
+    # pod or its node goes, and the labeller moves `redis-ha-master` to it. Only with more than one
+    # Redis pod; with one pod nothing of this is rendered. See docs/apps/redis/redis-ha.md.
+    sentinel:
+      enabled: true
+      # -- Number of sentinel pods; a failover needs a majority of them.
+      size: 3
+      image:
+        repository: quay.io/opstree/redis-sentinel
+        tag: "v8.10.1@sha256:99c6953e947b8e958198b6670d44800f388240a5e1939414be39a74c05953c0e"
+      # -- Time without an answer from the master before a sentinel calls it down.
+      downAfterMilliseconds: "5000"
+      failoverTimeout: "10000"
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
+      # -- Spread the sentinels over the nodes, so one node failure leaves a majority.
+      # The template adds the sentinel pods' selector to an item without its own labelSelector.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+      # -- PodDisruptionBudget of the sentinel pods (the operator makes none for them).
+      pdb:
+        maxUnavailable: 1
+      # -- Deployment that labels the master that a majority of sentinels reports
+      # (files/redis-ha/labeller.sh). It replaces labelMasterCronJob while Sentinel is on.
+      labeller:
+        # -- Two pods on different nodes: the labeller must also run when the master's node fails.
+        replicaCount: 2
+        image: *alpineK8sImage
+        # -- Seconds between two checks.
+        interval: 2
+        # -- Seconds a replica may follow another address than the master before the labeller
+        # points it at the master.
+        repairAfter: 10
+        nodeSelector: {}
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 100m
+            memory: 64Mi
     redisConfig:
       # -- Optional extra redis.conf directives for runtime-configurable parameters.
       # Note: startup-only parameters (e.g. databases) will NOT take effect here due to an operator
@@ -615,10 +664,11 @@ redis-operator:
     # RedisReplication.status.masterNode, every 2 minutes; it changes nothing when the labels
     # already match. Required while masterReadinessCheck is on: an old master that comes back as
     # a replica but keeps redis-role=master is NotReady, the operator then skips it, and only this
-    # Job removes the stale label. The render fails when masterReadinessCheck is on and this Job
-    # is off. It was first a workaround for an OT Redis Operator 0.24.0 bug (PR #1720, missing
-    # labels after a simultaneous pod restart), fixed since operator 0.25.0. See
-    # docs/apps/redis/redis-ha.md.
+    # Job removes the stale label. The render fails when masterReadinessCheck is on and neither
+    # this Job nor Sentinel is on. It was first a workaround for an OT Redis Operator 0.24.0 bug
+    # (PR #1720, missing labels after a simultaneous pod restart), fixed since operator 0.25.0.
+    # Not rendered while Sentinel is on: its master, status.masterNode, is stale during a
+    # failover, and the sentinel labeller takes over. See docs/apps/redis/redis-ha.md.
     labelMasterCronJob:
       enabled: true
       # Default: every 2 minutes, always on (suitable for production).

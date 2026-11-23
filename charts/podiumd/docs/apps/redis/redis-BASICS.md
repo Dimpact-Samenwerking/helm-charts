@@ -26,9 +26,12 @@ operator.
   [redis-ha-databases.md](redis-ha-databases.md).
 - Deployed as a `RedisReplication` custom resource (apiVersion
   `redis.redis.opstreelabs.in/v1beta2`, name `redis-ha`), rendered by
-  `charts/podiumd/templates/redis-ha.yaml`. There is **no Sentinel** CR:
-  the operator elects a master and labels pods `redis-role=master/slave`;
-  the `redis-ha-master` Service selects the master pod.
+  `charts/podiumd/templates/redis-ha.yaml`. With more than one pod it has
+  three sentinels (`spec.sentinel`, since 4.11.0) that promote a replica
+  when the master goes, and the `redis-ha-labeller` Deployment labels the
+  master they choose `redis-role=master`; the `redis-ha-master` Service
+  selects the master pod. There is no separate `RedisSentinel` CR. See
+  [redis-ha.md](redis-ha.md#automatic-failover-since-4110).
 - Runtime components:
   - `redis-operator` deployment — 1 replica (the controller)
   - `redis-ha` StatefulSet — 3 replicas (`redis-ha-0/1/2`,
@@ -37,7 +40,12 @@ operator.
     `redis-operator.redis-ha.initContainerImage`) — appends `databases 32`
     to `redis.conf`, because `databases` is a startup-only parameter the
     operator cannot set itself
-  - `redis-ha-label-master` CronJob (every 2 minutes,
+  - `redis-ha-s` StatefulSet — 3 sentinels (`quay.io/opstree/redis-sentinel`,
+    `redis-operator.redis-ha.sentinel`), only with more than one Redis pod
+  - `redis-ha-labeller` Deployment — 2 pods (alpine/k8s,
+    `redis-operator.redis-ha.sentinel.labeller`) that label the master the
+    sentinels chose; only with the sentinels
+  - `redis-ha-label-master` CronJob, only without the sentinels (every 2 minutes,
     `redis-operator.redis-ha.labelMasterCronJob`) — reconciles the
     `redis-role` labels from `RedisReplication.status.masterNode`; workaround
     for an operator bug where the `redis-ha-master` Service loses its
@@ -109,7 +117,9 @@ Chart defaults (`charts/podiumd/values.yaml` + `docs/misc/resource-overview.md`)
 | redis-ha | 3 | 100m | 256Mi | 500m | 512Mi |
 | redis-ha initContainer (busybox) | per pod | 10m | 16Mi | 50m | 32Mi |
 | redis-exporter sidecar (optional) | per pod | 100m | 128Mi | 500m | 256Mi |
-| redis-ha-label-master CronJob | — | 10m | 32Mi | 100m | 64Mi |
+| redis-ha-label-master CronJob (without sentinels) | — | 10m | 32Mi | 100m | 64Mi |
+| redis-ha-s sentinels | 3 | 10m | 32Mi | 100m | 64Mi |
+| redis-ha-labeller (with sentinels) | 2 | 10m | 32Mi | 100m | 64Mi |
 
 **Observed usage** (kubectl top, 2026-07-10): on `aks-blue-ontw-dimp` the
 three redis-ha pods used 14–21m CPU / 115–124Mi and the operator 4m / 30Mi;

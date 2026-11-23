@@ -77,6 +77,11 @@
   version: "v1.89.0"
   digest: "sha256:00a3628bdd3bb3423a15c5daefa328c471ee609798eed1744fe578c906d20cab"
 
+- name: opstree/redis-sentinel
+  url: quay.io/opstree/redis-sentinel
+  version: "v8.10.1"
+  digest: "sha256:99c6953e947b8e958198b6670d44800f388240a5e1939414be39a74c05953c0e"
+
 - name: openzaak/open-zaak
   url: docker.io/openzaak/open-zaak
   version: "1.31.1"

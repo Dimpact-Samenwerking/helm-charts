@@ -1,7 +1,8 @@
 {{- $redisOperator := index .Values "redis-operator" }}
 {{- $redisHa := index $redisOperator "redis-ha" }}
 {{- if $redisOperator.enabled }}
-{{- if $redisHa.labelMasterCronJob.enabled }}
+{{- /* With Sentinel the labeller of templates/redis-ha-labeller.yaml takes over. */}}
+{{- if and $redisHa.labelMasterCronJob.enabled (not (include "podiumd.redisHa.sentinel" .)) }}
 ---
 apiVersion: v1
 kind: ServiceAccount
