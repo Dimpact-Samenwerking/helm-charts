@@ -5,6 +5,8 @@
 # Changes:
 #   1. nginx-unprivileged 1.31.7 -> 1.31.9.
 #   2. k8s 1.37.2 (digest changed).
+#   3. keycloak.image 26.8.1 -> 26.8.2.
+#   4. keycloak-operator 26.8.1 -> 26.8.2.
 #
 # See docs/_UPGRADE_PATHS/4.10.1-to-4.10.2-upgrade.md for the operator upgrade notes.
 #
@@ -21,3 +23,15 @@
   url: docker.io/alpine/k8s
   version: "1.37.2"
   digest: "sha256:7a82aeefea3d554a43a8676b137f2b88bae6c1fe11c13862b191b3a086cc28c0"
+
+# keycloak.image 26.8.1 -> 26.8.2
+- name: keycloak/keycloak
+  url: quay.io/keycloak/keycloak
+  version: "26.8.2"
+  digest: "sha256:7e66a96e4739239070aeaf72e4c5decf0f7f682cfc725b9f7ea2b336eaba38b3"
+
+# keycloak-operator 26.8.1 -> 26.8.2
+- name: keycloak/keycloak-operator
+  url: quay.io/keycloak/keycloak-operator
+  version: "26.8.2"
+  digest: "sha256:f9b9a2be5db09d988c3706a6685763de1a3ac2b2f61315b21539cb99d0594efb"

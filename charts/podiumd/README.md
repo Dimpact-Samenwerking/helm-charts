@@ -350,11 +350,11 @@ PodiumD Helm chart
 | keycloak-operator.jobs.repairClientScopes.resources | object | `{"limits":{"cpu":"2","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources for the kcadm.sh (JVM) container of that Job. |
 | keycloak-operator.jobs.resources | object | `{"limits":{"cpu":"200m","memory":"128Mi"},"requests":{"cpu":"50m","memory":"64Mi"}}` | Resources applied to lightweight keycloak job containers (curl, python, psql): ensure-operator-sa, ensure-podiumd-admin-user. |
 | keycloak-operator.operator.config.keycloakImage.repository | string | `"quay.io/keycloak/keycloak"` |  |
-| keycloak-operator.operator.config.keycloakImage.sha | string | `"3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332"` |  |
-| keycloak-operator.operator.config.keycloakImage.tag | string | `"26.8.1"` |  |
+| keycloak-operator.operator.config.keycloakImage.sha | string | `"7e66a96e4739239070aeaf72e4c5decf0f7f682cfc725b9f7ea2b336eaba38b3"` |  |
+| keycloak-operator.operator.config.keycloakImage.tag | string | `"26.8.2"` |  |
 | keycloak-operator.operator.image.repository | string | `"quay.io/keycloak/keycloak-operator"` |  |
-| keycloak-operator.operator.image.sha | string | `"4c88e4e9a9d488efd6487ab602974d3cb762ff2ee6f173b2716df418bfe33e53"` |  |
-| keycloak-operator.operator.image.tag | string | `"26.8.1"` |  |
+| keycloak-operator.operator.image.sha | string | `"f9b9a2be5db09d988c3706a6685763de1a3ac2b2f61315b21539cb99d0594efb"` |  |
+| keycloak-operator.operator.image.tag | string | `"26.8.2"` |  |
 | keycloak-operator.operator.resources.limits.cpu | string | `"500m"` |  |
 | keycloak-operator.operator.resources.limits.memory | string | `"768Mi"` |  |
 | keycloak-operator.operator.resources.requests.cpu | string | `"100m"` |  |
@@ -410,8 +410,8 @@ PodiumD Helm chart
 | keycloak.http.httpEnabled | bool | `true` |  |
 | keycloak.image.registry | string | `""` |  |
 | keycloak.image.repository | string | `"quay.io/keycloak/keycloak"` |  |
-| keycloak.image.sha | string | `"3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332"` |  |
-| keycloak.image.tag | string | `"26.8.1"` |  |
+| keycloak.image.sha | string | `"7e66a96e4739239070aeaf72e4c5decf0f7f682cfc725b9f7ea2b336eaba38b3"` |  |
+| keycloak.image.tag | string | `"26.8.2"` |  |
 | keycloak.ingress.enabled | bool | `false` |  |
 | keycloak.instances | string | `"2"` | instances is the new operator-style replica count (falls back to replicaCount) |
 | keycloak.keycloakConfigCli.image.registry | string | `""` |  |
@@ -424,7 +424,7 @@ PodiumD Helm chart
 | keycloak.podDisruptionBudget.maxUnavailable | int | `1` | Keycloak pods a node drain may evict at the same time. |
 | keycloak.podDisruptionBudget.unhealthyPodEvictionPolicy | string | `"AlwaysAllow"` | Lets a drain evict a Keycloak pod that is not Ready. |
 | keycloak.podTemplate.metadata.labels.app | string | `"keycloak"` |  |
-| keycloak.podTemplate.metadata.labels.version | string | `"26.8.1"` |  |
+| keycloak.podTemplate.metadata.labels.version | string | `"26.8.2"` |  |
 | keycloak.podTemplate.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.labelSelector.matchExpressions[0].key | string | `"app"` |  |
 | keycloak.podTemplate.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.labelSelector.matchExpressions[0].operator | string | `"In"` |  |
 | keycloak.podTemplate.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.labelSelector.matchExpressions[0].values[0] | string | `"keycloak"` |  |
