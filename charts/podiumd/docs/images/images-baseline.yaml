@@ -17,10 +17,10 @@
 # "NOT INCLUDED" exclusion notes, no stale dual-version entries. Editing this
 # file by hand is pointless — the next run overwrites it entirely.
 
-- name: nginxinc/nginx-unprivileged
-  url: docker.io/nginxinc/nginx-unprivileged
-  version: "1.31.7"
-  digest: "sha256:09b0d3eda2aa592d2487f284519419015cab010d7df16cd0fe224b585fc60eb6"
+- name: nginx/nginx-unprivileged
+  url: docker.io/nginx/nginx-unprivileged
+  version: "1.31.9"
+  digest: "sha256:4ac6145e433b1adc0880714fe3402680f5e599f1a264148253d6a94a4c000776"
 
 - name: curlimages/curl
   url: docker.io/curlimages/curl

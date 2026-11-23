@@ -13,8 +13,8 @@ global:
   # Shared image references, reused via YAML anchors
   images:
     nginx: &nginxImage
-      repository: nginxinc/nginx-unprivileged
-      tag: "1.31.7@sha256:09b0d3eda2aa592d2487f284519419015cab010d7df16cd0fe224b585fc60eb6"
+      repository: nginx/nginx-unprivileged
+      tag: "1.31.9@sha256:4ac6145e433b1adc0880714fe3402680f5e599f1a264148253d6a94a4c000776"
       pullPolicy: IfNotPresent
     curl: &curlImage
       repository: curlimages/curl
