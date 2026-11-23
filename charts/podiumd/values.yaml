@@ -3095,14 +3095,39 @@ openvtb:
     # and beat (templates/openvtb-celery.yaml).
     - name: NOTIFICATIONS_SOURCE
       value: "openvtb"
+  # The three emptyDir volumes are the only paths Open VTB writes outside its
+  # media volume, so the root filesystem can be read-only (securityContext
+  # below): /tmp, the worker's probe files in /app/tmp and the beat's
+  # /app/celerybeat. One volume per path and no subPath: a subPath directory
+  # belongs to root, and the container runs as uid 1000. The render fails
+  # while the root filesystem is read-only and one of these mounts is missing.
+  extraVolumes:
+    - name: tmp
+      emptyDir:
+        sizeLimit: 256Mi
+    - name: app-tmp
+      emptyDir:
+        sizeLimit: 64Mi
+    - name: celerybeat
+      emptyDir:
+        sizeLimit: 64Mi
+  extraVolumeMounts:
+    - name: tmp
+      mountPath: /tmp
+    - name: app-tmp
+      mountPath: /app/tmp
+    - name: celerybeat
+      mountPath: /app/celerybeat
   # Security review 4.10.0 WH-02, as on the other Maykin apps. The chart's
-  # configuration Job uses the same two contexts.
+  # configuration Job and the Celery worker and beat use the same two
+  # contexts. The root filesystem is read-only (hosting standard COMP023):
+  # the emptyDir volumes above hold the paths Open VTB writes.
   securityContext:
     allowPrivilegeEscalation: false
     capabilities:
       drop:
         - ALL
-    readOnlyRootFilesystem: false
+    readOnlyRootFilesystem: true
     runAsNonRoot: true
     runAsUser: 1000
   # The ServiceAccount comes from templates/openvtb-serviceaccount.yaml, without
@@ -3113,6 +3138,17 @@ openvtb:
   podSecurityContext:
     seccompProfile:
       type: RuntimeDefault
+  # Spread the web pods over nodes (hosting standard COMP014.3); preferred
+  # only, so a single node still schedules both.
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: openvtb
   # -- Measured on johnb00: about 260Mi per pod idle (uWSGI 2 processes x 2 threads); the limit leaves room for load.
   resources:
     requests:

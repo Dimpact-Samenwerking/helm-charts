@@ -1178,6 +1178,9 @@ PodiumD Helm chart
 | opennotificaties.worker.replicaCount | int | `1` |  |
 | opennotificaties.worker.resources.requests.cpu | string | `"50m"` |  |
 | opennotificaties.worker.resources.requests.memory | string | `"386Mi"` |  |
+| openvtb.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.labelSelector.matchLabels."app.kubernetes.io/name" | string | `"openvtb"` |  |
+| openvtb.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.topologyKey | string | `"kubernetes.io/hostname"` |  |
+| openvtb.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].weight | int | `100` |  |
 | openvtb.celery.beat.extraEnvVars | list | `[]` | Extra environment variables of the beat, after openvtb.extraEnvVars, e.g. EVENTS_BERICHTEN_JOB_HOUR and EVENTS_BERICHTEN_JOB_MINUTE: bericht-gepubliceerd is sent once per that many hours (default every hour, at minute 0, UTC). |
 | openvtb.celery.beat.resources | object | `{"limits":{"cpu":"200m","memory":"384Mi"},"requests":{"cpu":"10m","memory":"256Mi"}}` | Resources of the Celery beat (one process; always one replica). Measured on minikube: 224 MiB. |
 | openvtb.celery.enabled | bool | `true` | Run the Open VTB Celery worker and beat (only while openvtb.enabled). |
@@ -1200,6 +1203,18 @@ PodiumD Helm chart
 | openvtb.extraEnvVars[0].value | string | `"8000"` |  |
 | openvtb.extraEnvVars[1].name | string | `"NOTIFICATIONS_SOURCE"` |  |
 | openvtb.extraEnvVars[1].value | string | `"openvtb"` |  |
+| openvtb.extraVolumeMounts[0].mountPath | string | `"/tmp"` |  |
+| openvtb.extraVolumeMounts[0].name | string | `"tmp"` |  |
+| openvtb.extraVolumeMounts[1].mountPath | string | `"/app/tmp"` |  |
+| openvtb.extraVolumeMounts[1].name | string | `"app-tmp"` |  |
+| openvtb.extraVolumeMounts[2].mountPath | string | `"/app/celerybeat"` |  |
+| openvtb.extraVolumeMounts[2].name | string | `"celerybeat"` |  |
+| openvtb.extraVolumes[0].emptyDir.sizeLimit | string | `"256Mi"` |  |
+| openvtb.extraVolumes[0].name | string | `"tmp"` |  |
+| openvtb.extraVolumes[1].emptyDir.sizeLimit | string | `"64Mi"` |  |
+| openvtb.extraVolumes[1].name | string | `"app-tmp"` |  |
+| openvtb.extraVolumes[2].emptyDir.sizeLimit | string | `"64Mi"` |  |
+| openvtb.extraVolumes[2].name | string | `"celerybeat"` |  |
 | openvtb.fullnameOverride | string | `"openvtb"` |  |
 | openvtb.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openvtb.image.repository | string | `"maykinmedia/open-vtb"` |  |
@@ -1217,7 +1232,7 @@ PodiumD Helm chart
 | openvtb.resources | object | `{"limits":{"cpu":"500m","memory":"768Mi"},"requests":{"cpu":"100m","memory":"256Mi"}}` | Measured on johnb00: about 260Mi per pod idle (uWSGI 2 processes x 2 threads); the limit leaves room for load. |
 | openvtb.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | openvtb.securityContext.capabilities.drop[0] | string | `"ALL"` |  |
-| openvtb.securityContext.readOnlyRootFilesystem | bool | `false` |  |
+| openvtb.securityContext.readOnlyRootFilesystem | bool | `true` |  |
 | openvtb.securityContext.runAsNonRoot | bool | `true` |  |
 | openvtb.securityContext.runAsUser | int | `1000` |  |
 | openvtb.serviceAccount.create | bool | `false` |  |
