@@ -27,7 +27,8 @@ and a Keycloak client. Its footprint is small: two lightweight web pods.
     `openvtb.celery.beat.extraEnvVars`). OMC's Berichtenbox scenario acts on
     `bericht-gepubliceerd` only. Open VTB sends no CloudEvent while
     `NOTIFICATIONS_SOURCE` is empty: podiumd sets it to `openvtb` in
-    `openvtb.extraEnvVars`, which the worker and beat get too.
+    `openvtb.extraEnvVars`, which the worker and beat get too, like
+    `openvtb.extraVolumes` and `extraVolumeMounts`.
 - Runs as non-root uid `1000`, all capabilities dropped, no privilege escalation,
   seccomp profile `RuntimeDefault`. The root filesystem is still writable.
 - ServiceAccount `openvtb` without a token mount (`templates/openvtb-serviceaccount.yaml`):
