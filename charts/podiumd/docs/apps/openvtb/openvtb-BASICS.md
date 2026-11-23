@@ -28,7 +28,10 @@ and a Keycloak client. Its footprint is small: two lightweight web pods.
     `bericht-gepubliceerd` only. Open VTB sends no CloudEvent while
     `NOTIFICATIONS_SOURCE` is empty: podiumd sets it to `openvtb` in
     `openvtb.extraEnvVars`, which the worker and beat get too.
-- Runs as non-root uid `1000`, all capabilities dropped.
+- Runs as non-root uid `1000`, all capabilities dropped, no privilege escalation,
+  seccomp profile `RuntimeDefault`. The root filesystem is still writable.
+- ServiceAccount `openvtb` without a token mount (`templates/openvtb-serviceaccount.yaml`):
+  Open VTB does not call the Kubernetes API. The worker and beat use it too.
 - Unlike Open Beheer there is no nginx sidecar: the sub-chart Service (`openvtb`, port 80)
   fronts the Django pods directly.
 
