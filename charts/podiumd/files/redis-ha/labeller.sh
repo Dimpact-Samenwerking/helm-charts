@@ -168,17 +168,30 @@ switch_to() {
 # switch, so the first one wins and the others repeat what is already done. The
 # payload does not name the event, so the channel line before it does.
 watch_switches() {
+  # Touched on every line from the sentinel; the liveness probe reads it.
+  beat="$FENCE_DIR/.listener-$1"
   while true; do
     # PING every 2 s (allowed while subscribed): when the connection is refused
     # or drops, the next write ends this side too, so the pipeline ends and the
-    # listener subscribes again; nc -w ends it when the sentinel stops answering.
+    # listener subscribes again. A deleted sentinel's IP never answers, and nc
+    # -w only bounds the connect, so without a reply (PONG or event) for 10 s
+    # this side ends nc itself.
     {
       printf 'SUBSCRIBE +failover-state-select-slave -failover-abort-no-good-slave -failover-abort-slave-timeout +failover-state-send-slaveof-noone +promoted-slave +switch-master\r\n'
-      while sleep 2; do printf 'PING\r\n' || exit 0; done
+      started=$(date +%s)
+      while sleep 2; do
+        printf 'PING\r\n' || exit 0
+        last=$(stat -c %Y "$beat" 2>/dev/null || echo 0)
+        [ "$last" -ge "$started" ] || last=$started
+        if [ $(( $(date +%s) - last )) -ge 10 ]; then
+          pkill -f "nc -w 5 $CR-s-$1.$CR-s-hl 26379"
+          exit 0
+        fi
+      done
     } 2>/dev/null |
-      nc -w 15 "$CR-s-$1.$CR-s-hl" 26379 2>/dev/null | tr -d '\r' |
+      nc -w 5 "$CR-s-$1.$CR-s-hl" 26379 2>/dev/null | tr -d '\r' |
       while read -r kind f2 f3 f4 _ f6 f7 f8; do
-        touch "$FENCE_DIR/.listener-$1"
+        touch "$beat"
         case "$kind" in
           +failover-state-select-slave|-failover-abort-no-good-slave|-failover-abort-slave-timeout|+failover-state-send-slaveof-noone|+promoted-slave|+switch-master)
             event=$kind
