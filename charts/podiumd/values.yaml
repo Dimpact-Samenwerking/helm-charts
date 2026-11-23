@@ -149,7 +149,7 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.8.1 — the primary
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.8.2 — the primary
   # image of the native keycloak component (etc/settings.yaml
   # native_components). Defines the anchors keycloak-operator.operator.
   # config.keycloakImage aliases below, so the operator's default server
@@ -161,8 +161,8 @@ keycloak:
   image:
     registry: ""
     repository: &keycloakImageRepo quay.io/keycloak/keycloak
-    tag: &keycloakImageVersion "26.8.1"
-    sha: &keycloakImageDigest "3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332"
+    tag: &keycloakImageVersion "26.8.2"
+    sha: &keycloakImageDigest "7e66a96e4739239070aeaf72e4c5decf0f7f682cfc725b9f7ea2b336eaba38b3"
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   # How the Keycloak operator applies a change of the Keycloak CR (IN-3176).
@@ -236,7 +236,7 @@ keycloak:
         app: keycloak
         # Set by hand, deliberately not aliased to *keycloakImageVersion:
         # this label may move independently of the server image.
-        version: 26.8.1
+        version: 26.8.2
       # override: values-enable-observability.yaml adds prometheus.io scrape annotations
     spec:
       securityContext:
@@ -321,12 +321,12 @@ keycloak-operator:
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
   # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (chart 1.13.1, appVersion 26.7.4)
   # Note: it appears that the podname automatically appends -operator.
-  # Official operator image: quay.io/keycloak/keycloak-operator:26.8.1
+  # Official operator image: quay.io/keycloak/keycloak-operator:26.8.2
   # Note: images are deliberately AHEAD of the chart line here — adfinis
   # hasn't published a chart targeting 26.8.x yet (still 1.13.1 / appVersion
-  # 26.7.4 as of 2026-10-14). Operator + server image pinned to 26.8.1 below
-  # for the security fixes in 26.7.5, 26.8.0 and 26.8.1; the operator CRDs come
-  # from upstream 26.8.1 (scripts/install-keycloak-operator-crds.sh), not from
+  # 26.7.4 as of 2026-10-14). Operator + server image pinned to 26.8.2 below
+  # for the security fixes in 26.7.5 to 26.8.2; the operator CRDs come
+  # from upstream 26.8.2 (scripts/install-keycloak-operator-crds.sh), not from
   # the chart. Bump the chart dependency again once adfinis catches up.
   # -- Render the write Role and RoleBinding the Keycloak operator needs to manage the
   # ServiceMonitor for Keycloak metrics (templates/keycloak-operator-servicemonitor-rbac.yaml).
@@ -350,16 +350,16 @@ keycloak-operator:
       # `keycloak.image` (which uses the podiumd.image helper, repository:tag),
       # the adfinis subchart appends its own digest from a SEPARATE `operator.image.sha`
       # field: `repository:tag@sha256:{{ .sha }}`. Putting @sha256 in the tag
-      # produces an invalid DOUBLE digest (…:26.8.1@sha256:xxx@sha256:xxx).
+      # produces an invalid DOUBLE digest (…:26.8.2@sha256:xxx@sha256:xxx).
       # The chart's bundled default operator.image.sha for 1.13.1 is stale
-      # (doesn't match any manifest under the 26.8.1 tag — it doesn't even
+      # (doesn't match any manifest under the 26.8.2 tag — it doesn't even
       # know this tag exists yet), so it's overridden explicitly below with
       # the real registry digest. To DISABLE digest pinning (e.g. on aks-blue
       # / ACR-mirror envs where the mirrored digest differs), set
       # `operator.image.sha: ""`. See
       # docs/_UPGRADE_PATHS/4.7.3-to-4.7.4-upgrade.md.
-      tag: "26.8.1"
-      sha: "4c88e4e9a9d488efd6487ab602974d3cb762ff2ee6f173b2716df418bfe33e53"
+      tag: "26.8.2"
+      sha: "f9b9a2be5db09d988c3706a6685763de1a3ac2b2f61315b21539cb99d0594efb"
     resources:
       requests:
         cpu: 100m
