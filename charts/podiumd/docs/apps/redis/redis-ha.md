@@ -190,7 +190,10 @@ sentinels when `spec.sentinel` goes away (Sentinel turned off, or back to one po
 CronJob deletes StatefulSet `redis-ha-s` and Service `redis-ha-s-hl` on its next run, and it
 labels only the Redis pods (`role: replication`), not sentinel pods that are still there.
 Turning Sentinel off restarts the Redis pods once: the operator removes the preStop failover
-hook and the hostname settings from them.
+hook and the hostname settings from them. Going from 3 pods back to 1 recreates `redis-ha-0`:
+Redis is down for about 35 s (minikube), and the old pod logs `FailedPreStopHook`: its preStop
+hook (still the Sentinel one) asks the sentinels for a failover while they are being removed,
+and the operator's `redis-cli` call has no timeout, so it waits until the grace period ends.
 
 ## Failover safeguards (since 4.10.0)
 
