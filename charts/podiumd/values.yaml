@@ -899,7 +899,6 @@ openzaak:
     replicaCount: 1
     livenessProbe:
       enabled: true
-    maxWorkerLivenessDelta: "300"
     resources:
       requests:
         cpu: 200m
@@ -912,14 +911,12 @@ openzaak:
   extraEnvVars:
     - name: OPENZAAK_PORT
       value: "8000"
-    # maykin-common-1: the worker's event-loop liveness file stops being
-    # updated after the worker reconnects to Redis (maykin-common 0.22/0.23), so
-    # the liveness probe killed working workers 3 to 6 minutes after every Redis
-    # restart or failover. The image's /celery_worker_liveness_probe.sh takes its
-    # --max-age from CELERY_MAX_AGE; ten years turns the file check off, and the
-    # probe's ping round trip through the broker stays. Remove once a
-    # maykin-common release with the fix is in the image. An environment that
-    # sets its own openzaak.extraEnvVars repeats this entry.
+    # maykin-common-1 (see openinwoner.worker.livenessProbe): the image's
+    # /celery_worker_liveness_probe.sh has no switch for the event-loop file but
+    # takes its --max-age from CELERY_MAX_AGE; ten years turns the file check
+    # off. Its ping through the broker was already there. The render fails
+    # while the worker's liveness probe is on and this entry is missing, as in
+    # an environment that sets its own openzaak.extraEnvVars.
     - name: CELERY_MAX_AGE
       value: "315360000"
   nameOverride: openzaak
@@ -2603,18 +2600,25 @@ openinwoner:
     replicaCount: 1
     livenessProbe:
       enabled: true
-      # maykin-common-1: without the event-loop file, which stops being updated
-      # after the worker reconnects to Redis, so the probe killed working
-      # workers 3 to 6 minutes after every Redis restart or failover. The ping
-      # round trip through the broker stays. The chart's 3 x 50 s outlasts a
-      # Redis failover. Remove once a maykin-common release with the fix is in
-      # the image.
-      exec:
+      # maykin-common-1: maykin-common 0.22 and 0.23 stop updating the worker's
+      # event-loop liveness file after the worker reconnects to Redis, so a
+      # probe on that file killed working workers 3 to 6 minutes after every
+      # Redis restart or failover. This probe skips the file and pings the
+      # worker through the broker instead, by the name /celery_worker.sh gives
+      # it. The ping is new here (the chart default had --skip-ping): a Redis
+      # outage longer than 6 x 50 s now restarts the worker. The Open VTB worker
+      # uses the same command (openvtb.celery.worker.livenessProbe). Back to the
+      # chart default once a maykin-common release with the fix is in the images.
+      exec: &celeryWorkerLivenessExec
         command:
           - /bin/sh
           - -c
-          - maykin-common worker-health-check --skip-event-loop-liveness --broker="$CELERY_BROKER_URL"
-    maxWorkerLivenessDelta: "300"
+          - |
+            name="${CELERY_WORKER_NAME:-${CELERY_WORKER_QUEUE:-celery}@%n}"
+            case "$name" in *@*) ;; *) name="celery@$name" ;; esac
+            name=$(printf '%s' "$name" | sed "s/%[nh]/$(cat /proc/sys/kernel/hostname)/g")
+            exec maykin-common worker-health-check --skip-event-loop-liveness --broker="$CELERY_BROKER_URL" --worker-name="$name"
+      failureThreshold: 6
     resources:
       requests:
         cpu: 200m
@@ -3253,6 +3257,9 @@ openvtb:
       replicaCount: 1
       # -- Extra environment variables of the worker, after openvtb.extraEnvVars, e.g. CELERY_WORKER_CONCURRENCY (default 1).
       extraEnvVars: []
+      # -- Liveness probe command of the worker: the one of openinwoner.worker.livenessProbe (maykin-common-1).
+      livenessProbe:
+        exec: *celeryWorkerLivenessExec
       # -- Resources of the Celery worker (one process, concurrency 1). Measured on minikube: 295 MiB, about 15m CPU.
       resources:
         requests:

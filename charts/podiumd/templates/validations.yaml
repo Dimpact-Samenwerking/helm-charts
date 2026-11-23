@@ -477,3 +477,14 @@
 {{- end -}}
 {{- end -}}
 {{- end -}}
+{{- /* maykin-common-1: an environment that sets its own openzaak.extraEnvVars replaces the
+     chart's list, and without CELERY_MAX_AGE the Open Zaak worker's liveness probe kills the
+     worker again 3 to 6 minutes after every Redis restart, without any other sign. */ -}}
+{{- /* openzaak.enabled is unset by default; the dependency is on unless it is false. */ -}}
+{{- if and (ne (toString .Values.openzaak.enabled) "false") ((.Values.openzaak.worker | default dict).livenessProbe | default dict).enabled -}}
+{{- $ozMaxAge := false -}}
+{{- range .Values.openzaak.extraEnvVars -}}{{- if eq (toString .name) "CELERY_MAX_AGE" -}}{{- $ozMaxAge = true -}}{{- end -}}{{- end -}}
+{{- if not $ozMaxAge -}}
+{{- fail "openzaak.extraEnvVars has no CELERY_MAX_AGE while openzaak.worker.livenessProbe.enabled is true. An environment that sets its own openzaak.extraEnvVars repeats the chart's CELERY_MAX_AGE entry (see values.yaml, maykin-common-1)." -}}
+{{- end -}}
+{{- end -}}

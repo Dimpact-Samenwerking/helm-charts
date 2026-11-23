@@ -104,20 +104,13 @@ spec:
             periodSeconds: 30
             timeoutSeconds: 15
             failureThreshold: 3
-          {{- /* maykin-common-1: not the event-loop file, which stops being updated after the
-               worker reconnects to Redis (maykin-common 0.22), so the probe killed working
-               workers 3 to 6 minutes after every Redis restart or failover; the ping round
-               trip through the broker instead. 3 x 60 s outlasts a Redis failover. Back to
-               the file once a maykin-common release with the fix is in the image. */}}
+          {{- /* The command and why: openinwoner.worker.livenessProbe (maykin-common-1). */}}
           livenessProbe:
             exec:
-              command:
-                - /bin/sh
-                - -c
-                - maykin-common worker-health-check --skip-event-loop-liveness --broker="$CELERY_BROKER_URL"
+              {{- toYaml $vtb.celery.worker.livenessProbe.exec | nindent 14 }}
             periodSeconds: 60
             timeoutSeconds: 15
-            failureThreshold: 3
+            failureThreshold: 5
           {{- end }}
           {{- /* No beat probe: its liveness file only changes when it
           schedules a task, and Open VTB's tasks run once an hour. */}}
