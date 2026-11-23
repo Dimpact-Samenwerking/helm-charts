@@ -185,7 +185,10 @@ Every master change shows in the labeller's log (`kubectl logs deploy/redis-ha-l
 the time. The sentinels log `+switch-master`.
 
 With one Redis pod (for example minikube scaled down) there is nothing to fail over to: the chart
-renders no sentinels and no labeller, and the CronJob stays.
+renders no sentinels and no labeller, and the CronJob stays. The operator does not delete the
+sentinels when `spec.sentinel` goes away (Sentinel turned off, or back to one pod), so the
+CronJob deletes StatefulSet `redis-ha-s` and Service `redis-ha-s-hl` on its next run, and it
+labels only the Redis pods (`role: replication`), not sentinel pods that are still there.
 
 ## Failover safeguards (since 4.10.0)
 

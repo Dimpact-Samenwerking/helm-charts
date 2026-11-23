@@ -20,7 +20,8 @@
 #   labeller also listens on every sentinel: at
 #   +failover-state-send-slaveof-noone, just before Sentinel promotes the
 #   replica, it pauses writes on the old master (CLIENT PAUSE WRITE); at
-#   +switch-master it moves the labels and fences the old master: CLIENT KILL of
+#   +promoted-slave (and again at +switch-master) it moves the labels and fences
+#   the old master: CLIENT KILL of
 #   the app connections, which reconnect through redis-ha-master to the new
 #   master, then REPLICAOF the new master (what Sentinel itself does some seconds
 #   later; REPLICAOF answers clients blocked in BRPOP with UNBLOCKED, which
@@ -126,34 +127,49 @@ fence() {
   log "fence: $2 ($1) is now a replica of ${3%%.*}, its client connections closed ($4)"
 }
 
+# Move the labels from old master $1 to new master $2 and fence $1 ($3 and $4
+# are the hosts the sentinel reported, $5 says which event).
+switch_to() {
+  echo "$(date +%s) $2" > "$SWITCH_FILE"
+  if label "$1" slave && label "$2" master; then
+    log "master change: $2 is master behind $CR-master ($5)"
+  fi
+  fence "$(pod_address "$3")" "$1" "$4" "$5"
+}
+
 # Follow the failovers that sentinel $1 publishes. Every sentinel publishes the
-# switch, so the first one wins and the others repeat what is already done.
+# switch, so the first one wins and the others repeat what is already done. The
+# payload does not name the event, so the channel line before it does.
 watch_switches() {
   while true; do
-    { printf 'SUBSCRIBE +failover-state-send-slaveof-noone +switch-master\r\n'; sleep 3600; } |
+    { printf 'SUBSCRIBE +failover-state-send-slaveof-noone +promoted-slave +switch-master\r\n'; sleep 3600; } |
       nc -w 300 "$CR-s-$1.$CR-s-hl" 26379 2>/dev/null | tr -d '\r' |
       while read -r kind f2 f3 f4 _ f6 f7 f8; do
         case "$kind" in
+          +failover-state-send-slaveof-noone|+promoted-slave|+switch-master)
+            event=$kind
+            continue ;;
           # slave <name> <host> <port> @ mymaster <master host> <master port>
           slave)
             if [ "$f6" != "mymaster" ] || [ -z "$f8" ]; then continue; fi
-            case "${f7%%.*}" in "$CR"-[0-9]*) ;; *) continue ;; esac
-            old_addr=$(pod_address "$f7")
-            redis_cmd "$old_addr" "$f8" "CLIENT PAUSE $PAUSE_MS WRITE" >/dev/null
-            log "fence: ${f7%%.*} ($old_addr) paused for writes, sentinel $1 promotes ${f3%%.*}" ;;
+            case "${f7%%.*} ${f3%%.*}" in "$CR"-[0-9]*" $CR"-[0-9]*) ;; *) continue ;; esac
+            case "${event:-}" in
+              # Just before the promotion: writes wait from here.
+              +failover-state-send-slaveof-noone)
+                old_addr=$(pod_address "$f7")
+                redis_cmd "$old_addr" "$f8" "CLIENT PAUSE $PAUSE_MS WRITE" >/dev/null
+                log "fence: ${f7%%.*} ($old_addr) paused for writes, sentinel $1 promotes ${f3%%.*}" ;;
+              # The promotion is confirmed. +switch-master comes only after
+              # Sentinel has also moved the other replicas, some seconds later,
+              # and the writes would wait that long.
+              +promoted-slave)
+                switch_to "${f7%%.*}" "${f3%%.*}" "$f7" "$f3" "+promoted-slave on sentinel $1" ;;
+            esac ;;
           # mymaster <old host> <old port> <new host> <new port>
           mymaster)
-            old=${f2%%.*}
-            new=${f4%%.*}
-            case "$old $new" in
-              "$CR"-[0-9]*" $CR"-[0-9]*) ;;
-              *) continue ;;
-            esac
-            echo "$(date +%s) $new" > "$SWITCH_FILE"
-            if label "$old" slave && label "$new" master; then
-              log "master change: $new is master behind $CR-master (+switch-master from $old on sentinel $1)"
-            fi
-            fence "$(pod_address "$f2")" "$old" "$f4" "+switch-master on sentinel $1" ;;
+            if [ "${event:-}" != "+switch-master" ]; then continue; fi
+            case "${f2%%.*} ${f4%%.*}" in "$CR"-[0-9]*" $CR"-[0-9]*) ;; *) continue ;; esac
+            switch_to "${f2%%.*}" "${f4%%.*}" "$f2" "$f4" "+switch-master on sentinel $1" ;;
         esac
       done
     sleep 1

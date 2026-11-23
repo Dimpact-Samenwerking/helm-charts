@@ -611,7 +611,9 @@ redis-operator:
       enabled: true
     # -- Automatic failover (podiumd-chart-24): three sentinels promote a replica when the master
     # pod or its node goes, and the labeller moves `redis-ha-master` to it. Only with more than one
-    # Redis pod; with one pod nothing of this is rendered. See docs/apps/redis/redis-ha.md.
+    # Redis pod; with one pod nothing of this is rendered. The operator leaves the sentinels running
+    # when this is turned off or redis-ha goes back to one pod; labelMasterCronJob deletes them.
+    # See docs/apps/redis/redis-ha.md.
     sentinel:
       enabled: true
       # -- Number of sentinel pods, odd and at least 3; a failover needs a majority of them
