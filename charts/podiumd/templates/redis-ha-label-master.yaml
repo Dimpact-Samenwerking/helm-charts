@@ -124,9 +124,12 @@ spec:
                     -n "$NAMESPACE" \
                     -o jsonpath='{.status.masterNode}' 2>/dev/null || true)
 
+                  # Empty for a while after the Redis pods restart (also when redis-ha goes
+                  # back to one pod); the operator sets it once it has reconciled, and the
+                  # next run labels. Exit 0, so a routine restart leaves no failed Job.
                   if [ -z "$MASTER" ]; then
-                    echo "ERROR: status.masterNode not set in RedisReplication CR. Cannot reconcile."
-                    exit 1
+                    echo "status.masterNode not set in RedisReplication CR yet; the next run reconciles."
+                    exit 0
                   fi
 
                   # Check whether labels already reflect the CR — skip API writes if so.

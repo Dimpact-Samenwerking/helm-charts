@@ -17,9 +17,10 @@
 # - Sentinel promotes a replica before it turns the old master into a replica,
 #   and in between the old master still accepts writes, which are lost when it
 #   becomes a replica (about 6 s after the operator's preStop failover). So the
-#   labeller also listens on every sentinel: at
-#   +failover-state-send-slaveof-noone, just before Sentinel promotes the
-#   replica, it pauses writes on the old master (CLIENT PAUSE WRITE); at
+#   labeller also listens on every sentinel: at +failover-state-select-slave,
+#   when the failover leader starts choosing the replica (and again at
+#   +failover-state-send-slaveof-noone), it pauses writes on the old master
+#   (CLIENT PAUSE WRITE), and lifts the pause when the failover is aborted; at
 #   +promoted-slave (and again at +switch-master) it moves the labels and fences
 #   the old master: CLIENT KILL of
 #   the app connections, which reconnect through redis-ha-master to the new
@@ -51,9 +52,18 @@
 # list the pods while a sentinel listener is subscribed).
 set -u
 
-# kubectl 1.37 in alpine/k8s ignores the in-cluster config when --request-timeout
-# is given, so the calls are bounded with timeout(1) instead.
-KUBECTL=${KUBECTL:-kubectl}
+# In the pod the labeller talks to the Kubernetes API with curl: under the
+# container's CPU limit every kubectl start took seconds, and the label switch
+# after a promotion took 6 to 7 s (podiumd-tests, minikube). KUBECTL (a stub)
+# is only for tests outside Kubernetes.
+KUBECTL=${KUBECTL:-}
+# SA and API_URL only for tests.
+SA=${SA:-/var/run/secrets/kubernetes.io/serviceaccount}
+case "${KUBERNETES_SERVICE_HOST:-}" in
+  *:*) API="https://[$KUBERNETES_SERVICE_HOST]:${KUBERNETES_SERVICE_PORT:-443}" ;;
+  *) API="https://${KUBERNETES_SERVICE_HOST:-}:${KUBERNETES_SERVICE_PORT:-443}" ;;
+esac
+API=${API_URL:-$API}
 STATE_FILE=${STATE_FILE:-/tmp/alive}
 STALE_DIR=${STALE_DIR:-/tmp/stale}
 FENCE_DIR=${FENCE_DIR:-/tmp/fenced}
@@ -102,14 +112,29 @@ info_field() {
   printf '%s\n' "$1" | sed -n "s/^$2://p"
 }
 
+# A request to the Kubernetes API: method $1, path $2, body $3 (optional).
+api() {
+  curl -sf --max-time 5 --cacert "$SA/ca.crt" -H "Authorization: Bearer $(cat "$SA/token")" \
+    -X "$1" -H 'Content-Type: application/merge-patch+json' ${3:+-d "$3"} "$API$2"
+}
+
 label() {
-  timeout 5 "$KUBECTL" label pod -n "$NAMESPACE" "$1" "redis-role=$2" --overwrite >/dev/null
+  if [ -n "$KUBECTL" ]; then
+    timeout 5 "$KUBECTL" label pod -n "$NAMESPACE" "$1" "redis-role=$2" --overwrite >/dev/null
+    return
+  fi
+  api PATCH "/api/v1/namespaces/$NAMESPACE/pods/$1" "{\"metadata\":{\"labels\":{\"redis-role\":\"$2\"}}}" >/dev/null
 }
 
 # name|role|ip, one pod per line; role is empty for a pod without the label.
 list_pods() {
-  timeout 5 "$KUBECTL" get pods -n "$NAMESPACE" -l "app=$APP,role=replication" \
-    -o jsonpath='{range .items[*]}{.metadata.name}{"|"}{.metadata.labels.redis-role}{"|"}{.status.podIP}{"\n"}{end}'
+  if [ -n "$KUBECTL" ]; then
+    timeout 5 "$KUBECTL" get pods -n "$NAMESPACE" -l "app=$APP,role=replication" \
+      -o jsonpath='{range .items[*]}{.metadata.name}{"|"}{.metadata.labels.redis-role}{"|"}{.status.podIP}{"\n"}{end}'
+    return
+  fi
+  json=$(api GET "/api/v1/namespaces/$NAMESPACE/pods?labelSelector=app%3D$APP%2Crole%3Dreplication") || return 1
+  printf '%s' "$json" | jq -r '.items[] | "\(.metadata.name)|\(.metadata.labels["redis-role"] // "")|\(.status.podIP // "")"'
 }
 
 # The address of a Redis pod named in a sentinel event ($1, a hostname): its
@@ -148,22 +173,39 @@ watch_switches() {
     # or drops, the next write ends this side too, so the pipeline ends and the
     # listener subscribes again; nc -w ends it when the sentinel stops answering.
     {
-      printf 'SUBSCRIBE +failover-state-send-slaveof-noone +promoted-slave +switch-master\r\n'
+      printf 'SUBSCRIBE +failover-state-select-slave -failover-abort-no-good-slave -failover-abort-slave-timeout +failover-state-send-slaveof-noone +promoted-slave +switch-master\r\n'
       while sleep 2; do printf 'PING\r\n' || exit 0; done
     } 2>/dev/null |
       nc -w 15 "$CR-s-$1.$CR-s-hl" 26379 2>/dev/null | tr -d '\r' |
       while read -r kind f2 f3 f4 _ f6 f7 f8; do
         touch "$FENCE_DIR/.listener-$1"
         case "$kind" in
-          +failover-state-send-slaveof-noone|+promoted-slave|+switch-master)
+          +failover-state-select-slave|-failover-abort-no-good-slave|-failover-abort-slave-timeout|+failover-state-send-slaveof-noone|+promoted-slave|+switch-master)
             event=$kind
             continue ;;
+          # master mymaster <master host> <master port>
+          master)
+            if [ "$f2" != "mymaster" ] || [ -z "$f4" ]; then continue; fi
+            case "${f3%%.*}" in "$CR"-[0-9]*) ;; *) continue ;; esac
+            old_addr=$(pod_address "$f3")
+            case "${event:-}" in
+              # The failover leader starts choosing a replica: pause from here,
+              # some milliseconds before the promotion, so the chosen replica
+              # has what the old master acknowledged.
+              +failover-state-select-slave)
+                redis_cmd "$old_addr" "$f4" "CLIENT PAUSE $PAUSE_MS WRITE" >/dev/null
+                log "fence: ${f3%%.*} ($old_addr) paused for writes, sentinel $1 starts a failover" ;;
+              -failover-abort-no-good-slave|-failover-abort-slave-timeout)
+                redis_cmd "$old_addr" "$f4" "CLIENT UNPAUSE" >/dev/null
+                log "fence: ${f3%%.*} ($old_addr) unpaused, sentinel $1 aborted the failover ($event)" ;;
+            esac ;;
           # slave <name> <host> <port> @ mymaster <master host> <master port>
           slave)
             if [ "$f6" != "mymaster" ] || [ -z "$f8" ]; then continue; fi
             case "${f7%%.*} ${f3%%.*}" in "$CR"-[0-9]*" $CR"-[0-9]*) ;; *) continue ;; esac
             case "${event:-}" in
-              # Just before the promotion: writes wait from here.
+              # Just before the promotion: pause again, in case the listener
+              # missed +failover-state-select-slave.
               +failover-state-send-slaveof-noone)
                 old_addr=$(pod_address "$f7")
                 redis_cmd "$old_addr" "$f8" "CLIENT PAUSE $PAUSE_MS WRITE" >/dev/null

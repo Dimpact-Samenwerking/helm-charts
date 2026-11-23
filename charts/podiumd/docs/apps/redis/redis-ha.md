@@ -189,6 +189,8 @@ renders no sentinels and no labeller, and the CronJob stays. The operator does n
 sentinels when `spec.sentinel` goes away (Sentinel turned off, or back to one pod), so the
 CronJob deletes StatefulSet `redis-ha-s` and Service `redis-ha-s-hl` on its next run, and it
 labels only the Redis pods (`role: replication`), not sentinel pods that are still there.
+Turning Sentinel off restarts the Redis pods once: the operator removes the preStop failover
+hook and the hostname settings from them.
 
 ## Failover safeguards (since 4.10.0)
 
