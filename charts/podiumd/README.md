@@ -1427,6 +1427,8 @@ PodiumD Helm chart
 | serviceAccount.automount | bool | `false` |  |
 | serviceAccount.create | bool | `true` |  |
 | serviceAccount.name | string | `""` |  |
+| setupConfigurationChecks.zgwServices | object | `{"autoFix":false,"enabled":true,"image":{"pullPolicy":"IfNotPresent","repository":"library/postgres","tag":"16.15-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab"},"resources":{"limits":{"cpu":"200m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}}}` | Pre-install/pre-upgrade hook per Maykin-style component: fails the upgrade when its database has a zgw_consumers Service whose api_root the values give to another identifier, which would fail the component's setup-configuration (zgw_consumers_service_api_root_key) during the deploy. |
+| setupConfigurationChecks.zgwServices.autoFix | bool | `false` | Rename such a Service's slug to the values' identifier instead of failing, when no Service has that slug yet. |
 | tags."eck-operator.enabled" | bool | `false` |  |
 | tags.redis | bool | `false` |  |
 | zaakbrug | object | `{"enabled":false,"frank":{"zakenApi":{"jwt":{"password":"","username":"zaakbrug"}}},"image":{"registry":"wearefrank","repository":"zaakbrug","tag":"1.27.1@sha256:5f87a0b971a49af7b995d9b3fd7118b5b03ebe419ce0c1593417d1a28235272a"},"oauthRoleMapping":{"IbisAdmin":"administrators","IbisDataAdmin":"dataadmin","IbisTester":"zaakbrug_admin"},"resources":{"limits":{"cpu":"2","memory":"6Gi"},"requests":{"cpu":"250m","memory":"5Gi"}},"staging":{"enabled":false}}` | --------------------------------------------------------------------------- |

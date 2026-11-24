@@ -1,0 +1,121 @@
+{{- /*
+Pre-install/pre-upgrade check of each component's zgw_consumers services
+against its database. setup-configuration (a post-upgrade hook of the
+subcharts) finds a Service by its slug, the values' `identifier`, and creates
+it when no Service has that slug; zgw_consumers allows an api_root only once.
+A Service that already holds the api_root under another slug, made in the
+admin or by an older configuration, then fails the component's config Job in
+the middle of the deploy (Assen, Hoorn, Olst). This hook stops the upgrade
+before anything changes and says which slug to rename; with autoFix it renames
+it itself when that is unambiguous (forms and other records point at the
+Service row, not at its slug). The table does not exist yet on a fresh install
+or before the first migration: then there is nothing to check.
+*/ -}}
+{{- $check := (.Values.setupConfigurationChecks | default dict).zgwServices | default dict -}}
+{{- if $check.enabled -}}
+{{- range $comp := include "podiumd.setupConfigurationComponents" . | fromYamlArray -}}
+{{- $svcs := include "podiumd.zgwServices" (dict "root" $ "component" $comp) | fromYamlArray -}}
+{{- if $svcs -}}
+{{- $v := index $.Values $comp -}}
+{{- $db := ($v.settings | default dict).database | default dict -}}
+{{- $globalHost := (($v.global | default dict).settings | default dict).databaseHost | default ((($.Values.global | default dict).settings | default dict).databaseHost) -}}
+{{- $host := ternary $db.host (coalesce $globalHost $db.host) (eq $comp "openarchiefbeheer") -}}
+{{- $name := printf "%s-service-check" $comp }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "podiumd.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $comp }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-20"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+type: Opaque
+stringData:
+  PGHOST: {{ $host | default "" | toString | quote }}
+  PGPORT: {{ $db.port | default 5432 | toString | quote }}
+  PGDATABASE: {{ $db.name | default "" | toString | quote }}
+  PGUSER: {{ $db.username | default "" | toString | quote }}
+  PGPASSWORD: {{ $db.password | default "" | toString | quote }}
+  PGSSLMODE: {{ $db.sslmode | default "prefer" | toString | quote }}
+  {{- /* One "identifier api_root" pair per line; neither contains whitespace. */}}
+  SERVICES: |
+    {{- range $svcs }}
+    {{ .identifier }} {{ .api_root }}
+    {{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "podiumd.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $comp }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 300
+  # Exit code 3: a finding in the database; a retry does not change it.
+  podFailurePolicy:
+    rules:
+      - action: FailJob
+        onExitCodes:
+          containerName: check
+          operator: In
+          values: [3]
+  template:
+    metadata:
+      labels:
+        {{- include "podiumd.selectorLabels" $ | nindent 8 }}
+        app.kubernetes.io/component: {{ $comp }}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "podiumd.serviceAccountName" $ }}
+      {{- with $.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: check
+          image: {{ include "podiumd.image" $check.image }}
+          resources:
+            {{- toYaml $check.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          envFrom:
+            - secretRef:
+                name: {{ $name }}
+          env:
+            - name: COMPONENT
+              value: {{ $comp | quote }}
+            - name: AUTO_FIX
+              value: {{ ternary "true" "false" (eq (toString $check.autoFix) "true") | quote }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              {{- $.Files.Get "files/setup-configuration/service-check.sh" | nindent 14 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi
+{{- end }}
+{{- end }}
+{{- end }}
