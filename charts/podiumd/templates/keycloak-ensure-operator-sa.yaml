@@ -126,8 +126,19 @@ spec:
           echo "Creating client keycloak-operator with kc.sh bootstrap-admin service (left alone when it exists)..."
           # --cache=local: this short-lived process must not join the Keycloak cluster (whose
           # default discovery, jdbc-ping, goes through this same database).
-          /opt/keycloak/bin/kc.sh bootstrap-admin service --client-id=keycloak-operator \
-            --client-secret:env=CLIENT_SECRET --no-prompt --cache=local
+          # During an upgrade the old Keycloak can still answer while the new one has not
+          # migrated the database yet; this image then refuses to start, so wait for the
+          # migration instead of failing the pod.
+          for i in $(seq 1 40); do
+            /opt/keycloak/bin/kc.sh bootstrap-admin service --client-id=keycloak-operator \
+              --client-secret:env=CLIENT_SECRET --no-prompt --cache=local > /tmp/bootstrap.log 2>&1
+            RC=$?
+            cat /tmp/bootstrap.log
+            grep -q "Database not up-to-date" /tmp/bootstrap.log || exit $RC
+            echo "Attempt $i/40 — the new Keycloak has not migrated the database yet, retrying in 15s..."
+            sleep 15
+          done
+          echo "The database was not migrated to this Keycloak version within 20 minutes"; exit 1
         env:
         - name: KC_DB
           value: {{ coalesce .Values.keycloak.db.vendor .Values.keycloak.externalDatabase.vendor | quote }}
