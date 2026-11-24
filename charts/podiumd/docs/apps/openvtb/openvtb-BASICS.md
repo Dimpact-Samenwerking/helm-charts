@@ -30,7 +30,7 @@ and a Keycloak client. Its footprint is small: two lightweight web pods.
     `openvtb.extraEnvVars`, which the worker and beat get too, like
     `openvtb.extraVolumes` and `extraVolumeMounts`.
 - Runs as non-root uid `1000`, all capabilities dropped, no privilege escalation,
-  seccomp profile `RuntimeDefault`. The root filesystem is still writable.
+  seccomp profile `RuntimeDefault`, read-only root filesystem (see [Pod security and availability](#pod-security-and-availability)).
 - ServiceAccount `openvtb` without a token mount (`templates/openvtb-serviceaccount.yaml`):
   Open VTB does not call the Kubernetes API. The worker and beat use it too.
 - Unlike Open Beheer there is no nginx sidecar: the sub-chart Service (`openvtb`, port 80)
@@ -76,6 +76,23 @@ sub-chart ships an optional classic Ingress (`openvtb.ingress.*`, disabled by de
 - **SMTP**: optional, `openvtb.settings.email.*` (defaults `localhost:25`).
 - Django `SECRET_KEY` via `openvtb.settings.secretKey` (pipeline-injected).
 - No Open Notificaties subscription, Open Zaak or Objecten wiring is provisioned by this chart.
+
+### Pod security and availability
+
+- The root filesystem is read-only in every Open VTB container (web,
+  configuration Job, worker, beat). Three `emptyDir` volumes in
+  `openvtb.extraVolumes` hold what Open VTB writes: `/tmp`, `/app/tmp` (the
+  worker's probe files) and `/app/celerybeat` (the beat's schedule file). An
+  environment that sets its own `openvtb.extraVolumes` or `extraVolumeMounts`
+  repeats them; the render fails while one is missing.
+- The web pods prefer different nodes (`openvtb.affinity`).
+- The worker has a startup, a liveness and a readiness probe. The beat has no
+  probe and always one replica: two schedulers would send every task twice.
+- NetworkPolicy: Open VTB has no policy of its own. With
+  `networkPolicies.namespaceIsolation.enabled: true` its pods accept traffic
+  only from this namespace, the ingress controller and monitoring.
+- Not changed here: the probes of the web pods use `/admin/`, which the
+  openvtb chart fixes in its template.
 
 ## CPU and memory
 

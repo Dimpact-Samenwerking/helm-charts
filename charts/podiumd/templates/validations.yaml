@@ -374,3 +374,14 @@
 {{- fail "omc.settings.zgw.endpoint.openVtb is set, but omc.settings.zgw.endpoint.documenten is empty: OMC would send every Berichtenbox bericht without its bijlagen. Set it to the Open Zaak Documenten API, e.g. https://openzaak.example.nl/documenten/api/v1." -}}
 {{- end -}}
 {{- end -}}
+{{- /* Open VTB with a read-only root filesystem needs its writable mounts;
+     without them the worker and the beat fail at start. */ -}}
+{{- if and .Values.openvtb.enabled (.Values.openvtb.securityContext | default dict).readOnlyRootFilesystem -}}
+{{- $vtbPaths := list -}}
+{{- range .Values.openvtb.extraVolumeMounts -}}{{- $vtbPaths = append $vtbPaths (toString .mountPath) -}}{{- end -}}
+{{- range list "/tmp" "/app/tmp" "/app/celerybeat" -}}
+{{- if not (has . $vtbPaths) -}}
+{{- fail (printf "openvtb.securityContext.readOnlyRootFilesystem is true, but openvtb.extraVolumeMounts has no mount at %s. An environment that sets its own openvtb.extraVolumes or extraVolumeMounts repeats the chart's emptyDir entries (see values.yaml)." .) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
