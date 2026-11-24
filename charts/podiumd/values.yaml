@@ -2083,12 +2083,10 @@ openformulieren:
     serviceIdentifier: openklant-api
     groupIdentifier: open-klant
     groupName: Open Klant
-    # -- Retries generously: this Job can race the openformulieren DB migration
-    # (image entrypoint) and the setup-configuration Job that creates the
-    # service — it fails fast and lets Kubernetes' Job backoff retry until both
-    # are done, rather than needing a wait container or Helm hook ordering.
-    backoffLimit: 15
-    activeDeadlineSeconds: 1200
+    # -- A post-install/post-upgrade hook after openformulieren-config (which
+    # creates the service); the retries only cover a database still migrating.
+    backoffLimit: 6
+    activeDeadlineSeconds: 600
     ttlSecondsAfterFinished: 600
     resources:
       requests:
