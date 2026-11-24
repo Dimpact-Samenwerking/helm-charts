@@ -49,3 +49,8 @@ def common() -> ModuleType:
 @pytest.fixture(scope="session")
 def zookeeper() -> ModuleType:
     return load_script("migrate-zookeeper-hooks-image-4.10.0.py")
+
+
+@pytest.fixture(scope="session")
+def apiproxy() -> ModuleType:
+    return load_script("migrate-apiproxy-to-frankgateway.py")
