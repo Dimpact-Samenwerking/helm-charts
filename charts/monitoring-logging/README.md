@@ -212,7 +212,7 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 | grafana.sidecar.dashboards.label | string | `"grafana_dashboard"` |  |
 | grafana.sidecar.dashboards.labelValue | string | `"1"` |  |
 | grafana.sidecar.datasources.enabled | bool | `true` |  |
-| grafana.sidecar.resources | object | `{"requests":{"cpu":"10m","memory":"96Mi"}}` | grafana-sc-dashboard and grafana-sc-datasources: about 70Mi each measured on QA |
+| grafana.sidecar.resources | object | `{"limits":{"memory":"256Mi"},"requests":{"cpu":"10m","memory":"96Mi"}}` | grafana-sc-dashboard and grafana-sc-datasources: about 70Mi each measured on QA |
 | grafana.testFramework.image | object | `{"tag":"1.12.0"}` | bats image settings docker.io/bats/bats:1.12.0 |
 | grafana.testFramework.imagePullPolicy | string | `"IfNotPresent"` |  |
 | kube-prometheus-stack.alertmanager.enabled | bool | `false` |  |
@@ -255,7 +255,7 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 | loki.chunksCache.defaultValidity | string | `"6h"` |  |
 | loki.chunksCache.enabled | bool | `true` |  |
 | loki.compactor.replicas | int | `1` |  |
-| loki.compactor.resources | object | `{"requests":{"cpu":"50m","memory":"128Mi"}}` | Requests only (Distributed mode); the scheduler otherwise reserves nothing. |
+| loki.compactor.resources | object | `{"limits":{"memory":"1Gi"},"requests":{"cpu":"50m","memory":"128Mi"}}` | Distributed mode; without requests the scheduler reserves nothing. Compaction of a large index needs headroom, hence the wide limit. |
 | loki.deploymentMode | string | `"Distributed"` |  |
 | loki.distributor.maxUnavailable | int | `2` |  |
 | loki.distributor.replicas | int | `3` |  |
@@ -375,7 +375,7 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 | loki.read.replicas | int | `0` |  |
 | loki.resultsCache.defaultValidity | string | `"6h"` |  |
 | loki.resultsCache.enabled | bool | `true` |  |
-| loki.ruler.resources | object | `{"requests":{"cpu":"20m","memory":"128Mi"}}` | Requests only (Distributed mode). |
+| loki.ruler.resources | object | `{"limits":{"memory":"512Mi"},"requests":{"cpu":"20m","memory":"128Mi"}}` | Distributed mode. |
 | loki.sidecar.image.pullPolicy | string | `"IfNotPresent"` |  |
 | loki.sidecar.image.tag | string | `"1.30.10"` |  |
 | loki.sidecar.resources | object | `{"requests":{"cpu":"10m","memory":"96Mi"}}` | loki-sc-rules: about 82Mi measured on QA |

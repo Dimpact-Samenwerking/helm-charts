@@ -304,6 +304,8 @@ grafana:
       requests:
         cpu: 10m
         memory: 96Mi
+      limits:
+        memory: 256Mi
     datasources:
       enabled: true
     dashboards:
@@ -818,17 +820,22 @@ loki:
     replicas: 0
   compactor:
     replicas: 1
-    # -- Requests only (Distributed mode); the scheduler otherwise reserves nothing.
+    # -- Distributed mode; without requests the scheduler reserves nothing.
+    # Compaction of a large index needs headroom, hence the wide limit.
     resources:
       requests:
         cpu: 50m
         memory: 128Mi
+      limits:
+        memory: 1Gi
   ruler:
-    # -- Requests only (Distributed mode).
+    # -- Distributed mode.
     resources:
       requests:
         cpu: 20m
         memory: 128Mi
+      limits:
+        memory: 512Mi
   loki:
     auth_enabled: false
     schemaConfig:
