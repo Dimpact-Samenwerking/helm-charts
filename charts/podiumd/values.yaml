@@ -407,6 +407,14 @@ keycloak-operator:
       # Client secret for the keycloak-operator client. Set this to a known value so Helm
       # can create the K8s secret directly. The job will enforce this secret in Keycloak.
       clientSecret: ""
+      # -- Resources of the Job's two Keycloak-image init containers: copy-keycloak-build and bootstrap-operator-sa (kc.sh bootstrap-admin service, a JVM).
+      resources:
+        requests:
+          cpu: 50m
+          memory: 256Mi
+        limits:
+          cpu: "2"
+          memory: 1Gi
     importPodiumdRealm:
       enabled: true
     importMasterRealm:

@@ -3,10 +3,14 @@
 {{- if and (index .Values "keycloak-operator").enabled $operatorJobs.ensureOperatorSa.enabled $clientSecret }}
 ---
 # Job: ensure the `keycloak-operator` service-account client exists in the Keycloak master realm
-# and has the admin role assigned, so the Keycloak Operator can manage realms.
+# and has the admin role assigned, so the Keycloak Operator and the realm-import Jobs can manage
+# realms.
 #
-# Uses the podiumd-admin user (created by ensure-podiumd-admin-user job) to authenticate.
-# Ordering is enforced at runtime by the wait-for-podiumd-admin initContainer, not Helm hooks.
+# A missing client is created by `kc.sh bootstrap-admin service`, run straight against the Keycloak
+# database, so it does not depend on the master realm's login flows: an estate whose direct grant
+# flow requires OTP cannot log podiumd-admin in with a password (podiumd-chart-55). Only a client
+# that exists with another secret falls back to podiumd-admin (password login) to set the secret;
+# when that login is refused for good, the Job fails at once with the reason.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -17,6 +21,14 @@ metadata:
 spec:
   ttlSecondsAfterFinished: 600
   backoffLimit: 10
+  # Exit code 3: a reason that a retry does not change; the log says what to fix.
+  podFailurePolicy:
+    rules:
+      - action: FailJob
+        onExitCodes:
+          containerName: ensure-operator-sa
+          operator: In
+          values: [3]
   template:
     metadata:
       labels:
@@ -33,52 +45,33 @@ spec:
       restartPolicy: Never
       serviceAccountName: {{ include "podiumd.serviceAccountName" . }}
       initContainers:
-      - name: wait-for-podiumd-admin
+      - name: check-operator-sa
         image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensureOperatorSa.image }}
         resources:
 {{ toYaml (index .Values "keycloak-operator").jobs.resources | indent 10 }}
         command: ["/bin/sh", "-c"]
         args:
         - |
-          echo "Checking if keycloak-operator SA is already operational..."
-          for i in $(seq 1 10); do
-            TOKEN_RESPONSE=$(curl -s -X POST \
-              "http://keycloak-service:8080/realms/master/protocol/openid-connect/token" \
+          SERVER="http://keycloak-service:8080"
+          echo "Waiting for Keycloak..."
+          for i in $(seq 1 60); do
+            STATUS=$(curl -s -o /tmp/token.json -w "%{http_code}" -X POST \
+              "$SERVER/realms/master/protocol/openid-connect/token" \
               --data-urlencode "grant_type=client_credentials" \
               --data-urlencode "client_id=keycloak-operator" \
               --data-urlencode "client_secret=$CLIENT_SECRET")
-            ACCESS_TOKEN=$(printf '%s' "$TOKEN_RESPONSE" | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1 || true)
-            if [ -n "$ACCESS_TOKEN" ]; then
-              HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-                -H "Authorization: Bearer $ACCESS_TOKEN" "http://keycloak-service:8080/admin/realms")
-              if [ "$HTTP_STATUS" = "200" ]; then
-                echo "keycloak-operator SA is already operational with admin role. Skipping podiumd-admin wait."
-                exit 0
-              fi
-            fi
-            echo "Attempt $i/10 — keycloak-operator SA not ready yet, retrying in 5s..."
-            sleep 5
+            case "$STATUS" in 000|5*) echo "Attempt $i/60 — Keycloak not ready (status=$STATUS), retrying in 10s..."; sleep 10 ;; *) break ;; esac
           done
-          echo "keycloak-operator SA not operational, falling back to waiting for podiumd-admin..."
-          for i in $(seq 1 60); do
-            RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-              "http://keycloak-service:8080/realms/master/protocol/openid-connect/token" \
-              --data-urlencode "grant_type=password" \
-              --data-urlencode "client_id=admin-cli" \
-              --data-urlencode "username=podiumd-admin" \
-              --data-urlencode "password=$ADMIN_PASS")
-            STATUS=$(printf '%s' "$RESPONSE" | tail -n1)
-            if [ "$STATUS" = "200" ]; then echo "podiumd-admin authenticated."; exit 0; fi
-            echo "Attempt $i/60 — status=$STATUS, body: $(printf '%s' "$RESPONSE" | head -n1)"
-            sleep 10
-          done
-          echo "Timed out waiting for podiumd-admin"; exit 1
+          case "$STATUS" in 000|5*) echo "Keycloak did not answer in 10 minutes"; exit 1 ;; esac
+          ACCESS_TOKEN=$(sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/token.json | head -n1)
+          if [ -n "$ACCESS_TOKEN" ] && [ "$(curl -s -o /dev/null -w "%{http_code}" \
+              -H "Authorization: Bearer $ACCESS_TOKEN" "$SERVER/admin/realms")" = "200" ]; then
+            echo "keycloak-operator SA is already operational with admin role."
+            touch /state/done
+          else
+            echo "keycloak-operator SA cannot log in (status=$STATUS): $(head -c 200 /tmp/token.json)"
+          fi
         env:
-        - name: ADMIN_PASS
-          valueFrom:
-            secretKeyRef:
-              name: keycloak-podiumd-admin
-              key: password
         - name: CLIENT_SECRET
           valueFrom:
             secretKeyRef:
@@ -87,9 +80,97 @@ spec:
         volumeMounts:
         - name: tmp
           mountPath: /tmp
+        - name: state
+          mountPath: /state
         securityContext:
           runAsNonRoot: true
           runAsUser: 100
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+      {{- /* bootstrap-admin rebuilds the server for the database options, so it needs a
+           writable copy of the image's build directory. */}}
+      - name: copy-keycloak-build
+        image: {{ include "podiumd.image" .Values.keycloak.image }}
+        resources:
+{{ toYaml (index .Values "keycloak-operator").jobs.ensureOperatorSa.resources | indent 10 }}
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          [ -f /state/done ] || cp -R /opt/keycloak/lib/quarkus/* /quarkus/
+        volumeMounts:
+        - name: quarkus
+          mountPath: /quarkus
+        - name: state
+          mountPath: /state
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+      - name: bootstrap-operator-sa
+        image: {{ include "podiumd.image" .Values.keycloak.image }}
+        resources:
+{{ toYaml (index .Values "keycloak-operator").jobs.ensureOperatorSa.resources | indent 10 }}
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          if [ -f /state/done ]; then exit 0; fi
+          echo "Creating client keycloak-operator with kc.sh bootstrap-admin service (left alone when it exists)..."
+          # --cache=local: this short-lived process must not join the Keycloak cluster (whose
+          # default discovery, jdbc-ping, goes through this same database).
+          /opt/keycloak/bin/kc.sh bootstrap-admin service --client-id=keycloak-operator \
+            --client-secret:env=CLIENT_SECRET --no-prompt --cache=local
+        env:
+        - name: KC_DB
+          value: {{ coalesce .Values.keycloak.db.vendor .Values.keycloak.externalDatabase.vendor | quote }}
+        - name: KC_DB_URL_HOST
+          value: {{ coalesce .Values.keycloak.db.host .Values.keycloak.externalDatabase.host | quote }}
+        - name: KC_DB_URL_PORT
+          value: {{ coalesce .Values.keycloak.db.port .Values.keycloak.externalDatabase.port | toString | quote }}
+        - name: KC_DB_URL_DATABASE
+          value: {{ coalesce .Values.keycloak.db.database .Values.keycloak.externalDatabase.database | quote }}
+        - name: KC_DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ coalesce .Values.keycloak.db.usernameSecret.name .Values.keycloak.secretsName | quote }}
+              key: {{ default "database_username" .Values.keycloak.db.usernameSecret.key | quote }}
+        - name: KC_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ coalesce .Values.keycloak.db.passwordSecret.name .Values.keycloak.secretsName | quote }}
+              key: {{ default "database_password" .Values.keycloak.db.passwordSecret.key | quote }}
+        {{- /* The Keycloak CR's other database options (e.g. db-url-properties, db-schema). */}}
+        {{- range .Values.keycloak.additionalOptions }}
+        {{- if hasPrefix "db-" .name }}
+        - name: {{ printf "KC_%s" (.name | upper | replace "-" "_") }}
+          value: {{ .value | quote }}
+        {{- end }}
+        {{- end }}
+        - name: CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-operator-client-secret
+              key: client-secret
+        volumeMounts:
+        - name: quarkus
+          mountPath: /opt/keycloak/lib/quarkus
+        - name: kc-data
+          mountPath: /opt/keycloak/data
+        - name: tmp
+          mountPath: /tmp
+        - name: state
+          mountPath: /state
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
           capabilities:
@@ -120,32 +201,55 @@ spec:
           # Escapes backslashes first, then double-quotes.
           json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 
-          echo "Checking if keycloak-operator SA is already operational..."
-          SA_TOKEN=$(curl -s -X POST "$SERVER/realms/master/protocol/openid-connect/token" \
-            --data-urlencode "grant_type=client_credentials" \
-            --data-urlencode "client_id=keycloak-operator" \
-            --data-urlencode "client_secret=$CLIENT_SECRET" \
-            | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
-          if [ -n "$SA_TOKEN" ]; then
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-              -H "Authorization: Bearer $SA_TOKEN" "$SERVER/admin/realms")
-            if [ "$HTTP_STATUS" = "200" ]; then
-              echo "keycloak-operator SA is already operational with admin role. Nothing to do."
-              exit 0
-            fi
-          fi
+          sa_ready() {
+            SA_TOKEN=$(curl -s -X POST "$SERVER/realms/master/protocol/openid-connect/token" \
+              --data-urlencode "grant_type=client_credentials" \
+              --data-urlencode "client_id=keycloak-operator" \
+              --data-urlencode "client_secret=$CLIENT_SECRET" \
+              | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+            [ -n "$SA_TOKEN" ] && [ "$(curl -s -o /dev/null -w "%{http_code}" \
+              -H "Authorization: Bearer $SA_TOKEN" "$SERVER/admin/realms")" = "200" ]
+          }
 
+          echo "Checking if keycloak-operator SA is operational..."
+          for i in 1 2 3; do
+            if sa_ready; then echo "keycloak-operator SA is operational with admin role. Nothing to do."; exit 0; fi
+            sleep 5
+          done
+
+          # bootstrap-admin left an existing client alone: it has another secret (or lacks the
+          # admin role). Only an admin login can change that.
           ADMIN_USER="podiumd-admin"
           : "${ADMIN_PASS:?}"
-
-          echo "Obtaining admin token via ROPC..."
-          ADMIN_TOKEN=$(curl -s -X POST "$SERVER/realms/master/protocol/openid-connect/token" \
-            --data-urlencode "grant_type=password" \
-            --data-urlencode "client_id=admin-cli" \
-            --data-urlencode "username=$ADMIN_USER" \
-            --data-urlencode "password=$ADMIN_PASS" \
-            | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
-          if [ -z "$ADMIN_TOKEN" ]; then echo "Failed to obtain admin token"; exit 2; fi
+          echo "Client keycloak-operator exists but does not log in with keycloak-operator.jobs.ensureOperatorSa.clientSecret."
+          echo "Obtaining an admin token as $ADMIN_USER (password login) to set its secret..."
+          ADMIN_TOKEN=""
+          for i in $(seq 1 30); do
+            STATUS=$(curl -s -o /tmp/admin.json -w "%{http_code}" -X POST "$SERVER/realms/master/protocol/openid-connect/token" \
+              --data-urlencode "grant_type=password" \
+              --data-urlencode "client_id=admin-cli" \
+              --data-urlencode "username=$ADMIN_USER" \
+              --data-urlencode "password=$ADMIN_PASS" || true)
+            case "$STATUS" in
+              200) ADMIN_TOKEN=$(sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/admin.json); break ;;
+              # ensure-podiumd-admin-user may still be writing the user.
+              401|000|502|503|504) echo "Attempt $i/30 — status=$STATUS, retrying in 10s..."; sleep 10 ;;
+              *)
+                echo "FATAL: $ADMIN_USER cannot log in to the master realm with a password (status=$STATUS: $(head -c 200 /tmp/admin.json))."
+                echo "A 500 here usually means master's direct grant flow requires more than a password, such as OTP."
+                echo "Fix one of: set keycloak-operator.jobs.ensureOperatorSa.clientSecret to the secret of client"
+                echo "keycloak-operator in the master realm; or set that client's secret to this value in the admin"
+                echo "console; or delete the client, so that the next deploy creates it."
+                exit 3 ;;
+            esac
+          done
+          if [ -z "$ADMIN_TOKEN" ]; then
+            echo "FATAL: $ADMIN_USER could not log in to the master realm (last status=$STATUS)."
+            echo "Fix one of: set keycloak-operator.jobs.ensureOperatorSa.clientSecret to the secret of client"
+            echo "keycloak-operator in the master realm; or set that client's secret to this value in the admin"
+            echo "console; or delete the client, so that the next deploy creates it."
+            exit 3
+          fi
 
           echo "Ensuring client keycloak-operator exists..."
           CLIENT_INFO=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
@@ -231,4 +335,13 @@ spec:
       volumes:
       - name: tmp
         emptyDir: {}
+      - name: state
+        emptyDir:
+          sizeLimit: 1Mi
+      - name: quarkus
+        emptyDir:
+          sizeLimit: 64Mi
+      - name: kc-data
+        emptyDir:
+          sizeLimit: 64Mi
 {{- end }}
