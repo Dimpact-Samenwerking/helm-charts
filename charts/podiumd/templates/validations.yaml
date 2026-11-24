@@ -30,15 +30,23 @@
 {{- end -}}
 
 {{- /* PABC accepts a request whose X-API-KEY equals any configured key, an
-     empty one included (podiumd-known-issues pabc H1). */ -}}
-{{- if .Values.pabc.enabled -}}
-{{- $keys := .Values.pabc.settings.apiKeys | default list -}}
-{{- $empty := not $keys -}}
+     empty one included (podiumd-known-issues pabc H1). With existingSecret the
+     keys live in that Secret, out of the render's sight. ZAC must send one of
+     the keys, or PABC refuses every ZAC request. */ -}}
+{{- if and .Values.pabc.enabled (not .Values.pabc.existingSecret) -}}
+{{- $keys := .Values.pabc.settings.apiKeys -}}
+{{- $valid := false -}}
+{{- if kindIs "slice" $keys -}}
+{{- $valid = gt (len $keys) 0 -}}
 {{- range $k := $keys -}}
-{{- if not (trim (toString ($k | default ""))) -}}{{- $empty = true -}}{{- end -}}
+{{- if not (kindIs "string" $k) -}}{{- $valid = false -}}{{- else if not (trim $k) -}}{{- $valid = false -}}{{- end -}}
 {{- end -}}
-{{- if $empty -}}
-{{- fail "pabc.settings.apiKeys must hold at least one key, and no key may be empty. Set the same key in zac.pabcApi.apiKey." -}}
+{{- end -}}
+{{- if not $valid -}}
+{{- fail "pabc.settings.apiKeys must be a list of at least one key, each a non-empty string (quote keys that YAML reads as a number or boolean), or set pabc.existingSecret. Set the same key in zac.pabcApi.apiKey." -}}
+{{- end -}}
+{{- if and .Values.zac.enabled (not (has .Values.zac.pabcApi.apiKey $keys)) -}}
+{{- fail "zac.pabcApi.apiKey must be one of pabc.settings.apiKeys: PABC refuses every ZAC request with another key." -}}
 {{- end -}}
 {{- end -}}
 

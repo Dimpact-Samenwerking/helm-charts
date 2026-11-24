@@ -22,6 +22,8 @@
 
 zac:
   contextUrl: https://zac.ci.podiumd.test
+  pabcApi:
+    apiKey: "placeholder"
   auth:
     secret: "placeholder"
   # values.yaml ships "changeme"/"dummy" for these, which validations.yaml
