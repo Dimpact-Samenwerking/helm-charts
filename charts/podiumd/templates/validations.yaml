@@ -83,6 +83,29 @@
 {{- end -}}
 {{- end -}}
 
+{{- /* openformulieren-configure-customer-interactions points Open Forms' customer
+     interactions API group at a zgw_consumers Service that setup-configuration must
+     create; without it the Job fails on every deploy (IN-3198). */ -}}
+{{- $of := .Values.openformulieren | default dict -}}
+{{- $ciJob := $of.customerInteractionsConfigJob | default dict -}}
+{{- if and (include "podiumd.dependencyEnabled" $of) $ciJob.enabled -}}
+{{- $svcId := toString ($ciJob.serviceIdentifier | default "") -}}
+{{- $ofData := ($of.configuration | default dict).data | default dict -}}
+{{- if kindIs "string" $ofData -}}{{- $ofData = $ofData | fromYaml -}}{{- end -}}
+{{- $found := dict -}}
+{{- if index $ofData "zgw_consumers_config_enable" -}}
+{{- range $svc := (index $ofData "zgw_consumers" | default dict).services | default list -}}
+{{- if and (kindIs "map" $svc) (eq (toString $svc.identifier) $svcId) -}}{{- $found = $svc -}}{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if not $found -}}
+{{- fail (printf "openformulieren.customerInteractionsConfigJob is enabled, but openformulieren.configuration.data has no zgw_consumers service with identifier %q (zgw_consumers_config_enable: true, zgw_consumers.services). Add that service (this environment's Open Klant klantinteracties API, api_type kc), or set openformulieren.customerInteractionsConfigJob.serviceIdentifier to the identifier of the existing Open Klant service." $svcId) -}}
+{{- end -}}
+{{- if and $found.api_type (ne (toString $found.api_type) "kc") -}}
+{{- fail (printf "openformulieren.configuration.data: zgw_consumers service %q has api_type %q; openformulieren.customerInteractionsConfigJob needs the Open Klant klantinteracties API (api_type kc)." $svcId (toString $found.api_type)) -}}
+{{- end -}}
+{{- end -}}
+
 {{- /* Open Inwoner's admin OIDC needs the providers schema (mozilla-django-oidc-db 2.x,
      since Open Inwoner 2.4.0). An item without oidc_provider_identifier, or with
      the old flat fields, fails setup-configuration; since openinwoner chart 2.6.0
