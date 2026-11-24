@@ -29,9 +29,11 @@ printf '%s\n' "$SERVICES" | while read -r ID ROOT; do
   fi
   if [ -z "$TAKEN" ]; then
     echo "$COMPONENT: Service '$HOLDER' already has api_root $ROOT, which the values give to '$ID'."
-    echo "  Fix: rename that Service's slug to '$ID' in the admin (Configuratie > Services),"
     if [ -n "$HOLDER" ]; then
+      echo "  Fix: rename that Service's slug to '$ID' in the admin (Configuratie > Services),"
       echo "  or set the values' identifier (and the *_service_identifier references) to '$HOLDER'."
+    else
+      echo "  Fix: give that Service the slug '$ID' in the admin (Configuratie > Services)."
     fi
   else
     echo "$COMPONENT: Service '$HOLDER' already has api_root $ROOT, and a Service '$ID' exists too."
