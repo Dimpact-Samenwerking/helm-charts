@@ -40,12 +40,8 @@ spec:
       secret: keycloak-podiumd-admin
   {{- end }}
   hostname:
-    {{- if .Values.keycloak.hostname.useRealmFrontendUrl }}
-    hostname: {{ coalesce .Values.keycloak.hostname.hostname .Values.keycloak.config.realmFrontendUrl .Values.keycloak.config.adminFrontendUrl }}
-    {{- else }}
-    hostname: {{ coalesce .Values.keycloak.hostname.hostname .Values.keycloak.config.adminFrontendUrl }}
-    {{- end }}
-    admin: {{ coalesce .Values.keycloak.hostname.admin .Values.keycloak.config.adminFrontendUrl }}
+    hostname: {{ include "podiumd.keycloak.hostname" . }}
+    admin: {{ include "podiumd.keycloak.adminHostname" . }}
   http:
     httpEnabled: {{ .Values.keycloak.http.httpEnabled }}
   proxy:

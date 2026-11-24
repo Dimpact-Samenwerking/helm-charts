@@ -1295,6 +1295,34 @@ a non-boolean condition). Templates that belong to a subchart use this, so they
 render exactly when the subchart does.
 Usage: {{- if include "podiumd.dependencyEnabled" .Values.openzaak }}
 */}}
+{{/*
+Keycloak's public hostname and admin hostname, as the Keycloak CR sets them
+(a URL or a bare host).
+*/}}
+{{- define "podiumd.keycloak.hostname" -}}
+{{- $kc := .Values.keycloak -}}
+{{- if $kc.hostname.useRealmFrontendUrl -}}
+{{- coalesce $kc.hostname.hostname $kc.config.realmFrontendUrl $kc.config.adminFrontendUrl -}}
+{{- else -}}
+{{- coalesce $kc.hostname.hostname $kc.config.adminFrontendUrl -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "podiumd.keycloak.adminHostname" -}}
+{{- coalesce .Values.keycloak.hostname.admin .Values.keycloak.config.adminFrontendUrl -}}
+{{- end -}}
+
+{{/*
+The lower-case host name of a URL or a bare host ("Keycloak.example.nl:443/x"
+gives "keycloak.example.nl"); empty for an empty value.
+*/}}
+{{- define "podiumd.hostOf" -}}
+{{- $u := trim (toString (. | default "")) -}}
+{{- if $u -}}
+{{- lower (urlParse (ternary $u (printf "https://%s" $u) (contains "://" $u))).hostname -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "podiumd.dependencyEnabled" -}}
 {{- if not (and (kindIs "bool" .enabled) (not .enabled)) -}}true{{- end -}}
 {{- end -}}
