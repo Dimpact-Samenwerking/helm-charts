@@ -29,6 +29,19 @@
 {{- end -}}
 {{- end -}}
 
+{{- /* PABC accepts a request whose X-API-KEY equals any configured key, an
+     empty one included (podiumd-known-issues pabc H1). */ -}}
+{{- if .Values.pabc.enabled -}}
+{{- $keys := .Values.pabc.settings.apiKeys | default list -}}
+{{- $empty := not $keys -}}
+{{- range $k := $keys -}}
+{{- if not (trim (toString ($k | default ""))) -}}{{- $empty = true -}}{{- end -}}
+{{- end -}}
+{{- if $empty -}}
+{{- fail "pabc.settings.apiKeys must hold at least one key, and no key may be empty. Set the same key in zac.pabcApi.apiKey." -}}
+{{- end -}}
+{{- end -}}
+
 {{- /* Keycloak 26.8 (CVE-2026-12388, IN-3203) refuses an identity provider
      mapper that grants an admin role unless the identity provider has
      config.allowAdminRoleMapping "true": the master realm import then fails

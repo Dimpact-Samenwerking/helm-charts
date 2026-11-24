@@ -426,6 +426,8 @@ frankgateway:
 
 pabc:
   settings:
+    apiKeys:
+      - "placeholder"
     oidc:
       oidcUrl: https://pabc.ci.podiumd.test
       clientSecret: "placeholder"
