@@ -16,18 +16,23 @@ fi
 FINDINGS=0
 printf '%s\n' "$SERVICES" | while read -r ID ROOT; do
   [ -n "$ID" ] || continue
-  HOLDER=$(echo "select slug from zgw_consumers_service where api_root = :'root';" | q -v root="$ROOT") || exit 1
-  if [ -z "$HOLDER" ] || [ "$HOLDER" = "$ID" ]; then continue; fi
+  # "1|<slug>" when a Service holds the api_root; its slug may be empty (Open Forms creates
+  # its PDOK Locatieserver Service with get_or_create, without a slug).
+  FOUND=$(echo "select count(*) || '|' || coalesce(max(slug), '') from zgw_consumers_service where api_root = :'root';" | q -v root="$ROOT") || exit 1
+  HOLDER=${FOUND#*|}
+  if [ "${FOUND%%|*}" = "0" ] || [ "$HOLDER" = "$ID" ]; then continue; fi
   TAKEN=$(echo "select slug from zgw_consumers_service where slug = :'slug';" | q -v slug="$ID") || exit 1
   if [ -z "$TAKEN" ] && [ "$AUTO_FIX" = "true" ]; then
-    echo "update zgw_consumers_service set slug = :'slug' where slug = :'old';" | q -v slug="$ID" -v old="$HOLDER" || exit 1
+    echo "update zgw_consumers_service set slug = :'slug' where api_root = :'root';" | q -v slug="$ID" -v root="$ROOT" || exit 1
     echo "$COMPONENT: renamed Service slug '$HOLDER' to '$ID' (api_root $ROOT)"
     continue
   fi
   if [ -z "$TAKEN" ]; then
     echo "$COMPONENT: Service '$HOLDER' already has api_root $ROOT, which the values give to '$ID'."
     echo "  Fix: rename that Service's slug to '$ID' in the admin (Configuratie > Services),"
-    echo "  or set the values' identifier (and the *_service_identifier references) to '$HOLDER'."
+    if [ -n "$HOLDER" ]; then
+      echo "  or set the values' identifier (and the *_service_identifier references) to '$HOLDER'."
+    fi
   else
     echo "$COMPONENT: Service '$HOLDER' already has api_root $ROOT, and a Service '$ID' exists too."
     echo "  Fix: in the admin (Configuratie > Services), point the records that use '$HOLDER' at '$ID'"
