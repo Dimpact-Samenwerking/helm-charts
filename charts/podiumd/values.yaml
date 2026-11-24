@@ -4840,14 +4840,20 @@ frankgateway:
     # -- sizeLimit of the gateway's /tmp emptyDir (request-body temp files).
     tmpSizeLimit: 2Gi
 
-  # -- Verify the certificate of every https upstream against the image's
-  # system CA bundle (nginx proxy_ssl_verify; APISIX's own upstream.tls.verify
-  # only applies to Kafka upstreams). Without it the API keys an outway route
-  # adds go to whatever answers on the upstream address (security review
-  # 4.10.0 NW-07). Set false per instance only for an https upstream with a
-  # private CA, and prefer adding that CA to the trust bundle instead.
+  # Upstream certificate checking. APISIX's own upstream.tls.verify only
+  # applies to Kafka upstreams, so the chart turns on nginx proxy_ssl_verify.
+  # Without it the API keys an outway route adds go to whatever answers on
+  # the upstream address (security review 4.10.0 NW-07). An upstream under a
+  # private CA (PKIoverheid Private Services, Staat der Nederlanden Private
+  # Root) needs that CA in caBundle or caBundleSecretRef, not verify: false.
+  # All three can be set per instance.
   upstreamTls:
+    # -- Verify the certificate of every https upstream against the trusted CAs: the image's system CA bundle plus caBundle and caBundleSecretRef.
     verify: true
+    # -- Extra CA certificates (PEM, one or more) trusted for https upstreams on top of the image's system CA bundle. Rendered into a ConfigMap; a change restarts the gateway pods.
+    caBundle: ""
+    # -- The same from an existing Secret in the release namespace, e.g. `{name: api-proxy-certs, key: ca.crt}` (the CA apiproxy trusts). key defaults to ca.crt. A change of the Secret's content needs a restart of the gateway pods.
+    caBundleSecretRef: {}
 
   # etcd cluster backing every instance (quay.io/coreos upstream build — no
   # Bitnami). PVC-backed so gateway config survives pod restarts.
@@ -4935,8 +4941,13 @@ frankgateway:
   #         apiproxy-brp:
   #           upstream:
   #             scheme: https
-  #             tls: { client_cert_id: client-brp, verify: true }
+  #             tls: { client_cert_id: client-brp }
   #             ...
+  #
+  # This is the gateway's own identity. Trusting the upstream's server
+  # certificate is separate and per instance: upstreamTls (verify, and
+  # caBundle/caBundleSecretRef for a private CA). A route's tls.verify only
+  # applies to Kafka upstreams in APISIX.
   #
   # The reader token's policy must cover the path. Onboarding and rotation
   # commands: docs/apps/frankgateway/frankgateway-routes.md.

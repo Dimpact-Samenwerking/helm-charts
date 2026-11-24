@@ -249,8 +249,13 @@ frankgateway:
             type: roundrobin
             tls:
               client_cert_id: client-brp          # the SSL object above
-              verify: true                        # verify the upstream too
 ```
+
+The upstream's own certificate is checked for every route of the instance by
+`frankgateway.upstreamTls.verify`, not per route: APISIX's
+`upstream.tls.verify` only applies to Kafka upstreams. An upstream under a
+private CA needs that CA trusted, see
+[Trusting a private upstream CA](#trusting-a-private-upstream-ca).
 
 - **OpenBao:** `bao kv put <mount>/frankgateway/client-certs/brp cert=@chain.pem key=@key.pem`
   — `cert` is the PEM leaf plus intermediates, `key` the PEM private key.
@@ -271,6 +276,43 @@ frankgateway:
   missing certificate.
 - **Validation:** a route whose `client_cert_id` names no `clientCertificates`
   entry of its instance fails the render.
+
+### Trusting a private upstream CA
+
+With `upstreamTls.verify: true` (the default) the gateway trusts the system CA
+bundle of its image. An upstream whose certificate comes from a private CA
+(PKIoverheid Private Services, Staat der Nederlanden Private Root, a
+supplier's own CA) then fails with a 502 and `upstream SSL certificate verify
+error` in the gateway log. Trust that CA instead of turning `verify` off:
+
+```yaml
+frankgateway:
+  instances:
+    outway:
+      upstreamTls:
+        # The CA apiproxy trusts today (key defaults to ca.crt) ...
+        caBundleSecretRef:
+          name: api-proxy-certs
+        # ... and/or the PEM itself.
+        caBundle: |
+          -----BEGIN CERTIFICATE-----
+          ...
+          -----END CERTIFICATE-----
+```
+
+- **How:** APISIX takes one trust file (`apisix.ssl.ssl_trusted_certificate`).
+  The `copy-conf` init container writes the image's system bundle plus these
+  CAs to `conf/upstream-ca-bundle.pem`, and the config points at it, for both
+  nginx (`proxy_ssl_trusted_certificate`) and Lua
+  (`lua_ssl_trusted_certificate`). Public upstreams keep working.
+- **Change:** a change of `caBundle` or of the Secret reference restarts the
+  gateway pods. A change of the Secret's content does not; restart the
+  Deployment after it.
+- **Not from OpenBao:** a CA certificate is public, and the file must exist
+  before APISIX starts, so reading it from OpenBao would only make OpenBao a
+  start-up dependency.
+- **Check:** `kubectl -n podiumd logs deploy/frankgateway-outway -c copy-conf`
+  shows `upstream-ca-bundle.pem: /etc/ssl/certs/ca-certificates.crt + ...`.
 
 ### Why a sync job and not `$secret://`
 

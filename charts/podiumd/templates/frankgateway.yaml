@@ -27,6 +27,7 @@
 {{- $name := include "podiumd.frankgateway.instanceName" (dict "key" $key "instance" $fg) }}
 {{- $prefix := include "podiumd.frankgateway.etcdPrefix" (dict "key" $key "instance" $fg) }}
 {{- $creds := include "podiumd.frankgateway.adminCreds" (dict "root" $root "instance" $fg "name" $name) | fromYaml }}
+{{- $upstreamCa := include "podiumd.frankgateway.upstreamCa" $fg }}
 ---
 apiVersion: v1
 kind: Service
@@ -81,6 +82,11 @@ spec:
         # Lua is loaded once per worker at startup, so a changed function only
         # takes effect on a roll.
         checksum/lua: {{ ($root.Files.Glob "files/frankgateway/*.lua").AsConfig | sha256sum }}
+        {{- if $upstreamCa }}
+        # The trust file is written once, at start-up. Covers caBundle and the
+        # Secret reference, not the Secret's content.
+        checksum/upstream-ca: {{ toJson $fg.upstreamTls | sha256sum }}
+        {{- end }}
     spec:
       {{- include "podiumd.frankgateway.podSecurity" (dict "instance" $fg "user" "gateway") | nindent 6 }}
       topologySpreadConstraints:
@@ -95,7 +101,27 @@ spec:
           imagePullPolicy: IfNotPresent
           # cp -R, not -a: the emptyDir root belongs to root, so a non-root
           # user may not set its timestamps and `cp -a` fails on it.
+          {{- if $upstreamCa }}
+          # APISIX trusts one file only, so the system CA bundle (first match
+          # in APISIX's own list of system locations) and the extra upstream
+          # CAs are joined into conf/upstream-ca-bundle.pem.
+          command:
+            - sh
+            - -ec
+            - |
+              cp -R /usr/local/apisix/conf/. /conf-rw/
+              sys=""
+              for f in /etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt \
+                       /etc/ssl/ca-bundle.pem /etc/pki/tls/cacert.pem \
+                       /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem /etc/ssl/cert.pem; do
+                if [ -f "$f" ]; then sys=$f; break; fi
+              done
+              if [ -z "$sys" ]; then echo "no system CA bundle in the image" >&2; exit 1; fi
+              for f in "$sys" /upstream-ca/*.pem; do cat "$f"; echo; done > /conf-rw/upstream-ca-bundle.pem
+              echo "upstream-ca-bundle.pem: $sys + $(ls /upstream-ca)"
+          {{- else }}
           command: ["sh", "-c", "cp -R /usr/local/apisix/conf/. /conf-rw/"]
+          {{- end }}
           {{- include "podiumd.frankgateway.containerSecurity" (dict "instance" $fg "user" "gateway") | nindent 10 }}
           resources:
             requests:
@@ -107,6 +133,11 @@ spec:
           volumeMounts:
             - name: conf
               mountPath: /conf-rw
+            {{- if $upstreamCa }}
+            - name: upstream-ca
+              mountPath: /upstream-ca
+              readOnly: true
+            {{- end }}
         # Wait for the etcd cluster to be usable before starting APISIX.
         #
         # APISIX reads etcd's /version once, at startup, and exits if it does
@@ -244,6 +275,27 @@ spec:
         - name: lua
           configMap:
             name: frankgateway-lua
+        {{- if $upstreamCa }}
+        - name: upstream-ca
+          projected:
+            sources:
+              {{- if $fg.upstreamTls.caBundle }}
+              - configMap:
+                  name: {{ $name }}-upstream-ca
+                  items:
+                    - key: ca.pem
+                      path: values.pem
+              {{- end }}
+              {{- with $fg.upstreamTls.caBundleSecretRef }}
+              {{- if .name }}
+              - secret:
+                  name: {{ .name }}
+                  items:
+                    - key: {{ .key | default "ca.crt" }}
+                      path: secret.pem
+              {{- end }}
+              {{- end }}
+        {{- end }}
       {{- with $fg.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

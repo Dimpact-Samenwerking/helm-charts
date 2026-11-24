@@ -217,6 +217,19 @@ Returns YAML; consume with `fromYaml`:
 {{- end -}}
 
 {{/*
+Frank!Gateway — "true" when an instance trusts extra upstream CAs
+(upstreamTls.caBundle or upstreamTls.caBundleSecretRef.name), else empty.
+APISIX takes a single trust file (apisix.ssl.ssl_trusted_certificate), so the
+copy-conf init container then writes the image's system CA bundle plus these
+CAs to conf/upstream-ca-bundle.pem, and the config points at that file.
+
+Usage: {{ include "podiumd.frankgateway.upstreamCa" $fg }}
+*/}}
+{{- define "podiumd.frankgateway.upstreamCa" -}}
+{{- if or (dig "upstreamTls" "caBundle" "" .) (dig "upstreamTls" "caBundleSecretRef" "name" "" .) -}}true{{- end -}}
+{{- end -}}
+
+{{/*
 Frank!Gateway — topologySpreadConstraints for one workload.
 
 Two replicas on the same node survive a pod crash but not a node drain, which
@@ -369,6 +382,9 @@ apisix:
   # this the route's serverless function fails to load and every request
   # through it errors.
   extra_lua_path: "/usr/local/apisix/conf/lua/?.lua"
+  {{- /* Without upstream CAs the rendered config stays byte-identical to
+         4.10.1, so checksum/config does not restart the gateway pods. */}}
+  {{- $upstreamCa := include "podiumd.frankgateway.upstreamCa" $fg }}
   {{- if $fg.tls.enabled }}
   # TLS data-plane listener; per-SNI certificates come from SSL objects
   # in etcd (seeded via the Admin API), not from mounted files.
@@ -376,6 +392,15 @@ apisix:
     enable: true
     listen:
       - port: {{ $fg.tls.port }}
+  {{- end }}
+  {{- if $upstreamCa }}
+  {{- if not $fg.tls.enabled }}
+  ssl:
+  {{- end }}
+    # System CA bundle plus upstreamTls.caBundle/caBundleSecretRef, written by
+    # the copy-conf init container; nginx uses it for both
+    # proxy_ssl_trusted_certificate and lua_ssl_trusted_certificate.
+    ssl_trusted_certificate: /usr/local/apisix/conf/upstream-ca-bundle.pem
   {{- end }}
 
   # Control API: unauthenticated, and nothing in this chart uses it, so it
@@ -468,6 +493,9 @@ nginx_config:
     # into the size-limited /tmp emptyDir.
     proxy_max_temp_file_size 0;
   {{- if (dig "upstreamTls" "verify" true $fg) }}
+  {{- /* The trust file is apisix.ssl.ssl_trusted_certificate: the system
+         bundle, or upstream-ca-bundle.pem when upstreamTls.caBundle or
+         caBundleSecretRef is set (podiumd.frankgateway.upstreamCa). */}}
   # Check https upstream certificates (frankgateway.upstreamTls.verify). The
   # image already sets proxy_ssl_trusted_certificate to the system CA bundle
   # and sends the upstream host as SNI.

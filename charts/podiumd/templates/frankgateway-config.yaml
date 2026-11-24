@@ -50,6 +50,25 @@ type: Opaque
 stringData:
   config.yaml: |
 {{ regexReplaceAll "(?m)[ \t]+$" (include "podiumd.frankgateway.config" (dict "root" $root "instance" $fg "name" $name "prefix" $prefix "admin" $creds.admin "viewer" $creds.viewer) | indent 4) "" }}
+{{- with $fg.upstreamTls.caBundle }}
+{{- if not (contains "-----BEGIN CERTIFICATE-----" .) }}
+{{- fail (printf "frankgateway instance %s: upstreamTls.caBundle holds no PEM certificate (-----BEGIN CERTIFICATE-----)" $key) }}
+{{- end }}
+---
+# Extra CAs for https upstreams (upstreamTls.caBundle): public certificates,
+# so a ConfigMap. The copy-conf init container adds them to the system bundle.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-upstream-ca
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: frankgateway
+data:
+  ca.pem: |
+    {{- . | trim | nindent 4 }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

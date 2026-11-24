@@ -247,7 +247,9 @@ PodiumD Helm chart
 | frankgateway.tls.sslSync.snis | list | `[]` |  |
 | frankgateway.tls.sslSync.successfulJobsHistoryLimit | int | `1` |  |
 | frankgateway.topologySpreadConstraints | list | `[]` |  |
-| frankgateway.upstreamTls | object | `{"verify":true}` | Verify the certificate of every https upstream against the image's system CA bundle (nginx proxy_ssl_verify; APISIX's own upstream.tls.verify only applies to Kafka upstreams). Without it the API keys an outway route adds go to whatever answers on the upstream address (security review 4.10.0 NW-07). Set false per instance only for an https upstream with a private CA, and prefer adding that CA to the trust bundle instead. |
+| frankgateway.upstreamTls.caBundle | string | `""` | Extra CA certificates (PEM, one or more) trusted for https upstreams on top of the image's system CA bundle. Rendered into a ConfigMap; a change restarts the gateway pods. |
+| frankgateway.upstreamTls.caBundleSecretRef | object | `{}` | The same from an existing Secret in the release namespace, e.g. `{name: api-proxy-certs, key: ca.crt}` (the CA apiproxy trusts). key defaults to ca.crt. A change of the Secret's content needs a restart of the gateway pods. |
+| frankgateway.upstreamTls.verify | bool | `true` | Verify the certificate of every https upstream against the trusted CAs: the image's system CA bundle plus caBundle and caBundleSecretRef. |
 | global.configuration.enabled | bool | `true` |  |
 | global.configuration.organization | string | `"Example gemeente"` |  |
 | global.configuration.overwrite | bool | `true` |  |
