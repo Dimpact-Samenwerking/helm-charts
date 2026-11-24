@@ -384,6 +384,7 @@ PodiumD Helm chart
 | keycloak.config.clients.zaakbrug.name | string | `"Zaakbrug Frank!Framework console"` |  |
 | keycloak.config.clients.zaakbrug.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while this client is enabled (keycloak.config.clients.zaakbrug.enabled, and zaakbrug.enabled) and this is empty or an example.nl URL. E.g. `https://zaakbrug.example.nl`. |
 | keycloak.config.clients.zaakbrug.secret | string | `""` |  |
+| keycloak.config.oidcExtraHosts | list | `[]` | Hosts other than this Keycloak that an app's OIDC endpoints (configuration.data, oidc_op_*_endpoint) may use, e.g. an Entra ID tenant's login host. The render fails on any other host. |
 | keycloak.config.realm | string | `"podiumd"` | identity provider mapper for the admin realm adminIdentityProviderMappers: {} |
 | keycloak.config.realmDisplayName | string | `"PodiumD"` |  |
 | keycloak.config.realmFrontendUrl | string | `"https://keycloak.example.nl"` |  |

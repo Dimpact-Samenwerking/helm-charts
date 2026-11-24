@@ -83,6 +83,49 @@
 {{- end -}}
 {{- end -}}
 
+{{- /* Every OIDC endpoint in an app's setup-configuration must be on a Keycloak host
+     this chart knows: an endpoint on another host fails the app's config Job only
+     on the deploy, after its retries (IN-3625: a host that redirected to the
+     municipality's website). Checks the providers and the old flat item schema. */ -}}
+{{- if (index .Values "keycloak-operator").enabled -}}
+{{- $kc := .Values.keycloak -}}
+{{- $allowed := list "keycloak-service" (printf "keycloak-service.%s" .Release.Namespace) (printf "keycloak-service.%s.svc" .Release.Namespace) (printf "keycloak-service.%s.svc.cluster.local" .Release.Namespace) -}}
+{{- range $u := list $kc.config.realmFrontendUrl $kc.config.adminFrontendUrl $kc.hostname.hostname $kc.hostname.admin -}}
+{{- $u = toString ($u | default "") -}}
+{{- if $u -}}
+{{- $h := (urlParse (ternary $u (printf "https://%s" $u) (contains "://" $u))).hostname -}}
+{{- if $h -}}{{- $allowed = append $allowed $h -}}{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- $allowed = concat $allowed ($kc.config.oidcExtraHosts | default list) -}}
+{{- $bad := list -}}
+{{- range $comp := list "openzaak" "opennotificaties" "objecten" "openarchiefbeheer" "openklant" "openformulieren" "openinwoner" "referentielijsten" "openbeheer" "openvtb" -}}
+{{- $v := index $.Values $comp | default dict -}}
+{{- $cfg := $v.configuration | default dict -}}
+{{- if and (or $v.enabled (not (hasKey $v "enabled"))) $cfg.enabled $cfg.data -}}
+{{- $data := ternary $cfg.data (toYaml $cfg.data) (kindIs "string" $cfg.data) | fromYaml -}}
+{{- $auth := index $data "oidc_db_config_admin_auth" | default dict -}}
+{{- if kindIs "map" $auth -}}
+{{- range $entry := concat ($auth.providers | default list) ($auth.items | default list) -}}
+{{- if kindIs "map" $entry -}}
+{{- range $k, $url := ($entry.endpoint_config | default dict) -}}
+{{- if and (hasPrefix "oidc_op_" $k) (hasSuffix "_endpoint" $k) $url -}}
+{{- $h := (urlParse (toString $url)).hostname -}}
+{{- if not (has $h $allowed) -}}
+{{- $bad = append $bad (printf "%s: %s = %s" $comp $k $url) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if $bad -}}
+{{- fail (printf "OIDC endpoints in configuration.data point at a host that is not this Keycloak (%s):\n  %s\nUse the Keycloak host of keycloak.config.realmFrontendUrl, or list an intended other identity provider host in keycloak.config.oidcExtraHosts." (join ", " (uniq $allowed)) (join "\n  " $bad)) -}}
+{{- end -}}
+{{- end -}}
+
 {{- /* Open Inwoner's admin OIDC needs the providers schema (mozilla-django-oidc-db 2.x,
      since Open Inwoner 2.4.0). An item without oidc_provider_identifier, or with
      the old flat fields, fails setup-configuration; since openinwoner chart 2.6.0
