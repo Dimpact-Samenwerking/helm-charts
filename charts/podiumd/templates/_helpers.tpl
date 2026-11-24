@@ -1246,8 +1246,60 @@ a non-boolean condition). Templates that belong to a subchart use this, so they
 render exactly when the subchart does.
 Usage: {{- if include "podiumd.dependencyEnabled" .Values.openzaak }}
 */}}
+{{/*
+Keycloak's public hostname and admin hostname, as the Keycloak CR sets them
+(a URL or a bare host).
+*/}}
+{{- define "podiumd.keycloak.hostname" -}}
+{{- $kc := .Values.keycloak -}}
+{{- if $kc.hostname.useRealmFrontendUrl -}}
+{{- coalesce $kc.hostname.hostname $kc.config.realmFrontendUrl $kc.config.adminFrontendUrl -}}
+{{- else -}}
+{{- coalesce $kc.hostname.hostname $kc.config.adminFrontendUrl -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "podiumd.keycloak.adminHostname" -}}
+{{- coalesce .Values.keycloak.hostname.admin .Values.keycloak.config.adminFrontendUrl -}}
+{{- end -}}
+
+{{/*
+The lower-case host name of a URL or a bare host ("Keycloak.example.nl:443/x"
+gives "keycloak.example.nl"); empty for an empty value.
+*/}}
+{{- define "podiumd.hostOf" -}}
+{{- $u := trim (toString (. | default "")) -}}
+{{- if $u -}}
+{{- lower (urlParse (ternary $u (printf "https://%s" $u) (contains "://" $u))).hostname -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "podiumd.dependencyEnabled" -}}
 {{- if not (and (kindIs "bool" .enabled) (not .enabled)) -}}true{{- end -}}
+{{- end -}}
+
+{{/*
+The setup-configuration data of a Maykin-style subchart, parsed the way the
+subchart renders it: through tpl, with the subchart's values (and the
+umbrella's global) as .Values. Empty when the app, global.configuration, the
+app's configuration or its setup-configuration Job is off, or the data is
+empty. Returns YAML; a map with an "Error" key when the data is not YAML.
+Usage: {{- $data := include "podiumd.configurationData" (dict "root" $ "component" "openzaak") | fromYaml -}}
+*/}}
+{{- define "podiumd.configurationData" -}}
+{{- $root := .root -}}
+{{- $v := index $root.Values .component | default dict -}}
+{{- $cfg := $v.configuration | default dict -}}
+{{- $global := $root.Values.global | default dict -}}
+{{- $job := $cfg.job | default dict -}}
+{{- if and (include "podiumd.dependencyEnabled" $v) ($global.configuration | default dict).enabled $cfg.enabled $cfg.data (include "podiumd.dependencyEnabled" $job) -}}
+{{- $raw := $cfg.data -}}
+{{- if not (kindIs "string" $raw) -}}{{- $raw = toYaml $raw -}}{{- end -}}
+{{- if contains "{{" $raw -}}
+{{- $raw = tpl $raw (dict "Values" (merge (dict "global" $global) $v) "Release" $root.Release "Chart" $root.Chart "Capabilities" $root.Capabilities "Template" $root.Template) -}}
+{{- end -}}
+{{- $raw | fromYaml | toYaml -}}
+{{- end -}}
 {{- end -}}
 
 {{/*
