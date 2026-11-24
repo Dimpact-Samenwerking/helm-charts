@@ -1287,6 +1287,30 @@ Usage: {{- if include "podiumd.dependencyEnabled" .Values.openzaak }}
 {{- end -}}
 
 {{/*
+The setup-configuration data of a Maykin-style subchart, parsed the way the
+subchart renders it: through tpl, with the subchart's values (and the
+umbrella's global) as .Values. Empty when the app, global.configuration, the
+app's configuration or its setup-configuration Job is off, or the data is
+empty. Returns YAML; a map with an "Error" key when the data is not YAML.
+Usage: {{- $data := include "podiumd.configurationData" (dict "root" $ "component" "openzaak") | fromYaml -}}
+*/}}
+{{- define "podiumd.configurationData" -}}
+{{- $root := .root -}}
+{{- $v := index $root.Values .component | default dict -}}
+{{- $cfg := $v.configuration | default dict -}}
+{{- $global := $root.Values.global | default dict -}}
+{{- $job := $cfg.job | default dict -}}
+{{- if and (include "podiumd.dependencyEnabled" $v) ($global.configuration | default dict).enabled $cfg.enabled $cfg.data (include "podiumd.dependencyEnabled" $job) -}}
+{{- $raw := $cfg.data -}}
+{{- if not (kindIs "string" $raw) -}}{{- $raw = toYaml $raw -}}{{- end -}}
+{{- if contains "{{" $raw -}}
+{{- $raw = tpl $raw (dict "Values" (merge (dict "global" $global) $v) "Release" $root.Release "Chart" $root.Chart "Capabilities" $root.Capabilities "Template" $root.Template) -}}
+{{- end -}}
+{{- $raw | fromYaml | toYaml -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 The fullname a subchart gives its resources with the standard Helm
 <chart>.fullname helper: fullnameOverride, else <release>-<nameOverride or
 chart name>, or just <release> when that already contains the name. For
