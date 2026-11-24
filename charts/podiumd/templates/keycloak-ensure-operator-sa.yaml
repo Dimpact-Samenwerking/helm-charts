@@ -63,9 +63,8 @@ spec:
             case "$STATUS" in 000|5*) echo "Attempt $i/60 — Keycloak not ready (status=$STATUS), retrying in 10s..."; sleep 10 ;; *) break ;; esac
           done
           case "$STATUS" in 000|5*) echo "Keycloak did not answer in 10 minutes"; exit 1 ;; esac
-          ACCESS_TOKEN=$(sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/token.json | head -n1)
-          if [ -n "$ACCESS_TOKEN" ] && [ "$(curl -s -o /dev/null -w "%{http_code}" \
-              -H "Authorization: Bearer $ACCESS_TOKEN" "$SERVER/admin/realms")" = "200" ]; then
+          {{- include "podiumd.keycloak.saReadyFunction" . | nindent 10 }}
+          if sa_ready; then
             echo "keycloak-operator SA is already operational with admin role."
             touch /state/done
           else
@@ -134,33 +133,42 @@ spec:
               --client-secret:env=CLIENT_SECRET --no-prompt --cache=local > /tmp/bootstrap.log 2>&1
             RC=$?
             cat /tmp/bootstrap.log
+            if grep -q "Created temporary admin service account" /tmp/bootstrap.log; then touch /state/created; exit 0; fi
+            # An existing client is left alone; the main container checks its secret.
+            if grep -q "client with client ID exists" /tmp/bootstrap.log; then exit 0; fi
             grep -q "Database not up-to-date" /tmp/bootstrap.log || exit $RC
             echo "Attempt $i/40 — the new Keycloak has not migrated the database yet, retrying in 15s..."
             sleep 15
           done
           echo "The database was not migrated to this Keycloak version within 20 minutes"; exit 1
         env:
+        {{- $db := include "podiumd.keycloak.db" . | fromYaml }}
         - name: KC_DB
-          value: {{ coalesce .Values.keycloak.db.vendor .Values.keycloak.externalDatabase.vendor | quote }}
+          value: {{ $db.vendor | quote }}
         - name: KC_DB_URL_HOST
-          value: {{ coalesce .Values.keycloak.db.host .Values.keycloak.externalDatabase.host | quote }}
+          value: {{ $db.host | quote }}
         - name: KC_DB_URL_PORT
-          value: {{ coalesce .Values.keycloak.db.port .Values.keycloak.externalDatabase.port | toString | quote }}
+          value: {{ $db.port | toString | quote }}
         - name: KC_DB_URL_DATABASE
-          value: {{ coalesce .Values.keycloak.db.database .Values.keycloak.externalDatabase.database | quote }}
+          value: {{ $db.database | quote }}
         - name: KC_DB_USERNAME
           valueFrom:
             secretKeyRef:
-              name: {{ coalesce .Values.keycloak.db.usernameSecret.name .Values.keycloak.secretsName | quote }}
-              key: {{ default "database_username" .Values.keycloak.db.usernameSecret.key | quote }}
+              name: {{ $db.usernameSecret.name | quote }}
+              key: {{ $db.usernameSecret.key | quote }}
         - name: KC_DB_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: {{ coalesce .Values.keycloak.db.passwordSecret.name .Values.keycloak.secretsName | quote }}
-              key: {{ default "database_password" .Values.keycloak.db.passwordSecret.key | quote }}
-        {{- /* The Keycloak CR's other database options (e.g. db-url-properties, db-schema). */}}
+              name: {{ $db.passwordSecret.name | quote }}
+              key: {{ $db.passwordSecret.key | quote }}
+        {{- /* The Keycloak CR's features and other options, so the rebuild matches the running
+             server's build options; cache options are left out (--cache=local). */}}
+        {{- with .Values.keycloak.features.enabled }}
+        - name: KC_FEATURES
+          value: {{ join "," . | quote }}
+        {{- end }}
         {{- range .Values.keycloak.additionalOptions }}
-        {{- if hasPrefix "db-" .name }}
+        {{- if and .value (not (hasPrefix "cache" .name)) }}
         - name: {{ printf "KC_%s" (.name | upper | replace "-" "_") }}
           value: {{ .value | quote }}
         {{- end }}
@@ -212,21 +220,28 @@ spec:
           # Escapes backslashes first, then double-quotes.
           json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 
-          sa_ready() {
-            SA_TOKEN=$(curl -s -X POST "$SERVER/realms/master/protocol/openid-connect/token" \
-              --data-urlencode "grant_type=client_credentials" \
-              --data-urlencode "client_id=keycloak-operator" \
-              --data-urlencode "client_secret=$CLIENT_SECRET" \
-              | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
-            [ -n "$SA_TOKEN" ] && [ "$(curl -s -o /dev/null -w "%{http_code}" \
-              -H "Authorization: Bearer $SA_TOKEN" "$SERVER/admin/realms")" = "200" ]
+          {{- include "podiumd.keycloak.saReadyFunction" . | nindent 10 }}
+
+          fail_fix() {
+            echo "Fix one of: set keycloak-operator.jobs.ensureOperatorSa.clientSecret to the secret of client"
+            echo "keycloak-operator in the master realm; or enter the value of that setting as the client's secret"
+            echo "in the admin console (Clients → keycloak-operator → Credentials); or delete the client, so that"
+            echo "the next deploy creates it."
+            exit 3
           }
 
+          # A client bootstrap-admin just created reaches the running servers' caches with a delay.
+          TRIES=3
+          if [ -f /state/created ]; then TRIES=12; fi
           echo "Checking if keycloak-operator SA is operational..."
-          for i in 1 2 3; do
+          for i in $(seq 1 "$TRIES"); do
             if sa_ready; then echo "keycloak-operator SA is operational with admin role. Nothing to do."; exit 0; fi
             sleep 5
           done
+          if [ -f /state/created ]; then
+            echo "Client keycloak-operator was created in this run but does not log in after 60 s; retrying the Job."
+            exit 1
+          fi
 
           # bootstrap-admin left an existing client alone: it has another secret (or lacks the
           # admin role). Only an admin login can change that.
@@ -244,22 +259,17 @@ spec:
             case "$STATUS" in
               200) ADMIN_TOKEN=$(sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/admin.json); break ;;
               # ensure-podiumd-admin-user may still be writing the user.
-              401|000|502|503|504) echo "Attempt $i/30 — status=$STATUS, retrying in 10s..."; sleep 10 ;;
+              # 400: podiumd-admin is still disabled until ensure-podiumd-admin-user re-enables it.
+              400|401|000|502|503|504) echo "Attempt $i/30 — status=$STATUS, retrying in 10s..."; sleep 10 ;;
               *)
                 echo "FATAL: $ADMIN_USER cannot log in to the master realm with a password (status=$STATUS: $(head -c 200 /tmp/admin.json))."
                 echo "A 500 here usually means master's direct grant flow requires more than a password, such as OTP."
-                echo "Fix one of: set keycloak-operator.jobs.ensureOperatorSa.clientSecret to the secret of client"
-                echo "keycloak-operator in the master realm; or set that client's secret to this value in the admin"
-                echo "console; or delete the client, so that the next deploy creates it."
-                exit 3 ;;
+                fail_fix ;;
             esac
           done
           if [ -z "$ADMIN_TOKEN" ]; then
             echo "FATAL: $ADMIN_USER could not log in to the master realm (last status=$STATUS)."
-            echo "Fix one of: set keycloak-operator.jobs.ensureOperatorSa.clientSecret to the secret of client"
-            echo "keycloak-operator in the master realm; or set that client's secret to this value in the admin"
-            echo "console; or delete the client, so that the next deploy creates it."
-            exit 3
+            fail_fix
           fi
 
           echo "Ensuring client keycloak-operator exists..."
@@ -289,7 +299,7 @@ spec:
           SA_JSON=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
             "$SERVER/admin/realms/master/clients/$CLIENT_ID/service-account-user")
           SA_USER_ID=$(echo "$SA_JSON" | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1 || true)
-          if [ -z "$SA_USER_ID" ]; then echo "Failed to get service account user id"; exit 3; fi
+          if [ -z "$SA_USER_ID" ]; then echo "Failed to get service account user id"; exit 6; fi
           echo "Service account user id: $SA_USER_ID"
 
           echo "Assigning realm role 'admin' to service account..."
@@ -343,6 +353,8 @@ spec:
         volumeMounts:
         - name: tmp
           mountPath: /tmp
+        - name: state
+          mountPath: /state
       volumes:
       - name: tmp
         emptyDir: {}
