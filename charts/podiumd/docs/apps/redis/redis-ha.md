@@ -131,7 +131,9 @@ the chart adds:
   data and points the other pods at it. The sentinels address the pods by hostname, so a
   recreated pod with a new IP is found again; the Redis pods announce their hostname only with
   the operator's `GenerateConfigInInitContainer` feature gate (on in the chart), so the render
-  fails when Sentinel is on and the gate off. The operator's preStop hook on the Redis pods asks
+  fails when Sentinel is on and the gate off. The sentinels need the redis-operator 0.27.0 CRDs;
+  Helm does not upgrade CRDs, so clusters that got redis-operator before 4.11.0 apply them
+  by hand (upgrade guide 4.10.1 → 4.11.0, step A1). The operator's preStop hook on the Redis pods asks
   the sentinels for a failover before a master stops (drain, rollout), so a planned stop loses
   no writes. The sentinels spread over the nodes and have their own PodDisruptionBudget
   (`redis-ha-sentinel`, `maxUnavailable: 1`).
@@ -174,7 +176,7 @@ Expected outage of the writes, per failure:
 
 | Failure | Outage | Writes lost |
 | --- | --- | --- |
-| Master pod stopped by Kubernetes (drain, rollout, `kubectl delete pod`) | 1 to 2 seconds (minikube): the preStop failover; writes wait during the switch | none: the old master is paused before the promotion |
+| Master pod stopped by Kubernetes (drain, rollout, `kubectl delete pod`) | 1 to 3 seconds (minikube, and a node drain on a 3-node AKS cluster): the preStop failover; writes wait during the switch | none: the old master is paused before the promotion |
 | Master process or container dies, master node fails | about 10 seconds: 5 s until the sentinels call it down, the failover, the labeller (9 s measured; a failed node adds up to 3 s of timeouts per check) | the writes the replicas had not received yet (asynchronous replication: usually under a second) |
 | Network partition that cuts the master off from the sentinels' majority | as above for apps on the majority side | also the writes that apps on the master's side still send to the old master; they are dropped when it rejoins as a replica |
 | A replica or one sentinel | none | none |
@@ -183,6 +185,20 @@ Expected outage of the writes, per failure:
 Every master change shows in the labeller's log (`kubectl logs deploy/redis-ha-labeller`):
 `master change: <pod> is master behind redis-ha-master (labelled master before: <pod>)`, with
 the time. The sentinels log `+switch-master`.
+A failover logs that line a few times within seconds, once per sentinel event. While a
+sentinel is replaced the labeller may log `no master agreed by 2 of 3 sentinels`, and
+`2 of 3 sentinels agree again on master <pod>, after <n>s without agreement` when the
+majority is back.
+
+After node maintenance, check that the sentinels are on three nodes again
+(`kubectl get pods -l role=sentinel -o wide`). The spread is a preference
+(`whenUnsatisfiable: ScheduleAnyway`), so a sentinel that a drain moved stays on its new node
+after the uncordon, next to another sentinel; a failure of that node then leaves one sentinel,
+and no failover. Delete one of the two (`kubectl delete pod redis-ha-s-<n>`) and the
+StatefulSet recreates it on the node without a sentinel. The spread is not required
+(`DoNotSchedule`), because a cluster with fewer schedulable nodes than sentinels, or with
+tainted node pools that the sentinels cannot use, would then leave a sentinel Pending, and the
+operator updates nothing while a sentinel is not Ready.
 
 With one Redis pod (for example minikube scaled down) there is nothing to fail over to: the chart
 renders no sentinels and no labeller, and the CronJob stays. The operator does not delete the

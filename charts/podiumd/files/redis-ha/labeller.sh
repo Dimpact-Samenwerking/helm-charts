@@ -248,6 +248,7 @@ done
 
 STARTED=$(date +%s)
 last_state=""
+no_quorum_since=0
 while true; do
   if ! pods=$(list_pods); then
     log "cannot list the redis-ha pods"
@@ -269,7 +270,10 @@ while true; do
   printf '%s\n' "$pods" > "$PODS_FILE.new" && mv "$PODS_FILE.new" "$PODS_FILE"
   master=$(quorum_master)
   if [ -z "$master" ]; then
-    [ "$last_state" = "no-quorum" ] || log "no master agreed by $QUORUM of $SENTINELS sentinels; only replicas lose a master label"
+    if [ "$last_state" != "no-quorum" ]; then
+      log "no master agreed by $QUORUM of $SENTINELS sentinels; only replicas lose a master label"
+      no_quorum_since=$(date +%s)
+    fi
     last_state="no-quorum"
     printf '%s\n' "$pods" | while IFS='|' read -r pod role ip; do
       if [ -z "$pod" ] || [ "$role" != "master" ] || [ -z "$ip" ]; then continue; fi
@@ -280,6 +284,11 @@ while true; do
     done
     sleep "$INTERVAL"
     continue
+  fi
+
+  if [ "$last_state" = "no-quorum" ]; then
+    log "$QUORUM of $SENTINELS sentinels agree again on master $master, after $(( $(date +%s) - no_quorum_since ))s without agreement"
+    last_state="agreed:$master"
   fi
 
   # The sentinels learn a switch some seconds apart; until then a quorum can
