@@ -1137,6 +1137,7 @@ PodiumD Helm chart
 | opennotificaties.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://opennotificaties.example.nl`. |
 | opennotificaties.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement. |
 | opennotificaties.configuration.secrets.keycloak_client_secret | string | `""` |  |
+| opennotificaties.enableServiceLinks | bool | `false` |  |
 | opennotificaties.flower.enabled | bool | `false` |  |
 | opennotificaties.fullnameOverride | string | `"opennotificaties"` |  |
 | opennotificaties.image.tag | string | `"1.17.0@sha256:5200540e78eb67993760bd9ad98d6c7f174ce61f5122b3e20627a690cbf3dfe0"` |  |
@@ -1296,6 +1297,7 @@ PodiumD Helm chart
 | openzaak.create_required_catalogi_job.resources.requests.cpu | string | `"50m"` |  |
 | openzaak.create_required_catalogi_job.resources.requests.memory | string | `"64Mi"` |  |
 | openzaak.create_required_catalogi_job.secret | string | `"<openzaak_secret>"` |  |
+| openzaak.enableServiceLinks | bool | `false` |  |
 | openzaak.flower.enabled | bool | `false` |  |
 | openzaak.fullnameOverride | string | `"openzaak"` |  |
 | openzaak.image.tag | string | `"1.31.1@sha256:63448221142145b0f56eabadaa9ef9578dd4aacc7f95476bd5368f767883ada0"` |  |

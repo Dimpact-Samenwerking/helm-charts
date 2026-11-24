@@ -906,6 +906,13 @@ openzaak:
         memory: 1Gi
   nameOverride: openzaak
   fullnameOverride: openzaak
+  # Set here, not left to the chart default: with service links Kubernetes
+  # injects OPENZAAK_PORT=tcp://<service-ip>:80 into the web pod, and the image's
+  # /start.sh reads that variable as uWSGI's port, so uWSGI fails to start
+  # (podiumd-chart-53). The chart sets this on the web pod only; the worker,
+  # beat and Job pods get the variable but nothing there reads it. Turning it
+  # back on needs OPENZAAK_PORT: "8000" in extraEnvVars.
+  enableServiceLinks: false
   flower:
     enabled: false
   beat:
@@ -1201,6 +1208,13 @@ opennotificaties:
         memory: 386Mi
   nameOverride: opennotificaties
   fullnameOverride: opennotificaties
+  # Set here, not left to the chart default: with service links Kubernetes
+  # injects OPENNOTIFICATIES_PORT=tcp://<service-ip>:80 into the web pod, and the image's
+  # /start.sh reads that variable as uWSGI's port, so uWSGI fails to start
+  # (podiumd-chart-53). The chart sets this on the web pod only; the worker,
+  # beat and Job pods get the variable but nothing there reads it. Turning it
+  # back on needs OPENNOTIFICATIES_PORT: "8000" in extraEnvVars.
+  enableServiceLinks: false
   beat:
     resources:
       requests:
