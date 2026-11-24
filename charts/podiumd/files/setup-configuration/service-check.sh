@@ -9,7 +9,7 @@ if ! TABLE=$(q -c "select to_regclass('public.zgw_consumers_service') is not nul
   exit 1
 fi
 if [ "$TABLE" != "t" ]; then
-  echo "$COMPONENT: no zgw_consumers_service table yet (fresh install); nothing to check."
+  echo "$COMPONENT: no zgw_consumers_service table yet (before its first migration); nothing to check."
   exit 0
 fi
 

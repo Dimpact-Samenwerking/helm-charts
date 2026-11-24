@@ -1427,7 +1427,7 @@ PodiumD Helm chart
 | serviceAccount.automount | bool | `false` |  |
 | serviceAccount.create | bool | `true` |  |
 | serviceAccount.name | string | `""` |  |
-| setupConfigurationChecks.zgwServices | object | `{"autoFix":false,"enabled":true,"image":{"pullPolicy":"IfNotPresent","repository":"library/postgres","tag":"16.15-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab"},"resources":{"limits":{"cpu":"200m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}}}` | Pre-install/pre-upgrade hook per Maykin-style component: fails the upgrade when its database has a zgw_consumers Service whose api_root the values give to another identifier, which would fail the component's setup-configuration (zgw_consumers_service_api_root_key) during the deploy. |
+| setupConfigurationChecks.zgwServices | object | `{"autoFix":false,"enabled":true,"image":{"pullPolicy":"IfNotPresent","repository":"library/postgres","tag":"16.15-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab"},"resources":{"limits":{"cpu":"200m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}}}` | Pre-upgrade hook per Maykin-style component: fails the upgrade when its database has a zgw_consumers Service whose api_root the values give to another identifier, which would fail the component's setup-configuration (zgw_consumers_service_api_root_key) during the deploy. |
 | setupConfigurationChecks.zgwServices.autoFix | bool | `false` | Rename such a Service's slug to the values' identifier instead of failing, when no Service has that slug yet. |
 | tags."eck-operator.enabled" | bool | `false` |  |
 | tags.redis | bool | `false` |  |

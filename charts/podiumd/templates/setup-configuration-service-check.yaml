@@ -1,5 +1,5 @@
 {{- /*
-Pre-install/pre-upgrade check of each component's zgw_consumers services
+Pre-upgrade check of each component's zgw_consumers services
 against its database. setup-configuration (a post-upgrade hook of the
 subcharts) finds a Service by its slug, the values' `identifier`, and creates
 it when no Service has that slug; zgw_consumers allows an api_root only once.
@@ -8,8 +8,11 @@ admin or by an older configuration, then fails the component's config Job in
 the middle of the deploy (Assen, Hoorn, Olst). This hook stops the upgrade
 before anything changes and says which slug to rename; with autoFix it renames
 it itself when that is unambiguous (forms and other records point at the
-Service row, not at its slug). The table does not exist yet on a fresh install
-or before the first migration: then there is nothing to check.
+Service row, not at its slug). Pre-upgrade only: on an install there is no
+database to check yet, and the release's ServiceAccount does not exist before
+the pre-install hooks. A table that does not exist yet (before the component's
+first migration) also means nothing to check. The check needs no Kubernetes API
+access, so the pod gets no service account token.
 */ -}}
 {{- $check := (.Values.setupConfigurationChecks | default dict).zgwServices | default dict -}}
 {{- if $check.enabled -}}
@@ -30,7 +33,7 @@ metadata:
     {{- include "podiumd.labels" $ | nindent 4 }}
     app.kubernetes.io/component: {{ $comp }}
   annotations:
-    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook: pre-upgrade
     helm.sh/hook-weight: "-20"
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
 type: Opaque
@@ -55,7 +58,7 @@ metadata:
     {{- include "podiumd.labels" $ | nindent 4 }}
     app.kubernetes.io/component: {{ $comp }}
   annotations:
-    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook: pre-upgrade
     helm.sh/hook-weight: "-10"
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
 spec:
@@ -76,7 +79,7 @@ spec:
         app.kubernetes.io/component: {{ $comp }}
     spec:
       restartPolicy: Never
-      serviceAccountName: {{ include "podiumd.serviceAccountName" $ }}
+      automountServiceAccountToken: false
       {{- with $.Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

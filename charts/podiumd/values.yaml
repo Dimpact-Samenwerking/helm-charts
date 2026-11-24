@@ -3481,7 +3481,7 @@ kiss:
 
 # Checks before an install or upgrade changes anything.
 setupConfigurationChecks:
-  # -- Pre-install/pre-upgrade hook per Maykin-style component: fails the upgrade when its database has a
+  # -- Pre-upgrade hook per Maykin-style component: fails the upgrade when its database has a
   # zgw_consumers Service whose api_root the values give to another identifier, which would fail the
   # component's setup-configuration (zgw_consumers_service_api_root_key) during the deploy.
   zgwServices:
