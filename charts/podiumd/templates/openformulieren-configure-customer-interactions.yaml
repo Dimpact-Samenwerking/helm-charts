@@ -8,22 +8,17 @@ image so Django settings/DB env vars line up exactly with the running app.
 
 The group points at a zgw_consumers Service that IS declarative: the
 setup-configuration ServiceConfigurationStep stores its `identifier` as
-Service.slug. If that Service doesn't exist yet (setup-configuration Job not
-finished, or DB migrations still running) this script exits non-zero and
-relies on the Job's backoffLimit/activeDeadlineSeconds to retry — same
-"eventually consistent, plain Job" approach as
-openformulieren-configure-clamav.yaml, no Helm hook needed.
+Service.slug. setup-configuration runs as the openforms subchart's
+post-install/post-upgrade hook (openformulieren-config, hook weight 0), so this
+Job is a hook too, with weight 10: Helm runs it after that hook, once the
+Service exists (IN-3198). As a plain Job it raced the hooks and gave up after
+its deadline while earlier hooks were still running, also with correct values.
+A failure now fails the deploy instead of passing unnoticed. The remaining
+retries cover an Open Forms database that is still migrating.
 
 update_or_create keyed on the group identifier makes it idempotent, so the
-Job can safely run on every deploy.
-
-spec.template on a batch/v1 Job is immutable, so a fixed Job name would make
-`helm upgrade` fail with "field is immutable" once the image or any other
-pod-template input changes while the previous Job still exists (within
-ttlSecondsAfterFinished). The pod template is therefore rendered separately
-and its checksum goes into the Job name — same approach as pabc-seed-job.yaml.
-A changed input gives a new Job that runs again; an unchanged one keeps the
-name, and Helm recreates the Job once the TTL has removed the old one.
+Job can safely run on every deploy; before-hook-creation replaces the previous
+run's Job, so a changed pod template never hits "field is immutable".
 */}}
 {{- define "podiumd.openformulierenCustomerInteractionsJob.podTemplate" -}}
 metadata:
@@ -110,14 +105,17 @@ spec:
 
 {{- if and (include "podiumd.dependencyEnabled" .Values.openformulieren) .Values.openformulieren.customerInteractionsConfigJob.enabled }}
 {{- $podTemplate := include "podiumd.openformulierenCustomerInteractionsJob.podTemplate" . }}
-{{- $jobSuffix := $podTemplate | sha256sum | trunc 10 }}
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: openformulieren-configure-customer-interactions-{{ $jobSuffix }}
+  name: openformulieren-configure-customer-interactions
   labels:
     {{- include "podiumd.labels" . | nindent 4 }}
     app.kubernetes.io/component: openformulieren
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "10"
+    helm.sh/hook-delete-policy: before-hook-creation
 spec:
   backoffLimit: {{ .Values.openformulieren.customerInteractionsConfigJob.backoffLimit }}
   activeDeadlineSeconds: {{ .Values.openformulieren.customerInteractionsConfigJob.activeDeadlineSeconds }}
