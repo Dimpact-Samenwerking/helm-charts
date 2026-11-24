@@ -1329,13 +1329,13 @@ PodiumD Helm chart
 | openzaak.settings.cache.default | string | `"redis-ha-master:6379/4"` |  |
 | openzaak.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/5"` |  |
 | openzaak.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
-| openzaak.settings.celery.resultBackend | string | `"disabled"` | open-zaak-21: "disabled" until Open Zaak ships redis-py 6.4.0 or later. With a Redis result backend, Task.delay subscribes to the result channel, and redis-py 6.2.0 deadlocks a uWSGI process when that connection dropped (Redis restart or failover). Open Zaak reads no task results. Open Zaak's settings also read CELERY_BROKER_URL from this variable, but Celery takes the broker from the CELERY_BROKER_URL environment variable. |
+| openzaak.settings.celery.resultBackend | string | `"disabled"` | No result backend until Open Zaak ships redis-py 6.4.0 or later (open-zaak-21). |
 | openzaak.settings.database.sslmode | string | `"require"` |  |
 | openzaak.settings.disable2fa | bool | `false` |  |
 | openzaak.settings.documentApiBackend | string | `"filesystem"` | Backend for the Documenten API. Supported values: filesystem | azure_blob_storage |
 | openzaak.settings.email.port | int | `587` |  |
 | openzaak.settings.email.useTLS | bool | `true` |  |
-| openzaak.settings.uwsgi.harakiri | string | `"300"` | open-zaak-21: uWSGI kills and respawns a process whose request runs longer than this many seconds, so a hung process does not stay hung. Well above the longest legitimate request (a 500 MB ZAC document, uploaded or downloaded); remove with celery.resultBackend above. |
+| openzaak.settings.uwsgi.harakiri | string | `"120"` | Seconds after which uWSGI restarts a process with a request still running (open-zaak-21). |
 | openzaak.settings.uwsgi.maxRequests | string | `"1000"` |  |
 | openzaak.settings.uwsgi.processes | string | `"2"` |  |
 | openzaak.settings.uwsgi.threads | string | `"4"` |  |

@@ -860,12 +860,15 @@ openzaak:
       axes: redis-ha-master:6379/4
     celery:
       brokerUrl: redis://redis-ha-master:6379/5
-      # -- open-zaak-21: "disabled" until Open Zaak ships redis-py 6.4.0 or later.
-      # With a Redis result backend, Task.delay subscribes to the result channel,
-      # and redis-py 6.2.0 deadlocks a uWSGI process when that connection
-      # dropped (Redis restart or failover). Open Zaak reads no task results.
-      # Open Zaak's settings also read CELERY_BROKER_URL from this variable, but
-      # Celery takes the broker from the CELERY_BROKER_URL environment variable.
+      # open-zaak-21: with a Redis result backend, Task.delay subscribes to the
+      # result channel, and redis-py 6.2.0 deadlocks a uWSGI process when that
+      # connection dropped (Redis restart or failover). Open Zaak reads no task results; up
+      # to 4.9.x the misspelled key resultBackendl left this empty, so Open Zaak
+      # ran without one then too. Open Zaak's settings also read
+      # CELERY_BROKER_URL from this variable, but Celery takes the broker from
+      # the CELERY_BROKER_URL environment variable, and nothing in Open Zaak
+      # 1.31.1 reads the Django setting.
+      # -- No result backend until Open Zaak ships redis-py 6.4.0 or later (open-zaak-21).
       resultBackend: disabled
       # -- Set to debug for test/acceptance environments
       logLevel: warning
@@ -873,11 +876,13 @@ openzaak:
       processes: "2"
       threads: "4"
       maxRequests: "1000"
-      # -- open-zaak-21: uWSGI kills and respawns a process whose request runs
-      # longer than this many seconds, so a hung process does not stay hung.
-      # Well above the longest legitimate request (a 500 MB ZAC document,
-      # uploaded or downloaded); remove with celery.resultBackend above.
-      harakiri: "300"
+      # open-zaak-21: a safety net for a process that hangs anyway; remove it with
+      # celery.resultBackend above. It kills the whole process, so the other
+      # requests in flight in it (threads) get 502 too. nginx buffers request
+      # and response bodies and serves downloads through X-Accel, so uWSGI
+      # handles even a 500 MB ZAC document well within this.
+      # -- Seconds after which uWSGI restarts a process with a request still running (open-zaak-21).
+      harakiri: "120"
     # -- Backend for the Documenten API. Supported values: filesystem | azure_blob_storage
     documentApiBackend: filesystem
     # azureBlobStorage:
