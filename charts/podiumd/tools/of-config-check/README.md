@@ -28,7 +28,7 @@ marked "3.5 only" run only on 3.5, where they prepare the upgrade to 4.0.
 | Check | Finds |
 | --- | --- |
 | Type berekening | A "waarde instellen" logic action writes a value of another type than the field or variable expects, e.g. a sum into a read-only text field |
-| Verwijzing | Logic that uses a field, variable or step that does not exist (anymore), e.g. after renaming a field |
+| Verwijzing | Logic that uses a field, variable or step that does not exist (anymore), e.g. after renaming a field: in the trigger, a calculation, the target of a "waarde instellen" or service fetch action, the field of a property action, the variables of a synchronize or DMN action, and a step |
 | Beginwaarde | An initial value of the wrong type, e.g. `"3"` for a whole-number variable |
 | Logica 4.0 | 3.5 only: a form with logic that still uses the old logic evaluation, or a rule with "trigger vanaf stap" under the new one. Both block the upgrade to Open Forms 4.0 |
 | Logica-cyclus | Rules that set each other's input, or a rule that sets its own input (`x = x + 1`). Open Forms 4.0 refuses these. A service fetch whose template has a tag (`{% ... %}`) is CONTROLEREN: variables in tags are not part of the cycle analysis |
@@ -90,6 +90,12 @@ Not checked:
 - On Open Forms 3.5, a registration without its own catalogue uses the API
   group's. That fallback is not followed: the Koppeling check skips the
   catalogue, and the Catalogus check skips that registration.
+- On Open Forms 3.5, a ZGW registration with an objecttype but without an
+  Objects API group uses the first Objects API group. That fallback is not
+  followed: the Koppeling check skips the objecttype.
+- Fields inside a repeating group (editgrid) count as form-level keys for the
+  Verwijzing check, so a rule that uses such a key outside its group gets no
+  finding.
 - Variables in template tags (`{% if x %}`) of a service fetch: the
   Logica-cyclus check reports such a fetch as CONTROLEREN instead.
 - The `V1_KEYS` and `INVALID` checks of `openforms-check-registration-options.py`:
@@ -122,8 +128,8 @@ Set up once:
 1. Create a new bookmark in your browser (any page, then edit it).
 2. Name it, e.g. "Open Forms controle".
 3. Replace the URL with the full content of
-   `form-config-check.bookmarklet.txt` (one long line of about 37,000
-   characters, starting with `javascript:`).
+   `form-config-check.bookmarklet.txt` (one long line, starting with
+   `javascript:`).
 
 Run it: open any page of the Open Forms admin and click the bookmark.
 

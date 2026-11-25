@@ -177,6 +177,13 @@ const reviewRules = [
   rule(3, { or: [{ "==": [{ var: "stil" }, ""] }, { "==": [{ var: "bewaard" }, ""] }] }, [setVar("getal", 1)]),
   // A service fetch with a template tag, and one without.
   rule(4, true, [fetchVar("opgehaald"), fetchVar("gewoon")]),
+  // Names inherited from Object.prototype are not form variables or fields.
+  rule(5, true, [setVar("constructor", "x"), { component: "toString", action: { type: "property", property: { value: "hidden" }, state: true } }]),
+  // Synchronize and DMN actions with a variable that does not exist.
+  rule(6, true, [
+    { action: { type: "synchronize-variables", config: { sourceVariable: "tekst", destinationVariable: "syncWeg" } } },
+    { action: { type: "evaluate-dmn", config: { inputMapping: [{ formVariable: "getal" }], outputMapping: [{ formVariable: "dmnWeg" }] } } },
+  ]),
 ];
 // Open Forms 3.5 ZGW registration without its own catalogue: the API group's applies, no Catalogus finding.
 const reviewForm = { newLogicEvaluationEnabled: true, registrationBackends: [{ backend: "zgw-create-zaak", name: "Zaak", options: { zgwApiGroup: 1 } }] };
@@ -190,7 +197,11 @@ assert.deepStrictEqual(foundReview, [
   "CONTROLEREN|Verbergen (4.0)|stil|nr. 4: regel 4",
   "CONTROLEREN|Volgende-knop|'Volgende uitschakelen'|nr. 3: regel 3",
   "FOUT|Type berekening|Tekst  (sleutel 'tekst', type textfield, stap 'Stap 1')|nr. 1: regel 1",
+  "FOUT|Verwijzing|'constructor' in de actie (doelvariabele)|nr. 6: regel 6",
+  "FOUT|Verwijzing|'dmnWeg' in de actie (variabele)|nr. 7: regel 7",
   "FOUT|Verwijzing|'stap weg' in de actie (stap)|nr. 3: regel 3",
+  "FOUT|Verwijzing|'syncWeg' in de actie (variabele)|nr. 7: regel 7",
+  "FOUT|Verwijzing|'toString' in de actie (veld eigenschap wijzigen)|nr. 6: regel 6",
 ].sort());
 
 // ---- Koppelingen --------------------------------------------------------------

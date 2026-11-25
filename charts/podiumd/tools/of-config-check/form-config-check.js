@@ -332,11 +332,17 @@
           });
         }
         const sets = body.type === "variable" || body.type === "fetch-from-service";
-        if (sets && action.variable && !(action.variable in ctx.variables)) {
+        if (sets && action.variable && !Object.hasOwn(ctx.variables, action.variable)) {
           note(action.variable, "actie (doelvariabele)", "Actie", action);
         }
-        if (body.type === "property" && action.component && !(action.component in ctx.fields)) {
+        if (body.type === "property" && action.component && !Object.hasOwn(ctx.fields, action.component)) {
           note(action.component, "actie (veld eigenschap wijzigen)", "Actie", action);
+        }
+        if (body.type === "synchronize-variables" || body.type === "evaluate-dmn") {
+          const { inputs, outputs } = actionIO(action, ctx.model);
+          [...inputs, ...outputs].forEach((name) => {
+            if (name && !Object.hasOwn(ctx.variables, name)) note(name, "actie (variabele)", "Actie", action);
+          });
         }
         const stepUuid = action.formStepUuid;
         if (body.type && (body.type.startsWith("step-") || body.type === "disable-next") && stepUuid && !stepUuids.has(stepUuid)) {
@@ -1291,7 +1297,7 @@
     try {
       const [forms, staticVariables, services] = await Promise.all([
         getAll(`${api}/forms`),
-        getJson(`${api}/variables/static`).catch(() => []),
+        getJson(`${api}/variables/static`),
         getAll(`${api}/services`).catch(() => null),
       ]);
       const serviceRoots = services && services.map((s) => s.apiRoot).filter(Boolean);
