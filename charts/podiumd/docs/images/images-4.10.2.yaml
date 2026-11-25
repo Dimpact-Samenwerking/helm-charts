@@ -6,6 +6,7 @@
 #   1. nginx-unprivileged 1.31.7 -> 1.31.9.
 #   2. keycloak.image 26.8.1 -> 26.8.2.
 #   3. keycloak-operator 26.8.1 -> 26.8.2.
+#   4. clamav - clamav_exporter v2.1.12 -> v2.1.14.
 #
 # See docs/_UPGRADE_PATHS/4.10.1-to-4.10.2-upgrade.md for the operator upgrade notes.
 #
@@ -29,3 +30,9 @@
   url: quay.io/keycloak/keycloak-operator
   version: "26.8.2"
   digest: "sha256:f9b9a2be5db09d988c3706a6685763de1a3ac2b2f61315b21539cb99d0594efb"
+
+#   sidecar: clamav - clamav_exporter v2.1.12 -> v2.1.14
+- name: sergeymakinen/clamav_exporter
+  url: docker.io/sergeymakinen/clamav_exporter
+  version: "v2.1.14"
+  digest: "sha256:6e7c6e71076e18121ac718dada6da9155d2ac1b52e2e5b2a59fbdcf3a04ae889"

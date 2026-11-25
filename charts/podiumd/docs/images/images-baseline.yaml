@@ -224,8 +224,8 @@
 
 - name: sergeymakinen/clamav_exporter
   url: docker.io/sergeymakinen/clamav_exporter
-  version: "v2.1.12"
-  digest: "sha256:66bc4f313d4c1f3baa73a75cb57a5c55c1095fb8687c6eb6cd66954eed084911"
+  version: "v2.1.14"
+  digest: "sha256:6e7c6e71076e18121ac718dada6da9155d2ac1b52e2e5b2a59fbdcf3a04ae889"
 
 - name: interne-taak-afhandeling/internetaakafhandeling.web
   url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web
