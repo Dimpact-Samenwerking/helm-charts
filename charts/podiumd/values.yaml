@@ -908,6 +908,8 @@ openzaak:
   # Since Open Zaak 1.27.3 the app reads OPENZAAK_PORT for uwsgi_port; K8s
   # auto-injects OPENZAAK_PORT=tcp://<svc-ip>:80 for the openzaak Service,
   # which uwsgi cannot parse. See https://github.com/open-zaak/open-zaak/issues/2415
+  # CELERY_MAX_AGE turns off the event-loop file check of the worker's liveness
+  # probe (maykin-common-1), see its entry below.
   extraEnvVars:
     - name: OPENZAAK_PORT
       value: "8000"
