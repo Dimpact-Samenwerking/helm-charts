@@ -6,6 +6,7 @@
 #   1. nginx-unprivileged 1.31.7 -> 1.31.9.
 #   2. keycloak.image 26.8.1 -> 26.8.2.
 #   3. keycloak-operator 26.8.1 -> 26.8.2.
+#   4. openbao 2.7.2 -> 2.7.3 (chart 0.30.6 -> 0.30.8).
 #
 # See docs/_UPGRADE_PATHS/4.10.1-to-4.10.2-upgrade.md for the operator upgrade notes.
 #
@@ -29,3 +30,9 @@
   url: quay.io/keycloak/keycloak-operator
   version: "26.8.2"
   digest: "sha256:f9b9a2be5db09d988c3706a6685763de1a3ac2b2f61315b21539cb99d0594efb"
+
+# openbao 2.7.2 -> 2.7.3
+- name: openbao/openbao
+  url: quay.io/openbao/openbao
+  version: "2.7.3"
+  digest: "sha256:ba4b133eb9586630024e71a617e66f37f29cc3534cdd46a6233e098ceded8dc9"

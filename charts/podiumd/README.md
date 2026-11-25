@@ -27,7 +27,7 @@ PodiumD Helm chart
 | @zgw-office-addin | zgw-office-addin | 0.0.93 |
 | file://../mi-data | mi(mi-data) | 1.1.0 |
 | https://helm.elastic.co | eck-operator | 3.5.0 |
-| https://openbao.github.io/openbao-helm | openbao | 0.30.6 |
+| https://openbao.github.io/openbao-helm | openbao | 0.30.8 |
 | https://wearefrank.github.io/charts | zaakbrug | 2.3.36 |
 | oci://ghcr.io/interne-taak-afhandeling | ita(internetaakafhandeling) | 3.3.4 |
 | oci://ghcr.io/klantinteractie-servicesysteem | kiss(kiss-chart) | 3.2.0 |
@@ -775,7 +775,7 @@ PodiumD Helm chart
 | openbao.configuration.enabled | bool | `true` |  |
 | openbao.configuration.job.backoffLimit | int | `6` |  |
 | openbao.configuration.job.image.repository | string | `"quay.io/openbao/openbao"` |  |
-| openbao.configuration.job.image.tag | string | `"2.7.2@sha256:5046911075e137e154ce49ab051502f4ec7cf367d484ae4a4dce665d9b90561f"` |  |
+| openbao.configuration.job.image.tag | string | `"2.7.3@sha256:ba4b133eb9586630024e71a617e66f37f29cc3534cdd46a6233e098ceded8dc9"` |  |
 | openbao.configuration.job.nodeSelector | object | `{}` |  |
 | openbao.configuration.job.resources.limits.cpu | string | `"250m"` |  |
 | openbao.configuration.job.resources.limits.memory | string | `"128Mi"` |  |
@@ -834,7 +834,7 @@ PodiumD Helm chart
 | openbao.server.ha.replicas | int | `3` |  |
 | openbao.server.image.registry | string | `"quay.io"` |  |
 | openbao.server.image.repository | string | `"openbao/openbao"` |  |
-| openbao.server.image.tag | string | `"2.7.2@sha256:5046911075e137e154ce49ab051502f4ec7cf367d484ae4a4dce665d9b90561f"` |  |
+| openbao.server.image.tag | string | `"2.7.3@sha256:ba4b133eb9586630024e71a617e66f37f29cc3534cdd46a6233e098ceded8dc9"` |  |
 | openbao.server.ingress.enabled | bool | `false` |  |
 | openbao.server.livenessProbe | object | `{"enabled":true,"execCommand":["/bin/sh","-c","[ -f /openbao/seal/seal.hcl ] || exit 0; s=$(bao status -format=json 2>/dev/null); case \"$s\" in *'\"initialized\": true'*) ;; *) exit 0 ;; esac; case \"$s\" in *'\"migration\": true'*) exit 0 ;; esac; case \"$s\" in *'\"sealed\": true'*) exit 1 ;; esac; exit 0"],"failureThreshold":3,"initialDelaySeconds":60,"periodSeconds":10,"timeoutSeconds":5}` | Restarts a running node that sealed itself; only with the static seal (see the comment above). |
 | openbao.server.readinessProbe.enabled | bool | `true` |  |
