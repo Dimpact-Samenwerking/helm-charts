@@ -15,6 +15,7 @@ from lib.chart.upgrade_check import chart_sources
 from lib.chart.upgrade_check import check_chart_upgrades
 from lib.chart.upgrade_check import index_chart_releases
 from lib.chart.upgrade_check import newer_stable_versions
+from lib.upgradedoc import app_version_and_image_paths
 
 if TYPE_CHECKING:
     from lib.yaml_types import YamlMapping
@@ -137,6 +138,7 @@ def test_check_reports_newer_charts_with_app_versions_caches_them_and_never_fail
 ):
     """A classic repository's appVersions come from index.yaml, an OCI chart's from its config blob."""
     (tmp_path / "Chart.yaml").write_text(CHART_YAML)
+    (tmp_path / "values.yaml").write_text("{}\n")
     calls: list[str] = []
 
     def fake_urlopen(url: str, timeout: float) -> _Response:
@@ -150,7 +152,7 @@ def test_check_reports_newer_charts_with_app_versions_caches_them_and_never_fail
     monkeypatch.setattr(upgrade_check, "urlopen", fake_urlopen)
     monkeypatch.setattr(upgrade_check, "list_tags", fake_list_tags)
     monkeypatch.setattr(upgrade_check, "chart_app_version", lambda host, repo, version, timeout: f"app-{version}")
-    monkeypatch.setattr(upgrade_check, "subchart_app_version", lambda chart_dir, dep: "5.9.1")
+    monkeypatch.setattr(app_version_and_image_paths, "subchart_app_version", lambda chart_dir, dep: "5.9.1")
 
     assert check_chart_upgrades(tmp_path) == (True, "upgradable: 2/2 chart(s); 0 fetch error(s)")
     out = capsys.readouterr().out
@@ -175,9 +177,10 @@ def test_check_omits_an_unset_app_version(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
     (tmp_path / "Chart.yaml").write_text(CHART_YAML)
+    (tmp_path / "values.yaml").write_text("{}\n")
     monkeypatch.setattr(upgrade_check, "urlopen", lambda url, timeout: _Response(INDEX.encode()))
     monkeypatch.setattr(upgrade_check, "list_tags", lambda host, repo: ["2.0.0"])
-    monkeypatch.setattr(upgrade_check, "subchart_app_version", lambda chart_dir, dep: None)
+    monkeypatch.setattr(app_version_and_image_paths, "subchart_app_version", lambda chart_dir, dep: None)
 
     check_chart_upgrades(tmp_path)
     assert (
@@ -190,6 +193,7 @@ def test_check_reports_a_fetch_error_as_incomplete(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
     (tmp_path / "Chart.yaml").write_text(CHART_YAML)
+    (tmp_path / "values.yaml").write_text("{}\n")
 
     def failing_newer(_self: object, _source: ChartSource) -> tuple[list[str], list[str | None]]:
         msg = "unreachable"
@@ -201,3 +205,24 @@ def test_check_reports_a_fetch_error_as_incomplete(
     out = capsys.readouterr().out
     assert "INCOMPLETE: 2/2 chart(s) could not be checked" in out
     assert "OK:" not in out
+
+
+def test_check_reports_the_pinned_app_and_marks_an_older_newer_app(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    """The running version comes from the values pin; a newer chart with an older app is marked, "v" dropped."""
+    (tmp_path / "Chart.yaml").write_text(CHART_YAML)
+    (tmp_path / "values.yaml").write_text('zac:\n  image:\n    tag: "5.11.0@sha256:abc"\n')
+    monkeypatch.setattr(upgrade_check, "urlopen", lambda url, timeout: _Response(INDEX_WITH_APP_VERSIONS.encode()))
+    monkeypatch.setattr(upgrade_check, "list_tags", lambda host, repo: ["2.1.0"])
+    monkeypatch.setattr(upgrade_check, "chart_app_version", lambda host, repo, version, timeout: "v2.2.0")
+    monkeypatch.setattr(app_version_and_image_paths, "subchart_app_version", lambda chart_dir, dep: "v2.0.0")
+
+    check_chart_upgrades(tmp_path)
+    out = capsys.readouterr().out
+    assert (
+        "zac (zaakafhandelcomponent) app 5.11.0, chart 1.0.297: newest version per major: "
+        "app 5.10.0 (older than the running 5.11.0), chart 1.0.310" in out
+    )
+    # ita has no pin and is not registered: the vendored appVersion, without its "v".
+    assert "ita (ita) app 2.0.0, chart 2.0.0: newest version per major: app 2.2.0, chart 2.1.0" in out

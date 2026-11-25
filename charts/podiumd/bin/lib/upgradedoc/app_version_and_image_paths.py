@@ -23,6 +23,17 @@ from lib.yaml_types import YamlValue
 from lib.yaml_types import scalar_text
 
 
+def _pinned_app_version(
+    values: YamlMapping | None, values_key: str, component: str, chart_dir: Path | None
+) -> str | None:
+    """The first non-empty pin of pin_paths_for(component) under `values_key`, digest dropped; None if none."""
+    for pin in pin_paths_for(component, chart_dir):
+        version = text_at(values, f"{values_key}.{pin.version_key}")
+        if isinstance(version, str) and version:
+            return version.split("@")[0]
+    return None
+
+
 def actual_app_version(
     values: YamlMapping | None,
     values_key: str,
@@ -44,13 +55,19 @@ def actual_app_version(
     `component` is the Chart.yaml dependency name (registries are keyed by name,
     not alias); defaults to `values_key`."""
     resolved_component = component or values_key
-    for pin in pin_paths_for(resolved_component, chart_dir):
-        version = text_at(values, f"{values_key}.{pin.version_key}")
-        if isinstance(version, str) and version:
-            return version.split("@")[0]
+    pinned = _pinned_app_version(values, values_key, resolved_component, chart_dir)
+    if pinned:
+        return pinned
     if chart_dir is not None and dep is not None and resolved_component in component_image_paths(chart_dir):
         return subchart_app_version(chart_dir, dep)
     return None
+
+
+def running_app_version(values: YamlMapping | None, chart_dir: Path, dep: ChartDependency) -> str | None:
+    """What a dependency runs, for a report: its pin as in actual_app_version, else the
+    vendored chart's appVersion, also for an unregistered component (the best answer left)."""
+    key = values_key_of(dep)
+    return _pinned_app_version(values, key, dep["name"], chart_dir) or subchart_app_version(chart_dir, dep)
 
 
 # A path into a values tree, one key (or list index, as a string) per level.

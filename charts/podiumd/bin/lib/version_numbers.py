@@ -33,6 +33,12 @@ def stable_semver_key(version: str) -> tuple[int, ...] | None:
     return dotted_numbers(version_match.group(1)) if version_match else None
 
 
+def without_v_prefix(version: str) -> str:
+    """ "2.7.2" for "v2.7.2": a stable X.Y.Z without its "v"; anything else unchanged."""
+    version_match = _STABLE_SEMVER_RE.match(version)
+    return version_match.group(1) if version_match else version
+
+
 def _major_line_of_key(key: tuple[int, ...]) -> tuple[int, ...]:
     """(16,) for (16, 15); () for a single number such as a build number, all one line."""
     return key[:1] if len(key) > 1 else ()

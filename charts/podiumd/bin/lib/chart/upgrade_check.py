@@ -1,8 +1,10 @@
 """Report-only check for newer stable versions of every Chart.yaml dependency chart.
 
 Per chart it lists the newest newer version in each major, so a same-major upgrade
-shows next to the newest release, each with its appVersion: the pinned one from the
-vendored chart, newer ones from index.yaml or the OCI chart's config blob.
+shows next to the newest release, each with its app version: the running one from
+the values.yaml image pin (else the vendored chart's appVersion), newer ones from
+index.yaml or the OCI chart's config blob. A newer chart whose appVersion is older
+than the running app is marked, so a chart bump that would take the app back shows.
 
 Versions come from a classic repository's index.yaml or an OCI registry's
 tag list; "file://" dependencies are skipped. Pre-releases ("-rc.1") never
@@ -21,7 +23,6 @@ from urllib.request import urlopen
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.chart_yaml import normalize_app_version
-from lib.chart.pull_and_subchart_resolution import subchart_app_version
 from lib.chart.values_tree_primitives import values_key_of
 from lib.image.upgrade_cache import UpgradeEntry
 from lib.image.upgrade_cache import cache_entry_is_fresh
@@ -34,9 +35,10 @@ from lib.render_scope import resolve_dependency_repo
 from lib.settings import chart_upgrade_cache_ttl_days
 from lib.settings import helm_repos_urls_by_alias
 from lib.settings import repo_access_timeout_seconds
-from lib.upgradedoc.app_version_and_image_paths import actual_app_version
+from lib.upgradedoc.app_version_and_image_paths import running_app_version
 from lib.version_numbers import newest_per_major
 from lib.version_numbers import stable_semver_key
+from lib.version_numbers import without_v_prefix
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import YamlShapeError
 from lib.yaml_types import load_yaml_mapping
@@ -123,8 +125,7 @@ def chart_sources(chart_dir: Path, deps: list[ChartDependency], values: YamlMapp
                     dep["name"],
                     str(dep["version"]),
                     repository.rstrip("/"),
-                    actual_app_version(values, values_key_of(dep), dep["name"], chart_dir, dep)
-                    or subchart_app_version(chart_dir, dep),
+                    running_app_version(values, chart_dir, dep),
                 )
             )
     return sources
@@ -207,9 +208,18 @@ def _scan(chart_dir: Path, sources: list[ChartSource], ttl_days: int) -> ChartUp
     return scan
 
 
-def _with_app_version(version: str, app_version: str | None) -> str:
-    """ "app 5.12.0, chart 1.0.345", or just "chart 1.0.345" when the chart sets no appVersion."""
-    return f"app {app_version}, chart {version}" if app_version else f"chart {version}"
+def _with_app_version(version: str, app_version: str | None, running: str | None = None) -> str:
+    """ "app 5.12.0, chart 1.0.345", or just "chart 1.0.345" when the chart sets no appVersion.
+
+    A "v" prefix is dropped, so both sides of a report line compare; an app older than
+    `running` (the app version in use) is marked.
+    """
+    if not app_version:
+        return f"chart {version}"
+    app = without_v_prefix(app_version)
+    app_key, running_key = stable_semver_key(app), stable_semver_key(running) if running else None
+    older = f" (older than the running {running})" if app_key and running_key and app_key < running_key else ""
+    return f"app {app}{older}, chart {version}"
 
 
 def _print_findings(scan: ChartUpgradeScan, total: int, ttl_days: int) -> None:
@@ -220,7 +230,11 @@ def _print_findings(scan: ChartUpgradeScan, total: int, ttl_days: int) -> None:
         if upgradable_entry["newer"]
     ]
     for source, entry in upgradable:
-        newer = " | ".join(map(_with_app_version, entry["newer"], entry["app_versions"]))
+        running = without_v_prefix(source.app_version) if source.app_version else None
+        newer = " | ".join(
+            _with_app_version(version, app_version, running)
+            for version, app_version in zip(entry["newer"], entry["app_versions"], strict=True)
+        )
         current = _with_app_version(source.version, source.app_version)
         print(f"{source.name} ({source.chart}) {current}: newest version per major: {newer}")
     if scan.fetch_errors:
@@ -238,8 +252,7 @@ def check_chart_upgrades(chart_dir: Path) -> tuple[bool, str]:
     Always returns True; the detail counts upgradable charts and fetch errors.
     """
     ttl_days = chart_upgrade_cache_ttl_days(chart_dir)
-    values_path = chart_dir / "values.yaml"
-    values = load_yaml_mapping(values_path) if values_path.is_file() else None
+    values = load_yaml_mapping(chart_dir / "values.yaml")
     sources = chart_sources(chart_dir, load_chart_dependencies(chart_dir / "Chart.yaml"), values)
     print(f"Checking {len(sources)} dependency chart(s) for a newer published version...")
     scan = _scan(chart_dir, sources, ttl_days)
