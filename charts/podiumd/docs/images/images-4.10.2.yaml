@@ -6,6 +6,7 @@
 #   1. nginx-unprivileged 1.31.7 -> 1.31.9.
 #   2. keycloak.image 26.8.1 -> 26.8.2.
 #   3. keycloak-operator 26.8.1 -> 26.8.2.
+#   4. zaakbrug 1.27.1 -> 1.27.3 (chart 2.3.36 -> 2.3.38).
 #
 # See docs/_UPGRADE_PATHS/4.10.1-to-4.10.2-upgrade.md for the operator upgrade notes.
 #
@@ -29,3 +30,9 @@
   url: quay.io/keycloak/keycloak-operator
   version: "26.8.2"
   digest: "sha256:f9b9a2be5db09d988c3706a6685763de1a3ac2b2f61315b21539cb99d0594efb"
+
+# zaakbrug 1.27.1 -> 1.27.3
+- name: wearefrank/zaakbrug
+  url: docker.io/wearefrank/zaakbrug
+  version: "1.27.3"
+  digest: "sha256:267a3aa2b1233a08ad11e033fed318ba5af9835e07fc60e99717b4700aceac1e"
