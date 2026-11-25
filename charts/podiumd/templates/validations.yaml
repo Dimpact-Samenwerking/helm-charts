@@ -476,6 +476,7 @@
 {{- fail (printf "openvtb.securityContext.readOnlyRootFilesystem is true, but openvtb.extraVolumeMounts has no mount at %s. An environment that sets its own openvtb.extraVolumes or extraVolumeMounts repeats the chart's emptyDir entries (see values.yaml)." .) -}}
 {{- end -}}
 {{- end -}}
+{{- end -}}
 {{- /* podiumd-chart-24: the labeller maps the master the sentinels report to a pod by its
      hostname. The Redis pods announce their hostname only with the operator's
      GenerateConfigInInitContainer feature gate; without it the sentinels report pod IPs, and the
