@@ -304,6 +304,9 @@ grafana:
       requests:
         cpu: 10m
         memory: 96Mi
+      limits:
+        cpu: 100m
+        memory: 256Mi
     datasources:
       enabled: true
     dashboards:
@@ -665,11 +668,14 @@ loki:
       pullPolicy: IfNotPresent
       tag: alpine3.22
   memcachedExporter:
-    # -- Requests for the exporter next to chunks-cache and results-cache.
+    # -- Requests and limits for the exporter next to chunks-cache and results-cache.
     resources:
       requests:
         cpu: 10m
         memory: 32Mi
+      limits:
+        cpu: 50m
+        memory: 64Mi
     # memcached-exporter image settings
     # docker.io/prom/memcached-exporter:v0.15.3
     image:
@@ -691,6 +697,9 @@ loki:
       requests:
         cpu: 10m
         memory: 96Mi
+      limits:
+        cpu: 100m
+        memory: 256Mi
 
 
   chunksCache:
@@ -818,17 +827,25 @@ loki:
     replicas: 0
   compactor:
     replicas: 1
-    # -- Requests only (Distributed mode); the scheduler otherwise reserves nothing.
+    # -- Distributed mode; without requests the scheduler reserves nothing.
+    # Compaction of a large index needs headroom, hence the wide limit.
     resources:
       requests:
         cpu: 50m
         memory: 128Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
   ruler:
-    # -- Requests only (Distributed mode).
+    # -- Distributed mode. The ruler runs the same queries as the querier, so
+    # it gets the querier's limits.
     resources:
       requests:
         cpu: 20m
         memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
   loki:
     auth_enabled: false
     schemaConfig:

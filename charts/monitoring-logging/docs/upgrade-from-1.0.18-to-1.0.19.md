@@ -92,20 +92,23 @@ can turn distroless back on.
 These containers had no CPU or memory requests, so the scheduler reserved nothing
 for them:
 
-| Values key | Container(s) | Requests |
-|---|---|---|
-| `grafana.sidecar.resources` | `grafana-sc-dashboard`, `grafana-sc-datasources` | 10m / 96Mi |
-| `loki.sidecar.resources` | `loki-sc-rules` | 10m / 96Mi |
-| `loki.memcachedExporter.resources` | the exporter next to chunks-cache and results-cache | 10m / 32Mi |
-| `loki.compactor.resources` | compactor (Distributed mode) | 50m / 128Mi |
-| `loki.ruler.resources` | ruler (Distributed mode) | 20m / 128Mi |
+| Values key | Container(s) | Requests | Limits |
+|---|---|---|---|
+| `grafana.sidecar.resources` | `grafana-sc-dashboard`, `grafana-sc-datasources` | 10m / 96Mi | 100m / 256Mi |
+| `loki.sidecar.resources` | `loki-sc-rules` | 10m / 96Mi | 100m / 256Mi |
+| `loki.memcachedExporter.resources` | the exporter next to chunks-cache and results-cache | 10m / 32Mi | 50m / 64Mi |
+| `loki.compactor.resources` | compactor (Distributed mode) | 50m / 128Mi | 1 / 1Gi |
+| `loki.ruler.resources` | ruler (Distributed mode) | 20m / 128Mi | 500m / 512Mi (as the querier) |
 
 The sidecar values follow the use measured on QA (about 70Mi for each Grafana
-sidecar, 82Mi for `loki-sc-rules`). Only requests are set, no limits.
+sidecar, 82Mi for `loki-sc-rules`). The compactor and ruler limits are not
+measured: watch them for OOMKills after the upgrade.
 
-No action required. The pods restart once with the new requests. An environment
-that sets its own `resources` for these keys keeps them; Helm merges the maps, so
-an environment that sets only `limits` gets these requests as well.
+No action required, except for an environment that sets its own `resources`
+for these keys. Helm merges the maps: an environment that sets only `requests`
+gets these limits as well, and a request above the limit (for example a
+compactor `requests.memory: 2Gi`) makes Kubernetes reject the pod. Set
+`limits` next to such `requests`. The pods restart once.
 
 ## Traefik PodMonitor off by default
 
