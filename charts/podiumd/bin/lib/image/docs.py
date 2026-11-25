@@ -35,6 +35,7 @@ from lib.component_docs.changes_section import make_image_changes_section
 from lib.component_docs.changes_section import replace_changes_block
 from lib.component_docs.changes_section import replace_changes_section
 from lib.component_docs.changes_section import update_component_table
+from lib.component_docs.changes_section import without_alias_note
 from lib.image.digests import cached_tag_exists
 from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
@@ -366,8 +367,9 @@ def _has_contradiction(heading: str, body: str, expected_heading: str, expected:
         return True
     if not bullets:
         return False
-    owned_bullets = _owned_lines(body, "bullet")
-    return bool(owned_bullets) and not set(_owned_lines(expected_body, "bullet")) <= set(owned_bullets)
+    owned_bullets = {without_alias_note(line) for line in _owned_lines(body, "bullet")}
+    expected_bullets = {without_alias_note(line) for line in _owned_lines(expected_body, "bullet")}
+    return bool(owned_bullets) and not expected_bullets <= owned_bullets
 
 
 @dataclass(frozen=True)

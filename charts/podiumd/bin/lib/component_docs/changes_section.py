@@ -176,6 +176,8 @@ VERSION_PIN_BULLET = "- Version pin `{path}` {pin} in"
 VALUES_YAML_LINE = "  `charts/podiumd/values.yaml`."
 IMAGE_PATH_BULLET = "- `{path}` {pin}"
 ALIAS_NOTE = "(shares a YAML anchor with `{path}`)"
+# ALIAS_NOTE as it follows a pin bullet's version text.
+ALIAS_NOTE_PATTERN = r" \(shares a YAML anchor with `[^`]+`\)"
 TODO_STUB = "TODO: describe this component's changes — its app version could not be resolved from the table row."
 IMAGE_DIGEST_POINTER_PREFIX = "- Image / digest: see "
 
@@ -189,11 +191,14 @@ _FIELD_PATTERNS = {
     "image": r".+?",
     "path": r"[^`\s]+",
     # pin_version_text, optionally followed by the aliased-pin note.
-    "pin": (
-        rf"(?:{PIN_TEXT_PATTERN})"
-        r"(?: \(shares a YAML anchor with `[^`]+`\))?"
-    ),
+    "pin": (rf"(?:{PIN_TEXT_PATTERN})(?:{ALIAS_NOTE_PATTERN})?"),
 }
+
+
+def without_alias_note(line: str) -> str:
+    """A pin bullet line without its ALIAS_NOTE: the note is added after rendering, so a
+    comparison with a freshly rendered bullet ignores it."""
+    return re.sub(ALIAS_NOTE_PATTERN, "", line, count=1)
 
 
 def _template_re(template: str) -> re.Pattern[str]:

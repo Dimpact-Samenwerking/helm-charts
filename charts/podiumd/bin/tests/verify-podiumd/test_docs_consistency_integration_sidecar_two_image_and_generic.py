@@ -296,6 +296,11 @@ def test_component_changed_with_no_key_diffs_needs_no_values_deltas_mention(vp: 
     assert ok is True, detail
 
 
+# The bullet fix-doc-consistency writes for the aliased path.
+ALIAS_BULLET = (
+    "- `redis-operator.redis-ha.preDeleteJob.image.tag` `1.37.0` → `1.37.1` "
+    "(shares a YAML anchor with `redis-operator.redis-ha.labelMasterCronJob.image.tag`)\n"
+)
 REDIS_ALIASED_VALUES_TMPL = (
     "redis-operator:\n"
     "  redis-ha:\n"
@@ -322,16 +327,15 @@ ALIASED_PIN_DOC = (
 )
 
 
-@pytest.mark.parametrize("alias_bullet", ["missing", "present"])
+@pytest.mark.parametrize("alias_bullet", ["missing", "without-note", "present"])
 def test_changes_block_must_name_every_path_sharing_the_pins_anchor(
     vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str], alias_bullet: str
 ):
     """preDeleteJob.image aliases labelMasterCronJob.image, so a bump changes both paths;
-    an environment overriding one path needs the doc to name the other too."""
+    an environment overriding one path needs the doc to name the other too, with the anchor note."""
     chart_dir = commit_text_baseline(tmp_path, REDIS_CHART_YAML, REDIS_ALIASED_VALUES_TMPL.format(tag="1.37.0"))
-    extra = (
-        "- `redis-operator.redis-ha.preDeleteJob.image.tag` `1.37.0` → `1.37.1`\n" if alias_bullet == "present" else ""
-    )
+    without_note = "- `redis-operator.redis-ha.preDeleteJob.image.tag` `1.37.0` → `1.37.1`\n"
+    extra = {"missing": "", "without-note": without_note, "present": ALIAS_BULLET}[alias_bullet]
     write_chart_files(
         chart_dir,
         {
@@ -347,8 +351,7 @@ def test_changes_block_must_name_every_path_sharing_the_pins_anchor(
     vp.check_docs_consistency(chart_dir, upgrade_docs_baseline="4.8.5")
 
     out = capsys.readouterr().out
-    repair = "+- `redis-operator.redis-ha.preDeleteJob.image.tag` `1.37.0` → `1.37.1`"
-    assert (repair in out) == (alias_bullet == "missing"), out
+    assert (f"+{ALIAS_BULLET.rstrip()}" in out) == (alias_bullet != "present"), out
 
 
 @pytest.mark.parametrize("blank_line", ["missing", "present"])
@@ -357,7 +360,7 @@ def test_changes_block_needs_a_blank_line_before_the_image_digest_pointer(
 ):
     """update-component-version wrote the pointer right after the last pin bullet."""
     chart_dir = commit_text_baseline(tmp_path, REDIS_CHART_YAML, REDIS_ALIASED_VALUES_TMPL.format(tag="1.37.0"))
-    extra = "- `redis-operator.redis-ha.preDeleteJob.image.tag` `1.37.0` → `1.37.1`\n"
+    extra = ALIAS_BULLET
     doc = ALIASED_PIN_DOC.replace("{extra}", extra)
     if blank_line == "missing":
         doc = doc.replace(f"{extra}\n", extra)
@@ -385,7 +388,7 @@ def test_changes_block_needs_its_image_digest_pointer(
 ):
     """A section that lost its pointer (e.g. in a merge resolution) is reported."""
     chart_dir = commit_text_baseline(tmp_path, REDIS_CHART_YAML, REDIS_ALIASED_VALUES_TMPL.format(tag="1.37.0"))
-    doc = ALIASED_PIN_DOC.replace("{extra}", "- `redis-operator.redis-ha.preDeleteJob.image.tag` `1.37.0` → `1.37.1`\n")
+    doc = ALIASED_PIN_DOC.replace("{extra}", ALIAS_BULLET)
     if pointer == "missing":
         doc = doc.replace("\n- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).\n", "")
     write_chart_files(
