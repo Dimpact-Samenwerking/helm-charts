@@ -6,6 +6,7 @@ from lib.chart.values_tree_primitives import ValuesPath
 from lib.chart.yaml_alias_groups import alias_groups
 from lib.cli import print_section
 from lib.cli import print_section_items
+from lib.component_docs.aliased_pin_bullets import add_missing_alias_notes
 from lib.component_docs.aliased_pin_bullets import add_missing_pin_bullets
 from lib.component_docs.changes_section import DocContext
 from lib.component_docs.changes_section import add_missing_component_rows
@@ -129,14 +130,21 @@ def _fix_upgrade_doc_headings(text: str, state: RebaseState, upgrade_path: Path)
 
 
 def _add_missing_pin_bullets(text: str, upgrade_path: Path, state: RebaseState) -> tuple[str, bool]:
-    """Add a pin bullet for each path sharing a YAML anchor with a documented one. Returns (text, changed)."""
-    text, added = add_missing_pin_bullets(text, alias_groups(state.paths.values_yaml), state.baseline_values)
+    """Add a pin bullet for each path sharing a YAML anchor with a documented one, and the
+    anchor note to documented bullets that lack it. Returns (text, changed)."""
+    groups = alias_groups(state.paths.values_yaml)
+    text, added = add_missing_pin_bullets(text, groups, state.baseline_values)
     items = [
         f"'### {missing.heading}': {missing.missing_path} (shares an anchor with {missing.documented_path})"
         for missing in added
     ]
     print_section_items(f"Adding pin bullet(s) for paths sharing a YAML anchor in {upgrade_path.name}", items)
-    return text, bool(items)
+    text, noted = add_missing_alias_notes(text, groups)
+    note_items = [
+        f"'### {note.heading}': {note.aliased_path} (shares an anchor with {note.documented_path})" for note in noted
+    ]
+    print_section_items(f"Adding the YAML anchor note to pin bullet(s) in {upgrade_path.name}", note_items)
+    return text, bool(items or note_items)
 
 
 def _fix_pointer_issues(text: str, upgrade_path: Path, state: RebaseState) -> tuple[str, bool]:

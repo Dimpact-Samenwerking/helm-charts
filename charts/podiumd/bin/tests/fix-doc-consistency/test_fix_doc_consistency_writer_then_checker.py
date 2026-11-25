@@ -887,3 +887,24 @@ def test_a_dependency_that_becomes_a_native_component_at_the_same_version(writer
     assert "| kiss-eck | 8.19.19 (unchanged) | 0.20.0 → - | - |" in docs[UPGRADE]
     assert "### kiss-eck 8.19.19 (unchanged)\n" in docs[UPGRADE]
     assert "(removed)" not in docs[UPGRADE]
+
+
+def test_two_registered_pins_sharing_an_anchor_get_the_note_on_the_second(writer_then_checker):
+    """openbao's server and config Job images share one anchor and are both registered pins:
+    the writer documents both, and the later bullet says it shares the first one's anchor."""
+    openbao_dep = {"name": "openbao", "version": "0.30.6", "repository": "@openbao"}
+
+    def openbao(tag: str) -> dict[str, object]:
+        bao = image("quay.io/openbao/openbao", tag)
+        return {"server": {"image": bao}, "configuration": {"job": {"image": bao}}}
+
+    docs = writer_then_checker(
+        {"version": "4.8.5", "deps": [openbao_dep], "values": {"openbao": openbao("2.7.2")}},
+        {"version": "4.9.0", "deps": [{**openbao_dep, "version": "0.30.8"}], "values": {"openbao": openbao("2.7.3")}},
+    )
+
+    assert "- Image tag pin `openbao.server.image.tag` `2.7.2` → `2.7.3` in\n" in docs[UPGRADE]
+    assert (
+        "- Image tag pin `openbao.configuration.job.image.tag` `2.7.2` → `2.7.3` "
+        "(shares a YAML anchor with `openbao.server.image.tag`) in\n"
+    ) in docs[UPGRADE]

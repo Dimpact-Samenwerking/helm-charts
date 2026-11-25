@@ -2,7 +2,9 @@
 
 from typing import TYPE_CHECKING
 
+from lib.component_docs.aliased_pin_bullets import MissingAliasNote
 from lib.component_docs.aliased_pin_bullets import MissingPinBullet
+from lib.component_docs.aliased_pin_bullets import add_missing_alias_notes
 from lib.component_docs.aliased_pin_bullets import add_missing_pin_bullets
 
 if TYPE_CHECKING:
@@ -121,3 +123,61 @@ def test_an_alias_with_another_baseline_value_documented_elsewhere_gets_no_bulle
     assert add_missing_pin_bullets(doc, GROUPS, baseline)[1] == [
         MissingPinBullet("openbao 2.5.4 → 2.5.5 (chart 0.28.4, unchanged)", BAO[1], BAO[0]),
     ]
+
+
+BOTH_DOCUMENTED = """\
+## Changes
+
+### openbao 2.5.4 → 2.5.5 (chart 0.28.4 → 0.28.5)
+
+- Image tag pin `openbao.server.image.tag` `2.5.4` → `2.5.5` in
+  `charts/podiumd/values.yaml`.
+- Image tag pin `openbao.job.image.tag` `2.5.4` → `2.5.5` in
+  `charts/podiumd/values.yaml`.
+
+### zac 1 → 2
+
+- `zac.image.tag` `1` → `2`
+"""
+
+
+def test_alias_note_marks_a_documented_bullet_that_shares_an_earlier_bullets_anchor():
+    """Both paths written by a writer: the later bullet gets the note, the first and unaliased ones don't."""
+    text, noted = add_missing_alias_notes(BOTH_DOCUMENTED, GROUPS)
+    assert noted == [MissingAliasNote("openbao 2.5.4 → 2.5.5 (chart 0.28.4 → 0.28.5)", BAO[1], BAO[0])]
+    assert (
+        "- Image tag pin `openbao.server.image.tag` `2.5.4` → `2.5.5` in\n"
+        "  `charts/podiumd/values.yaml`.\n"
+        "- Image tag pin `openbao.job.image.tag` `2.5.4` → `2.5.5` "
+        "(shares a YAML anchor with `openbao.server.image.tag`) in\n"
+    ) in text
+    assert "- `zac.image.tag` `1` → `2`\n" in text
+    assert add_missing_alias_notes(text, GROUPS) == (text, [])
+
+
+def test_alias_note_leaves_bullets_added_for_a_missing_alias_alone():
+    """add_missing_pin_bullets already writes the note; the second pass adds nothing."""
+    text, _ = add_missing_pin_bullets(DOC, GROUPS, BASELINE)
+    assert add_missing_alias_notes(text, GROUPS) == (text, [])
+
+
+def test_alias_note_leaves_a_hand_written_bullet_alone():
+    """A user line naming the aliased path is not a generated bullet: the writer does not touch it."""
+    doc = BOTH_DOCUMENTED.replace(
+        "- Image tag pin `openbao.job.image.tag` `2.5.4` → `2.5.5` in\n  `charts/podiumd/values.yaml`.\n",
+        "- `openbao.job.image.tag` moves with the server\n",
+    )
+    assert add_missing_alias_notes(doc, GROUPS) == (doc, [])
+
+
+FENCED_EXAMPLE = BOTH_DOCUMENTED.replace(
+    "- Image tag pin `openbao.job.image.tag` `2.5.4` → `2.5.5` in\n  `charts/podiumd/values.yaml`.\n",
+    "```text\n- Image tag pin `openbao.job.image.tag` `2.5.4` → `2.5.5` in\n  `charts/podiumd/values.yaml`.\n```\n",
+)
+
+
+def test_a_pin_line_in_fenced_code_is_no_bullet():
+    """A user example in a code block gets no note and does not count as documenting the path."""
+    assert add_missing_alias_notes(FENCED_EXAMPLE, GROUPS) == (FENCED_EXAMPLE, [])
+    _, added = add_missing_pin_bullets(FENCED_EXAMPLE, GROUPS, BASELINE)
+    assert MissingPinBullet("openbao 2.5.4 → 2.5.5 (chart 0.28.4 → 0.28.5)", BAO[1], BAO[0]) in added

@@ -4,7 +4,9 @@ An environment overrides values per path, so a pin reached through a YAML
 alias needs its own bullet: overriding one path doesn't change the other.
 An alias that had the old version the documented bullet shows gets a copy
 of it; one that had another version (it joined the anchor) shows its own,
-unless another Changes block already documents it.
+unless another Changes block already documents it. Bullets of one block that
+share an anchor and were all written by a writer (both paths registered for the
+component) get the same note on every bullet after the first.
 """
 
 import re
@@ -14,6 +16,9 @@ from dataclasses import dataclass
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import version_of
 from lib.component_docs.changes_section import ALIAS_NOTE
+from lib.component_docs.changes_section import ALIAS_NOTE_PATTERN
+from lib.component_docs.changes_section import changes_body_kinds
+from lib.upgradedoc.sorting_and_ordering import HeadingBlock
 from lib.upgradedoc.sorting_and_ordering import changes_blocks_with_lines
 from lib.upgradedoc.sorting_and_ordering import parse_changes_blocks
 from lib.upgradedoc.version_cells import PIN_TEXT_PATTERN
@@ -24,6 +29,9 @@ from lib.yaml_types import YamlValue
 # "- Version pin `<path>` ..." (component block).
 _PIN_BULLET_RE = re.compile(r"^- (?:Image tag pin |Version pin )?`(?P<path>[^`\s]+)` ")
 _PIN_TEXT_RE = re.compile(PIN_TEXT_PATTERN)
+
+# alias_groups_in_text: a values path -> the other paths that share its YAML anchor.
+type AliasGroups = dict[str, tuple[str, ...]]
 
 
 @dataclass(frozen=True)
@@ -36,18 +44,41 @@ class MissingPinBullet:
 
 
 @dataclass(frozen=True)
+class MissingAliasNote:
+    """A Changes block documents `aliased_path` after `documented_path`, which shares its anchor, without the note."""
+
+    heading: str
+    documented_path: str
+    aliased_path: str
+
+
+@dataclass(frozen=True)
 class _Bullet:
     start: int
     end: int
     path: str
 
 
+def _fenced_lines(lines: list[str], start: int, end: int) -> set[int]:
+    """Indexes in lines[start:end] inside a fenced code block, fences included: user examples, not bullets."""
+    fenced: set[int] = set()
+    inside = False
+    for index in range(start, end):
+        is_fence = lines[index].lstrip().startswith(("```", "~~~"))
+        if inside or is_fence:
+            fenced.add(index)
+        if is_fence:
+            inside = not inside
+    return fenced
+
+
 def _block_bullets(lines: list[str], start: int, end: int) -> list[_Bullet]:
-    """Pin bullets in lines[start:end]; a bullet runs on over its "  "-indented continuation lines."""
+    """Pin bullets in lines[start:end] outside fenced code; a bullet runs on over its indented continuation lines."""
     bullets: list[_Bullet] = []
+    fenced = _fenced_lines(lines, start, end)
     start_index = start
     while start_index < end:
-        bullet_match = _PIN_BULLET_RE.match(lines[start_index])
+        bullet_match = None if start_index in fenced else _PIN_BULLET_RE.match(lines[start_index])
         if not bullet_match:
             start_index += 1
             continue
@@ -86,10 +117,13 @@ def _aliased_bullet(
         new = pin.group("pin_new") or pin.group("pin_kept")
         version_text = pin_version_text(own_old, new)
         first = f"{first[: pin.start()]}{version_text}{first[pin.end() :]}"
-    note = ALIAS_NOTE.format(path=documented_path)
+    return [f"{_with_alias_note(first, documented_path)}\n", *bullet_lines[1:]]
+
+
+def _with_alias_note(first: str, documented_path: str) -> str:
+    """A bullet's first line (no newline) with ALIAS_NOTE, before a trailing " in" of a two-line bullet."""
     suffix = " in" if first.endswith(" in") else ""
-    first = f"{first.removesuffix(suffix)} {note}{suffix}"
-    return [f"{first}\n", *bullet_lines[1:]]
+    return f"{first.removesuffix(suffix)} {ALIAS_NOTE.format(path=documented_path)}{suffix}"
 
 
 # A pin bullet and the alias paths missing next to it.
@@ -97,7 +131,7 @@ type _UndocumentedAliases = tuple[_Bullet, list[str]]
 
 
 def _scan(
-    text: str, alias_groups: dict[str, tuple[str, ...]], baseline_values: YamlValue
+    text: str, alias_groups: AliasGroups, baseline_values: YamlValue
 ) -> tuple[list[str], list[_UndocumentedAliases]]:
     """(lines, [(bullet, paths missing next to it), ...]) in document order.
 
@@ -140,7 +174,7 @@ def _missing_pin_bullets(text: str, found: list[_UndocumentedAliases]) -> list[M
 
 
 def add_missing_pin_bullets(
-    text: str, alias_groups: dict[str, tuple[str, ...]], baseline_values: YamlValue
+    text: str, alias_groups: AliasGroups, baseline_values: YamlValue
 ) -> tuple[str, list[MissingPinBullet]]:
     """Add a bullet for each path sharing an anchor with a documented pin bullet, after the bullet it copies.
 
@@ -154,4 +188,34 @@ def add_missing_pin_bullets(
             line for path in missing for line in _aliased_bullet(bullet_lines, bullet.path, path, baseline_values)
         ]
         lines = [*lines[: bullet.end], *aliased, *lines[bullet.end :]]
+    return "".join(lines), added
+
+
+def _generated_bullet_starts(lines: list[str], block: HeadingBlock) -> set[int]:
+    """Indexes of the lines in `block` that changes_body_kinds owns as pin bullets: user lines are left alone."""
+    first = block["start"] + 1
+    kinds = changes_body_kinds(lines[first : block["end"]])
+    return {first + offset for offset, kind in enumerate(kinds) if kind == "bullet"}
+
+
+def add_missing_alias_notes(text: str, alias_groups: AliasGroups) -> tuple[str, list[MissingAliasNote]]:
+    """Add ALIAS_NOTE to each generated pin bullet that shares an anchor with an earlier bullet of its block.
+
+    Returns (new_text, the notes added).
+    """
+    lines, blocks = changes_blocks_with_lines(text)
+    added: list[MissingAliasNote] = []
+    for block in blocks:
+        generated = _generated_bullet_starts(lines, block)
+        earlier: list[str] = []
+        for bullet in _block_bullets(lines, block["start"] + 1, block["end"]):
+            aliases = alias_groups.get(bullet.path, ())
+            shared = next((path for path in earlier if path in aliases), None)
+            earlier.append(bullet.path)
+            first = lines[bullet.start].rstrip("\n")
+            noted = re.search(ALIAS_NOTE_PATTERN, first) is not None
+            if shared is None or noted or bullet.start not in generated:
+                continue
+            lines[bullet.start] = f"{_with_alias_note(first, shared)}\n"
+            added.append(MissingAliasNote(block["heading"], shared, bullet.path))
     return "".join(lines), added
