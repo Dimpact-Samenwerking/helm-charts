@@ -189,22 +189,19 @@ Trigger via **Release Snapshot Charts** workflow in Actions tab.
 **Release Charts met changelogs** workflow fetches upstream changelogs (Open Zaak, Open Formulieren, Open Klant, etc.) from GitHub + generates release notes.
 
 ### Images Manifest per Release
-For each podiumd release, create `charts/podiumd/docs/images/images-<version>.yaml` covering **only new/changed images** vs previous release (including sidecar/exporter images from `values-enable-observability.yaml`).
+`charts/podiumd/docs/images/images-<version>.yaml` lists only the images that are new or changed against the previous release. It is **generated**: `update-component-version`, `update-image-version` and `fix-doc-consistency` (in `charts/podiumd/bin/`) write it, never by hand, and `verify-podiumd`'s Doc consistency step checks it by running `fix-doc-consistency` on a copy. Digests are the OCI image index digest (`Docker-Content-Digest`), resolved by those scripts.
 
-Format: flat YAML list with `name`, `url`, `version`, `digest` fields. Use component name from chart (e.g. `openinwoner`, not `open-inwoner`). Same tag as `values.yaml`. Short Dutch group comment (e.g. `# Applicaties`). Style ref: `images-4.6.1.yaml`.
-
-Find changed images:
-```powershell
-git diff main...HEAD -- charts/podiumd/values.yaml | Select-String "^\+.*tag:"
-git diff main...HEAD -- charts/podiumd/Chart.yaml
-```
-
-Fetch digests via registry API with Python's `urllib.request` — request manifest with `Accept: application/vnd.oci.image.index.v1+json`, read `Docker-Content-Digest` response header. Docker Hub: first obtain bearer token from `auth.docker.io`.
-
----
+Layout, as the writers produce it:
+- A `# Changes:` list with one item per row of the upgrade guide's component table: `<component> <old> -> <new> (chart <old> -> <new>).`
+- One entry per image (`name`, `url`, `version`, `digest`) under a header `# <component> <old> -> <new>`; a sidecar gets `#   sidecar: <parent> - <image> <old> -> <new>` and its own item.
+- Lockstep images (several images that carry one component's app version, listed in `component_resolution.image_paths` of `charts/podiumd/etc/settings.yaml`: e.g. kiss frontend + elastic-sync, ita web + poller, zgw-office-addin frontend + backend) each get an entry with the component's header, and share the component's one Changes item.
+- Entries of one component (with its sidecars) stand together without a blank line; one blank line separates components.
 
 ### Upgrade Notes per Release
-For each release with breaking changes, new images, or manual steps, create `charts/podiumd/docs/_UPGRADE_PATHS/<prev>-to-<version>-upgrade.md` covering: new images needing ACR override (key path + snippet), new optional components, removed/deprecated components, required manual steps, component version bump table (`| Component | old | new |`). Style ref: `4.5.13-to-4.6.0-upgrade.md`.
+`charts/podiumd/docs/_UPGRADE_PATHS/<prev>-to-<version>-upgrade.md` and `-values-deltas.md`: the writers above generate the component table, the `### <component> <old> → <new>` Changes blocks and their pin bullets; the checklist sections A–F, the reference sections and any text around the generated lines are written by hand and never touched by the writers. See the `/upgrade-guide` and `/upgrade-notes` skills.
+
+### Reviewing generated docs
+A generated layout (images manifest, component table, Changes blocks, pin bullets) is only a review finding when the checker (`verify-podiumd` Doc consistency) and the writer (`fix-doc-consistency`) disagree with each other or with `values.yaml`/`Chart.yaml`. A layout that differs from older, hand-written releases is not a finding; a change to the layout goes into the writers and the checker together (see `.claude/memory/reuse-existing-logic.md`), not into one doc.
 
 ---
 
