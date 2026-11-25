@@ -3478,8 +3478,7 @@ kiss:
       contactverzoektypen: []
       isDefault: true
 
-
-# Checks before an install or upgrade changes anything.
+# Checks before an upgrade changes anything.
 setupConfigurationChecks:
   # -- Pre-upgrade hook per Maykin-style component: fails the upgrade when its database has a
   # zgw_consumers Service whose api_root the values give to another identifier, which would fail the
@@ -3488,6 +3487,7 @@ setupConfigurationChecks:
     enabled: true
     # -- Rename such a Service's slug to the values' identifier instead of failing, when no Service has that slug yet.
     autoFix: false
+    # global.imageRegistry does not apply: an environment that mirrors images sets this path too.
     image: *postgresImage
     resources:
       requests:

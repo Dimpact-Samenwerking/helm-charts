@@ -8,11 +8,13 @@ admin or by an older configuration, then fails the component's config Job in
 the middle of the deploy (Assen, Hoorn, Olst). This hook stops the upgrade
 before anything changes and says which slug to rename; with autoFix it renames
 it itself when that is unambiguous (forms and other records point at the
-Service row, not at its slug). Pre-upgrade only: on an install there is no
-database to check yet, and the release's ServiceAccount does not exist before
-the pre-install hooks. A table that does not exist yet (before the component's
-first migration) also means nothing to check. The check needs no Kubernetes API
-access, so the pod gets no service account token.
+Service row, not at its slug). It reads the database with the app's own DB_*
+settings from the app's ConfigMap and Secret (existingSecret included), as
+the previous release left them; both are optional, so a component deployed
+for the first time is skipped. Pre-upgrade only: on an install there is no
+database to check yet. The check needs no Kubernetes API access, so the pod
+gets no service account token. The Job stays after a failure: its log is
+the finding; it holds no secret.
 */ -}}
 {{- $check := (.Values.setupConfigurationChecks | default dict).zgwServices | default dict -}}
 {{- if $check.enabled -}}
@@ -21,34 +23,8 @@ access, so the pod gets no service account token.
 {{- if $svcs -}}
 {{- $v := index $.Values $comp -}}
 {{- $db := ($v.settings | default dict).database | default dict -}}
-{{- $globalHost := (($v.global | default dict).settings | default dict).databaseHost | default ((($.Values.global | default dict).settings | default dict).databaseHost) -}}
-{{- $host := ternary $db.host (coalesce $globalHost $db.host) (eq $comp "openarchiefbeheer") -}}
-{{- $name := printf "%s-service-check" $comp }}
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: {{ $name }}
-  labels:
-    {{- include "podiumd.labels" $ | nindent 4 }}
-    app.kubernetes.io/component: {{ $comp }}
-  annotations:
-    helm.sh/hook: pre-upgrade
-    helm.sh/hook-weight: "-20"
-    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
-type: Opaque
-stringData:
-  PGHOST: {{ $host | default "" | toString | quote }}
-  PGPORT: {{ $db.port | default 5432 | toString | quote }}
-  PGDATABASE: {{ $db.name | default "" | toString | quote }}
-  PGUSER: {{ $db.username | default "" | toString | quote }}
-  PGPASSWORD: {{ $db.password | default "" | toString | quote }}
-  PGSSLMODE: {{ $db.sslmode | default "prefer" | toString | quote }}
-  {{- /* One "identifier api_root" pair per line; neither contains whitespace. */}}
-  SERVICES: |
-    {{- range $svcs }}
-    {{ .identifier }} {{ .api_root }}
-    {{- end }}
+{{- $app := include "podiumd.subchartFullname" (dict "v" $v "chart" $comp "release" $.Release.Name) -}}
+{{- $name := printf "%s-%s-service-check" $.Release.Name $comp | trunc 63 | trimSuffix "-" }}
 ---
 apiVersion: batch/v1
 kind: Job
@@ -101,9 +77,21 @@ spec:
             capabilities:
               drop: ["ALL"]
           envFrom:
+            - configMapRef:
+                name: {{ $app }}
+                optional: true
             - secretRef:
-                name: {{ $name }}
+                name: {{ $v.existingSecret | default $app }}
+                optional: true
           env:
+            - name: PGSSLMODE
+              value: {{ $db.sslmode | default "prefer" | toString | quote }}
+            {{- /* One "identifier api_root" pair per line, in the values' order; neither contains whitespace. */}}
+            - name: SERVICES
+              value: |
+                {{- range $svcs }}
+                {{ .identifier }} {{ .api_root }}
+                {{- end }}
             - name: COMPONENT
               value: {{ $comp | quote }}
             - name: AUTO_FIX

@@ -1268,7 +1268,7 @@ Usage: {{- $data := include "podiumd.configurationData" (dict "root" $ "componen
 {{- $raw := $cfg.data -}}
 {{- if not (kindIs "string" $raw) -}}{{- $raw = toYaml $raw -}}{{- end -}}
 {{- if contains "{{" $raw -}}
-{{- $raw = tpl $raw (dict "Values" (merge (dict "global" $global) $v) "Release" $root.Release "Chart" $root.Chart "Capabilities" $root.Capabilities "Template" $root.Template) -}}
+{{- $raw = tpl $raw (dict "Values" (merge (dict "global" (deepCopy $global)) $v) "Release" $root.Release "Chart" $root.Chart "Capabilities" $root.Capabilities "Template" $root.Template) -}}
 {{- end -}}
 {{- $raw | fromYaml | toYaml -}}
 {{- end -}}

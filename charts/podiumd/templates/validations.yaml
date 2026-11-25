@@ -106,9 +106,8 @@
      the old flat fields, fails setup-configuration; since openinwoner chart 2.6.0
      that is a post-upgrade hook, so it would fail the whole helm upgrade. */ -}}
 {{- $oip := .Values.openinwoner | default dict -}}
-{{- $oipConfig := $oip.configuration | default dict -}}
-{{- if and (or $oip.enabled (not (hasKey $oip "enabled"))) $oipConfig.enabled $oipConfig.data -}}
-{{- $oipData := $oipConfig.data | fromYaml -}}
+{{- $oipData := include "podiumd.configurationData" (dict "root" $ "component" "openinwoner") | fromYaml -}}
+{{- if $oipData -}}
 {{- $adminAuth := index $oipData "oidc_db_config_admin_auth" | default dict -}}
 {{- $providerIds := list -}}
 {{- range $p := $adminAuth.providers | default list -}}
