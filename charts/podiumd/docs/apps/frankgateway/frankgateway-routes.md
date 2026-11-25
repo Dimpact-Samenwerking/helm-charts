@@ -299,6 +299,10 @@ gateway maps that identity to a consumer name using a list kept in
 onboarding or rotating a consumer needs no deploy. The design, and what was
 measured on a real Application Gateway, is in
 [`frankgateway-aag-client-certificates.md`](frankgateway-aag-client-certificates.md).
+front door terminates TLS, which proves the caller holds the certificate's
+private key, and forwards the certificate's identity in request headers; the
+gateway maps that identity to a consumer name using a list kept in
+**OpenBao**, at request time — the same mechanism the API keys use, so
 
 ```yaml
 frankgateway:
@@ -369,6 +373,8 @@ frankgateway:
   behind a front door that completed the TLS handshake with that certificate
   and overwrites the header on every request, with the inway reachable through
   nothing else
+  behind a front door that completed the TLS handshake with that certificate
+  and overwrites the header on every request, with the inway reachable through nothing else
   (`networkPolicies.ingressNamespace`); the render refuses the function on any
   other class.
 
@@ -409,9 +415,7 @@ passthrough mode, so `verificationHeader` stays unset.
 In passthrough mode the Application Gateway checks nothing about the
 certificate: one from an unknown CA, an expired one and a server-only one are
 all forwarded. The consumer list in OpenBao and the validity check on the
-inway are the only gates. The full
-measurement is in
-[`frankgateway-aag-test-round-ontw-dim1.md`](frankgateway-aag-test-round-ontw-dim1.md#header-contract).
+inway are the only gates. Measured on ontw-dim1 (IN-3411).
 
 Application Gateway cannot pass TLS through (it is a terminating proxy), so the
 existing chain stays as it is: it re-encrypts to NGINX Gateway Fabric, which
