@@ -3,6 +3,7 @@
 import io
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 from typing import override
 
 import pytest
@@ -14,6 +15,9 @@ from lib.chart.upgrade_check import chart_sources
 from lib.chart.upgrade_check import check_chart_upgrades
 from lib.chart.upgrade_check import index_chart_releases
 from lib.chart.upgrade_check import newer_stable_versions
+
+if TYPE_CHECKING:
+    from lib.yaml_types import YamlMapping
 
 INDEX = """\
 apiVersion: v1
@@ -84,6 +88,21 @@ def test_chart_sources_resolve_aliases_and_skip_file_dependencies(tmp_path: Path
     )
     assert chart_sources(tmp_path, deps) == [
         ChartSource("zac", "zaakafhandelcomponent", "1.0.297", "https://example.org/zac"),
+        ChartSource("ita", "ita", "2.0.0", "oci://ghcr.io/org"),
+    ]
+
+
+def test_chart_sources_take_the_app_version_from_the_image_pin(tmp_path: Path):
+    """An image pin over an older chart is the version that runs, not the chart's appVersion."""
+    deps = parse_chart_dependencies(
+        "dependencies:\n"
+        "  - {name: openforms, alias: openformulieren, version: 1.13.0, repository: 'https://example.org/'}\n"
+        "  - {name: ita, version: 2.0.0, repository: 'oci://ghcr.io/org'}\n",
+        "Chart.yaml",
+    )
+    values: YamlMapping = {"openformulieren": {"image": {"tag": "4.0.7@sha256:abc"}}}
+    assert chart_sources(tmp_path, deps, values) == [
+        ChartSource("openformulieren", "openforms", "1.13.0", "https://example.org", "4.0.7"),
         ChartSource("ita", "ita", "2.0.0", "oci://ghcr.io/org"),
     ]
 

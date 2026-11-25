@@ -34,10 +34,12 @@ from lib.render_scope import resolve_dependency_repo
 from lib.settings import chart_upgrade_cache_ttl_days
 from lib.settings import helm_repos_urls_by_alias
 from lib.settings import repo_access_timeout_seconds
+from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.version_numbers import newest_per_major
 from lib.version_numbers import stable_semver_key
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import YamlShapeError
+from lib.yaml_types import load_yaml_mapping
 from lib.yaml_types import parse_yaml
 from lib.yaml_types import shape_problem
 
@@ -103,10 +105,12 @@ class ChartSource:
         return f"{self.repository}/{self.chart}:{self.version}"
 
 
-def chart_sources(chart_dir: Path, deps: list[ChartDependency]) -> list[ChartSource]:
+def chart_sources(chart_dir: Path, deps: list[ChartDependency], values: YamlMapping | None = None) -> list[ChartSource]:
     """A ChartSource per network-resolved dependency, "@alias" resolved; "file://" ones left out.
 
-    app_version is the vendored chart's appVersion (None if not vendored).
+    app_version is the version the chart runs: the image pin in `values` (an image
+    pin over an older chart, e.g. Open Forms 4.0.7 on a chart with appVersion
+    3.3.9), else the vendored chart's appVersion (None if not vendored).
     """
     repos_by_alias = helm_repos_urls_by_alias(chart_dir)
     sources: list[ChartSource] = []
@@ -119,7 +123,8 @@ def chart_sources(chart_dir: Path, deps: list[ChartDependency]) -> list[ChartSou
                     dep["name"],
                     str(dep["version"]),
                     repository.rstrip("/"),
-                    subchart_app_version(chart_dir, dep),
+                    actual_app_version(values, values_key_of(dep), dep["name"], chart_dir, dep)
+                    or subchart_app_version(chart_dir, dep),
                 )
             )
     return sources
@@ -233,7 +238,9 @@ def check_chart_upgrades(chart_dir: Path) -> tuple[bool, str]:
     Always returns True; the detail counts upgradable charts and fetch errors.
     """
     ttl_days = chart_upgrade_cache_ttl_days(chart_dir)
-    sources = chart_sources(chart_dir, load_chart_dependencies(chart_dir / "Chart.yaml"))
+    values_path = chart_dir / "values.yaml"
+    values = load_yaml_mapping(values_path) if values_path.is_file() else None
+    sources = chart_sources(chart_dir, load_chart_dependencies(chart_dir / "Chart.yaml"), values)
     print(f"Checking {len(sources)} dependency chart(s) for a newer published version...")
     scan = _scan(chart_dir, sources, ttl_days)
     _print_findings(scan, len(sources), ttl_days)
