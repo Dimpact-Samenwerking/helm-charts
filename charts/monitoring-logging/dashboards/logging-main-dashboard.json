@@ -536,6 +536,7 @@
         "type": "loki",
         "uid": "loki"
       },
+      "description": "Only first attempts are considered (without retries)",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -583,7 +584,7 @@
         {
           "direction": "backward",
           "editorMode": "code",
-          "expr": "sum(\n    count_over_time (\n        {app=\"opennotificaties-worker\"}\n        |= \"notification_\"\n        | json event\n        | event=~\"notification_failed|notification_error\"\n        [$__range]\n    )\n    \n) or vector(0)",
+          "expr": "sum(\n    count_over_time (\n        {app=\"opennotificaties-worker\"}\n        |= \"notification_\"\n        | json event, task_attempt_count\n        | event=~\"notification_failed|notification_error\"\n        | task_attempt_count=1\n        [$__range]\n    )\n    \n) or vector(0)",
           "queryType": "range",
           "refId": "A"
         }
@@ -860,6 +861,67 @@
         }
       ],
       "title": "OF email fails",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "description": "with retries",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 6,
+        "y": 8
+      },
+      "id": 135,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0-17814087142",
+      "targets": [
+        {
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "sum(\n    count_over_time (\n        {app=\"opennotificaties-worker\"}\n        |= \"notification_\"\n        | json event\n        | event=~\"notification_failed|notification_error\"\n        [$__range]\n    )\n    \n) or vector(0)",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Notification attempts failed",
       "type": "stat"
     },
     {
@@ -2228,254 +2290,254 @@
         "y": 51
       },
       "id": 82,
-      "panels": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "custom": {
-                "align": "auto",
-                "cellOptions": {
-                  "type": "auto"
-                },
-                "footer": {
-                  "reducers": []
-                },
-                "inspect": false
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 5,
-            "w": 24,
-            "x": 0,
-            "y": 52
-          },
-          "id": 98,
-          "options": {
-            "cellHeight": "sm",
-            "showHeader": true
-          },
-          "pluginVersion": "12.3.0-17814087142",
-          "targets": [
-            {
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "{app=\"opennotificaties-worker\"}\n|= \"notification_successful\"\n| json  event=\"event\", subscription_callback=\"subscription_callback\", channel_name=\"channel_name\", action=\"action\", resource=\"resource\", resource_url=\"resource_url\"\n| event=\"notification_successful\"\n",
-              "queryType": "range",
-              "refId": "A"
-            }
-          ],
-          "title": "Successful notifications",
-          "transformations": [
-            {
-              "id": "extractFields",
-              "options": {
-                "delimiter": ",",
-                "format": "json",
-                "jsonPaths": [
-                  {
-                    "alias": "Subscriber",
-                    "path": "subscription_callback"
-                  },
-                  {
-                    "alias": "Channel",
-                    "path": "channel_name"
-                  },
-                  {
-                    "alias": "Action",
-                    "path": "action"
-                  },
-                  {
-                    "alias": "Resource",
-                    "path": "resource"
-                  },
-                  {
-                    "alias": "Url",
-                    "path": "resource_url"
-                  }
-                ],
-                "source": "labels"
-              }
-            },
-            {
-              "id": "organize",
-              "options": {
-                "excludeByName": {
-                  "Line": true,
-                  "id": true,
-                  "labelTypes": true,
-                  "labels": true,
-                  "tsNs": true
-                },
-                "includeByName": {},
-                "indexByName": {},
-                "renameByName": {}
-              }
-            }
-          ],
-          "type": "table"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "custom": {
-                "align": "auto",
-                "cellOptions": {
-                  "type": "auto"
-                },
-                "footer": {
-                  "reducers": []
-                },
-                "inspect": false
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 4,
-            "w": 24,
-            "x": 0,
-            "y": 57
-          },
-          "id": 97,
-          "options": {
-            "cellHeight": "sm",
-            "showHeader": true
-          },
-          "pluginVersion": "12.3.0-17814087142",
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "{app=\"opennotificaties-worker\"}\n|= \"notification_\"\n| json event=\"event\", resource=\"resource\", action=\"action\", resource_url=\"resource_url\", subscription_callback=\"subscription_callback\", channel_name=\"channel_name\", task_attempt_count=\"task_attempt_count\", http_status_code=\"http_status_code\"\n| event=~\"notification_failed|notification_error\"",
-              "queryType": "range",
-              "refId": "A"
-            }
-          ],
-          "title": "Failures",
-          "transformations": [
-            {
-              "id": "extractFields",
-              "options": {
-                "format": "json",
-                "jsonPaths": [
-                  {
-                    "alias": "Resource",
-                    "path": "resource"
-                  },
-                  {
-                    "alias": "Action",
-                    "path": "action"
-                  },
-                  {
-                    "alias": "Url",
-                    "path": "resource_url"
-                  },
-                  {
-                    "alias": "Subscriber",
-                    "path": "subscription_callback"
-                  },
-                  {
-                    "alias": "Channel",
-                    "path": "channel_name"
-                  },
-                  {
-                    "alias": "Attempt",
-                    "path": "task_attempt_count"
-                  },
-                  {
-                    "alias": "Status",
-                    "path": "http_status_code"
-                  }
-                ],
-                "keepTime": false,
-                "replace": false,
-                "source": "labels"
-              }
-            },
-            {
-              "id": "organize",
-              "options": {
-                "excludeByName": {
-                  "Line": true,
-                  "Status": true,
-                  "id": true,
-                  "labelTypes": true,
-                  "labels": true,
-                  "tsNs": true
-                },
-                "includeByName": {},
-                "indexByName": {
-                  "Action": 8,
-                  "Attempt": 6,
-                  "Channel": 9,
-                  "Line": 2,
-                  "Resource": 7,
-                  "Status": 12,
-                  "Subscriber": 10,
-                  "Time": 1,
-                  "Url": 11,
-                  "id": 5,
-                  "labelTypes": 4,
-                  "labels": 0,
-                  "tsNs": 3
-                },
-                "renameByName": {}
-              }
-            }
-          ],
-          "type": "table"
-        }
-      ],
+      "panels": [],
       "title": "Open Notificaties",
       "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      },
+      "id": 98,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0-17814087142",
+      "targets": [
+        {
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{app=\"opennotificaties-worker\"}\n|= \"notification_successful\"\n| json  event=\"event\", subscription_callback=\"subscription_callback\", channel_name=\"channel_name\", action=\"action\", resource=\"resource\", resource_url=\"resource_url\"\n| event=\"notification_successful\"\n",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Successful notifications",
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "delimiter": ",",
+            "format": "json",
+            "jsonPaths": [
+              {
+                "alias": "Subscriber",
+                "path": "subscription_callback"
+              },
+              {
+                "alias": "Channel",
+                "path": "channel_name"
+              },
+              {
+                "alias": "Action",
+                "path": "action"
+              },
+              {
+                "alias": "Resource",
+                "path": "resource"
+              },
+              {
+                "alias": "Url",
+                "path": "resource_url"
+              }
+            ],
+            "source": "labels"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Line": true,
+              "id": true,
+              "labelTypes": true,
+              "labels": true,
+              "tsNs": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {}
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 57
+      },
+      "id": 97,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0-17814087142",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{app=\"opennotificaties-worker\"}\n|= \"notification_\"\n| json event=\"event\", resource=\"resource\", action=\"action\", resource_url=\"resource_url\", subscription_callback=\"subscription_callback\", channel_name=\"channel_name\", task_attempt_count=\"task_attempt_count\", http_status_code=\"http_status_code\"\n| event=~\"notification_failed|notification_error\"",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Failures",
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "delimiter": ",",
+            "format": "json",
+            "jsonPaths": [
+              {
+                "alias": "Resource",
+                "path": "resource"
+              },
+              {
+                "alias": "Action",
+                "path": "action"
+              },
+              {
+                "alias": "Url",
+                "path": "resource_url"
+              },
+              {
+                "alias": "Subscriber",
+                "path": "subscription_callback"
+              },
+              {
+                "alias": "Channel",
+                "path": "channel_name"
+              },
+              {
+                "alias": "Attempt",
+                "path": "task_attempt_count"
+              },
+              {
+                "alias": "Status",
+                "path": "http_status_code"
+              }
+            ],
+            "keepTime": false,
+            "replace": false,
+            "source": "labels"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Line": true,
+              "Status": true,
+              "id": true,
+              "labelTypes": true,
+              "labels": true,
+              "tsNs": true
+            },
+            "includeByName": {},
+            "indexByName": {
+              "Action": 8,
+              "Attempt": 6,
+              "Channel": 9,
+              "Line": 2,
+              "Resource": 7,
+              "Status": 12,
+              "Subscriber": 10,
+              "Time": 1,
+              "Url": 11,
+              "id": 5,
+              "labelTypes": 4,
+              "labels": 0,
+              "tsNs": 3
+            },
+            "renameByName": {}
+          }
+        }
+      ],
+      "type": "table"
     },
     {
       "collapsed": false,
