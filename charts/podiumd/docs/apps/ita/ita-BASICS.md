@@ -92,8 +92,8 @@ disabled bundled PostgreSQL).
   and `samaccountname` claims. Values: `ita.web.oidc.authority`,
   `frontendUrl`, `clientId: ita`, `clientSecret`
   (`REP_ITA_OIDC_CLIENT_SECRET_REP`, must match the realm secret
-  `KC_SECRET_ITA`), optional PKCE via `ita.web.oidc.pkceEnabled` (default
-  `false`).
+  `KC_SECRET_ITA`). Keycloak requires PKCE (S256) on the client, without a
+  switch.
 - **Open Klant** — klantinteracties API token:
   `ita.apiConnections.openKlant.baseUrl` + `apiKey`
   (`REP_OPENKLANT_CREDENTIALS_ITA_TOKEN_REP`).

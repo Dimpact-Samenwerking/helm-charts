@@ -827,10 +827,8 @@ data:
         name: Kiss
         enabled: true
         clientAuthenticatorType: client-secret
-{{- if .Values.kiss.settings.oidc.pkceEnabled }}
         attributes:
           pkce.code.challenge.method: S256
-{{- end }}
         redirectUris:
           - "{{ .Values.kiss.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
@@ -953,10 +951,8 @@ data:
         name: Interne Taak Afhandeling
         enabled: true
         clientAuthenticatorType: client-secret
-{{- if .Values.ita.web.oidc.pkceEnabled }}
         attributes:
           pkce.code.challenge.method: S256
-{{- end }}
         redirectUris:
           - "{{ .Values.ita.web.oidc.frontendUrl | trimSuffix "/" }}/*"
         webOrigins:
@@ -996,10 +992,8 @@ data:
         name: PABC OIDC Client
         enabled: true
         clientAuthenticatorType: client-secret
-{{- if .Values.pabc.settings.oidc.pkceEnabled }}
         attributes:
           pkce.code.challenge.method: S256
-{{- end }}
         redirectUris:
           - "{{ .Values.pabc.settings.oidc.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
