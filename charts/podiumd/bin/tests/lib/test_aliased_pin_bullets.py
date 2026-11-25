@@ -168,3 +168,16 @@ def test_alias_note_leaves_a_hand_written_bullet_alone():
         "- `openbao.job.image.tag` moves with the server\n",
     )
     assert add_missing_alias_notes(doc, GROUPS) == (doc, [])
+
+
+FENCED_EXAMPLE = BOTH_DOCUMENTED.replace(
+    "- Image tag pin `openbao.job.image.tag` `2.5.4` → `2.5.5` in\n  `charts/podiumd/values.yaml`.\n",
+    "```text\n- Image tag pin `openbao.job.image.tag` `2.5.4` → `2.5.5` in\n  `charts/podiumd/values.yaml`.\n```\n",
+)
+
+
+def test_a_pin_line_in_fenced_code_is_no_bullet():
+    """A user example in a code block gets no note and does not count as documenting the path."""
+    assert add_missing_alias_notes(FENCED_EXAMPLE, GROUPS) == (FENCED_EXAMPLE, [])
+    _, added = add_missing_pin_bullets(FENCED_EXAMPLE, GROUPS, BASELINE)
+    assert MissingPinBullet("openbao 2.5.4 → 2.5.5 (chart 0.28.4 → 0.28.5)", BAO[1], BAO[0]) in added

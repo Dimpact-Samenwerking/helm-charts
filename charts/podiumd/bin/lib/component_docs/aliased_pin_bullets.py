@@ -59,12 +59,26 @@ class _Bullet:
     path: str
 
 
+def _fenced_lines(lines: list[str], start: int, end: int) -> set[int]:
+    """Indexes in lines[start:end] inside a fenced code block, fences included: user examples, not bullets."""
+    fenced: set[int] = set()
+    inside = False
+    for index in range(start, end):
+        is_fence = lines[index].lstrip().startswith(("```", "~~~"))
+        if inside or is_fence:
+            fenced.add(index)
+        if is_fence:
+            inside = not inside
+    return fenced
+
+
 def _block_bullets(lines: list[str], start: int, end: int) -> list[_Bullet]:
-    """Pin bullets in lines[start:end]; a bullet runs on over its "  "-indented continuation lines."""
+    """Pin bullets in lines[start:end] outside fenced code; a bullet runs on over its indented continuation lines."""
     bullets: list[_Bullet] = []
+    fenced = _fenced_lines(lines, start, end)
     start_index = start
     while start_index < end:
-        bullet_match = _PIN_BULLET_RE.match(lines[start_index])
+        bullet_match = None if start_index in fenced else _PIN_BULLET_RE.match(lines[start_index])
         if not bullet_match:
             start_index += 1
             continue
