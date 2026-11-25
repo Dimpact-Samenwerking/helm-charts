@@ -6,6 +6,7 @@
 #   1. nginx-unprivileged 1.31.7 -> 1.31.9.
 #   2. keycloak.image 26.8.1 -> 26.8.2.
 #   3. keycloak-operator 26.8.1 -> 26.8.2.
+#   4. frankgateway.image 1.2.1 -> 1.3.1.
 #
 # See docs/_UPGRADE_PATHS/4.10.1-to-4.10.2-upgrade.md for the operator upgrade notes.
 #
@@ -29,3 +30,9 @@
   url: quay.io/keycloak/keycloak-operator
   version: "26.8.2"
   digest: "sha256:f9b9a2be5db09d988c3706a6685763de1a3ac2b2f61315b21539cb99d0594efb"
+
+# frankgateway.image 1.2.1 -> 1.3.1
+- name: wearefrank/frank-gateway
+  url: ghcr.io/wearefrank/frank-gateway
+  version: "1.3.1"
+  digest: "sha256:110f6d97e7a108db996af3157c2e83e55a1ff23408e604be245e384d38654b41"
