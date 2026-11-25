@@ -58,7 +58,7 @@ Panels read `apisix_http_status`, `apisix_http_latency_bucket{type="request"}`,
 
 ### New, and off: Frank!Gateway alert panels
 
-A second dashboard (`dashboards/frankgateway-alerts.json`, ConfigMap key
+A second dashboard (`dashboards/metrics/frankgateway-alerts.json`, ConfigMap key
 `grafana.dashboardsConfigMaps."frankgateway-alerts"`, default `""` = **not
 rendered**) carrying threshold panels: gateways and etcd members up, 5xx and
 401/403 rates per traffic class, certificate days-to-expiry, and failed
