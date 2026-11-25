@@ -318,7 +318,6 @@ PodiumD Helm chart
 | ita.web.oidc.itaSystemAccessRole | string | `"ITA_Gebruiker"` |  |
 | ita.web.oidc.nameClaimType | string | `"name"` |  |
 | ita.web.oidc.objectregisterMedewerkerIdClaimType | string | `"samaccountname"` |  |
-| ita.web.oidc.pkceEnabled | bool | `true` | Require PKCE (S256) on the Keycloak client for ITA. ITA sends PKCE itself; the upstream chart has no app-side switch. No opt-out: `false` fails the render. |
 | ita.web.oidc.roleClaimType | string | `"roles"` |  |
 | ita.web.resources.limits.cpu | string | `"200m"` |  |
 | ita.web.resources.limits.memory | string | `"256Mi"` |  |
@@ -575,7 +574,6 @@ PodiumD Helm chart
 | kiss.settings.oidc.klantcontactmedewerkerRole | string | `"Klantcontactmedewerker"` | Rolnamen zoals ze in de podiumd-realm staan (client kiss). KISS 3.0.0 splitst de redacteursrol in REDACTEUR en BEHEERDER; de realm-config in templates/keycloak-podiumd-realm-config.yaml levert beide rollen. |
 | kiss.settings.oidc.medewerkerIdentificatie.claim | string | `"samaccountname"` |  |
 | kiss.settings.oidc.medewerkerIdentificatie.truncate | string | `nil` |  |
-| kiss.settings.oidc.pkceEnabled | bool | `true` | Require PKCE (S256) on the Keycloak client for KISS. KISS sends PKCE itself; the upstream chart has no app-side switch. No opt-out: `false` fails the render. |
 | kiss.settings.oidc.redacteurRole | string | `"Redacteur"` |  |
 | kiss.settings.organisatieIds | list | `[]` |  |
 | kiss.settings.registers | list | `[]` |  |
@@ -1383,7 +1381,6 @@ PodiumD Helm chart
 | pabc.settings.oidc.functioneelBeheerderRole | string | `"administrator"` |  |
 | pabc.settings.oidc.nameClaimType | string | `"name"` |  |
 | pabc.settings.oidc.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://pabc.example.nl`. |
-| pabc.settings.oidc.pkceEnabled | bool | `true` | Require PKCE (S256) on the Keycloak client for PABC. PABC sends PKCE itself; the upstream chart has no app-side switch. No opt-out: `false` fails the render. |
 | pabc.settings.oidc.roleClaimType | string | `"roles"` |  |
 | pabc.settings.zgwZaakregister | object | `{"catalogiBaseUrl":"","catalogusDomein":"","clientId":"pabc","clientSecret":"","enabled":false}` | Import zaaktypes from Open Zaak as PABC entity types (a button in the PABC UI). PABC authenticates as its own Open Zaak application (see the commented `pabc` entry under openzaak's vng_api_common_applicaties) and needs read access to the Catalogi API. When enabled, the render fails while catalogiBaseUrl, clientId, clientSecret or catalogusDomein is empty. |
 | pabc.settings.zgwZaakregister.catalogiBaseUrl | string | `""` | Full base URL of the Open Zaak Catalogi API, with trailing slash. E.g. `https://openzaak.example.nl/catalogi/api/v1/`. |

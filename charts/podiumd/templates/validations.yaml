@@ -355,16 +355,15 @@
 {{- if and .Values.zac.enabled (eq (toString (index .Values.zac.auth "pkceEnabled")) "true") -}}
 {{- fail "zac.auth.pkceEnabled is replaced by zac.auth.enablePkce (default true), which enables PKCE in ZAC and on its Keycloak client together. Remove zac.auth.pkceEnabled; set zac.auth.enablePkce: false to opt out. See \"ZAC: PKCE on by default\" in docs/_UPGRADE_PATHS/4.9.5-to-4.10.0-upgrade.md" -}}
 {{- end -}}
-{{- /* KISS, ITA and PABC send PKCE themselves, so Keycloak requires it on their
-     clients without an opt-out. `false` would not even turn it off: the realm
-     import leaves the attribute out, and Keycloak keeps the S256 it already has. */ -}}
-{{- $pkceRequired := dict
-      "kiss.settings.oidc.pkceEnabled" (list .Values.kiss.enabled (dig "settings" "oidc" "pkceEnabled" true (.Values.kiss | default dict)))
-      "ita.web.oidc.pkceEnabled" (list .Values.ita.enabled (dig "web" "oidc" "pkceEnabled" true (.Values.ita | default dict)))
-      "pabc.settings.oidc.pkceEnabled" (list .Values.pabc.enabled (dig "settings" "oidc" "pkceEnabled" true (.Values.pabc | default dict))) -}}
-{{- range $path, $check := $pkceRequired -}}
-{{- if and (index $check 0) (eq (toString (index $check 1)) "false") -}}
-{{- fail (printf "%s is false, but PKCE (S256) is required on this Keycloak client since 4.11.0 and has no opt-out. Remove %s from the environment values. See \"Reference: PKCE for KISS, ITA and PABC\" in docs/_UPGRADE_PATHS/4.10.1-to-4.11.0-upgrade.md" $path $path) -}}
+{{- /* Keycloak requires PKCE (S256) on the kiss, ita and pabc clients without an
+     opt-out since 4.11.0, so these values are gone. */ -}}
+{{- $pkceRemoved := dict
+      "kiss.settings.oidc.pkceEnabled" (dig "settings" "oidc" dict (.Values.kiss | default dict))
+      "ita.web.oidc.pkceEnabled" (dig "web" "oidc" dict (.Values.ita | default dict))
+      "pabc.settings.oidc.pkceEnabled" (dig "settings" "oidc" dict (.Values.pabc | default dict)) -}}
+{{- range $path, $oidc := $pkceRemoved -}}
+{{- if hasKey $oidc "pkceEnabled" -}}
+{{- fail (printf "%s is removed: PKCE (S256) is required on this Keycloak client since 4.11.0 and has no opt-out. Remove %s from the environment values. See \"Reference: PKCE for KISS, ITA and PABC\" in docs/_UPGRADE_PATHS/4.10.1-to-4.11.0-upgrade.md" $path $path) -}}
 {{- end -}}
 {{- end -}}
 {{- /* ZooKeeper operator hooks: 4.10.0 pins alpine/k8s 1.37.1 by tag. An
