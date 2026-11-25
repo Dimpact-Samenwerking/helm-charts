@@ -49,7 +49,7 @@ printf '%s\n' "$SERVICES" | while read -r ID ROOT; do
   HOLDER_POS=$(printf '%s\n' "$IDS" | awk -v s="$HOLDER" '$1 == s { print NR; exit }')
   if [ -n "$HOLDER_POS" ] && [ "$HOLDER_POS" -lt "$POS" ]; then continue; fi
   if [ -n "$HOLDER_POS" ]; then
-    echo "$COMPONENT: Service '$HOLDER' has api_root $ROOT, which the values give to '$ID'; the values move '$HOLDER' to another api_root, but only after '$ID' is created."
+    echo "$COMPONENT: Service '$HOLDER' has api_root $ROOT, which the values give to '$ID'; the values move '$HOLDER' to another api_root, but only after '$ID' gets this api_root."
     echo "  Fix: list '$HOLDER' before '$ID' in zgw_consumers.services."
     echo finding >> /tmp/findings
     continue
