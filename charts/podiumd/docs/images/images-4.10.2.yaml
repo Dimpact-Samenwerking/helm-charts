@@ -4,6 +4,8 @@
 #
 # Changes:
 #   1. nginx-unprivileged 1.31.7 -> 1.31.9.
+#   2. keycloak.image 26.8.1 -> 26.8.2.
+#   3. keycloak-operator 26.8.1 -> 26.8.2.
 #
 # See docs/_UPGRADE_PATHS/4.10.1-to-4.10.2-upgrade.md for the operator upgrade notes.
 #
@@ -15,3 +17,15 @@
   url: docker.io/nginx/nginx-unprivileged
   version: "1.31.9"
   digest: "sha256:0255fc1dcc1d7b358aac20166543e52029fea577413edadb0912f5b928c7e312"
+
+# keycloak.image 26.8.1 -> 26.8.2
+- name: keycloak/keycloak
+  url: quay.io/keycloak/keycloak
+  version: "26.8.2"
+  digest: "sha256:7e66a96e4739239070aeaf72e4c5decf0f7f682cfc725b9f7ea2b336eaba38b3"
+
+# keycloak-operator 26.8.1 -> 26.8.2
+- name: keycloak/keycloak-operator
+  url: quay.io/keycloak/keycloak-operator
+  version: "26.8.2"
+  digest: "sha256:f9b9a2be5db09d988c3706a6685763de1a3ac2b2f61315b21539cb99d0594efb"

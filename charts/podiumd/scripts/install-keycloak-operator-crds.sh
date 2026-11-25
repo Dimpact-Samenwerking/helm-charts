@@ -44,7 +44,7 @@
 #   ./install-keycloak-operator-crds.sh
 #
 #   # Pin to a specific Keycloak version
-#   ./install-keycloak-operator-crds.sh --keycloak-version 26.8.1
+#   ./install-keycloak-operator-crds.sh --keycloak-version 26.8.2
 #
 #   # Target a specific cluster
 #   ./install-keycloak-operator-crds.sh --context aks-blue-ontw-dim1
