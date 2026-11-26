@@ -213,14 +213,15 @@ frankgateway:
 
 ## Client certificates from OpenBao (outbound mTLS)
 
-> **Temporary by design — retired in the next release.**
+> **Temporary by design — a bridge.**
 > Everything in this section and the next (the `client-cert-sync` CronJob,
 > `openbao-client.lua`, `openbao-consumer-auth.lua`, and the request-time
-> header function for API keys) exists only because Frank!Gateway 1.1.0 runs
+> header function for API keys) exists because Frank!Gateway 1.1.0 ran
 > APISIX 3.16, where a `$secret://` reference cannot carry an upstream client
-> certificate and is unsafe for consumer credentials. The next release ships a
-> Frank!Gateway that fully supports OpenBao for both certificates and API keys,
-> so the sync workaround stops: the CronJob and the Lua go, the OpenBao layout
+> certificate and is unsafe for consumer credentials. Frank!Gateway 1.3.1 runs
+> APISIX 3.21, which supports OpenBao references for both certificates and API
+> keys; once that is tested on a cluster the sync workaround stops: the
+> CronJob and the Lua go, the OpenBao layout
 > (`<mount>/frankgateway/…`) and the reader token stay. Do not build on the Lua
 > modules' interfaces; treat them as a bridge. See
 > [Changing in the next release](frankgateway-BASICS.md#changing-in-the-next-release).
@@ -274,7 +275,7 @@ frankgateway:
 
 ### Why a sync job and not `$secret://`
 
-On the APISIX 3.16 this image builds on, a `$secret://` reference cannot carry
+On APISIX 3.16 (Frank!Gateway 1.1.0), a `$secret://` reference cannot carry
 a certificate the gateway presents to an upstream — it is not resolved in
 `upstream.tls.client_cert`/`client_key` or through `client_cert_id`. The exact
 coverage is in
@@ -381,8 +382,9 @@ reachable by any other path.
 
 ### Why not APISIX consumers with `$secret://` keys
 
-It would be the idiomatic way, and it is the way to go once Frank!Gateway is on
-APISIX 3.18. On 3.16 the consumer path caches a resolved key for up to an hour,
+It would be the idiomatic way, and it is the way to go now that Frank!Gateway
+1.3.1 runs APISIX 3.21 (from 3.18 on), once it is tested on a cluster. On 3.16
+the consumer path caches a resolved key for up to an hour,
 and a failed OpenBao read leaves the literal `$secret://…` string as the key —
 silently. `key-auth` on the fingerprint header would also accept the same value
 from the `?apikey=` query string, which cannot be disabled, and a fingerprint is

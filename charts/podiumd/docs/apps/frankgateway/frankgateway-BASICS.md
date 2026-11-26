@@ -23,11 +23,10 @@ two down. See
 
 ## What it is
 
-Upstream: [Apache APISIX](https://apisix.apache.org/) 3.16 packaged by
+Upstream: [Apache APISIX](https://apisix.apache.org/) 3.21 packaged by
 [WeAreFrank](https://wearefrank.nl/) as `ghcr.io/wearefrank/frank-gateway`
-("APISIX + WeAreFrank patches"), image chart-pinned at
-`1.1.0@sha256:2f944f...` (`frankgateway.image.tag` in
-`charts/podiumd/values.yaml`), deployed by this chart's own templates —
+("APISIX + WeAreFrank patches"), image chart-pinned by tag and digest
+(`frankgateway.image.tag` in `charts/podiumd/values.yaml`), deployed by this chart's own templates —
 there is no subchart and no APISIX operator. Optional; enabled with
 `frankgateway.enabled: true` (default `false`).
 
@@ -102,9 +101,10 @@ two things this documentation describes go with it:
 - **The sync workaround stops.** The new Frank!Gateway fully supports OpenBao
   for both certificates and API keys, and reads them from OpenBao itself. The
   `client-cert-sync` CronJob that copies client certificates out of OpenBao
-  into the gateway is no longer used, and neither are the Lua bridges the chart
-  ships for 1.1.0 on APISIX 3.16 (`openbao-secret-header.lua`,
-  `openbao-client.lua`, `openbao-consumer-auth.lua`). Why they existed is in
+  into the gateway is no longer needed, and neither are the Lua bridges the
+  chart ships from 1.1.0 on APISIX 3.16 (`openbao-secret-header.lua`,
+  `openbao-client.lua`, `openbao-consumer-auth.lua`); they are removed once
+  native references are tested on a cluster. Why they existed is in
   [`frankgateway-routes.md`](frankgateway-routes.md#client-certificates-from-openbao-outbound-mtls).
 
 What carries over unchanged is the OpenBao side: the layout under

@@ -1,9 +1,9 @@
 -- openbao-client.lua
 --
--- TEMPORARY — obsolete with the next Frank!Gateway release. This module exists
--- because Frank!Gateway 1.1.0 runs APISIX 3.16, where $secret:// references do
--- not cover this use. The next release resolves them natively; this file is
--- then deleted, not maintained. Do not build on its interface.
+-- TEMPORARY — a bridge from Frank!Gateway 1.1.0 (APISIX 3.16), where
+-- $secret:// references do not cover this use. Frank!Gateway 1.3.1 runs APISIX
+-- 3.21, which does; this file is deleted once native references are tested on
+-- a cluster, not maintained. Do not build on its interface.
 --
 -- The one place the gateway talks to OpenBao from Lua. Both request-time
 -- functions the chart ships are thin wrappers over this:
