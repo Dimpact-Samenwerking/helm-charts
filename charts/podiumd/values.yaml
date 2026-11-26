@@ -4637,7 +4637,10 @@ pabc:
       username: "pabc"
       password: ""
 
-    apiKeys: [""]
+    # -- API keys that PABC accepts in X-API-KEY, as quoted strings. Required
+    # (unless pabc.existingSecret holds them): the render fails when the list is
+    # empty, holds an empty key, or lacks zac.pabcApi.apiKey.
+    apiKeys: []
 
     oidc:
       authority: ""

@@ -1368,7 +1368,7 @@ PodiumD Helm chart
 | pabc.resources.requests.memory | string | `"384Mi"` |  |
 | pabc.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | pabc.seedJob | object | `{"enabled":false,"keycloak":{"enabled":true,"resources":{"limits":{"memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}},"resources":{"limits":{"memory":"512Mi"},"requests":{"cpu":"10m","memory":"128Mi"}}}` | One-shot Job that seeds the PABC database from the pabc-dataset ConfigMap. Enable together with datasetConfigMap on an environment whose PABC is still empty: without it ZAC resolves no application roles at all and every user lands on "u heeft geen toestemming om deze pagina te bekijken".  The Job name carries a checksum of the dataset and of the rendered pod template, so it runs once and stays put across upgrades; editing files/pabc-dataset.json re-seeds on purpose, and so does a change that alters the Job itself, such as a migrations image tag bump. Seeding REPLACES all PABC content. On an environment that has already been curated through the PABC UI, leave this disabled. |
-| pabc.settings.apiKeys[0] | string | `""` |  |
+| pabc.settings.apiKeys | list | `[]` | API keys that PABC accepts in X-API-KEY, as quoted strings. Required (unless pabc.existingSecret holds them): the render fails when the list is empty, holds an empty key, or lacks zac.pabcApi.apiKey. |
 | pabc.settings.database.host | string | `""` |  |
 | pabc.settings.database.name | string | `"pabc"` |  |
 | pabc.settings.database.password | string | `""` |  |
