@@ -1246,6 +1246,10 @@ a non-boolean condition). Templates that belong to a subchart use this, so they
 render exactly when the subchart does.
 Usage: {{- if include "podiumd.dependencyEnabled" .Values.openzaak }}
 */}}
+{{- define "podiumd.dependencyEnabled" -}}
+{{- if not (and (kindIs "bool" .enabled) (not .enabled)) -}}true{{- end -}}
+{{- end -}}
+
 {{/*
 Keycloak's public hostname and admin hostname, as the Keycloak CR sets them
 (a URL or a bare host).
@@ -1269,13 +1273,11 @@ gives "keycloak.example.nl"); empty for an empty value.
 */}}
 {{- define "podiumd.hostOf" -}}
 {{- $u := trim (toString (. | default "")) -}}
-{{- if $u -}}
-{{- lower (urlParse (ternary $u (printf "https://%s" $u) (contains "://" $u))).hostname -}}
-{{- end -}}
-{{- end -}}
-
-{{- define "podiumd.dependencyEnabled" -}}
-{{- if not (and (kindIs "bool" .enabled) (not .enabled)) -}}true{{- end -}}
+{{- /* Regular expressions instead of urlParse, which fails the render on a malformed URL
+     before the caller can name the app and key. */ -}}
+{{- $u = regexReplaceAll "^[A-Za-z][A-Za-z0-9+.-]*://" $u "" -}}
+{{- $u = regexReplaceAll "^[^/?#]*@" $u "" -}}
+{{- lower (regexFind "^[^/:?#]*" $u) -}}
 {{- end -}}
 
 {{/*
