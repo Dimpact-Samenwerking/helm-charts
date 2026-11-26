@@ -20,7 +20,7 @@ using about 3.4Gi in practice.
   (originally built for Gemeente Súdwest-Fryslân, maintained by WeAreFrank!),
   built on the [Frank!Framework](https://frankframework.org/) integration
   engine.
-- Sub-chart: `wearefrank/zaakbrug` `2.3.32` from
+- Sub-chart: `wearefrank/zaakbrug` `2.3.38` from
   `https://wearefrank.github.io/charts` (wraps the Frank!Framework `ff-common`
   library chart). Condition `zaakbrug.enabled`, tag `zaak`. **Disabled by
   default.**
