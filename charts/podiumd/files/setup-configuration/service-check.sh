@@ -13,6 +13,9 @@ if [ -z "$DB_HOST" ]; then
   exit 0
 fi
 export PGHOST="$DB_HOST" PGPORT="${DB_PORT:-5432}" PGDATABASE="$DB_NAME" PGUSER="$DB_USER" PGPASSWORD="$DB_PASSWORD"
+# libpq waits without limit by default: a host that drops packets would hold the
+# Job until its deadline instead of reaching the WARNING below.
+export PGCONNECT_TIMEOUT=10
 
 # The check guards setup-configuration; it must not block an upgrade that would
 # itself fix the connection (a new host or password in this release).
