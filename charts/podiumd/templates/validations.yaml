@@ -444,7 +444,7 @@
       "pabc.settings.oidc.pkceEnabled" (dig "settings" "oidc" dict (.Values.pabc | default dict)) -}}
 {{- range $path, $oidc := $pkceRemoved -}}
 {{- if hasKey $oidc "pkceEnabled" -}}
-{{- fail (printf "%s is removed: PKCE (S256) is required on this Keycloak client since 4.11.0 and has no opt-out. Remove %s from the environment values. See \"Reference: PKCE for KISS, ITA and PABC\" in docs/_UPGRADE_PATHS/4.10.1-to-4.11.0-upgrade.md" $path $path) -}}
+{{- fail (printf "%s is removed: PKCE (S256) is required on this Keycloak client since 4.11.0 and has no opt-out. Remove %s from the environment values. See \"Reference: PKCE for KISS, ITA and PABC\" in docs/_UPGRADE_PATHS/4.10.2-to-4.11.0-upgrade.md" $path $path) -}}
 {{- end -}}
 {{- end -}}
 {{- /* ZooKeeper operator hooks: 4.10.0 pins alpine/k8s 1.37.1 by tag. An
