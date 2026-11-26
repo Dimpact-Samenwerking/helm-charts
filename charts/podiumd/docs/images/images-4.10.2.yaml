@@ -10,6 +10,9 @@
 #   5. keycloak-operator 26.8.1 -> 26.8.2.
 #   6. openformulieren 4.0.7 -> 4.0.9.
 #   7. openinwoner 2.5.0 -> 2.5.1.
+#   8. kiss-eck.eck-elasticsearch.image 8.19.24 -> 8.19.26.
+#   9. kiss-eck.eck-enterprise-search.image 8.19.24 -> 8.19.26.
+#   10. kiss-eck.eck-kibana.image 8.19.24 -> 8.19.26.
 #
 # See docs/_UPGRADE_PATHS/4.10.1-to-4.10.2-upgrade.md for the operator upgrade notes.
 #
@@ -55,3 +58,19 @@
   url: docker.io/maykinmedia/open-inwoner
   version: "2.5.1"
   digest: "sha256:588a0535be79165564ff1fe5f36f4912bc0ce62840afbd7d1caeca1e138e2183"
+
+# kiss-eck.eck-elasticsearch.image 8.19.24 -> 8.19.26
+- name: elasticsearch/elasticsearch
+  url: docker.elastic.co/elasticsearch/elasticsearch
+  version: "8.19.26"
+  digest: "sha256:d71769f4e1145dca3794a04ddcd67e12f1299048b3232025e55feda799904a5d"
+# kiss-eck.eck-enterprise-search.image 8.19.24 -> 8.19.26
+- name: enterprise-search/enterprise-search
+  url: docker.elastic.co/enterprise-search/enterprise-search
+  version: "8.19.26"
+  digest: "sha256:2d7868a2bc97bd5da59da5ff8330871d254149a8d5b17b4c849fce8d8e46f0a5"
+# kiss-eck.eck-kibana.image 8.19.24 -> 8.19.26
+- name: kibana/kibana
+  url: docker.elastic.co/kibana/kibana
+  version: "8.19.26"
+  digest: "sha256:3ff057f04ac13fae8eab48d6785b0635b076a064f672b64053252e2b2f42c13e"
