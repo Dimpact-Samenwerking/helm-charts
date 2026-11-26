@@ -8,16 +8,18 @@
 #   3. k8s 1.37.2 (digest changed).
 #   4. keycloak.image 26.8.1 -> 26.8.2.
 #   5. keycloak-operator 26.8.1 -> 26.8.2.
-#   6. openformulieren 4.0.7 -> 4.0.9.
-#   7. openinwoner 2.5.0 -> 2.5.1.
-#   8. kiss-eck.eck-elasticsearch.image 8.19.24 -> 8.19.26.
-#   9. kiss-eck.eck-enterprise-search.image 8.19.24 -> 8.19.26.
-#   10. kiss-eck.eck-kibana.image 8.19.24 -> 8.19.26.
-#   11. kiss 3.2.0 -> 3.2.2 (chart 3.2.0 -> 3.2.2).
-#   12. clamav 1.5.4 -> 1.5.5.
-#   13. zaakbrug 1.27.1 -> 1.27.3 (chart 2.3.36 -> 2.3.38).
-#   14. mi 2.91.0 -> 2.93.0.
-#   15. openbao 2.7.2 -> 2.7.3 (chart 0.30.6 -> 0.30.8).
+#   6. keycloak-operator - python 3.15.2-slim (digest changed).
+#   7. openformulieren 4.0.7 -> 4.0.9.
+#   8. openinwoner 2.5.0 -> 2.5.1.
+#   9. kiss-eck.eck-elasticsearch.image 8.19.24 -> 8.19.26.
+#   10. kiss-eck.eck-enterprise-search.image 8.19.24 -> 8.19.26.
+#   11. kiss-eck.eck-kibana.image 8.19.24 -> 8.19.26.
+#   12. kiss 3.2.0 -> 3.2.2 (chart 3.2.0 -> 3.2.2).
+#   13. zac - solr 9.11.0-slim (digest changed).
+#   14. clamav 1.5.4 -> 1.5.5.
+#   15. zaakbrug 1.27.1 -> 1.27.3 (chart 2.3.36 -> 2.3.38).
+#   16. mi 2.91.0 -> 2.93.0.
+#   17. openbao 2.7.2 -> 2.7.3 (chart 0.30.6 -> 0.30.8).
 #
 # See docs/_UPGRADE_PATHS/4.10.1-to-4.10.2-upgrade.md for the operator upgrade notes.
 #
@@ -51,6 +53,11 @@
   url: quay.io/keycloak/keycloak-operator
   version: "26.8.2"
   digest: "sha256:f9b9a2be5db09d988c3706a6685763de1a3ac2b2f61315b21539cb99d0594efb"
+#   sidecar: keycloak-operator - python 3.15.2-slim (digest changed)
+- name: library/python
+  url: docker.io/library/python
+  version: "3.15.2-slim"
+  digest: "sha256:63bb298d2b7b88f176f51b5189f54ce6535c997682ea70885d2132f5d473a8a5"
 
 # openformulieren 4.0.7 -> 4.0.9
 - name: openformulieren/open-forms
@@ -90,6 +97,12 @@
   url: ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync
   version: "3.2.2"
   digest: "sha256:3fce644f1e30d2d70d850e4ec34b80a07a2b9c0dd817001d1be84ead385cbf8d"
+
+#   sidecar: zac - solr 9.11.0-slim (digest changed)
+- name: library/solr
+  url: docker.io/library/solr
+  version: "9.11.0-slim"
+  digest: "sha256:6579850484840257df4502610cde1f3a6677b8cae4d5b62d31e4d893faf5b08f"
 
 # clamav 1.5.4 -> 1.5.5
 - name: clamav/clamav
