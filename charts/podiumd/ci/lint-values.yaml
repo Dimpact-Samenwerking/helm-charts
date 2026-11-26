@@ -135,6 +135,18 @@ openklant:
 openformulieren:
   configuration:
     oidcUrl: https://openformulieren.ci.podiumd.test
+    # customerInteractionsConfigJob (below) needs this service; the render checks it.
+    data: |
+      zgw_consumers_config_enable: true
+      zgw_consumers:
+        services:
+          - identifier: openklant-api
+            label: Open Klant klantinteracties
+            api_root: https://openklant.ci.podiumd.test/klantinteracties/api/v1/
+            api_type: kc
+            auth_type: api_key
+            header_key: Authorization
+            header_value: Token placeholder
     secrets:
       keycloak_client_secret: "placeholder"
   # Every PodiumD environment mounts its CA bundle this way. The umbrella's
