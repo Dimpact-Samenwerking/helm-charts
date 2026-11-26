@@ -1354,6 +1354,30 @@ Usage: {{- $data := include "podiumd.configurationData" (dict "root" $ "componen
 {{- end -}}
 
 {{/*
+The zgw_consumers services that setup-configuration creates for one component,
+as a list of {identifier, api_root}; empty when setup-configuration does not
+run or zgw_consumers_config_enable is not "true".
+Usage: {{- $svcs := include "podiumd.zgwServices" (dict "root" $ "component" "openformulieren") | fromYamlArray -}}
+*/}}
+{{- define "podiumd.zgwServices" -}}
+{{- $data := include "podiumd.configurationData" . | fromYaml -}}
+{{- $out := list -}}
+{{- if and $data (eq (toString (index $data "zgw_consumers_config_enable")) "true") -}}
+{{- range $svc := (index $data "zgw_consumers" | default dict).services | default list -}}
+{{- if and (kindIs "map" $svc) $svc.identifier (kindIs "string" $svc.api_root) -}}
+{{- $out = append $out (dict "identifier" (toString $svc.identifier) "api_root" $svc.api_root) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- toYaml $out -}}
+{{- end -}}
+
+{{/* The Maykin-style components whose setup-configuration creates zgw_consumers services. */}}
+{{- define "podiumd.setupConfigurationComponents" -}}
+{{- toYaml (list "openzaak" "opennotificaties" "objecten" "openarchiefbeheer" "openklant" "openformulieren" "openinwoner" "referentielijsten" "openbeheer" "openvtb") -}}
+{{- end -}}
+
+{{/*
 The fullname a subchart gives its resources with the standard Helm
 <chart>.fullname helper: fullnameOverride, else <release>-<nameOverride or
 chart name>, or just <release> when that already contains the name. For

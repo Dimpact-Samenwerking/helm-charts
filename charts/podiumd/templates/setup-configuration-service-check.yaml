@@ -1,0 +1,123 @@
+{{- /*
+Pre-upgrade check of each component's zgw_consumers services
+against its database. setup-configuration (a post-upgrade hook of the
+subcharts) finds a Service by its slug, the values' `identifier`, and creates
+it when no Service has that slug; zgw_consumers allows an api_root only once.
+A Service that already holds the api_root under another slug, made in the
+admin or by an older configuration, then fails the component's config Job in
+the middle of the deploy (Assen, Hoorn, Olst). This hook stops the upgrade
+before anything changes and says which slug to rename; with autoFix it renames
+it itself when that is unambiguous (forms and other records point at the
+Service row, not at its slug). It reads the database with the app's own DB_*
+settings from the app's Secret (existingSecret included) and ConfigMap, as
+the previous release left them; both are optional, so a component deployed
+for the first time is skipped. Pre-upgrade only: on an install there is no
+database to check yet. The check needs no Kubernetes API access, so the pod
+gets no service account token. The Job stays after a failure: its log is
+the finding; it holds no secret.
+*/ -}}
+{{- $check := (.Values.setupConfigurationChecks | default dict).zgwServices | default dict -}}
+{{- if $check.enabled -}}
+{{- range $comp := include "podiumd.setupConfigurationComponents" . | fromYamlArray -}}
+{{- $svcs := include "podiumd.zgwServices" (dict "root" $ "component" $comp) | fromYamlArray -}}
+{{- if $svcs -}}
+{{- $v := (index $.Subcharts $comp).Values -}}
+{{- $app := include "podiumd.subchartFullname" (dict "v" $v "chart" $comp "release" $.Release.Name) -}}
+{{- $name := printf "%s-%s-service-check" $.Release.Name $comp | trunc 63 | trimSuffix "-" }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "podiumd.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $comp }}
+  annotations:
+    helm.sh/hook: pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 300
+  # Exit code 3: a finding in the database; a retry does not change it.
+  podFailurePolicy:
+    rules:
+      - action: FailJob
+        onExitCodes:
+          containerName: check
+          operator: In
+          values: [3]
+  template:
+    metadata:
+      labels:
+        {{- include "podiumd.selectorLabels" $ | nindent 8 }}
+        app.kubernetes.io/component: {{ $comp }}
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      {{- with $v.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- /* Scheduled like the component's own config Job. */}}
+      {{- with $v.nodeSelector | default $.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $v.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $v.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: check
+          image: {{ include "podiumd.image" $check.image }}
+          resources:
+            {{- toYaml $check.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          # The app's order: a key in both takes the ConfigMap's value.
+          envFrom:
+            - secretRef:
+                name: {{ $v.existingSecret | default $app }}
+                optional: true
+            - configMapRef:
+                name: {{ $app }}
+                optional: true
+          env:
+            {{- /* One "identifier api_root" pair per line, in the values' order; neither contains whitespace. */}}
+            - name: SERVICES
+              value: |
+                {{- range $svcs }}
+                {{ .identifier }} {{ .api_root }}
+                {{- end }}
+            - name: COMPONENT
+              value: {{ $comp | quote }}
+            - name: AUTO_FIX
+              value: {{ ternary "true" "false" (eq (toString $check.autoFix) "true") | quote }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              {{- $.Files.Get "files/setup-configuration/service-check.sh" | nindent 14 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi
+{{- end }}
+{{- end }}
+{{- end }}

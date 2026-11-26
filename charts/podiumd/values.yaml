@@ -3492,6 +3492,25 @@ kiss:
       contactverzoektypen: []
       isDefault: true
 
+# Checks before an upgrade changes anything.
+setupConfigurationChecks:
+  # -- Pre-upgrade hook per Maykin-style component: fails the upgrade when its database has a
+  # zgw_consumers Service whose api_root the values give to another identifier, which would fail the
+  # component's setup-configuration (zgw_consumers_service_api_root_key) during the deploy.
+  zgwServices:
+    enabled: true
+    # -- Rename such a Service's slug to the values' identifier instead of failing, when no Service has that slug yet.
+    autoFix: false
+    # global.imageRegistry does not apply: an environment that mirrors images sets this path too.
+    image: *postgresImage
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 200m
+        memory: 64Mi
+
 zac:
   # Security review 4.10.0 WH-05: UIDs checked on the running images
   # (ZAC 1001, OPA 1000, gotenberg 1001, curl init 100).

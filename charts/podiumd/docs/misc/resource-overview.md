@@ -414,6 +414,19 @@ Measured on johnb00: about 260Mi per pod at rest (uWSGI, 2 processes x 2 threads
 
 ---
 
+## Setup-configuration checks
+
+Pre-upgrade hook per Maykin-style component with zgw_consumers services
+(`setupConfigurationChecks.zgwServices.enabled`, default on).
+
+| Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
+|-----------|-------------|-------------|-----------|-----------|
+| job: `<release>-<app>-service-check` (pre-upgrade) | 10m | 32Mi | 200m | 64Mi |
+
+Values key: `setupConfigurationChecks.zgwServices.resources`.
+
+---
+
 ## OMC (NotifyNL)
 
 | Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
