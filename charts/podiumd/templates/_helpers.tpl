@@ -142,6 +142,42 @@ app.kubernetes.io/instance: {{ .context.Release.Name }}
 {{- end }}
 
 {{/*
+The Keycloak database, as the Keycloak CR's spec.db: keycloak.db with
+keycloak.externalDatabase and keycloak.secretsName as fallbacks. Returns YAML.
+*/}}
+{{- define "podiumd.keycloak.db" -}}
+{{- $kc := .Values.keycloak -}}
+{{- $db := $kc.db | default dict -}}
+{{- $ext := $kc.externalDatabase | default dict -}}
+vendor: {{ coalesce $db.vendor $ext.vendor | quote }}
+host: {{ coalesce $db.host $ext.host | quote }}
+port: {{ coalesce $db.port $ext.port }}
+database: {{ coalesce $db.database $ext.database | quote }}
+usernameSecret:
+  name: {{ coalesce ($db.usernameSecret | default dict).name $kc.secretsName | quote }}
+  key: {{ default "database_username" ($db.usernameSecret | default dict).key | quote }}
+passwordSecret:
+  name: {{ coalesce ($db.passwordSecret | default dict).name $kc.secretsName | quote }}
+  key: {{ default "database_password" ($db.passwordSecret | default dict).key | quote }}
+{{- end -}}
+
+{{/*
+Shell function sa_ready: true when client keycloak-operator logs in to the
+master realm with $CLIENT_SECRET and may list the realms (the admin role).
+*/}}
+{{- define "podiumd.keycloak.saReadyFunction" -}}
+sa_ready() {
+  SA_TOKEN=$(curl -s -X POST "http://keycloak-service:8080/realms/master/protocol/openid-connect/token" \
+    --data-urlencode "grant_type=client_credentials" \
+    --data-urlencode "client_id=keycloak-operator" \
+    --data-urlencode "client_secret=$CLIENT_SECRET" \
+    | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+  [ -n "$SA_TOKEN" ] && [ "$(curl -s -o /dev/null -w "%{http_code}" \
+    -H "Authorization: Bearer $SA_TOKEN" "http://keycloak-service:8080/admin/realms")" = "200" ]
+}
+{{- end -}}
+
+{{/*
 Renders a container image from a string or a dict with optional registry,
 repository, tag, and sha. `sha` is a separate digest field (rather than
 embedded in `tag` as "tag@sha256:digest") for an image object that needs
@@ -161,6 +197,19 @@ Usage: {{ include "podiumd.image" .Values.path.to.image }}
 {{- if .registry -}}{{ .registry }}/{{ end -}}
 {{- .repository -}}:{{- .tag -}}
 {{- if .sha -}}@sha256:{{ .sha }}{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+The major.minor version of an image reference ("26.8" for
+quay.io/keycloak/keycloak:v26.8.1@sha256:...), from the tag after the last
+"/"; empty for a digest-only reference or a tag without a version.
+*/}}
+{{- define "podiumd.imageMinorVersion" -}}
+{{- $ref := regexReplaceAll "@.*$" (toString .) "" -}}
+{{- $last := regexReplaceAll "^.*/" $ref "" -}}
+{{- if contains ":" $last -}}
+{{- regexReplaceAll "^v" (regexFind "^v?[0-9]+\\.[0-9]+" (regexReplaceAll "^[^:]*:" $last "")) "" -}}
 {{- end -}}
 {{- end -}}
 
@@ -696,8 +745,8 @@ put() { # put <kind/id> <file>
 # SSL object. An OpenBao read that fails while a last-good object is in place
 # is a warning here, not a failed deploy — the CronJob keeps retrying, and the
 # gateway keeps presenting the certificate it has. (TEMPORARY step: goes away
-# with the next Frank!Gateway release, when the SSL object references OpenBao
-# itself through $secret://.)
+# once the SSL object references OpenBao itself through $secret://, which
+# APISIX 3.21 in Frank!Gateway 1.3.1 supports, and that is tested on a cluster.)
 sh /scripts/client-cert-sync/sync.sh; ccrc=$?
 case "${ccrc}" in 0) ;; 2) warn=1 ;; *) rc=1 ;; esac
 {{- end }}
@@ -754,10 +803,11 @@ Frank!Gateway — sync.sh that pulls one instance's client certificates from
 OpenBao into APISIX SSL objects (type client), run by the seed hook at deploy
 time and by the <instance>-client-cert-sync CronJob afterwards.
 
-Why a job and not `$secret://`: on APISIX 3.16 a secret reference is resolved
-for consumer credentials and for the server certificate on the handshake path,
-but NOT for upstream.tls.client_cert/client_key nor via client_cert_id. APISIX
-3.18 changes that; until Frank!Gateway ships on it, OpenBao is the source of
+Why a job and not `$secret://`: on APISIX 3.16 (Frank!Gateway 1.1.0) a secret
+reference was resolved for consumer credentials and for the server certificate
+on the handshake path, but NOT for upstream.tls.client_cert/client_key nor via
+client_cert_id. APISIX 3.18 changed that, and Frank!Gateway 1.3.1 runs 3.21;
+until native references are tested on a cluster, OpenBao is the source of
 truth and etcd a copy that this script keeps current.
 
 Exit codes, because the two callers must react differently:
@@ -775,15 +825,15 @@ because APISIX's JSON encoder may escape the PEM differently from OpenBao's.
 Usage: {{ include "podiumd.frankgateway.clientCertSyncScript" (dict "root" $root "instance" $fg "name" $name) }}
 */}}
 {{- define "podiumd.frankgateway.clientCertSyncScript" -}}
-{{- /* TEMPORARY — superseded by the next Frank!Gateway release. This script
-     exists because Frank!Gateway 1.1.0 runs APISIX 3.16, which cannot resolve
-     a $secret:// reference for an upstream client certificate. The next
-     release can; the SSL object then references OpenBao directly and this
-     helper, its ConfigMap and CronJob are deleted. */ -}}
+{{- /* TEMPORARY — a bridge from Frank!Gateway 1.1.0 (APISIX 3.16), which
+     cannot resolve a $secret:// reference for an upstream client certificate.
+     Frank!Gateway 1.3.1 (APISIX 3.21) can; once that is tested on a cluster,
+     the SSL object references OpenBao directly and this helper, its ConfigMap
+     and CronJob are deleted. */ -}}
 {{- $fg := .instance -}}
 {{- $name := .name -}}
-# TEMPORARY: bridge for APISIX 3.16 — replaced by a native $secret:// reference
-# in the SSL object with the next Frank!Gateway release (see
+# TEMPORARY: bridge from APISIX 3.16 — replaced by a native $secret:// reference
+# in the SSL object once that is tested on APISIX 3.21 (see
 # docs/apps/frankgateway/frankgateway-routes.md).
 set -u
 ADMIN="http://{{ $name }}:9180/apisix/admin"
@@ -1248,6 +1298,84 @@ Usage: {{- if include "podiumd.dependencyEnabled" .Values.openzaak }}
 */}}
 {{- define "podiumd.dependencyEnabled" -}}
 {{- if not (and (kindIs "bool" .enabled) (not .enabled)) -}}true{{- end -}}
+{{- end -}}
+
+{{/*
+Keycloak's public hostname and admin hostname, as the Keycloak CR sets them
+(a URL or a bare host).
+*/}}
+{{- define "podiumd.keycloak.hostname" -}}
+{{- $kc := .Values.keycloak -}}
+{{- if $kc.hostname.useRealmFrontendUrl -}}
+{{- coalesce $kc.hostname.hostname $kc.config.realmFrontendUrl $kc.config.adminFrontendUrl -}}
+{{- else -}}
+{{- coalesce $kc.hostname.hostname $kc.config.adminFrontendUrl -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "podiumd.keycloak.adminHostname" -}}
+{{- coalesce .Values.keycloak.hostname.admin .Values.keycloak.config.adminFrontendUrl -}}
+{{- end -}}
+
+{{/*
+The lower-case host name of a URL or a bare host ("Keycloak.example.nl:443/x"
+gives "keycloak.example.nl"); empty for an empty value.
+*/}}
+{{- define "podiumd.hostOf" -}}
+{{- $u := trim (toString (. | default "")) -}}
+{{- /* Regular expressions instead of urlParse, which fails the render on a malformed URL
+     before the caller can name the app and key. */ -}}
+{{- $u = regexReplaceAll "^[A-Za-z][A-Za-z0-9+.-]*://" $u "" -}}
+{{- $u = regexReplaceAll "^[^/?#]*@" $u "" -}}
+{{- lower (regexFind "^[^/:?#]*" $u) -}}
+{{- end -}}
+
+{{/*
+The setup-configuration data of a Maykin-style subchart, parsed the way the
+subchart renders it: through tpl, in the subchart's own scope (its .Values
+with the umbrella's global, .Chart, .Files). Empty when the app,
+global.configuration, the app's configuration or its setup-configuration Job is
+off, or the data is empty. Returns YAML; a map with an "Error" key when the
+data is not YAML.
+Usage: {{- $data := include "podiumd.configurationData" (dict "root" $ "component" "openzaak") | fromYaml -}}
+*/}}
+{{- define "podiumd.configurationData" -}}
+{{- /* A disabled subchart is not in .Subcharts. */ -}}
+{{- $sc := index (.root.Subcharts | default dict) .component -}}
+{{- if $sc -}}
+{{- $cfg := $sc.Values.configuration | default dict -}}
+{{- $job := $cfg.job | default dict -}}
+{{- if and (($sc.Values.global | default dict).configuration | default dict).enabled $cfg.enabled $cfg.data (include "podiumd.dependencyEnabled" $job) -}}
+{{- $raw := $cfg.data -}}
+{{- if not (kindIs "string" $raw) -}}{{- $raw = toYaml $raw -}}{{- end -}}
+{{- if contains "{{" $raw -}}{{- $raw = tpl $raw $sc -}}{{- end -}}
+{{- $raw | fromYaml | toYaml -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+The zgw_consumers services that setup-configuration creates for one component,
+as a list of {identifier, api_root}; empty when setup-configuration does not
+run or zgw_consumers_config_enable is not "true".
+Usage: {{- $svcs := include "podiumd.zgwServices" (dict "root" $ "component" "openformulieren") | fromYamlArray -}}
+*/}}
+{{- define "podiumd.zgwServices" -}}
+{{- $data := include "podiumd.configurationData" . | fromYaml -}}
+{{- $out := list -}}
+{{- if and $data (eq (toString (index $data "zgw_consumers_config_enable")) "true") -}}
+{{- range $svc := (index $data "zgw_consumers" | default dict).services | default list -}}
+{{- if and (kindIs "map" $svc) $svc.identifier (kindIs "string" $svc.api_root) -}}
+{{- $out = append $out (dict "identifier" (toString $svc.identifier) "api_root" $svc.api_root) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- toYaml $out -}}
+{{- end -}}
+
+{{/* The Maykin-style components whose setup-configuration creates zgw_consumers services. */}}
+{{- define "podiumd.setupConfigurationComponents" -}}
+{{- toYaml (list "openzaak" "opennotificaties" "objecten" "openarchiefbeheer" "openklant" "openformulieren" "openinwoner" "referentielijsten" "openbeheer" "openvtb") -}}
 {{- end -}}
 
 {{/*

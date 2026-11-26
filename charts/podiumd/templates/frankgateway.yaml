@@ -1,6 +1,6 @@
 {{- if .Values.frankgateway.enabled }}
 {{- /*
-  Frank!Gateway (Apache APISIX 3.16 + WeAreFrank patches) — gateway Deployment
+  Frank!Gateway (Apache APISIX 3.21 + WeAreFrank patches) — gateway Deployment
   + Service, one pair per enabled instance in frankgateway.instances. etcd-backed
   traditional mode so the Admin API + dashboard work. Data plane on 9080, Admin
   API on 9180, both ClusterIP-only; external exposure (HTTPRoute/Ingress + cert

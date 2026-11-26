@@ -1,11 +1,30 @@
 {{- if (index .Values "keycloak-operator").enabled }}
+{{- $name := default "keycloak" .Values.keycloak.name }}
+{{- $image := include "podiumd.image" .Values.keycloak.image }}
 apiVersion: k8s.keycloak.org/v2beta1
 kind: Keycloak
 metadata:
-  name: {{ default "keycloak" .Values.keycloak.name }}
+  name: {{ $name }}
 spec:
   instances: {{ .Values.keycloak.instances }}
-  {{- with .Values.keycloak.update }}
+  {{- /* Auto first runs an update Job with the running image to check whether old and
+       new can run side by side. Across a major or minor version that check cannot
+       pass (the operator recreates Keycloak anyway), and on the 26.7 -> 26.8 hop
+       the Job itself fails and stays behind as a failed Job. So when the running
+       Keycloak has another major.minor than the new image, this deploy uses
+       RecreateOnImageChange: the same recreate, without the update Job. The next
+       deploy writes Auto again. Without a cluster (helm template) or without the
+       CRD, lookup finds nothing and Auto stays. */}}
+  {{- $update := deepCopy (.Values.keycloak.update | default dict) }}
+  {{- if and (eq (toString $update.strategy) "Auto") (.Capabilities.APIVersions.Has "k8s.keycloak.org/v2beta1/Keycloak") }}
+  {{- $running := lookup "k8s.keycloak.org/v2beta1" "Keycloak" .Release.Namespace $name | default dict }}
+  {{- $oldVersion := include "podiumd.imageMinorVersion" (dig "spec" "image" "" $running) }}
+  {{- $newVersion := include "podiumd.imageMinorVersion" $image }}
+  {{- if and $oldVersion $newVersion (ne $oldVersion $newVersion) }}
+  {{- $_ := set $update "strategy" "RecreateOnImageChange" }}
+  {{- end }}
+  {{- end }}
+  {{- with $update }}
   update:
     {{- toYaml . | nindent 4 }}
   {{- end }}
@@ -21,12 +40,8 @@ spec:
       secret: keycloak-podiumd-admin
   {{- end }}
   hostname:
-    {{- if .Values.keycloak.hostname.useRealmFrontendUrl }}
-    hostname: {{ coalesce .Values.keycloak.hostname.hostname .Values.keycloak.config.realmFrontendUrl .Values.keycloak.config.adminFrontendUrl }}
-    {{- else }}
-    hostname: {{ coalesce .Values.keycloak.hostname.hostname .Values.keycloak.config.adminFrontendUrl }}
-    {{- end }}
-    admin: {{ coalesce .Values.keycloak.hostname.admin .Values.keycloak.config.adminFrontendUrl }}
+    hostname: {{ include "podiumd.keycloak.hostname" . }}
+    admin: {{ include "podiumd.keycloak.adminHostname" . }}
   http:
     httpEnabled: {{ .Values.keycloak.http.httpEnabled }}
   proxy:
@@ -39,16 +54,7 @@ spec:
     {{- end }}
   {{- end }}
   db:
-    vendor: {{ coalesce .Values.keycloak.db.vendor .Values.keycloak.externalDatabase.vendor }}
-    host: {{ coalesce .Values.keycloak.db.host .Values.keycloak.externalDatabase.host }}
-    port: {{ coalesce .Values.keycloak.db.port .Values.keycloak.externalDatabase.port }}
-    database: {{ coalesce .Values.keycloak.db.database .Values.keycloak.externalDatabase.database }}
-    usernameSecret:
-      name: {{ coalesce .Values.keycloak.db.usernameSecret.name .Values.keycloak.secretsName }}
-      key: {{ default "database_username" .Values.keycloak.db.usernameSecret.key }}
-    passwordSecret:
-      name: {{ coalesce .Values.keycloak.db.passwordSecret.name .Values.keycloak.secretsName }}
-      key: {{ default "database_password" .Values.keycloak.db.passwordSecret.key }}
+    {{- include "podiumd.keycloak.db" . | nindent 4 }}
   ingress:
     enabled: {{ .Values.keycloak.ingress.enabled }}
   {{- $np := .Values.networkPolicies | default dict }}

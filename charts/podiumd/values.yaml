@@ -13,8 +13,8 @@ global:
   # Shared image references, reused via YAML anchors
   images:
     nginx: &nginxImage
-      repository: nginxinc/nginx-unprivileged
-      tag: "1.31.7@sha256:09b0d3eda2aa592d2487f284519419015cab010d7df16cd0fe224b585fc60eb6"
+      repository: nginx/nginx-unprivileged
+      tag: "1.31.10@sha256:a3ee8631f59c109deead35eef91f428233151b50ed5ee433057f3a93ca570c2c"
       pullPolicy: IfNotPresent
     curl: &curlImage
       repository: curlimages/curl
@@ -26,7 +26,7 @@ global:
       pullPolicy: IfNotPresent
     postgres: &postgresImage
       repository: library/postgres
-      tag: "16.15-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab"
+      tag: "16.16-alpine@sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d"
       pullPolicy: IfNotPresent
     # kubectl for the redis-ha Jobs, the zookeeper-operator hooks and the ZAC
     # restart Job. No template reads this key: the anchor is resolved in this
@@ -35,7 +35,7 @@ global:
     # use it (global.imageRegistry does not apply to them).
     alpineK8s: &alpineK8sImage
       repository: docker.io/alpine/k8s
-      tag: "1.37.2@sha256:dcb7185e112a453aa72f426754849a97357727ef8f40168fb208c8cf59952042"
+      tag: "1.37.2@sha256:7a82aeefea3d554a43a8676b137f2b88bae6c1fe11c13862b191b3a086cc28c0"
 
 tags:
   eck-operator.enabled: false
@@ -102,6 +102,8 @@ keycloak:
     realm: podiumd
     realmDisplayName: PodiumD
     realmFrontendUrl: https://keycloak.example.nl
+    # -- Hosts other than this Keycloak that an app's OIDC endpoints (configuration.data, oidc_op_*_endpoint) may use, e.g. an Entra ID tenant's login host. The render fails on any other host.
+    oidcExtraHosts: []
     # Dont include the realmIdentityProviders and realmIdentityProviderMappers by default as it overwrites currently configured entra providers for multiple gemeentes
     # realmIdentityProviders: {}
     # realmIdentityProviderMappers: {}
@@ -149,7 +151,7 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.8.1 — the primary
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.8.2 — the primary
   # image of the native keycloak component (etc/settings.yaml
   # native_components). Defines the anchors keycloak-operator.operator.
   # config.keycloakImage aliases below, so the operator's default server
@@ -161,8 +163,8 @@ keycloak:
   image:
     registry: ""
     repository: &keycloakImageRepo quay.io/keycloak/keycloak
-    tag: &keycloakImageVersion "26.8.1"
-    sha: &keycloakImageDigest "3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332"
+    tag: &keycloakImageVersion "26.8.2"
+    sha: &keycloakImageDigest "7e66a96e4739239070aeaf72e4c5decf0f7f682cfc725b9f7ea2b336eaba38b3"
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   # How the Keycloak operator applies a change of the Keycloak CR (IN-3176).
@@ -171,8 +173,11 @@ keycloak:
   # checks whether the old and new versions can run side by side; if so it
   # replaces the pods one at a time, otherwise it still recreates them. That
   # rolls a patch release or the same version from another registry; a minor
-  # or major upgrade is still recreated. Any field of the CR's spec.update
-  # (strategy, revision, labels, scheduling) can be set here.
+  # or major upgrade is still recreated. With Auto, a deploy that changes the
+  # running Keycloak's major or minor version uses RecreateOnImageChange
+  # instead (templates/keycloak-cr.yaml), so no update Job runs and fails.
+  # Any field of the CR's spec.update (strategy, revision, labels, scheduling)
+  # can be set here.
   update:
     # -- Keycloak operator update strategy: Auto, Explicit or RecreateOnImageChange.
     strategy: Auto
@@ -236,7 +241,7 @@ keycloak:
         app: keycloak
         # Set by hand, deliberately not aliased to *keycloakImageVersion:
         # this label may move independently of the server image.
-        version: 26.8.1
+        version: 26.8.2
       # override: values-enable-observability.yaml adds prometheus.io scrape annotations
     spec:
       securityContext:
@@ -321,12 +326,12 @@ keycloak-operator:
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
   # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (chart 1.13.1, appVersion 26.7.4)
   # Note: it appears that the podname automatically appends -operator.
-  # Official operator image: quay.io/keycloak/keycloak-operator:26.8.1
+  # Official operator image: quay.io/keycloak/keycloak-operator:26.8.2
   # Note: images are deliberately AHEAD of the chart line here — adfinis
   # hasn't published a chart targeting 26.8.x yet (still 1.13.1 / appVersion
-  # 26.7.4 as of 2026-10-14). Operator + server image pinned to 26.8.1 below
-  # for the security fixes in 26.7.5, 26.8.0 and 26.8.1; the operator CRDs come
-  # from upstream 26.8.1 (scripts/install-keycloak-operator-crds.sh), not from
+  # 26.7.4 as of 2026-10-14). Operator + server image pinned to 26.8.2 below
+  # for the security fixes in 26.7.5 to 26.8.2; the operator CRDs come
+  # from upstream 26.8.2 (scripts/install-keycloak-operator-crds.sh), not from
   # the chart. Bump the chart dependency again once adfinis catches up.
   # -- Render the write Role and RoleBinding the Keycloak operator needs to manage the
   # ServiceMonitor for Keycloak metrics (templates/keycloak-operator-servicemonitor-rbac.yaml).
@@ -350,16 +355,16 @@ keycloak-operator:
       # `keycloak.image` (which uses the podiumd.image helper, repository:tag),
       # the adfinis subchart appends its own digest from a SEPARATE `operator.image.sha`
       # field: `repository:tag@sha256:{{ .sha }}`. Putting @sha256 in the tag
-      # produces an invalid DOUBLE digest (…:26.8.1@sha256:xxx@sha256:xxx).
+      # produces an invalid DOUBLE digest (…:26.8.2@sha256:xxx@sha256:xxx).
       # The chart's bundled default operator.image.sha for 1.13.1 is stale
-      # (doesn't match any manifest under the 26.8.1 tag — it doesn't even
+      # (doesn't match any manifest under the 26.8.2 tag — it doesn't even
       # know this tag exists yet), so it's overridden explicitly below with
       # the real registry digest. To DISABLE digest pinning (e.g. on aks-blue
       # / ACR-mirror envs where the mirrored digest differs), set
       # `operator.image.sha: ""`. See
       # docs/_UPGRADE_PATHS/4.7.3-to-4.7.4-upgrade.md.
-      tag: "26.8.1"
-      sha: "4c88e4e9a9d488efd6487ab602974d3cb762ff2ee6f173b2716df418bfe33e53"
+      tag: "26.8.2"
+      sha: "f9b9a2be5db09d988c3706a6685763de1a3ac2b2f61315b21539cb99d0594efb"
     resources:
       requests:
         cpu: 100m
@@ -397,7 +402,7 @@ keycloak-operator:
         registry: ""
         repository: python
         # Digest-pinned to a specific patch rather than the floating 3.15-slim minor tag.
-        tag: "3.15.2-slim@sha256:8c13a3f37a6a5b71498228e902c4b9f51c1f7900d49fabf71f9a650c6120e0d0"
+        tag: "3.15.2-slim@sha256:63bb298d2b7b88f176f51b5189f54ce6535c997682ea70885d2132f5d473a8a5"
       # Main container: runs psql to execute the generated SQL against the Keycloak DB.
       image: *postgresImage
     ensureOperatorSa:
@@ -407,6 +412,14 @@ keycloak-operator:
       # Client secret for the keycloak-operator client. Set this to a known value so Helm
       # can create the K8s secret directly. The job will enforce this secret in Keycloak.
       clientSecret: ""
+      # -- Resources of the Job's two Keycloak-image init containers: copy-keycloak-build and bootstrap-operator-sa (kc.sh bootstrap-admin service, a JVM).
+      resources:
+        requests:
+          cpu: 50m
+          memory: 256Mi
+        limits:
+          cpu: "2"
+          memory: 1Gi
     importPodiumdRealm:
       enabled: true
     importMasterRealm:
@@ -2081,12 +2094,13 @@ openformulieren:
     serviceIdentifier: openklant-api
     groupIdentifier: open-klant
     groupName: Open Klant
-    # -- Retries generously: this Job can race the openformulieren DB migration
-    # (image entrypoint) and the setup-configuration Job that creates the
-    # service — it fails fast and lets Kubernetes' Job backoff retry until both
-    # are done, rather than needing a wait container or Helm hook ordering.
-    backoffLimit: 15
-    activeDeadlineSeconds: 1200
+    # -- A post-install/post-upgrade hook after openformulieren-config (which
+    # creates the service); the retries only cover a database still migrating.
+    backoffLimit: 6
+    # Below Helm's default --timeout of 5m, which applies to each hook: Helm
+    # waits for this Job, so a longer deadline could fail the deploy while the
+    # Job still succeeds.
+    activeDeadlineSeconds: 240
     ttlSecondsAfterFinished: 600
     resources:
       requests:
@@ -2129,7 +2143,7 @@ openformulieren:
     volumeAttributeShareName: openformulieren
     storageClassName: podiumd-standard
   image:
-    tag: "4.0.7@sha256:12c975259f37eb91973a722d1f4e3f0ccf09aa037c08ecbd200350efd4ed493a"
+    tag: "4.0.9@sha256:38b1ac1a4faaa97f0ad9e9b6d47c5a982a48c4bb952fede7afd5e53eae752d4b"
   resources:
     requests:
       cpu: 250m
@@ -2429,7 +2443,7 @@ openinwoner:
     volumeAttributeShareName: openinwoner
     storageClassName: podiumd-standard
   image:
-    tag: "2.5.0@sha256:079c98ceae963ea78ef2d9848a5aed88857dee415938e00b666ad2636deec4e0"
+    tag: "2.5.1@sha256:588a0535be79165564ff1fe5f36f4912bc0ce62840afbd7d1caeca1e138e2183"
   resources:
     requests:
       cpu: 200m
@@ -3054,7 +3068,7 @@ kiss-eck:
     # -- elasticsearch image; spec.version is the tag's version part. ACR: override repository only.
     image:
       repository: docker.elastic.co/elasticsearch/elasticsearch
-      tag: "8.19.24@sha256:d6dfe6626d645cfec66e91009aca60c6c1bb6f94d34253528f24d8cea2f94ba6"
+      tag: "8.19.26@sha256:d71769f4e1145dca3794a04ddcd67e12f1299048b3232025e55feda799904a5d"
     # -- default sizing, kept equal to the previous release (kiss-elastic used
     # elasticsearchCount: 3). Environments can override nodeSets (e.g. nodeSelector,
     # count, storage), the same way openinwoner.eck-elasticsearch.nodeSets is set.
@@ -3105,7 +3119,7 @@ kiss-eck:
     # -- enterprise-search image; spec.version is the tag's version part. ACR: override repository only.
     image:
       repository: docker.elastic.co/enterprise-search/enterprise-search
-      tag: "8.19.24@sha256:68a919341aa7c04528d49f4e7375ba603fe5c37080caab918731a6cab9f4a906"
+      tag: "8.19.26@sha256:2d7868a2bc97bd5da59da5ff8330871d254149a8d5b17b4c849fce8d8e46f0a5"
     config:
       app_search.engine.total_fields.limit: 1000
       kibana.host: https://kiss-kb-http:5601
@@ -3124,7 +3138,7 @@ kiss-eck:
     # -- kibana image; spec.version is the tag's version part. ACR: override repository only.
     image:
       repository: docker.elastic.co/kibana/kibana
-      tag: "8.19.24@sha256:c712b5ab0a82d272eff6192edd4ae75b6b07477b3d1b13cabaa2934744727b4d"
+      tag: "8.19.26@sha256:3ff057f04ac13fae8eab48d6785b0635b076a064f672b64053252e2b2f42c13e"
     count: 1
     config:
       server.publicBaseUrl: https://kiss-kb-http:5601
@@ -3164,7 +3178,7 @@ kiss:
   image:
     #   repository: "ghcr.io/klantinteractie-servicesysteem/kiss-frontend"
     pullPolicy: IfNotPresent
-    tag: "3.2.0@sha256:478d9f229119c3045dff404059b8a349efdb4faca2bf8db436fc41a826a3dbf9"
+    tag: "3.2.2@sha256:7f4e010018791b887bdb4fe62915683362420bc1ad6d3463357554f0b546c67d"
   enabled: true
   nameOverride: contact
   fullnameOverride: contact
@@ -3331,7 +3345,7 @@ kiss:
     syncJobs:
       image:
         # repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
-        tag: "3.2.0@sha256:8ebfe45802a4d7c09ecc8d9c237e11ba6c893479e6f59957e09116594ea52c49"
+        tag: "3.2.2@sha256:3fce644f1e30d2d70d850e4ec34b80a07a2b9c0dd817001d1be84ead385cbf8d"
         pullPolicy: IfNotPresent
       # -- Elastic Open Crawler, vervangt de Enterprise Search web crawler.
       # Draait als CronJob per site uit syncJobs.website en schrijft
@@ -3477,6 +3491,27 @@ kiss:
       secret: ""
       contactverzoektypen: []
       isDefault: true
+
+# Checks before an upgrade changes anything.
+setupConfigurationChecks:
+  # -- Pre-upgrade hook per Maykin-style component: fails the upgrade when its database has a
+  # zgw_consumers Service whose api_root the values give to another identifier, which would fail the
+  # component's setup-configuration (zgw_consumers_service_api_root_key) during the deploy.
+  zgwServices:
+    enabled: true
+    # -- Renames the check makes itself, before the deploy: `{component, from, to}`, with `from` the slug in
+    # the database ("" for an empty one) and `to` the values' identifier. Only when that Service holds the
+    # api_root and no Service has slug `to` yet; one transaction per component. Remove them after the deploy.
+    renames: []
+    # global.imageRegistry does not apply: an environment that mirrors images sets this path too.
+    image: *postgresImage
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 200m
+        memory: 64Mi
 
 zac:
   # Security review 4.10.0 WH-05: UIDs checked on the running images
@@ -3729,10 +3764,10 @@ zac:
       busyBoxImage: *busyboxImage
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.11.0-slim@sha256:54cec2ced0f2c26436605a7dd5dde5ae78f26d5c0d19a7358349d5cb71fdfc1a
+      # library/solr:9.11.0-slim@sha256:6579850484840257df4502610cde1f3a6677b8cae4d5b62d31e4d893faf5b08f
       image:
         #repository:
-        tag: 9.11.0-slim@sha256:54cec2ced0f2c26436605a7dd5dde5ae78f26d5c0d19a7358349d5cb71fdfc1a
+        tag: 9.11.0-slim@sha256:6579850484840257df4502610cde1f3a6677b8cae4d5b62d31e4d893faf5b08f
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       # Solr jobs (affinity, annotations, nodeSelector, tolerations): ZAC chart defaults.
@@ -3880,12 +3915,12 @@ clamav:
   # serviceMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 ServiceMonitor).
   image:
     repository: clamav/clamav
-    tag: "1.5.4@sha256:6d87c712e3391e13c1ba6e05dfb074d4b1ddb5a6834b23bb9da990d2a4ef042a"
+    tag: "1.5.5@sha256:64e30c0bf976198024deb3dc6d5cfe2485fb969c0f73549ba0fdb364b9469614"
   metrics:
     enabled: false
     image:
       repository: docker.io/sergeymakinen/clamav_exporter
-      tag: "v2.1.12@sha256:66bc4f313d4c1f3baa73a75cb57a5c55c1095fb8687c6eb6cd66954eed084911"
+      tag: "v2.1.14@sha256:6e7c6e71076e18121ac718dada6da9155d2ac1b52e2e5b2a59fbdcf3a04ae889"
     serviceMonitor:
       enabled: false
   nameOverride: clamav
@@ -4436,8 +4471,8 @@ omc:
           ktoObjectType:
             uuid: 00000000-0000-1000-b000-000000000000
 
-# Frank!Gateway — WeAreFrank's hardened distribution of Apache APISIX 3.16
-# ("APISIX + WeAreFrank patches"), replacing the previous upstream `apisix`
+# Frank!Gateway — WeAreFrank's hardened distribution of Apache APISIX (3.21
+# in 1.3.1; "APISIX + WeAreFrank patches"), replacing the previous upstream `apisix`
 # subchart (Apache chart 2.14.0) AND the legacy `apiproxy` nginx for outbound
 # calls to national registries (BAG/Kadaster, KVK, BRP/Haal Centraal).
 #
@@ -4551,7 +4586,7 @@ frankgateway:
   # Digest-pinned; matches docs/images/images-baseline.yaml.
   image:
     repository: ghcr.io/wearefrank/frank-gateway
-    tag: "1.2.1@sha256:f22de6b89d5586e3d92950f98dce4da6c301dd60d4454704b6417db90a2324b3"
+    tag: "1.3.1@sha256:110f6d97e7a108db996af3157c2e83e55a1ff23408e604be245e384d38654b41"
   # Per class. Two, not one: one replica means every pod event — a crash, an
   # eviction, a node image upgrade, an autoscaler consolidation — is an outage
   # of that traffic class. Raise for load, never lower below 2 in an
@@ -4776,9 +4811,10 @@ frankgateway:
   # OpenBao is therefore REQUIRED whenever frankgateway is enabled —
   # templates/validations.yaml fails the render otherwise.
   #
-  # The request-time Lua and the client-cert sync are a bridge for APISIX 3.16
-  # only; the next Frank!Gateway release supports $secret:// where it matters
-  # and retires them. These settings (addr/mount/tokenSecret) outlive that.
+  # The request-time Lua and the client-cert sync were a bridge for APISIX 3.16.
+  # Frank!Gateway 1.3.1 runs APISIX 3.21, which supports $secret:// where it
+  # matters; they are retired once native references are tested on a cluster.
+  # These settings (addr/mount/tokenSecret) outlive that.
   openbao:
     # Empty => http://<release>-openbao-active:8200, the active (unsealed
     # leader) Service of the in-chart OpenBao. Override only to reach an
@@ -4914,10 +4950,11 @@ frankgateway:
 
   # Client certificates the gateway presents to external APIs (mTLS to BRP /
   # Haal Centraal, KvK, an ESB) come from OpenBao and nowhere else — but the
-  # gateway cannot read them from there itself. On APISIX 3.16 a `$secret://`
-  # reference resolves for consumer credentials and for the data-plane server
-  # certificate, NOT for an upstream client certificate (that lands in APISIX
-  # 3.18). So the chart PULLS: a CronJob per instance reads
+  # gateway did not read them from there itself. On APISIX 3.16 (Frank!Gateway
+  # 1.1.0) a `$secret://` reference resolved for consumer credentials and for
+  # the data-plane server certificate, NOT for an upstream client certificate
+  # (that came in APISIX 3.18; 1.3.1 runs 3.21). So the chart PULLS, until
+  # native references are tested on a cluster: a CronJob per instance reads
   # `<mount>/<openbaoPath>` (fields `cert`, `key`) with the reader token and
   # PUTs it as APISIX SSL object `client-<name>` (type client). A rotation in
   # OpenBao is live within one schedule tick, with no redeploy. The seed hook
@@ -4941,11 +4978,12 @@ frankgateway:
   # The reader token's policy must cover the path. Onboarding and rotation
   # commands: docs/apps/frankgateway/frankgateway-routes.md.
   # TEMPORARY: the sync CronJob (and the openbao-*.lua request-time functions)
-  # exist only because Frank!Gateway 1.1.0 runs APISIX 3.16, which cannot
-  # resolve a $secret:// reference for an upstream client certificate. The
-  # next Frank!Gateway release moves to an APISIX that can; this block and the
-  # Lua are then replaced by native $secret:// references and removed. The
-  # OpenBao paths and the reader token stay. See frankgateway-routes.md.
+  # exist because Frank!Gateway 1.1.0 ran APISIX 3.16, which cannot resolve a
+  # $secret:// reference for an upstream client certificate. Frank!Gateway
+  # 1.3.1 runs APISIX 3.21, which can (since 3.18); this block and the Lua are
+  # replaced by native $secret:// references and removed once that is tested
+  # on a cluster. The OpenBao paths and the reader token stay. See
+  # frankgateway-routes.md.
   clientCertSync:
     # -- Cron schedule of the per-instance sync — also the upper bound on how
     # long a rotation in OpenBao takes to reach the gateway.
@@ -5140,7 +5178,7 @@ zaakbrug:
   image:
     registry: wearefrank
     repository: zaakbrug
-    tag: "1.27.1@sha256:5f87a0b971a49af7b995d9b3fd7118b5b03ebe419ce0c1593417d1a28235272a"
+    tag: "1.27.3@sha256:267a3aa2b1233a08ad11e033fed318ba5af9835e07fc60e99717b4700aceac1e"
   # K8s cgroup limits sized for the Frank!Framework JVM heap (subchart
   # default Xms=Xmx=4G via .Values.frank.memory.{minimum,maximum}).
   # Overhead ≈1Gi headroom for non-heap (metaspace, code cache, direct
@@ -5216,7 +5254,7 @@ mi:
   image:
     registry: "mcr.microsoft.com"
     repository: azure-cli
-    tag: "2.91.0@sha256:933eb8dcb81aecb6f77e03c5b8660f0a1dfa9e1d16525763a27f86ff3b83a044"
+    tag: "2.93.0@sha256:cf40cc2f8895161698cfb16aec989c60250e66c105b57752b30a20d87d515963"
 
 openbao:
   # OpenBao (openbao.org) — secrets vault. Postgres-backed like the other apps,
@@ -5319,7 +5357,7 @@ openbao:
       # its anchor), so the server and this Job always run the same OpenBao.
       image:
         repository: quay.io/openbao/openbao
-        tag: &openbaoImageTag "2.7.2@sha256:5046911075e137e154ce49ab051502f4ec7cf367d484ae4a4dce665d9b90561f"
+        tag: &openbaoImageTag "2.7.3@sha256:ba4b133eb9586630024e71a617e66f37f29cc3534cdd46a6233e098ceded8dc9"
       nodeSelector: {}
       resources:
         requests:

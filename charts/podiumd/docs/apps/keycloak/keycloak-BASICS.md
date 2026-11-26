@@ -113,7 +113,7 @@ move.
 
 ### Operator CRDs on a fresh install
 
-The operator image (26.8.1) is ahead of the adfinis chart (1.13.1, Keycloak
+The operator image (26.8.2) is ahead of the adfinis chart (1.13.1, Keycloak
 26.7.4), so the CRDs come from `scripts/install-keycloak-operator-crds.sh`, not
 from the chart's `crds/`. Helm applies a chart's `crds/` on `helm install` only,
 never on `helm upgrade`. With Helm 4, a fresh `helm install` replaces CRDs that

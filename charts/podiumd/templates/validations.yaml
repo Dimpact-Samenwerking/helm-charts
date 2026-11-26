@@ -83,14 +83,55 @@
 {{- end -}}
 {{- end -}}
 
+{{- /* openformulieren-configure-customer-interactions points Open Forms' customer
+     interactions API group at a zgw_consumers Service that setup-configuration must
+     create; without it the Job fails on every deploy (IN-3198). Checked only when
+     setup-configuration runs: otherwise the Service may come from the admin. */ -}}
+{{- $of := .Values.openformulieren | default dict -}}
+{{- $ciJob := $of.customerInteractionsConfigJob | default dict -}}
+{{- if and (include "podiumd.dependencyEnabled" $of) $ciJob.enabled -}}
+{{- $ofData := include "podiumd.configurationData" (dict "root" $ "component" "openformulieren") | fromYaml -}}
+{{- if and $ofData (not (hasKey $ofData "Error")) -}}
+{{- $svcId := toString ($ciJob.serviceIdentifier | default "") -}}
+{{- $found := dict -}}
+{{- if eq (toString (index $ofData "zgw_consumers_config_enable")) "true" -}}
+{{- range $svc := (index $ofData "zgw_consumers" | default dict).services | default list -}}
+{{- if and (kindIs "map" $svc) (eq (toString $svc.identifier) $svcId) -}}{{- $found = $svc -}}{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if not $found -}}
+{{- fail (printf "openformulieren.customerInteractionsConfigJob is enabled, but openformulieren.configuration.data has no zgw_consumers service with identifier %q (zgw_consumers_config_enable: true, zgw_consumers.services). Add that service (this environment's Open Klant klantinteracties API, api_type kc), or set openformulieren.customerInteractionsConfigJob.serviceIdentifier to the identifier of the existing Open Klant service." $svcId) -}}
+{{- end -}}
+{{- if ne (toString $found.api_type) "kc" -}}
+{{- fail (printf "openformulieren.configuration.data: zgw_consumers service %q has api_type %q; openformulieren.customerInteractionsConfigJob needs the Open Klant klantinteracties API (api_type kc)." $svcId (toString ($found.api_type | default ""))) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- /* zgw_consumers allows each api_root once per component: two services in the
+     values with the same api_root fail that component's setup-configuration in
+     the deploy, after its retries. */ -}}
+{{- $dupes := list -}}
+{{- range $comp := include "podiumd.setupConfigurationComponents" . | fromYamlArray -}}
+{{- $seen := dict -}}
+{{- range $svc := include "podiumd.zgwServices" (dict "root" $ "component" $comp) | fromYamlArray -}}
+{{- if hasKey $seen $svc.api_root -}}
+{{- $dupes = append $dupes (printf "%s: %s and %s both have api_root %s" $comp (index $seen $svc.api_root) $svc.identifier $svc.api_root) -}}
+{{- else -}}
+{{- $_ := set $seen $svc.api_root $svc.identifier -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if $dupes -}}
+{{- fail (printf "configuration.data -> zgw_consumers.services: an api_root may occur only once per component (zgw_consumers_service_api_root_key):\n  %s\nKeep one service per api_root and point the *_service_identifier references at it." (join "\n  " $dupes)) -}}
+{{- end -}}
+
 {{- /* Open Inwoner's admin OIDC needs the providers schema (mozilla-django-oidc-db 2.x,
      since Open Inwoner 2.4.0). An item without oidc_provider_identifier, or with
      the old flat fields, fails setup-configuration; since openinwoner chart 2.6.0
      that is a post-upgrade hook, so it would fail the whole helm upgrade. */ -}}
-{{- $oip := .Values.openinwoner | default dict -}}
-{{- $oipConfig := $oip.configuration | default dict -}}
-{{- if and (or $oip.enabled (not (hasKey $oip "enabled"))) $oipConfig.enabled $oipConfig.data -}}
-{{- $oipData := $oipConfig.data | fromYaml -}}
+{{- $oipData := include "podiumd.configurationData" (dict "root" $ "component" "openinwoner") | fromYaml -}}
+{{- if $oipData -}}
 {{- $adminAuth := index $oipData "oidc_db_config_admin_auth" | default dict -}}
 {{- $providerIds := list -}}
 {{- range $p := $adminAuth.providers | default list -}}
@@ -107,10 +148,50 @@
 {{- end -}}
 {{- end -}}
 
+{{- /* Every OIDC endpoint in an app's setup-configuration must be on a Keycloak host
+     this chart knows: an endpoint on another host fails the app's config Job only
+     on the deploy, after its retries (IN-3625: a host that redirected to the
+     municipality's website). Checks the providers and the old flat item schema,
+     after the Open Inwoner schema check above. A value that is not a URL string
+     (value_from) is skipped. */ -}}
+{{- if (index .Values "keycloak-operator").enabled -}}
+{{- $kc := .Values.keycloak -}}
+{{- $svc := printf "%s-service" (default "keycloak" $kc.name) -}}
+{{- $allowed := list $svc (printf "%s.%s" $svc .Release.Namespace) (printf "%s.%s.svc" $svc .Release.Namespace) (printf "%s.%s.svc.cluster.local" $svc .Release.Namespace) -}}
+{{- $extra := $kc.config.oidcExtraHosts | default list -}}
+{{- if not (kindIs "slice" $extra) -}}{{- $extra = list $extra -}}{{- end -}}
+{{- range $u := concat (list (include "podiumd.keycloak.hostname" .) (include "podiumd.keycloak.adminHostname" .) $kc.config.realmFrontendUrl $kc.config.adminFrontendUrl (index .Values "keycloak-operator").jobs.keycloakUrl) $extra -}}
+{{- $h := include "podiumd.hostOf" $u -}}
+{{- if $h -}}{{- $allowed = append $allowed $h -}}{{- end -}}
+{{- end -}}
+{{- $bad := list -}}
+{{- range $comp := list "openzaak" "opennotificaties" "objecten" "openarchiefbeheer" "openklant" "openformulieren" "openinwoner" "referentielijsten" "openbeheer" "openvtb" -}}
+{{- $data := include "podiumd.configurationData" (dict "root" $ "component" $comp) | fromYaml -}}
+{{- $auth := index $data "oidc_db_config_admin_auth" | default dict -}}
+{{- if kindIs "map" $auth -}}
+{{- range $entry := concat ($auth.providers | default list) ($auth.items | default list) -}}
+{{- if kindIs "map" $entry -}}
+{{- range $k, $url := ($entry.endpoint_config | default dict) -}}
+{{- if and (hasPrefix "oidc_op_" $k) (hasSuffix "_endpoint" $k) (kindIs "string" $url) $url -}}
+{{- if not (has (include "podiumd.hostOf" $url) $allowed) -}}
+{{- $bad = append $bad (printf "%s: %s = %s" $comp $k $url) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if $bad -}}
+{{- fail (printf "OIDC endpoints in configuration.data point at a host that is not this Keycloak (%s):\n  %s\nUse the Keycloak host of keycloak.config.realmFrontendUrl, or list an intended other identity provider host in keycloak.config.oidcExtraHosts." (join ", " (uniq $allowed)) (join "\n  " $bad)) -}}
+{{- end -}}
+{{- end -}}
+
 {{- /* Open Inwoner 2.5.0 dropped its environment-variable configuration steps and
      ignores these variables without an error, so the setting would be lost
      silently. openinwoner.extraEnvVars is the only list the subchart passes to
      the pods. */ -}}
+{{- $oip := .Values.openinwoner | default dict -}}
 {{- if or $oip.enabled (not (hasKey $oip "enabled")) -}}
 {{- $removedEnv := list -}}
 {{- $envs := $oip.extraEnvVars | default list -}}

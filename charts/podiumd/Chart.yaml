@@ -2,8 +2,8 @@ apiVersion: v2
 name: podiumd
 description: PodiumD Helm chart
 type: application
-version: 4.10.1
-appVersion: "4.10.1"
+version: 4.10.2
+appVersion: "4.10.2"
 dependencies:
   - name: keycloak-operator
     version: 1.13.1
@@ -74,7 +74,7 @@ dependencies:
     tags:
       - zaak
   - name: zaakbrug
-    version: 2.3.36
+    version: 2.3.38
     repository: "https://wearefrank.github.io/charts"
     condition: zaakbrug.enabled
     tags:
@@ -91,7 +91,7 @@ dependencies:
   - name: kiss-chart
     alias: kiss
     repository: "oci://ghcr.io/klantinteractie-servicesysteem"
-    version: 3.2.0
+    version: 3.2.2
     condition: kiss.enabled
   - name: pabc
     alias: pabc
@@ -114,6 +114,6 @@ dependencies:
     tags:
       - eck-operator
   - name: openbao
-    version: 0.30.6
+    version: 0.30.8
     repository: "https://openbao.github.io/openbao-helm"
     condition: openbao.enabled
