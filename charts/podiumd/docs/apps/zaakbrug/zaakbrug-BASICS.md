@@ -20,12 +20,13 @@ using about 3.4Gi in practice.
   (originally built for Gemeente Súdwest-Fryslân, maintained by WeAreFrank!),
   built on the [Frank!Framework](https://frankframework.org/) integration
   engine.
-- Sub-chart: `wearefrank/zaakbrug` `2.3.32` from
+- Sub-chart: `wearefrank/zaakbrug` `2.3.38` from
   `https://wearefrank.github.io/charts` (wraps the Frank!Framework `ff-common`
   library chart). Condition `zaakbrug.enabled`, tag `zaak`. **Disabled by
   default.**
-- Image: `wearefrank/zaakbrug:1.26.19` (mirror to `acrprodmgmt.azurecr.io` for
-  production). Runs Frank!Framework `10.2.1`.
+- Image: `wearefrank/zaakbrug`, tag and digest from the chart's
+  `zaakbrug.image` (mirror to `acrprodmgmt.azurecr.io` for production). Runs
+  Frank!Framework `10.2.1`.
 - Role in PodiumD: translates inbound ZDS (SOAP/StUF) traffic from legacy
   applications into ZGW API calls against Open Zaak, so legacy koppelingen
   keep working during the migration to zaakgericht werken.
@@ -137,7 +138,8 @@ troubleshooting):
    the pipeline as `ZAAKBRUG_DATABASE_PASSWORD`,
    `ZAAKBRUG_OAUTH_CLIENT_SECRET`, `ZAAKBRUG_ZAKEN_API_JWT_PASSWORD`.
 3. **Environment values** — set `zaakbrug.enabled: true`,
-   `zaakbrug.staging.enabled: false`, pin `zaakbrug.image.tag` (`1.26.19`),
+   `zaakbrug.staging.enabled: false`, `zaakbrug.image.repository` only for a
+   mirror (the chart sets the tag and digest),
    supply `zaakbrug.frank.zakenApi.jwt.password`
    (`REP_ZAAKBRUG_ZAKEN_API_JWT_PASSWORD_REP`), the
    `frank.environmentVariables`

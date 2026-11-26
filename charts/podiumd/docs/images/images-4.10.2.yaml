@@ -14,7 +14,8 @@
 #   9. kiss-eck.eck-enterprise-search.image 8.19.24 -> 8.19.26.
 #   10. kiss-eck.eck-kibana.image 8.19.24 -> 8.19.26.
 #   11. clamav 1.5.4 -> 1.5.5.
-#   12. mi 2.91.0 -> 2.93.0.
+#   12. zaakbrug 1.27.1 -> 1.27.3 (chart 2.3.36 -> 2.3.38).
+#   13. mi 2.91.0 -> 2.93.0.
 #
 # See docs/_UPGRADE_PATHS/4.10.1-to-4.10.2-upgrade.md for the operator upgrade notes.
 #
@@ -82,6 +83,12 @@
   url: docker.io/clamav/clamav
   version: "1.5.5"
   digest: "sha256:64e30c0bf976198024deb3dc6d5cfe2485fb969c0f73549ba0fdb364b9469614"
+
+# zaakbrug 1.27.1 -> 1.27.3
+- name: wearefrank/zaakbrug
+  url: docker.io/wearefrank/zaakbrug
+  version: "1.27.3"
+  digest: "sha256:267a3aa2b1233a08ad11e033fed318ba5af9835e07fc60e99717b4700aceac1e"
 
 # mi 2.91.0 -> 2.93.0
 - name: azure-cli
