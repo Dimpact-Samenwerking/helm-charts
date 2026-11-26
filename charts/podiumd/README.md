@@ -30,7 +30,7 @@ PodiumD Helm chart
 | https://openbao.github.io/openbao-helm | openbao | 0.30.8 |
 | https://wearefrank.github.io/charts | zaakbrug | 2.3.38 |
 | oci://ghcr.io/interne-taak-afhandeling | ita(internetaakafhandeling) | 3.3.4 |
-| oci://ghcr.io/klantinteractie-servicesysteem | kiss(kiss-chart) | 3.2.0 |
+| oci://ghcr.io/klantinteractie-servicesysteem | kiss(kiss-chart) | 3.2.2 |
 | oci://ghcr.io/platform-autorisatie-beheer-component | pabc(pabc) | 2.1.0 |
 
 ## Values
@@ -530,7 +530,7 @@ PodiumD Helm chart
 | kiss.extraVolumes | list | `[]` | Optionally specify extra list of additional volumes, for example to trust extra ca certificates. |
 | kiss.fullnameOverride | string | `"contact"` |  |
 | kiss.image.pullPolicy | string | `"IfNotPresent"` |  |
-| kiss.image.tag | string | `"3.2.0@sha256:478d9f229119c3045dff404059b8a349efdb4faca2bf8db436fc41a826a3dbf9"` |  |
+| kiss.image.tag | string | `"3.2.2@sha256:7f4e010018791b887bdb4fe62915683362420bc1ad6d3463357554f0b546c67d"` |  |
 | kiss.imagePullSecrets | list | `[]` |  |
 | kiss.nameOverride | string | `"contact"` |  |
 | kiss.nodeSelector | object | `{}` |  |
@@ -583,7 +583,7 @@ PodiumD Helm chart
 | kiss.settings.registers | list | `[]` |  |
 | kiss.settings.syncJobs.crawlerImage | object | `{"pullPolicy":"IfNotPresent","repository":"docker.elastic.co/integrations/crawler","tag":"1.1.0@sha256:7e87a0571129681cfd3053e9bd7998926633e69fbd8da7c29a384f0d7e9ef26e"}` | Elastic Open Crawler, vervangt de Enterprise Search web crawler. Draait als CronJob per site uit syncJobs.website en schrijft rechtstreeks naar Elasticsearch. |
 | kiss.settings.syncJobs.image.pullPolicy | string | `"IfNotPresent"` |  |
-| kiss.settings.syncJobs.image.tag | string | `"3.2.0@sha256:8ebfe45802a4d7c09ecc8d9c237e11ba6c893479e6f59957e09116594ea52c49"` |  |
+| kiss.settings.syncJobs.image.tag | string | `"3.2.2@sha256:3fce644f1e30d2d70d850e4ec34b80a07a2b9c0dd817001d1be84ead385cbf8d"` |  |
 | kiss.settings.syncJobs.indexTemplateImage | object | `{"pullPolicy":"IfNotPresent","repository":"curlimages/curl","tag":"8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93"}` | pre-install/pre-upgrade hook die het search-website* index-template in Elasticsearch registreert. Heeft alleen curl nodig. |
 | kiss.settings.syncJobs.kennisbank.baseUrl | string | `""` |  |
 | kiss.settings.syncJobs.kennisbank.historyLimit | int | `1` |  |

@@ -3178,7 +3178,7 @@ kiss:
   image:
     #   repository: "ghcr.io/klantinteractie-servicesysteem/kiss-frontend"
     pullPolicy: IfNotPresent
-    tag: "3.2.0@sha256:478d9f229119c3045dff404059b8a349efdb4faca2bf8db436fc41a826a3dbf9"
+    tag: "3.2.2@sha256:7f4e010018791b887bdb4fe62915683362420bc1ad6d3463357554f0b546c67d"
   enabled: true
   nameOverride: contact
   fullnameOverride: contact
@@ -3345,7 +3345,7 @@ kiss:
     syncJobs:
       image:
         # repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
-        tag: "3.2.0@sha256:8ebfe45802a4d7c09ecc8d9c237e11ba6c893479e6f59957e09116594ea52c49"
+        tag: "3.2.2@sha256:3fce644f1e30d2d70d850e4ec34b80a07a2b9c0dd817001d1be84ead385cbf8d"
         pullPolicy: IfNotPresent
       # -- Elastic Open Crawler, vervangt de Enterprise Search web crawler.
       # Draait als CronJob per site uit syncJobs.website en schrijft

@@ -13,10 +13,11 @@
 #   8. kiss-eck.eck-elasticsearch.image 8.19.24 -> 8.19.26.
 #   9. kiss-eck.eck-enterprise-search.image 8.19.24 -> 8.19.26.
 #   10. kiss-eck.eck-kibana.image 8.19.24 -> 8.19.26.
-#   11. clamav 1.5.4 -> 1.5.5.
-#   12. zaakbrug 1.27.1 -> 1.27.3 (chart 2.3.36 -> 2.3.38).
-#   13. mi 2.91.0 -> 2.93.0.
-#   14. openbao 2.7.2 -> 2.7.3 (chart 0.30.6 -> 0.30.8).
+#   11. kiss 3.2.0 -> 3.2.2 (chart 3.2.0 -> 3.2.2).
+#   12. clamav 1.5.4 -> 1.5.5.
+#   13. zaakbrug 1.27.1 -> 1.27.3 (chart 2.3.36 -> 2.3.38).
+#   14. mi 2.91.0 -> 2.93.0.
+#   15. openbao 2.7.2 -> 2.7.3 (chart 0.30.6 -> 0.30.8).
 #
 # See docs/_UPGRADE_PATHS/4.10.1-to-4.10.2-upgrade.md for the operator upgrade notes.
 #
@@ -78,6 +79,17 @@
   url: docker.elastic.co/kibana/kibana
   version: "8.19.26"
   digest: "sha256:3ff057f04ac13fae8eab48d6785b0635b076a064f672b64053252e2b2f42c13e"
+
+# kiss 3.2.0 -> 3.2.2
+- name: klantinteractie-servicesysteem/kiss-frontend
+  url: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
+  version: "3.2.2"
+  digest: "sha256:7f4e010018791b887bdb4fe62915683362420bc1ad6d3463357554f0b546c67d"
+# kiss 3.2.0 -> 3.2.2
+- name: klantinteractie-servicesysteem/kiss-elastic-sync
+  url: ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync
+  version: "3.2.2"
+  digest: "sha256:3fce644f1e30d2d70d850e4ec34b80a07a2b9c0dd817001d1be84ead385cbf8d"
 
 # clamav 1.5.4 -> 1.5.5
 - name: clamav/clamav
