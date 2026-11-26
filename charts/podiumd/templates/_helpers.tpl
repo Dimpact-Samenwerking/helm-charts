@@ -1251,6 +1251,60 @@ Usage: {{- if include "podiumd.dependencyEnabled" .Values.openzaak }}
 {{- end -}}
 
 {{/*
+Keycloak's public hostname and admin hostname, as the Keycloak CR sets them
+(a URL or a bare host).
+*/}}
+{{- define "podiumd.keycloak.hostname" -}}
+{{- $kc := .Values.keycloak -}}
+{{- if $kc.hostname.useRealmFrontendUrl -}}
+{{- coalesce $kc.hostname.hostname $kc.config.realmFrontendUrl $kc.config.adminFrontendUrl -}}
+{{- else -}}
+{{- coalesce $kc.hostname.hostname $kc.config.adminFrontendUrl -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "podiumd.keycloak.adminHostname" -}}
+{{- coalesce .Values.keycloak.hostname.admin .Values.keycloak.config.adminFrontendUrl -}}
+{{- end -}}
+
+{{/*
+The lower-case host name of a URL or a bare host ("Keycloak.example.nl:443/x"
+gives "keycloak.example.nl"); empty for an empty value.
+*/}}
+{{- define "podiumd.hostOf" -}}
+{{- $u := trim (toString (. | default "")) -}}
+{{- /* Regular expressions instead of urlParse, which fails the render on a malformed URL
+     before the caller can name the app and key. */ -}}
+{{- $u = regexReplaceAll "^[A-Za-z][A-Za-z0-9+.-]*://" $u "" -}}
+{{- $u = regexReplaceAll "^[^/?#]*@" $u "" -}}
+{{- lower (regexFind "^[^/:?#]*" $u) -}}
+{{- end -}}
+
+{{/*
+The setup-configuration data of a Maykin-style subchart, parsed the way the
+subchart renders it: through tpl, in the subchart's own scope (its .Values
+with the umbrella's global, .Chart, .Files). Empty when the app,
+global.configuration, the app's configuration or its setup-configuration Job is
+off, or the data is empty. Returns YAML; a map with an "Error" key when the
+data is not YAML.
+Usage: {{- $data := include "podiumd.configurationData" (dict "root" $ "component" "openzaak") | fromYaml -}}
+*/}}
+{{- define "podiumd.configurationData" -}}
+{{- /* A disabled subchart is not in .Subcharts. */ -}}
+{{- $sc := index (.root.Subcharts | default dict) .component -}}
+{{- if $sc -}}
+{{- $cfg := $sc.Values.configuration | default dict -}}
+{{- $job := $cfg.job | default dict -}}
+{{- if and (($sc.Values.global | default dict).configuration | default dict).enabled $cfg.enabled $cfg.data (include "podiumd.dependencyEnabled" $job) -}}
+{{- $raw := $cfg.data -}}
+{{- if not (kindIs "string" $raw) -}}{{- $raw = toYaml $raw -}}{{- end -}}
+{{- if contains "{{" $raw -}}{{- $raw = tpl $raw $sc -}}{{- end -}}
+{{- $raw | fromYaml | toYaml -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 The fullname a subchart gives its resources with the standard Helm
 <chart>.fullname helper: fullnameOverride, else <release>-<nameOverride or
 chart name>, or just <release> when that already contains the name. For
