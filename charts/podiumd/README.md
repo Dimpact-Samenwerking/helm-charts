@@ -1329,12 +1329,13 @@ PodiumD Helm chart
 | openzaak.settings.cache.default | string | `"redis-ha-master:6379/4"` |  |
 | openzaak.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/5"` |  |
 | openzaak.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
-| openzaak.settings.celery.resultBackend | string | `"redis://redis-ha-master:6379/5"` |  |
+| openzaak.settings.celery.resultBackend | string | `"disabled"` | No result backend until Open Zaak ships redis-py 6.4.0 or later (open-zaak-21). |
 | openzaak.settings.database.sslmode | string | `"require"` |  |
 | openzaak.settings.disable2fa | bool | `false` |  |
 | openzaak.settings.documentApiBackend | string | `"filesystem"` | Backend for the Documenten API. Supported values: filesystem | azure_blob_storage |
 | openzaak.settings.email.port | int | `587` |  |
 | openzaak.settings.email.useTLS | bool | `true` |  |
+| openzaak.settings.uwsgi.harakiri | string | `"120"` | Seconds after which uWSGI restarts a process with a request still running (open-zaak-21). |
 | openzaak.settings.uwsgi.maxRequests | string | `"1000"` |  |
 | openzaak.settings.uwsgi.processes | string | `"2"` |  |
 | openzaak.settings.uwsgi.threads | string | `"4"` |  |
