@@ -614,7 +614,7 @@ PodiumD Helm chart
 | mi.enabled | bool | `false` |  |
 | mi.image.registry | string | `"mcr.microsoft.com"` |  |
 | mi.image.repository | string | `"azure-cli"` |  |
-| mi.image.tag | string | `"2.91.0@sha256:933eb8dcb81aecb6f77e03c5b8660f0a1dfa9e1d16525763a27f86ff3b83a044"` |  |
+| mi.image.tag | string | `"2.93.0@sha256:cf40cc2f8895161698cfb16aec989c60250e66c105b57752b30a20d87d515963"` |  |
 | networkPolicies.enabled | bool | `false` |  |
 | networkPolicies.ingressControllerNamespace | string | `""` |  |
 | networkPolicies.monitoringNamespace | string | `"monitoring"` |  |
