@@ -6,6 +6,8 @@
 #   1. nginx-unprivileged 1.31.7 -> 1.31.9.
 #   2. keycloak.image 26.8.1 -> 26.8.2.
 #   3. keycloak-operator 26.8.1 -> 26.8.2.
+#   4. keycloak-operator - python 3.15.2-slim (digest changed).
+#   5. zac - solr 9.11.0-slim (digest changed).
 #
 # See docs/_UPGRADE_PATHS/4.10.1-to-4.10.2-upgrade.md for the operator upgrade notes.
 #
@@ -29,3 +31,14 @@
   url: quay.io/keycloak/keycloak-operator
   version: "26.8.2"
   digest: "sha256:f9b9a2be5db09d988c3706a6685763de1a3ac2b2f61315b21539cb99d0594efb"
+#   sidecar: keycloak-operator - python 3.15.2-slim (digest changed)
+- name: library/python
+  url: docker.io/library/python
+  version: "3.15.2-slim"
+  digest: "sha256:63bb298d2b7b88f176f51b5189f54ce6535c997682ea70885d2132f5d473a8a5"
+
+#   sidecar: zac - solr 9.11.0-slim (digest changed)
+- name: library/solr
+  url: docker.io/library/solr
+  version: "9.11.0-slim"
+  digest: "sha256:6579850484840257df4502610cde1f3a6677b8cae4d5b62d31e4d893faf5b08f"

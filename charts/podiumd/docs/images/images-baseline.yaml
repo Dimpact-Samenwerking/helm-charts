@@ -60,7 +60,7 @@
 - name: library/python
   url: docker.io/library/python
   version: "3.15.2-slim"
-  digest: "sha256:8c13a3f37a6a5b71498228e902c4b9f51c1f7900d49fabf71f9a650c6120e0d0"
+  digest: "sha256:63bb298d2b7b88f176f51b5189f54ce6535c997682ea70885d2132f5d473a8a5"
 
 - name: opstree/redis-operator
   url: quay.io/opstree/redis-operator
@@ -195,7 +195,7 @@
 - name: library/solr
   url: docker.io/library/solr
   version: "9.11.0-slim"
-  digest: "sha256:54cec2ced0f2c26436605a7dd5dde5ae78f26d5c0d19a7358349d5cb71fdfc1a"
+  digest: "sha256:6579850484840257df4502610cde1f3a6677b8cae4d5b62d31e4d893faf5b08f"
 
 - name: pravega/zookeeper-operator
   url: docker.io/pravega/zookeeper-operator
