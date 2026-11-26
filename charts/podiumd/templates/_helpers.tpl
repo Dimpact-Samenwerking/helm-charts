@@ -201,6 +201,19 @@ Usage: {{ include "podiumd.image" .Values.path.to.image }}
 {{- end -}}
 
 {{/*
+The major.minor version of an image reference ("26.8" for
+quay.io/keycloak/keycloak:v26.8.1@sha256:...), from the tag after the last
+"/"; empty for a digest-only reference or a tag without a version.
+*/}}
+{{- define "podiumd.imageMinorVersion" -}}
+{{- $ref := regexReplaceAll "@.*$" (toString .) "" -}}
+{{- $last := regexReplaceAll "^.*/" $ref "" -}}
+{{- if contains ":" $last -}}
+{{- regexReplaceAll "^v" (regexFind "^v?[0-9]+\\.[0-9]+" (regexReplaceAll "^[^:]*:" $last "")) "" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Frank!Gateway — object name for one gateway instance.
 
 Every instance is named after its key: `frankgateway-<key>`. There is no
