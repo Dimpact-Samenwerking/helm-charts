@@ -1,11 +1,30 @@
 {{- if (index .Values "keycloak-operator").enabled }}
+{{- $name := default "keycloak" .Values.keycloak.name }}
+{{- $image := include "podiumd.image" .Values.keycloak.image }}
 apiVersion: k8s.keycloak.org/v2beta1
 kind: Keycloak
 metadata:
-  name: {{ default "keycloak" .Values.keycloak.name }}
+  name: {{ $name }}
 spec:
   instances: {{ .Values.keycloak.instances }}
-  {{- with .Values.keycloak.update }}
+  {{- /* Auto first runs an update Job with the running image to check whether old and
+       new can run side by side. Across a major or minor version that check cannot
+       pass (the operator recreates Keycloak anyway), and on the 26.7 -> 26.8 hop
+       the Job itself fails and stays behind as a failed Job. So when the running
+       Keycloak has another major.minor than the new image, this deploy uses
+       RecreateOnImageChange: the same recreate, without the update Job. The next
+       deploy writes Auto again. Without a cluster (helm template) or without the
+       CRD, lookup finds nothing and Auto stays. */}}
+  {{- $update := deepCopy (.Values.keycloak.update | default dict) }}
+  {{- if and (eq (toString $update.strategy) "Auto") (.Capabilities.APIVersions.Has "k8s.keycloak.org/v2beta1/Keycloak") }}
+  {{- $running := lookup "k8s.keycloak.org/v2beta1" "Keycloak" .Release.Namespace $name | default dict }}
+  {{- $oldVersion := include "podiumd.imageMinorVersion" (dig "spec" "image" "" $running) }}
+  {{- $newVersion := include "podiumd.imageMinorVersion" $image }}
+  {{- if and $oldVersion $newVersion (ne $oldVersion $newVersion) }}
+  {{- $_ := set $update "strategy" "RecreateOnImageChange" }}
+  {{- end }}
+  {{- end }}
+  {{- with $update }}
   update:
     {{- toYaml . | nindent 4 }}
   {{- end }}
