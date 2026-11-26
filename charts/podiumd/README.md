@@ -947,7 +947,7 @@ PodiumD Helm chart
 | openformulieren.customerInteractionsConfigJob.serviceIdentifier | string | `"openklant-api"` | zgw_consumers service identifier (Service.slug) of the Open Klant klantinteracties service; must have api_type `kc`. |
 | openformulieren.flower.enabled | bool | `false` |  |
 | openformulieren.fullnameOverride | string | `"openformulieren"` |  |
-| openformulieren.image.tag | string | `"4.0.7@sha256:12c975259f37eb91973a722d1f4e3f0ccf09aa037c08ecbd200350efd4ed493a"` |  |
+| openformulieren.image.tag | string | `"4.0.9@sha256:38b1ac1a4faaa97f0ad9e9b6d47c5a982a48c4bb952fede7afd5e53eae752d4b"` |  |
 | openformulieren.nameOverride | string | `"openformulieren"` |  |
 | openformulieren.nginx.config.clientMaxBodySize | string | `"100M"` |  |
 | openformulieren.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
