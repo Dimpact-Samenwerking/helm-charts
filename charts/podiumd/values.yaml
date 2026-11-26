@@ -2086,7 +2086,10 @@ openformulieren:
     # -- A post-install/post-upgrade hook after openformulieren-config (which
     # creates the service); the retries only cover a database still migrating.
     backoffLimit: 6
-    activeDeadlineSeconds: 600
+    # Below Helm's default --timeout of 5m, which applies to each hook: Helm
+    # waits for this Job, so a longer deadline could fail the deploy while the
+    # Job still succeeds.
+    activeDeadlineSeconds: 240
     ttlSecondsAfterFinished: 600
     resources:
       requests:
