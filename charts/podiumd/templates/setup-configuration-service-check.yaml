@@ -1,0 +1,149 @@
+{{- /*
+Pre-upgrade check of each component's zgw_consumers services
+against its database. setup-configuration (a post-upgrade hook of the
+subcharts) finds a Service by its slug, the values' `identifier`, and creates
+it when no Service has that slug; zgw_consumers allows an api_root only once.
+A Service that already holds the api_root under another slug, made in the
+admin or by an older configuration, then fails the component's config Job in
+the middle of the deploy (Assen, Hoorn, Olst). This hook stops the upgrade
+before anything changes and says which slug to rename; a rename listed in
+`renames` it does itself, once, when that is unambiguous (forms and other
+records point at the Service row, not at its slug). It reads the database
+with the environment of the component's own setup-configuration Job: the
+app's Secret (existingSecret included), its configuration Secret, its
+ConfigMap and extraEnvVars, as the previous release left them; the Secrets and
+the ConfigMap are optional, so a component deployed for the first time is
+skipped. Without a listed rename the database session is read-only. Pre-upgrade only: on an install there is no
+database to check yet. The check needs no Kubernetes API access, so the pod
+gets no service account token. The Job stays after a failure: its log is
+the finding; it holds no secret.
+*/ -}}
+{{- $check := (.Values.setupConfigurationChecks | default dict).zgwServices | default dict -}}
+{{- if $check.enabled -}}
+{{- $components := include "podiumd.setupConfigurationComponents" . | fromYamlArray -}}
+{{- range $r := $check.renames | default list -}}
+{{- if not (and (kindIs "map" $r) (has (toString $r.component) $components) (hasKey $r "from") $r.to) -}}
+{{- fail (printf "setupConfigurationChecks.zgwServices.renames: each item needs component (one of %s), from (the slug in the database, \"\" for an empty one) and to (the values' identifier); found %s" (join ", " $components) (toJson $r)) -}}
+{{- end -}}
+{{- end -}}
+{{- range $comp := $components -}}
+{{- $svcs := include "podiumd.zgwServices" (dict "root" $ "component" $comp) | fromYamlArray -}}
+{{- if $svcs -}}
+{{- $sc := index $.Subcharts $comp -}}
+{{- $v := $sc.Values -}}
+{{- $app := include "podiumd.subchartFullname" (dict "v" $v "chart" $comp "release" $.Release.Name) -}}
+{{- /* The charts name this setting existingConfigurationSecrets, except openbeheer and openvtb. */ -}}
+{{- $configSecret := coalesce $v.existingConfigurationSecrets $v.existingConfigurationSecret $v.configurationSecretsName (printf "%s-config-secrets" $app) -}}
+{{- $name := printf "%s-%s-service-check" $.Release.Name $comp | trunc 63 | trimSuffix "-" }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "podiumd.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $comp }}
+  annotations:
+    helm.sh/hook: pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 300
+  # Exit code 3: a finding in the database; a retry does not change it.
+  podFailurePolicy:
+    rules:
+      - action: FailJob
+        onExitCodes:
+          containerName: check
+          operator: In
+          values: [3]
+  template:
+    metadata:
+      labels:
+        {{- include "podiumd.selectorLabels" $ | nindent 8 }}
+        app.kubernetes.io/component: {{ $comp }}
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      {{- with $v.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- /* Scheduled like the component's own config Job. */}}
+      {{- with $v.nodeSelector | default $.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $v.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $v.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: check
+          image: {{ include "podiumd.image" $check.image }}
+          resources:
+            {{- toYaml $check.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          # The order of the component's setup-configuration Job: a later source wins.
+          envFrom:
+            - secretRef:
+                name: {{ $v.existingSecret | default $app }}
+                optional: true
+            - secretRef:
+                name: {{ $configSecret }}
+                optional: true
+            - configMapRef:
+                name: {{ $app }}
+                optional: true
+          env:
+            {{- with $v.extraEnvVars }}
+            {{- tpl (toYaml .) $sc | nindent 12 }}
+            {{- end }}
+            {{- /* One "identifier api_root" pair per line, in the values' order; neither contains whitespace. */}}
+            - name: SERVICES
+              value: |
+                {{- range $svcs }}
+                {{ .identifier }} {{ .api_root }}
+                {{- end }}
+            - name: COMPONENT
+              value: {{ $comp | quote }}
+            {{- /* The Open Forms and Referentielijsten Jobs run envsubst on the data. */}}
+            - name: ENVSUBST
+              value: {{ ternary "true" "false" (has $comp (list "openformulieren" "referentielijsten")) | quote }}
+            {{- /* One "from|to" per line: the renames listed for this component. */}}
+            - name: RENAMES
+              value: |
+                {{- range $r := $check.renames | default list }}
+                {{- if eq (toString $r.component) $comp }}
+                {{ toString $r.from }}|{{ toString $r.to }}
+                {{- end }}
+                {{- end }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              {{- $.Files.Get "files/setup-configuration/service-check.sh" | nindent 14 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi
+{{- end }}
+{{- end }}
+{{- end }}

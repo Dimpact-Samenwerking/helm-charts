@@ -108,6 +108,24 @@
 {{- end -}}
 {{- end -}}
 
+{{- /* zgw_consumers allows each api_root once per component: two services in the
+     values with the same api_root fail that component's setup-configuration in
+     the deploy, after its retries. */ -}}
+{{- $dupes := list -}}
+{{- range $comp := include "podiumd.setupConfigurationComponents" . | fromYamlArray -}}
+{{- $seen := dict -}}
+{{- range $svc := include "podiumd.zgwServices" (dict "root" $ "component" $comp) | fromYamlArray -}}
+{{- if hasKey $seen $svc.api_root -}}
+{{- $dupes = append $dupes (printf "%s: %s and %s both have api_root %s" $comp (index $seen $svc.api_root) $svc.identifier $svc.api_root) -}}
+{{- else -}}
+{{- $_ := set $seen $svc.api_root $svc.identifier -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if $dupes -}}
+{{- fail (printf "configuration.data -> zgw_consumers.services: an api_root may occur only once per component (zgw_consumers_service_api_root_key):\n  %s\nKeep one service per api_root and point the *_service_identifier references at it." (join "\n  " $dupes)) -}}
+{{- end -}}
+
 {{- /* Open Inwoner's admin OIDC needs the providers schema (mozilla-django-oidc-db 2.x,
      since Open Inwoner 2.4.0). An item without oidc_provider_identifier, or with
      the old flat fields, fails setup-configuration; since openinwoner chart 2.6.0
