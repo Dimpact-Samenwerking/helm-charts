@@ -4,11 +4,12 @@
 #
 # Changes:
 #   1. nginx-unprivileged 1.31.7 -> 1.31.9.
-#   2. k8s 1.37.2 (digest changed).
-#   3. keycloak.image 26.8.1 -> 26.8.2.
-#   4. keycloak-operator 26.8.1 -> 26.8.2.
-#   5. openformulieren 4.0.7 -> 4.0.9.
-#   6. openinwoner 2.5.0 -> 2.5.1.
+#   2. postgres 16.15-alpine -> 16.16-alpine.
+#   3. k8s 1.37.2 (digest changed).
+#   4. keycloak.image 26.8.1 -> 26.8.2.
+#   5. keycloak-operator 26.8.1 -> 26.8.2.
+#   6. openformulieren 4.0.7 -> 4.0.9.
+#   7. openinwoner 2.5.0 -> 2.5.1.
 #
 # See docs/_UPGRADE_PATHS/4.10.1-to-4.10.2-upgrade.md for the operator upgrade notes.
 #
@@ -20,6 +21,11 @@
   url: docker.io/nginx/nginx-unprivileged
   version: "1.31.9"
   digest: "sha256:0255fc1dcc1d7b358aac20166543e52029fea577413edadb0912f5b928c7e312"
+# postgres 16.15-alpine -> 16.16-alpine
+- name: library/postgres
+  url: docker.io/library/postgres
+  version: "16.16-alpine"
+  digest: "sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d"
 # k8s 1.37.2 (digest changed)
 - name: alpine/k8s
   url: docker.io/alpine/k8s

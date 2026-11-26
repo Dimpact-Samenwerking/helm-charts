@@ -34,8 +34,8 @@
 
 - name: library/postgres
   url: docker.io/library/postgres
-  version: "16.15-alpine"
-  digest: "sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab"
+  version: "16.16-alpine"
+  digest: "sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d"
 
 - name: alpine/k8s
   url: docker.io/alpine/k8s
