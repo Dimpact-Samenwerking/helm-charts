@@ -326,7 +326,7 @@ frankgateway:
             serverless-pre-function:
               phase: access
               functions:
-                - 'local consumer_auth = require("openbao-consumer-auth") return consumer_auth({ path = "frankgateway/consumers", verificationHeader = "X-Client-Cert-Verification", allow = { "mijn-omgeving" } })'
+                - 'local consumer_auth = require("openbao-consumer-auth") return consumer_auth({ path = "frankgateway/consumers", allow = { "mijn-omgeving" } })'
           upstream:
             type: roundrobin
             scheme: http
