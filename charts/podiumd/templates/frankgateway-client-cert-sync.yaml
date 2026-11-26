@@ -1,10 +1,10 @@
 {{- if .Values.frankgateway.enabled }}
 {{- /*
-  TEMPORARY — superseded by the next Frank!Gateway release. Everything in this
-  file is a bridge for APISIX 3.16 (Frank!Gateway 1.1.0), which cannot resolve
-  a $secret:// reference for an upstream client certificate. The next release
-  can, and this ConfigMap + CronJob are then removed in favour of a reference
-  in the SSL object. The OpenBao paths under <mount>/frankgateway/client-certs/
+  TEMPORARY — a bridge from Frank!Gateway 1.1.0 (APISIX 3.16), which cannot
+  resolve a $secret:// reference for an upstream client certificate.
+  Frank!Gateway 1.3.1 runs APISIX 3.21, which can (since 3.18); this ConfigMap
+  + CronJob are removed in favour of a reference in the SSL object once that
+  is tested on a cluster. The OpenBao paths under <mount>/frankgateway/client-certs/
   and the reader token stay as they are.
 
   Frank!Gateway — outbound client certificates from OpenBao, per instance.
@@ -15,8 +15,9 @@
   and runs the script at deploy time, before the routes.
 
   Why this exists at all: the gateway presents these certificates to external
-  APIs (mTLS), they must come from OpenBao, and APISIX 3.16 cannot resolve a
-  `$secret://` reference for an upstream client certificate. So OpenBao stays
+  APIs (mTLS), they must come from OpenBao, and APISIX 3.16 (Frank!Gateway
+  1.1.0) could not resolve a `$secret://` reference for an upstream client
+  certificate. So OpenBao stays
   the source of truth and this keeps the copy in etcd current — a rotation in
   OpenBao is live within one schedule tick, with no redeploy.
 

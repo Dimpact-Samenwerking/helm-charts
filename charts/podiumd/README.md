@@ -182,7 +182,7 @@ PodiumD Helm chart
 | frankgateway.etcd.storageClassName | string | `""` |  |
 | frankgateway.etcd.topologySpreadConstraints | list | `[]` |  |
 | frankgateway.image.repository | string | `"ghcr.io/wearefrank/frank-gateway"` |  |
-| frankgateway.image.tag | string | `"1.2.1@sha256:f22de6b89d5586e3d92950f98dce4da6c301dd60d4454704b6417db90a2324b3"` |  |
+| frankgateway.image.tag | string | `"1.3.1@sha256:110f6d97e7a108db996af3157c2e83e55a1ff23408e604be245e384d38654b41"` |  |
 | frankgateway.instances.internal.enabled | bool | `true` |  |
 | frankgateway.instances.inway.enabled | bool | `true` |  |
 | frankgateway.instances.outway.enabled | bool | `true` |  |

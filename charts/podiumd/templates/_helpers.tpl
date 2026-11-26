@@ -745,8 +745,8 @@ put() { # put <kind/id> <file>
 # SSL object. An OpenBao read that fails while a last-good object is in place
 # is a warning here, not a failed deploy — the CronJob keeps retrying, and the
 # gateway keeps presenting the certificate it has. (TEMPORARY step: goes away
-# with the next Frank!Gateway release, when the SSL object references OpenBao
-# itself through $secret://.)
+# once the SSL object references OpenBao itself through $secret://, which
+# APISIX 3.21 in Frank!Gateway 1.3.1 supports, and that is tested on a cluster.)
 sh /scripts/client-cert-sync/sync.sh; ccrc=$?
 case "${ccrc}" in 0) ;; 2) warn=1 ;; *) rc=1 ;; esac
 {{- end }}
@@ -803,10 +803,11 @@ Frank!Gateway — sync.sh that pulls one instance's client certificates from
 OpenBao into APISIX SSL objects (type client), run by the seed hook at deploy
 time and by the <instance>-client-cert-sync CronJob afterwards.
 
-Why a job and not `$secret://`: on APISIX 3.16 a secret reference is resolved
-for consumer credentials and for the server certificate on the handshake path,
-but NOT for upstream.tls.client_cert/client_key nor via client_cert_id. APISIX
-3.18 changes that; until Frank!Gateway ships on it, OpenBao is the source of
+Why a job and not `$secret://`: on APISIX 3.16 (Frank!Gateway 1.1.0) a secret
+reference was resolved for consumer credentials and for the server certificate
+on the handshake path, but NOT for upstream.tls.client_cert/client_key nor via
+client_cert_id. APISIX 3.18 changed that, and Frank!Gateway 1.3.1 runs 3.21;
+until native references are tested on a cluster, OpenBao is the source of
 truth and etcd a copy that this script keeps current.
 
 Exit codes, because the two callers must react differently:
@@ -824,15 +825,15 @@ because APISIX's JSON encoder may escape the PEM differently from OpenBao's.
 Usage: {{ include "podiumd.frankgateway.clientCertSyncScript" (dict "root" $root "instance" $fg "name" $name) }}
 */}}
 {{- define "podiumd.frankgateway.clientCertSyncScript" -}}
-{{- /* TEMPORARY — superseded by the next Frank!Gateway release. This script
-     exists because Frank!Gateway 1.1.0 runs APISIX 3.16, which cannot resolve
-     a $secret:// reference for an upstream client certificate. The next
-     release can; the SSL object then references OpenBao directly and this
-     helper, its ConfigMap and CronJob are deleted. */ -}}
+{{- /* TEMPORARY — a bridge from Frank!Gateway 1.1.0 (APISIX 3.16), which
+     cannot resolve a $secret:// reference for an upstream client certificate.
+     Frank!Gateway 1.3.1 (APISIX 3.21) can; once that is tested on a cluster,
+     the SSL object references OpenBao directly and this helper, its ConfigMap
+     and CronJob are deleted. */ -}}
 {{- $fg := .instance -}}
 {{- $name := .name -}}
-# TEMPORARY: bridge for APISIX 3.16 — replaced by a native $secret:// reference
-# in the SSL object with the next Frank!Gateway release (see
+# TEMPORARY: bridge from APISIX 3.16 — replaced by a native $secret:// reference
+# in the SSL object once that is tested on APISIX 3.21 (see
 # docs/apps/frankgateway/frankgateway-routes.md).
 set -u
 ADMIN="http://{{ $name }}:9180/apisix/admin"
