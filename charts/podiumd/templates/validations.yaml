@@ -426,8 +426,8 @@
 {{- end -}}
 {{- /* The master-only readiness check makes a stale master label permanent unless the
      label-master CronJob removes it (the operator skips a NotReady pod). */ -}}
-{{- if and $redisHaCheck.enabled ($redisHaCheck.masterReadinessCheck | default dict).enabled (not ($redisHaCheck.labelMasterCronJob | default dict).enabled) -}}
-{{- fail "redis-operator.redis-ha.masterReadinessCheck.enabled needs redis-operator.redis-ha.labelMasterCronJob.enabled: an old master that comes back as a replica keeps its redis-role=master label and stays NotReady, and only the label-master CronJob removes that label. Turn the CronJob on, or turn masterReadinessCheck off." -}}
+{{- if and $redisHaCheck.enabled ($redisHaCheck.masterReadinessCheck | default dict).enabled (not ($redisHaCheck.labelMasterCronJob | default dict).enabled) (not (include "podiumd.redisHa.sentinel" .)) -}}
+{{- fail "redis-operator.redis-ha.masterReadinessCheck.enabled needs redis-operator.redis-ha.labelMasterCronJob.enabled or Sentinel (redis-ha.sentinel.enabled with more than one pod): an old master that comes back as a replica keeps its redis-role=master label and stays NotReady, and only the label-master CronJob or the sentinel labeller removes that label. Turn one of them on, or turn masterReadinessCheck off." -}}
 {{- end -}}
 {{- /* zac.auth.pkceEnabled only set PKCE on the Keycloak client, not in ZAC
      itself, so turning it on alone broke the login. zac.auth.enablePkce (the
@@ -475,5 +475,18 @@
 {{- if not (has . $vtbPaths) -}}
 {{- fail (printf "openvtb.securityContext.readOnlyRootFilesystem is true, but openvtb.extraVolumeMounts has no mount at %s. An environment that sets its own openvtb.extraVolumes or extraVolumeMounts repeats the chart's emptyDir entries (see values.yaml)." .) -}}
 {{- end -}}
+{{- end -}}
+{{- end -}}
+{{- /* podiumd-chart-24: the labeller maps the master the sentinels report to a pod by its
+     hostname. The Redis pods announce their hostname only with the operator's
+     GenerateConfigInInitContainer feature gate; without it the sentinels report pod IPs, and the
+     labeller would never move redis-ha-master. */ -}}
+{{- if and (include "podiumd.redisHa.sentinel" .) (not ((index .Values "redis-operator").featureGates | default dict).GenerateConfigInInitContainer) -}}
+{{- fail "redis-operator.redis-ha.sentinel.enabled needs redis-operator.featureGates.GenerateConfigInInitContainer: true: without it the Redis pods do not announce their hostnames, and the sentinel labeller cannot find the master. Turn the feature gate on, or turn the sentinel off." -}}
+{{- end -}}
+{{- if include "podiumd.redisHa.sentinel" . -}}
+{{- $sentinelSize := int (index (index .Values "redis-operator") "redis-ha").sentinel.size -}}
+{{- if or (lt $sentinelSize 3) (eq (mod $sentinelSize 2) 0) -}}
+{{- fail (printf "redis-operator.redis-ha.sentinel.size is %d: it must be odd and at least 3, so that a majority of sentinels survives the loss of one node" $sentinelSize) -}}
 {{- end -}}
 {{- end -}}

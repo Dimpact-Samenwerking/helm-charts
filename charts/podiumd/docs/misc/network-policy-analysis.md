@@ -98,11 +98,16 @@ NW-04: no authentication, no TLS.
 | referentielijsten, -config | 6379 |
 | openvtb, -config | 6379 |
 | Frank!Gateway dashboard oauth2-proxy (sessions, only with the dashboard on) | 6379 |
-| redis-ha pods (replication) | 6379 |
+| redis-ha pods (replication) and, with Sentinel, the sentinel pods (same `app` label) | 6379 |
 | redis-operator (`name=redis-operator`) | 6379 |
+| redis-ha-labeller (with Sentinel) | 6379 |
 | monitoring namespace | 9121 |
 
-The `redis-ha-label-master` CronJob talks only to the Kubernetes API.
+With Sentinel the policy selects only the Redis pods (`role: replication`), and
+`podiumd-redis-ha-sentinel` admits the Redis and sentinel pods, the operator and
+the labeller to the sentinels on 26379. The `redis-ha-label-master` CronJob
+talks only to the Kubernetes API. The labeller asks the sentinels for the
+master and points stale replicas at it.
 
 ### OpenBao
 

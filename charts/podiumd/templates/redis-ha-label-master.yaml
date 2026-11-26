@@ -1,7 +1,8 @@
 {{- $redisOperator := index .Values "redis-operator" }}
 {{- $redisHa := index $redisOperator "redis-ha" }}
 {{- if $redisOperator.enabled }}
-{{- if $redisHa.labelMasterCronJob.enabled }}
+{{- /* With Sentinel the labeller of templates/redis-ha-labeller.yaml takes over. */}}
+{{- if and $redisHa.labelMasterCronJob.enabled (not (include "podiumd.redisHa.sentinel" .)) }}
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -24,6 +25,16 @@ rules:
   - apiGroups: ["redis.redis.opstreelabs.in"]
     resources: ["redisreplications"]
     verbs: ["get"]
+  {{- /* The operator leaves the sentinels running when spec.sentinel goes away (Sentinel
+       turned off, or back to one pod); this Job removes them. */}}
+  - apiGroups: ["apps"]
+    resources: ["statefulsets"]
+    resourceNames: ["redis-ha-s"]
+    verbs: ["get", "delete"]
+  - apiGroups: [""]
+    resources: ["services"]
+    resourceNames: ["redis-ha-s-hl"]
+    verbs: ["get", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -98,22 +109,34 @@ spec:
                   NAMESPACE="{{ .Release.Namespace }}"
                   CR_NAME="redis-ha"
 
+                  # Sentinels of an earlier deploy with Sentinel on (the sentinel
+                  # pods also carry the app label, so the selectors below add
+                  # role=replication).
+                  if kubectl get statefulset redis-ha-s -n "$NAMESPACE" >/dev/null 2>&1; then
+                    kubectl delete statefulset redis-ha-s -n "$NAMESPACE" --ignore-not-found
+                    kubectl delete service redis-ha-s-hl -n "$NAMESPACE" --ignore-not-found
+                    echo "Deleted the sentinels of an earlier deploy (Sentinel is off)."
+                  fi
+
                   # Resolve master from RedisReplication CR status — authoritative even when
                   # the operator's reconciliation loop is failing (bug PR #1720).
                   MASTER=$(kubectl get redisreplication "$CR_NAME" \
                     -n "$NAMESPACE" \
                     -o jsonpath='{.status.masterNode}' 2>/dev/null || true)
 
+                  # Empty for a while after the Redis pods restart (also when redis-ha goes
+                  # back to one pod); the operator sets it once it has reconciled, and the
+                  # next run labels. Exit 0, so a routine restart leaves no failed Job.
                   if [ -z "$MASTER" ]; then
-                    echo "ERROR: status.masterNode not set in RedisReplication CR. Cannot reconcile."
-                    exit 1
+                    echo "status.masterNode not set in RedisReplication CR yet; the next run reconciles."
+                    exit 0
                   fi
 
                   # Check whether labels already reflect the CR — skip API writes if so.
                   # All master-labelled pods, not just the first: after a failover the old
                   # master can keep the label, and once the master-only readiness check makes
                   # it NotReady the operator skips it, so only this job removes the label.
-                  CURRENT=$(kubectl get pod -l "app={{ $redisHa.serviceName | default "redis-ha" }},redis-role=master" \
+                  CURRENT=$(kubectl get pod -l "app={{ $redisHa.serviceName | default "redis-ha" }},role=replication,redis-role=master" \
                     -n "$NAMESPACE" \
                     -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
 
@@ -127,7 +150,7 @@ spec:
                   kubectl label pod "$MASTER" \
                     -n "$NAMESPACE" redis-role=master --overwrite
 
-                  PODS=$(kubectl get pod -l "app={{ $redisHa.serviceName | default "redis-ha" }}" \
+                  PODS=$(kubectl get pod -l "app={{ $redisHa.serviceName | default "redis-ha" }},role=replication" \
                     -n "$NAMESPACE" \
                     -o jsonpath='{.items[*].metadata.name}')
                   for POD in $PODS; do

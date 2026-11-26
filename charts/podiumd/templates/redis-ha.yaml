@@ -1,6 +1,7 @@
 {{- $redisOperator := default (dict) (index .Values "redis-operator") }}
 {{- $redisHa := default (dict) (index $redisOperator "redis-ha") }}
 {{- if and $redisOperator.enabled $redisHa.enabled }}
+{{- $sentinel := include "podiumd.redisHa.sentinel" . }}
 {{- if $redisHa.redisConfig.additionalRedisConfig }}
 ---
 apiVersion: v1
@@ -81,7 +82,58 @@ spec:
       labelSelector:
         matchLabels:
           app: {{ $redisHa.serviceName | default "redis-ha" | quote }}
+          {{- if $sentinel }}
+          {{- /* The sentinel pods also carry app: redis-ha (the operator copies the CR's labels). */}}
+          role: replication
+          {{- end }}
       {{- end }}
+    {{- end }}
+  {{- end }}
+  {{- if $sentinel }}
+  {{- $s := $redisHa.sentinel }}
+  {{- /* podiumd-chart-24. Hostnames, not pod IPs: a recreated pod gets a new IP, and the
+       operator's preStop hook asks the sentinels for a failover before a master stops. */}}
+  sentinel:
+    size: {{ $s.size }}
+    image: {{ include "podiumd.image" $s.image }}
+    imagePullPolicy: IfNotPresent
+    resolveHostnames: "yes"
+    announceHostnames: "yes"
+    downAfterMilliseconds: {{ $s.downAfterMilliseconds | quote }}
+    failoverTimeout: {{ $s.failoverTimeout | quote }}
+    parallelSyncs: "1"
+    {{- with $s.resources }}
+    resources:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with $redisHa.podSecurityContext }}
+    podSecurityContext:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- /* The image's entrypoint writes /etc/redis/sentinel.conf, and the operator mounts no
+         volume for it, so the root filesystem stays writable. */}}
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
+    {{- with $s.topologySpreadConstraints }}
+    topologySpreadConstraints:
+      {{- range . }}
+      - {{ toYaml . | indent 8 | trim }}
+        {{- if not .labelSelector }}
+        labelSelector:
+          matchLabels:
+            app: {{ $redisHa.serviceName | default "redis-ha" | quote }}
+            role: sentinel
+        {{- end }}
+      {{- end }}
+    {{- end }}
+    {{- if $redisHa.nodeSelector }}
+    nodeSelector:
+      {{- toYaml $redisHa.nodeSelector | nindent 6 }}
+    {{- else if .Values.nodeSelector }}
+    nodeSelector:
+      {{- toYaml .Values.nodeSelector | nindent 6 }}
     {{- end }}
   {{- end }}
   {{- with $redisHa.pdb }}

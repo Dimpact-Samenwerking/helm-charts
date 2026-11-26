@@ -16,7 +16,7 @@ These no longer contain a hard-coded `podiumd`, so they work in any namespace wi
 | `clamavHost` (openformulieren, openinwoner) | `clamav.podiumd.svc.cluster.local` | `clamav` | Bare service name, resolved in-namespace. |
 | KISS Kibana host / `publicBaseUrl` | `kiss-kb-http.podiumd.svc.cluster.local:5601` | `kiss-kb-http:5601` | Bare service name; the ECK-generated cert SAN includes the short name. |
 
-The redis-ha `RedisReplication` CR, its label-master CronJob, pre-delete Job, PodMonitor, and all
+The redis-ha `RedisReplication` CR, its label-master CronJob or labeller, pre-delete Job, PodMonitor, and all
 other custom templates already use `{{ .Release.Namespace }}`, so the Redis pods themselves deploy
 into the release namespace too.
 

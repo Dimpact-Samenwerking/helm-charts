@@ -116,6 +116,10 @@ spec:
   podSelector:
     matchLabels:
       app: redis-ha
+      {{- if include "podiumd.redisHa.sentinel" $root }}
+      {{- /* The sentinel pods carry app: redis-ha too; they have their own policy below. */}}
+      role: replication
+      {{- end }}
   policyTypes:
     - Ingress
   ingress:
@@ -177,7 +181,8 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/component: frankgateway-oauth2-proxy
-        # Replication between the Redis pods.
+        # Replication between the Redis pods; with Sentinel also the sentinels,
+        # which carry the same app label.
         - podSelector:
             matchLabels:
               app: redis-ha
@@ -186,11 +191,51 @@ spec:
             matchLabels:
               name: redis-operator
           namespaceSelector: {}
+        {{- if include "podiumd.redisHa.sentinel" $root }}
+        # The labeller reads each pod's role and relinks stale replicas.
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis-ha-labeller
+        {{- end }}
       ports:
         - protocol: TCP
           port: 6379
     {{- include "podiumd.networkPolicy.monitoring" (dict "np" $np "ports" (list 9121)) }}
     {{- include "podiumd.networkPolicy.extra" (dict "peers" $extra.redis "ports" (list 6379)) }}
+{{- if include "podiumd.redisHa.sentinel" $root }}
+---
+# redis-ha sentinels (podiumd-chart-24): the other sentinels, the Redis pods'
+# preStop failover, the operator and the labeller.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: podiumd-redis-ha-sentinel
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" $root | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: redis-ha
+      role: sentinel
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: redis-ha
+        - podSelector:
+            matchLabels:
+              name: redis-operator
+          namespaceSelector: {}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis-ha-labeller
+      ports:
+        - protocol: TCP
+          port: 26379
+{{- end }}
 {{- end }}
 {{- if get $on "openbao" }}
 ---

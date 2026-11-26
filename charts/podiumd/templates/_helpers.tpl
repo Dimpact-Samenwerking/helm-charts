@@ -1504,3 +1504,18 @@ Usage: {{ include "podiumd.keycloak.podiumdRealmImportJobName" . }}
 {{- $realmCfgTpl := include (print $.Template.BasePath "/keycloak-podiumd-realm-config.yaml") . -}}
 import-podiumd-realm-job-{{ printf "%s|%s" $realmCfgTpl (include "podiumd.keycloak.realmSecretsData" .) | sha256sum | trunc 10 }}
 {{- end -}}
+
+{{/*
+redis-ha automatic failover (podiumd-chart-24): "true" when the RedisReplication
+gets sentinels, i.e. redis-ha is on with more than one pod and
+redis-ha.sentinel.enabled. Empty otherwise.
+
+Usage: {{ if include "podiumd.redisHa.sentinel" . }}
+*/}}
+{{- define "podiumd.redisHa.sentinel" -}}
+{{- $redisOperator := index .Values "redis-operator" | default dict -}}
+{{- $redisHa := index $redisOperator "redis-ha" | default dict -}}
+{{- if and $redisOperator.enabled $redisHa.enabled (gt (int $redisHa.replicaCount) 1) ($redisHa.sentinel | default dict).enabled -}}
+true
+{{- end -}}
+{{- end -}}
