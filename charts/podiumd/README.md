@@ -335,6 +335,7 @@ PodiumD Helm chart
 | keycloak-operator.jobs.ensureOperatorSa.image.pullPolicy | string | `"IfNotPresent"` |  |
 | keycloak-operator.jobs.ensureOperatorSa.image.repository | string | `"curlimages/curl"` |  |
 | keycloak-operator.jobs.ensureOperatorSa.image.tag | string | `"8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93"` |  |
+| keycloak-operator.jobs.ensureOperatorSa.resources | object | `{"limits":{"cpu":"2","memory":"1Gi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources of the Job's two Keycloak-image init containers: copy-keycloak-build and bootstrap-operator-sa (kc.sh bootstrap-admin service, a JVM). |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.enabled | bool | `true` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.image.pullPolicy | string | `"IfNotPresent"` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.image.repository | string | `"library/postgres"` |  |
