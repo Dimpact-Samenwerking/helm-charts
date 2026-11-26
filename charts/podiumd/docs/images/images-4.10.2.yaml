@@ -7,7 +7,8 @@
 #   2. k8s 1.37.2 (digest changed).
 #   3. keycloak.image 26.8.1 -> 26.8.2.
 #   4. keycloak-operator 26.8.1 -> 26.8.2.
-#   5. openinwoner 2.5.0 -> 2.5.1.
+#   5. openformulieren 4.0.7 -> 4.0.9.
+#   6. openinwoner 2.5.0 -> 2.5.1.
 #
 # See docs/_UPGRADE_PATHS/4.10.1-to-4.10.2-upgrade.md for the operator upgrade notes.
 #
@@ -36,6 +37,12 @@
   url: quay.io/keycloak/keycloak-operator
   version: "26.8.2"
   digest: "sha256:f9b9a2be5db09d988c3706a6685763de1a3ac2b2f61315b21539cb99d0594efb"
+
+# openformulieren 4.0.7 -> 4.0.9
+- name: openformulieren/open-forms
+  url: docker.io/openformulieren/open-forms
+  version: "4.0.9"
+  digest: "sha256:38b1ac1a4faaa97f0ad9e9b6d47c5a982a48c4bb952fede7afd5e53eae752d4b"
 
 # openinwoner 2.5.0 -> 2.5.1
 - name: maykinmedia/open-inwoner
