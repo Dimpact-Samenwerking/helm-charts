@@ -1069,7 +1069,10 @@ PodiumD Helm chart
 | openinwoner.settings.searchIndexInitContainer | bool | `true` |  |
 | openinwoner.tags.redis | bool | `false` |  |
 | openinwoner.worker.livenessProbe.enabled | bool | `true` |  |
-| openinwoner.worker.maxWorkerLivenessDelta | string | `"300"` |  |
+| openinwoner.worker.livenessProbe.exec.command[0] | string | `"/bin/sh"` |  |
+| openinwoner.worker.livenessProbe.exec.command[1] | string | `"-c"` |  |
+| openinwoner.worker.livenessProbe.exec.command[2] | string | `"name=\"${CELERY_WORKER_NAME:-${CELERY_WORKER_QUEUE:-celery}@%n}\"\ncase \"$name\" in *@*) ;; *) name=\"celery@$name\" ;; esac\nname=$(printf '%s' \"$name\" | sed \"s/%[nh]/$(cat /proc/sys/kernel/hostname)/g\")\nexec maykin-common worker-health-check --skip-event-loop-liveness --broker=\"$CELERY_BROKER_URL\" --worker-name=\"$name\"\n"` |  |
+| openinwoner.worker.livenessProbe.failureThreshold | int | `6` |  |
 | openinwoner.worker.replicaCount | int | `1` |  |
 | openinwoner.worker.resources.requests.cpu | string | `"200m"` |  |
 | openinwoner.worker.resources.requests.memory | string | `"640Mi"` |  |
@@ -1185,6 +1188,7 @@ PodiumD Helm chart
 | openvtb.celery.beat.resources | object | `{"limits":{"cpu":"200m","memory":"384Mi"},"requests":{"cpu":"10m","memory":"256Mi"}}` | Resources of the Celery beat (one process; always one replica). Measured on minikube: 224 MiB. |
 | openvtb.celery.enabled | bool | `true` | Run the Open VTB Celery worker and beat (only while openvtb.enabled). |
 | openvtb.celery.worker.extraEnvVars | list | `[]` | Extra environment variables of the worker, after openvtb.extraEnvVars, e.g. CELERY_WORKER_CONCURRENCY (default 1). |
+| openvtb.celery.worker.livenessProbe | object | `{"exec":{"command":["/bin/sh","-c","name=\"${CELERY_WORKER_NAME:-${CELERY_WORKER_QUEUE:-celery}@%n}\"\ncase \"$name\" in *@*) ;; *) name=\"celery@$name\" ;; esac\nname=$(printf '%s' \"$name\" | sed \"s/%[nh]/$(cat /proc/sys/kernel/hostname)/g\")\nexec maykin-common worker-health-check --skip-event-loop-liveness --broker=\"$CELERY_BROKER_URL\" --worker-name=\"$name\"\n"]}}` | Liveness probe command of the worker: the one of openinwoner.worker.livenessProbe (maykin-common-1). |
 | openvtb.celery.worker.replicaCount | int | `1` | Number of Celery worker pods. |
 | openvtb.celery.worker.resources | object | `{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"50m","memory":"320Mi"}}` | Resources of the Celery worker (one process, concurrency 1). Measured on minikube: 295 MiB, about 15m CPU. |
 | openvtb.configuration.data | string | `""` |  |
@@ -1297,7 +1301,7 @@ PodiumD Helm chart
 | openzaak.create_required_catalogi_job.resources.requests.cpu | string | `"50m"` |  |
 | openzaak.create_required_catalogi_job.resources.requests.memory | string | `"64Mi"` |  |
 | openzaak.create_required_catalogi_job.secret | string | `"<openzaak_secret>"` |  |
-| openzaak.extraEnvVars | list | `[{"name":"OPENZAAK_PORT","value":"8000"}]` | Override OPENZAAK_PORT to prevent Kubernetes service-discovery injection (tcp://<ip>:80) from being passed to uwsgi as the port number. Since Open Zaak 1.27.3 the app reads OPENZAAK_PORT for uwsgi_port; K8s auto-injects OPENZAAK_PORT=tcp://<svc-ip>:80 for the openzaak Service, which uwsgi cannot parse. See https://github.com/open-zaak/open-zaak/issues/2415 |
+| openzaak.extraEnvVars | list | `[{"name":"OPENZAAK_PORT","value":"8000"},{"name":"CELERY_MAX_AGE","value":"315360000"}]` | Override OPENZAAK_PORT to prevent Kubernetes service-discovery injection (tcp://<ip>:80) from being passed to uwsgi as the port number. Since Open Zaak 1.27.3 the app reads OPENZAAK_PORT for uwsgi_port; K8s auto-injects OPENZAAK_PORT=tcp://<svc-ip>:80 for the openzaak Service, which uwsgi cannot parse. See https://github.com/open-zaak/open-zaak/issues/2415 CELERY_MAX_AGE turns off the event-loop file check of the worker's liveness probe (maykin-common-1), see its entry below. |
 | openzaak.flower.enabled | bool | `false` |  |
 | openzaak.fullnameOverride | string | `"openzaak"` |  |
 | openzaak.image.tag | string | `"1.31.1@sha256:63448221142145b0f56eabadaa9ef9578dd4aacc7f95476bd5368f767883ada0"` |  |
@@ -1340,7 +1344,6 @@ PodiumD Helm chart
 | openzaak.settings.uwsgi.threads | string | `"4"` |  |
 | openzaak.tags.redis | bool | `false` |  |
 | openzaak.worker.livenessProbe.enabled | bool | `true` |  |
-| openzaak.worker.maxWorkerLivenessDelta | string | `"300"` |  |
 | openzaak.worker.replicaCount | int | `1` |  |
 | openzaak.worker.resources.requests.cpu | string | `"200m"` |  |
 | openzaak.worker.resources.requests.memory | string | `"1Gi"` |  |

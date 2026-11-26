@@ -104,16 +104,13 @@ spec:
             periodSeconds: 30
             timeoutSeconds: 15
             failureThreshold: 3
+          {{- /* The command and why: openinwoner.worker.livenessProbe (maykin-common-1). */}}
           livenessProbe:
             exec:
-              command:
-                - maykin-common
-                - worker-health-check
-                - --skip-ping
-                - --liveness-file=/app/tmp/celery_worker_event_loop.live
+              {{- toYaml $vtb.celery.worker.livenessProbe.exec | nindent 14 }}
             periodSeconds: 60
             timeoutSeconds: 15
-            failureThreshold: 3
+            failureThreshold: 5
           {{- end }}
           {{- /* No beat probe: its liveness file only changes when it
           schedules a task, and Open VTB's tasks run once an hour. */}}
