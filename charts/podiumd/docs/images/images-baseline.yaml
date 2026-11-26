@@ -219,8 +219,8 @@
 
 - name: clamav/clamav
   url: docker.io/clamav/clamav
-  version: "1.5.4"
-  digest: "sha256:6d87c712e3391e13c1ba6e05dfb074d4b1ddb5a6834b23bb9da990d2a4ef042a"
+  version: "1.5.5"
+  digest: "sha256:64e30c0bf976198024deb3dc6d5cfe2485fb969c0f73549ba0fdb364b9469614"
 
 - name: sergeymakinen/clamav_exporter
   url: docker.io/sergeymakinen/clamav_exporter
