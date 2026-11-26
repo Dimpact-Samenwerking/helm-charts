@@ -16,6 +16,7 @@
 #   11. clamav 1.5.4 -> 1.5.5.
 #   12. zaakbrug 1.27.1 -> 1.27.3 (chart 2.3.36 -> 2.3.38).
 #   13. mi 2.91.0 -> 2.93.0.
+#   14. openbao 2.7.2 -> 2.7.3 (chart 0.30.6 -> 0.30.8).
 #
 # See docs/_UPGRADE_PATHS/4.10.1-to-4.10.2-upgrade.md for the operator upgrade notes.
 #
@@ -95,3 +96,9 @@
   url: mcr.microsoft.com/azure-cli
   version: "2.93.0"
   digest: "sha256:cf40cc2f8895161698cfb16aec989c60250e66c105b57752b30a20d87d515963"
+
+# openbao 2.7.2 -> 2.7.3
+- name: openbao/openbao
+  url: quay.io/openbao/openbao
+  version: "2.7.3"
+  digest: "sha256:ba4b133eb9586630024e71a617e66f37f29cc3534cdd46a6233e098ceded8dc9"
