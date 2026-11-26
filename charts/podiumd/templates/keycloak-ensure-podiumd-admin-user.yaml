@@ -48,24 +48,12 @@ spec:
             echo "keycloak-operator-client-secret not available — will run podiumd-admin setup"
             exit 0
           fi
-          TOKEN=$(curl -s -X POST \
-            "http://keycloak-service:8080/realms/master/protocol/openid-connect/token" \
-            --data-urlencode "grant_type=client_credentials" \
-            --data-urlencode "client_id=$CLIENT_ID" \
-            --data-urlencode "client_secret=$CLIENT_SECRET" \
-            | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
-          if [ -z "$TOKEN" ]; then
-            echo "keycloak-operator SA could not authenticate — will run podiumd-admin setup"
-            exit 0
-          fi
-          ADMIN_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "Authorization: Bearer $TOKEN" \
-            "http://keycloak-service:8080/admin/realms")
-          if [ "$ADMIN_STATUS" = "200" ]; then
+          {{- include "podiumd.keycloak.saReadyFunction" . | nindent 10 }}
+          if sa_ready; then
             echo "keycloak-operator SA authenticated and has admin realm access — skipping podiumd-admin setup"
             touch /skip/done
           else
-            echo "keycloak-operator SA authenticated but admin API returned $ADMIN_STATUS — will run podiumd-admin setup"
+            echo "keycloak-operator SA cannot log in or lacks the admin role — will run podiumd-admin setup"
           fi
         env:
         - name: CLIENT_ID
@@ -255,22 +243,23 @@ spec:
                -v ON_ERROR_STOP=1 -f /work/setup.sql
           echo "✓ Done."
         env:
+        {{- $db := include "podiumd.keycloak.db" . | fromYaml }}
         - name: PGHOST
-          value: {{ coalesce .Values.keycloak.db.host .Values.keycloak.externalDatabase.host | quote }}
+          value: {{ $db.host | quote }}
         - name: PGPORT
-          value: {{ coalesce .Values.keycloak.db.port .Values.keycloak.externalDatabase.port | toString | quote }}
+          value: {{ $db.port | quote }}
         - name: PGDATABASE
-          value: {{ coalesce .Values.keycloak.db.database .Values.keycloak.externalDatabase.database | quote }}
+          value: {{ $db.database | quote }}
         - name: PGUSER
           valueFrom:
             secretKeyRef:
-              name: {{ .Values.keycloak.secretsName | quote }}
-              key: database_username
+              name: {{ $db.usernameSecret.name | quote }}
+              key: {{ $db.usernameSecret.key | quote }}
         - name: PGPASSWORD
           valueFrom:
             secretKeyRef:
-              name: {{ .Values.keycloak.secretsName | quote }}
-              key: database_password
+              name: {{ $db.passwordSecret.name | quote }}
+              key: {{ $db.passwordSecret.key | quote }}
         volumeMounts:
         - name: work
           mountPath: /work

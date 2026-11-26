@@ -142,6 +142,42 @@ app.kubernetes.io/instance: {{ .context.Release.Name }}
 {{- end }}
 
 {{/*
+The Keycloak database, as the Keycloak CR's spec.db: keycloak.db with
+keycloak.externalDatabase and keycloak.secretsName as fallbacks. Returns YAML.
+*/}}
+{{- define "podiumd.keycloak.db" -}}
+{{- $kc := .Values.keycloak -}}
+{{- $db := $kc.db | default dict -}}
+{{- $ext := $kc.externalDatabase | default dict -}}
+vendor: {{ coalesce $db.vendor $ext.vendor | quote }}
+host: {{ coalesce $db.host $ext.host | quote }}
+port: {{ coalesce $db.port $ext.port }}
+database: {{ coalesce $db.database $ext.database | quote }}
+usernameSecret:
+  name: {{ coalesce ($db.usernameSecret | default dict).name $kc.secretsName | quote }}
+  key: {{ default "database_username" ($db.usernameSecret | default dict).key | quote }}
+passwordSecret:
+  name: {{ coalesce ($db.passwordSecret | default dict).name $kc.secretsName | quote }}
+  key: {{ default "database_password" ($db.passwordSecret | default dict).key | quote }}
+{{- end -}}
+
+{{/*
+Shell function sa_ready: true when client keycloak-operator logs in to the
+master realm with $CLIENT_SECRET and may list the realms (the admin role).
+*/}}
+{{- define "podiumd.keycloak.saReadyFunction" -}}
+sa_ready() {
+  SA_TOKEN=$(curl -s -X POST "http://keycloak-service:8080/realms/master/protocol/openid-connect/token" \
+    --data-urlencode "grant_type=client_credentials" \
+    --data-urlencode "client_id=keycloak-operator" \
+    --data-urlencode "client_secret=$CLIENT_SECRET" \
+    | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+  [ -n "$SA_TOKEN" ] && [ "$(curl -s -o /dev/null -w "%{http_code}" \
+    -H "Authorization: Bearer $SA_TOKEN" "http://keycloak-service:8080/admin/realms")" = "200" ]
+}
+{{- end -}}
+
+{{/*
 Renders a container image from a string or a dict with optional registry,
 repository, tag, and sha. `sha` is a separate digest field (rather than
 embedded in `tag` as "tag@sha256:digest") for an image object that needs

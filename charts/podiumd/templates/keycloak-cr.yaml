@@ -35,16 +35,7 @@ spec:
     {{- end }}
   {{- end }}
   db:
-    vendor: {{ coalesce .Values.keycloak.db.vendor .Values.keycloak.externalDatabase.vendor }}
-    host: {{ coalesce .Values.keycloak.db.host .Values.keycloak.externalDatabase.host }}
-    port: {{ coalesce .Values.keycloak.db.port .Values.keycloak.externalDatabase.port }}
-    database: {{ coalesce .Values.keycloak.db.database .Values.keycloak.externalDatabase.database }}
-    usernameSecret:
-      name: {{ coalesce .Values.keycloak.db.usernameSecret.name .Values.keycloak.secretsName }}
-      key: {{ default "database_username" .Values.keycloak.db.usernameSecret.key }}
-    passwordSecret:
-      name: {{ coalesce .Values.keycloak.db.passwordSecret.name .Values.keycloak.secretsName }}
-      key: {{ default "database_password" .Values.keycloak.db.passwordSecret.key }}
+    {{- include "podiumd.keycloak.db" . | nindent 4 }}
   ingress:
     enabled: {{ .Values.keycloak.ingress.enabled }}
   {{- $np := .Values.networkPolicies | default dict }}
