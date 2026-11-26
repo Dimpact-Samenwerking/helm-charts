@@ -20,5 +20,5 @@ metadata:
   name: {{ $name }}
 data:
   frankgateway-alerts.json: |-
-{{ .Files.Get "dashboards/frankgateway-alerts.json" | indent 4 }}
+{{ .Files.Get "dashboards/metrics/frankgateway-alerts.json" | indent 4 }}
 {{- end }}

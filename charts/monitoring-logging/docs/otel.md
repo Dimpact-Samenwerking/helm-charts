@@ -323,6 +323,24 @@ This overlay sets `tempo.enabled: true` and adds the `otlp/tempo` exporter + `tr
 
 ---
 
+## Exposing the HTTP endpoint
+
+`otelIngress` renders a Traefik `Ingress` (`ingressClassName: traefik`, Traefik entrypoint and ip-allowlist middleware). It works only with a Traefik edge.
+
+On an NGINX Gateway Fabric edge, leave `otelIngress.enabled: false` and route the host deploy-side, the same way as the other public hosts: an `HTTPRoute` on the Gateway to Service `<release>-opentelemetry-collector`, port 4318. In podiumd-infra this is one `ingresses` entry in `values/<env>/infra.yaml`, as for Grafana:
+
+```yaml
+ingresses:
+  - host: otel
+    service: monitoring-opentelemetry-collector
+    port: 4318
+    namespace: monitoring
+```
+
+The route then uses the Gateway's shared certificate. NGF has no IP allowlist equivalent of the Traefik middleware, so on NGF the bearer token below is the only access control. Keep `bearertokenauth` on.
+
+---
+
 ## Securing the HTTP endpoint
 
 The OTel HTTP receiver (port 4318) is typically exposed via an ingress for external senders. All three auth options below are built into `otelcol-contrib` (the image already deployed) — no extra images or sidecars required. Auth applies to the HTTP receiver only; gRPC (4317) is cluster-internal and needs no auth.

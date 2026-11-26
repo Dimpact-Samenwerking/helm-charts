@@ -17,5 +17,5 @@ metadata:
   name: {{ .Values.grafana.dashboardsConfigMaps.frankgateway }}
 data:
   frankgateway.json: |-
-{{ .Files.Get "dashboards/frankgateway.json" | indent 4 }}
+{{ .Files.Get "dashboards/metricsfrankgateway.json" | indent 4 }}
 {{- end }}
