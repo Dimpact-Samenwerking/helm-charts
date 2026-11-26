@@ -9,6 +9,12 @@
 #   4.9.1-4.9.4 imports created clients like that; a curated client always has
 #   at least one default scope and is left alone.
 # - removes offline_access from every client (see keycloak-security-updates.md).
+# - gives every service-account client whose service account holds a
+#   realm-management role the default scope kc-admin-api: from Keycloak 26.8.2
+#   the admin API refuses a token without its audience, and Keycloak's upgrade
+#   adds the scope to no existing client. It waits for the realm import to give
+#   the chart's own admin clients (ZAC, PABC) their roles, as on a fresh install
+#   the two Jobs run at the same time.
 # Both apply only to openid-connect clients that are not bearer-only; the others
 # get no tokens.
 # The name carries the release revision, so it runs on every deploy. It
@@ -74,6 +80,11 @@ spec:
           value: {{ $operatorJobs.keycloakUrl | default "http://keycloak-service:8080" | quote }}
         - name: REALM
           value: {{ .Values.keycloak.config.realm | quote }}
+        {{- $adminClients := list }}
+        {{- if not (eq .Values.zac.enabled false) }}{{ $adminClients = append $adminClients .Values.zac.keycloak.adminClient.id }}{{ end }}
+        {{- if not (eq .Values.pabc.enabled false) }}{{ $adminClients = append $adminClients .Values.pabc.settings.keycloakAdmin.clientId }}{{ end }}
+        - name: CHART_ADMIN_CLIENTS
+          value: {{ join " " $adminClients | quote }}
         - name: CLIENT_SECRET
           valueFrom:
             secretKeyRef:
@@ -159,6 +170,36 @@ while IFS=, read -r id client protocol bearer sa authz marker defaults; do
     done
   fi
 done <<< "$clients"
+
+# kc-admin-api (Keycloak 26.8.2): a client-credentials token needs its audience
+# for the admin API. Absent before 26.8.2: nothing to do then.
+admin_api_id=$(scope_id kc-admin-api)
+if [ -n "$admin_api_id" ]; then
+  rm_id=$(kc get clients -r "$REALM" -q clientId=realm-management --fields id --format csv --noquotes)
+  sa_roles() {  # sa_roles <client id>: the realm-management roles of its service account
+    local uid
+    uid=$(kc get "clients/$1/service-account-user" -r "$REALM" --fields id --format csv --noquotes)
+    kc get "users/$uid/role-mappings/clients/$rm_id/composite" -r "$REALM" --fields name --format csv --noquotes
+  }
+  # The realm import runs in the same deploy; on a fresh install it may not
+  # have given the chart's admin clients their roles yet.
+  for client in $CHART_ADMIN_CLIENTS; do
+    for i in $(seq 1 40); do
+      id=$(kc get clients -r "$REALM" -q clientId="$client" --fields id --format csv --noquotes)
+      if [ -n "$id" ] && [ -n "$(sa_roles "$id")" ]; then break; fi
+      if [ "$i" = 40 ]; then echo "$client: no realm-management role after 400 s; left for the next deploy"; break; fi
+      echo "Waiting for the realm import to give $client its roles ($i/40)..."
+      sleep 10
+    done
+  done
+  rows=$(kc get clients -r "$REALM" --fields "id,clientId,serviceAccountsEnabled,defaultClientScopes" --format csv --noquotes)
+  while IFS=, read -r id client sa defaults; do
+    if [ "$sa" != "true" ] || has_name "$defaults" kc-admin-api; then continue; fi
+    if [ -z "$(sa_roles "$id")" ]; then continue; fi
+    kc update "clients/$id/default-client-scopes/$admin_api_id" -r "$REALM" >/dev/null
+    echo "$client: added default scope kc-admin-api"
+  done <<< "$rows"
+fi
 
 echo "Done."
 {{- end -}}
