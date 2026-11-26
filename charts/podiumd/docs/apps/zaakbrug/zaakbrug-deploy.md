@@ -15,8 +15,8 @@ the ZGW APIs. It ships as the umbrella sub-chart `wearefrank/zaakbrug` and is
 |------|-------|
 | Chart key | `zaakbrug` |
 | Enabled by default | `false` |
-| Sub-chart | `wearefrank/zaakbrug` `2.3.32` (Frank!Framework `ff-common`) |
-| Application image | `wearefrank/zaakbrug:1.26.19` (mirror to `acrprodmgmt.azurecr.io` for prod) |
+| Sub-chart | `wearefrank/zaakbrug` `2.3.38` (Frank!Framework `ff-common`) |
+| Application image | `wearefrank/zaakbrug`, tag and digest from `zaakbrug.image` in the chart's `values.yaml` (mirror to `acrprodmgmt.azurecr.io` for prod) |
 | Namespace / workload | `podiumd` / Deployment `podiumd-zaakbrug` |
 | Service | `podiumd-zaakbrug:80` → container port `8080` |
 | JVM heap | `Xms=Xmx=4G` (`zaakbrug.frank.memory.{minimum,maximum}`) |
@@ -102,8 +102,7 @@ zaakbrug:
     enabled: false            # block the bundled bitnami/redis transitive dep
   image:
     registry: acrprodmgmt.azurecr.io   # or docker.io/wearefrank for the public image
-    repository: zaakbrug
-    tag: "1.26.19"
+    repository: zaakbrug              # the tag and digest come from the chart
   resources:
     requests: { cpu: 250m, memory: 5Gi }
     limits:   { cpu: "2",  memory: 6Gi }
@@ -210,7 +209,7 @@ image as a zero-byte file since 1.26.15
 ([wearefrank/zaakbrug#683](https://github.com/wearefrank/zaakbrug/pull/683)), so
 mounting it is a byte-identical no-op that is kept only to keep the patch
 symmetrical. The upstream `wearefrank/zaakbrug` chart still has **no
-`extraVolumes`/`extraVolumeMounts` support** (checked against chart `2.3.32`),
+`extraVolumes`/`extraVolumeMounts` support** (checked against chart `2.3.38`),
 so this ConfigMap must be mounted into the Deployment by a post-deploy
 `kubectl patch`:
 
