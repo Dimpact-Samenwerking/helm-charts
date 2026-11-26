@@ -13,6 +13,7 @@
 #   8. kiss-eck.eck-elasticsearch.image 8.19.24 -> 8.19.26.
 #   9. kiss-eck.eck-enterprise-search.image 8.19.24 -> 8.19.26.
 #   10. kiss-eck.eck-kibana.image 8.19.24 -> 8.19.26.
+#   11. clamav 1.5.4 -> 1.5.5.
 #
 # See docs/_UPGRADE_PATHS/4.10.1-to-4.10.2-upgrade.md for the operator upgrade notes.
 #
@@ -74,3 +75,9 @@
   url: docker.elastic.co/kibana/kibana
   version: "8.19.26"
   digest: "sha256:3ff057f04ac13fae8eab48d6785b0635b076a064f672b64053252e2b2f42c13e"
+
+# clamav 1.5.4 -> 1.5.5
+- name: clamav/clamav
+  url: docker.io/clamav/clamav
+  version: "1.5.5"
+  digest: "sha256:64e30c0bf976198024deb3dc6d5cfe2485fb969c0f73549ba0fdb364b9469614"

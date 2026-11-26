@@ -7,11 +7,11 @@ ClamAV is the virus scanner of the PodiumD stack. Files that residents upload �
 ## What it is
 
 - **Upstream:** [ClamAV](https://www.clamav.net/) — open-source antivirus engine (clamd daemon + freshclam signature updater).
-- **Image:** `clamav/clamav:1.5.2` (tag pinned in `values.yaml`; repository default from subchart).
-- **Chart:** wiremind `clamav` subchart **v3.7.1** (`@wiremind` in `Chart.yaml`), vendored as `charts/podiumd/charts/clamav-3.7.1.tgz`.
+- **Image:** `clamav/clamav:1.5.5` (tag pinned in `values.yaml`; repository default from subchart).
+- **Chart:** wiremind `clamav` subchart **v3.7.3** (`@wiremind` in `Chart.yaml`), vendored as `charts/podiumd/charts/clamav-3.7.3.tgz`.
 - **Role in PodiumD:** cluster-internal scan endpoint for file uploads. Open Formulieren is the primary consumer (virus scan of form attachments).
 - **Runtime components:**
-  - `clamav-0` — **StatefulSet, 1 replica**. One container running clamd (TCP 3310) with freshclam updating signatures in-place; config injected via `clamav.clamdConfig` and `clamav.freshclamConfig` in `values.yaml`.
+  - `clamav-0` — **StatefulSet, 1 replica by default** (the chart's HPA can scale it to 5). One container running clamd (TCP 3310) with freshclam updating signatures in-place; config injected via `clamav.clamdConfig` and `clamav.freshclamConfig` in `values.yaml`.
   - ClusterIP Service `clamav` (`fullnameOverride: clamav`), port **3310/TCP** (`tcp-clamav`) — clamd's own protocol, not HTTP.
   - Optional metrics sidecar `docker.io/sergeymakinen/clamav_exporter:v2.1.8` + ServiceMonitor, off by default (`clamav.metrics.enabled` / `clamav.metrics.serviceMonitor.enabled`), enabled by the `values-enable-observability.yaml` overlay. ServiceMonitor requires the Prometheus Operator CRD.
 
