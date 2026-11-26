@@ -3065,7 +3065,7 @@ kiss-eck:
     # -- elasticsearch image; spec.version is the tag's version part. ACR: override repository only.
     image:
       repository: docker.elastic.co/elasticsearch/elasticsearch
-      tag: "8.19.24@sha256:d6dfe6626d645cfec66e91009aca60c6c1bb6f94d34253528f24d8cea2f94ba6"
+      tag: "8.19.26@sha256:d71769f4e1145dca3794a04ddcd67e12f1299048b3232025e55feda799904a5d"
     # -- default sizing, kept equal to the previous release (kiss-elastic used
     # elasticsearchCount: 3). Environments can override nodeSets (e.g. nodeSelector,
     # count, storage), the same way openinwoner.eck-elasticsearch.nodeSets is set.
@@ -3116,7 +3116,7 @@ kiss-eck:
     # -- enterprise-search image; spec.version is the tag's version part. ACR: override repository only.
     image:
       repository: docker.elastic.co/enterprise-search/enterprise-search
-      tag: "8.19.24@sha256:68a919341aa7c04528d49f4e7375ba603fe5c37080caab918731a6cab9f4a906"
+      tag: "8.19.26@sha256:2d7868a2bc97bd5da59da5ff8330871d254149a8d5b17b4c849fce8d8e46f0a5"
     config:
       app_search.engine.total_fields.limit: 1000
       kibana.host: https://kiss-kb-http:5601
@@ -3135,7 +3135,7 @@ kiss-eck:
     # -- kibana image; spec.version is the tag's version part. ACR: override repository only.
     image:
       repository: docker.elastic.co/kibana/kibana
-      tag: "8.19.24@sha256:c712b5ab0a82d272eff6192edd4ae75b6b07477b3d1b13cabaa2934744727b4d"
+      tag: "8.19.26@sha256:3ff057f04ac13fae8eab48d6785b0635b076a064f672b64053252e2b2f42c13e"
     count: 1
     config:
       server.publicBaseUrl: https://kiss-kb-http:5601
