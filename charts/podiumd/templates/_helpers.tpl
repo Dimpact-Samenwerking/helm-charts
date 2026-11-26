@@ -154,6 +154,16 @@ invalid double digest). Absent/empty for every other image object in
 this chart, so this branch is a no-op everywhere else.
 Usage: {{ include "podiumd.image" .Values.path.to.image }}
 */}}
+{{- define "podiumd.image" -}}
+{{- if kindIs "string" . -}}
+{{- . -}}
+{{- else -}}
+{{- if .registry -}}{{ .registry }}/{{ end -}}
+{{- .repository -}}:{{- .tag -}}
+{{- if .sha -}}@sha256:{{ .sha }}{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{/*
 The major.minor version of an image reference ("26.8" for
 quay.io/keycloak/keycloak:v26.8.1@sha256:...), from the tag after the last
@@ -164,16 +174,6 @@ quay.io/keycloak/keycloak:v26.8.1@sha256:...), from the tag after the last
 {{- $last := regexReplaceAll "^.*/" $ref "" -}}
 {{- if contains ":" $last -}}
 {{- regexReplaceAll "^v" (regexFind "^v?[0-9]+\\.[0-9]+" (regexReplaceAll "^[^:]*:" $last "")) "" -}}
-{{- end -}}
-{{- end -}}
-
-{{- define "podiumd.image" -}}
-{{- if kindIs "string" . -}}
-{{- . -}}
-{{- else -}}
-{{- if .registry -}}{{ .registry }}/{{ end -}}
-{{- .repository -}}:{{- .tag -}}
-{{- if .sha -}}@sha256:{{ .sha }}{{- end -}}
 {{- end -}}
 {{- end -}}
 
