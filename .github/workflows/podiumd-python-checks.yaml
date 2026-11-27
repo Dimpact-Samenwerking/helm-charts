@@ -10,15 +10,9 @@ on:
       - 'charts/podiumd/templates/create-required-objecttypen.yaml'
       - 'charts/podiumd/files/objecttypen/**'
       - '.github/workflows/podiumd-python-checks.yaml'
+  # Every PR, so the check can be required: a workflow skipped by `paths`
+  # leaves a required check waiting; a job skipped by `if` counts as passed.
   pull_request:
-    paths:
-      - 'charts/podiumd/bin/**'
-      # tests/migrate-scripts/ tests the migrate scripts there.
-      - 'charts/podiumd/scripts/**'
-      # tests/migrate-scripts/ also runs the create-required-objecttypen Job's script.
-      - 'charts/podiumd/templates/create-required-objecttypen.yaml'
-      - 'charts/podiumd/files/objecttypen/**'
-      - '.github/workflows/podiumd-python-checks.yaml'
   workflow_dispatch:
 
 permissions:
@@ -29,7 +23,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - name: Detect script changes
+        id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            code:
+              - 'charts/podiumd/bin/**'
+              # tests/migrate-scripts/ tests the migrate scripts there.
+              - 'charts/podiumd/scripts/**'
+              # tests/migrate-scripts/ also runs the create-required-objecttypen Job's script.
+              - 'charts/podiumd/templates/create-required-objecttypen.yaml'
+              - 'charts/podiumd/files/objecttypen/**'
+              - '.github/workflows/podiumd-python-checks.yaml'
+
   run-python-checks:
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
