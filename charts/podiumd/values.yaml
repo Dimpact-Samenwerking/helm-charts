@@ -2280,9 +2280,13 @@ openformulieren:
       memory: 1792Mi
   worker:
     replicaCount: 1
+    # Chart 2.0.0 fixes the probe command (event-loop file, --max-age=70, and a
+    # ping through the broker); no value changes it. maykin-common 0.21.0 in
+    # Open Forms 4.0.10 stops updating that file after a Redis reconnect
+    # (maykin-common-1), so the worker restarts once after every Redis restart
+    # or failover. Accepted, as for the Open Klant worker.
     livenessProbe:
       enabled: true
-    maxWorkerLivenessDelta: "300"
     resources:
       requests:
         cpu: 200m
