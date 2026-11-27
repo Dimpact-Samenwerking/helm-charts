@@ -111,10 +111,10 @@ scripts=$(mktemp -d)
 for script in $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)); do
   cp "$script" "$scripts/$(basename "$script" | tr - _).py"
 done
-deptry . "$scripts" --requirements-files requirements.txt
+deptry . "$scripts" --requirements-files requirements.in
 ```
 
-Checks that every third-party import is in `requirements.txt`. deptry reads
+Checks that every third-party import is in `requirements.in`. deptry reads
 only `*.py` files, so the extensionless scripts go in as `.py` copies; a plain
 `deptry .` skips them. The tools that nothing imports are listed under
 `[tool.deptry.per_rule_ignores]` in `pyproject.toml`.
@@ -208,7 +208,7 @@ vulnerability service, with its own cache in the repo-root `.cache/`
 upgrade the package. In `run_python_checks` a finding is a warning, so it
 blocks no commit or PR, and the step is skipped when pypi.org is not
 reachable. The `podiumd-pip-audit` workflow runs it weekly and when
-`requirements.txt` or `pyproject.toml` changes.
+`requirements.txt`, `requirements.in` or `pyproject.toml` changes.
 
 ## Before committing
 
@@ -217,7 +217,7 @@ cd charts/podiumd/bin
 ./run_python_checks
 ```
 
-Upgrades pip and the tools in `requirements.txt` first, then runs everything
+Installs the pinned tools of `requirements.txt` first, then runs everything
 above at the same time, each step with its own log. It prints the logs in a
 fixed order, each with its time, and ends by listing every failed step.
 pip-audit only warns. pylint and pytest (pytest-xdist) run in parallel, so a
@@ -233,7 +233,7 @@ ruff check . $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 shellcheck run_python_checks
 ruff format --check . $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 flake8 lib tests $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
-deptry . "$scripts" --requirements-files requirements.txt  # scripts: see deptry above
+deptry . "$scripts" --requirements-files requirements.in  # scripts: see deptry above
 jscpd lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 pymarkdown $(python3 -c 'from lib.chart.paths import CHART_DIR; from lib.checks.markdown import pymarkdown_rule_args; print(*pymarkdown_rule_args(CHART_DIR))') scan ./*.md
 vulture lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))

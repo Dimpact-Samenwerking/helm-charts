@@ -9,7 +9,7 @@ usage() {
     cat <<'HELP'
 Usage: run_python_checks [-h|--help]
 
-Upgrades pip and the tools in requirements.txt, then runs ruff check,
+Installs the pinned tools of requirements.txt, then runs ruff check,
 shellcheck, ruff format --check, flake8 (wemake-python-styleguide), deptry,
 jscpd, pymarkdown, vulture, bandit, basedpyright, pylint, pytest with
 coverage and pip-audit (only warns) on charts/podiumd/bin/, all at the same
@@ -44,8 +44,8 @@ trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-# requirements.txt is unpinned: local runs and CI check with the same,
-# newest tool versions.
+# requirements.txt pins every tool, so local runs and CI check with the same
+# versions.
 echo "=== pip install --upgrade ==="
 python3 -m pip install --quiet --disable-pip-version-check --upgrade pip -r requirements.txt
 
@@ -119,7 +119,7 @@ step_deptry() {
         cp "$script" "$copy"
         names+=(-e "s|$copy|$script|g")
     done
-    deptry . "$scripts_dir" --requirements-files requirements.txt 2>&1 | sed "${names[@]}"
+    deptry . "$scripts_dir" --requirements-files requirements.in 2>&1 | sed "${names[@]}"
 }
 
 step_jscpd() { jscpd "${code[@]}"; }
