@@ -12,7 +12,7 @@ PodiumD Helm chart
 | @dimpact | brppersonenmock(brp-personen-mock) | 1.2.9 |
 | @maykinmedia | openarchiefbeheer | 2.1.0 |
 | @maykinmedia | openbeheer | 0.1.3 |
-| @maykinmedia | openformulieren(openforms) | 1.13.0 |
+| @maykinmedia | openformulieren(openforms) | 2.0.0 |
 | @maykinmedia | openinwoner | 2.7.0 |
 | @maykinmedia | openklant | 1.14.2 |
 | @maykinmedia | opennotificaties | 2.1.0 |
@@ -988,7 +988,6 @@ PodiumD Helm chart
 | openformulieren.settings.email.useTLS | bool | `true` |  |
 | openformulieren.tags.redis | bool | `false` |  |
 | openformulieren.worker.livenessProbe.enabled | bool | `true` |  |
-| openformulieren.worker.maxWorkerLivenessDelta | string | `"300"` |  |
 | openformulieren.worker.replicaCount | int | `1` |  |
 | openformulieren.worker.resources.requests.cpu | string | `"200m"` |  |
 | openformulieren.worker.resources.requests.memory | string | `"1536Mi"` |  |
