@@ -5,7 +5,11 @@
 # Changes:
 #   1. openzaak 1.29.3 -> 1.31.1 (chart 1.14.2 -> 1.16.0).
 #   2. openklant 2.15.0 -> 2.19.2 (chart 1.11.0 -> 1.14.2).
-#   3. omc 2.3.1 -> 2.4.1 (chart 0.17.4 -> 0.17.8).
+#   3. zac 5.9.1 -> 5.13.0 (chart 1.0.355 -> 1.0.409).
+#   4. zac - gotenberg 8.38.1 -> 9.10.2.
+#   5. zac - opa 1.21.3-static -> 1.23.0-static.
+#   6. zac - opentelemetry-collector-contrib 0.161.0 -> 0.166.0.
+#   7. omc 2.3.1 -> 2.4.1 (chart 0.17.4 -> 0.17.8).
 #
 # See docs/_UPGRADE_PATHS/4.10.3-to-4.11.0-upgrade.md for the operator upgrade notes.
 #
@@ -23,6 +27,27 @@
   url: docker.io/maykinmedia/open-klant
   version: "2.19.2"
   digest: "sha256:f85ef0b31610cbf3ef6c09cbe217f113145e11623aa9ba140abd2e4ffb7bddff"
+
+# zac 5.9.1 -> 5.13.0
+- name: infonl/zaakafhandelcomponent
+  url: ghcr.io/infonl/zaakafhandelcomponent
+  version: "5.13.0"
+  digest: "sha256:21a5e996acef1b11185c4d41526704736db298b43d978b05120c08676600f685"
+#   sidecar: zac - gotenberg 8.38.1 -> 9.10.2
+- name: gotenberg/gotenberg
+  url: docker.io/gotenberg/gotenberg
+  version: "9.10.2"
+  digest: "sha256:daede2c52129da3b9eef655fdad5de0c0a978f1119bb1c459ee88388982b1b70"
+#   sidecar: zac - opa 1.21.3-static -> 1.23.0-static
+- name: openpolicyagent/opa
+  url: docker.io/openpolicyagent/opa
+  version: "1.23.0-static"
+  digest: "sha256:5eda3af02ff7b2c5f12bbf893a5bdebfde3adb8d6338e7fcf1f37d90b819e88d"
+#   sidecar: zac - opentelemetry-collector-contrib 0.161.0 -> 0.166.0
+- name: otel/opentelemetry-collector-contrib
+  url: docker.io/otel/opentelemetry-collector-contrib
+  version: "0.166.0"
+  digest: "sha256:3e18fe04181de50bdd72e23ad4a4d6214b54351e63d496f1c58127cc4541ad7f"
 
 # omc 2.3.1 -> 2.4.1
 - name: worthnl/notifynl-omc
