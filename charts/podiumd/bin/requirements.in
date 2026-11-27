@@ -1,0 +1,28 @@
+# Python tools for charts/podiumd/bin/'s scripts, tests, and verify-podiumd's
+# markdown and yamllint checks — see charts/podiumd/bin/README-release-process.md#setup.
+# Unpinned here; requirements.txt pins them (uv pip compile), so local runs and
+# CI use the same versions. New tool versions arrive as Renovate's weekly
+# lock file maintenance PR, not unannounced in a CI run.
+ruff
+pymarkdownlnt
+yamllint
+pylint
+vulture
+isort
+pytest
+pytest-cov
+pytest-xdist  # run_python_checks runs the tests in parallel (-n auto)
+bandit
+basedpyright
+jscpd
+flake8-pyproject  # flake8 reads [tool.flake8] in pyproject.toml
+wemake-python-styleguide  # flake8 plugin, brings its own pinned flake8
+flake8-bugbear
+flake8-class-attributes-order
+flake8-functions-names
+deptry
+pip-audit
+# Imported by the charts/podiumd/scripts/migrate-*.py scripts that tests/migrate-scripts/ load.
+ruamel.yaml
+# Imported by lib/ and the scripts as yaml.
+pyyaml

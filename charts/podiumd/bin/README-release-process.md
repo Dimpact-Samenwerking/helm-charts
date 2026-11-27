@@ -3,9 +3,8 @@
 ## Table of contents
 
 - [Setup](#setup)
-  - [Required external tools](#required-external-tools)
-  - [Debian setup](#debian-setup)
-  - [macOS setup](#macos-setup)
+  - [Tools](#tools)
+  - [Updating a tool version](#updating-a-tool-version)
   - [Vendored sub-charts](#vendored-sub-charts)
 - [Confluence release tables](#confluence-release-tables)
 - [Process steps](#process-steps)
@@ -19,53 +18,40 @@
 
 ## Setup
 
-### Required external tools
+### Tools
 
-`verify-podiumd` needs these for its checks. Versions are known to work, not
-enforced minimums:
+Every tool version is pinned in one place, so local runs and CI check with the
+same versions:
 
-- `helm` — needed by nearly every script (known-working: v3.22.0; v3.9.0
-  works apart from `--dry-run=client` features)
-- `helm-docs` — Helm doc (known-working: 1.14.2)
-- `yamllint` — yamllint check (known-working: 1.29.0)
-- `kubeconform` — kubeconform check (known-working: v0.8.0)
-- `shellcheck` — shellcheck check (known-working: 0.9.0)
-- `kube-score` — kube-score check (known-working: 1.20.0)
-- `docker` — CVE scan, runs the trivy image (known-working: 29.8.0). Without a running docker daemon an installed `trivy` is used (known-working: 0.76.2); with neither, the CVE scan and the CVE diff are reported as skipped
-- `python3-venv` (Debian only) — to create the `.venv`; the tooling needs Python 3.12 or newer (known-working: 3.13)
+- [`mise.toml`](../../../mise.toml) in the repo root: Python, `helm`,
+  `helm-docs`, `kubeconform`, `kube-score`, `shellcheck` and `trivy`
+- [`requirements.txt`](requirements.txt): the Python tools (`pymarkdown`,
+  `yamllint`, the linters and pytest), generated from
+  [`requirements.in`](requirements.in)
 
-### Debian setup
-
-`helm`, `helm-docs`, `kubeconform` and `kube-score` have no Debian package; install them from their GitHub releases.
+Install [mise](https://mise.jdx.dev/) once (`brew install mise`, or
+`curl https://mise.run | sh` on Linux) and activate it in your shell
+(`mise activate`, see its docs). Then, from the repo root:
 
 ```bash
-sudo apt install -y yamllint shellcheck docker.io python3-venv
-# helm
-curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-# helm-docs
-curl -sL "$(curl -s https://api.github.com/repos/norwoodj/helm-docs/releases/latest | grep -o 'https://[^"]*_Linux_x86_64\.deb')" -o /tmp/helm-docs.deb
-sudo dpkg -i /tmp/helm-docs.deb
-# kubeconform
-curl -sL "$(curl -s https://api.github.com/repos/yannh/kubeconform/releases/latest | grep -o 'https://[^"]*kubeconform-linux-amd64\.tar\.gz')" | sudo tar -xz -C /usr/local/bin kubeconform
-# kube-score
-curl -sL "$(curl -s https://api.github.com/repos/zegl/kube-score/releases/latest | grep -o 'https://[^"]*kube-score_[0-9.]*_linux_amd64"' | tr -d '"')" -o /tmp/kube-score
-sudo install -m 0755 /tmp/kube-score /usr/local/bin/kube-score
-# Python tools, from the project-root
+mise install
 python3 -m venv .venv
 .venv/bin/pip install -r charts/podiumd/bin/requirements.txt
 ```
 
-### macOS setup
+Inside the repo, `python3`, `helm` and the other tools are then the pinned
+versions. Rerun these commands after a change to either file.
 
-```bash
-brew install helm helm-docs yamllint kubeconform shellcheck kube-score
-brew install --cask docker   # or: brew install colima docker && colima start
-                              # (colima needs `colima start` once per boot)
+The CVE scan runs trivy with Docker, or the installed `trivy` when Docker is not
+running.
 
-# Python tools, from the project-root
-python3 -m venv .venv
-.venv/bin/pip install -r charts/podiumd/bin/requirements.txt
-```
+### Updating a tool version
+
+- `mise.toml`: change the version, run `mise install`.
+- A Python tool: Renovate's weekly lock file maintenance PR updates
+  `requirements.txt`. By hand, from `charts/podiumd/bin`:
+  `uv pip compile requirements.in -o requirements.txt --universal --python-version 3.13 --upgrade`.
+  A new direct dependency goes in `requirements.in`, then compile.
 
 ### Vendored sub-charts
 
