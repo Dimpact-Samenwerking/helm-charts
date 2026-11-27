@@ -23,7 +23,7 @@ PodiumD Helm chart
 | @opstree | redis-operator | 0.27.0 |
 | @wiremind | clamav | 3.7.3 |
 | @worth-nl | omc(notifynl-omc-nodep) | 0.17.8 |
-| @zac | zac(zaakafhandelcomponent) | 1.0.355 |
+| @zac | zac(zaakafhandelcomponent) | 1.0.385 |
 | @zgw-office-addin | zgw-office-addin | 0.0.93 |
 | file://../mi-data | mi(mi-data) | 1.1.0 |
 | https://helm.elastic.co | eck-operator | 3.5.0 |
@@ -1355,7 +1355,7 @@ PodiumD Helm chart
 | pabc.migrations.image.repository | string | `"ghcr.io/platform-autorisatie-beheer-component/pabc-migrations"` |  |
 | pabc.migrations.image.tag | string | `"2.1.0@sha256:75640f1ee9dc6a155800a31457574b9c36eb0cd41827c45333b9f39d05c94abb"` |  |
 | pabc.migrations.nodeSelector | object | `{}` |  |
-| pabc.migrations.prefill | object | `{"applications":[{"name":"zaakafhandelcomponent","roles":["behandelaar","beheerder","brp_zoeken","coordinator","raadpleger","recordmanager","zaakspecifiek_geautoriseerd"]}]}` | Applications and application roles the migrations job creates when they do not exist yet (PABC 2.1.0 prefill, PREFILL_PATH). Non-destructive: an existing application is skipped as a whole, with its roles, and nothing is ever changed or removed, so it is safe on curated environments. The default is the application roles ZAC 5.9.1 checks (policies/rollen.rego); functional roles, domains and mappings are not part of prefill. Set to [] per environment to turn it off. |
+| pabc.migrations.prefill | object | `{"applications":[{"name":"zaakafhandelcomponent","roles":["behandelaar","beheerder","brp_zoeken","coordinator","raadpleger","recordmanager","zaakspecifiek_geautoriseerd"]}]}` | Applications and application roles the migrations job creates when they do not exist yet (PABC 2.1.0 prefill, PREFILL_PATH). Non-destructive: an existing application is skipped as a whole, with its roles, and nothing is ever changed or removed, so it is safe on curated environments. The default is the application roles ZAC 5.12.0 checks (policies/rollen.rego); functional roles, domains and mappings are not part of prefill. Set to [] per environment to turn it off. |
 | pabc.nodeSelector | object | `{}` |  |
 | pabc.podSecurityContext.runAsGroup | int | `1000` |  |
 | pabc.podSecurityContext.runAsNonRoot | bool | `true` |  |
@@ -1510,7 +1510,7 @@ PodiumD Helm chart
 | zac.global.curlImage.repository | string | `"curlimages/curl"` |  |
 | zac.global.curlImage.tag | string | `"8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93"` |  |
 | zac.image.pullPolicy | string | `"IfNotPresent"` |  |
-| zac.image.tag | string | `"5.9.1@sha256:d2b43634c21205183ed7ce9591791fa0112501bb2e4b04baff0362da9e001da4"` |  |
+| zac.image.tag | string | `"5.12.0@sha256:2f07dbd9e5036cc217bcc51954d5a0d433210641eac256f4d6e367c6699f9cb5"` |  |
 | zac.initContainer.enabled | bool | `true` |  |
 | zac.initContainer.resources.requests.cpu | string | `"50m"` |  |
 | zac.initContainer.resources.requests.memory | string | `"256Mi"` |  |
@@ -1544,7 +1544,7 @@ PodiumD Helm chart
 | zac.objectenApi.token | string | `"objectentoken"` |  |
 | zac.objectenApi.url | string | `"https://objecten.example.nl"` |  |
 | zac.office_converter.env.API_TIMEOUT | string | `"50s"` |  |
-| zac.office_converter.image.tag | string | `"8.38.1@sha256:aa552cc115db488e0f0bcb07446aac13071ad51505b642c84bb894500907b42b"` |  |
+| zac.office_converter.image.tag | string | `"9.4.1@sha256:7d790c081a944f4d30cacb59a2cdccbe71569532af691b93c36551f6a877b4fc"` |  |
 | zac.office_converter.password | string | `"dummy"` | Basic auth password for the office converter; see username. |
 | zac.office_converter.resources.limits.memory | string | `"2Gi"` |  |
 | zac.office_converter.resources.requests.cpu | string | `"100m"` |  |
@@ -1553,7 +1553,7 @@ PodiumD Helm chart
 | zac.office_converter.securityContext.runAsNonRoot | bool | `true` |  |
 | zac.office_converter.securityContext.runAsUser | int | `1001` |  |
 | zac.office_converter.username | string | `"dummy"` | Basic auth user shared by ZAC and its office converter (Gotenberg). Override per environment: the converter Service is reachable from any pod in the cluster. |
-| zac.opa.image.tag | string | `"1.21.3-static@sha256:bf27411c17e72f3d16063725a74c69f711fb267eb9a4cebdae78028b72adc847"` |  |
+| zac.opa.image.tag | string | `"1.22.3-static@sha256:a6ccb6e0cc91b2d1807b1b65a844b189249b9ab33d126e0bca30c0cf43b0ae07"` |  |
 | zac.opa.resources.requests.cpu | string | `"10m"` |  |
 | zac.opa.resources.requests.memory | string | `"20Mi"` |  |
 | zac.opa.securityContext.runAsGroup | string | `nil` |  |
@@ -1562,7 +1562,7 @@ PodiumD Helm chart
 | zac.opa.sidecar | bool | `true` |  |
 | zac.openForms.url | string | `"https://open-forms.example.nl"` |  |
 | zac.opentelemetry-collector.image.repository | string | `"otel/opentelemetry-collector-contrib"` |  |
-| zac.opentelemetry-collector.image.tag | string | `"0.161.0@sha256:fd328de2552466ad78385e1b1289c3f2402b1c45f265b252aab1955b42845ac1"` |  |
+| zac.opentelemetry-collector.image.tag | string | `"0.165.0@sha256:e40d61f10c9a617cca1ffd1be4d7e2b3a4b0f0001798ff07e58cabe82e618cea"` |  |
 | zac.organizations.bron.rsin | string | `"000000000"` |  |
 | zac.organizations.verantwoordelijke.rsin | string | `"000000000"` |  |
 | zac.pabcApi.apiKey | string | `""` |  |

@@ -169,23 +169,23 @@
 
 - name: infonl/zaakafhandelcomponent
   url: ghcr.io/infonl/zaakafhandelcomponent
-  version: "5.9.1"
-  digest: "sha256:d2b43634c21205183ed7ce9591791fa0112501bb2e4b04baff0362da9e001da4"
+  version: "5.12.0"
+  digest: "sha256:2f07dbd9e5036cc217bcc51954d5a0d433210641eac256f4d6e367c6699f9cb5"
 
 - name: gotenberg/gotenberg
   url: docker.io/gotenberg/gotenberg
-  version: "8.38.1"
-  digest: "sha256:aa552cc115db488e0f0bcb07446aac13071ad51505b642c84bb894500907b42b"
+  version: "9.4.1"
+  digest: "sha256:7d790c081a944f4d30cacb59a2cdccbe71569532af691b93c36551f6a877b4fc"
 
 - name: openpolicyagent/opa
   url: docker.io/openpolicyagent/opa
-  version: "1.21.3-static"
-  digest: "sha256:bf27411c17e72f3d16063725a74c69f711fb267eb9a4cebdae78028b72adc847"
+  version: "1.22.3-static"
+  digest: "sha256:a6ccb6e0cc91b2d1807b1b65a844b189249b9ab33d126e0bca30c0cf43b0ae07"
 
 - name: otel/opentelemetry-collector-contrib
   url: docker.io/otel/opentelemetry-collector-contrib
-  version: "0.161.0"
-  digest: "sha256:fd328de2552466ad78385e1b1289c3f2402b1c45f265b252aab1955b42845ac1"
+  version: "0.165.0"
+  digest: "sha256:e40d61f10c9a617cca1ffd1be4d7e2b3a4b0f0001798ff07e58cabe82e618cea"
 
 - name: apache/solr-operator
   url: docker.io/apache/solr-operator
