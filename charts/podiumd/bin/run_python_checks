@@ -64,9 +64,11 @@ find . -maxdepth 1 -type f -perm -u+x -exec grep -l '^#!.*python' {} + >"$logs/p
 IFS=$'\n' read -r -d '' -a python_scripts <"$logs/python_scripts" || true
 find tests -name '*.py' >"$logs/test_files"
 IFS=$'\n' read -r -d '' -a test_files <"$logs/test_files" || true
-# Shell scripts: sh/bash/dash/ksh shebang, or *.sh.
-find . -path ./.venv -prune -o -path '*/__pycache__' -prune -o -type f -print0 |
-    xargs -0 awk 'FNR == 1 && (/^#!.*[\/ ](ba|da|k)?sh([ \t]|$)/ || FILENAME ~ /\.sh$/) {print FILENAME} {nextfile}' |
+# Shell scripts: sh/bash/dash/ksh shebang, or *.sh. Hidden entries are the venv
+# and tool caches. LC_ALL=C: with a UTF-8 locale, macOS awk aborts on the first
+# binary file.
+find . -name '.?*' -prune -o -path '*/__pycache__' -prune -o -type f -print0 |
+    LC_ALL=C xargs -0 awk 'FNR == 1 && (/^#!.*[\/ ](ba|da|k)?sh([ \t]|$)/ || FILENAME ~ /\.sh$/) {print FILENAME} {nextfile}' |
     sort >"$logs/shell_scripts"
 IFS=$'\n' read -r -d '' -a shell_scripts <"$logs/shell_scripts" || true
 code=(lib "${python_scripts[@]}")
