@@ -1,6 +1,6 @@
 # podiumd
 
-![Version: 4.10.2](https://img.shields.io/badge/Version-4.10.2-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 4.10.2](https://img.shields.io/badge/AppVersion-4.10.2-informational?style=flat-square)
+![Version: 4.10.3](https://img.shields.io/badge/Version-4.10.3-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 4.10.3](https://img.shields.io/badge/AppVersion-4.10.3-informational?style=flat-square)
 
 PodiumD Helm chart
 
@@ -947,7 +947,7 @@ PodiumD Helm chart
 | openformulieren.customerInteractionsConfigJob.serviceIdentifier | string | `"openklant-api"` | zgw_consumers service identifier (Service.slug) of the Open Klant klantinteracties service; must have api_type `kc`. |
 | openformulieren.flower.enabled | bool | `false` |  |
 | openformulieren.fullnameOverride | string | `"openformulieren"` |  |
-| openformulieren.image.tag | string | `"4.0.9@sha256:38b1ac1a4faaa97f0ad9e9b6d47c5a982a48c4bb952fede7afd5e53eae752d4b"` |  |
+| openformulieren.image.tag | string | `"4.0.10@sha256:3b4985bc2e0934ae6976b269b4f673e4bf590bbafc5ada00fb836262cb100bdf"` |  |
 | openformulieren.nameOverride | string | `"openformulieren"` |  |
 | openformulieren.nginx.config.clientMaxBodySize | string | `"100M"` |  |
 | openformulieren.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
