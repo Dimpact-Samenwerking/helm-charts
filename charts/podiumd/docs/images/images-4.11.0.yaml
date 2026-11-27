@@ -1,13 +1,13 @@
-# Baseline: podiumd 4.10.2. Re-verify before release.
+# Baseline: podiumd 4.10.3. Re-verify before release.
 #
-# Images new or changed in podiumd 4.11.0 vs 4.10.2.
+# Images new or changed in podiumd 4.11.0 vs 4.10.3.
 #
 # Changes:
 #   1. openzaak 1.29.3 -> 1.31.1 (chart 1.14.2 -> 1.16.0).
 #   2. openklant 2.15.0 -> 2.19.2 (chart 1.11.0 -> 1.14.2).
 #   3. omc 2.3.1 -> 2.4.1 (chart 0.17.4 -> 0.17.8).
 #
-# See docs/_UPGRADE_PATHS/4.10.2-to-4.11.0-upgrade.md for the operator upgrade notes.
+# See docs/_UPGRADE_PATHS/4.10.3-to-4.11.0-upgrade.md for the operator upgrade notes.
 #
 # Digests are the OCI image index (multi-arch manifest) digest as returned in
 # the Docker-Content-Digest response header from the source registry.
