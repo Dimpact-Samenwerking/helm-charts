@@ -1,15 +1,6 @@
 name: PodiumD Python checks
 
 on:
-  push:
-    paths:
-      - 'charts/podiumd/bin/**'
-      # tests/migrate-scripts/ tests the migrate scripts there.
-      - 'charts/podiumd/scripts/**'
-      # tests/migrate-scripts/ also runs the create-required-objecttypen Job's script.
-      - 'charts/podiumd/templates/create-required-objecttypen.yaml'
-      - 'charts/podiumd/files/objecttypen/**'
-      - '.github/workflows/podiumd-python-checks.yaml'
   # Every PR, so the check can be required: a workflow skipped by `paths`
   # leaves a required check waiting; a job skipped by `if` counts as passed.
   pull_request:
