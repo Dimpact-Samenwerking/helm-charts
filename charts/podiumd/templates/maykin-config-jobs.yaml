@@ -1,0 +1,205 @@
+{{- /* podiumd-chart-50 (interim): the Maykin charts render their setup_configuration Job as a
+     post-install/post-upgrade hook, and Helm runs hooks one after another: nine of them took
+     about 2 minutes of every upgrade. podiumd turns those hooks off
+     (<app>.configuration.job.enabled: false) and renders the same Jobs from the sub-charts'
+     own templates as plain Jobs, which start together. One hook then waits for all of them
+     and fails when one fails, so a failing configuration still fails the deploy. An
+     environment that still sets job.enabled: true keeps the sub-chart's hook for that app.
+     Remove this file when the Maykin charts can turn off the hook. */ -}}
+{{- $cfg := .Values.maykinConfigJobs }}
+{{- $names := list }}
+{{- range $alias := splitList " " (include "podiumd.maykinConfigJobApps" .) }}
+{{- $found := include "podiumd.maykinConfigJob" (dict "root" $ "alias" $alias) | fromYaml }}
+{{- if $found.plain }}
+{{- $names = append $names $found.job.metadata.name }}
+---
+{{ toYaml $found.job }}
+{{- end }}
+{{- end }}
+{{- if $names }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: maykin-config-jobs-wait
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: maykin-config-jobs-wait
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list"]
+  # The gate before a restart counts as a failure: Keycloak, then each app's own rollout.
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["k8s.keycloak.org"]
+    resources: ["keycloaks"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: maykin-config-jobs-wait
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: maykin-config-jobs-wait
+subjects:
+  - kind: ServiceAccount
+    name: maykin-config-jobs-wait
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: maykin-config-jobs-wait
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+  annotations:
+    # The hook that keeps a failing configuration failing the deploy, as the Maykin hooks did.
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        {{- include "podiumd.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: maykin-config-jobs-wait
+      automountServiceAccountToken: true
+      restartPolicy: Never
+      {{- with $cfg.wait.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: wait
+          image: {{ include "podiumd.image" $cfg.wait.image }}
+          resources:
+            {{- toYaml $cfg.wait.resources | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          env:
+            - name: NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            - name: JOBS
+              value: {{ join " " $names | quote }}
+            - name: KEYCLOAK
+              value: {{ if (index .Values "keycloak-operator").enabled }}{{ default "keycloak" .Values.keycloak.name | quote }}{{ else }}""{{ end }}
+            - name: REALM_JOB
+              value: {{ if include "podiumd.keycloak.podiumdRealmImportEnabled" . }}{{ include "podiumd.keycloak.podiumdRealmImportJobName" . | quote }}{{ else }}""{{ end }}
+            - name: RESTART_LIMIT
+              value: {{ $cfg.wait.restartLimit | quote }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -u
+              # The Jobs retry (backoffLimit, podiumd-chart-31): on a fresh install they
+              # fail until Keycloak and the podiumd realm are up, and on an upgrade until the app's
+              # new pods have migrated its database. Once those are ready (the gate), a Job that
+              # restarts RESTART_LIMIT more times is broken: fail the deploy with its log, instead
+              # of waiting for Helm's --timeout. Until then every restart's log is printed.
+              val() { echo " $1 " | tr ' ' '\n' | sed -n "s/^$2=//p"; }
+              # restartPolicy Never (Open Zaak, Open VTB) starts a new pod per attempt: the newest
+              # failed pod has the cause; OnFailure keeps one pod that restarts.
+              newest_pod() {
+                NAME=$1; shift
+                kubectl get pods -n "$NAMESPACE" -l "job-name=$NAME" "$@" --sort-by=.metadata.creationTimestamp \
+                  -o jsonpath='{.items[-1:].metadata.name}' 2>/dev/null
+              }
+              show_log() {
+                POD=$(newest_pod "$1" --field-selector=status.phase=Failed)
+                [ -n "$POD" ] || POD=$(newest_pod "$1")
+                [ -n "$POD" ] || return 0
+                # The previous run's log is not always kept on the node; every run fails the
+                # same way, so the current one's log shows the cause too.
+                LOG=$(kubectl logs "$POD" -n "$NAMESPACE" --previous --tail=15 2>/dev/null) \
+                  || LOG=$(kubectl logs "$POD" -n "$NAMESPACE" --tail=15 2>&1)
+                echo "$LOG"
+              }
+              KEYCLOAK_READY=""
+              keycloak_ready() {
+                [ -z "$KEYCLOAK_READY" ] || return 0
+                if [ -n "$KEYCLOAK" ]; then
+                  [ "$(kubectl get keycloaks.k8s.keycloak.org "$KEYCLOAK" -n "$NAMESPACE" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)" = True ] || return 1
+                fi
+                if [ -n "$REALM_JOB" ]; then
+                  # Gone (ttlSecondsAfterFinished) means it completed before this deploy.
+                  STATE=$(kubectl get job "$REALM_JOB" -n "$NAMESPACE" -o jsonpath='{.status.conditions[?(@.status=="True")].type}' 2>&1) || STATE=gone
+                  case "$STATE" in *Complete*|gone) ;; *) return 1 ;; esac
+                fi
+                KEYCLOAK_READY=yes
+                echo "Keycloak and the podiumd realm are ready"
+              }
+              PENDING="$JOBS"; FAILED=""; SEEN=""; BASE=""
+              while [ -n "$PENDING" ]; do
+                LEFT=""
+                for JOB in $PENDING; do
+                  STATE=$(kubectl get job "$JOB" -n "$NAMESPACE" -o jsonpath='{.status.conditions[?(@.status=="True")].type}' 2>/dev/null) || STATE=""
+                  case "$STATE" in
+                    *Complete*) echo "job/$JOB complete"; continue ;;
+                    *Failed*)
+                      echo "job/$JOB failed; its last log lines:"
+                      # A log without a final newline would run into the next line.
+                      LOG=$(kubectl logs "job/$JOB" -n "$NAMESPACE" --tail=30 2>&1); echo "$LOG"
+                      FAILED="$FAILED $JOB"; continue ;;
+                  esac
+                  # Container restarts (OnFailure) plus failed pods (Never).
+                  RESTARTS=$({
+                    kubectl get pods -n "$NAMESPACE" -l "job-name=$JOB" -o jsonpath='{range .items[*]}{range .status.containerStatuses[*]}{.restartCount}{"\n"}{end}{end}' 2>/dev/null
+                    kubectl get job "$JOB" -n "$NAMESPACE" -o jsonpath='{.status.failed}{"\n"}' 2>/dev/null
+                  } | awk '{ n += $1 } END { print n + 0 }')
+                  if [ "$RESTARTS" != "$(val "$SEEN" "$JOB")" ]; then
+                    SEEN="$(echo " $SEEN " | sed "s| $JOB=[0-9]* | |") $JOB=$RESTARTS"
+                    if [ "$RESTARTS" -gt 0 ]; then
+                      echo "job/$JOB restarted $RESTARTS time(s); its last log lines:"
+                      show_log "$JOB"
+                    fi
+                  fi
+                  START=$(val "$BASE" "$JOB")
+                  # The app's web Deployment: the Job's name without -config-<revision>.
+                  if [ -z "$START" ] && keycloak_ready \
+                    && kubectl rollout status "deployment/${JOB%-config-*}" -n "$NAMESPACE" --timeout=1s >/dev/null 2>&1; then
+                    START=$RESTARTS; BASE="$BASE $JOB=$START"
+                    echo "job/$JOB: ${JOB%-config-*} is rolled out; fails after $RESTART_LIMIT more restart(s)"
+                  fi
+                  if [ -n "$START" ] && [ $((RESTARTS - START)) -ge "$RESTART_LIMIT" ]; then
+                    echo "job/$JOB restarted $((RESTARTS - START)) time(s) after its gate opened: failing"
+                    FAILED="$FAILED $JOB"; continue
+                  fi
+                  LEFT="$LEFT $JOB"
+                done
+                PENDING="${LEFT# }"
+                [ -z "$PENDING" ] || sleep 5
+              done
+              [ -z "$FAILED" ] || { echo "setup_configuration failed:$FAILED"; exit 1; }
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+{{- end }}

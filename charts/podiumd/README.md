@@ -1,6 +1,6 @@
 # podiumd
 
-![Version: 4.10.3](https://img.shields.io/badge/Version-4.10.3-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 4.10.3](https://img.shields.io/badge/AppVersion-4.10.3-informational?style=flat-square)
+![Version: 4.11.0](https://img.shields.io/badge/Version-4.11.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 4.11.0](https://img.shields.io/badge/AppVersion-4.11.0-informational?style=flat-square)
 
 PodiumD Helm chart
 
@@ -14,15 +14,15 @@ PodiumD Helm chart
 | @maykinmedia | openbeheer | 0.1.3 |
 | @maykinmedia | openformulieren(openforms) | 1.13.0 |
 | @maykinmedia | openinwoner | 2.7.0 |
-| @maykinmedia | openklant | 1.11.0 |
+| @maykinmedia | openklant | 1.14.2 |
 | @maykinmedia | opennotificaties | 2.1.0 |
 | @maykinmedia | objecten(openobject) | 1.2.0 |
 | @maykinmedia | openvtb | 0.2.0 |
-| @maykinmedia | openzaak | 1.14.2 |
+| @maykinmedia | openzaak | 1.16.0 |
 | @maykinmedia | referentielijsten(referentielijsten) | 0.2.0 |
 | @opstree | redis-operator | 0.27.0 |
 | @wiremind | clamav | 3.7.3 |
-| @worth-nl | omc(notifynl-omc-nodep) | 0.17.4 |
+| @worth-nl | omc(notifynl-omc-nodep) | 0.17.8 |
 | @zac | zac(zaakafhandelcomponent) | 1.0.355 |
 | @zgw-office-addin | zgw-office-addin | 0.0.93 |
 | file://../mi-data | mi(mi-data) | 1.1.0 |
@@ -69,7 +69,7 @@ PodiumD Helm chart
 | apiproxy.locations.kvkSearch.<<.hostHeader | string | `"lab.api.mijniconnect.nl"` |  |
 | apiproxy.locations.kvkSearch.<<.sslVerify | string | `""` |  |
 | apiproxy.locations.kvkSearch.targetUrl | string | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/zoeken/v2/zoeken"` |  |
-| apiproxy.nginxCertsSecret | string | `""` | Secret containing client certificate (`client.crt`/`client.key`) and CA bundle (`ca.crt`) for upstream mTLS. Leave empty to disable mTLS and skip the cert volume mount. When set, `sslVerify` auto-derives to "on"; when empty it auto-derives to "off". |
+| apiproxy.nginxCertsSecret | string | `""` | Secret containing client certificate (`client.crt`/`client.key`) and CA bundle (`ca.crt`) for upstream mTLS. Leave empty to disable mTLS and skip the cert volume mount. Upstream certificates are verified either way: against ca.crt from this Secret, or without it against the image's CA bundle (security review NW-16). |
 | apiproxy.nodeSelector | object | `{}` |  |
 | apiproxy.readinessProbe.initialDelaySeconds | int | `5` |  |
 | apiproxy.readinessProbe.periodSeconds | int | `10` |  |
@@ -318,7 +318,6 @@ PodiumD Helm chart
 | ita.web.oidc.itaSystemAccessRole | string | `"ITA_Gebruiker"` |  |
 | ita.web.oidc.nameClaimType | string | `"name"` |  |
 | ita.web.oidc.objectregisterMedewerkerIdClaimType | string | `"samaccountname"` |  |
-| ita.web.oidc.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client for ITA. ITA is a JS frontend; the upstream chart has no app-side PKCE toggle. PKCE support depends on the OIDC client library used by the application. |
 | ita.web.oidc.roleClaimType | string | `"roles"` |  |
 | ita.web.resources.limits.cpu | string | `"200m"` |  |
 | ita.web.resources.limits.memory | string | `"256Mi"` |  |
@@ -577,7 +576,6 @@ PodiumD Helm chart
 | kiss.settings.oidc.klantcontactmedewerkerRole | string | `"Klantcontactmedewerker"` | Rolnamen zoals ze in de podiumd-realm staan (client kiss). KISS 3.0.0 splitst de redacteursrol in REDACTEUR en BEHEERDER; de realm-config in templates/keycloak-podiumd-realm-config.yaml levert beide rollen. |
 | kiss.settings.oidc.medewerkerIdentificatie.claim | string | `"samaccountname"` |  |
 | kiss.settings.oidc.medewerkerIdentificatie.truncate | string | `nil` |  |
-| kiss.settings.oidc.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client for KISS. KISS is a React frontend; the OIDC client library must support PKCE. |
 | kiss.settings.oidc.redacteurRole | string | `"Redacteur"` |  |
 | kiss.settings.organisatieIds | list | `[]` |  |
 | kiss.settings.registers | list | `[]` |  |
@@ -611,6 +609,9 @@ PodiumD Helm chart
 | kiss.settings.syncJobs.vac.schedule | string | `"*/59 * * * *"` |  |
 | kiss.settings.syncJobs.vac.token | string | `""` |  |
 | kiss.settings.syncJobs.website | list | `[]` |  |
+| maykinConfigJobs | object | `{"ttlSecondsAfterFinished":3600,"wait":{"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.2@sha256:7a82aeefea3d554a43a8676b137f2b88bae6c1fe11c13862b191b3a086cc28c0"},"nodeSelector":{},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"restartLimit":2}}` | podiumd-chart-50 (interim): podiumd runs the Maykin apps' setup_configuration Jobs as plain Jobs that start together, and this post-install/post-upgrade hook waits for all of them; it fails the deploy when one of them fails. |
+| maykinConfigJobs.ttlSecondsAfterFinished | int | `3600` | Seconds a finished configuration Job stays. A Job of a failed revision is never pruned by Helm, so the TTL removes it. |
+| maykinConfigJobs.wait.restartLimit | int | `2` | Restarts of a configuration Job, after Keycloak, the podiumd realm and the app's own rollout are ready, before the wait hook fails the deploy. |
 | mi.enabled | bool | `false` |  |
 | mi.image.registry | string | `"mcr.microsoft.com"` |  |
 | mi.image.repository | string | `"azure-cli"` |  |
@@ -635,8 +636,8 @@ PodiumD Helm chart
 | objecten.configuration.enabled | bool | `true` |  |
 | objecten.configuration.initContainer.enabled | bool | `false` |  |
 | objecten.configuration.job.backoffLimit | int | `12` |  |
-| objecten.configuration.job.enabled | bool | `true` |  |
-| objecten.configuration.job.resources | object | `{}` |  |
+| objecten.configuration.job.enabled | bool | `false` |  |
+| objecten.configuration.job.resources | object | `{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources of the setup_configuration Job (one Django process). podiumd renders this Job (podiumd-chart-50), so it sets them. Peak measured on minikube 2026-11-18: 119-257 MiB. |
 | objecten.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | objecten.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
 | objecten.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://objecten.example.nl`. |
@@ -691,7 +692,7 @@ PodiumD Helm chart
 | objecttypenCompatService | object | `{"enabled":true}` | Service `objecttypen` that sends the old objecttypen Service name to the objecten web pods (Objecten 4 serves the Objecttypen API). Keeps gateway ExternalNames to objecttypen.<namespace>.svc working through the upgrade, so the old objecttypen hostname has no 502 window before the gateway is repointed. Selector and port follow objecten.nameOverride and objecten.service.port. Transitional: on by default in 4.10.x only; a later minor turns it off by default. Turn it off once every gateway and client uses objecten, on a fresh install that never had objecttypen, or when something else already provides an `objecttypen` Service in the namespace. |
 | omc.enabled | bool | `false` |  |
 | omc.fullnameOverride | string | `"omc"` |  |
-| omc.image.tag | string | `"2.3.1"` |  |
+| omc.image.tag | string | `"2.4.1"` |  |
 | omc.settings.notify.api.baseUrl | string | `"https://api.notifynl.nl"` |  |
 | omc.settings.omc.auth.jwt.audience | string | `"omc"` |  |
 | omc.settings.omc.auth.jwt.issuer | string | `"omc"` |  |
@@ -704,6 +705,7 @@ PodiumD Helm chart
 | omc.settings.zgw.auth.jwt.userId | string | `"OMC (PodiumD)"` |  |
 | omc.settings.zgw.auth.jwt.userName | string | `"OMC (PodiumD)"` |  |
 | omc.settings.zgw.auth.key.openvtb | string | `"not-configured"` |  |
+| omc.settings.zgw.endpoint.documenten | string | `""` | The Open Zaak Documenten API, e.g. `https://openzaak.example.nl/documenten/api/v1`. OMC downloads a bericht's bijlagen from it for the Berichtenbox (MOBB); without it OMC sends the bericht without them. The render fails while it is empty and `openVtb` is set. |
 | omc.settings.zgw.endpoint.openVtb | string | `"https://openvtb.invalid"` |  |
 | omc.settings.zgw.variable.objectType.decisionInfoObjectType.uuids | string | `"00000000-0000-1000-b000-000000000000"` |  |
 | omc.settings.zgw.variable.objectType.ktoObjectType.uuid | string | `"00000000-0000-1000-b000-000000000000"` |  |
@@ -715,7 +717,8 @@ PodiumD Helm chart
 | openarchiefbeheer.configuration.data | string | `""` |  |
 | openarchiefbeheer.configuration.enabled | bool | `true` |  |
 | openarchiefbeheer.configuration.job.backoffLimit | int | `12` |  |
-| openarchiefbeheer.configuration.job.enabled | bool | `true` |  |
+| openarchiefbeheer.configuration.job.enabled | bool | `false` |  |
+| openarchiefbeheer.configuration.job.resources | object | `{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources of the setup_configuration Job (one Django process). podiumd renders this Job (podiumd-chart-50), so it sets them. Peak measured on minikube 2026-11-18: 119-257 MiB. |
 | openarchiefbeheer.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | openarchiefbeheer.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://abc.example.nl`. |
 | openarchiefbeheer.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. |
@@ -774,6 +777,7 @@ PodiumD Helm chart
 | openarchiefbeheer.worker.resources.requests.cpu | string | `"100m"` |  |
 | openarchiefbeheer.worker.resources.requests.memory | string | `"256Mi"` |  |
 | openbao.configuration.bootstrapTokenSecret | string | `"openbao-bootstrap-token"` |  |
+| openbao.configuration.cliLogin | bool | `false` | Allow `bao login -method=oidc` from a workstation: adds the redirect URI http://localhost:8250/oidc/callback to the Keycloak client and the OIDC role. Off by default (security review NW-13): any local process on port 8250 could catch the login. Without it, log in to the OpenBao UI and use its token. |
 | openbao.configuration.enabled | bool | `true` |  |
 | openbao.configuration.job.backoffLimit | int | `6` |  |
 | openbao.configuration.job.image.repository | string | `"quay.io/openbao/openbao"` |  |
@@ -937,7 +941,8 @@ PodiumD Helm chart
 | openformulieren.configuration.data | string | `""` |  |
 | openformulieren.configuration.enabled | bool | `true` |  |
 | openformulieren.configuration.job.backoffLimit | int | `12` |  |
-| openformulieren.configuration.job.enabled | bool | `true` |  |
+| openformulieren.configuration.job.enabled | bool | `false` |  |
+| openformulieren.configuration.job.resources | object | `{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources of the setup_configuration Job (one Django process). podiumd renders this Job (podiumd-chart-50), so it sets them. Peak measured on minikube 2026-11-18: 119-257 MiB. |
 | openformulieren.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | openformulieren.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openformulieren.example.nl`. |
 | openformulieren.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement. |
@@ -997,8 +1002,8 @@ PodiumD Helm chart
 | openinwoner.configuration.enabled | bool | `true` |  |
 | openinwoner.configuration.initContainer.enabled | bool | `false` |  |
 | openinwoner.configuration.job.backoffLimit | int | `12` |  |
-| openinwoner.configuration.job.enabled | bool | `true` |  |
-| openinwoner.configuration.job.resources | object | `{}` |  |
+| openinwoner.configuration.job.enabled | bool | `false` |  |
+| openinwoner.configuration.job.resources | object | `{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources of the setup_configuration Job (one Django process). podiumd renders this Job (podiumd-chart-50), so it sets them. Peak measured on minikube 2026-11-18: 119-257 MiB. |
 | openinwoner.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | openinwoner.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openinwoner.example.nl`. |
 | openinwoner.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement. |
@@ -1072,16 +1077,16 @@ PodiumD Helm chart
 | openklant.configuration.enabled | bool | `true` |  |
 | openklant.configuration.initContainer.enabled | bool | `false` |  |
 | openklant.configuration.job.backoffLimit | int | `12` |  |
-| openklant.configuration.job.enabled | bool | `true` |  |
-| openklant.configuration.job.resources | object | `{}` |  |
+| openklant.configuration.job.enabled | bool | `false` |  |
+| openklant.configuration.job.resources | object | `{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources of the setup_configuration Job (one Django process). podiumd renders this Job (podiumd-chart-50), so it sets them. Peak measured on minikube 2026-11-18: 119-257 MiB. |
 | openklant.configuration.job.restartPolicy | string | `"OnFailure"` |  |
-| openklant.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
 | openklant.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openklant.example.nl`. |
 | openklant.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement. |
 | openklant.configuration.secrets.keycloak_client_secret | string | `""` |  |
+| openklant.flower.enabled | bool | `false` |  |
 | openklant.fullnameOverride | string | `"openklant"` |  |
 | openklant.image.repository | string | `"maykinmedia/open-klant"` |  |
-| openklant.image.tag | string | `"2.15.0@sha256:ce59a2c60dab1c14e62fe34a99511839390dd2d482983c27334241e0d60c693d"` |  |
+| openklant.image.tag | string | `"2.19.2@sha256:f85ef0b31610cbf3ef6c09cbe217f113145e11623aa9ba140abd2e4ffb7bddff"` |  |
 | openklant.nameOverride | string | `"openklant"` |  |
 | openklant.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openklant.nginx.image.repository | string | `"nginx/nginx-unprivileged"` |  |
@@ -1107,7 +1112,7 @@ PodiumD Helm chart
 | openklant.settings.cache.default | string | `"redis-ha-master:6379/7"` |  |
 | openklant.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/8"` |  |
 | openklant.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
-| openklant.settings.celery.resultBackendl | string | `"redis://redis-ha-master:6379/8"` |  |
+| openklant.settings.celery.resultBackend | string | `"redis://redis-ha-master:6379/8"` |  |
 | openklant.settings.database.sslmode | string | `"require"` |  |
 | openklant.settings.disable2fa | bool | `false` |  |
 | openklant.settings.email.port | int | `587` |  |
@@ -1126,8 +1131,8 @@ PodiumD Helm chart
 | opennotificaties.configuration.http_request_job.enabled | bool | `false` |  |
 | opennotificaties.configuration.initContainer.enabled | bool | `false` |  |
 | opennotificaties.configuration.job.backoffLimit | int | `12` |  |
-| opennotificaties.configuration.job.enabled | bool | `true` |  |
-| opennotificaties.configuration.job.resources | object | `{}` |  |
+| opennotificaties.configuration.job.enabled | bool | `false` |  |
+| opennotificaties.configuration.job.resources | object | `{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources of the setup_configuration Job (one Django process). podiumd renders this Job (podiumd-chart-50), so it sets them. Peak measured on minikube 2026-11-18: 119-257 MiB. |
 | opennotificaties.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | opennotificaties.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://opennotificaties.example.nl`. |
 | opennotificaties.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Keep false: the app cannot send PKCE yet (mozilla-django-oidc-db has no OIDC_USE_PKCE setting, and oidc_use_pkce in configuration.data is not read), so with this on the login fails. See docs/apps/keycloak/keycloak-security-updates.md, PKCE Enforcement. |
@@ -1173,10 +1178,19 @@ PodiumD Helm chart
 | opennotificaties.worker.replicaCount | int | `1` |  |
 | opennotificaties.worker.resources.requests.cpu | string | `"50m"` |  |
 | opennotificaties.worker.resources.requests.memory | string | `"386Mi"` |  |
+| openvtb.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.labelSelector.matchLabels."app.kubernetes.io/name" | string | `"openvtb"` |  |
+| openvtb.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.topologyKey | string | `"kubernetes.io/hostname"` |  |
+| openvtb.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].weight | int | `100` |  |
+| openvtb.celery.beat.extraEnvVars | list | `[]` | Extra environment variables of the beat, after openvtb.extraEnvVars, e.g. EVENTS_BERICHTEN_JOB_HOUR and EVENTS_BERICHTEN_JOB_MINUTE: bericht-gepubliceerd is sent once per that many hours (default every hour, at minute 0, UTC). |
+| openvtb.celery.beat.resources | object | `{"limits":{"cpu":"200m","memory":"384Mi"},"requests":{"cpu":"10m","memory":"256Mi"}}` | Resources of the Celery beat (one process; always one replica). Measured on minikube: 224 MiB. |
+| openvtb.celery.enabled | bool | `true` | Run the Open VTB Celery worker and beat (only while openvtb.enabled). |
+| openvtb.celery.worker.extraEnvVars | list | `[]` | Extra environment variables of the worker, after openvtb.extraEnvVars, e.g. CELERY_WORKER_CONCURRENCY (default 1). |
+| openvtb.celery.worker.replicaCount | int | `1` | Number of Celery worker pods. |
+| openvtb.celery.worker.resources | object | `{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"50m","memory":"320Mi"}}` | Resources of the Celery worker (one process, concurrency 1). Measured on minikube: 295 MiB, about 15m CPU. |
 | openvtb.configuration.data | string | `""` |  |
 | openvtb.configuration.enabled | bool | `true` |  |
 | openvtb.configuration.job.backoffLimit | int | `12` |  |
-| openvtb.configuration.job.enabled | bool | `true` |  |
+| openvtb.configuration.job.enabled | bool | `false` |  |
 | openvtb.configuration.job.resources | object | `{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources of the setup-configuration Job (one Django process). |
 | openvtb.configuration.job.restartPolicy | string | `"Never"` |  |
 | openvtb.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
@@ -1187,6 +1201,20 @@ PodiumD Helm chart
 | openvtb.enabled | bool | `false` |  |
 | openvtb.extraEnvVars[0].name | string | `"OPENVTB_PORT"` |  |
 | openvtb.extraEnvVars[0].value | string | `"8000"` |  |
+| openvtb.extraEnvVars[1].name | string | `"NOTIFICATIONS_SOURCE"` |  |
+| openvtb.extraEnvVars[1].value | string | `"openvtb"` |  |
+| openvtb.extraVolumeMounts[0].mountPath | string | `"/tmp"` |  |
+| openvtb.extraVolumeMounts[0].name | string | `"tmp"` |  |
+| openvtb.extraVolumeMounts[1].mountPath | string | `"/app/tmp"` |  |
+| openvtb.extraVolumeMounts[1].name | string | `"app-tmp"` |  |
+| openvtb.extraVolumeMounts[2].mountPath | string | `"/app/celerybeat"` |  |
+| openvtb.extraVolumeMounts[2].name | string | `"celerybeat"` |  |
+| openvtb.extraVolumes[0].emptyDir.sizeLimit | string | `"256Mi"` |  |
+| openvtb.extraVolumes[0].name | string | `"tmp"` |  |
+| openvtb.extraVolumes[1].emptyDir.sizeLimit | string | `"64Mi"` |  |
+| openvtb.extraVolumes[1].name | string | `"app-tmp"` |  |
+| openvtb.extraVolumes[2].emptyDir.sizeLimit | string | `"64Mi"` |  |
+| openvtb.extraVolumes[2].name | string | `"celerybeat"` |  |
 | openvtb.fullnameOverride | string | `"openvtb"` |  |
 | openvtb.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openvtb.image.repository | string | `"maykinmedia/open-vtb"` |  |
@@ -1199,12 +1227,16 @@ PodiumD Helm chart
 | openvtb.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | openvtb.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openvtb.persistentVolume.volumeAttributeShareName | string | `"openvtb"` |  |
+| openvtb.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | openvtb.replicaCount | int | `2` |  |
 | openvtb.resources | object | `{"limits":{"cpu":"500m","memory":"768Mi"},"requests":{"cpu":"100m","memory":"256Mi"}}` | Measured on johnb00: about 260Mi per pod idle (uWSGI 2 processes x 2 threads); the limit leaves room for load. |
+| openvtb.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | openvtb.securityContext.capabilities.drop[0] | string | `"ALL"` |  |
-| openvtb.securityContext.readOnlyRootFilesystem | bool | `false` |  |
+| openvtb.securityContext.readOnlyRootFilesystem | bool | `true` |  |
 | openvtb.securityContext.runAsNonRoot | bool | `true` |  |
 | openvtb.securityContext.runAsUser | int | `1000` |  |
+| openvtb.serviceAccount.create | bool | `false` |  |
+| openvtb.serviceAccount.name | string | `"openvtb"` |  |
 | openvtb.settings.allowedHosts | string | `".svc.cluster.local"` |  |
 | openvtb.settings.cache.axes | string | `"redis-ha-master:6379/19"` |  |
 | openvtb.settings.cache.default | string | `"redis-ha-master:6379/19"` |  |
@@ -1237,14 +1269,17 @@ PodiumD Helm chart
 | openvtb.settings.uwsgi.processes | string | `"2"` |  |
 | openvtb.settings.uwsgi.threads | string | `"2"` |  |
 | openvtb.tags.redis | bool | `false` |  |
+| openzaak.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.labelSelector.matchLabels."app.kubernetes.io/name" | string | `"openzaak"` |  |
+| openzaak.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.topologyKey | string | `"kubernetes.io/hostname"` |  |
+| openzaak.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].weight | int | `100` |  |
 | openzaak.beat.resources.requests.cpu | string | `"10m"` |  |
 | openzaak.beat.resources.requests.memory | string | `"160Mi"` |  |
 | openzaak.configuration.data | string | `""` |  |
 | openzaak.configuration.enabled | bool | `true` |  |
 | openzaak.configuration.initContainer.enabled | bool | `false` |  |
 | openzaak.configuration.job.backoffLimit | int | `12` |  |
-| openzaak.configuration.job.enabled | bool | `true` |  |
-| openzaak.configuration.job.resources | object | `{}` |  |
+| openzaak.configuration.job.enabled | bool | `false` |  |
+| openzaak.configuration.job.resources | object | `{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources of the setup_configuration Job (one Django process). podiumd renders this Job (podiumd-chart-50), so it sets them. Peak measured on minikube 2026-11-18: 119-257 MiB. |
 | openzaak.configuration.job.restartPolicy | string | `"Never"` |  |
 | openzaak.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
 | openzaak.configuration.notificaties.enabled | bool | `true` |  |
@@ -1265,7 +1300,7 @@ PodiumD Helm chart
 | openzaak.extraEnvVars | list | `[{"name":"OPENZAAK_PORT","value":"8000"}]` | Override OPENZAAK_PORT to prevent Kubernetes service-discovery injection (tcp://<ip>:80) from being passed to uwsgi as the port number. Since Open Zaak 1.27.3 the app reads OPENZAAK_PORT for uwsgi_port; K8s auto-injects OPENZAAK_PORT=tcp://<svc-ip>:80 for the openzaak Service, which uwsgi cannot parse. See https://github.com/open-zaak/open-zaak/issues/2415 |
 | openzaak.flower.enabled | bool | `false` |  |
 | openzaak.fullnameOverride | string | `"openzaak"` |  |
-| openzaak.image.tag | string | `"1.29.3@sha256:7ac22da287ac190a0e1c14849a370c433d3511678dcc8f3897007fd6de6dd4ac"` |  |
+| openzaak.image.tag | string | `"1.31.1@sha256:63448221142145b0f56eabadaa9ef9578dd4aacc7f95476bd5368f767883ada0"` |  |
 | openzaak.nameOverride | string | `"openzaak"` |  |
 | openzaak.nginx.config.proxyConnectTimeoutSeconds | int | `1800` | Same as ZAC's nginx proxy_timeout: ZAC uploads large documents to Open Zaak in parts (bestandsdelen) through this nginx; the chart default is 300. |
 | openzaak.nginx.config.proxyReadTimeoutSeconds | int | `1800` | See proxyConnectTimeoutSeconds. |
@@ -1285,7 +1320,8 @@ PodiumD Helm chart
 | openzaak.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openzaak.persistentVolume.volumeAttributeShareName | string | `"openzaak"` |  |
 | openzaak.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
-| openzaak.resources.requests.cpu | string | `"250m"` |  |
+| openzaak.replicaCount | int | `2` |  |
+| openzaak.resources.requests.cpu | string | `"1"` |  |
 | openzaak.resources.requests.memory | string | `"1Gi"` |  |
 | openzaak.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | openzaak.settings.allowedHosts | string | `".svc.cluster.local"` |  |
@@ -1319,7 +1355,7 @@ PodiumD Helm chart
 | pabc.migrations.image.repository | string | `"ghcr.io/platform-autorisatie-beheer-component/pabc-migrations"` |  |
 | pabc.migrations.image.tag | string | `"2.1.0@sha256:75640f1ee9dc6a155800a31457574b9c36eb0cd41827c45333b9f39d05c94abb"` |  |
 | pabc.migrations.nodeSelector | object | `{}` |  |
-| pabc.migrations.prefill | object | `{"applications":[{"name":"zaakafhandelcomponent","roles":["behandelaar","beheerder","brp_zoeken","coordinator","raadpleger","recordmanager"]}]}` | Applications and application roles the migrations job creates when they do not exist yet (PABC 2.1.0 prefill, PREFILL_PATH). Non-destructive: an existing application is skipped as a whole, with its roles, and nothing is ever changed or removed, so it is safe on curated environments. The default is the application roles ZAC 5.9.1 checks (policies/rollen.rego); functional roles, domains and mappings are not part of prefill. Set to [] per environment to turn it off. |
+| pabc.migrations.prefill | object | `{"applications":[{"name":"zaakafhandelcomponent","roles":["behandelaar","beheerder","brp_zoeken","coordinator","raadpleger","recordmanager","zaakspecifiek_geautoriseerd"]}]}` | Applications and application roles the migrations job creates when they do not exist yet (PABC 2.1.0 prefill, PREFILL_PATH). Non-destructive: an existing application is skipped as a whole, with its roles, and nothing is ever changed or removed, so it is safe on curated environments. The default is the application roles ZAC 5.9.1 checks (policies/rollen.rego); functional roles, domains and mappings are not part of prefill. Set to [] per environment to turn it off. |
 | pabc.nodeSelector | object | `{}` |  |
 | pabc.podSecurityContext.runAsGroup | int | `1000` |  |
 | pabc.podSecurityContext.runAsNonRoot | bool | `true` |  |
@@ -1347,7 +1383,6 @@ PodiumD Helm chart
 | pabc.settings.oidc.functioneelBeheerderRole | string | `"administrator"` |  |
 | pabc.settings.oidc.nameClaimType | string | `"name"` |  |
 | pabc.settings.oidc.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://pabc.example.nl`. |
-| pabc.settings.oidc.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. PABC is a .NET app; enable when OpenIdConnect PKCE is configured in the application. |
 | pabc.settings.oidc.roleClaimType | string | `"roles"` |  |
 | pabc.settings.zgwZaakregister | object | `{"catalogiBaseUrl":"","catalogusDomein":"","clientId":"pabc","clientSecret":"","enabled":false}` | Import zaaktypes from Open Zaak as PABC entity types (a button in the PABC UI). PABC authenticates as its own Open Zaak application (see the commented `pabc` entry under openzaak's vng_api_common_applicaties) and needs read access to the Catalogi API. When enabled, the render fails while catalogiBaseUrl, clientId, clientSecret or catalogusDomein is empty. |
 | pabc.settings.zgwZaakregister.catalogiBaseUrl | string | `""` | Full base URL of the Open Zaak Catalogi API, with trailing slash. E.g. `https://openzaak.example.nl/catalogi/api/v1/`. |
@@ -1361,7 +1396,7 @@ PodiumD Helm chart
 | persistentVolume.volumeAttributeShareName | string | `""` |  |
 | redis-operator.enabled | bool | `true` |  |
 | redis-operator.featureGates.GenerateConfigInInitContainer | bool | `true` |  |
-| redis-operator.redis-ha | object | `{"databases":32,"enabled":true,"image":{"repository":"quay.io/opstree/redis","tag":"v8.10.1@sha256:d3ef5a7f11eb501034b6612b842c864e1946088c52c04b29a22f38b1fe37c99b"},"initContainerImage":{"pullPolicy":"IfNotPresent","repository":"library/busybox","tag":"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"},"initContainerResources":{"limits":{"cpu":"50m","memory":"32Mi"},"requests":{"cpu":"10m","memory":"16Mi"}},"labelMasterCronJob":{"enabled":true,"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.2@sha256:7a82aeefea3d554a43a8676b137f2b88bae6c1fe11c13862b191b3a086cc28c0"},"nodeSelector":{},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"schedule":"*/2 * * * *"},"masterReadinessCheck":{"enabled":true},"pdb":{"enabled":true,"maxUnavailable":1},"podSecurityContext":{"fsGroup":1000,"runAsGroup":1000,"runAsNonRoot":true,"runAsUser":1000,"seccompProfile":{"type":"RuntimeDefault"}},"preDeleteJob":{"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.2@sha256:7a82aeefea3d554a43a8676b137f2b88bae6c1fe11c13862b191b3a086cc28c0"},"nodeSelector":{}},"redisConfig":{"additionalRedisConfig":""},"redisExporter":{"enabled":false,"image":{"repository":"quay.io/opstree/redis-exporter","tag":"v1.89.0@sha256:00a3628bdd3bb3423a15c5daefa328c471ee609798eed1744fe578c906d20cab"},"podMonitor":{"enabled":false,"interval":"30s","scrapeTimeout":"10s"},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}}},"replicaCount":3,"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"256Mi"}},"serviceName":"redis-ha","storage":{"volumeClaimTemplate":{"spec":{"accessModes":["ReadWriteOnce"],"resources":{"requests":{"storage":"2Gi"}},"storageClassName":"managed-csi-premiumv2"}}},"topologySpreadConstraints":[{"maxSkew":1,"topologyKey":"kubernetes.io/hostname","whenUnsatisfiable":"ScheduleAnyway"}]}` | Shared Redis HA cluster using the RedisReplication CRD from the OT Redis Operator. When redis-operator.redis-ha.enabled is true, individual Redis subcharts per service should be disabled:   servicename:     tags:       redis: false   # disables template references to .Subcharts.redis     redis:       enabled: false # prevents subchart installation  Database allocation:   objecten           : db 1  (cache), db 2  (celery) — since the objecten/objecttypen                        merge (H.3), also covers what used to be objecttypen's traffic;                        db 0 is freed.   opennotificaties   : db 3  (cache), db 6  (celery result backend; broker nu ook Redis i.p.v. RabbitMQ vanaf chart 2.0.0)   openzaak           : db 4  (cache), db 5  (celery)   openklant          : db 7  (cache), db 8  (celery)   openformulieren    : db 9  (cache), db 10 (celery)   openinwoner        : db 11 (cache), db 12 (celery)   openarchiefbeheer  : db 13 (cache+axes), db 14 (choices + celery)   referentielijsten  : db 15 (cache), db 16 (reserved — celery not yet used)   openbeheer         : db 17 (cache), db 18 (reserved — celery not yet used)   openvtb            : db 19 (cache+axes), db 20 (celery broker/result; no worker deployed)   <future component> : db 21 (cache), db 22 (celery)   db 23–31           : unallocated See docs/apps/redis/redis-ha-databases.md for the full allocation table and guidance. |
+| redis-operator.redis-ha | object | `{"databases":32,"enabled":true,"image":{"repository":"quay.io/opstree/redis","tag":"v8.10.1@sha256:d3ef5a7f11eb501034b6612b842c864e1946088c52c04b29a22f38b1fe37c99b"},"initContainerImage":{"pullPolicy":"IfNotPresent","repository":"library/busybox","tag":"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"},"initContainerResources":{"limits":{"cpu":"50m","memory":"32Mi"},"requests":{"cpu":"10m","memory":"16Mi"}},"labelMasterCronJob":{"enabled":true,"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.2@sha256:7a82aeefea3d554a43a8676b137f2b88bae6c1fe11c13862b191b3a086cc28c0"},"nodeSelector":{},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"schedule":"*/2 * * * *"},"masterReadinessCheck":{"enabled":true},"pdb":{"enabled":true,"maxUnavailable":1},"podSecurityContext":{"fsGroup":1000,"runAsGroup":1000,"runAsNonRoot":true,"runAsUser":1000,"seccompProfile":{"type":"RuntimeDefault"}},"preDeleteJob":{"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.2@sha256:7a82aeefea3d554a43a8676b137f2b88bae6c1fe11c13862b191b3a086cc28c0"},"nodeSelector":{}},"redisConfig":{"additionalRedisConfig":""},"redisExporter":{"enabled":false,"image":{"repository":"quay.io/opstree/redis-exporter","tag":"v1.89.0@sha256:00a3628bdd3bb3423a15c5daefa328c471ee609798eed1744fe578c906d20cab"},"podMonitor":{"enabled":false,"interval":"30s","scrapeTimeout":"10s"},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}}},"replicaCount":3,"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"256Mi"}},"serviceName":"redis-ha","storage":{"volumeClaimTemplate":{"spec":{"accessModes":["ReadWriteOnce"],"resources":{"requests":{"storage":"2Gi"}},"storageClassName":"managed-csi-premiumv2"}}},"topologySpreadConstraints":[{"maxSkew":1,"topologyKey":"kubernetes.io/hostname","whenUnsatisfiable":"ScheduleAnyway"}]}` | Shared Redis HA cluster using the RedisReplication CRD from the OT Redis Operator. When redis-operator.redis-ha.enabled is true, individual Redis subcharts per service should be disabled:   servicename:     tags:       redis: false   # disables template references to .Subcharts.redis     redis:       enabled: false # prevents subchart installation  Database allocation:   objecten           : db 1  (cache), db 2  (celery) — since the objecten/objecttypen                        merge (H.3), also covers what used to be objecttypen's traffic;                        db 0 is freed.   opennotificaties   : db 3  (cache), db 6  (celery result backend; broker nu ook Redis i.p.v. RabbitMQ vanaf chart 2.0.0)   openzaak           : db 4  (cache), db 5  (celery)   openklant          : db 7  (cache), db 8  (celery)   openformulieren    : db 9  (cache), db 10 (celery)   openinwoner        : db 11 (cache), db 12 (celery)   openarchiefbeheer  : db 13 (cache+axes), db 14 (choices + celery)   referentielijsten  : db 15 (cache), db 16 (reserved — celery not yet used)   openbeheer         : db 17 (cache), db 18 (reserved — celery not yet used)   openvtb            : db 19 (cache+axes), db 20 (celery broker/result)   <future component> : db 21 (cache), db 22 (celery)   db 23–31           : unallocated See docs/apps/redis/redis-ha-databases.md for the full allocation table and guidance. |
 | redis-operator.redis-ha.databases | int | `32` | Number of Redis databases to configure. Applied via an initContainer because `databases` is a startup-only parameter and the OT redis-operator does not include the additionalRedisConfig ConfigMap in the main redis.conf (operator limitation in v0.24.0). |
 | redis-operator.redis-ha.initContainerImage | object | `{"pullPolicy":"IfNotPresent","repository":"library/busybox","tag":"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"}` | Image used by the initContainer that appends `databases N` to redis.conf. Override this in environments that restrict public Docker Hub pulls (e.g. point to an ACR mirror). |
 | redis-operator.redis-ha.initContainerResources | object | `{"limits":{"cpu":"50m","memory":"32Mi"},"requests":{"cpu":"10m","memory":"16Mi"}}` | Resources for the initContainer that configures redis.conf. |
@@ -1388,8 +1423,8 @@ PodiumD Helm chart
 | referentielijsten.configuration.enabled | bool | `true` |  |
 | referentielijsten.configuration.initContainer.enabled | bool | `false` |  |
 | referentielijsten.configuration.job.backoffLimit | int | `12` |  |
-| referentielijsten.configuration.job.enabled | bool | `true` |  |
-| referentielijsten.configuration.job.resources | object | `{}` |  |
+| referentielijsten.configuration.job.enabled | bool | `false` |  |
+| referentielijsten.configuration.job.resources | object | `{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources of the setup_configuration Job (one Django process). podiumd renders this Job (podiumd-chart-50), so it sets them. Peak measured on minikube 2026-11-18: 119-257 MiB. |
 | referentielijsten.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | referentielijsten.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
 | referentielijsten.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://referentielijsten.example.nl`. |
@@ -1508,6 +1543,7 @@ PodiumD Helm chart
 | zac.notificationsSecretKey | string | `"changeme"` |  |
 | zac.objectenApi.token | string | `"objectentoken"` |  |
 | zac.objectenApi.url | string | `"https://objecten.example.nl"` |  |
+| zac.office_converter.env.API_TIMEOUT | string | `"50s"` |  |
 | zac.office_converter.image.tag | string | `"8.38.1@sha256:aa552cc115db488e0f0bcb07446aac13071ad51505b642c84bb894500907b42b"` |  |
 | zac.office_converter.password | string | `"dummy"` | Basic auth password for the office converter; see username. |
 | zac.office_converter.resources.limits.memory | string | `"2Gi"` |  |
@@ -1558,9 +1594,9 @@ PodiumD Helm chart
 | zac.solr-operator.solr.resources.limits.cpu | string | `"2000m"` |  |
 | zac.solr-operator.solr.resources.limits.memory | string | `"2Gi"` |  |
 | zac.solr-operator.solr.resources.requests.cpu | string | `"500m"` |  |
-| zac.solr-operator.solr.resources.requests.memory | string | `"1Gi"` |  |
+| zac.solr-operator.solr.resources.requests.memory | string | `"512Mi"` |  |
 | zac.solr-operator.watchNamespaces | string | `"podiumd"` | Namespaces to watch for solr-operator. MUST equal the namespace the chart is deployed into (Helm cannot template values.yaml with `.Release.Namespace`). Default assumes `podiumd`; override when deploying elsewhere (e.g. `--set zac.solr-operator.watchNamespaces=<namespace>` or ci/values-namespace-scope.example.yaml). Empty ("") watches ALL namespaces and needs cluster-scoped RBAC — avoided by design. See docs/misc/deploying-to-a-custom-namespace.md. |
-| zac.solr-operator.zookeeper-operator | object | `{"crd":{"create":false},"hooks":{"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.2@sha256:7a82aeefea3d554a43a8676b137f2b88bae6c1fe11c13862b191b3a086cc28c0"},"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"runAsGroup":65534,"runAsNonRoot":true,"runAsUser":65534,"seccompProfile":{"type":"RuntimeDefault"}}},"image":{"tag":"0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e"},"resources":{"limits":{"cpu":"200m","memory":"128Mi"},"requests":{"cpu":"50m","memory":"64Mi"}},"watchNamespace":"podiumd","zookeeper":{"image":{"tag":"0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8"},"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"256Mi"}},"storage":{"reclaimPolicy":"Retain"}}}` | install crds using https://github.com/pravega/zookeeper-operator/blob/master/charts/zookeeper-operator/templates/zookeeper.pravega.io_zookeeperclusters_crd.yaml |
+| zac.solr-operator.zookeeper-operator | object | `{"crd":{"create":false},"hooks":{"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.2@sha256:7a82aeefea3d554a43a8676b137f2b88bae6c1fe11c13862b191b3a086cc28c0"},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"runAsGroup":65534,"runAsNonRoot":true,"runAsUser":65534,"seccompProfile":{"type":"RuntimeDefault"}}},"image":{"tag":"0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e"},"install":false,"resources":{"limits":{"cpu":"200m","memory":"128Mi"},"requests":{"cpu":"50m","memory":"64Mi"}},"use":true,"watchNamespace":"podiumd","zookeeper":{"image":{"tag":"0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8"},"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"256Mi"}},"storage":{"reclaimPolicy":"Retain"}}}` | install crds using https://github.com/pravega/zookeeper-operator/blob/master/charts/zookeeper-operator/templates/zookeeper.pravega.io_zookeeperclusters_crd.yaml |
 | zac.solr-operator.zookeeper-operator.watchNamespace | string | `"podiumd"` | Namespaces to watch for zookeeper-operator. MUST equal the namespace the chart is deployed into (Helm cannot template values.yaml with `.Release.Namespace`). Default assumes `podiumd`; override when deploying elsewhere (e.g. `--set zac.solr-operator.zookeeper-operator.watchNamespace=<namespace>` or ci/values-namespace-scope.example.yaml). Empty ("") watches ALL namespaces and needs cluster-scoped RBAC — avoided by design. See docs/misc/deploying-to-a-custom-namespace.md. |
 | zac.solr-operator.zookeeper-operator.zookeeper.storage.reclaimPolicy | string | `"Retain"` | Retain PVCs when the operator scales down ZooKeeper (e.g. during node rotation). The default "Delete" causes the operator to destroy PVC data on scale-down, which prevents the cluster from recovering quorum after a node replacement event. |
 | zac.solr.password | string | `""` | Basic auth password of the external Solr; required when url is set. |
@@ -1569,7 +1605,7 @@ PodiumD Helm chart
 | zac.zacInternalEndpointsApiKey | string | `"dummy"` |  |
 | zac.zgwApis.clientId | string | `"zac"` |  |
 | zac.zgwApis.secret | string | `"changeme"` |  |
-| zac.zgwApis.url | string | `"http://open-zaak.internal"` |  |
+| zac.zgwApis.url | string | `"https://open-zaak.example.nl"` | Open Zaak base URL ZAC calls. Override per environment; an https example, so a copied default does not make plaintext ZGW calls (security review NW-18). |
 | zac.zgwApis.urlExtern | string | `"https://open-zaak.example.nl"` |  |
 | zgw-office-addin.backend.image.tag | string | `"0.12.0@sha256:886c4616c7cb88769013c8b96d72fbde8b6db6c8947e49e83cd2d2d538175bca"` |  |
 | zgw-office-addin.backend.msalSecret | string | `""` |  |

@@ -54,7 +54,8 @@ spec:
       automountServiceAccountToken: false
       volumes:
       - name: tmp
-        emptyDir: {}
+        emptyDir:
+          sizeLimit: 64Mi
       containers:
       - name: repair-client-scopes
         image: {{ include "podiumd.image" .Values.keycloak.image }}

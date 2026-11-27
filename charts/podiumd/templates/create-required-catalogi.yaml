@@ -460,6 +460,7 @@ spec:
   ttlSecondsAfterFinished: 600
   template:
     spec:
+      automountServiceAccountToken: false
       containers:
         - image: {{ include "podiumd.image" .Values.objecten.image }}
           command: {{ include "podiumd.retryCommand" (list "/jobs/create-required-catalogi.py") }}
@@ -495,7 +496,8 @@ spec:
             name: create-required-catalogi-configmap
           name: jobs
         - name: tmp
-          emptyDir: {}
+          emptyDir:
+            sizeLimit: 64Mi
       {{- with .Values.openzaak.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

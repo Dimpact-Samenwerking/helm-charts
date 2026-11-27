@@ -44,6 +44,7 @@ spec:
       {{- end }}
       restartPolicy: Never
       serviceAccountName: {{ include "podiumd.serviceAccountName" . }}
+      automountServiceAccountToken: false
       initContainers:
       - name: check-operator-sa
         image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensureOperatorSa.image }}
@@ -55,11 +56,11 @@ spec:
           SERVER="http://keycloak-service:8080"
           echo "Waiting for Keycloak..."
           for i in $(seq 1 60); do
-            STATUS=$(curl -s -o /tmp/token.json -w "%{http_code}" -X POST \
+            STATUS=$(printf '%s' "$CLIENT_SECRET" | curl -s -o /tmp/token.json -w "%{http_code}" -X POST \
               "$SERVER/realms/master/protocol/openid-connect/token" \
               --data-urlencode "grant_type=client_credentials" \
               --data-urlencode "client_id=keycloak-operator" \
-              --data-urlencode "client_secret=$CLIENT_SECRET")
+              --data-urlencode "client_secret@-")
             case "$STATUS" in 000|5*) echo "Attempt $i/60 — Keycloak not ready (status=$STATUS), retrying in 10s..."; sleep 10 ;; *) break ;; esac
           done
           case "$STATUS" in 000|5*) echo "Keycloak did not answer in 10 minutes"; exit 1 ;; esac
@@ -257,11 +258,11 @@ spec:
           echo "Obtaining an admin token as $ADMIN_USER (password login) to repair it..."
           ADMIN_TOKEN=""
           for i in $(seq 1 30); do
-            STATUS=$(curl -s -o /tmp/admin.json -w "%{http_code}" -X POST "$SERVER/realms/master/protocol/openid-connect/token" \
+            STATUS=$(printf '%s' "$ADMIN_PASS" | curl -s -o /tmp/admin.json -w "%{http_code}" -X POST "$SERVER/realms/master/protocol/openid-connect/token" \
               --data-urlencode "grant_type=password" \
               --data-urlencode "client_id=admin-cli" \
               --data-urlencode "username=$ADMIN_USER" \
-              --data-urlencode "password=$ADMIN_PASS" || true)
+              --data-urlencode "password@-" || true)
             case "$STATUS" in
               200) ADMIN_TOKEN=$(sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/admin.json); break ;;
               # ensure-podiumd-admin-user may still be writing the user.
@@ -334,15 +335,15 @@ spec:
 
           echo "Setting client secret to known value..."
           CLIENT_SECRET_JSON=$(json_escape "$CLIENT_SECRET")
-          curl -s -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
-            -d "{\"clientId\":\"keycloak-operator\",\"secret\":\"${CLIENT_SECRET_JSON}\",\"serviceAccountsEnabled\":true,\"publicClient\":false,\"directAccessGrantsEnabled\":false,\"protocol\":\"openid-connect\"}" \
+          printf '%s' "{\"clientId\":\"keycloak-operator\",\"secret\":\"${CLIENT_SECRET_JSON}\",\"serviceAccountsEnabled\":true,\"publicClient\":false,\"directAccessGrantsEnabled\":false,\"protocol\":\"openid-connect\"}" \
+            | curl -s -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -d @- \
             "$SERVER/admin/realms/master/clients/$CLIENT_ID" || true
 
           echo "Verifying client_credentials token..."
-          TOKEN_RESPONSE=$(curl -s -X POST "$SERVER/realms/master/protocol/openid-connect/token" \
+          TOKEN_RESPONSE=$(printf '%s' "$CLIENT_SECRET" | curl -s -X POST "$SERVER/realms/master/protocol/openid-connect/token" \
             --data-urlencode "grant_type=client_credentials" \
             --data-urlencode "client_id=keycloak-operator" \
-            --data-urlencode "client_secret=$CLIENT_SECRET")
+            --data-urlencode "client_secret@-")
           ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1 || true)
           if [ -z "$ACCESS_TOKEN" ]; then echo "Failed to obtain client token: $TOKEN_RESPONSE"; exit 4; fi
 
@@ -382,7 +383,8 @@ spec:
           mountPath: /state
       volumes:
       - name: tmp
-        emptyDir: {}
+        emptyDir:
+          sizeLimit: 64Mi
       - name: state
         emptyDir:
           sizeLimit: 1Mi

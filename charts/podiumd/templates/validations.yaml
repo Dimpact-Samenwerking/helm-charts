@@ -436,6 +436,17 @@
 {{- if and .Values.zac.enabled (eq (toString (index .Values.zac.auth "pkceEnabled")) "true") -}}
 {{- fail "zac.auth.pkceEnabled is replaced by zac.auth.enablePkce (default true), which enables PKCE in ZAC and on its Keycloak client together. Remove zac.auth.pkceEnabled; set zac.auth.enablePkce: false to opt out. See \"ZAC: PKCE on by default\" in docs/_UPGRADE_PATHS/4.9.5-to-4.10.0-upgrade.md" -}}
 {{- end -}}
+{{- /* Keycloak requires PKCE (S256) on the kiss, ita and pabc clients without an
+     opt-out since 4.11.0, so these values are gone. */ -}}
+{{- $pkceRemoved := dict
+      "kiss.settings.oidc.pkceEnabled" (dig "settings" "oidc" dict (.Values.kiss | default dict))
+      "ita.web.oidc.pkceEnabled" (dig "web" "oidc" dict (.Values.ita | default dict))
+      "pabc.settings.oidc.pkceEnabled" (dig "settings" "oidc" dict (.Values.pabc | default dict)) -}}
+{{- range $path, $oidc := $pkceRemoved -}}
+{{- if hasKey $oidc "pkceEnabled" -}}
+{{- fail (printf "%s is removed: PKCE (S256) is required on this Keycloak client since 4.11.0 and has no opt-out. Remove %s from the environment values. See \"Reference: PKCE for KISS, ITA and PABC\" in docs/_UPGRADE_PATHS/4.10.2-to-4.11.0-upgrade.md" $path $path) -}}
+{{- end -}}
+{{- end -}}
 {{- /* ZooKeeper operator hooks: 4.10.0 pins alpine/k8s 1.37.1 by tag. An
      environment that still overrides the repository with its mirror of the old
      lachlanevenson/k8s-kubectl gets <mirror>/k8s-kubectl:1.37.1@sha256:..., which
@@ -443,4 +454,26 @@
 {{- $zkHooksImage := dig "solr-operator" "zookeeper-operator" "hooks" "image" (dict) (.Values.zac | default dict) -}}
 {{- if and .Values.zac.enabled (regexMatch "(^|/)k8s-kubectl$" (toString ($zkHooksImage.repository | default ""))) (not (hasPrefix "v" (toString ($zkHooksImage.tag | default "")))) -}}
 {{- fail (printf "zac.solr-operator.zookeeper-operator.hooks.image.repository is %q, the old k8s-kubectl image, but 4.10.0 pins alpine/k8s %s. Point it at the same registry's alpine/k8s (scripts/migrate-zookeeper-hooks-image-4.10.0.py does that), and mirror alpine/k8s:1.37.1 by digest. See \"alpine/k8s: set the ACR mirror on all three image paths\" in docs/_UPGRADE_PATHS/4.9.5-to-4.10.0-upgrade.md" (toString $zkHooksImage.repository) (toString $zkHooksImage.tag)) -}}
+{{- end -}}
+{{- /* OMC's Berichtenbox (MOBB) scenario downloads a bericht's bijlagen from
+     the Documenten API. Without the endpoint OMC sends the bericht without
+     them and only logs it, so fail once Open VTB is configured. The OMC chart
+     takes its values as they are, so the endpoint cannot be derived from
+     endpoint.openZaak. */ -}}
+{{- if .Values.omc.enabled -}}
+{{- $omcEndpoint := .Values.omc.settings.zgw.endpoint -}}
+{{- if and (ne (toString $omcEndpoint.openVtb) "https://openvtb.invalid") (not (trim (toString ($omcEndpoint.documenten | default "")))) -}}
+{{- fail "omc.settings.zgw.endpoint.openVtb is set, but omc.settings.zgw.endpoint.documenten is empty: OMC would send every Berichtenbox bericht without its bijlagen. Set it to the Open Zaak Documenten API, e.g. https://openzaak.example.nl/documenten/api/v1." -}}
+{{- end -}}
+{{- end -}}
+{{- /* Open VTB with a read-only root filesystem needs its writable mounts;
+     without them the worker and the beat fail at start. */ -}}
+{{- if and .Values.openvtb.enabled (.Values.openvtb.securityContext | default dict).readOnlyRootFilesystem -}}
+{{- $vtbPaths := list -}}
+{{- range .Values.openvtb.extraVolumeMounts -}}{{- $vtbPaths = append $vtbPaths (toString .mountPath) -}}{{- end -}}
+{{- range list "/tmp" "/app/tmp" "/app/celerybeat" -}}
+{{- if not (has . $vtbPaths) -}}
+{{- fail (printf "openvtb.securityContext.readOnlyRootFilesystem is true, but openvtb.extraVolumeMounts has no mount at %s. An environment that sets its own openvtb.extraVolumes or extraVolumeMounts repeats the chart's emptyDir entries (see values.yaml)." .) -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}

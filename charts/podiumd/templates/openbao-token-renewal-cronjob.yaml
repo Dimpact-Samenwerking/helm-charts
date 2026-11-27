@@ -48,6 +48,7 @@ spec:
             fsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
+          automountServiceAccountToken: false
           containers:
             - name: renew
               image: {{ include "podiumd.image" $job.image | quote }}
@@ -112,7 +113,8 @@ spec:
                 {{- toYaml $job.resources | nindent 16 }}
           volumes:
             - name: tmp
-              emptyDir: {}
+              emptyDir:
+                sizeLimit: 64Mi
           {{- with $job.nodeSelector }}
           nodeSelector:
             {{- toYaml . | nindent 12 }}

@@ -65,6 +65,7 @@ spec:
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
+      automountServiceAccountToken: false
       containers:
         - name: config
           image: {{ include "podiumd.image" $job.image | quote }}
@@ -171,7 +172,7 @@ spec:
                 user_claim="sub" \
                 groups_claim="groups" \
                 oidc_scopes="openid" \
-                allowed_redirect_uris="${OIDC_URL}/ui/vault/auth/oidc/oidc/callback,http://localhost:8250/oidc/callback"
+                allowed_redirect_uris="${OIDC_URL}/ui/vault/auth/oidc/oidc/callback{{ if $cfg.cliLogin }},http://localhost:8250/oidc/callback{{ end }}"
 
               # 5. external identity group + alias -> uploader policy.
               # OpenBao matches the token's `groups` claim against ALIAS names

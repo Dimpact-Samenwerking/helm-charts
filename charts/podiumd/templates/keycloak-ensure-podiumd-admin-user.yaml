@@ -36,6 +36,7 @@ spec:
       {{- end }}
       restartPolicy: Never
       serviceAccountName: {{ include "podiumd.serviceAccountName" . }}
+      automountServiceAccountToken: false
       initContainers:
       - name: check-operator-sa
         image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensureOperatorSa.image }}
@@ -269,9 +270,12 @@ spec:
           mountPath: /tmp
       volumes:
       - name: work
-        emptyDir: {}
+        emptyDir:
+          sizeLimit: 64Mi
       - name: skip-flag
-        emptyDir: {}
+        emptyDir:
+          sizeLimit: 64Mi
       - name: tmp
-        emptyDir: {}
+        emptyDir:
+          sizeLimit: 64Mi
 {{- end }}

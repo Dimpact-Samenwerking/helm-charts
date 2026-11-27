@@ -46,7 +46,7 @@ Redis Operator v0.24.0 does not include it in the main `redis.conf` automaticall
 | 17  | openbeheer        | Cache (default + axes)               | `openbeheer.settings.cache.default/axes`            |
 | 18  | openbeheer        | **Reserved** — no Celery workers    | —                                                   |
 | 19  | openvtb           | Cache (default + axes)               | `openvtb.settings.cache.default/axes`               |
-| 20  | openvtb           | Celery broker + result backend (no worker deployed) | `openvtb.settings.celery.brokerUrl/resultBackend` |
+| 20  | openvtb           | Celery broker + result backend | `openvtb.settings.celery.brokerUrl/resultBackend` |
 | 21  | *(future)*        | Cache (default + axes)               | See [Adding a new component](#adding-a-new-django-component) |
 | 22  | *(future)*        | Celery broker + result backend       | See [Adding a new component](#adding-a-new-django-component) |
 | 23–31 | —             | **Unallocated**                      | —                                                   |

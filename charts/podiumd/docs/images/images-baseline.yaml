@@ -79,8 +79,8 @@
 
 - name: openzaak/open-zaak
   url: docker.io/openzaak/open-zaak
-  version: "1.29.3"
-  digest: "sha256:7ac22da287ac190a0e1c14849a370c433d3511678dcc8f3897007fd6de6dd4ac"
+  version: "1.31.1"
+  digest: "sha256:63448221142145b0f56eabadaa9ef9578dd4aacc7f95476bd5368f767883ada0"
 
 - name: openzaak/open-notificaties
   url: docker.io/openzaak/open-notificaties
@@ -99,8 +99,8 @@
 
 - name: maykinmedia/open-klant
   url: docker.io/maykinmedia/open-klant
-  version: "2.15.0"
-  digest: "sha256:ce59a2c60dab1c14e62fe34a99511839390dd2d482983c27334241e0d60c693d"
+  version: "2.19.2"
+  digest: "sha256:f85ef0b31610cbf3ef6c09cbe217f113145e11623aa9ba140abd2e4ffb7bddff"
 
 - name: openformulieren/open-forms
   url: docker.io/openformulieren/open-forms
@@ -254,8 +254,8 @@
 
 - name: worthnl/notifynl-omc
   url: docker.io/worthnl/notifynl-omc
-  version: "2.3.1"
-  digest: "sha256:e4e232b4aab94c897604e23e9c2f02835cf32dd6ff1d5e561a9d6f1197b15338"
+  version: "2.4.1"
+  digest: "sha256:2836b71bae7eeb01999bb1550542a6d1a9d6394ca70ddf3f26b3237805a3b54c"
 
 - name: wearefrank/frank-gateway
   url: ghcr.io/wearefrank/frank-gateway

@@ -73,8 +73,8 @@ peak load.
 
 ### Other dependencies
 
-- **Keycloak**: OIDC client `zac` in realm `podiumd` (`zac.auth.*`; PKCE not yet
-  supported — `pkceEnabled: false`) plus an admin client `zac-admin-client`
+- **Keycloak**: OIDC client `zac` in realm `podiumd` (`zac.auth.*`; PKCE on
+  by default — `zac.auth.enablePkce: true`) plus an admin client `zac-admin-client`
   (`zac.keycloak.adminClient.*`) for reading users/groups.
 - **Open Zaak (ZGW APIs)**: `zac.zgwApis.url`/`urlExtern` with client id `zac` +
   secret registered in the Open Zaak Autorisaties API.

@@ -30,7 +30,7 @@ Settings that are already at a secure default are logged for audit purposes but 
 | `xRobotsTag` | `none` | ✅ Configured |
 | `xFrameOptions` | `SAMEORIGIN` | ✅ Configured |
 | `contentSecurityPolicy` | `frame-src 'self'; frame-ancestors 'self'; object-src 'none';` | ✅ Configured |
-| `xXSSProtection` | `1; mode=block` | ✅ Configured |
+| `xXSSProtection` | empty (no header) | ✅ Configured (was `1; mode=block`) |
 | `strictTransportSecurity` | `max-age=31536000; includeSubDomains` | ✅ Configured (was empty) |
 
 **`xContentTypeOptions: nosniff`**
@@ -186,17 +186,10 @@ Settings that are already at a secure default are logged for audit purposes but 
 
 ### Offline Session Max Lifespan
 
-| Setting | Current value | Keycloak default | Status |
-|---------|--------------|-----------------|--------|
-| `offlineSessionMaxLifespanEnabled` | `true` | `false` | ✅ Configured (was false) |
-| `offlineSessionMaxLifespan` | `7776000` s (90 d) | `5184000` s (60 d) | ✅ Configured |
-| `offlineSessionIdleTimeout` | `2592000` s (30 d) | `2592000` s | ✅ Default |
-
-**`offlineSessionMaxLifespanEnabled: true` / `offlineSessionMaxLifespan: 7776000`** ← changed from disabled
-
-- **Standard:** **RFC 9700** (OAuth 2.0 Security BCP) §2.2.2 — refresh tokens must be bounded by maximum lifetime; **Forum / OAuth NL GOV**; BIO 2.0 / ISO 27002:2022 maatregel **8.5**; **OWASP ASVS 4.0 V3.3.4**
-- **Why:** Without a maximum lifespan, offline sessions (used by native/mobile apps and persistent refresh tokens) never expire by absolute age — only by idle timeout. If a refresh token is stolen and used before the idle timeout resets, it can be kept alive indefinitely. Bounding lifetime to 90 days limits the maximum exposure window.
-- **Implementation:** `keycloak-master-realm-config.yaml` → `offlineSessionMaxLifespanEnabled`, `offlineSessionMaxLifespan`
+Not set by the import (security review IA-06). Offline access is disabled (next
+section), so no client gets an offline session for it to bound. The import no
+longer sets `offlineSessionMaxLifespanEnabled` or `offlineSessionMaxLifespan`;
+a realm created by an earlier chart version keeps its 90-day value.
 
 ### Offline Access Disabled
 
@@ -236,7 +229,7 @@ The podiumd realm exclusively serves beheer (management) users and municipality 
 | `xRobotsTag` | `none` | ✅ Configured |
 | `xFrameOptions` | `SAMEORIGIN` | ✅ Configured |
 | `contentSecurityPolicy` | `frame-src 'self'; frame-ancestors 'self'; object-src 'none';` | ✅ Configured |
-| `xXSSProtection` | `1; mode=block` | ✅ Configured |
+| `xXSSProtection` | empty (no header) | ✅ Configured (was `1; mode=block`) |
 | `strictTransportSecurity` | `max-age=31536000; includeSubDomains` | ✅ Configured (was empty) |
 
 **`strictTransportSecurity: max-age=31536000; includeSubDomains`** ← changed from empty
@@ -477,39 +470,31 @@ The podiumd realm exclusively serves beheer (management) users and municipality 
 
 | Setting | Value | Status |
 |---------|-------|--------|
-| `pkceCodeChallengeMethod` per client | `S256` | ⚙️ Available via `pkceEnabled` switch — disabled by default |
+| `pkce.code.challenge.method` per client | `S256` | ⚙️ Available via `pkceEnabled` switch — disabled by default for the Django apps |
+| `pkce.code.challenge.method` on the `kiss`, `ita` and `pabc` clients | `S256` | ✅ Always set since 4.11.0, no switch |
 | `pkce.code.challenge.method` on the `zac` client | `S256` | ✅ Configured by default since 4.10.0 (`zac.auth.enablePkce`) |
 
-**`pkceCodeChallengeMethod: S256`** — available per client, disabled by default
+**`pkce.code.challenge.method: S256`** — available per client; on by default for ZAC, KISS, ITA and PABC, off for the Django apps
 
 - **Standard:** **RFC 9700** (OAuth 2.0 Security BCP) §2.1.1 — PKCE verplicht voor alle clients die authorization code flow gebruiken, ook voor confidential clients; **OWASP ASVS 4.0 V2.10.3**; **Forum / OAuth NL GOV**
 - **Why:** Without PKCE, an attacker who intercepts the authorization code can exchange it for tokens without the client secret. PKCE binds the authorization code to the device that initiated the flow via a cryptographic challenge/verifier pair. S256 (SHA-256 hash of the verifier) is required — plain method is insecure.
 - **History:** PKCE enforcement was deployed on 2026-03-16 and immediately caused HTTP 403 errors on all login pages. The PodiumD applications use `mozilla_django_oidc` which only added PKCE support in v4.0.0 (2024). PKCE enforcement was reverted until all components support and are configured to use PKCE.
-- **Current implementation:** Each Keycloak client except ZAC's has an individual `pkceEnabled` switch in `values.yaml` (default: `false`). Setting it to `true` adds `pkceCodeChallengeMethod: S256` to the client in the realm ConfigMap. ZAC has one switch for both sides, `zac.auth.enablePkce`, default `true` (see below).
+- **Current implementation:** Each Django app's Keycloak client has an individual `pkceEnabled` switch in `values.yaml` (default: `false`). Setting it to `true` adds `pkce.code.challenge.method: S256` to the client in the realm ConfigMap. ZAC has one switch for both sides, `zac.auth.enablePkce`, default `true` (see below). The `kiss`, `ita` and `pabc` clients always get `S256`, without a switch (since 4.11.0).
 - **Enabling PKCE per component requires two aligned steps:**
-  1. Set `<component>.configuration.pkceEnabled: true` (KISS and PABC: `<component>.settings.oidc.pkceEnabled: true`; ITA: `ita.web.oidc.pkceEnabled: true`; ZAC: see below) in your env values file — this configures the Keycloak client.
+  1. Set `<component>.configuration.pkceEnabled: true` (ZAC: see below) in your env values file — this configures the Keycloak client.
   2. For Django apps: the app must also send `code_challenge`. **This is not possible yet** (checked 2026-10-21 on PodiumD 4.10.0). Every Django app has `mozilla_django_oidc` >= 4.0.0 (4.0.1 or 5.0.2), which sends PKCE only while the setting `OIDC_USE_PKCE` is true (`views.py`, `middleware.py`). `mozilla-django-oidc-db` (1.x and 2.x) looks that setting up on the OIDC configuration in the database and has no field for it, so it falls back to the Django settings, where no app sets it and no environment variable maps to it. An `oidc_use_pkce` key in `configuration.data` is therefore not read by the app. Keep `pkceEnabled: false` for the Django apps until upstream adds the setting: with only the Keycloak side on, the login fails (as on 2026-03-16). Since 4.10.0 the render fails when a Django app sets `configuration.pkceEnabled: true` (`templates/keycloak-podiumd-realm-config.yaml`), instead of the login failing after the deploy.
 - **openarchiefbeheer exception:** openarchiefbeheer v1.1.1 does not yet support OIDC; the `pkceEnabled` switch is reserved for future use once OIDC is added.
 - **ZAC (since 4.10.0):** ZAC supports PKCE since 5.4.5 (`enable-pkce` in its `oidc.json`, read from `AUTH_ENABLE_PKCE`). One switch, `zac.auth.enablePkce` (default `true`), sets both `AUTH_ENABLE_PKCE` in ZAC and `pkce.code.challenge.method: S256` on the `zac` client, so the two sides cannot drift apart. The former `zac.auth.pkceEnabled` only set the Keycloak side and now fails the render. See `docs/_UPGRADE_PATHS/4.9.5-to-4.10.0-upgrade.md`, "ZAC: PKCE on by default".
-- **Non-Django apps (KISS, ITA, PABC):** These are frontend/ASP.NET Core apps. Their upstream charts do **not** expose an app-side PKCE toggle — there is no equivalent of `oidc_use_pkce`. Whether PKCE works transparently depends entirely on the OIDC client library version used by the application:
-  - KISS and ITA are JS/Vue frontends — if they use a modern library (`oidc-client-ts` v2+), PKCE is typically used by default for auth code flow and enabling it on the Keycloak client side should be safe.
-  - PABC is an ASP.NET Core app — PKCE in .NET's OpenIdConnect middleware is not configurable via the current `Oidc__*` env vars; enabling `pkceEnabled` on the Keycloak client should only be done after confirming the application's middleware configuration.
-- **Action required:** For Django apps: none possible yet; `mozilla_django_oidc >= 4.0.0` is installed everywhere, but the apps offer no way to turn `OIDC_USE_PKCE` on (step 2). For KISS/ITA/PABC: verify OIDC library PKCE compatibility before enabling. ZAC: on by default since 4.10.0.
+- **Non-Django apps (KISS, ITA, PABC; since 4.11.0):** Keycloak requires `S256` on the `kiss`, `ita` and `pabc` clients; the realm template sets it without a switch. Their upstream charts do **not** expose an app-side PKCE toggle — there is no equivalent of `oidc_use_pkce`; the applications send PKCE themselves; the product partner confirmed the login with PKCE required for all three. There is no opt-out: the former `kiss.settings.oidc.pkceEnabled`, `ita.web.oidc.pkceEnabled` and `pabc.settings.oidc.pkceEnabled` are removed, and the render fails while an environment still sets one (`templates/validations.yaml`). A rollback does not remove `S256` from the clients; only the Keycloak admin console does. See `docs/_UPGRADE_PATHS/4.10.2-to-4.11.0-upgrade.md`, "Reference: PKCE for KISS, ITA and PABC".
+- **Action required:** For Django apps: none possible yet; `mozilla_django_oidc >= 4.0.0` is installed everywhere, but the apps offer no way to turn `OIDC_USE_PKCE` on (step 2). KISS/ITA/PABC: required since 4.11.0. ZAC: on by default since 4.10.0.
 - **Note on redirect URI wildcards:** All clients currently use path-wildcard redirect URIs (`https://app.example.nl/*`). RFC 9700 §4.1.3 recommends exact URI matching. This is accepted because all ingress terminates within the cluster and the NGINX ingress controller is managed and audited separately. Exact URIs will be evaluated per component when application callback paths are stable.
 
 ### Offline Session Max Lifespan
 
-| Setting | Current value | Keycloak default | Status |
-|---------|--------------|-----------------|--------|
-| `offlineSessionMaxLifespanEnabled` | `true` | `false` | ✅ Configured (was false) |
-| `offlineSessionMaxLifespan` | `7776000` s (90 d) | `5184000` s (60 d) | ✅ Configured |
-| `offlineSessionIdleTimeout` | `2592000` s (30 d) | `2592000` s | ✅ Default |
-
-**`offlineSessionMaxLifespanEnabled: true` / `offlineSessionMaxLifespan: 7776000`** ← changed from disabled
-
-- **Standard:** **RFC 9700** §2.2.2; **Forum / OAuth NL GOV**; BIO 2.0 / ISO 27002:2022 maatregel **8.5**; **OWASP ASVS 4.0 V3.3.4**
-- **Why:** Same rationale as master realm. 90-day maximum lifespan is a reasonable absolute bound on offline sessions for internal users.
-- **Implementation:** `keycloak-podiumd-realm-config.yaml` → `offlineSessionMaxLifespanEnabled`, `offlineSessionMaxLifespan`
+Not set by the import (security review IA-06). Offline access is disabled (next
+section), so no client gets an offline session for it to bound. The import no
+longer sets `offlineSessionMaxLifespanEnabled` or `offlineSessionMaxLifespan`;
+a realm created by an earlier chart version keeps its 90-day value.
 
 ### Offline Access Disabled
 
