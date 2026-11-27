@@ -19,11 +19,13 @@ env:
   KUBECONFORM_VERSION: v0.8.0
   KUBE_SCORE_VERSION: 1.20.0
   # The chart job skips exactly these, so the two jobs together run every
-  # step except the CVE steps.
+  # step except the CVE and upgrade steps.
   DOC_STEPS: release-baseline,helm-doc,markdown,upgrade-doc-layout,doc-consistency
   # The CVE steps can take more than an hour; they stay a manual gate before
   # a release (/verify-podiumd without skips).
   CVE_STEPS: cve-scan,cve-diff
+  # Report available upgrades and never fail; nothing for a PR to act on.
+  UPGRADE_STEPS: chart-upgrades,image-upgrades
 
 jobs:
   changes:
@@ -124,4 +126,4 @@ jobs:
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
       - name: verify-podiumd (chart)
-        run: python3 charts/podiumd/bin/verify-podiumd --skip="$DOC_STEPS,$CVE_STEPS"
+        run: python3 charts/podiumd/bin/verify-podiumd --skip="$DOC_STEPS,$CVE_STEPS,$UPGRADE_STEPS"
