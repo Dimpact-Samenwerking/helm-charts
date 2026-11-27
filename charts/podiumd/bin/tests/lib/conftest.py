@@ -13,6 +13,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 import lib.chart.historical_baselines as chart_historical_baselines
 import lib.chart.nested_subchart_identity as chart_nested_subchart_identity
+import lib.chart.paths as chart_paths
 import lib.chart.pull_and_subchart_resolution as chart_pull_and_subchart_resolution
 import lib.chart.registered_paths as chart_registered_paths
 import lib.chart.release_baseline_basics as chart_release_baseline_basics
@@ -63,6 +64,11 @@ def libregistry() -> ModuleType:
 @pytest.fixture(scope="session")
 def libchartvaluestreeprimitives() -> ModuleType:
     return chart_values_tree_primitives
+
+
+@pytest.fixture(scope="session")
+def libchartpaths() -> ModuleType:
+    return chart_paths
 
 
 @pytest.fixture(scope="session")

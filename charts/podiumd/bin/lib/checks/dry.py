@@ -7,6 +7,7 @@ import difflib
 
 from pathlib import Path
 
+from lib.chart.paths import files_under
 from lib.settings import dry_check_high_similarity
 from lib.settings import dry_check_min_lines
 from lib.settings import dry_check_similarity_threshold
@@ -25,7 +26,7 @@ def _significant_template_lines(path: Path) -> list[str]:
 
 def find_similar_template_pairs(templates_dir: Path, similarity_threshold: float, min_significant_lines: int):
     """(ratio, path_a, path_b) for every template pair at or above `similarity_threshold`, highest first."""
-    paths = sorted(path for path in templates_dir.rglob("*.yaml") if path.is_file())
+    paths = files_under(templates_dir, "*.yaml")
     significant = {path: _significant_template_lines(path) for path in paths}
     candidates = [path for path in paths if len(significant[path]) >= min_significant_lines]
 

@@ -8,18 +8,15 @@ import re
 
 from pathlib import Path
 
+from lib.chart.paths import files_under
+
 IMAGE_LINE_RE = re.compile(r"^\s*image:\s*(.+)$")
 HELPER_CALL_RE = re.compile(r'include\s+"podiumd\.image"')
 
 
 def scan_image_references(templates_dir: Path) -> list[tuple[Path, int, str]]:
     """(path, line_no, value) for every templates/*.yaml `image:` line not calling podiumd.image."""
-    return [
-        finding
-        for path in sorted(templates_dir.rglob("*.yaml"))
-        if path.is_file()
-        for finding in _template_violations(path)
-    ]
+    return [finding for path in files_under(templates_dir, "*.yaml") for finding in _template_violations(path)]
 
 
 def _template_violations(path: Path) -> list[tuple[Path, int, str]]:

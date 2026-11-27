@@ -15,6 +15,8 @@ import re
 from collections.abc import Iterator
 from pathlib import Path
 
+from lib.chart.paths import files_under
+
 WORKLOAD_KIND_RE = re.compile(r"^kind:\s*(Deployment|StatefulSet|DaemonSet|Job|CronJob)\s*$", re.MULTILINE)
 NAME_RE = re.compile(r"^\s*name:\s*(.+)$", re.MULTILINE)
 NODE_SELECTOR_RE = re.compile(r"\bnodeSelector\s*:")
@@ -53,9 +55,8 @@ def missing_node_selector(doc: str, define_bodies: dict[str, str]) -> tuple[str,
 
 def template_texts(templates_dir: Path) -> Iterator[tuple[Path, str]]:
     """(path, text) of every templates/**/*.yaml, in path order."""
-    for path in sorted(templates_dir.rglob("*.yaml")):
-        if path.is_file():
-            yield path, path.read_text(encoding="utf-8")
+    for path in files_under(templates_dir, "*.yaml"):
+        yield path, path.read_text(encoding="utf-8")
 
 
 def scan_missing_node_selector(templates_dir: Path) -> list[tuple[Path, str, str]]:

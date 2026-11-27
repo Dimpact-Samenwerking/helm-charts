@@ -13,6 +13,7 @@ import shutil
 
 from pathlib import Path
 
+from lib.chart.paths import files_under
 from lib.chart.release_baseline_basics import chart_version
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.chart.release_baseline_basics import upgrade_docs_side_paths as read_upgrade_docs_side_paths
@@ -64,7 +65,7 @@ def find_markdown_files(chart_dir: Path):
             return True
         return _is_upgrade_doc_in_scope(path.name, current_target, current_baseline, current_baselines)
 
-    return sorted(markdown_path for markdown_path in chart_dir.rglob("*.md") if in_scope(markdown_path))
+    return [markdown_path for markdown_path in files_under(chart_dir, "*.md") if in_scope(markdown_path)]
 
 
 def _is_upgrade_doc_in_scope(
